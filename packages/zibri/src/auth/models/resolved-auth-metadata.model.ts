@@ -5,12 +5,11 @@ import { Require2faMetadata } from './require-2fa-metadata.model';
 import { type Permission } from '../roles/permission.type';
 import { type PlatformPermission } from '../roles/platform-permission.type';
 
+// Resolving them costs nothing but is not free of side effects - the resolvers are where the
+// "Useless @Auth.x.skip" warnings come from - so whoever asks for them passes them on rather than
+// having every consumer resolve its own set.
 /**
  * What the \@Auth decorators of a route and its controller resolve to, with the skips already applied.
- *
- * Resolving them costs nothing but is not free of side effects - the resolvers are where the
- * "Useless @Auth.x.skip" warnings come from - so whoever asks for them passes them on rather than
- * having every consumer resolve its own set.
  */
 export type ResolvedAuthMetadata = {
     /**

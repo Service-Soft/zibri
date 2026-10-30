@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
+import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
 import { Repository } from '../../data-source/repository/repository';
@@ -12,7 +12,6 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
@@ -76,7 +75,7 @@ class EvalSqlShipment extends BaseEntity {
 
 @DataSource()
 class EvalSqlDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',

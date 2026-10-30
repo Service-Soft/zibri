@@ -124,12 +124,25 @@ Fix direction belongs with §S11 (resubscribe with backoff inside `subscribe`, s
 
 **Verify:** in-memory server, route with `@Body(X, { required: false })`, `fetch(url, { method: 'POST' })` with no headers: expect 200; today 415.
 
+> **Closed 2026-10-27.** `Parser.parseBody` hands back `undefined` for a http request that names no content type
+> and carries nothing (`hasContent`: no `Transfer-Encoding`, and no `Content-Length` or `0`, RFC 9112 §6.3), and
+> `validateBody` decides by `required`. Something on the wire without a type is still 415. fetch sends
+> `Content-Length: 0` for a bodyless POST, which the first version of the check missed. Test: a case in
+> `one-of-bodies-and-params.test.ts` (red first: 415).
+
 ### H6. A file is always an attachment, and a non-ASCII filename reaches the user percent-encoded — MINOR
 *Filed 2026-10-21.*
 
 `packages/zibri/src/routing/router.ts:1013-1015` writes `Content-Disposition: attachment; filename="${encodeURIComponent(result.filename)}"`. Browsers do not percent-decode the plain `filename` parameter, so `Rechnung März.pdf` is saved as `Rechnung%20M%C3%A4rz.pdf`; RFC 6266 puts the encoded form in `filename*=UTF-8''...` beside an ASCII `filename`. And `FileResponse` has no way to say `inline`, so a PDF, an image or a generated report cannot be shown in the browser - every file is a download. Both are what an international deployment meets on the first invoice.
 
 **Verify:** in-memory server returning `FileResponse.fromStream({ filename: 'Rechnung März.pdf', ... })`: assert the header carries `filename*=UTF-8''Rechnung%20M%C3%A4rz.pdf` and an ASCII fallback; today it is `filename="Rechnung%20M%C3%A4rz.pdf"`.
+
+> **Closed 2026-10-27.** `resolveContentDisposition` (`http/content-disposition.function.ts`) writes an ASCII
+> `filename` (accents dropped, the rest `_`, quotes escaped) and, when that differs, `filename*=UTF-8''…` per
+> RFC 8187. `FileResponse` takes `disposition: 'attachment' | 'inline'` (`ContentDisposition`, exported),
+> 'attachment' by default since a file shown is rendered on the application's origin; `creating-endpoints.md`
+> says both. No dependency: express's `content-disposition` is transitive only. Test:
+> `router.file-response.test.ts` (red first).
 
 ### H7. Error bodies carry developer prose — MINOR
 *Filed 2026-10-21.*
@@ -138,12 +151,23 @@ Fix direction belongs with §S11 (resubscribe with backoff inside `subscribe`, s
 
 **Verify:** in-memory server, a body with a relation key and a `GET /nope` with `Accept: application/json`: assert neither body contains `class ` or `Explorer`.
 
+> **Closed 2026-10-27.** `RelationsNotAllowedValidationProblem(key)` says the one sentence; how to take related
+> rows in a body is in `models.md` "Deriving models". `UnmatchedRouteError` names the route only; the scaffold's
+> html error page links the explorer itself. The unit tests of the example generation were replaced by one of the
+> plain message. Test: `router.error-bodies.test.ts` (red first, both cases).
+
 ### H8. The document does not say that an optional property accepts `null` — MINOR
 *Filed 2026-10-21.*
 
 Validation treats `null` like a missing value (`packages/zibri/src/validation/functions/validate-string.function.ts:41`, `== undefined`), and the docs model it that way (`docs/creating-endpoints.md:81-82`, `name?: string | null`). The schema says `type: 'string'` (`packages/zibri/src/open-api/open-api.service.ts:1299-1312`), so a generated client strips or refuses a `null` the server would accept and answer with. OpenAPI 3.1 spells it `type: ['string', 'null']`. Beside it, the `oneOf` schema (`:1159-1175`) declares `discriminator: { propertyName: 'shape' }` over inline schemas without a `mapping`, which the specification only defines for named schemas; generators that honour discriminators ignore or reject it.
 
 **Verify:** unit test over `createOpenApiDefinition`: a `@Property.string({ required: false })` property's schema includes `null` in its type; today it does not.
+
+> **Closed 2026-10-27.** `buildOpenApiSchemaForProperties` adds `null` to the type of every property that is not
+> strictly required (`allowNull`, in requests and responses, `null` added to an `enum` too); a schema of no type
+> with `oneOf`/`anyOf` becomes `anyOf: [schema, { type: 'null' }]`. The discriminator is gone, the `enum` of each
+> shape's name already tells them apart. `open-api.md` says it. Tests: two cases in `open-api.service.test.ts`
+> (red first), three expectations of the old shape updated.
 
 ### H9. An undecorated handler parameter is a 500 on the first call rather than a refusal at boot — MINOR
 *Filed 2026-10-21.*
@@ -152,12 +176,24 @@ Validation treats `null` like a missing value (`packages/zibri/src/validation/fu
 
 **Verify:** in-memory server with a controller whose route method has an undecorated parameter: expect `init()` to throw naming `Controller.method`; today it boots and the route answers 500.
 
+> **Closed 2026-10-27.** `resolveRouteParamMetadata`, which `RouteRegistry.register` runs while the router and
+> the websocket service register a route, compares the declared parameters with the method's `length` and throws
+> naming `Controller.method`. The per-request check and the fields only it read (`controllerClass`,
+> `controllerMethod`, `declaredParamCount`) are gone. All 215 in-memory suites boot (no shipped or test
+> controller had one). Test: `router.undecorated-param.test.ts` (red first: the application started). It
+> replaces `resolve-route-params.function.test.ts`, a postgres suite that asserted the 500 at the first call
+> and was missed by the in-memory sweep; removed 2026-10-28.
+
 ### H10. Preflights are never cached — MINOR
 *Filed 2026-10-21.*
 
 `packages/zibri/src/http/cors.middleware.ts:140-145` answers a preflight with `sendStatus(200)` and no `Access-Control-Max-Age`, and browsers then cache it for five seconds. Every call the framework's own clients make is non-simple (`Authorization`, `x-version`, the csrf header), so a single-page app on another origin pays a round trip per endpoint every five seconds. One header with a configurable value closes it.
 
 **Verify:** the cors suite: a preflight response carries `Access-Control-Max-Age`.
+
+> **Closed 2026-10-27.** `CorsOptions.preflightMaxAgeInMs`, two hours by default (Chromium's cap), sent as
+> `Access-Control-Max-Age` in seconds on a preflight only; `app-settings.md` "Preflights". The cors suite booted
+> postgres for headers alone and runs in memory now. Test: a case in `cors.middleware.test.ts` (red first).
 
 ### H11. No cache directive on authenticated responses, and a served file says `public` — MINOR
 *Filed 2026-10-21.*
@@ -166,12 +202,32 @@ A json result is written with `res.type().send()` (`router.ts:975`) and carries 
 
 **Verify:** in-memory server, an `@Auth.isLoggedIn()` json route and a `FileResponse.fromPath` route: assert `Cache-Control` is `no-store` (or at least `private`) on both; today the first has none and the second says `public`.
 
+> **Closed 2026-10-27.** `Router.writeCacheControl` sets `no-store` before the result is written when the request
+> found out who sent it and the route set no `cache-control` itself (a `JsonResponse` header still overrides
+> it). Decided through the new `AuthServiceInterface.resolveIsCallerIdentified`, which reads the per-request
+> principal memo every check and `getCurrentUser` go through, so a public route stays cacheable and nothing
+> is resolved for it. The context tokens were not enough: the access check never reads them. `sendFile` runs
+> with `cacheControl: false`. `app-settings.md` "Security headers". Test: `router.cache-control.test.ts`
+> (red first: none on the logged-in routes, `public, max-age=0` on the file).
+>
+> *Follow-up the same day:* `static-assets.evaluation.test.ts` ("answers the favicon the same way")
+> went red with it: the framework's `/favicon.ico` route lost the `public, max-age=0` the static
+> middleware gives every other public asset. The route sets it itself now (`AssetService`), which is
+> the route saying how its file is cached, as the closure intends.
+
 ### H12. A status cannot be chosen at run time, and the streaming the docs mention is undocumented — MINOR
 *Filed 2026-10-21.*
 
 The status comes from the declaration that matches the returned value (`router.ts:938-941`, `:1140-1166`), and `JsonResponse` carries headers only (`packages/zibri/src/http/json-response.model.ts:8-13`), so a `PUT` that answers 201 when it created and 200 when it replaced, or a 202 decided by a queue's state, cannot be written without a second declared class. `docs/creating-endpoints.md:786` and `:826` speak of "a page of server-sent events" and streamed responses, and no page says how a handler produces one - which is by injecting the request context and writing to `context.response` yourself, after which `returnResult` steps aside on `headersSent` (`router.ts:922-924`). A `status` on `JsonResponse` and one documented section would close both.
 
 **Verify:** a docs-example test compiling `JsonResponse.of(body, { status: HttpStatus.CREATED })` and asserting the answer is 201; today the option does not exist.
+
+> **Closed 2026-10-27.** `JsonResponseOptions.status` (and `headers` optional now), passed to `returnResult` as
+> the chosen status ahead of `resolveStatus`. `creating-endpoints.md` shows it under "Answering with headers",
+> and a new "Streaming a response" section shows server-sent events written to `ctx.response`, with the one
+> condition the router puts on it: the headers are out before the handler returns, or it is answered 204.
+> Tests: a case in `json-response.model.test.ts` (red first: neither answered in the status chosen), and
+> `router.streaming.test.ts` running the documented example past a 50 ms handler deadline.
 
 ### H13. A plugin cannot ship websocket controllers, two-factor methods, data sources or backup transports — MINOR
 *Filed 2026-10-21.*
@@ -180,12 +236,43 @@ The status comes from the declaration that matches the returned value (`router.t
 
 **Verify:** a plugin declaring a `websocketControllers` array is a type error today; once added, an in-memory application built from the plugin alone answers the event.
 
+> **Closed 2026-10-27.** `ZibriPlugin` carries every list the options carry: `websocketControllers`,
+> `dataSources`, `twoFactorMethods`, `backupTransports` and `additionalLifecycleServices` beside the six it had,
+> merged in `createFullOptions` like those (a plugin's two factor methods replace the OTP default as its
+> authenticators do the password one). `plugin.md` lists them. Test: `plugin/plugin.model.test.ts`, an
+> application declaring neither the websocket controller nor the data source answers the event over the
+> plugin's own data source (red first: the data source was never registered).
+>
+> Found on the way: a data source that runs migrations (Valkey, in memory, sql under `'migrations'`) and does not
+> declare `MigrationEntity` failed at boot with `NoProviderError` for `Repository<MigrationEntity>@X`, and
+> `data-source.md` said the entity is needed under `'migrations'` only. `resolveMigrationRepository` refuses it
+> naming the data source and the entity, for every reader of the records (boot, key reconciliation, revert,
+> the commands); the Requirements row names data sources without `schemaManagement`. Test:
+> `migration-entity-required.test.ts` (red first).
+
 ### H14. The route record is written where the application runs — MINOR
 *Filed 2026-10-21.*
 
 `VersioningService.afterAppInit` writes `versions/<version>.json` at startup when the version changed (`packages/zibri/src/versioning/versioning.service.ts:96-104`, `:120-128`, `:260-274`), and `docs/deployment.md:115-123` documents that the folder is writable by the running user. The design is deliberate; what it meets in an enterprise is `readOnlyRootFilesystem: true`, which every pod security baseline sets. The documented way out is a writable mount, and a mount is empty: the folder exists, `versionFiles` is empty, `:120-128` records the running version as the first one ever, and every guarantee the history exists for is dropped - silently, which is the exact case the comment at `:81-91` says must stay distinguishable from a missing folder. Recording the snapshot at build time (`zi build`) and only reading it at run time would keep the guarantee under a read-only image.
 
 **Verify:** start an in-memory application with `VERSIONS_PATH` pointing at an empty directory while the code's version is `2.0.0` and a `1.0.0.json` with a route the code no longer has exists elsewhere: the start is accepted; the test records that nothing refuses the empty history.
+
+> **Closed 2026-10-27, as the user decided: never write in production.** `VersioningService.recordVersion`
+> refuses to start a production application whose record does not hold its version as the only latest one,
+> before anything is written, saying to record it in development, commit and rebuild; development records as
+> before. A `zi build` step was the other option, and needs the build to boot the application to list its routes.
+> `deployment.md` ("What the application writes" names `.zibri` only), `versioning.md` and an upgrade-guide
+> entry. Test: `versioning.production.test.ts` (red first: the empty folder was written to).
+>
+> **Followed through to the scaffold 2026-10-29.** `new.command.docker.heavy.test.ts` still built the
+> image from the empty folder `zi new` writes and expected the production container to record the
+> version, so all of it failed at startup. It now does what `deployment.md` says: it starts the image
+> once in development with the project's `versions` mounted, builds again from the recorded folder,
+> and starts production on a fresh database. The read-only case that stops mounts an empty `versions`
+> and expects the refusal instead of `EROFS`. The generated `Dockerfile`, and the sandbox's, no longer
+> hand `versions` to the `node` user, since production only reads it; `deployment.md` says so. Red
+> first: *gives the user running the image only the paths the application writes* in
+> `new.command.test.ts` now expects `/app/.zibri` alone.
 
 ### H15. The html error fallback logs three warnings per request — MINOR
 *Filed 2026-10-21.*
@@ -194,6 +281,11 @@ The status comes from the declaration that matches the returned value (`router.t
 
 **Verify:** in-memory server without the template, a hundred `GET /unknown` with `Accept: text/html`, a recording transport: expect one warn entry, today three hundred.
 
+> **Closed 2026-10-27.** `errorHandler` answers json without a word; the application warns once where it mounts
+> the global error handler, when that is the default one and no template is provided (an application with a
+> handler of its own is not told about a template it does not use). `error-handling.md` says so. Test:
+> `error-handler.html-fallback.test.ts` (red first: twenty requests, twenty of the middle warning alone).
+
 ### H16. The explorer and the document are public by default, permission names included — MINOR
 *Filed 2026-10-21.*
 
@@ -201,12 +293,31 @@ The status comes from the declaration that matches the returned value (`router.t
 
 **Verify:** scaffold test: a generated project's providers set `OPEN_API_AUTH`, or the spec route answers 401 under `defaultAuth: 'requireLogin'` without an override.
 
+> **Closed 2026-10-27, as the user decided: follow `defaultAuth`, with an override independent of it.**
+> `OPEN_API_AUTH` defaults to `{}`, which is the application's default, reversing 02 §M13's `{ skip: true }`;
+> providing it stays the override (`{ skip: true }` opens it). `open-api.md`, `configuration.md` and an
+> upgrade-guide entry. Tests: a describe in `open-api.service.test.ts` (red first: 200 anonymously under
+> `isLoggedIn`; the override answers 200); `default-auth.test.ts` opens the document explicitly now, which its
+> spec cases read anonymously (container suite, not run here). The scaffold and the sandbox provide
+> `{ skip: true }` in every environment, at the user's decision, so a `zi new` project with `isLoggedIn` keeps
+> an explorer a browser can open; a case in `new.command.test.ts`. Missed then and updated 2026-10-28:
+> `manual-routes.evaluation.test.ts` (round 1's 02 §M13) still asserted the public default; its two cases now
+> assert the login by default and the public explorer through `{ skip: true }`.
+
 ### H17. The keep-alive default is the one that produces intermittent 502s behind every common proxy — MINOR
 *Filed 2026-10-21.*
 
 `keepAliveInMs` defaults to five seconds (`zibri-di-providers.default.ts:152`) and the model's own comment (`packages/zibri/src/http/http-server-limits.model.ts:26-33`) says to raise it above the proxy's idle timeout, because a proxy that reuses a connection the server just closed reports a gateway error no log explains. AWS ALB idles at 60 s, nginx at 75 s, GCP at 600 s, so the default is wrong for every deployment the deployment page describes and right for none. A default above the common idle timeouts (AWS's own recommendation is a few seconds above the balancer's), or making it required, turns a documented trap into a non-event.
 
 **Verify:** none needed beyond the default's value; a docs-example test asserting the scaffold's `HTTP_SERVER_LIMITS` sets `keepAliveInMs` above 60 s would hold the decision.
+
+> **Closed 2026-10-27, as the user decided: nginx's 75 seconds.** `keepAliveTimeoutInMs` defaults to 75 s, above
+> AWS ALB's 60 s; `application-lifecycle.md` says what it is (the idle time between two requests on one
+> connection, not how long a request lives) and names GCP's 600 s as one to raise it for. Shutdown is not held
+> up by it: on node 24, which the package requires, `server.close()` closes idle connections. Not tested: that
+> `headersTimeoutInMs` (15 s) leaves an idle keep-alive connection alone, since node checks it every 30 s and a
+> test would wait that long. Test: a case in `http-server-limits.test.ts` reading the started server's
+> `keepAliveTimeout` (red first: 5000).
 
 ### H19. Header names are matched case-sensitively against a map node lowercases, and the docs example hits it — MINOR
 *Filed 2026-10-21. Same class as round-2 05 §I11 (the `Bearer` scheme and the api key header).*
@@ -216,6 +327,14 @@ Node hands every incoming header name over lowercased, and socket.io's `handshak
 The rest of the runtime is clean: content types are lowercased before comparison (`parser.ts:152`), `accept-encoding` and `cache-control: no-transform` are case-insensitive (`compression.middleware.ts:59`, `:46`), `Accept` goes through express's negotiator, and `Sec-Fetch-Site` values are lowercase by specification. One related exactness: a configured CORS origin is compared with `===` (`cors.middleware.ts:165`), and a browser serializes origins lowercase, so `https://App.corp.com` in the options never matches; the `CorsOrigin` type could demand `Lowercase<string>`.
 
 **Verify:** in-memory server with `@Param.header('User-Agent') agent: string` as the docs write it: expect the handler to receive the header; today 400. A second case overriding `VERSION_HEADER` with `'X-Version'` and sending it: expect the version to resolve.
+
+> **Closed 2026-10-27.** `findHeader(headers, name)` (`http/find-header.function.ts`) lowercases the name, and
+> every lookup by a declared or configured name goes through it: header parameters (the parsed value is stored
+> under the lowercased name too, on controller and configuration routes), the content type, `VERSION_HEADER`,
+> the OTP, passkey, code and recovery code headers, `API_KEY_HEADER` (the header half of 05 §I11) and the login
+> ticket header. A configured CORS origin is matched in any spelling and answered as the browser sent it, since
+> the browser compares the two. Tests: `http/header-names.test.ts` (parameter, version header, origin) and a
+> case in `api-key.auth-strategy.test.ts` (`X-Api-Key`), all red first.
 
 ### H20. Building an application adds to the lists of the options it was given — MINOR
 *Filed and closed 2026-10-26, found by 08 §X27's work (06 §F27).*

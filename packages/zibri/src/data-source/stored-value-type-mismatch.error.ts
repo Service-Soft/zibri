@@ -19,16 +19,16 @@ export type MistypedStoredValue = {
     value: string
 };
 
+// raised rather than answered with "no match", because a row that cannot be compared is not a row
+// that failed the comparison: reading it as one would quietly shrink the answer to every filter that
+// touches the property, and the rows left out are exactly the ones worth knowing about
 /**
- * An error for a stored value that is not of the type its property declares.
+ * An error for a stored value that is not of the type its property declares, raised by a filter
+ * that compares it.
  *
  * A declaration can change after rows were written, and the rows written before the change keep the
  * value they were written with - a property that used to be a string and is a number now leaves
  * strings behind.
- *
- * Raised rather than answered with "no match", because a row that cannot be compared is not a row
- * that failed the comparison: reading it as one would quietly shrink the answer to every filter that
- * touches the property, and the rows left out are exactly the ones worth knowing about.
  */
 export class StoredValueTypeMismatchError extends InternalError {
 

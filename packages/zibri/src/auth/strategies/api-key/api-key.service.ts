@@ -32,9 +32,9 @@ import { type UserServiceInterface } from '../../user/user-service.interface';
 import { JwtUtilities } from '../jwt/jwt.utilities';
 
 /**
- * What every api key starts with.
+ * What every api key starts with, unless `API_KEY_OPTIONS` says.
  */
-export const API_KEY_PREFIX: string = 'zibri_';
+export const DEFAULT_API_KEY_PREFIX: string = 'zibri_';
 
 /**
  * What an api key without a secret stores of what it proves itself with.
@@ -93,10 +93,15 @@ export class ApiKeyService implements ApiKeyServiceInterface {
     registerReader(app: ZibriApplication, reader: string): void {
         validateEntitiesRegistered(reader, app, ApiKey);
         this.read = true;
-        for (const [name, value] of Object.entries(inject(ZIBRI_DI_TOKENS.API_KEY_OPTIONS))) {
+        const { prefix, ...durations } = inject(ZIBRI_DI_TOKENS.API_KEY_OPTIONS);
+        for (const [name, value] of Object.entries(durations)) {
             if (value != undefined && (!Number.isInteger(value) || value < 0)) {
                 throw new InternalError(`API_KEY_OPTIONS.${name} must be a whole number of milliseconds, got ${value}.`);
             }
+        }
+        // what a key starts with tells it apart from a jwt, whose characters these never end like
+        if (prefix != undefined && !/^[A-Za-z][\dA-Za-z]*_$/.test(prefix)) {
+            throw new InternalError(`API_KEY_OPTIONS.prefix must be letters and digits ending in _, such as acme_, got ${prefix}.`);
         }
         if (!app.options.cronJobs.includes(ApiKeyCleanupCronJob)) {
             app.options.cronJobs.push(ApiKeyCleanupCronJob);
@@ -112,7 +117,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
         await this.validateApiKey(userId, data);
         // 256 random bits: nothing to guess, and no two keys alike. The prefix tells a key sent as a
         // bearer token apart from a jwt, and lets a secret scanner find one that leaked
-        const key: string = `${API_KEY_PREFIX}${randomBytes(32).toString('base64url')}`;
+        const key: string = `${this.getKeyPrefix()}${randomBytes(32).toString('base64url')}`;
         const apiKey: ApiKey = await this.apiKeyRepository.create(
             {
                 userId,
@@ -227,9 +232,15 @@ export class ApiKeyService implements ApiKeyServiceInterface {
     private resolveOptions(): Required<ApiKeyOptions> {
         const options: ApiKeyOptions = inject(ZIBRI_DI_TOKENS.API_KEY_OPTIONS);
         return {
+            prefix: options.prefix ?? DEFAULT_API_KEY_PREFIX,
             recordUseAfterInMs: options.recordUseAfterInMs ?? Ms.HOUR,
             deleteExpiredAfterInMs: options.deleteExpiredAfterInMs ?? Ms.DAY * 30
         };
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    getKeyPrefix(): string {
+        return this.resolveOptions().prefix;
     }
 
     /**

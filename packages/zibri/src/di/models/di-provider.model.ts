@@ -108,8 +108,8 @@ export type AsyncFactoryDiProvider<T> = BaseDiProvider<T> & {
      * value to register for the token.
      *
      * A connection, a secret read from a vault or a warmed cache is expressible as a provider this
-     * way rather than as a lifecycle hook. Everything injected afterwards gets the value it resolved
-     * to, which is what lets `inject()` stay synchronous.
+     * way. Everything injected afterwards gets the value it resolved to, and `inject()` stays
+     * synchronous.
      *
      * Whatever it needs arrives as an argument, in the order `deps` names it. `inject()` refuses
      * another asynchronous provider inside here, since whether that one has been awaited yet would
@@ -124,7 +124,7 @@ export type AsyncFactoryDiProvider<T> = BaseDiProvider<T> & {
      *
      * The container awaits whatever among them is itself asynchronous, and follows the constructor
      * parameters of whatever is a class - so the order these are registered in never matters, and
-     * two of them needing each other is something it can name rather than something that hangs.
+     * two of them needing each other is an error naming them.
      */
     deps?: DiToken<unknown>[],
     /**

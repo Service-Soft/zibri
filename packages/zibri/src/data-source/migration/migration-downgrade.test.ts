@@ -10,10 +10,9 @@ import { Injectable } from '../../di/decorators/injectable.decorator';
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
 import { SemVerVersion } from '../../utilities/sem-ver.utilities';
+import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-data-source.model';
 import { PostgresPooler } from '../data-sources/postgres/postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../decorators/data-source.decorator';
 import { SchemaManagement } from '../models/schema-management.model';
 import { Repository } from '../repository/repository';
@@ -30,7 +29,7 @@ const journal: string[] = [];
 
 @DataSource()
 class MigrationDowngradeDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',

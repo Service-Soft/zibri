@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { LogCleanupCronJob } from './log-cleanup.cron-job';
 import { LogLevel } from './log-level.enum';
 import { Log } from './log.model';
 import { Logger } from './logger';
@@ -11,6 +10,7 @@ import { defaultTestServerEntities, defaultTestServerRepositories } from '../__t
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../__testing__/wait-until.function';
 import { CronJobEntity, CreateCronJobEntityData } from '../cron/cron-job-entity.model';
+import { ExpiredRowsCleanupCronJob } from '../cron/expired-rows-cleanup.cron-job';
 import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -108,7 +108,7 @@ describe('Logger across tenants', () => {
         }));
 
         // built by hand, because the test server runs no cron jobs
-        const cleanup: LogCleanupCronJob = new LogCleanupCronJob(logs);
+        const cleanup: ExpiredRowsCleanupCronJob = new ExpiredRowsCleanupCronJob(inject(ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE));
         const cronJobRepo: Repository<CronJobEntity, CreateCronJobEntityData> = inject(repositoryTokenFor(CronJobEntity));
         await cleanup.init(inject(ZIBRI_DI_TOKENS.LOGGER), cronJobRepo, async () => await Promise.resolve(true));
         await cleanup.onTick();

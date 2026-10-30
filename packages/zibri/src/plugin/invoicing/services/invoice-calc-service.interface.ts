@@ -27,8 +27,8 @@ export interface InvoiceCalcServiceInterface<Invoice extends BaseInvoice> {
      */
     getItemTotalPriceAfterTax: (item: InvoiceItem, currency: CurrencyCode) => BigNumber | Promise<BigNumber>,
     /**
-     * Gets the total tax for the given item, on its own. The tax of an invoice is taxed per tax group
-     * rather than summed from its items, see getTotalTaxForTaxGroup.
+     * Gets the total tax for the given item, on its own. The tax of an invoice is taxed per tax group,
+     * not summed from its items, see getTotalTaxForTaxGroup.
      * @param item - The item to get the total tax from.
      * @param currency - The currency of its invoice.
      * @returns The total price before tax times tax/100, rounded.

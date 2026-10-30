@@ -26,7 +26,7 @@ export interface TraceSpanInterface {
     /**
      * Records one thing about the work.
      *
-     * An undefined value is ignored rather than written, so a caller can offer what it might know
+     * An undefined value is ignored, so a caller can offer what it might know
      * without checking first.
      */
     recordAttribute: (name: TraceSpanAttributeName, value: TraceSpanAttributeValue | undefined) => void,
@@ -45,8 +45,8 @@ export interface TraceSpanInterface {
     /**
      * Finishes the span, which is when its duration is decided.
      *
-     * Calling it twice is ignored rather than refused - a span ended in a `finally` and again on the
-     * way out of a branch is a mistake that should not take down the work being traced.
+     * Calling it twice is ignored - a span ended in a `finally` and again on the way out of a branch
+     * does not take down the work being traced.
      * @param status - How it ended. Left unset when nothing was decided.
      */
     end: (status?: TraceSpanStatus) => void

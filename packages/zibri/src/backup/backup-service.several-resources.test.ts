@@ -11,6 +11,7 @@ import { BackupEntity } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
 import { BackupResourceInterface } from './backup-resource.interface';
 import { BackupServiceInterface } from './backup-service.interface';
+import { BackupStatus } from './backup-status.enum';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BackupTransport } from './decorators/backup-transport.decorator';
 import { BaseFsBackupTransport } from './transports/fs.backup-transport';
@@ -110,8 +111,6 @@ function getResource(backup: BackupEntity, name: string): BackupResourceEntity {
 
 describe('BackupService — a backup of several resources', () => {
     let server: StartedTestServer | undefined;
-    // kept rather than read back: restoring the in memory store puts its backup rows back the way they
-    // were when the data was taken, which is before this backup was recorded as finished
     let backup: BackupEntity;
 
     beforeAll(async () => {
@@ -148,6 +147,23 @@ describe('BackupService — a backup of several resources', () => {
 
         expect(await getNoteTexts()).toEqual(['backed up']);
         expect(inject(SettingsStore).value).toBe('backed up');
+    }, 15000);
+
+    // found with round 2's 06 §F19: the data source holding the records of the backups restored them
+    // as they were when its data was read - forgetting every backup taken since, and bringing back the
+    // one being taken then as still running, which the queue stored again over its finished archive
+    it('keeps the record of every backup across a restore of the data source holding it', async () => {
+        const backupService: BackupServiceInterface = getBackupService();
+        const later: BackupEntity = await backupService.waitForBackup(await backupService.queueBackup({ name: 'later' }));
+        try {
+            await backupService.restore(backup);
+
+            const records: BackupEntity[] = await inject(repositoryTokenFor(BackupEntity)).findAll({ where: { name: { oneOf: ['several', 'later'] } } });
+            expect(records.map(r => [r.name, r.status]).sort()).toEqual([['later', BackupStatus.COMPLETED], ['several', BackupStatus.COMPLETED]]);
+        }
+        finally {
+            await backupService.delete(later);
+        }
     }, 15000);
 
     it('applies no resource while the archive of another one can still turn out unusable', async () => {
@@ -263,6 +279,6 @@ describe('BackupService — a backup of several resources', () => {
             ]
         });
 
-        expect((await inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE).resolveRetiredKeyUsage()).masterKeys).toEqual([{ keyId: testMasterKey.id, dataKeys: 0, backups: 1 }]);
+        expect((await inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE).resolveRetiredKeyUsage()).masterKeys).toEqual([{ keyId: testMasterKey.id, dataKeys: 0, signingKeys: 0, backups: 1 }]);
     }, 30000);
 });

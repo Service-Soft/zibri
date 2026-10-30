@@ -302,6 +302,7 @@ describe('the electronic invoices, checked by the KoSIT validator', () => {
                     fullName: 'Example Company LLC',
                     email: 'info@example-company.com',
                     phone: '12345 67890123',
+                    timezone: 'Europe/Berlin',
                     address: { street: 'Example street', number: '1b', postcode: '12345', city: 'Example city', countryId: 'DE' },
                     taxNumber: '123/456/78910',
                     vatNumber: 'DE123456789',

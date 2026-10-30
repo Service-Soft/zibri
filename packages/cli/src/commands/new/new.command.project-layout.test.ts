@@ -26,7 +26,8 @@ function findRows(heading: string): string[][] {
     const section: string = PAGE.split('\n## ').find(part => part.startsWith(`${heading}\n`)) ?? '';
     return section.split('\n')
         .filter(line => line.startsWith('| ') && !line.startsWith('| Feature |') && !line.startsWith('| File |'))
-        .map(line => line.split('|').slice(1, -1).map(cell => cell.trim()));
+        .map(line => line.split('|').slice(1, -1)
+            .map(cell => cell.trim()));
 }
 
 /**
@@ -47,7 +48,7 @@ function findTablePaths(): string[] {
  * @returns Whether the page means that file.
  */
 function isNamedBy(named: string, file: string): boolean {
-    return named === file || named.endsWith('/') && file.startsWith(named);
+    return named === file || (named.endsWith('/') && file.startsWith(named));
 }
 
 describe('NewCommand, as the page on the generated project describes it', () => {
@@ -63,7 +64,8 @@ describe('NewCommand, as the page on the generated project describes it', () => 
         const appDir: Path = path.join(workDir, 'api') as Path;
         files = readdirSync(appDir, { recursive: true, withFileTypes: true })
             .filter(entry => entry.isFile())
-            .map(entry => path.relative(appDir, path.join(entry.parentPath, entry.name)).split(path.sep).join('/'));
+            .map(entry => path.relative(appDir, path.join(entry.parentPath, entry.name)).split(path.sep)
+                .join('/'));
     });
 
     afterAll(async () => {

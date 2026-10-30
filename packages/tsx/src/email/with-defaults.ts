@@ -1,5 +1,5 @@
 import { HeadChannel } from './head-channels';
-import { RenderServerRuntime } from '../runtime/server-runtime';
+import { escapeAttribute, RenderServerRuntime } from '../runtime/server-runtime';
 
 /**
  * One document's declared defaults: a global set and per-component sets.
@@ -36,8 +36,10 @@ export function documentDefaults($ssr: RenderServerRuntime): Defaults {
 /**
  * Merges the document's declared default attributes under a component's own props. An `MjAttributes`
  * in the head records the defaults; here they fill in any prop the caller left unset, with a
- * per-component default winning over a global one, and an explicit prop winning over both. Returns
- * the props unchanged when nothing was declared, so components behave identically without it.
+ * per-component default winning over a global one, and an explicit prop winning over both.
+ *
+ * Every string comes back escaped for a double-quoted attribute, which is where each of them is
+ * written.
  *
  * `children` is never read, so a component's lazy children are not forced early.
  * @param $ssr - The render runtime.
@@ -46,12 +48,9 @@ export function documentDefaults($ssr: RenderServerRuntime): Defaults {
  * @returns The props with declared defaults filled in.
  */
 export function withDefaults<T extends object>($ssr: RenderServerRuntime, component: string, props: T): T {
-    const blobs: string[] = $ssr.collected(HeadChannel.attributes);
-    if (blobs.length === 0) {
-        return props;
-    }
-
-    const { all, defaults }: Defaults = documentDefaults($ssr);
+    const { all, defaults }: Defaults = $ssr.collected(HeadChannel.attributes).length === 0
+        ? { all: {}, defaults: {} }
+        : documentDefaults($ssr);
     const forComponent: Record<string, string> = defaults[component] ?? {};
 
     const explicit: Record<string, unknown> = {};
@@ -67,5 +66,11 @@ export function withDefaults<T extends object>($ssr: RenderServerRuntime, compon
         }
     }
 
-    return { ...all, ...forComponent, ...explicit } as T;
+    const merged: Record<string, unknown> = { ...all, ...forComponent, ...explicit };
+    for (const [key, value] of Object.entries(merged)) {
+        if (typeof value === 'string') {
+            merged[key] = escapeAttribute(value);
+        }
+    }
+    return merged as T;
 }

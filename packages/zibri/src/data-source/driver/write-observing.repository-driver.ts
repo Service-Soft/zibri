@@ -134,24 +134,65 @@ export class WriteObservingRepositoryDriver<T extends BaseEntity> extends Forwar
             operation: 'remove',
             data: [],
             transaction,
-            // read first: a remove is handed ids, and what it removes is only on the rows. As what the
-            // observers need of them, since a sweep of expired rows removes a table's worth at once
+            // read first: a remove is handed ids, and what it removes is only on the rows
             readRowWrites: async observers => ids.length
-                ? (await this.inner.find({
-                    where: this.whereIdIn(ids),
-                    select: new Map(['id', ...observers.flatMap(observer => observer.properties)].map(property => [property, true])),
-                    transaction
-                })).map(existing => ({ data: undefined, existing }))
+                ? await this.readRemovedRows(observers, this.whereIdIn(ids), undefined, transaction)
                 : [],
             run: async () => await super.remove(ids, reach, transaction),
-            resolveWritten: (removed, rowWrites) => {
-                const removedIds: Set<string> = new Set(removed);
-                return {
-                    before: this.existingOf(rowWrites).filter(row => removedIds.has(String(Reflect.get(row, 'id')))),
-                    after: []
-                };
-            }
+            resolveWritten: (removed, rowWrites) => this.resolveRemoved(removed, rowWrites)
         });
+    }
+
+    override async removeMatching(
+        where: Where<T> | undefined,
+        related: RelatedNarrowing | undefined,
+        transaction: Transaction | undefined
+    ): Promise<string[]> {
+        return await this.observe({
+            operation: 'remove',
+            data: [],
+            transaction,
+            readRowWrites: async observers => await this.readRemovedRows(observers, where, related, transaction),
+            run: async () => await super.removeMatching(where, related, transaction),
+            resolveWritten: (removed, rowWrites) => this.resolveRemoved(removed, rowWrites)
+        });
+    }
+
+    /**
+     * Reads the rows a removal may remove, as what the observers need of them, since a sweep of
+     * expired rows removes a table's worth at once.
+     * @param observers - The observers of the entity.
+     * @param where - The rows the removal may remove.
+     * @param related - What the rows of each entity the filter reaches through a relation are narrowed to.
+     * @param transaction - The transaction of the removal, if any.
+     * @returns What the removal does to each row.
+     */
+    private async readRemovedRows(
+        observers: EntityWriteObserver[],
+        where: Where<T> | undefined,
+        related: RelatedNarrowing | undefined,
+        transaction: Transaction | undefined
+    ): Promise<RowWrite[]> {
+        return (await this.inner.find({
+            where,
+            related,
+            select: new Map(['id', ...observers.flatMap(observer => observer.properties)].map(property => [property, true])),
+            transaction
+        })).map(existing => ({ data: undefined, existing }));
+    }
+
+    /**
+     * Gets the rows a removal removed, of the ones it read before.
+     * @param removed - The ids of the rows it removed.
+     * @param rowWrites - What it read it does to each row.
+     * @returns The rows as they were, and none after.
+     */
+    private resolveRemoved(removed: string[], rowWrites: RowWrite[]): Pick<WrittenRows, 'before' | 'after'> {
+        const removedIds: Set<string> = new Set(removed);
+        return {
+            before: this.existingOf(rowWrites).filter(row => removedIds.has(String(Reflect.get(row, 'id')))),
+            after: []
+        };
     }
 
     override async updateAll<R extends boolean = false>(options: DriverUpdateAllOptions<T, R>): Promise<R extends true ? T[] : number> {
@@ -222,7 +263,12 @@ export class WriteObservingRepositoryDriver<T extends BaseEntity> extends Forwar
             return await read.rowWrites;
         };
         for (const observer of observers) {
-            await observer.validateWrite?.({ operation: write.operation, data: write.data, resolveRowWrites, transaction: write.transaction });
+            await observer.validateWrite?.({
+                operation: write.operation,
+                data: write.data,
+                resolveRowWrites,
+                transaction: write.transaction
+            });
         }
         const following: EntityWriteObserver[] = observers.filter(observer => observer.handleWritten != undefined);
         if (!following.length) {
@@ -230,7 +276,8 @@ export class WriteObservingRepositoryDriver<T extends BaseEntity> extends Forwar
         }
         const entityWrite: EntityWrite = { operation: write.operation, data: write.data };
         // before the write, which changes them, when one of them follows them or a check read them
-        const rowWrites: RowWrite[] = following.some(observer => observer.followsBefore?.(entityWrite) === true) || read.rowWrites != undefined
+        const rowWrites: RowWrite[] = following.some(observer => observer.followsBefore?.(entityWrite) === true)
+            || read.rowWrites != undefined
             ? await resolveRowWrites()
             : [];
         const result: R = await write.run();

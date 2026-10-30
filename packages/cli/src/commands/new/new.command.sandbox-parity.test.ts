@@ -141,9 +141,10 @@ describe('NewCommand (sandbox parity, without installing)', () => {
         const read: Set<string> = new Set<string>();
         for (const relativePath of AUTHORED_CODE_PATHS) {
             const content: string = await FsUtilities.readFile(path.join(appDir, relativePath) as Path);
-            // every form the scaffold reads one by: the helpers it names a variable through, and
-            // process.env itself for anything reaching past them
-            for (const match of content.matchAll(/(?:process\.env\[|requireEnv\(|requireBooleanEnv\(|requireOneOfEnv\(|optionalEnv\()'([\dA-Z_]+)'/g)) {
+            // every form the scaffold reads one by: the readers of src/env.ts it names a variable
+            // through, whichever kind of value they check, and process.env itself for anything
+            // reaching past them
+            for (const match of content.matchAll(/(?:process\.env\[|\b(?:require\w*Env|optionalEnv)\()'([\dA-Z_]+)'/g)) {
                 read.add(match[1]);
             }
         }

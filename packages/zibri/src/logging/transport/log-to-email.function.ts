@@ -25,8 +25,8 @@ export type EmailLoggerTransportConfigInput = OmitStrict<BaseLoggerTransportConf
          * How many entries one email carries at most.
          *
          * A digest of ten thousand rendered entries is a different denial of service from ten
-         * thousand emails, not an absence of one. What does not fit is counted rather than hidden -
-         * the subject says how many there were.
+         * thousand emails, not an absence of one. What does not fit is counted - the subject says
+         * how many there were.
          * Defaults to 20.
          */
         maxEntriesPerEmail?: number,
@@ -36,7 +36,7 @@ export type EmailLoggerTransportConfigInput = OmitStrict<BaseLoggerTransportConf
          * Without it the volume is bounded by how fast the application can fail, because a drain
          * happens as often as there is anything to drain. With it the volume is bounded by time,
          * which is the only bound an incident cannot outrun. Entries that arrive inside the gap are
-         * counted and reported by the next email rather than dropped silently.
+         * counted and reported by the next email.
          * Defaults to one minute.
          */
         minIntervalInMs?: number

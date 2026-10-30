@@ -12,6 +12,7 @@ import { CacheKeyProvider, CacheSetDirectOptions, CacheTagsProvider, CacheTtlPro
 import { CacheInterface } from './cache.interface';
 import { CacheStoreInterface } from '../store/cache-store.interface';
 import { CachedValue } from '../store/cached-value.model';
+import { FillGuardedCacheStore } from '../store/fill-guarded.cache-store';
 
 /**
  * Shared base class of all caches.
@@ -40,13 +41,21 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
         return this._metrics;
     }
 
+    /**
+     * The store the cache keeps its values in.
+     */
+    readonly store: FillGuardedCacheStore<K, V>;
+
     constructor(
         readonly name: N,
-        readonly store: CacheStoreInterface<K, V>,
+        store: CacheStoreInterface<K, V>,
         readonly tags: 'all' | readonly CacheTagMatcher[],
         readonly defaultTtlInMs?: number | (() => number | Promise<number>),
         readonly onInvalidationFailure?: OnInvalidationFailure
-    ) {}
+    ) {
+        store.attachTo?.(name);
+        this.store = new FillGuardedCacheStore(store);
+    }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     wrapDelete<TReturn, TArgs extends unknown[]>(

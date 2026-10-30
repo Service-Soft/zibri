@@ -13,20 +13,16 @@ import { zibriFrameworkEntities } from '../framework-entities';
  */
 export const defaultClusterTestEntities: Newable<BaseEntity>[] = [...zibriFrameworkEntities, ClusterMark];
 
+// Built once at module load and shared, rather than per call: every call to
+// createPostgresTestDataSource makes a new class, and the parent process and each instance have to
+// agree on how many data sources there are and in which order - that is what the mapped ports are
+// indexed by. Both sides reach this through the same module, so both get the same array.
+// `allowOrphan`, because an instance options module that names its own data sources still imports
+// this one for whatever else it needs, and a data source that is declared and never deployed is
+// refused by name.
 /**
- * The data sources a cluster boots on unless its instance options name their own.
- *
- * Postgres rather than in process, and that is the whole reason a cluster needs a container at all:
- * the instances are separate processes, so the store has to be something outside all of them.
- *
- * Built once at module load and shared, rather than per call: every call to
- * {@link createPostgresTestDataSource} makes a new class, and the parent process and each instance
- * have to agree on how many data sources there are and in which order - that is what the mapped
- * ports are indexed by. Both sides reach this through the same module, so both get the same array.
- *
- * `allowOrphan`, because an instance options module that names its own data sources still imports
- * this one for whatever else it needs, and a data source that is declared and never deployed is
- * refused by name.
+ * The data sources a cluster boots on unless its instance options name their own: Postgres, since
+ * the instances are separate processes and the store has to be something outside all of them.
  */
 export const defaultClusterDataSources: Newable<DataSourceInterface>[] = [
     // needs to be distributed

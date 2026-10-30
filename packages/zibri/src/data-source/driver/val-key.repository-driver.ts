@@ -5,7 +5,7 @@ import type { Batch, GlideClient, GlideReturnType, GlideString, Script } from '@
 import { RelatedRowsReader } from './related-rows-reader.interface';
 import { RelationResolutionUtilities } from './relation-resolution.utilities';
 import { RemovalReach } from './removal-reach.model';
-import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
+import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface, STREAM_BATCH_SIZE } from './repository-driver.interface';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
@@ -30,6 +30,7 @@ import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { PromiseUtilities } from '../../utilities/promise.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
@@ -38,8 +39,10 @@ import { CheckConstraintViolationError } from '../check-constraint-violation.err
 import { scanValKeyKeys } from '../data-sources/val-key/scan-val-key-keys.function';
 import { type ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
 import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function';
+import { ValKeyLockKeyUtilities } from '../data-sources/val-key/val-key-lock-key.utilities';
 import { WhereFilterEvaluator } from '../data-sources/where-converter/where-filter.evaluator';
 import { AggregateRow } from '../models/aggregate.model';
+import { FindAllOptions } from '../models/options/find-all-options.model';
 import { PaginationResult } from '../models/pagination-result.model';
 import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
@@ -49,17 +52,13 @@ import { KeyDeclarationsChangedError } from '../transaction/key-declarations-cha
 import { queueValKeyWrite } from '../transaction/queue-val-key-write.function';
 import { Transaction } from '../transaction/transaction.model';
 import { ValKeyBufferedWrite, ValKeyTransaction } from '../transaction/val-key-transaction.model';
+import { UnboundedReturnError } from '../unbounded-return.error';
 import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
 import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
 import { WriteDataUtilities } from '../write-data.utilities';
 
-/**
- * How many rows a stream reads back at once.
- *
- * The bound on what a stream holds: the ids are read in one go because that is the small half, and
- * the rows behind them - which is what would not fit - are read a batch at a time.
- */
-const STREAM_BATCH_SIZE: number = 500;
+// a stream reads its ids in one go because that is the small half, and the rows behind them, which
+// is what would not fit, STREAM_BATCH_SIZE at a time
 
 /**
  * One property change of an upsert, as the driver reads it back off an `AtomicUpdate`.
@@ -262,7 +261,6 @@ function resolveBuildEntriesScript(): Script {
     buildEntriesScript ??= new (valKeyGlide().Script)(
         'local conflicts = {} '
         + 'for _, row in ipairs(cjson.decode(ARGV[1])) do '
-        // eslint-disable-next-line cspell/spellchecker
         + 'local current = redis.call("hgetall", row[1]) '
         + 'local same = #current == #row[3] '
         + 'if same then '
@@ -283,6 +281,40 @@ function resolveBuildEntriesScript(): Script {
         + 'end return conflicts'
     );
     return buildEntriesScript;
+}
+
+/**
+ * The script reading sets with the rows behind them, once it has been built - on first use, for the
+ * reason the scripts of the data source are.
+ */
+let readSetsWithRowsScript: Script | undefined;
+
+/**
+ * Reads sets, and the rows behind the first ids the sets from a given position on hold, up to a given
+ * number of them.
+ *
+ * Answers the members of every set, the ids it read rows for, and each of those rows as a list of its
+ * fields and values.
+ * @returns The script.
+ */
+function resolveReadSetsWithRowsScript(): Script {
+    readSetsWithRowsScript ??= new (valKeyGlide().Script)(
+        'local sets, ids, seen = {}, {}, {} '
+        + 'for i, key in ipairs(KEYS) do '
+        // eslint-disable-next-line cspell/spellchecker
+        + 'sets[i] = redis.call("smembers", key) '
+        + 'if i > tonumber(ARGV[3]) then for _, id in ipairs(sets[i]) do '
+        + 'if not seen[id] then seen[id] = true table.insert(ids, id) end '
+        + 'end end '
+        + 'end '
+        + 'local read, rows = {}, {} '
+        + 'for i = 1, math.min(#ids, tonumber(ARGV[2])) do '
+        + 'read[i] = ids[i] '
+        + 'rows[i] = redis.call("hgetall", ARGV[1] .. ids[i]) '
+        + 'end '
+        + 'return {sets, read, rows}'
+    );
+    return readSetsWithRowsScript;
 }
 
 /**
@@ -367,12 +399,84 @@ type RowsAskingAlike<T extends BaseEntity> = {
 };
 
 /**
+ * What a save compares the rows it writes against, read in one round trip.
+ */
+type StoredRead = {
+    /**
+     * The stored rows by their id, as the json encoded fields they are stored as.
+     */
+    rows: Map<string, Record<string, string>>,
+    /**
+     * The indexes and uniques the store keeps.
+     */
+    keys: StoredKeys,
+    /**
+     * The rows holding each unique value read along with them, by the key of its index, as stored.
+     * Read only for values the save held before reading them.
+     */
+    holders: Map<string, string[]>
+};
+
+/**
+ * Rows a transaction holds, read once they were held, along with what the save writing them compares
+ * them against.
+ */
+type HeldRows<T extends BaseEntity> = StoredRead & {
+    /**
+     * The rows.
+     */
+    entities: T[]
+};
+
+/**
+ * Rows read in the round trip that read their ids, by their id, as the transaction reading them sees
+ * them. Undefined for an id holding no row.
+ */
+type RowsReadAlong = Map<string, Record<string, string> | undefined>;
+
+/**
+ * Sets read in one round trip, and the rows behind the ids they hold.
+ */
+type SetsWithRows = {
+    /**
+     * The members of each set, in the order of their keys.
+     */
+    members: string[][],
+    /**
+     * The rows behind the ids, or undefined when they were not read along.
+     */
+    rows: RowsReadAlong | undefined
+};
+
+/**
+ * The rows a filter may match, as far as it names them before any of them is judged.
+ */
+type Candidates = {
+    /**
+     * The ids of the rows.
+     */
+    ids: string[],
+    /**
+     * The rows read along with the ids, or undefined when they were not.
+     */
+    rows: RowsReadAlong | undefined
+};
+
+/**
  * How many reads one pipeline carries.
  *
  * Bounded rather than all of them in one, because a pipeline's replies are held until the last one
  * arrives and a read is as large as its caller made it.
  */
 const READS_PER_PIPELINE: number = 1000;
+
+/**
+ * How many rows a find reads in the round trip that reads their ids, at most.
+ *
+ * Bounded because that read is one script, and the server answers nobody else while a script runs.
+ * More rows are read in a round trip of their own, a pipeline at a time.
+ */
+const ROWS_READ_WITH_IDS: number = 1000;
 
 /**
  * How many writes one pipeline carries, for writes that go out without a transaction. Bounded for
@@ -494,6 +598,37 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async save(data: DeepPartial<T>[], transaction: Transaction | undefined, reload: boolean): Promise<T[]> {
+        return await this.saveRows(data, transaction, reload, false);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveDataSourceTime(): Promise<Date> {
+        // filters are judged in this process, so the time they compare by is the server's, as the data
+        // source follows it. Reading it off the server before every call cost a round trip each (02 §S21)
+        return await this.dataSource.resolveServerTime();
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
+        // a save of rows nobody stored knows the unique values they take up before it reads anything,
+        // so it holds those along with the rows and reads who holds them along with the rows as well
+        return await this.saveRows(data, transaction, true, true);
+    }
+
+    /**
+     * Writes the rows, in a transaction of their own when the store keeps a unique.
+     * @param data - The rows to write.
+     * @param transaction - The transaction to write through, when there is one.
+     * @param reload - Whether or not the written rows should be handed back.
+     * @param inserting - Whether the rows are new ones.
+     * @returns The written rows when they were asked for, an empty array otherwise.
+     */
+    private async saveRows(
+        data: DeepPartial<T>[],
+        transaction: Transaction | undefined,
+        reload: boolean,
+        inserting: boolean
+    ): Promise<T[]> {
         // a relation given an empty list saves its children with nothing, and nothing has no write -
         // adding to the id set in particular is refused without a member
         if (!data.length) {
@@ -506,26 +641,31 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         // without one keeps writing directly. What this version declares decides it up front, and the
         // save switches to a transaction once it has read that the store keeps a unique all the same
         if (!this.uniqueGroups.length) {
-            return await this.saveThrough(data, this.toValKeyTransaction(transaction), reload);
+            return await this.saveThrough(data, this.toValKeyTransaction(transaction), reload, undefined, inserting);
         }
-        return await this.inTransaction(transaction, async own => await this.saveThrough(data, own, reload));
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
-        // a save of rows nobody stored reads nothing it would not read for these as well: the stored
-        // row and the keys come back in the one request that also tells it which uniques to hold
-        return await this.save(data, transaction, true);
+        return await this.inTransaction(transaction, async own => await this.saveThrough(data, own, reload, undefined, inserting));
     }
 
     /**
      * Writes the rows, their indexes and their relations.
      * @param data - The rows to write.
      * @param valKeyTransaction - The transaction to write through, when there is one.
-     * @param reload - Whether or not the written rows should be read back.
-     * @returns The written rows when they were reloaded, an empty array otherwise.
+     * @param reload - Whether or not the written rows should be handed back.
+     * @param held - What the transaction read of the rows once it held them, if it did.
+     * @param inserting - Whether the rows are new ones.
+     * @returns The written rows when they were asked for, an empty array otherwise.
      */
-    private async saveThrough(data: DeepPartial<T>[], valKeyTransaction: ValKeyTransaction | undefined, reload: boolean): Promise<T[]> {
+    private async saveThrough(
+        data: DeepPartial<T>[],
+        valKeyTransaction: ValKeyTransaction | undefined,
+        reload: boolean,
+        held?: StoredRead,
+        inserting: boolean = false
+    ): Promise<T[]> {
+        // for the reason a save without rows is: an update or upsert that matched nothing has no write
+        if (!data.length) {
+            return [];
+        }
         // assigned in order, and before anything else: an entity with a numeric primary key takes
         // its id from an INCR. Generating those alongside the writes would let the round trips race,
         // so saving three rows would hand the numbers out in whatever order they came back and the
@@ -537,17 +677,22 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             entriesWithIds.push([entry, entry.id ?? await this.generateId()]);
         }
         const ids: string[] = entriesWithIds.map(([, id]) => id);
+        // worked out once for new rows, before anything is read: the unique values they take up are
+        // held along with them, and a default a function hands out would differ the second time
+        const newFields: Map<string, Record<string, string>> = new Map(
+            inserting ? entriesWithIds.map(([entry, id]) => [id, this.toFields(entry, true)]) : []
+        );
 
-        // held before the stored rows are read rather than as each is written: what a row holds
-        // decides which unique values it gives up, and reading it before that would let another writer
-        // change it in between. One claim for every row, rather than one per write
-        await valKeyTransaction?.claimKeys(ids.map(id => this.rowKey(id)));
-        // with the list of what the store keeps, in the same round trip
-        const [existingRows, keys]: [Map<string, Record<string, string>>, StoredKeys] = await this.readRowsAndKeys(ids, valKeyTransaction);
+        const { rows: existingRows, keys, holders }: StoredRead = await this.readStoredForSave(
+            ids,
+            valKeyTransaction,
+            held,
+            this.resolveTakenUniqueKeys(newFields, valKeyTransaction)
+        );
         if (valKeyTransaction == undefined && keys.uniques.length) {
             // this version declares nothing unique, and the store enforces something all the same -
             // what a newer version declares. Saved the way that version saves, holding the rows first
-            return await this.inTransaction(undefined, async own => await this.saveThrough(data, own, reload));
+            return await this.inTransaction(undefined, async own => await this.saveThrough(data, own, reload, undefined, inserting));
         }
 
         // the entries are independent once they have their ids: each writes its own row key and its
@@ -559,7 +704,9 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         const writes: ValKeyBufferedWrite[] = [];
         const fieldsById: Map<string, Record<string, string>> = new Map();
         for (const [entry, id] of entriesWithIds) {
-            const fields: Record<string, string> = this.toFields(entry, !existingRows.has(id));
+            const fields: Record<string, string> = existingRows.has(id)
+                ? this.toFields(entry, false)
+                : newFields.get(id) ?? this.toFields(entry, true);
             fieldsById.set(id, fields);
             writes.push({ type: 'hashSet', key: this.rowKey(id), values: { ...fields, id: JsonUtilities.stringify(id) } });
         }
@@ -576,7 +723,12 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         // an update carries only some properties, so what a row ends up holding is the stored row
         // with the write applied over it
         const changes: StoredRowChange[] = written.map(w => ({ id: w.id, before: w.existing, after: { ...w.existing, ...w.fields } }));
-        await this.saveWithKeys(writes, changes, keys, valKeyTransaction);
+        if (!await this.saveWithKeys(writes, changes, keys, valKeyTransaction, holders)) {
+            // a transaction holds one of the rows, so the save waits for it in a transaction of its own
+            // and reads the rows again once it has them: what it read here may be gone by then. Nothing
+            // was written, so a row the call gave no id takes a new one
+            return await this.inTransaction(undefined, async own => await this.saveThrough(data, own, reload, undefined, inserting));
+        }
 
         if (!reload) {
             return [];
@@ -586,7 +738,72 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         const relationsById: Map<string, RelationTree> = new Map(
             entriesWithIds.map(([entry, id]) => [id, this.providedKeyRelations(entry)])
         );
-        return await this.findByIds(ids, { transaction: valKeyTransaction }, valKeyTransaction, relationsById);
+        // as the write left them rather than read back: in a transaction the rows are held, so reading
+        // them again answers exactly this, and a save without one hands back its own write, as a
+        // statement returning its rows does
+        const writtenRows: Map<string, Record<string, string>> = new Map(
+            changes.map(c => [c.id, { ...c.after, id: JsonUtilities.stringify(c.id) }])
+        );
+        return await this.resolveEntitiesOf(ids, writtenRows, { transaction: valKeyTransaction }, valKeyTransaction, relationsById);
+    }
+
+    /**
+     * Reads what a save compares the rows it writes against.
+     * @param ids - The ids of the rows the save writes.
+     * @param valKeyTransaction - The transaction the save writes through, when there is one.
+     * @param held - What the transaction read of rows it already holds, if it did.
+     * @param uniqueKeys - The keys of the unique values the rows are known to take up before anything
+     * is read, which are held along with the rows and read with them.
+     * @returns The stored rows, the indexes and uniques the store keeps, and who holds those values.
+     */
+    private async readStoredForSave(
+        ids: string[],
+        valKeyTransaction: ValKeyTransaction | undefined,
+        held: StoredRead | undefined,
+        uniqueKeys: string[]
+    ): Promise<StoredRead> {
+        // read once the transaction held every one of them, and nobody else writes a held row
+        if (valKeyTransaction != undefined && held != undefined && ids.every(id => held.rows.has(id))) {
+            return held;
+        }
+        // held before the stored rows are read rather than as each is written: what a row holds
+        // decides which unique values it gives up, and reading it before that would let another writer
+        // change it in between. One claim for every row and every value known to be taken up, rather
+        // than one per write
+        await valKeyTransaction?.claimKeys([...ids.map(id => this.rowKey(id)), ...uniqueKeys]);
+        // with the list of what the store keeps and who holds those values, in the same round trip
+        return await this.readRowsAlongside(ids, valKeyTransaction, true, uniqueKeys);
+    }
+
+    /**
+     * Works out which unique values new rows take up under what this version declares, for holding
+     * them before anything is read.
+     *
+     * What the store keeps can differ from that, which the save finds once it has read the list: it
+     * holds and reads the values this left out then, as it does for the rows of every other save.
+     * @param newFields - The new rows by their id, as the fields they are written with.
+     * @param valKeyTransaction - The transaction the save writes through. Without one nothing is held.
+     * @returns The keys of their indexes.
+     */
+    private resolveTakenUniqueKeys(
+        newFields: Map<string, Record<string, string>>,
+        valKeyTransaction: ValKeyTransaction | undefined
+    ): string[] {
+        if (valKeyTransaction == undefined) {
+            return [];
+        }
+        const keys: Set<string> = new Set();
+        for (const fields of newFields.values()) {
+            for (const group of this.uniqueGroups) {
+                const values: string | undefined = this.coveredBy(group, fields)
+                    ? this.uniqueValuesOf(group.properties, fields)
+                    : undefined;
+                if (values != undefined) {
+                    keys.add(this.uniqueKey(group, values));
+                }
+            }
+        }
+        return [...keys];
     }
 
     /**
@@ -634,6 +851,9 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * @param changes - The rows as they were stored and as they are stored now.
      * @param keys - The indexes and uniques the store keeps, as the save read them.
      * @param transaction - The transaction to write through, when there is one.
+     * @param holders - Who holds the unique values the save already held and read, by their key.
+     * @returns True when the writes are applied or buffered, false when a save without a transaction
+     * wrote nothing because a transaction holds one of its rows.
      * @throws When another row already holds the values one of the uniques names.
      * @throws CheckConstraintViolationError when a row breaks a check the store keeps.
      * @throws KeyDeclarationsChangedError when the list kept changing under a save without a transaction.
@@ -642,15 +862,16 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         writes: ValKeyBufferedWrite[],
         changes: StoredRowChange[],
         keys: StoredKeys,
-        transaction: ValKeyTransaction | undefined
-    ): Promise<void> {
+        transaction: ValKeyTransaction | undefined,
+        holders: Map<string, string[]> = new Map()
+    ): Promise<boolean> {
         if (transaction) {
             // before anything is written; the guard below refuses the commit should the list change
             this.validateChecks(changes, keys.checks);
             transaction.guardKey(this.keysKey(), keys.stored);
             await this.writeAll([...writes, ...this.resolveIndexWrites(changes, keys.indexes)], transaction);
-            await this.saveUniqueIndexes(changes, keys.uniques, transaction);
-            return;
+            await this.saveUniqueIndexes(changes, keys.uniques, transaction, holders);
+            return true;
         }
         let current: StoredKeys = keys;
         for (let attempt: number = 1; attempt <= KEY_CHANGE_ATTEMPTS; attempt++) {
@@ -659,12 +880,16 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
                 await this.inTransaction(undefined, async own => {
                     await this.saveWithKeys(writes, changes, await this.readStoredKeys(), own);
                 });
-                return;
+                return true;
             }
             // judged by the list each attempt is applied against, so a check listed meanwhile holds
             this.validateChecks(changes, current.checks);
-            if (await this.writeGuarded([...writes, ...this.resolveIndexWrites(changes, current.indexes)], current)) {
-                return;
+            const guarded: ValKeyBufferedWrite[] = [...writes, ...this.resolveIndexWrites(changes, current.indexes)];
+            if (await this.writeGuarded(guarded, current)) {
+                return true;
+            }
+            if (await this.isHeldByTransaction(guarded)) {
+                return false;
             }
             current = await this.readStoredKeys();
         }
@@ -694,19 +919,33 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     // eslint-disable-next-line jsdoc/require-jsdoc
     async find(options: DriverFindOptions<T>): Promise<T[]> {
         const valKeyTransaction: ValKeyTransaction | undefined = this.toValKeyTransaction(options.transaction);
-        // a filter that pins the id, everything a unique declaration names, or everything a complete
-        // index names, can read the rows directly instead of going through every entity
-        const ids: string[] = this.idsFromFilter(options.where)
-            ?? await this.idsFromUniqueFilter(options.where, valKeyTransaction)
-            ?? await this.idsFromIndexFilter(options.where, valKeyTransaction)
-            ?? await this.readIds(valKeyTransaction);
+        const candidates: Candidates = await this.resolveCandidates(options.where, valKeyTransaction, ROWS_READ_WITH_IDS);
+        return await this.findAmong(candidates, options, valKeyTransaction);
+    }
+
+    /**
+     * Finds the rows among the candidates that a filter matches, in its order, within its window.
+     * @param candidates - The rows the filter may match.
+     * @param options - The find options.
+     * @param valKeyTransaction - The transaction to read through, when there is one.
+     * @param keepsFilterRelations - Whether the relations read only for the filter and the order stay
+     * on the rows, for a caller that filters them again.
+     * @returns The rows.
+     */
+    private async findAmong(
+        candidates: Candidates,
+        options: DriverFindOptions<T>,
+        valKeyTransaction: ValKeyTransaction | undefined,
+        keepsFilterRelations: boolean = false
+    ): Promise<T[]> {
         // only what the filter and the order cannot be answered without is read for every row; the
         // rest waits for the rows that are handed back. Reading every relation of every row first
         // read the relations of the whole table for a filter that named none of them
         const resolved: RelationTree = this.relationsToResolve(options);
         const forReading: Set<string> = new Set(this.relationsForReading(options).keys());
-        const entities: T[] = await this.findByIds(
-            ids,
+        const entities: T[] = await this.resolveEntitiesOf(
+            candidates.ids,
+            await this.readCandidateRows(candidates.ids, candidates.rows, valKeyTransaction),
             { ...options, relations: new Map([...resolved].filter(([key]) => forReading.has(key))) },
             valKeyTransaction
         );
@@ -726,8 +965,27 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         );
         // after the window rather than before it, so that nothing is taken off a row that is about to
         // be thrown away
-        EntityRelationsUtilities.keepOnlyRequested(window, resolved, EntityRelationsUtilities.resolveTree(options.relations));
+        if (!keepsFilterRelations) {
+            EntityRelationsUtilities.keepOnlyRequested(window, resolved, EntityRelationsUtilities.resolveTree(options.relations));
+        }
         return window;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveRelations(
+        entities: T[],
+        relations: FindAllOptions<T>['relations'],
+        related: RelatedNarrowing | undefined,
+        transaction: Transaction | undefined
+    ): Promise<T[]> {
+        // on the rows as they are held, so only the rows of the relations are read
+        await this.resolveRelationsOf(
+            entities,
+            EntityRelationsUtilities.resolveTree(relations),
+            related,
+            this.toValKeyTransaction(transaction)
+        );
+        return entities;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -742,23 +1000,35 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         // a reader sees - so the closest a page and a total can get to describing one moment is to
         // be taken from the same set of rows. It is also the cheaper of the two: a filtered `count`
         // here is a whole second `find`, and the window was being applied to a set this already had.
-        const counted: T[] = await this.find({
+        const counting: DriverFindOptions<T> = {
             ...options,
             where: options.totalWhere ?? options.where,
             offset: undefined,
             limit: undefined
-        });
+        };
+        const valKeyTransaction: ValKeyTransaction | undefined = this.toValKeyTransaction(options.transaction);
+        const counted: T[] = await this.findAmong(
+            await this.resolveCandidates(counting.where, valKeyTransaction, ROWS_READ_WITH_IDS),
+            counting,
+            valKeyTransaction,
+            true
+        );
         // the window is a narrowing of what was just counted, so it is taken out of that rather than
-        // read again - which is what keeps the two halves describing the same moment
+        // read again - which is what keeps the two halves describing the same moment. The relations a
+        // filter reaches through are still on the rows here: taken off, a filter through one of them
+        // judged every row by a relation that was not there
         const matching: T[] = options.totalWhere == undefined || options.where == undefined
             ? counted
             : counted.filter(e => this.evaluator.matches(e, options.where as Where<T>, this.entityClass));
 
         const offset: number = options.offset ?? 0;
-        return {
-            items: options.limit == undefined ? matching.slice(offset) : matching.slice(offset, offset + options.limit),
-            totalAmount: counted.length
-        };
+        const window: T[] = options.limit == undefined ? matching.slice(offset) : matching.slice(offset, offset + options.limit);
+        EntityRelationsUtilities.keepOnlyRequested(
+            window,
+            this.relationsToResolve(counting),
+            EntityRelationsUtilities.resolveTree(options.relations)
+        );
+        return { items: window, totalAmount: counted.length };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -767,24 +1037,41 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         // the ids, then the rows a page at a time. There is no cursor to hold here and nothing to
         // gain from one: valkey answers a filter in this process anyway, so what a stream saves is
         // holding every *row* at once, and the id set is the small half. It is read once, so which
-        // rows the stream covers is decided when it starts - the same thing a cursor decides.
-        const candidates: string[] = this.idsFromFilter(options.where)
-            ?? await this.idsFromUniqueFilter(options.where, valKeyTransaction)
-            ?? await this.idsFromIndexFilter(options.where, valKeyTransaction)
-            ?? await this.readIds(valKeyTransaction);
-        // an order reads the rows twice: once for what it compares, once to hand them out
-        const ids: string[] = options.order == undefined ? candidates : await this.resolveIdsInOrder(candidates, options, valKeyTransaction);
+        // rows the stream covers is decided when it starts - the same thing a cursor decides. As many
+        // rows as a batch holds are read along with the ids
+        const candidates: Candidates = await this.resolveCandidates(options.where, valKeyTransaction, STREAM_BATCH_SIZE);
+        // as few rows as one batch holds are read once, ordered, and handed out
+        if (candidates.ids.length <= STREAM_BATCH_SIZE) {
+            yield* await this.findAmong(candidates, options, valKeyTransaction);
+            return;
+        }
+        // more are read twice in an order: once for what it compares, once to hand them out a batch
+        // at a time, so that no more than a batch of them is held at once. The rows read along with
+        // the ids are the first batch of the first read
+        const ids: string[] = options.order == undefined
+            ? candidates.ids
+            : await this.resolveIdsInOrder(candidates, options, valKeyTransaction);
+        const readAlong: RowsReadAlong | undefined = options.order == undefined ? candidates.rows : undefined;
         // without the order, which is decided already, so no row carries a relation it was only ordered by
         const reading: DriverStreamOptions<T> = { ...options, order: undefined };
+        const where: Where<T> | undefined = options.where;
 
         for (let i: number = 0; i < ids.length; i += STREAM_BATCH_SIZE) {
-            const entities: T[] = await this.findByIds(ids.slice(i, i + STREAM_BATCH_SIZE), reading, valKeyTransaction);
-            for (const entity of entities) {
-                if (options.where && !this.evaluator.matches(entity, options.where, this.entityClass)) {
-                    continue;
-                }
-                yield entity;
-            }
+            const batch: string[] = ids.slice(i, i + STREAM_BATCH_SIZE);
+            const entities: T[] = await this.resolveEntitiesOf(
+                batch,
+                await this.readCandidateRows(batch, readAlong, valKeyTransaction),
+                reading,
+                valKeyTransaction
+            );
+            const matching: T[] = where ? entities.filter(e => this.evaluator.matches(e, where, this.entityClass)) : entities;
+            // nor one it was only filtered by, as a find hands its rows back
+            EntityRelationsUtilities.keepOnlyRequested(
+                matching,
+                this.relationsToResolve(reading),
+                EntityRelationsUtilities.resolveTree(options.relations)
+            );
+            yield* matching;
         }
     }
 
@@ -830,16 +1117,16 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         // held from the read to the write, as updateAll holds them, and written in the one request a
         // save sends whatever each row gives
         return await this.inTransaction(transaction, async valKeyTransaction => {
-            const matched: Map<string, T> = new Map(
-                (await this.holdRowsMatching(where, related, valKeyTransaction)).map(m => [String(m.id), m])
-            );
-            return await this.save(
+            const held: HeldRows<T> = await this.holdRowsMatching(where, related, valKeyTransaction);
+            const matched: Map<string, T> = new Map(held.entities.map(m => [String(m.id), m]));
+            return await this.saveThrough(
                 rows.flatMap(r => {
                     const stored: T | undefined = matched.get(String(r.id));
                     return stored == undefined ? [] : [WriteDataUtilities.resolveMerged(r, stored, this.entityClass)];
                 }),
                 valKeyTransaction,
-                true
+                true,
+                held
             );
         });
     }
@@ -854,11 +1141,16 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         options: DriverUpdateAllOptions<T, R>,
         valKeyTransaction: ValKeyTransaction
     ): Promise<R extends true ? T[] : number> {
-        const { where, data, increments, related, returnUpdated }: DriverUpdateAllOptions<T, R> = options;
+        const { where, data, increments, related, returnUpdated, returnAtMost }: DriverUpdateAllOptions<T, R> = options;
 
-        const matched: T[] = await this.holdRowsMatching(where, related, valKeyTransaction);
+        const held: HeldRows<T> = await this.holdRowsMatching(where, related, valKeyTransaction);
+        const matched: T[] = held.entities;
         if (!matched.length) {
             return (returnUpdated === true ? [] : 0) as R extends true ? T[] : number;
+        }
+        // judged on the rows read to hold them, which is the count: answering the filter reads them
+        if (returnAtMost != undefined && matched.length > returnAtMost) {
+            throw new UnboundedReturnError(this.entityClass.name, returnAtMost);
         }
 
         // the write is what knows which rows it wrote, so it is what hands them back. Reading them
@@ -868,13 +1160,14 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         // were *not* touched
         // merged into what each row holds as it is read once held, so nothing writes it in between -
         // which is also what makes an amount added here land on top of any other writer's
-        const updated: T[] = await this.save(
+        const updated: T[] = await this.saveThrough(
             matched.map(m => ({
                 ...WriteDataUtilities.resolveIncremented(WriteDataUtilities.resolveMerged(data, m, this.entityClass), m, increments),
                 id: m.id
             })),
             valKeyTransaction,
-            returnUpdated === true
+            returnUpdated === true,
+            held
         );
         return (returnUpdated === true ? updated : matched.length) as R extends true ? T[] : number;
     }
@@ -884,13 +1177,14 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * @param where - The filter selecting the rows.
      * @param related - What the rows of each entity the filter reaches through a relation are narrowed to.
      * @param valKeyTransaction - The transaction the rows are held in.
-     * @returns The rows, as they are now that nobody else can write them.
+     * @returns The rows, as they are now that nobody else can write them, and what a save of them
+     * compares them against.
      */
     private async holdRowsMatching(
         where: Where<T> | undefined,
         related: RelatedNarrowing | undefined,
         valKeyTransaction: ValKeyTransaction
-    ): Promise<T[]> {
+    ): Promise<HeldRows<T>> {
         // an id is the one thing a filter can say that a write cannot make untrue: a row either
         // exists or it does not, and the id of one never changes. So the rows it names can be held
         // straight away and read once, where a filter saying anything else has to be evaluated
@@ -898,23 +1192,50 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         const named: string[] | undefined = this.idsNamedBy(where);
         if (named) {
             await this.claimRows(named, valKeyTransaction);
-            return await this.findByIds(named, { transaction: valKeyTransaction }, valKeyTransaction);
+            return await this.readHeldRows(named, { transaction: valKeyTransaction }, valKeyTransaction);
         }
 
-        // read while holding nothing, because a filter cannot name its rows until it has read them.
-        // Nothing is trusted from this read except which rows to hold.
-        const candidates: T[] = await this.find({ where, related, transaction: valKeyTransaction });
+        // a filter pinning the ids and asking more besides matches none of the rows outside them, so
+        // those are held without reading anything first. Any other filter is read while holding
+        // nothing, because it cannot name its rows until it has read them, and nothing is trusted from
+        // that read except which rows to hold
+        const pinned: string[] | undefined = this.idsFromFilter(where);
+        const candidates: string[] = pinned == undefined
+            ? (await this.find({ where, related, transaction: valKeyTransaction })).map(c => c.id)
+            // once each, which a filter naming an id in two of its branches does not
+            : [...new Set(pinned)];
         if (!candidates.length) {
-            return [];
+            return { entities: [], rows: new Map(), keys: { uniques: [], indexes: [], stored: '' }, holders: new Map() };
         }
-        await this.claimRows(candidates.map(c => c.id), valKeyTransaction);
+        await this.claimRows(candidates, valKeyTransaction);
 
         // read again now that the rows are held, and this is the read that counts. One of them may
         // have been changed by a single row write while this was queueing for it, and a row that
         // stopped matching by then is dropped - which is what a database does once it has been
-        // granted a row lock.
-        const held: Set<string> = new Set(candidates.map(c => c.id));
-        return (await this.find({ where, related, transaction: valKeyTransaction })).filter(m => held.has(m.id));
+        // granted a row lock. By their ids, since a row that started matching meanwhile is not held
+        const options: DriverFindOptions<T> = { where, related, transaction: valKeyTransaction };
+        const held: HeldRows<T> = await this.readHeldRows(candidates, options, valKeyTransaction);
+        const matching: T[] = held.entities.filter(e => where == undefined || this.evaluator.matches(e, where, this.entityClass));
+        // as a find hands them back, without what was only read to judge the filter
+        EntityRelationsUtilities.keepOnlyRequested(
+            matching,
+            this.relationsToResolve(options),
+            EntityRelationsUtilities.resolveTree(undefined)
+        );
+        return { ...held, entities: matching };
+    }
+
+    /**
+     * Reads rows the transaction holds together with the indexes and uniques the store keeps, which
+     * is everything the save writing them would read again.
+     * @param ids - The ids of the rows.
+     * @param options - The find options, used to determine which relations need to be resolved.
+     * @param valKeyTransaction - The transaction holding the rows.
+     * @returns The rows, and what a save of them compares them against.
+     */
+    private async readHeldRows(ids: string[], options: DriverFindOptions<T>, valKeyTransaction: ValKeyTransaction): Promise<HeldRows<T>> {
+        const read: StoredRead = await this.readRowsAlongside(ids, valKeyTransaction, true);
+        return { ...read, entities: await this.resolveEntitiesOf(ids, read.rows, options, valKeyTransaction) };
     }
 
     /**
@@ -973,42 +1294,33 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             // overlapping take what they share in the same order rather than in opposite ones
             await valKeyTransaction.claimKeys(pending.map(p => this.upsertKey(identity, p.create)));
 
-            // one read for every identity, through the key's index where it answers for all of them.
-            // Each row is then paired with the rows holding its own values and judged by its own
-            // filter alone: judging every row read against the filter of every identity, as one
-            // filter of all of them, was the square of the batch
+            // the rows that may hold an identity: the ones the key's index names where it answers for
+            // all of them, or else the ones reading every row finds holding one. Nothing is trusted
+            // from either except which rows to hold
             const branches: WhereFilter<T>[] = pending.flatMap(p => Array.isArray(p.conflictWhere) ? p.conflictWhere : [p.conflictWhere]);
-            const candidateIds: string[] = await this.idsFromUniqueFilter(branches, valKeyTransaction)
-                ?? await this.readIds(valKeyTransaction);
-            const candidates: Map<string, T[]> = new Map();
-            for (const candidate of await this.findByIds(candidateIds, { transaction: valKeyTransaction }, valKeyTransaction)) {
-                const values: string = UpsertIdentityUtilities.resolveValues(identity, candidate);
-                candidates.set(values, [...candidates.get(values) ?? [], candidate]);
-            }
-            const foundIds: Map<PendingUpsert<T>, string> = new Map();
-            for (const p of pending) {
-                const holder: T | undefined = candidates.get(UpsertIdentityUtilities.resolveValues(identity, p.create))
-                    ?.find(c => this.evaluator.matches(c, p.conflictWhere, this.entityClass));
-                if (holder != undefined) {
-                    foundIds.set(p, holder.id);
-                }
-            }
+            const toHold: string[] = [
+                ...new Set((await this.candidatesFromUniqueFilter(branches, valKeyTransaction, undefined))?.ids
+                    ?? this.resolveIdentityHolders(identity, pending, await this.find({ transaction: valKeyTransaction })).values())
+            ];
 
-            // the rows are only identified by the read above, so their own grants can only be taken
-            // after it - and a plain write may have been holding one, and committing, the whole time
-            // the read was happening. Reading again once they are held is what makes the value this
-            // adds to the value that is actually stored, rather than the one that was stored a moment
-            // ago. With whatever relations `reachable` and the rows' own conditions need, so each row
-            // can be judged by them right here rather than read a second time through a filter
-            await this.claimRows([...foundIds.values()], valKeyTransaction);
+            // a row can only be held once it is known, so its grant is taken after the look above - and
+            // a plain write may have been holding one, and committing, the whole time that look was
+            // happening. Reading again once they are held is what makes the value this adds to the
+            // value that is actually stored, rather than the one that was stored a moment ago. With
+            // whatever relations `reachable` and the rows' own conditions need, so each row can be
+            // judged by them right here rather than read a second time through a filter
+            await this.claimRows(toHold, valKeyTransaction);
             const judgedBy: WhereFilter<T>[] = [reachable, ...pending.map(p => p.where)]
                 .flatMap(w => w == undefined ? [] : Array.isArray(w) ? w : [w]);
-            const heldRows: T[] = await this.findByIds(
-                [...foundIds.values()],
+            const heldRows: HeldRows<T> = await this.readHeldRows(
+                toHold,
                 { where: judgedBy.length ? judgedBy : undefined, related },
                 valKeyTransaction
             );
-            const held: Map<string, T> = new Map(heldRows.map(e => [e.id, e]));
+            const held: Map<string, T> = new Map(heldRows.entities.map(e => [e.id, e]));
+            // which row holds each identity is judged on the held rows too, since a row may have given
+            // its values up while it was not held yet
+            const foundIds: Map<PendingUpsert<T>, string> = this.resolveIdentityHolders(identity, pending, heldRows.entities);
 
             const data: DeepPartial<T>[] = pending.map(p => {
                 const id: string | undefined = foundIds.get(p);
@@ -1026,15 +1338,45 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
                 }
                 const updated: Record<string, unknown> = { id: existing.id };
                 for (const [key, change] of p.changes) {
+                    // null or missing counts as 0, as it does for an update's increments
+                    const stored: unknown = (existing as Record<string, unknown>)[key];
                     updated[key] = 'increment' in change
-                        ? Number((existing as Record<string, unknown>)[key]) + change.increment
+                        ? (stored == undefined ? 0 : Number(stored)) + change.increment
                         : change.set;
                 }
                 return updated as DeepPartial<T>;
             });
             // one save for every row, which hands them back in the order they were given
-            return await this.save(data, valKeyTransaction, true);
+            return await this.saveThrough(data, valKeyTransaction, true, heldRows);
         });
+    }
+
+    /**
+     * Finds the row holding the identity of each pending upsert among the given rows.
+     *
+     * Each pending row is paired with the rows holding its own values and judged by its own filter
+     * alone: judging every row read against the filter of every identity, as one filter of all of
+     * them, was the square of the batch.
+     * @param identity - The properties identifying a row.
+     * @param pending - The pending upserts.
+     * @param rows - The rows to look among.
+     * @returns The id of the row holding each one's identity, for those a row holds.
+     */
+    private resolveIdentityHolders(identity: string[], pending: PendingUpsert<T>[], rows: T[]): Map<PendingUpsert<T>, string> {
+        const byValues: Map<string, T[]> = new Map();
+        for (const row of rows) {
+            const values: string = UpsertIdentityUtilities.resolveValues(identity, row);
+            byValues.set(values, [...byValues.get(values) ?? [], row]);
+        }
+        const res: Map<PendingUpsert<T>, string> = new Map();
+        for (const p of pending) {
+            const holder: T | undefined = byValues.get(UpsertIdentityUtilities.resolveValues(identity, p.create))
+                ?.find(c => this.evaluator.matches(c, p.conflictWhere, this.entityClass));
+            if (holder != undefined) {
+                res.set(p, holder.id);
+            }
+        }
+        return res;
     }
 
     /**
@@ -1113,7 +1455,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         }
         return await this.inTransaction(transaction, async valKeyTransaction => {
             const wanted: Set<string> = new Set(ids);
-            const within: string[] = (await this.holdRowsMatching(reach.where, reach.related, valKeyTransaction))
+            const within: string[] = (await this.holdRowsMatching(reach.where, reach.related, valKeyTransaction)).entities
                 .map(row => String(row.id))
                 .filter(id => wanted.has(id));
             if (reach.wholly && within.length < ids.length) {
@@ -1121,6 +1463,24 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             }
             return await this.removeByIds(within, valKeyTransaction, undefined);
         });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async removeMatching(
+        where: Where<T> | undefined,
+        related: RelatedNarrowing | undefined,
+        transaction: Transaction | undefined
+    ): Promise<string[]> {
+        const reach: RemovalReach<T> | undefined = where == undefined ? undefined : { where, related, wholly: false };
+        // through a relation, the filter is judged on the related rows, which only a find resolves
+        if (where != undefined && this.reachesThroughRelation(where)) {
+            return await this.remove(await this.findIds({ where, related, transaction }), reach, transaction);
+        }
+        // otherwise on the rows the removal reads anyway for what they hold in the indexes, with the
+        // list of those in the same round trip: finding them first would read them twice
+        const valKeyTransaction: ValKeyTransaction | undefined = this.toValKeyTransaction(transaction);
+        const { ids }: Candidates = await this.resolveCandidates(where, valKeyTransaction, undefined);
+        return await this.removeByIds([...new Set(ids)], valKeyTransaction, reach);
     }
 
     /**
@@ -1150,7 +1510,11 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * @throws KeyDeclarationsChangedError when the indexes and uniques kept changing, and a
      * ConflictError when the rows did.
      */
-    private async removeByIds(ids: string[], valKeyTransaction: ValKeyTransaction | undefined, reach: RemovalReach<T> | undefined): Promise<string[]> {
+    private async removeByIds(
+        ids: string[],
+        valKeyTransaction: ValKeyTransaction | undefined,
+        reach: RemovalReach<T> | undefined
+    ): Promise<string[]> {
         if (!ids.length) {
             return [];
         }
@@ -1185,6 +1549,12 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             if (await this.writeGuarded(writes, keys, rows)) {
                 return removing;
             }
+            if (await this.isHeldByTransaction(writes)) {
+                // waited for in a transaction of its own, which holds the rows before it reads them,
+                // as one holding a row it changed would apply that change over the removal when it
+                // commits (round-2/11 S14)
+                return await this.inTransaction(undefined, async own => await this.removeByIds(ids, own, reach));
+            }
         }
         throw new KeyDeclarationsChangedError();
     }
@@ -1198,7 +1568,11 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * @returns The ids of the rows to remove: none of them when they go wholly and one is gone or
      * out of reach.
      */
-    private resolveRowsWithinReach(ids: string[], stored: Map<string, Record<string, string>>, reach: RemovalReach<T> | undefined): string[] {
+    private resolveRowsWithinReach(
+        ids: string[],
+        stored: Map<string, Record<string, string>>,
+        reach: RemovalReach<T> | undefined
+    ): string[] {
         const within: string[] = ids.filter(id => {
             const fields: Record<string, string> | undefined = stored.get(id);
             return fields != undefined
@@ -1267,12 +1641,14 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * @param uniques - The uniques the store keeps.
      * @param transaction - The transaction to write through. Always present when there is anything
      * to index, because a save takes a transaction of its own whenever the store keeps a unique.
+     * @param held - Who holds the unique values the save already held and read, by their key.
      * @throws When another row already holds the values one of the declarations names.
      */
     private async saveUniqueIndexes(
         rows: StoredRowChange[],
         uniques: UniqueGroup[],
-        transaction: ValKeyTransaction | undefined
+        transaction: ValKeyTransaction | undefined,
+        held: Map<string, string[]> = new Map()
     ): Promise<void> {
         const changes: UniqueIndexChange[] = this.resolveUniqueIndexChanges(rows, uniques);
 
@@ -1288,10 +1664,16 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         // wait for the outcome. Held, it waits too, and reads the value free once this commits.
         // In the same claim, so that every key is taken in one sorted order
         const givenUpKeys: string[] = changes.flatMap(c => c.previous == undefined ? [] : [this.uniqueKey(c.group, c.previous)]);
+        // a key the save held before reading the rows is held already, and claims nothing again
         await transaction?.claimKeys([...takenKeys, ...givenUpKeys]);
-        // as stored, without this transaction's writes: those are laid over it change by change below
-        const holders: string[][] = await this.readSets(takenKeys, undefined);
-        const storedHolders: Map<string, string[]> = new Map(takenKeys.map((key, i) => [key, holders[i] ?? []]));
+        // as stored, without this transaction's writes: those are laid over it change by change below.
+        // Only the ones the save did not read along with the rows, after holding them
+        const unread: string[] = takenKeys.filter(key => !held.has(key));
+        const holders: string[][] = await this.readSets(unread, undefined);
+        const storedHolders: Map<string, string[]> = new Map([
+            ...held,
+            ...unread.map((key, i): [string, string[]] => [key, holders[i] ?? []])
+        ]);
 
         // one change at a time, in memory. A unique index key is the second key the rows of one save
         // share, and unlike the id set it is the one whose entire point is that at most one row may
@@ -1423,6 +1805,67 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     }
 
     /**
+     * Removes every key of this entity, for a migration removing it: its rows and their ids, the many
+     * to many relations they hold from both sides, and what is kept about its indexes and uniques.
+     * @param transaction - The transaction of the migration.
+     */
+    async removeStoredKeys(transaction: Transaction): Promise<void> {
+        const valKeyTransaction: ValKeyTransaction | undefined = this.toValKeyTransaction(transaction);
+        if (!valKeyTransaction) {
+            throw new InternalError('Entities are removed in the migration\'s transaction.');
+        }
+        const prefix: string = `${this.keyPrefix}:${this.tableName}:`;
+        const ids: string[] = await this.readIds(valKeyTransaction);
+        const writes: ValKeyBufferedWrite[] = [];
+        const deleted: Set<string> = new Set([
+            ...await scanValKeyKeys(this.client, `${prefix}*`),
+            // with the ones only the transaction holds so far, which no scan finds
+            this.idsKey(),
+            ...ids.map(id => this.rowKey(id))
+        ]);
+        for (const [key, metadata] of ObjectUtilities.entries(this.properties)) {
+            if (metadata.type !== Relation.MANY_TO_MANY) {
+                continue;
+            }
+            const joinKeys: string[] = ids.map(id => this.joinKey(id, key));
+            const related: string[][] = await this.readSets(joinKeys, valKeyTransaction);
+            for (const joinKey of joinKeys) {
+                deleted.add(joinKey);
+            }
+            // moving none of the rows anywhere, which takes each of them off the other side
+            writes.push(...this.resolveMovedRelationWrites(
+                key,
+                metadata.target(),
+                metadata.inverseSide,
+                ids.map((id, i): [string, string[]] => [id, related[i] ?? []]),
+                new Map()
+            ));
+        }
+        // kept, so that an entity stored under this name again hands out no number it handed out before
+        deleted.delete(`${prefix}sequence`);
+
+        await this.writeAll([...[...deleted].map((key): ValKeyBufferedWrite => ({ type: 'delete', key })), ...writes], valKeyTransaction);
+    }
+
+    /**
+     * Removes the sets a many to many relation keeps for every row of this entity, for a migration
+     * removing the relation.
+     * @param propertyKey - The relation's property on this entity.
+     * @param transaction - The transaction of the migration.
+     */
+    async removeJoinSets(propertyKey: string, transaction: Transaction): Promise<void> {
+        const valKeyTransaction: ValKeyTransaction | undefined = this.toValKeyTransaction(transaction);
+        if (!valKeyTransaction) {
+            throw new InternalError('Relations are removed in the migration\'s transaction.');
+        }
+        const ids: string[] = await this.readIds(valKeyTransaction);
+        await this.writeAll(
+            ids.map((id): ValKeyBufferedWrite => ({ type: 'delete', key: this.joinKey(id, propertyKey) })),
+            valKeyTransaction
+        );
+    }
+
+    /**
      * Reads the rows a merge moves: every one but those holding what a stored row holds under its id
      * or under a unique the entity declares.
      * @param ids - The ids of the rows to merge.
@@ -1445,7 +1888,6 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
 
         const rowReplies: GlideReturnType[] = await this.readPipelined(
             ids.map(id => toCurrentKey(this.rowKey(id))),
-            // eslint-disable-next-line cspell/spellchecker
             (batch, key) => batch.hgetall(key)
         );
         const res: Map<string, Record<string, string>> = new Map();
@@ -1916,7 +2358,6 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         const batch: Batch = new (valKeyGlide().Batch)(true);
         batch.set(this.keysKey(), stored);
         if (unbuilt.length) {
-            // eslint-disable-next-line cspell/spellchecker
             batch.srem(this.builtKey(), unbuilt);
         }
         await this.client.exec(batch, true);
@@ -2070,20 +2511,22 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     }
 
     /**
-     * Resolves the candidate ids of a filter whose every branch names every property of a built index
+     * Resolves the candidates of a filter whose every branch names every property of a built index
      * with plain values.
      *
      * The rows read are still judged by the whole filter, so an entry that no longer holds costs a
      * read and never a wrong answer.
      * @param where - The where filter of the query.
      * @param transaction - The transaction to read through.
-     * @returns The candidate ids, or undefined when a branch names no index or an index it names is not
+     * @param readAlong - How many rows to read along with their ids at most, or undefined to read none.
+     * @returns The candidates, or undefined when a branch names no index or an index it names is not
      * built yet.
      */
-    private async idsFromIndexFilter(
+    private async candidatesFromIndexFilter(
         where: DriverFindOptions<T>['where'],
-        transaction: ValKeyTransaction | undefined
-    ): Promise<string[] | undefined> {
+        transaction: ValKeyTransaction | undefined,
+        readAlong: number | undefined
+    ): Promise<Candidates | undefined> {
         if (where == undefined || !this.indexGroups.length) {
             return undefined;
         }
@@ -2100,11 +2543,12 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         }
 
         // whether each index is built, and what it holds, in one round trip
-        const [built = [], ...entries]: string[][] = await this.readSets([this.builtKey(), ...entryKeys], transaction);
+        const read: SetsWithRows = await this.readSetsWithRows([this.builtKey(), ...entryKeys], 1, transaction, readAlong);
+        const [built = [], ...entries]: string[][] = read.members;
         if ([...named].some(identity => !built.includes(identity))) {
             return undefined;
         }
-        return [...new Set(entries.flat())];
+        return { ids: [...new Set(entries.flat())], rows: read.rows };
     }
 
     /**
@@ -2142,14 +2586,23 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
 
     private isPlainValue(value: unknown): boolean {
         // an operator may match several values, and null matches rows holding none - neither is an entry
-        return value != undefined && (typeof value !== 'object' || value instanceof Date);
+        return value != undefined && (typeof value !== 'object' || value instanceof Date || value instanceof BigNumber);
     }
 
     // encoded the way a write encodes the value into its field, so the entry a filter names is the one
     // the row was put under
     private encodeFilterValue(key: string, value: unknown): string {
         const metadata: PropertyMetadata | undefined = this.properties[key];
-        return JsonUtilities.stringify(metadata == undefined ? toJsonValue(value) : this.toStorableValue(value, metadata));
+        if (metadata == undefined) {
+            return JsonUtilities.stringify(toJsonValue(value));
+        }
+        // 11 §S6: an exact decimal may be named by any number equal to it, and a write stores it as the
+        // decimal it is: `10` names the entry of `BigNumber(10)` only once it is one
+        const declared: unknown = metadata.type === 'number' && metadata.format === 'bignumber'
+            && (typeof value === 'number' || typeof value === 'bigint')
+            ? NumberUtilities.new(value)
+            : value;
+        return JsonUtilities.stringify(this.toStorableValue(declared, metadata));
     }
 
     private indexKey(group: string[], values: string): string {
@@ -2165,22 +2618,23 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     }
 
     /**
-     * Loads the entities with the given ids and resolves their relations when they are needed.
-     * @param ids - The ids of the entities to load.
+     * Turns rows into entities, and resolves the relations the find options ask for on them.
+     * @param ids - The ids of the rows, in the order the entities are handed back.
+     * @param rows - The rows by their id, as the json encoded fields they are stored as.
      * @param options - The find options, used to determine which relations need to be resolved.
-     * @param transaction - The transaction to read through.
+     * @param transaction - The transaction to read the relations through.
      * @param relationsById - The relations to resolve on a row in place of the ones the options name,
      * by the id of the row.
-     * @returns The loaded entities, in the order of the ids, skipping ids that hold no row.
+     * @returns The entities, in the order of the ids, skipping ids that hold no row.
      */
-    private async findByIds(
+    private async resolveEntitiesOf(
         ids: string[],
+        rows: Map<string, Record<string, string>>,
         options: DriverFindOptions<T>,
         transaction: ValKeyTransaction | undefined,
         relationsById?: RelationTreeByRowId
     ): Promise<T[]> {
         const relationsToResolve: RelationTree = this.relationsToResolve(options);
-        const rows: Map<string, Record<string, string>> = await this.readRows(ids, transaction);
         const entities: T[] = ids.flatMap(id => {
             const row: Record<string, string> | undefined = rows.get(id);
             return row == undefined ? [] : [this.fromFields(row)];
@@ -2627,21 +3081,23 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * The rows are read a batch at a time, with the relations the filter and the order need and no
      * others, and of each match only its id and the values the order compares are kept: the order
      * is decided over every match before the first row is handed out, and those are all it needs.
-     * @param ids - The ids of the rows the stream may hand out.
+     * @param candidates - The rows the stream may hand out.
      * @param options - The stream options, with the filter and the order.
      * @param transaction - The transaction to read through.
      * @returns The ids of the matching rows, in the order.
      */
     private async resolveIdsInOrder(
-        ids: string[],
+        candidates: Candidates,
         options: DriverStreamOptions<T>,
         transaction: ValKeyTransaction | undefined
     ): Promise<string[]> {
         const sorts: OrderSort[] = this.resolveSorts(options.order);
         const reading: DriverFindOptions<T> = { ...options, relations: this.relationsForReading(options) };
         const matched: OrderedId[] = [];
-        for (let i: number = 0; i < ids.length; i += STREAM_BATCH_SIZE) {
-            for (const entity of await this.findByIds(ids.slice(i, i + STREAM_BATCH_SIZE), reading, transaction)) {
+        for (let i: number = 0; i < candidates.ids.length; i += STREAM_BATCH_SIZE) {
+            const batch: string[] = candidates.ids.slice(i, i + STREAM_BATCH_SIZE);
+            const rows: Map<string, Record<string, string>> = await this.readCandidateRows(batch, candidates.rows, transaction);
+            for (const entity of await this.resolveEntitiesOf(batch, rows, reading, transaction)) {
                 if (options.where && !this.evaluator.matches(entity, options.where, this.entityClass)) {
                     continue;
                 }
@@ -2685,6 +3141,10 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         if (typeof a === 'boolean' && typeof b === 'boolean') {
             return Number(a) - Number(b);
         }
+        // by value: written out, `10` sorts before `9`
+        if (NumberUtilities.isBigNumber(a) && NumberUtilities.isBigNumber(b)) {
+            return NumberUtilities.compare(a, b);
+        }
         // ordering text is the application's answer rather than this driver's, so that a sort done
         // here and a sort done by a database agree - see LocalizeServiceInterface.compareText
         // eslint-disable-next-line typescript/no-base-to-string
@@ -2700,6 +3160,33 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             return (await this.client.incr(`${this.keyPrefix}:${this.tableName}:sequence`)).toString();
         }
         return UUIDUtilities.generate();
+    }
+
+    /**
+     * Resolves the rows a filter may match, without reading every row where it can: the ones it pins
+     * by their ids, the ones a unique declaration it names in full holds, the ones a built index it
+     * names in full holds, or else every row.
+     * @param where - The where filter of the query.
+     * @param transaction - The transaction to read through.
+     * @param readAlong - How many rows to read along with their ids at most, or undefined to read none.
+     * @returns The candidates.
+     */
+    private async resolveCandidates(
+        where: DriverFindOptions<T>['where'],
+        transaction: ValKeyTransaction | undefined,
+        readAlong: number | undefined
+    ): Promise<Candidates> {
+        const pinned: string[] | undefined = this.idsFromFilter(where);
+        if (pinned != undefined) {
+            return { ids: pinned, rows: undefined };
+        }
+        const candidates: Candidates | undefined = await this.candidatesFromUniqueFilter(where, transaction, readAlong)
+            ?? await this.candidatesFromIndexFilter(where, transaction, readAlong);
+        if (candidates != undefined) {
+            return candidates;
+        }
+        const read: SetsWithRows = await this.readSetsWithRows([this.idsKey()], 0, transaction, readAlong);
+        return { ids: read.members.at(0) ?? [], rows: read.rows };
     }
 
     /**
@@ -2735,7 +3222,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     }
 
     /**
-     * Resolves the candidate ids of a filter that pins everything a unique declaration names.
+     * Resolves the candidates of a filter that pins everything a unique declaration names.
      *
      * A miss is deliberately not an answer. The index is a shortcut, and a row written before its
      * declaration existed - or before this index did - carries no entry, so concluding "no such row"
@@ -2743,13 +3230,15 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * have done anyway.
      * @param where - The where filter of the query.
      * @param transaction - The transaction to read through.
-     * @returns The candidate ids, or undefined when the filter names no group or the index has no
-     * entry for it.
+     * @param readAlong - How many rows to read along with their ids at most, or undefined to read none.
+     * @returns The candidates, or undefined when the filter names no group or the index has no entry
+     * for it.
      */
-    private async idsFromUniqueFilter(
+    private async candidatesFromUniqueFilter(
         where: DriverFindOptions<T>['where'],
-        transaction: ValKeyTransaction | undefined
-    ): Promise<string[] | undefined> {
+        transaction: ValKeyTransaction | undefined,
+        readAlong: number | undefined
+    ): Promise<Candidates | undefined> {
         if (where == undefined || !this.uniqueGroups.length) {
             return undefined;
         }
@@ -2766,11 +3255,11 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
 
         // read together rather than one after another: the branches of an or are independent, and an
         // upsert of a batch names one branch per row
-        const perKey: string[][] = await this.readSets(keys, transaction);
-        if (perKey.some(ids => !ids.length)) {
+        const read: SetsWithRows = await this.readSetsWithRows(keys, 0, transaction, readAlong);
+        if (read.members.some(ids => !ids.length)) {
             return undefined;
         }
-        return perKey.flat();
+        return { ids: read.members.flat(), rows: read.rows };
     }
 
     /**
@@ -2829,6 +3318,83 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     }
 
     /**
+     * Reads the members of sets, and in the same round trip the rows behind the first ids they hold, up
+     * to a given number of them.
+     *
+     * One script rather than a pipeline, because which rows to read is only known once the sets are.
+     * @param keys - The keys of the sets.
+     * @param idSetsFrom - The position of the first set holding ids of rows. The ones before it hold
+     * something else.
+     * @param transaction - The transaction whose writes are laid over what is stored, if any.
+     * @param readAlong - How many rows to read along at most, or undefined to read none.
+     * @returns The members of each set, and the rows read along with them.
+     * @throws When the store answers with something other than what the script returns.
+     */
+    private async readSetsWithRows(
+        keys: string[],
+        idSetsFrom: number,
+        transaction: ValKeyTransaction | undefined,
+        readAlong: number | undefined
+    ): Promise<SetsWithRows> {
+        if (readAlong == undefined) {
+            return { members: await this.readSets(keys, transaction), rows: undefined };
+        }
+        const reply: GlideReturnType = await this.client.invokeScript(resolveReadSetsWithRowsScript(), {
+            keys,
+            args: [this.rowKey(''), String(readAlong), String(idSetsFrom)]
+        });
+        const [sets, ids, rows]: GlideReturnType[] = Array.isArray(reply) ? reply : [];
+        if (!Array.isArray(sets) || sets.length !== keys.length) {
+            throw new InternalError('Reading sets with their rows was not answered with the sets.');
+        }
+        const members: string[][] = keys.map((key, i) => {
+            const stored: string[] = this.toReplyStrings(sets[i] ?? []);
+            return transaction ? transaction.resolveSetMembers(key, stored) : stored;
+        });
+        if (!Array.isArray(ids) || !Array.isArray(rows) || rows.length !== ids.length) {
+            throw new InternalError('Reading sets with their rows was not answered with a row for every id it read.');
+        }
+        const rowIds: string[] = this.toReplyStrings(ids);
+        return {
+            members,
+            rows: new Map(rowIds.map((id, i) => {
+                const stored: Record<string, string> | undefined = this.toRowOfFieldList(rows[i] ?? []);
+                return [id, transaction ? transaction.resolveHash(this.rowKey(id), stored) : stored];
+            }))
+        };
+    }
+
+    /**
+     * Reads rows by their ids, taking the ones read along with the ids from what was read.
+     * @param ids - The ids of the rows.
+     * @param readAlong - The rows read along with the ids, if any were.
+     * @param transaction - The transaction whose writes are laid over what is stored, if any.
+     * @returns The rows by their id, as {@link ValKeyRepositoryDriver.readRows} reads them.
+     */
+    private async readCandidateRows(
+        ids: string[],
+        readAlong: RowsReadAlong | undefined,
+        transaction: ValKeyTransaction | undefined
+    ): Promise<Map<string, Record<string, string>>> {
+        if (readAlong == undefined) {
+            return await this.readRows(ids, transaction);
+        }
+        // the rows past the bound, and those of ids a transaction added to a set, which the store did
+        // not hold when the script ran
+        const unread: string[] = ids.filter(id => !readAlong.has(id));
+        const res: Map<string, Record<string, string>> = unread.length
+            ? await this.readRows(unread, transaction)
+            : new Map<string, Record<string, string>>();
+        for (const id of ids) {
+            const row: Record<string, string> | undefined = readAlong.get(id);
+            if (row != undefined) {
+                res.set(id, row);
+            }
+        }
+        return res;
+    }
+
+    /**
      * Reads rows by their ids.
      * @param ids - The ids of the rows.
      * @param transaction - The transaction whose writes are laid over what is stored, if any.
@@ -2836,8 +3402,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * row is left out.
      */
     private async readRows(ids: string[], transaction: ValKeyTransaction | undefined): Promise<Map<string, Record<string, string>>> {
-        const [rows]: [Map<string, Record<string, string>>, StoredKeys | undefined] = await this.readRowsAlongside(ids, transaction, false);
-        return rows;
+        return (await this.readRowsAlongside(ids, transaction, false)).rows;
     }
 
     /**
@@ -2853,12 +3418,8 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         ids: string[],
         transaction: ValKeyTransaction | undefined
     ): Promise<[Map<string, Record<string, string>>, StoredKeys]> {
-        const [rows, keys]: [Map<string, Record<string, string>>, StoredKeys | undefined] = await this.readRowsAlongside(
-            ids,
-            transaction,
-            true
-        );
-        return [rows, keys ?? { uniques: [], indexes: [], stored: '' }];
+        const { rows, keys }: StoredRead = await this.readRowsAlongside(ids, transaction, true);
+        return [rows, keys];
     }
 
     /**
@@ -2871,35 +3432,45 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     }
 
     /**
-     * Reads rows by their ids, and the indexes and uniques the store keeps when asked to.
+     * Reads rows by their ids, and when asked to, the indexes and uniques the store keeps and who holds
+     * some unique values, all in one round trip.
      * @param ids - The ids of the rows.
-     * @param transaction - The transaction whose writes are laid over what is stored, if any.
-     * @param withKeys - Whether to read the indexes and uniques along with them.
-     * @returns The rows by their id, and the indexes and uniques when they were read.
+     * @param transaction - The transaction whose writes are laid over the rows, if any.
+     * @param withKeys - Whether to read the indexes and uniques along with them. None are named when not.
+     * @param holderKeys - The keys of the unique values whose holders to read, as stored.
+     * @returns The rows by their id, the indexes and uniques, and the holders by the key of their value.
      */
     private async readRowsAlongside(
         ids: string[],
         transaction: ValKeyTransaction | undefined,
-        withKeys: boolean
-    ): Promise<[Map<string, Record<string, string>>, StoredKeys | undefined]> {
+        withKeys: boolean,
+        holderKeys: string[] = []
+    ): Promise<StoredRead> {
         const wanted: string[] = [...new Set(ids)].filter(id => transaction?.isDeleted(this.rowKey(id)) !== true);
         const keysKey: string = this.keysKey();
+        const leading: string[] = [...withKeys ? [keysKey] : [], ...holderKeys];
+        const sets: Set<string> = new Set(holderKeys);
         const replies: GlideReturnType[] = await this.readPipelined(
-            [...withKeys ? [keysKey] : [], ...wanted.map(id => this.rowKey(id))],
+            [...leading, ...wanted.map(id => this.rowKey(id))],
             // eslint-disable-next-line cspell/spellchecker
-            (batch, key) => key === keysKey ? batch.get(key) : batch.hgetall(key)
+            (batch, key) => key === keysKey ? batch.get(key) : sets.has(key) ? batch.smembers(key) : batch.hgetall(key)
         );
-        const rowReplies: GlideReturnType[] = withKeys ? replies.slice(1) : replies;
+        const rowReplies: GlideReturnType[] = replies.slice(leading.length);
 
-        const res: Map<string, Record<string, string>> = new Map();
+        const rows: Map<string, Record<string, string>> = new Map();
         for (const [i, id] of wanted.entries()) {
             const stored: Record<string, string> | undefined = this.toRow(rowReplies[i]);
             const row: Record<string, string> | undefined = transaction ? transaction.resolveHash(this.rowKey(id), stored) : stored;
             if (row != undefined) {
-                res.set(id, row);
+                rows.set(id, row);
             }
         }
-        return [res, withKeys ? this.toStoredKeys(replies[0]) : undefined];
+        const holderReplies: GlideReturnType[] = replies.slice(withKeys ? 1 : 0, leading.length);
+        return {
+            rows,
+            keys: withKeys ? this.toStoredKeys(replies[0]) : { uniques: [], indexes: [], stored: '' },
+            holders: new Map(holderKeys.map((key, i) => [key, this.toMembers(holderReplies[i])]))
+        };
     }
 
     /**
@@ -2922,19 +3493,50 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
 
     /**
      * Applies writes as one step, but only while the indexes and uniques the store keeps are still the
-     * ones they were worked out from, and the rows they were worked out from are still as read.
+     * ones they were worked out from, the rows they were worked out from are still as read, and no
+     * transaction holds a key they overwrite.
      * @param writes - The writes, in the order they are applied.
      * @param keys - The indexes and uniques the writes were worked out from.
      * @param rows - The rows the writes were worked out from, by key, as they were read.
-     * @returns True when the writes were applied, false when the list or a row had changed and
-     * nothing was.
+     * @returns True when the writes were applied, false when the list or a row had changed, or a
+     * transaction held one of them, and nothing was.
      */
     private async writeGuarded(
         writes: ValKeyBufferedWrite[],
         keys: StoredKeys,
         rows: Map<string, Record<string, string>> = new Map()
     ): Promise<boolean> {
-        return await applyGuardedValKeyWrites(this.client, { values: new Map([[this.keysKey(), keys.stored]]), hashes: rows }, writes);
+        // a held key has to stay as its transaction read it until that commits: it applies what it
+        // worked out from that read, so a write landing in between would be written over by it, or a
+        // removal undone (round-2/11 S14). A lock key is missing while nobody holds it
+        const values: Map<string, string> = new Map([
+            [this.keysKey(), keys.stored],
+            ...this.resolveGrantKeys(writes).map((grantKey): [string, string] => [grantKey, ''])
+        ]);
+        return await applyGuardedValKeyWrites(this.client, { values, hashes: rows }, writes);
+    }
+
+    /**
+     * Whether a transaction holds a key the writes overwrite, which a write outside one waits for.
+     * @param writes - The writes.
+     * @returns True when one of the keys is held.
+     */
+    private async isHeldByTransaction(writes: ValKeyBufferedWrite[]): Promise<boolean> {
+        const grantKeys: string[] = this.resolveGrantKeys(writes);
+        return grantKeys.length > 0 && await this.client.exists(grantKeys) > 0;
+    }
+
+    /**
+     * The keys of the grants a transaction takes for the given writes: one for every key they
+     * overwrite, as ValKeyTransaction.add takes them. Set writes commute and take none.
+     * @param writes - The writes.
+     * @returns The lock keys, each once.
+     */
+    private resolveGrantKeys(writes: ValKeyBufferedWrite[]): string[] {
+        const overwritten: string[] = writes
+            .filter(w => w.type === 'hashSet' || w.type === 'hashDelete' || w.type === 'delete')
+            .map(w => w.key);
+        return [...new Set(overwritten)].map(key => ValKeyLockKeyUtilities.getLockKey(key));
     }
 
     /**
@@ -2998,6 +3600,20 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             }
             return [this.toReplyString(entry['key']), this.toReplyString(entry['value'])];
         }));
+    }
+
+    /**
+     * Reads a row out of a script's reply.
+     * @param reply - The reply to reading the hash in a script, a list of its fields each followed by
+     * its value.
+     * @returns The fields, or undefined when there is no row.
+     */
+    private toRowOfFieldList(reply: GlideReturnType): Record<string, string> | undefined {
+        const list: string[] = this.toReplyStrings(reply);
+        if (!list.length) {
+            return undefined;
+        }
+        return Object.fromEntries(PromiseUtilities.resolveChunks(list, 2).map(([field = '', value = '']) => [field, value]));
     }
 
     private isReplyRecord(reply: GlideReturnType): reply is Record<string, GlideReturnType> {

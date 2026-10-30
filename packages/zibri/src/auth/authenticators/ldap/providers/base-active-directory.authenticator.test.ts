@@ -82,6 +82,8 @@ class CompanyActiveDirectory extends BaseActiveDirectoryAuthenticator<string, Jw
 
     readonly groupSearchBase: string = DOMAIN;
 
+    readonly refreshCheckIntervalInMs: number = 0;
+
     // read as the authenticator is built, which is once the directory is started
     override readonly trustedCertificates: string[] = [directory.certificate];
 

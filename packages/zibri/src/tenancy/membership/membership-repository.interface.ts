@@ -14,10 +14,10 @@ export interface MembershipRepositoryInterface<RoleType extends string, Membersh
      */
     readonly [MEMBERSHIP_REPOSITORY]: true,
     /**
-     * Finds the membership of a user in a tenant, deactivated or not. Called while that tenant is
-     * active.
+     * Finds the membership of a user in a tenant, deactivated or not, inside the transaction when one
+     * is given. Called while that tenant is active.
      */
-    findMembership(userId: string, tenantId: string): Promise<MembershipType | undefined>,
+    findMembership(userId: string, tenantId: string, transaction?: Transaction): Promise<MembershipType | undefined>,
     /**
      * Finds the memberships of a user in every tenant, deactivated or not. A repository reading them
      * from a data source reaches across tenants, eg. With `acrossTenants`.

@@ -1,5 +1,5 @@
 import { HttpError } from './http.error';
-import { HttpMethod } from '../../http/http-method.enum';
+import { type HttpMethod } from '../../http/http-method.enum';
 import { HttpStatus } from '../../http/http-status.enum';
 import { $ts } from '../../localization/translate.function';
 

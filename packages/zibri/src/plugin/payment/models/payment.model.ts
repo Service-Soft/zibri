@@ -55,12 +55,11 @@ export class Payment<M extends PaymentMethod, Data extends AnyObject> extends Ba
     @Property.unknown({ required: false })
     data?: Data | null;
     /**
-     * An error that the payment failed with.
-     *
-     * A `LoggedError` rather than an `Error`, because an `Error` keeps its message, stack and cause
-     * on non-enumerable fields - a column storing one keeps `{}`, which is the only record a failed
-     * charge leaves behind.
+     * An error that the payment failed with, with its message, stack and cause.
      */
+    // a `LoggedError` rather than an `Error`, because an `Error` keeps its message, stack and cause on
+    // non-enumerable fields - a column storing one keeps `{}`, which is the only record a failed
+    // charge leaves behind
     @Property.unknown({ required: false })
     error?: LoggedError | null;
 }

@@ -61,7 +61,5 @@ export const SCAFFOLD_FEATURE_FILES: Record<ScaffoldFeature, string[]> = {
         'assets/public/lib/',
         'assets/public/metrics.svg'
     ],
-    logEmail: [
-        'src/templates/emails/log.tsx'
-    ]
+    logEmail: ['src/templates/emails/log.tsx']
 };

@@ -1,3 +1,4 @@
+import { ThreadJobCheckpoint } from './thread-job-checkpoint.model';
 import { ThreadJobStatus } from './thread-job-status.enum';
 import { LoggedError } from '../../logging/logged-error.model';
 import { Percentage } from '../../types/percentage.type';
@@ -5,7 +6,12 @@ import { Percentage } from '../../types/percentage.type';
 /**
  * The internal thread job message types.
  */
-export type ThreadJobMessage<T = unknown> = StatusMessage | ProgressMessage | CompletionMessage<T> | InitializationMessage | ErrorMessage;
+export type ThreadJobMessage<T = unknown> = StatusMessage
+    | ProgressMessage
+    | CheckpointMessage
+    | CompletionMessage<T>
+    | InitializationMessage
+    | ErrorMessage;
 
 /**
  * The message that is sent once on initialization.
@@ -73,6 +79,25 @@ type ProgressMessage = {
      * Cannot be set to 100 as the CompletionMessage should be used for that.
      */
     progress: Percentage
+};
+
+/**
+ * A message to store a checkpoint of the job, which the main thread answers with a
+ * `ThreadJobCheckpointAnswer`.
+ */
+type CheckpointMessage = {
+    /**
+     * The type of the message.
+     */
+    type: 'checkpoint',
+    /**
+     * Pairs the answer with this message.
+     */
+    checkpointId: string,
+    /**
+     * The checkpoint to store, numbered by the worker from the one the job was started with.
+     */
+    checkpoint: ThreadJobCheckpoint<unknown>
 };
 
 /**

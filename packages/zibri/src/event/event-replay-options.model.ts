@@ -20,7 +20,7 @@ export type EventReplayOptions = {
      */
     types?: (keyof ZibriEventMap)[],
     /**
-     * Whether to reach the failed runs of every tenant, rather than those of the active one.
+     * Whether to reach the failed runs of every tenant, not only those of the active one.
      */
     acrossTenants?: boolean
 };

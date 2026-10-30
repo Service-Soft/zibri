@@ -60,13 +60,14 @@ export class JwtService implements JwtServiceInterface {
         this.accessTokenExpiresInMs = options.accessTokenExpiresInMs;
     }
 
+    // read per call rather than in the constructor, because the service can be built before the
+    // application data is registered. Throws without a baseUrl, since signing and verifying with an
+    // undefined issuer turns the check off rather than failing
     /**
      * Who the application says it is: its `baseUrl`, which an authorization server's issuer has to be
-     * (RFC 8414). Read per call rather than in the constructor, because the service can be built before
-     * the application data is registered.
+     * (RFC 8414).
      * @returns The issuer to sign with and to require.
-     * @throws When the application has no `baseUrl`, since signing and verifying with an undefined
-     * issuer turns the check off rather than failing.
+     * @throws When the application has no `baseUrl`.
      */
     get issuer(): string {
         const baseUrl: string | undefined = GlobalRegistry.getAppData('baseUrl');

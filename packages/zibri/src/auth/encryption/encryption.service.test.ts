@@ -389,6 +389,15 @@ describe('EncryptionService', () => {
             findByIdSpy.mockRestore();
         });
 
+        test('encrypt with the key a caller names and no strategy decrypts again', async () => {
+            const created: EncryptionKey = await encryptionService.createKey(AesGcmEncryptionStrategy, {
+                status: EncryptionKeyStatus.ACTIVE
+            });
+            const encrypted: EncryptionString = await encryptionService.encrypt('named-key', { strategyOptions: { keyId: created.id } });
+
+            expect(await encryptionService.decrypt(encrypted)).toBe('named-key');
+        });
+
         test('deleteKey removes the entry from the cache instead of leaving a deleted key resolvable', async () => {
             const created: EncryptionKey = await encryptionService.createKey(AesGcmEncryptionStrategy, {
                 status: EncryptionKeyStatus.ACTIVE

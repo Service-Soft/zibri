@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
-import { type Relation } from 'typeorm';
 import { StartedTestServer } from 'zibri-testing';
 
 import { TestTimeouts } from '../../__testing__/constants';
+import { type Relation } from '../../__testing__/relation.type';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';

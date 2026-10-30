@@ -71,7 +71,7 @@ export class ReportController {
 ```
 
 ## Attaching files to a PDF
-Add entries to `attachments` on the document definition. Each entry needs an `options.name` and either a file path or the raw content:
+Add entries to `attachments` on the document definition. Each entry needs an `options.name` and either the raw content or the path of a file, as `FsUtilities.getPath` resolves one:
 
 ```ts
 // src/invoices/invoice-definition.ts

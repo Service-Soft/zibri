@@ -27,6 +27,7 @@ import { Get } from '../../../routing/decorators/get.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
 import { JsonUtilities } from '../../../utilities/json.utilities';
+import { Ms } from '../../../utilities/ms';
 import { OtpTwoFactorMethod } from '../../2fa/methods/otp/otp.two-factor-method';
 import { AuthController } from '../../auth-controller/auth-controller.model';
 import { type AuthServiceInterface } from '../../auth-service.interface';
@@ -162,6 +163,23 @@ class ElsewhereAuthenticator extends BaseSamlAuthenticator<string, JwtUser> {
     }
 }
 
+// takes the answers of a provider whose clock runs ahead by up to four minutes
+class SkewTolerantAuthenticator extends BaseSamlAuthenticator<string, JwtUser> {
+    readonly name: string = 'skew-tolerant';
+
+    readonly entityId: string = SP_ENTITY_ID;
+
+    override readonly acceptedClockSkewInMs: number = Ms.MINUTE * 4;
+
+    get issuer(): string {
+        return idp.entityId;
+    }
+
+    get identityProvider(): SamlIdentityProvider {
+        return { metadataUrl: idp.metadataUrl };
+    }
+}
+
 // the auth routes of the identity providers, logging in with cookies or with jwts. Orphans for the
 // cases that boot with the other
 const authenticators: Newable<BaseSamlAuthenticator<string, JwtUser>>[] = [
@@ -170,7 +188,8 @@ const authenticators: Newable<BaseSamlAuthenticator<string, JwtUser>>[] = [
     PostAnsweringAuthenticator,
     PostOnlyAuthenticator,
     StepUpAuthenticator,
-    ElsewhereAuthenticator
+    ElsewhereAuthenticator,
+    SkewTolerantAuthenticator
 ];
 
 @Controller('/auth', { allowOrphan: true, versions: 'all' })
@@ -591,6 +610,20 @@ describe('BaseSamlAuthenticator', () => {
         idp.changeNextAnswer(changes);
 
         expect(errorOf((await logInAtProvider(newBrowser(), authorizeUrl('company'))).landing)).toBe('invalid');
+    });
+
+    // 05 §I9: an identity provider whose clock drifted past the one minute in code refused every answer,
+    // with no member to widen it
+    it('takes an answer of a provider whose clock runs ahead within acceptedClockSkewInMs, one minute by default', async () => {
+        await createLinkedUser();
+        idp.changeNextAnswer({ issuedAheadByInMs: Ms.MINUTE * 3 });
+        expect(errorOf((await logInAtProvider(newBrowser(), authorizeUrl('company'))).landing)).toBe('invalid');
+
+        await createLinkedUser();
+        idp.changeNextAnswer({ issuedAheadByInMs: Ms.MINUTE * 3 });
+        const browser: TestBrowser = newBrowser();
+        expect(errorOf((await logInAtProvider(browser, authorizeUrl('skew-tolerant'))).landing)).toBeUndefined();
+        expect(await isLoggedIn(browser)).toBe(true);
     });
 
     it('refuses an answer changed after it was signed', async () => {

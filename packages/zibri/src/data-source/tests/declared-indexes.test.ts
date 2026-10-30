@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { TestTimeouts } from '../../__testing__/constants';
+import { queryPostgres } from '../../__testing__/query-postgres.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
@@ -10,7 +11,7 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { ModelRegistry } from '../../global/model-registry/model.registry';
 import { Newable } from '../../types/newable.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { indexName, trigramIndexName, TRIGRAM_INDEX_PREFIX } from '../index-name.function';
 import { Repository } from '../repository/repository';
 import { uniqueConstraintName } from '../unique-constraint-name.function';
@@ -94,11 +95,12 @@ describe('an entity that declares indexes', () => {
      * @returns The name of each one.
      */
     async function indexNamesOf(tableName: string): Promise<string[]> {
-        const rows: { indexname: string }[] = await dataSource.query(IndexedOrder).connection.query(
+        const rows: Record<string, unknown>[] = await queryPostgres(
+            dataSource,
             'SELECT indexname FROM pg_indexes WHERE tablename = $1',
             [tableName]
         );
-        return rows.map(r => r.indexname);
+        return rows.map(r => String(r['indexname']));
     }
 
     /**
@@ -106,10 +108,11 @@ describe('an entity that declares indexes', () => {
      * @returns The name of each one.
      */
     async function tableNames(): Promise<string[]> {
-        const rows: { tablename: string }[] = await dataSource.query(IndexedOrder).connection.query(
+        const rows: Record<string, unknown>[] = await queryPostgres(
+            dataSource,
             'SELECT tablename FROM pg_tables WHERE schemaname = current_schema()'
         );
-        return rows.map(r => r.tablename);
+        return rows.map(r => String(r['tablename']));
     }
 
     it('creates them in the database, named so a migration can refer to them', async () => {
@@ -143,22 +146,24 @@ describe('an entity that declares indexes', () => {
     });
 
     it('builds it over the trigrams rather than over the value', async () => {
-        const rows: { indexdef: string }[] = await dataSource.query(IndexedOrder).connection.query(
+        const rows: Record<string, unknown>[] = await queryPostgres(
+            dataSource,
             'SELECT indexdef FROM pg_indexes WHERE tablename = $1 AND indexname = $2',
             ['indexed_order', trigramIndexName('indexed_order', 'reference')]
         );
+        const definitions: string[] = rows.map(r => String(r['indexdef']));
 
         // the operator class is the whole point: without it the index answers equality and ordering,
         // which is what the column already has, and nothing about similarity
-        expect(rows[0]?.indexdef).toContain('USING gin');
-        expect(rows[0]?.indexdef).toContain('gin_trgm_ops');
+        expect(definitions[0]).toContain('USING gin');
+        expect(definitions[0]).toContain('gin_trgm_ops');
     });
 
-    it('survives the orm bringing the schema in line again', async () => {
-        // the orm drops every index on a table it did not put there, so an index it does not know how
-        // to write would be rebuilt on every boot. It is declared to it as not its own, and this is
-        // what says that declaration took
-        await dataSource.query(IndexedOrder).connection.synchronize();
+    it('survives synchronizing the schema again', async () => {
+        // a start synchronizes the tables with the entities, and an index synchronizing did not create
+        // has to come through it rather than be rebuilt on every boot
+        await server.reInit();
+        dataSource = inject(dataSourceClass);
 
         expect(await indexNamesOf('indexed_order')).toContain(trigramIndexName('indexed_order', 'reference'));
     });
@@ -171,13 +176,14 @@ describe('an entity that declares indexes', () => {
     });
 
     it('names a property\'s own unique the way an upsert refers to it, and creates it once', async () => {
-        const rows: { conname: string }[] = await dataSource.query(IndexedOrder).connection.query(
+        const rows: Record<string, unknown>[] = await queryPostgres(
+            dataSource,
             'SELECT conname FROM pg_constraint WHERE conrelid = \'indexed_order\'::regclass AND contype = \'u\''
         );
 
         // it used to reach the column as the orm's own unique, under a hashed name nothing else can
         // arrive at - so an upsert naming the constraint named one that did not exist
-        expect(rows.map(r => r.conname)).toEqual([uniqueConstraintName('indexed_order', ['reference'])]);
+        expect(rows.map(r => String(r['conname']))).toEqual([uniqueConstraintName('indexed_order', ['reference'])]);
     });
 
     it('lands an upsert identified by that property on the row holding it', async () => {

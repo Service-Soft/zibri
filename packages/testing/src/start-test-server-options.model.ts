@@ -10,9 +10,8 @@ export type StartTestServerOptions = Partial<ZibriApplicationOptions> & {
     /**
      * The application the test is about, as the options it is built from.
      *
-     * This is what makes a test a test *of an application* rather than of a server assembled to
-     * resemble one: the controllers, entities, plugins and providers are the ones that ship, and
-     * anything named beside this replaces that one key.
+     * The controllers, entities, plugins and providers are the ones that ship, and anything named
+     * beside this replaces that one key.
      *
      * An application exports these so its entry point and its tests build from the same thing.
      * What neither this nor the call names is the harness's own default, which is what a test with

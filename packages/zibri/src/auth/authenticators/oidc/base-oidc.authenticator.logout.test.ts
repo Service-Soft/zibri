@@ -5,6 +5,7 @@ import { createInMemoryDataSource, FakeOAuthProvider, startFakeOAuthProvider, Te
 
 import { BaseOidcAuthenticator } from './base-oidc.authenticator';
 import { OidcAuthenticationTime } from './oidc-authentication-time.type';
+import { OidcDiscoveryAtBoot } from './oidc-discovery-at-boot.type';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
@@ -20,6 +21,7 @@ import { KnownHeader } from '../../../http/known-header.enum';
 import { MimeType } from '../../../http/mime-type.enum';
 import { Controller } from '../../../routing/decorators/controller.decorator';
 import { JsonUtilities } from '../../../utilities/json.utilities';
+import { Ms } from '../../../utilities/ms';
 import { OtpTwoFactorMethod } from '../../2fa/methods/otp/otp.two-factor-method';
 import { AuthController } from '../../auth-controller/auth-controller.model';
 import { LogoutResult } from '../../models/logout-result.model';
@@ -52,6 +54,11 @@ class FakeProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
 
     readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
+
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
+
+    // a provider whose logout tokens take long to arrive, such as one retrying a slow delivery
+    override readonly logoutTokenMaxAgeInMs: number = Ms.MINUTE * 30;
 
     get issuer(): string {
         return provider.issuer;
@@ -271,6 +278,19 @@ describe('BaseOidcAuthenticator - logging out', () => {
         const token: string = provider.createLogoutToken({ sessionId });
         expect(await postLogoutToken(token)).toBe(204);
         expect(await postLogoutToken(token)).toBe(401);
+    });
+
+    // 09 §Q7: the age was a constant of the module, which no provider could be given more of
+    it('takes a logout token as old as the authenticator allows, and refuses an older one', async () => {
+        await createLinkedUser();
+        const browser: TestBrowser = newBrowser();
+        const sessionId: string = await logIn(browser);
+        const issuedAgo: (ms: number) => number = ms => Math.floor((Date.now() - ms) / 1000);
+
+        expect(await postLogoutToken(provider.createLogoutToken({ sessionId, claims: { iat: issuedAgo(Ms.MINUTE * 40) } }))).toBe(401);
+        expect(await isLoggedIn(browser)).toBe(true);
+        expect(await postLogoutToken(provider.createLogoutToken({ sessionId, claims: { iat: issuedAgo(Ms.MINUTE * 20) } }))).toBe(204);
+        expect(await isLoggedIn(browser)).toBe(false);
     });
 
     it('ends the login of the session a front-channel logout names, and refuses one naming another provider or no session', async () => {

@@ -121,4 +121,31 @@ describe('inferring the context of a template with block helpers', () => {
             expect(inferContext('{{#if "always"}}{{title}}{{/if}}').tree).toEqual({ title: {} });
         });
     });
+
+    describe('the paths handlebars reads from a context', () => {
+        it('reads a bare key inside each and with from the item and the object', () => {
+            expect(inferContext('{{#each items}}{{name}}{{#if done}}x{{/if}}{{/each}}')).toEqual({
+                tree: { items: { name: {}, done: {} } },
+                arrayKeys: ['items']
+            });
+            expect(inferContext('{{#with author}}{{name}}{{/with}}').tree).toEqual({ author: { name: {} } });
+            expect(inferContext('{{#each posts}}{{#each tags}}{{label}}{{/each}}{{/each}}')).toEqual({
+                tree: { posts: { tags: { label: {} } } },
+                arrayKeys: ['posts', 'posts.this.tags']
+            });
+        });
+
+        it('reads a key of the context around a block, and of the root', () => {
+            expect(inferContext('{{#each posts}}{{#each tags}}{{../title}} {{../../siteName}} {{@root.owner}}{{/each}}{{/each}}').tree)
+                .toEqual({ posts: { tags: {}, title: {} }, siteName: {}, owner: {} });
+        });
+
+        it('reads no key for a data variable', () => {
+            expect(inferContext('{{#each items}}{{@index}} {{@key}} {{@first}}{{/each}}').tree).toEqual({ items: {} });
+        });
+
+        it('reads this.x at the root as x', () => {
+            expect(inferContext('{{this.title}}').tree).toEqual({ title: {} });
+        });
+    });
 });

@@ -278,6 +278,14 @@ export class UserCreateDTO extends OmitClass(User, ['id']) {}
 export class UserUpdateDTO extends PartialClass(UserCreateDTO) {}
 ```
 
+`OmitClass`, `PickClass` and `IntersectionClass` build a new class holding the members and declarations they take over, so an instance of a model derived with them is not an `instanceof` the model it was derived from. `PartialClass` extends its model, and an instance of it is.
+
+`PartialClass` makes the properties of the model itself optional. A property the model requires may be left out, and is refused when it is `null`. A property holding another model keeps what that model declares: a value given for it holds every property that model requires.
+
+A member two of the classes given to `IntersectionClass` share comes from the last class naming it, with its declaration.
+
+A body of an entity takes none of its relations: a request carrying one is answered 400, with the problem code `relation`. To take related rows in the same request, leave the relation out with `OmitClass` and declare it again in the derived model, as an `object` or an `array` of a model of the other side.
+
 A derived model takes over the declarations of the properties it keeps. A declaration cannot be
 changed once it is made, so a derived model that needs a property declared differently declares it
 again:

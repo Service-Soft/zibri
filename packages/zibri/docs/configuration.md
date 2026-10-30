@@ -83,6 +83,8 @@ These have no default either. An application using the feature provides them.
 | [`COOKIE_SIGN_SECRET`](./auth.md#setting-the-session-cookie-flags) | `string` | The secret cookies are signed with. Required by `CookieAuthStrategy` |
 | `CONFIRM_PASSWORD_RESET_URL` | `string` | The page of your frontend a password reset email links to. Required by `PasswordAuthenticator` |
 | `PASSWORD_RESET_EMAIL_TEMPLATE` | `PasswordResetEmailTemplate` | The email carrying that link. Required by `PasswordAuthenticator` |
+| [`EMAIL_VERIFICATION_OPTIONS`](./email-verification.md#setting-it-up) | `EmailVerificationOptions \| undefined` | How email addresses are verified. Not at all by default |
+| [`EMAIL_VERIFICATION_SERVICE`](./email-verification.md) | `EmailVerificationServiceInterface` | Mails the links verifying and changing addresses, and confirms them |
 | [`PASSKEY_OPTIONS`](./passkeys.md) | `PasskeyOptions` | The domain passkeys are bound to and the pages that use them. Required by `PasskeyAuthenticator` |
 | [`FEDERATION_OPTIONS`](./login-through-a-provider.md) | `FederationOptions` | What every provider a user logs in at shares. Required by an [authenticator](./glossary.md#authenticator) of a provider |
 | [`SMS_SERVICE`](./two-factor.md) | `SmsServiceInterface` | What sends a text message. Required by `SmsTwoFactorMethod` |
@@ -99,6 +101,7 @@ These have no default either. An application using the feature provides them.
 | [`LOGGER_CLEANUP_AFTER_IN_MS`](./logging.md) | `Record<LogLevel, number>` | How long the entries of each level are kept in the database. Two weeks for every level by default |
 | [`ACCESS_LOG`](./logging.md) | `boolean` | Whether one entry is written for every finished request. Off by default |
 | [`AUDIT_MAX_REFUSALS_PER_MINUTE`](./audit.md) | `number` | How many refusals a minute are stored as entries of their own, on each instance. 1000 by default |
+| [`AUDIT_INTEGRITY`](./audit.md#keeping-the-trail-as-a-chain) | `AuditIntegrity` | How the audit trail tells a changed entry: `'checkpoints'` or `'chain'`. `'checkpoints'` by default |
 
 ## Configuring the HTTP server
 
@@ -110,7 +113,7 @@ These have no default either. An application using the feature provides them.
 | [`FORM_DATA_LIMITS`](./creating-endpoints.md) | `FormDataLimits` | How many files, parts and fields a multipart body may have. 20, 1000 and 500 by default |
 | [`FILE_UPLOAD_TEMP_FOLDER`](./creating-endpoints.md) | `FsPath` | Where uploaded files are written. `.zibri/uploads` in the application's root by default |
 | [`DEFAULT_CSP_OPTIONS_INPUT`](./app-settings.md) | `CspOptionsInput` | The content security policy of a page. Everything from your own origin only, by default |
-| [`OPEN_API_AUTH`](./open-api.md#restricting-the-explorer) | `RouteAuthConfiguration` | Who may open the OpenAPI explorer and its documents. Everyone by default |
+| [`OPEN_API_AUTH`](./open-api.md#restricting-the-explorer) | `RouteAuthConfiguration` | Who may open the OpenAPI explorer and its documents. What `defaultAuth` says by default |
 | `VERSION_HEADER` | `string` | Which header names the version a request asks for. `x-version` by default |
 | `VERSION_QUERY_PARAM` | `string` | Which query parameter names the version a request asks for. `version` by default |
 | [`VERSIONS_PATH`](./versioning.md) | `FsPath` | Where the routes of each released version are recorded. `versions` in the application's root by default |
@@ -120,15 +123,19 @@ These have no default either. An application using the feature provides them.
 | Token | Type | What it is |
 |---|---|---|
 | [`REVALIDATE_USER_ON_AUTH_CHECK`](./auth.md) | `boolean` | Whether a check reads the account or trusts the credential. Reads the account by default |
+| [`MAX_LOGINS_PER_USER`](./auth.md#where-a-user-is-logged-in) | `number \| undefined` | How many logins a user holds at most. No limit by default |
 | [`PERMISSIONS`](./roles-and-permissions.md#declaring-permissions) | `PermissionDeclaration` | Every permission of your application. None by default, and a route or a role naming one is refused |
 | [`ACCESS_TOKEN_REVOCATION`](./auth.md#what-a-credential-is-worth) | `AccessTokenRevocation` | When an access token stops working once its login has ended. `'onExpiry'` by default |
 | [`AUTH_RATE_LIMIT_OPTIONS`](./auth.md#how-often-a-caller-may-try) | `AuthRateLimitOptions` | How often a caller may use the builtin login and password reset routes. 20 attempts in ten minutes by default |
 | [`DPOP_NONCES`](./dpop.md) | `boolean` | Whether a [DPoP](./glossary.md#dpop) proof carries a nonce your application issued. `false` by default |
+| [`DPOP_PROOF_MAX_AGE_IN_MS`](./dpop.md) | `number` | How far the time a DPoP proof was signed may be from now. Five minutes by default |
+| [`DPOP_NONCE_LIFETIME_IN_MS`](./dpop.md#nonces) | `number` | How long a DPoP nonce works. Five minutes by default |
 | [`COOKIE_AUTH_SESSION_OPTIONS`](./auth.md#naming-the-session-cookie) | `CookieAuthSessionOptionsInput` | The name and flags of the session cookie. `sessionId`, `sameSite: 'lax'` and `path: '/'` by default |
 | [`COOKIE_AUTH_REFRESH_SESSION_OPTIONS`](./auth.md#setting-the-session-cookie-flags) | `CookieAuthSessionOptionsInput` | The name and flags of the refresh cookie. `refreshSessionId`, `sameSite: 'lax'` and `path: '/'` by default |
 | [`COOKIE_AUTH_SESSION_EXPIRES_IN_MS`](./auth.md#how-long-a-login-lasts) | `number` | How long a session cookie lasts. A day by default |
 | [`COOKIE_AUTH_REFRESH_SESSION_EXPIRES_IN_MS`](./auth.md#how-long-a-login-lasts) | `number` | How long a refresh cookie lasts. 30 days by default |
 | [`COOKIE_AUTH_REFRESH_SESSION_REUSE_GRACE_IN_MS`](./auth.md#how-long-a-login-lasts) | `number` | How long a rotated refresh cookie is still taken. 30 seconds by default |
+| [`COOKIE_AUTH_ROW_GRACE_IN_MS`](./auth.md#how-long-a-login-lasts) | `number` | How long the stored session outlives its cookie, for a clock that runs behind. Five minutes by default |
 | [`CSRF_TOKEN_HEADER`](./auth.md#sending-the-csrf-token) | `string` | Which header carries the CSRF token. `x-csrf-token` by default |
 | [`PASSWORD_RESET_TOKEN_EXPIRES_IN_MS`](./auth.md#how-long-a-login-lasts) | `number` | How long a password reset link works. Five minutes by default |
 | [`API_KEY_HEADER`](./api-keys.md) | `string` | Which header carries an [API key](./glossary.md#api-key). `x-api-key` by default |
@@ -144,12 +151,15 @@ These have no default either. An application using the feature provides them.
 | [`REQUIRE_2FA_PROVIDER_FACTORS`](./two-factor.md) | `Require2faProviderFactors` | What a route that says nothing about `providerFactors` counts. `false` by default |
 | [`OTP_HEADER`](./two-factor.md) | `string` | Which header carries a one-time password. `x-authorization-otp` by default |
 | [`OTP_VALIDATION_WINDOW_IN_MS`](./two-factor.md) | `OtpValidationWindowInMs` | How much clock skew a one-time password may have. 30 seconds by default |
+| [`OTP_PERIOD_IN_SECONDS`](./two-factor.md#clock-skew) | `number` | How long an authenticator app shows one code. 30 seconds by default |
 | `OTP_LENGTH` | `number` | How many digits a one-time password has. 6 by default |
 | [`PASSKEY_HEADER`](./passkeys.md) | `string` | Which header carries a [passkey](./glossary.md#passkey) as a [second factor](./glossary.md#second-factor). `x-authorization-passkey` by default |
 | [`EMAIL_CODE_HEADER`](./two-factor.md) | `string` | Which header carries a mailed code. `x-authorization-email-code` by default |
 | [`SMS_CODE_HEADER`](./two-factor.md) | `string` | Which header carries a texted code. `x-authorization-sms-code` by default |
 | [`RECOVERY_CODE_HEADER`](./two-factor.md) | `string` | Which header carries a recovery code. `x-authorization-recovery-code` by default |
+| [`RECOVERY_CODE_OPTIONS`](./two-factor.md#recovery-codes) | `RecoveryCodeOptions` | How many recovery codes a set holds, and how long each is. 10 of 10 characters by default |
 | [`LOGIN_TICKET_HEADER`](./two-factor.md) | `string` | Which header carries a login [ticket](./glossary.md#ticket). `x-login-ticket` by default |
+| [`LOGIN_TICKET_EXPIRES_IN_MS`](./two-factor.md) | `number` | How long a login waits for its second factor. Five minutes by default |
 | [`TWO_FACTOR_CODE_OPTIONS`](./two-factor.md) | `TwoFactorCodeOptions` | How many digits a mailed or texted code has, how long it lasts, how often one can be sent and how many wrong ones it takes. The defaults are listed on the page |
 
 ## Configuring encryption and hashing
@@ -170,6 +180,7 @@ These have no default either. An application using the feature provides them.
 | `VAL_KEY_TRANSACTION_LOCK_HOLD_IN_MS` | `number` | How long a transaction of `ValKeyDataSource` may run before another may start. 30 seconds by default |
 | [`CACHE_INVALIDATION_RETENTION_IN_MS`](./caching.md) | `number` | How long the record of a cache invalidation is kept. A minute by default |
 | [`LEASE_DRAIN_TIMEOUT_IN_MS`](./leases.md) | `number` | How long work holding a [lease](./glossary.md#lease) may take to finish on shutdown. Ten seconds by default |
+| [`INSTANCE_ID`](./replication.md) | `string` | Names the instance on the leases it holds and the thread jobs it runs. The host name and the process id by default |
 | [`REPOSITORY_HOOKS`](./data-source.md) | `RepositoryHooks` | Code every repository runs on every row it saves, deletes or returns. None by default |
 
 ## Configuring background work
@@ -183,11 +194,12 @@ These have no default either. An application using the feature provides them.
 | [`EVENT_RETRY_DELAY_IN_MS`](./events.md) | `number` | How long the first retry of a hook waits, doubling with each one after it. A minute by default |
 | [`EVENT_MAX_CONCURRENT_HOOKS`](./events.md) | `number` | How many hooks one instance runs at a time. 50 by default |
 | [`FRAMEWORK_EVENT_NAMES`](./events.md#hearing-of-users-memberships-and-roles) | `FrameworkEventNames` | Which writes of users, [memberships](./glossary.md#membership) and roles are emitted, as which of your events. None by default |
-| [`MULTITHREADING_OPTIONS`](./multithreading.md) | `MultithreadingOptions` | How many workers run, and how long a job may take. Sized to the machine by default |
+| [`MULTITHREADING_OPTIONS_INPUT`](./multithreading.md#configuration) | `MultithreadingOptionsInput` | How many workers run, how long a job may take, and whether a worker file may be TypeScript. Sized to the machine, with JavaScript worker files, by default |
 | [`BACKUP_TEMP_FOLDER`](./backup.md) | `FsPath` | Where a backup is staged on its way to and from a transport. `.zibri/backups` in the application's root by default |
 | [`BACKUP_SHUTDOWN_WAIT_IN_MS`](./backup.md) | `number` | How long the application waits for a running backup or restore when it stops. 0 by default |
 | [`BACKUP_MAX_ATTEMPTS`](./backup.md#creating-and-restoring-backups) | `number` | How many times a resource of a backup is tried before the backup fails. 3 by default |
 | [`BACKUP_RETRY_DELAY_IN_MS`](./backup.md#creating-and-restoring-backups) | `number` | How long the first retry of a resource waits, doubling for each one after it. One minute by default |
+| [`BACKUP_RETENTION`](./backup.md#deleting-old-backups) | `BackupRetention \| undefined` | Which completed backups are kept each time a backup completes. None by default, which keeps every backup |
 
 ## Configuring pages, translations and outgoing requests
 
@@ -198,7 +210,7 @@ These have no default either. An application using the feature provides them.
 | [`TRANSLATIONS_PATH`](./localization.md) | `FsPath` | Where translations are read from. `translations` beside the bundle by default |
 | [`ASSETS_PATH`](./assets.md) | `FsPath` | Where assets are read from. `assets` beside the bundle by default |
 | `HANDLEBAR_OPTIONS` | `HandlebarOptions` | The Handlebars instance and the folder of the components a Handlebars template uses. None by default |
-| [`HTTP_CLIENT_OPTIONS_INPUT`](./http-client.md) | `HttpClientOptionsInput` | The timeout, response size limit and circuit breaker of outgoing requests. Five seconds, ten megabytes, and open for 30 seconds after 5 failures, by default |
+| [`HTTP_CLIENT_OPTIONS_INPUT`](./http-client.md) | `HttpClientOptionsInput` | The timeout, response size limit, circuit breaker and redirects of outgoing requests. Five seconds, ten megabytes, open for 30 seconds after 5 failures, and following redirects except from https to http, by default |
 | [`TRACE_BUFFER`](./tracing.md) | `TraceBufferInterface` | Where recorded spans are kept. An `InMemoryTraceBuffer` of a thousand spans by default |
 | [`TRACE_EXPORTER`](./tracing.md) | `OpenTelemetrySpanExporter` | Where finished spans are sent. Nowhere by default |
 
@@ -211,12 +223,14 @@ token to replace it.
 | [`ROUTER`](./auth.md#protecting-manually-registered-routes) | `RouterInterface` | Registers the routes and answers the requests. `Router` by default |
 | [`LOGGER`](./logging.md) | `LoggerInterface` | Writes log entries. `Logger` by default |
 | [`AUDIT_SERVICE`](./audit.md) | `AuditServiceInterface` | Records and reads audit entries. `AuditService` by default |
+| [`CHAIN_SERVICE`](./tamper-evident-tables.md) | `ChainServiceInterface` | Links the rows of chained entities, checks and prunes their chains. `ChainService` by default |
 | [`METRICS_SERVICE`](./metrics.md) | `MetricsServiceInterface` | Collects metrics. `PrometheusMetricsService` by default |
 | [`ASSET_SERVICE`](./assets.md) | `AssetServiceInterface` | Serves and reads assets. `AssetService` by default |
 | [`BACKUP_SERVICE`](./backup.md) | `BackupServiceInterface` | Writes and restores backups. `BackupService` by default |
 | [`GLOBAL_ERROR_HANDLER`](./error-handling.md) | `GlobalErrorHandler` | Answers a request whose handler threw. The built-in handler by default |
 | [`OPEN_API_SERVICE`](./open-api.md) | `OpenApiServiceInterface` | Builds the OpenAPI documents and serves the explorer. `OpenApiService` by default |
 | [`AUTH_SERVICE`](./auth.md) | `AuthServiceInterface` | Logs users in and out. `AuthService` by default |
+| [`ROUTE_AUTH_SERVICE`](./auth.md) | `RouteAuthServiceInterface` | Resolves what each route requires of a caller. `RouteAuthService` by default |
 | [`ROLE_SERVICE`](./roles-and-permissions.md) | `RoleServiceInterface` | Reads, creates, changes, gives and takes roles. `RoleService` by default |
 | [`AUTHORIZATION_SERVER_SERVICE`](./authorization-server.md) | `AuthorizationServerServiceInterface` | Answers the routes of the authorization server. `AuthorizationServerService` by default |
 | [`AUTH_RATE_LIMITER`](./auth.md) | `RateLimiterInterface` | Limits login attempts. `AuthRateLimiter` by default |
@@ -258,6 +272,7 @@ These are read, not provided.
 |---|---|---|
 | `JWT_AUTH_OPTIONS` | `JwtAuthOptions` | `JWT_AUTH_OPTIONS_INPUT` merged over the defaults |
 | `LOCALIZE_OPTIONS` | `LocalizeOptions` | `LOCALIZE_OPTIONS_INPUT` merged over the defaults |
+| `MULTITHREADING_OPTIONS` | `MultithreadingOptions` | `MULTITHREADING_OPTIONS_INPUT` merged over the defaults |
 | `HTTP_CLIENT_OPTIONS` | `HttpClientOptions` | `HTTP_CLIENT_OPTIONS_INPUT` merged over the defaults |
 | [`WEBSOCKET_OPTIONS`](./websocket.md) | `WebsocketOptions` | `WEBSOCKET_OPTIONS_INPUT` merged over the defaults. `undefined` for an application without websockets |
 | `DEFAULT_CSP_OPTIONS` | `CspOptions` | `DEFAULT_CSP_OPTIONS_INPUT` merged over the defaults |

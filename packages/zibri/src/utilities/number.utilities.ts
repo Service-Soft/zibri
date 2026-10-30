@@ -93,4 +93,13 @@ export abstract class NumberUtilities {
     static compare(value1: AnyNumber, value2: AnyNumber): number {
         return new BigNumber(value1).comparedTo(new BigNumber(value2)) ?? Number.NaN;
     }
+
+    /**
+     * Whether a value is an exact decimal, as a property of `format: 'bignumber'` holds it.
+     * @param value - The value.
+     * @returns True for a `BigNumber`.
+     */
+    static isBigNumber(value: unknown): value is BigNumber {
+        return BigNumber.isBigNumber(value);
+    }
 }

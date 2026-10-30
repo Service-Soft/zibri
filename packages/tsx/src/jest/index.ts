@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { compile, CompileResult } from '../codegen/compile';
+import { SourceMap } from '../codegen/source-map';
 import { resolveCompileError } from '../diagnostics/diagnostic.model';
 
 /**
@@ -23,7 +24,11 @@ export type TransformedSource = {
     /**
      * The compiled module.
      */
-    code: string
+    code: string,
+    /**
+     * Its source map, leading back to the template, so a stack frame of a test names the template.
+     */
+    map: SourceMap
 };
 
 /**
@@ -71,11 +76,11 @@ const PACKAGE_VERSION: string = resolvePackageVersion();
 const zibriTsxTransformer: ZibriTsxTransformer = {
     process(source: string, file: string): TransformedSource {
         // commonjs, which is what jest runs a test in
-        const result: CompileResult = compile(source, { module: 'cjs' });
-        if (!result.code) {
+        const result: CompileResult = compile(source, { module: 'cjs', fileName: file });
+        if (!result.code || !result.map) {
             throw resolveCompileError(result.diagnostics, source, file);
         }
-        return { code: result.code };
+        return { code: result.code, map: result.map };
     },
     getCacheKey(source: string, file: string, options: TransformOptions): string {
         // jest's own key covers the file and the configuration, but not the transformer. Without the

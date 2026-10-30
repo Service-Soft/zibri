@@ -56,6 +56,11 @@ Two meanings:
 - the way an OAuth2 client obtains a token, such as the client credentials grant of the
   [authorization server](./authorization-server.md).
 
+## Hash chain
+Rows that each carry a keyed hash of their own content and of the row before them. A row changed,
+removed or slipped in breaks the chain from there on, and only the holder of the key can write a hash
+that fits. See [tamper-evident tables](./tamper-evident-tables.md).
+
 ## Identity
 An account of a user somewhere else, such as at Google or in your company's directory, linked to the
 user it logs in as. A passkey is an identity too. See

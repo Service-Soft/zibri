@@ -674,9 +674,10 @@ describe('Where filters', () => {
 
         it('rejects a JSONB filter value that cannot be bound', async () => {
             // there is no such thing as a sql literal here any more - values are bound - so what is
-            // refused is a value no column could hold rather than one that could not be escaped
-            const where: WhereFilter<Product> = { metadata: { where: { color: { oneOf: [{ nested: true }] } } } } as unknown as WhereFilter<Product>;
-            await expect(productRepo.findAll({ where })).rejects.toThrow(/Cannot use a value of type "object"/);
+            // refused is a value no column could hold rather than one that could not be escaped. An
+            // object is no such value: it is compared as a whole json document (round-2/11 S5)
+            const where: WhereFilter<Product> = { metadata: { where: { color: { oneOf: [() => undefined] } } } } as unknown as WhereFilter<Product>;
+            await expect(productRepo.findAll({ where })).rejects.toThrow(/Cannot use a value of type "function"/);
         });
 
         it('rejects a JSONB filter value of an unsupported runtime type (eg. a function)', async () => {

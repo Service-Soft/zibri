@@ -67,9 +67,11 @@ export class CheckConstraintViolationError extends BadRequestError {
      */
     static resolveProperties(check: KeyWhere): string[] {
         const branches: object[] = Array.isArray(check) ? check : [check];
-        return [...new Set(branches.flatMap(branch => Object.entries(branch).flatMap(
-            ([key, condition]) => [key, ...PropertyReferenceUtilities.resolveReferenced(condition)]
-        )))];
+        return [
+            ...new Set(branches.flatMap(branch => Object.entries(branch).flatMap(
+                ([key, condition]) => [key, ...PropertyReferenceUtilities.resolveReferenced(condition)]
+            )))
+        ];
     }
 
     /**

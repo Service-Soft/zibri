@@ -1,9 +1,8 @@
+// Deliberately not tied to how the grant is stored. A named lock lives in a valkey key, a claim on
+// an event or a queued mail lives in a row, and the difference matters to whoever took it and to
+// nobody else - what the framework needs from all three is the same three operations.
 /**
- * A grant that has been taken and is currently being held by this instance.
- *
- * Deliberately not tied to how the grant is stored. A named lock lives in a valkey key, a claim on
- * an event or a queued mail lives in a row, and the difference matters to whoever took it and to
- * nobody else - what the framework needs from all three is the same three operations.
+ * A grant that has been taken and is currently being held by this instance, however it is stored.
  */
 export type HeldLease = {
     /**
@@ -21,12 +20,14 @@ export type HeldLease = {
      * logs it, and tells the work through its signal once the grant is lost for certain.
      */
     renew: () => Promise<void>,
+    // releasing unconditionally is what turned one lost exclusion into a permanent one in
+    // evaluation/10-leases-and-claims.md 10.1, because a lapsed holder freed the lock that had
+    // replaced its own
     /**
      * Hands the grant back.
      *
-     * Has to check that this holder still owns it. Releasing unconditionally is what turned one lost
-     * exclusion into a permanent one in evaluation/10-leases-and-claims.md 10.1, because a lapsed
-     * holder freed the lock that had replaced its own.
+     * Has to check that this holder still owns it: a lapsed holder must not free the grant that
+     * replaced its own.
      */
     release: () => Promise<void>
 };
@@ -47,7 +48,7 @@ export type KeptGrant = {
      * Stops renewing the grant and hands it back.
      *
      * Safe to call more than once, and safe for two callers to call at once - both wait for the same
-     * release rather than one returning while the grant is still being held.
+     * release.
      */
     release: () => Promise<void>
 };

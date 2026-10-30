@@ -178,6 +178,15 @@ export abstract class FsUtilities {
         }
     }
 
+    /**
+     * Whether the lines of a file are those of an empty file.
+     * @param lines - The lines.
+     * @returns True for one line holding nothing. A file whose first line is empty can hold more.
+     */
+    private static isEmpty(lines: string[]): boolean {
+        return lines.length <= 1 && !lines[0]?.length;
+    }
+
     private static normalizeData(data: string | string[]): string {
         if (Array.isArray(data)) {
             data = data.join('\n');
@@ -211,15 +220,13 @@ export abstract class FsUtilities {
                 break;
             }
             case 'append': {
-                let currentContent: string[] = await this.readFileLines(path);
-                currentContent = currentContent[0].length ? [...currentContent, data] : [data];
-                await writeFile(path, this.normalizeData(currentContent));
+                const currentContent: string[] = await this.readFileLines(path);
+                await writeFile(path, this.normalizeData(this.isEmpty(currentContent) ? [data] : [...currentContent, data]));
                 break;
             }
             case 'prepend': {
-                let currentContent: string[] = await this.readFileLines(path);
-                currentContent = currentContent[0].length ? [data, ...currentContent] : [data];
-                await writeFile(path, this.normalizeData(currentContent));
+                const currentContent: string[] = await this.readFileLines(path);
+                await writeFile(path, this.normalizeData(this.isEmpty(currentContent) ? [data] : [data, ...currentContent]));
                 break;
             }
         }

@@ -30,6 +30,7 @@ import { OAuthClientAuthentication } from '../../authenticators/oauth/oauth-clie
 import { BaseOidcAuthenticator } from '../../authenticators/oidc/base-oidc.authenticator';
 import { OidcAuthenticationTime } from '../../authenticators/oidc/oidc-authentication-time.type';
 import { OidcBearerTokens } from '../../authenticators/oidc/oidc-bearer-tokens.model';
+import { OidcDiscoveryAtBoot } from '../../authenticators/oidc/oidc-discovery-at-boot.type';
 import { Auth } from '../../decorators/auth.decorator';
 import { CurrentUser } from '../../decorators/current-user.decorator';
 import { AuthStrategies } from '../auth-strategies.model';
@@ -71,6 +72,8 @@ class StrictProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser>
 
     readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
+
     override readonly bearerTokens: OidcBearerTokens = { accessTokenAudiences: [API_AUDIENCE], accessTokenType: 'at+jwt', idTokenAudiences: [] };
 
     get issuer(): string {
@@ -89,6 +92,8 @@ class LenientProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
 
     readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
+
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
 
     override readonly bearerTokens: OidcBearerTokens = { accessTokenAudiences: [API_AUDIENCE], accessTokenType: 'any', idTokenAudiences: [MOBILE_CLIENT_ID] };
 
@@ -109,6 +114,8 @@ class LoginOnlyProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUs
 
     readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
+
     get issuer(): string {
         return loginOnlyProvider.issuer;
     }
@@ -126,6 +133,8 @@ class PairwiseProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUse
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
 
     readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
+
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
 
     override readonly subjectClaim: string = 'oid';
 
@@ -147,6 +156,8 @@ class NoAudienceProviderAuthenticator extends BaseOidcAuthenticator<string, JwtU
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
 
     readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
+
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
 
     override readonly bearerTokens: OidcBearerTokens = { accessTokenAudiences: [], accessTokenType: 'at+jwt', idTokenAudiences: [] };
 

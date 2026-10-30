@@ -34,11 +34,10 @@ type ScheduledWakeUp = {
     timer: NodeJS.Timeout
 };
 
+// one subscription per data source, carrying every topic, rather than one per topic: on postgres a
+// subscription is a connection the pool cannot hand out
 /**
- * Default implementation of the wake up service.
- *
- * One subscription per data source, carrying every topic, rather than one per topic: on postgres a
- * subscription is a connection the pool cannot hand out.
+ * Default implementation of the wake up service. It holds one subscription per data source.
  */
 @Injectable({ register: 'onUse' })
 export class WakeUpService implements WakeUpServiceInterface, OnAppShutdown {

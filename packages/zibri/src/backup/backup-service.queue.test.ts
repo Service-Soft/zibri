@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
 import { BackupEntity, BackupEntityCreateData } from './backup-entity.model';
@@ -16,6 +16,7 @@ import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { waitUntil } from '../__testing__/wait-until.function';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
 import { Repository } from '../data-source/repository/repository';
 import { RepositoryClass } from '../data-source/repository/repository-class.type';
@@ -24,6 +25,8 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { BaseEntity } from '../entity/base-entity.model';
+import { WakeUpServiceInterface } from '../polling/wake-up-service.interface';
+import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
 import { Newable } from '../types/newable.type';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 
@@ -34,12 +37,18 @@ const backupFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups-queue'
  */
 let storesToFail: number = 0;
 
+/**
+ * What every store waits for first, so a test can hold a backup back until it is ready for it to end.
+ */
+let storesHeldUntil: Promise<void> = Promise.resolve();
+
 @BackupTransport()
 class QueueFsBackupTransport extends BaseFsBackupTransport {
     override readonly name: string = 'queue-fs-backup-transport';
     protected override readonly backupBasePath: FsPath = backupFolder;
 
     override async storeData(data: Readable, backup: BackupEntity, resource: BackupResourceEntity): Promise<void> {
+        await storesHeldUntil;
         if (storesToFail > 0) {
             storesToFail--;
             data.destroy();
@@ -75,6 +84,8 @@ let backupService: BackupServiceInterface;
 let backups: Repository<BackupEntity, BackupEntityCreateData>;
 
 beforeAll(async () => {
+    // what an interrupted run left behind would be read back by the startup sync as backups of its own
+    await FsUtilities.rm(backupFolder);
     server = await startTestServer({
         dataSources: [QueueDataSource],
         providers: [
@@ -106,9 +117,13 @@ async function findBackup(id: string): Promise<BackupEntity> {
 }
 
 /**
- * Runs the queued backups until a retry that is due by now is behind it.
+ * Runs the queued backups once the first attempt at a backup's resource has failed, so that its retry
+ * is due rather than its first attempt still running.
+ * @param backup - The backup.
  */
-async function runRetries(): Promise<void> {
+async function runRetries(backup: BackupEntity): Promise<void> {
+    await waitUntil(async () => (await findBackup(backup.id)).resources[0]?.error != undefined);
+    // past the retry delay of a millisecond
     await sleep(20);
     await backupService.runQueuedBackups();
 }
@@ -132,10 +147,11 @@ describe('BackupService - a backup as queued work', () => {
         const queued: BackupEntity = await backupService.queueBackup({ name: 'retried' });
         const done: Promise<BackupEntity> = backupService.waitForBackup(queued);
 
-        await runRetries();
+        await runRetries(queued);
 
         expect((await done).status).toBe(BackupStatus.COMPLETED);
         const [resource] = (await findBackup(queued.id)).resources;
+        // eslint-disable-next-line unicorn/no-null
         expect(resource).toMatchObject({ completed: true, attempts: 2, error: null });
     });
 
@@ -143,8 +159,11 @@ describe('BackupService - a backup as queued work', () => {
         storesToFail = 2;
         const queued: BackupEntity = await backupService.queueBackup({ name: 'given-up' });
         const done: Promise<BackupEntity> = backupService.waitForBackup(queued);
+        // what waiting answers once the backup failed, which it does before the test looks
+        // eslint-disable-next-line promise/prefer-await-to-then
+        done.catch(() => undefined);
 
-        await runRetries();
+        await runRetries(queued);
 
         await expect(done).rejects.toThrow(new RegExp(`given-up[\\S\\s]*${ProjectsStore.name}[\\S\\s]*could not be reached`));
         const failed: BackupEntity = await findBackup(queued.id);
@@ -166,4 +185,36 @@ describe('BackupService - a backup as queued work', () => {
 
         expect((await backupService.waitForBackup(left)).status).toBe(BackupStatus.COMPLETED);
     });
+
+    // a backup that ended while its waiter was still subscribing told that waiter before its listener
+    // existed, and the throw cut the end short: the other instances were never told it ended
+    it('ends a backup normally while somebody waiting for it is still subscribing', async () => {
+        const wakeUpService: WakeUpServiceInterface = inject(ZIBRI_DI_TOKENS.WAKE_UP_SERVICE);
+        const woken: jest.SpiedFunction<WakeUpServiceInterface['wake']> = jest.spyOn(wakeUpService, 'wake');
+        const listen: WakeUpServiceInterface['listen'] = wakeUpService.listen.bind(wakeUpService);
+        let releaseStores: () => void = () => undefined;
+        storesHeldUntil = new Promise<void>(resolve => {
+            releaseStores = resolve;
+        });
+        try {
+            const queued: BackupEntity = await backupService.queueBackup({ name: 'ended-while-subscribing' });
+            const announced: () => boolean = () => woken.mock.calls.some(([, topic]) => topic === WAKE_UP_TOPICS.backupEnded(queued.id));
+            jest.spyOn(wakeUpService, 'listen').mockImplementationOnce(async (dataSource, topic, onWake) => {
+                // the backup is stored and ends while the subscription is still on its way
+                releaseStores();
+                await waitUntil(announced).catch(() => undefined);
+                return await listen(dataSource, topic, onWake);
+            });
+
+            const done: BackupEntity = await backupService.waitForBackup(queued);
+
+            expect(done.status).toBe(BackupStatus.COMPLETED);
+            expect(announced()).toBe(true);
+        }
+        finally {
+            releaseStores();
+            storesHeldUntil = Promise.resolve();
+            woken.mockRestore();
+        }
+    }, 20000);
 });

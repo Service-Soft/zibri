@@ -65,9 +65,8 @@ function getUninjectableParameterMessage(
  * otherwise from the type metadata a build writes down. That metadata is lossy where it exists at
  * all: everything that is not a class arrives as a built-in, so an interface and a generic and a
  * half-loaded class all look alike by the time the container reads them, and a toolchain that emits
- * none leaves the parameter carrying nothing. What is missing is therefore never in the parameter
- * itself but in what can be known about it, which is why this names the class, the position and what
- * was recorded rather than a token that does not exist.
+ * none leaves the parameter carrying nothing. The error names the class, the position and what was
+ * recorded for it.
  */
 export class UninjectableParameterError extends InternalError {
     constructor(

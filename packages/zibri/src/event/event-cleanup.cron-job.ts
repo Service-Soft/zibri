@@ -41,25 +41,20 @@ export class EventCleanupCronJob extends CronJob {
     async onTick(): Promise<void> {
         this.logger.info('cleans up past events');
 
-        try {
-            const removed: number = await this.repository.deleteAll(
-                { status: EventStatus.FINISHED, cleanupAt: { before: new Date() } },
-                { acrossTenants: true }
-            );
-            this.logger.info(`removed ${removed} events`);
-            if (this.failedRetentionInMs === 'forever') {
-                return;
-            }
-            // counted from the emit, which no row lacks: a retention is counted in days, and the
-            // attempts that end in FAILED are spread over minutes
-            const removedFailed: number = await this.repository.deleteAll(
-                { status: EventStatus.FAILED, createdAt: { before: new Date(Date.now() - this.failedRetentionInMs) } },
-                { acrossTenants: true }
-            );
-            this.logger.info(`removed ${removedFailed} failed events`);
+        const removed: number = await this.repository.deleteAll(
+            { status: EventStatus.FINISHED, cleanupAt: { before: new Date() } },
+            { acrossTenants: true }
+        );
+        this.logger.info(`removed ${removed} events`);
+        if (this.failedRetentionInMs === 'forever') {
+            return;
         }
-        catch {
-            // Do nothing
-        }
+        // counted from the emit, which no row lacks: a retention is counted in days, and the
+        // attempts that end in FAILED are spread over minutes
+        const removedFailed: number = await this.repository.deleteAll(
+            { status: EventStatus.FAILED, createdAt: { before: new Date(Date.now() - this.failedRetentionInMs) } },
+            { acrossTenants: true }
+        );
+        this.logger.info(`removed ${removedFailed} failed events`);
     }
 }

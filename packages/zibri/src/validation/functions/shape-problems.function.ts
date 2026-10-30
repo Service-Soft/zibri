@@ -142,7 +142,8 @@ function objectShapeProblems(fullKey: string, value: unknown, metadata: ObjectPr
     const res: ValidationProblem[] = [];
     if (!metadata.allowAdditionalProperties) {
         for (const key of ObjectUtilities.keys(record)) {
-            if (!(key in properties)) {
+            // own keys only, as validation reads them: `in` found `toString` and `constructor` too
+            if (!Object.hasOwn(properties, key)) {
                 res.push(new UnknownKeyValidationProblem(joinKey(fullKey, key)));
             }
         }
@@ -156,7 +157,7 @@ function objectShapeProblems(fullKey: string, value: unknown, metadata: ObjectPr
             case Relation.BELONGS_TO_ONE:
             case Relation.MANY_TO_MANY: {
                 if (child != undefined) {
-                    res.push(new RelationsNotAllowedValidationProblem(joinKey(fullKey, key), property, key));
+                    res.push(new RelationsNotAllowedValidationProblem(joinKey(fullKey, key)));
                 }
                 break;
             }

@@ -158,6 +158,19 @@ export function describePagedReads(dataSourceName: string, reposOf: () => PagedR
             expect(page.totalAmount).toBe(2);
         });
 
+        it('walks the rows a filter through a relation matches, page after page', async () => {
+            const { batch, customers }: StoredOrders = await storeOrders();
+            const options: FindAllPaginatedOptions<PagedOrder> = {
+                where: { batch, customer: { where: { name: customers[0]?.name } } },
+                order: { position: 'ASC' }
+            };
+
+            const first: KeysetPage<PagedOrder> = await reposOf().orders.findAllAfter(undefined, 1, options);
+            const second: KeysetPage<PagedOrder> = await reposOf().orders.findAllAfter(first.nextCursor, 1, options);
+
+            expect([first, second].map(p => [p.items.map(o => o.position), p.totalAmount])).toEqual([[[2], 2], [[4], 2]]);
+        });
+
         it('counts the whole filter on every page of a walk', async () => {
             const { batch }: StoredOrders = await storeOrders();
             const options: FindAllPaginatedOptions<PagedOrder> = { where: { batch }, relations: ['lines'], order: { position: 'ASC' } };
@@ -245,7 +258,8 @@ export function describePagedReads(dataSourceName: string, reposOf: () => PagedR
             }));
 
             // the value rather than `in`: an entity the orm builds declares every property, set or not
-            expect(streamed.map(o => [o.position, o.customer])).toEqual([[4, undefined], [2, undefined], [5, undefined], [3, undefined], [1, undefined]]);
+            expect(streamed.map(o => [o.position, o.customer]))
+                .toEqual([[4, undefined], [2, undefined], [5, undefined], [3, undefined], [1, undefined]]);
         });
 
         it('keeps the order across every batch it reads', async () => {

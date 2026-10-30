@@ -207,7 +207,9 @@ describe('AuthService - a second factor at login', () => {
                 }),
                 defineProvider({ token: ZIBRI_DI_TOKENS.EMAIL_TRANSPORT, useValue: transport }),
                 // short, so that a case about a wrong code does not wait
-                defineProvider({ token: ZIBRI_DI_TOKENS.TWO_FACTOR_FAILURE_DELAY_IN_MS, useFactory: () => 1 })
+                defineProvider({ token: ZIBRI_DI_TOKENS.TWO_FACTOR_FAILURE_DELAY_IN_MS, useFactory: () => 1 }),
+                // not the five minutes of the default, so that the ticket shows which one it took
+                defineProvider({ token: ZIBRI_DI_TOKENS.LOGIN_TICKET_EXPIRES_IN_MS, useFactory: () => Ms.MINUTE * 30 })
             ]
         });
         baseUrl = await server.start();
@@ -296,6 +298,20 @@ describe('AuthService - a second factor at login', () => {
 
             expect(res.status).toBe(200);
             expect(await loginsOf(user)).toBe(1);
+        });
+
+        // 09 §Q7: the lifetime was a constant of the service, while every other lifetime of a login is a token
+        it('issues a ticket that lasts as long as the application says', async () => {
+            const user: JwtUser = await createUser('ticket-lifetime');
+            await enrollOtp(user);
+            const before: number = Date.now();
+            await pendingLoginOf(user);
+            const after: number = Date.now();
+
+            const tickets: Repository<LoginTicket, LoginTicketCreateData> = inject(repositoryTokenFor(LoginTicket));
+            const [row] = await tickets.findAll({ where: { userId: user.id } });
+            expect(row?.expirationDate.getTime()).toBeGreaterThanOrEqual(before + (Ms.MINUTE * 30));
+            expect(row?.expirationDate.getTime()).toBeLessThanOrEqual(after + (Ms.MINUTE * 30));
         });
 
         it('refuses a ticket that has expired', async () => {

@@ -6,3 +6,5 @@ export * from './new';
 export * from './upgrade';
 export * from './add';
 export * from './remove';
+export * from './migrate';
+export * from './generate';

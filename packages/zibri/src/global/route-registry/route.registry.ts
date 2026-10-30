@@ -1,5 +1,5 @@
-import { AuthServiceInterface } from '../../auth/auth-service.interface';
 import { ResolvedRouteAuth } from '../../auth/models/resolved-auth-metadata.model';
+import { RouteAuthServiceInterface } from '../../auth/route-auth-service.interface';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { resolveRouteParamMetadata, RouteParamMetadata } from '../../routing/route-param-metadata.model';
@@ -68,10 +68,10 @@ export abstract class RouteRegistry {
      * @returns What the route declared.
      */
     private static build(controllerClass: Newable<unknown>, controllerMethod: string): RouteRegistryData {
-        const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
+        const routeAuthService: RouteAuthServiceInterface = inject(ZIBRI_DI_TOKENS.ROUTE_AUTH_SERVICE);
         const data: RouteRegistryData = {
             params: resolveRouteParamMetadata(controllerClass, controllerMethod),
-            auth: authService.resolveRouteAuth(controllerClass, controllerMethod)
+            auth: routeAuthService.resolveRouteAuth(controllerClass, controllerMethod)
         };
         this.routesOf(controllerClass).set(controllerMethod, data);
         return data;

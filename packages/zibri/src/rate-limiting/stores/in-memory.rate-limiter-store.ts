@@ -19,9 +19,9 @@ export type InMemoryRateLimiterStoreOptions = {
     /**
      * How many keys this store holds at most.
      *
-     * Once it is full, a key it has never seen is refused rather than added, which the limiter turns
-     * into whatever its `onStoreFailure` says. Keys already in the store keep counting normally, so
-     * what a full store costs is one limited endpoint rather than the process it runs in. Reaching it
+     * Once it is full, a key it has never seen is refused, which the limiter turns into whatever its
+     * `onStoreFailure` says. Keys already in the store keep counting normally, so what a full store
+     * costs is one limited endpoint, not the process it runs in. Reaching it
      * is also reported once as an error, because it is a symptom: either the limiter keys on
      * something with no natural bound, or the app has outgrown a store that lives inside one process
      * and wants a shared one.

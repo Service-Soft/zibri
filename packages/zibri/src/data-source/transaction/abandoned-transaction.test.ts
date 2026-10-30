@@ -9,7 +9,7 @@ import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
-import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { Repository } from '../repository/repository';
 
 /**

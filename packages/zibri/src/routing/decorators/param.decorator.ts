@@ -7,7 +7,7 @@ import { NumberParamMetadata, NumberParamMetadataInput } from '../models/number-
 import { ObjectParamMetadata, ObjectParamMetadataInput } from '../models/object-param-metadata.model';
 import { OneOfParamMetadata, OneOfPathParamMetadataInput, OneOfQueryParamMetadataInput } from '../models/one-of-param-metadata.model';
 import { StringParamMetadata, StringParamMetadataInput } from '../models/string-param-metadata.model';
-import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from '../param-metdata.helpers';
+import { ParamMetadataUtilities } from '../param-metadata.utilities';
 
 /**
  * Metadata of path parameters.
@@ -90,7 +90,7 @@ export namespace Param {
      * @param options - Additional options like the type of the parameter etc.
      */
     export function path(name: string, options: PathParamMetadataInput = { type: 'string' }): ParameterDecorator {
-        const fullMetadata: PathParamMetadata = createPathParamMetadata(name, options);
+        const fullMetadata: PathParamMetadata = ParamMetadataUtilities.createPathParam(name, options);
         return (target, propertyKey, parameterIndex) => {
             const ctor: Function = target.constructor;
             MetadataUtilities.setFilePath(ctor);
@@ -107,7 +107,7 @@ export namespace Param {
      * @param options - Additional options, like the type etc.
      */
     export function query(name: string, options: QueryParamMetadataInput = { type: 'string' }): ParameterDecorator {
-        const fullMetadata: QueryParamMetadata = createQueryParamMetadata(name, options);
+        const fullMetadata: QueryParamMetadata = ParamMetadataUtilities.createQueryParam(name, options);
         return (target, propertyKey, parameterIndex) => {
             const ctor: Function = target.constructor;
             MetadataUtilities.setFilePath(ctor);
@@ -124,7 +124,7 @@ export namespace Param {
      * @param options - Additional options, like the type etc.
      */
     export function header(name: Header, options: HeaderParamMetadataInput = { type: 'string' }): ParameterDecorator {
-        const fullMetadata: HeaderParamMetadata = createHeaderParamMetadata(name, options);
+        const fullMetadata: HeaderParamMetadata = ParamMetadataUtilities.createHeaderParam(name, options);
         return (target, propertyKey, parameterIndex) => {
             const ctor: Function = target.constructor;
             MetadataUtilities.setFilePath(ctor);

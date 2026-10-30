@@ -8,7 +8,7 @@ import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
 /**
  * A cookie auth session.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate' })
 export class CookieAuthSession extends BaseEntity {
     /**
      * The token the session cookie carries.

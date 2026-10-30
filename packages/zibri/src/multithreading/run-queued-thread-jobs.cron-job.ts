@@ -21,10 +21,11 @@ import { Newable } from '../types/newable.type';
  * normally arrives on. It is the path work arrives on when the instance that queued it had nothing
  * free, and when the instance that was running it is gone.
  *
- * Deliberately `runsOn: 'everyInstance'`. Every instance has its own workers to keep busy, so every one
- * of them has to look; electing a single instance would have it poll on behalf of a pool it cannot
- * reach. Keeps no row for the same reason.
+ * Runs on every instance, and keeps no row.
  */
+// Deliberately `runsOn: 'everyInstance'`. Every instance has its own workers to keep busy, so every one
+// of them has to look; electing a single instance would have it poll on behalf of a pool it cannot
+// reach. Keeps no row for the same reason.
 export class RunQueuedThreadJobsCronJob extends PollingCronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly initialConfig: InitialCronConfig = {

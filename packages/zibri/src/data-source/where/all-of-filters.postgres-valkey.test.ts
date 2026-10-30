@@ -8,7 +8,7 @@ import { createTestValKeyDataSource } from '../../__testing__/test-server/create
 import { startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
-import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { Repository } from '../repository/repository';

@@ -4,8 +4,8 @@ import { $ts } from '../../localization/translate.function';
 /**
  * An error to throw when a deactivated user tries to log in.
  *
- * Forbidden rather than unauthorized: the credentials were right, so sending them again cannot help
- * until the user is reactivated.
+ * Answers 403: the credentials were right, and sending them again does not help until the user is
+ * reactivated.
  */
 export class AccountDeactivatedError extends ForbiddenError {
     constructor(options?: ErrorOptions) {

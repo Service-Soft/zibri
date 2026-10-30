@@ -132,17 +132,7 @@ type ReconciledDataSource = {
      * Runs a statement on the store as somebody other than the application, for a store that takes
      * statements: what the cases create beside what the entity declares.
      */
-    runStatement?: <T>(sql: string) => Promise<T[]>
-};
-
-/**
- * One index of the widget's table, as postgres lists it.
- */
-type WidgetIndexRow = {
-    /**
-     * The name of the index.
-     */
-    indexname: string
+    runStatement?: (sql: string) => Promise<Record<string, unknown>[]>
 };
 
 /**
@@ -365,7 +355,7 @@ export function describeKeyReconciliation(dataSourceName: string, reconciled: Re
         }, 60000);
     });
 
-    const runStatement: (<T>(sql: string) => Promise<T[]>) | undefined = reconciled.runStatement;
+    const runStatement: ((sql: string) => Promise<Record<string, unknown>[]>) | undefined = reconciled.runStatement;
     if (runStatement == undefined) {
         return;
     }
@@ -380,10 +370,10 @@ export function describeKeyReconciliation(dataSourceName: string, reconciled: Re
          * @returns Their names.
          */
         const findWidgetIndexes: () => Promise<string[]> = async () => {
-            const rows: WidgetIndexRow[] = await runStatement<WidgetIndexRow>(
+            const rows: Record<string, unknown>[] = await runStatement(
                 'SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() AND tablename = \'reconciled_widget\''
             );
-            return rows.map(r => r.indexname);
+            return rows.map(r => String(r['indexname']));
         };
 
         beforeAll(async () => {

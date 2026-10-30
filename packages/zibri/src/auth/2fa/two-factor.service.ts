@@ -18,7 +18,7 @@ import { OnAppInit } from '../../global/on-app-init.interface';
 import { type LeaseServiceInterface } from '../../leases/lease-service.interface';
 import { $ts } from '../../localization/translate.function';
 import { AuditAction, AuditOutcome } from '../../logging/audit-event.model';
-import { auditReasonFor } from '../../logging/audit-reason-for.function';
+import { AuditUtilities } from '../../logging/audit.utilities';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { Ms } from '../../utilities/ms';
 import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
@@ -92,7 +92,12 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         TwoFactorRegistrationRequestResult
     >(
         user: UserType,
-        method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, TwoFactorRegistrationRequestResult, unknown>,
+        method: TwoFactorMethod<
+            TwoFactorRegistrationRequestData,
+            TwoFactorRegistrationConfirmData,
+            TwoFactorRegistrationRequestResult,
+            unknown
+        >,
         data: TwoFactorRegistrationRequestData
     ): Promise<TwoFactorRegistrationRequestResult> {
         return await method.requestRegistration(user, data);
@@ -121,7 +126,8 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, unknown, unknown>,
         data: TwoFactorRegistrationConfirmData
     ): Promise<void> {
-        await method.confirmRegistration(user, data);
+        // a factor of one's own added to an account taken over is how the takeover is kept
+        await this.audited(AuditAction.TWO_FACTOR_ENROLLED, user.id, async () => await method.confirmRegistration(user, data));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -133,7 +139,25 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         user: UserType,
         method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, unknown, unknown>
     ): Promise<void> {
-        await method.removeRegistration(user);
+        // and removing the owner's is how they are locked out of it
+        await this.audited(AuditAction.TWO_FACTOR_REMOVED, user.id, async () => await method.removeRegistration(user));
+    }
+
+    /**
+     * Changes the second factors of a user, recording that it happened or why it did not.
+     * @param action - The change.
+     * @param userId - The id of the user.
+     * @param change - Makes the change.
+     */
+    private async audited(action: AuditAction, userId: string, change: () => Promise<void>): Promise<void> {
+        try {
+            await change();
+            this.auditService.record({ action, outcome: AuditOutcome.SUCCESS, userId });
+        }
+        catch (error) {
+            this.auditService.record({ action, outcome: AuditOutcome.FAILURE, reason: AuditUtilities.resolveReason(error), userId });
+            throw error;
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -205,7 +229,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
             this.auditService.record({
                 action: AuditAction.TWO_FACTOR,
                 outcome: AuditOutcome.FAILURE,
-                reason: auditReasonFor(error),
+                reason: AuditUtilities.resolveReason(error),
                 userId: user.id
             });
             throw error;

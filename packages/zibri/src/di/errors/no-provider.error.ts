@@ -48,7 +48,7 @@ function getNoProviderMessage(token: DiToken<unknown>, resolvingStack: Function[
  */
 export type NoProviderErrorOptions = ErrorOptions & {
     /**
-     * Whether nothing at all is registered, rather than this one token being absent.
+     * Whether nothing at all is registered, not only this one token.
      */
     containerIsEmpty?: boolean
 };

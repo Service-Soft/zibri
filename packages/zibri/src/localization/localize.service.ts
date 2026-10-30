@@ -18,20 +18,20 @@ import { inject } from '../di/inject.function';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { KnownHeader } from '../http/known-header.enum';
 import { CurrencyCode } from './models/currency-code.model';
+import { InternalError } from '../error-handling/internal-error.model';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { type FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 import { optionalPeer } from '../utilities/optional-peer.function';
-import { ExtractedTranslationString } from './xlf/transform-source-translation-tokens.function';
-import { InternalError } from '../error-handling/internal-error.model';
+import { ExtractedTranslationString } from './xlf/models/extracted-translation-string.model';
 
-const acceptLanguageRegex: RegExp = /((([A-Za-z]+(-[\dA-Za-z]+){0,2})|\*)(;q=[01](\.\d+)?)?)*/g;
+// whitespace is allowed around the `;` of the weight (RFC 9110, 12.4.2)
+const acceptLanguageRegex: RegExp = /((([A-Za-z]+(-[\dA-Za-z]+){0,2})|\*)([\t ]*;[\t ]*q=[01](\.\d+)?)?)*/g;
 
+// every option is stated rather than left to its default, because the default of a comparison is the
+// runtime's own locale - which would make the order a property of the machine the process runs on
 /**
- * How a collator is built wherever text is ordered.
- *
- * Every option is stated rather than left to its default, because the default of a comparison is the
- * runtime's own locale - which would make the order a property of the machine the process runs on.
+ * How a collator is built wherever text is ordered. Every option is stated.
  */
 export const TEXT_COLLATOR_OPTIONS: Intl.CollatorOptions = {
     sensitivity: 'variant',
@@ -120,6 +120,38 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
 
         await this.registerTranslationsFromXlfFiles(translationStrings, supportedLocales);
         this.warnAboutMissingTranslations(supportedLocales, translationStrings);
+        this.warnAboutLeftOutPlaceholders(supportedLocales, translationStrings);
+    }
+
+    // round-2 11 §L6: a translation reads `{name}` as a placeholder only where its source has one of
+    // that name, and anything else in braces as text. A placeholder the translator misspelled is
+    // therefore served as text and its value as nothing, which only this says
+    private warnAboutLeftOutPlaceholders(
+        supportedLocales: LocaleCode[],
+        translationStrings: ExtractedTranslationString[]
+    ): void {
+        for (const locale of supportedLocales) {
+            for (const translation of translationStrings) {
+                const found: string | undefined = TranslationRegistry.findTranslation(locale, translation.source);
+                if (found == undefined || found === translation.source) {
+                    continue;
+                }
+                const kept: Set<string> = this.resolvePlaceholderNames(found);
+                const leftOut: string[] = [...this.resolvePlaceholderNames(translation.source)].filter(name => !kept.has(name));
+                if (leftOut.length) {
+                    const placeholders: string = leftOut.map(name => `{${name}}`).join(', ');
+                    this.logger.warn(
+                        `The "${locale}" translation of "${translation.source}" leaves out ${placeholders}`
+                        + ` (${translation.file}:${translation.line})`
+                    );
+                }
+            }
+        }
+    }
+
+    // the names `$t` substitutes, read the way it reads them: `{{` and `}}` are a brace of the text
+    private resolvePlaceholderNames(text: string): Set<string> {
+        return new Set([...text.matchAll(/{{|}}|{([^}]+)}/g)].flatMap(match => match[1] == undefined ? [] : [match[1]]));
     }
 
     private warnAboutMissingTranslations(
@@ -265,25 +297,28 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
             return context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_LOCALE);
         }
 
-        const acceptLanguage: string | undefined = context?.request.query?.[this.options.localeQueryParam]
-            ?? context?.request.headers?.[KnownHeader.ACCEPT_LANGUAGE];
-        if (!acceptLanguage) {
-            return this.options.defaultLocale;
+        // a locale the query names twice names two, and picking one would be a guess - so it, like one
+        // that names nothing supported, leaves the choice to the header
+        const query: unknown = context?.request.query?.[this.options.localeQueryParam];
+        const fromQuery: LocaleCode | undefined = typeof query === 'string' && query.length
+            ? this.resolveSupportedLocaleFromAcceptLanguageString(query)
+            : undefined;
+        if (fromQuery) {
+            return fromQuery;
         }
 
-        const resolvedLocale: LocaleCode | undefined = this.resolveSupportedLocaleFromAcceptLanguageString(acceptLanguage);
-        if (resolvedLocale) {
-            return resolvedLocale;
-        }
-
-        return this.options.defaultLocale;
+        const acceptLanguage: string | undefined = context?.request.headers?.[KnownHeader.ACCEPT_LANGUAGE];
+        const fromHeader: LocaleCode | undefined = acceptLanguage
+            ? this.resolveSupportedLocaleFromAcceptLanguageString(acceptLanguage)
+            : undefined;
+        return fromHeader ?? this.options.defaultLocale;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     resolveSupportedLocaleFromAcceptLanguageString(acceptLanguage: string): LocaleCode | undefined {
         const parts: RegExpMatchArray | null = acceptLanguage.match(acceptLanguageRegex);
         const resolvedDefinitions: AcceptLanguageDefinition[] = (parts ?? []).map(m => {
-            const bits: string[] = m.split(';');
+            const bits: string[] = m.split(';').map(bit => bit.trim());
             const ietf: string[] = (bits[0] ?? '').split('-');
             const hasScript: boolean = ietf.length === 3;
             // the regex only matches a parameter written as `;q=`, so a second bit always has one
@@ -295,7 +330,10 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
                 region: hasScript ? ietf[2] : ietf[1],
                 quality: quality == undefined ? 1 : Number.parseFloat(quality)
             };
-        }).sort((a, b) => b.quality - a.quality);
+        })
+            // a weight of 0 says the language is not acceptable at all
+            .filter(definition => definition.quality > 0)
+            .sort((a, b) => b.quality - a.quality);
 
         for (const definition of resolvedDefinitions) {
             const locale: LocaleCode | undefined = this.findSupportedLocaleForAcceptLanguageDefinition(definition);
@@ -338,16 +376,18 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     formatPrice(price: AnyNumber, options: FormatPriceOptions): string {
-        options.locale ??= this.resolveSupportedLocale();
-        options.currency ??= this.resolveCurrencyCodeForLocale(options.locale);
+        // read rather than filled in: a caller passing one options object to every call would otherwise
+        // format each later call in the locale of the first
+        const locale: LocaleCode = options.locale ?? this.resolveSupportedLocale();
+        const currency: CurrencyCode = options.currency ?? this.resolveCurrencyCodeForLocale(locale);
 
         const v: number | bigint = typeof price === 'number' || typeof price === 'bigint' ? price : price.toNumber();
         // the minor units asked for rather than left to the runtime, so a price shows the decimals an
         // amount calculated in its currency was rounded to, whoever answers how many those are
-        const minorUnits: number = this.getCurrencyMinorUnits(options.currency);
-        return new Intl.NumberFormat(options.locale, {
+        const minorUnits: number = this.getCurrencyMinorUnits(currency);
+        return new Intl.NumberFormat(locale, {
             style: 'currency',
-            currency: options.currency,
+            currency,
             minimumFractionDigits: minorUnits,
             maximumFractionDigits: minorUnits
         }).format(v);
@@ -355,8 +395,7 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     formatPercent(percent: number, options: FormatPercentOptions = {}): string {
-        options.locale ??= this.resolveSupportedLocale();
-        return percent.toLocaleString(options.locale, { style: 'percent' });
+        return percent.toLocaleString(options.locale ?? this.resolveSupportedLocale(), { style: 'percent' });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -365,14 +404,13 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         format: DateFormatString<S> | DateFormatShortcut = 'date',
         options: FormatDateOptions = {}
     ): string {
-        options.locale ??= this.resolveSupportedLocale();
-        options.timezone ??= this.options.defaultTimezone;
+        const locale: LocaleCode = options.locale ?? this.resolveSupportedLocale();
 
         const formatString: DateFormatString<S> = format === 'date' || format === 'date-time' || format === 'time'
-            ? this.resolveDateFormatForLocale(options.locale, format as DateFormatShortcut)
+            ? this.resolveDateFormatForLocale(locale, format as DateFormatShortcut)
             : format;
 
-        return formatDate(date, formatString, options.locale, options.timezone);
+        return formatDate(date, formatString, locale, options.timezone ?? this.options.defaultTimezone);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

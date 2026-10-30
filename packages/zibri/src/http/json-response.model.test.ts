@@ -12,7 +12,9 @@ import { Property } from '../entity/decorators/property.decorator';
 import { Response } from '../open-api/decorators/response.decorator';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
+import { Param } from '../routing/decorators/param.decorator';
 import { Post } from '../routing/decorators/post.decorator';
+import { Put } from '../routing/decorators/put.decorator';
 
 const VERSION: string = 'W/"1"';
 
@@ -33,6 +35,14 @@ class ResourceController {
     @Post()
     create(): JsonResponse<Resource> {
         return JsonResponse.of({ id: 'b' }, { headers: { [KnownHeader.LOCATION]: 'https://example.com/resources/b', [KnownHeader.ETAG]: VERSION } });
+    }
+
+    // 201 when it created the resource, 200 when it replaced one, which the value alone cannot say
+    @Response.object(Resource, { status: HttpStatus.CREATED })
+    @Response.object(Resource)
+    @Put('/:id')
+    replace(@Param.path('id') id: string): JsonResponse<Resource> {
+        return JsonResponse.of({ id }, { status: id === 'a' ? HttpStatus.OK : HttpStatus.CREATED });
     }
 }
 
@@ -82,5 +92,15 @@ describe('JsonResponse', () => {
         expect(await unchanged.text()).toBe('');
 
         expect((await revalidate('W/"0"')).status).toBe(HttpStatus.OK);
+    });
+
+    // part of evaluation round 2, 03 §H12: the status came from the declaration the value matched, so
+    // two outcomes of one route answering the same class could not be told apart
+    it('answers in the status the handler chose', async () => {
+        const replaced: globalThis.Response = await fetch(`${baseUrl}/resources/a`, { method: 'PUT' });
+        const created: globalThis.Response = await fetch(`${baseUrl}/resources/c`, { method: 'PUT' });
+
+        expect([replaced.status, created.status]).toStrictEqual([HttpStatus.OK, HttpStatus.CREATED]);
+        expect(await created.json()).toEqual({ id: 'c' });
     });
 });

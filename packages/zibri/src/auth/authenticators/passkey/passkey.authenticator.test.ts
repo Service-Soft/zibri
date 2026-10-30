@@ -7,8 +7,8 @@ import { createInMemoryDataSource,
     startFakeFidoMetadataService,
     TestBrowser } from 'zibri-testing';
 
-import { PasskeyChallenge } from './passkey-challenge.model';
 import { PasskeyAdditionRequest } from './passkey-addition-request.model';
+import { PasskeyChallenge } from './passkey-challenge.model';
 import { PasskeyCreationOptions } from './passkey-creation-options.model';
 import { PasskeyTicketCredentials } from './passkey-credentials.model';
 import { PasskeyOptions } from './passkey-options.model';

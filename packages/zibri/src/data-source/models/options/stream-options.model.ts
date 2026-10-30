@@ -12,7 +12,7 @@ import { OmitStrict } from '../../../types/omit-strict.type';
  *
  * `order` hands the rows out in that order. Without one they come in no particular order, and the
  * entity's `defaultOrder` does not apply: ordering what a stream reads costs a data source more than
- * reading it, so it is asked for rather than given by default.
+ * reading it.
  */
 export type StreamOptions<T extends BaseEntity, S extends EntitySelection<T> | undefined = undefined> = OmitStrict<
     FindAllOptions<T, S>, 'limit' | 'offset'

@@ -17,7 +17,7 @@ import { defaultTestServerProviders } from '../../__testing__/test-server/provid
 import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { startTestServer, StartedTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { HttpRequestContext } from '../../context/request/http-request.context';
-import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { Repository } from '../../data-source/repository/repository';
 import { RepositoryFor } from '../../data-source/repository/repository-for.decorator';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';

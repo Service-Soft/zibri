@@ -4,13 +4,10 @@ import { TraceSpanStatus } from './trace-span-status.enum';
 import { Property } from '../entity/decorators/property.decorator';
 
 /**
- * One finished span, as something reading them back sees it.
- *
- * A record rather than the span itself: a span is a thing being written to while the work runs, and
- * what is kept afterwards is what it turned out to be.
+ * One finished span, as something reading them back sees it: what the span turned out to be.
  *
  * Declared the way a response body is declared, so that an application which wants to show what it
- * has been doing can answer with these directly rather than translating them first.
+ * has been doing can answer with these directly.
  */
 export class TraceSpanRecord {
     /**

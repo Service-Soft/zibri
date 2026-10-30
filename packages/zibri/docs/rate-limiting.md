@@ -10,7 +10,7 @@ Rate limiting caps how often a piece of code runs, per key such as a user or an 
 | `RateLimitWrapOptions`, `RateLimitWrapResult`, `RateLimitKeyProvider`, `RateLimitCountProvider` | type, type, type, type | The options of `wrap` on a limiter, what it returns, and the functions giving the key and the count of a call |
 | `RateLimiterInterface`, `isRateLimiter`, `BaseRateLimiter` | interface, function, class | What a rate limiter implements, the check whether a value is one, and the base class of every built-in limiter |
 | `RateLimiterConfig`, `RateLimiterConfigInput`, `SemaphoreConfigInput` | type, type, type | What a limiter is configured with: its name, capacity, store, reservation limits and `onStoreFailure`, and what a `SemaphoreRateLimiter` is configured with |
-| `RateLimitKeys` | class | Helpers for the common ways of saying what a limit is counted per: `perConnection` (the default: an IPv4 address, an IPv6 /64, or a websocket connection), `perUser`, `GLOBAL`. Any key of your own works too |
+| `RateLimitKeys` | class | Helpers for the common ways of saying what a limit is counted per: `resolveConnectionKey` (the default: an IPv4 address, an IPv6 /64, or a websocket connection), `resolveUserKey`, `GLOBAL`. Any key of your own works too |
 | `TokenBucketRateLimiter` | class | Allows bursts up to capacity, refills continuously |
 | `GcraRateLimiter` | class | Token bucket behavior tracked as a single timestamp |
 | `LeakyBucketMeterRateLimiter` | class | Smooths bursts by tracking accumulated "water" |
@@ -204,7 +204,7 @@ export class KeyedController {
     @Get('/login')
     async login(): Promise<void> {}
 
-    @RateLimited(TaskRateLimiter, { keyFn: RateLimitKeys.perUser })  // per logged in user
+    @RateLimited(TaskRateLimiter, { keyFn: RateLimitKeys.resolveUserKey })  // per logged in user
     @Get('/export')
     async exportData(): Promise<void> {}
 

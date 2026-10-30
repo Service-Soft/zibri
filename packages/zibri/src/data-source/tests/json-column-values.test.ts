@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { Table } from 'typeorm';
 
 import { TestTimeouts } from '../../__testing__/constants';
+import { findStoredColumns, StoredColumn } from '../../__testing__/find-stored-columns.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -11,7 +11,7 @@ import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
 import { BigNumber } from '../../utilities/number.utilities';
-import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { Repository } from '../repository/repository';
@@ -212,14 +212,13 @@ describe('what a value inside a json column is read back as', () => {
     }, 30000);
 
     it('declares the column an array of numbers needs', async () => {
-        const dataSource: PostgresDataSource = inject(postgresDataSourceClass);
-        const table: Table | undefined = await dataSource.createQueryRunner().getTable('reading');
+        const columns: Map<string, StoredColumn> = await findStoredColumns(inject(postgresDataSourceClass), 'reading');
 
         // an array of numbers is an array of what one of them is stored as, so the item's format
         // decides the element type the same way it would alone
-        expect(table?.findColumnByName('ticks')?.type).toBe('bigint');
-        expect(table?.findColumnByName('tolerances')?.type).toBe('numeric');
-        expect(table?.findColumnByName('sensor')?.type).toBe('jsonb');
-        expect(table?.findColumnByName('samples')?.type).toBe('jsonb');
+        expect(columns.get('ticks')?.type).toBe('bigint');
+        expect(columns.get('tolerances')?.type).toBe('numeric');
+        expect(columns.get('sensor')?.type).toBe('jsonb');
+        expect(columns.get('samples')?.type).toBe('jsonb');
     }, 30000);
 });

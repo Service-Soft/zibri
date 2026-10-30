@@ -1,16 +1,11 @@
-import { AggregateRow, AggregateUtilities, BaseEntity, CheckConstraintViolationError, DeepPartial, DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, EntityMetadataMissingError, InternalError, JsonUtilities, KeyWhere, Newable, ObjectUtilities, PaginationResult, RelatedNarrowing, RelationTree, RemovalReach, RepositoryDriverInterface, Transaction, UniqueConstraintViolationError, UpsertRow, UUIDUtilities, Where, WriteDataUtilities } from 'zibri';
+import { AggregateRow, AggregateUtilities, BaseEntity, CheckConstraintViolationError, DeepPartial, DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, EntityMetadataMissingError, FindAllOptions, inject, InternalError, JsonUtilities, KeyWhere, Newable, NumberUtilities, ObjectUtilities, PaginationResult, RelatedNarrowing, RelationTree, RemovalReach, RepositoryDriverInterface, STREAM_BATCH_SIZE, Transaction, UnboundedReturnError, UniqueConstraintViolationError, UpsertRow, UUIDUtilities, Where, WriteDataUtilities, ZIBRI_DI_TOKENS } from 'zibri';
 import { coversEveryRow, EntityMetadata, EntityOrderUtilities, EntityRelationsUtilities, MetadataUtilities, ModelRegistry, OrderComparator, OrderKey, parseArray, parseNumber, parseObject, parseOneOf, PropertyMetadata, RelatedNarrowingUtilities, Relation, RelationMetadata, RelationTreeByRowId, ScopedWhere, UniqueGroup, UpsertIdentityUtilities, WhereFilterEvaluator } from 'zibri/internal';
 
 import { InMemoryScope, InMemoryStore, StoredRow } from './in-memory-store';
 import { InMemoryTransaction } from './in-memory-transaction.model';
 
-/**
- * How many rows a stream loads at once.
- *
- * Matches what the real drivers use, so a test that streams here walks the same number of batches it
- * would against postgres - which is what makes a batch boundary bug reproducible in a test.
- */
-const STREAM_BATCH_SIZE: number = 500;
+// STREAM_BATCH_SIZE is the real drivers' own, so a test that streams here walks the same number of
+// batches it would against postgres, which is what makes a batch boundary bug reproducible in a test
 
 /**
  * One property change of an upsert, as the driver reads it back off an `AtomicUpdate`.
@@ -44,7 +39,7 @@ type UpsertChange = { /** Adds the given amount to the stored value. */ incremen
  * index existed carries no entry: there is nothing here that can be out of date.
  * - **Filters are never pushed down.** Every row of the table is loaded and then filtered by the
  * {@link WhereFilterEvaluator}, with none of the shortcuts the valkey driver uses to avoid reading
- * everything. Same answers, and one code path rather than three.
+ * everything. Same answers, and one code path.
  */
 export class InMemoryRepositoryDriver<T extends BaseEntity> implements RepositoryDriverInterface<T> {
 
@@ -81,6 +76,13 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         this.uniqueGroups = this.resolveUniqueGroups();
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    async resolveDataSourceTime(): Promise<Date> {
+        // the store's own clock rather than `Date`, which a test runs ahead to stand in for an
+        // instance whose clock is off, the way a real store's clock is not the application's
+        return new Date(performance.timeOrigin + performance.now());
+    }
+
     /**
      * Resolves what to read and write through.
      * @param transaction - The transaction the caller provided, if any.
@@ -113,13 +115,19 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * @param data - The rows to write. Entries without an id are inserted, entries with one are updated.
      * @param scope - What to write through.
      * @param reload - Whether or not the written rows should be read back.
+     * @param incrementsByRow - The amounts the write of each row adds, by the row's index in data.
      * @returns The written rows when they were reloaded, an empty array otherwise.
      */
-    private persist(data: DeepPartial<T>[], scope: InMemoryScope, reload: boolean): T[] {
+    private persist(
+        data: DeepPartial<T>[],
+        scope: InMemoryScope,
+        reload: boolean,
+        incrementsByRow: Readonly<Record<string, number>>[] = []
+    ): T[] {
         const ids: string[] = [];
         const relationsById: Map<string, RelationTree> = new Map();
 
-        for (const entry of data) {
+        for (const [index, entry] of data.entries()) {
             const id: string = entry.id ?? this.generateId(scope);
             const existing: StoredRow | undefined = scope.readRow(this.tableName, id);
             const fields: StoredRow = this.toFields(entry, existing == undefined);
@@ -132,8 +140,20 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             // when the caller passed no transaction to roll back
             this.assertUniquesFree(row, id, scope);
             this.validateChecks(row);
+            if (scope instanceof InMemoryTransaction) {
+                // and again on commit, against what other transactions committed meanwhile: neither
+                // saw the other's row, and a store holding the second back until the first commits
+                // refuses it then. Read again, since the transaction may have changed it since
+                scope.checkBeforeCommit(`${this.tableName}:${id}`, () => {
+                    const current: StoredRow | undefined = scope.readRow(this.tableName, id);
+                    if (current != undefined) {
+                        this.assertUniquesFree(current, id, scope);
+                    }
+                });
+            }
 
-            scope.writeRow(this.tableName, id, row);
+            // what the write changed, for a transaction to do again to the row as it is once it commits
+            scope.writeRow(this.tableName, id, row, { fields, increments: incrementsByRow[index] ?? {} });
             this.saveManyToManyRelations(id, entry, scope);
             ids.push(id);
             relationsById.set(id, this.providedKeyRelations(entry));
@@ -174,22 +194,41 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    async resolveRelations(
+        entities: T[],
+        relations: FindAllOptions<T>['relations'],
+        related: RelatedNarrowing | undefined,
+        transaction: Transaction | undefined
+    ): Promise<T[]> {
+        const scope: InMemoryScope = this.scope(transaction);
+        const tree: RelationTree = EntityRelationsUtilities.resolveTree(relations);
+        for (const entity of entities) {
+            this.resolveRelationsOn(entity, tree, scope, related);
+        }
+        return entities;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
     async findAndCount(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
-        const counted: T[] = this.findRows(
-            { ...options, where: options.totalWhere ?? options.where, offset: undefined, limit: undefined },
-            this.scope(options.transaction)
-        );
+        const counting: DriverFindOptions<T> = {
+            ...options,
+            where: options.totalWhere ?? options.where,
+            offset: undefined,
+            limit: undefined
+        };
+        const counted: T[] = this.selectRows(counting, this.scope(options.transaction));
         // the window is a narrowing of what was just counted, so it is taken out of that rather than
-        // read again - which is what keeps the two halves describing the same moment
+        // read again - which is what keeps the two halves describing the same moment. The relations a
+        // filter reaches through are still on the rows here: taken off, a filter through one of them
+        // judged every row by a relation that was not there
         const matching: T[] = options.totalWhere == undefined || options.where == undefined
             ? counted
             : counted.filter(e => this.evaluator.matches(e, options.where as Where<T>, this.entityClass));
 
         const offset: number = options.offset ?? 0;
-        return {
-            items: options.limit == undefined ? matching.slice(offset) : matching.slice(offset, offset + options.limit),
-            totalAmount: counted.length
-        };
+        const window: T[] = options.limit == undefined ? matching.slice(offset) : matching.slice(offset, offset + options.limit);
+        this.keepOnlyRequested(window, counting);
+        return { items: window, totalAmount: counted.length };
     }
 
     /**
@@ -199,6 +238,21 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * @returns The matching entities.
      */
     private findRows(options: DriverFindOptions<T>, scope: InMemoryScope): T[] {
+        const window: T[] = this.selectRows(options, scope);
+        // after the window rather than before it, so that nothing is taken off a row that is about to
+        // be thrown away
+        this.keepOnlyRequested(window, options);
+        return window;
+    }
+
+    /**
+     * Loads every row of the table, filters it and applies the order and window, with every relation
+     * the filter and the order read still on the rows.
+     * @param options - The resolved find options.
+     * @param scope - What to read through.
+     * @returns The matching entities.
+     */
+    private selectRows(options: DriverFindOptions<T>, scope: InMemoryScope): T[] {
         const entities: T[] = this.loadRows(scope.ids(this.tableName), options, scope);
 
         const filtered: T[] = options.where
@@ -207,15 +261,20 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         const ordered: T[] = this.applyOrder(filtered, options.order);
 
         const offset: number = options.offset ?? 0;
-        const window: T[] = options.limit == undefined ? ordered.slice(offset) : ordered.slice(offset, offset + options.limit);
-        // after the window rather than before it, so that nothing is taken off a row that is about to
-        // be thrown away
+        return options.limit == undefined ? ordered.slice(offset) : ordered.slice(offset, offset + options.limit);
+    }
+
+    /**
+     * Takes the relations a read loaded only for its filter and order off the rows it hands out.
+     * @param rows - The rows.
+     * @param options - The read they were loaded for.
+     */
+    private keepOnlyRequested(rows: T[], options: DriverFindOptions<T>): void {
         EntityRelationsUtilities.keepOnlyRequested(
-            window,
+            rows,
             this.relationsToResolve(options),
             EntityRelationsUtilities.resolveTree(options.relations)
         );
-        return window;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
@@ -236,12 +295,15 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         const reading: DriverStreamOptions<T> = { ...options, order: undefined };
         for (let i: number = 0; i < ids.length; i += STREAM_BATCH_SIZE) {
             const entities: T[] = this.loadRows(ids.slice(i, i + STREAM_BATCH_SIZE), reading, scope);
-            for (const entity of entities) {
-                if (options.where && !this.evaluator.matches(entity, options.where, this.entityClass)) {
-                    continue;
-                }
-                yield entity;
-            }
+            const where: Where<T> | undefined = options.where;
+            const matching: T[] = where ? entities.filter(e => this.evaluator.matches(e, where, this.entityClass)) : entities;
+            // nor one it was only filtered by, as a find hands its rows back
+            EntityRelationsUtilities.keepOnlyRequested(
+                matching,
+                this.relationsToResolve(reading),
+                EntityRelationsUtilities.resolveTree(options.relations)
+            );
+            yield* matching;
         }
     }
 
@@ -278,6 +340,17 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         return removed;
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async removeMatching(
+        where: Where<T> | undefined,
+        related: RelatedNarrowing | undefined,
+        transaction: Transaction | undefined
+    ): Promise<string[]> {
+        // the rows found and removed with nothing awaited in between, so no other write lands between the two
+        const ids: string[] = this.findRows({ where, related }, this.scope(transaction)).map(row => String(row.id));
+        return await this.remove(ids, undefined, transaction);
+    }
+
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
     async findIds(options: DriverFindOptions<T>): Promise<string[]> {
         return this.findRows(options, this.scope(options.transaction)).map(e => e.id);
@@ -287,7 +360,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
     async updateAll<R extends boolean = false>(
         options: DriverUpdateAllOptions<T, R>
     ): Promise<R extends true ? T[] : number> {
-        const { where, data, increments, transaction, related, returnUpdated }: DriverUpdateAllOptions<T, R> = options;
+        const { where, data, increments, transaction, related, returnUpdated, returnAtMost }: DriverUpdateAllOptions<T, R> = options;
         const scope: InMemoryScope = this.scope(transaction);
 
         // no grant per row, and no second read once they are held, unlike the valkey driver. Both
@@ -296,6 +369,9 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         const matched: T[] = this.findRows({ where, related }, scope);
         if (!matched.length) {
             return (returnUpdated === true ? [] : 0) as R extends true ? T[] : number;
+        }
+        if (returnAtMost != undefined && matched.length > returnAtMost) {
+            throw new UnboundedReturnError(this.entityClass.name, returnAtMost);
         }
 
         // the write is what knows which rows it wrote, so it is what hands them back. Reading them
@@ -309,7 +385,8 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
                 id: m.id
             })),
             scope,
-            returnUpdated === true
+            returnUpdated === true,
+            matched.map(() => increments ?? {})
         );
         return (returnUpdated === true ? updated : matched.length) as R extends true ? T[] : number;
     }
@@ -351,7 +428,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
 
         // every row is judged before any is written, so a refused one leaves nothing behind even
         // when the caller passed no transaction to roll back
-        const data: DeepPartial<T>[] = rows.map(row => {
+        const writes: [DeepPartial<T>, Record<string, number>][] = rows.map(row => {
             const changes: [string, UpsertChange][] = ObjectUtilities
                 .entries(row.onConflict as Record<string, UpsertChange | undefined>)
                 .filter((entry): entry is [string, UpsertChange] => entry[1] != undefined);
@@ -364,7 +441,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             const conflictWhere: Where<T> = UpsertIdentityUtilities.resolveConflictWhere(this.entityClass, identity, row.create);
             const found: T | undefined = this.findRows({ where: conflictWhere }, scope).at(0);
             if (found == undefined) {
-                return row.create;
+                return [row.create, {}];
             }
             // the row's own condition is judged the way `reachable` is, against the row as it is now
             const meetsCondition: boolean = row.where == undefined
@@ -375,14 +452,20 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             }
 
             const updated: Record<string, unknown> = { id: found.id };
+            const increments: Record<string, number> = {};
             for (const [key, change] of changes) {
+                // null or missing counts as 0, as it does for an update's increments
+                const stored: unknown = (found as Record<string, unknown>)[key];
+                if ('increment' in change) {
+                    increments[key] = change.increment;
+                }
                 updated[key] = 'increment' in change
-                    ? Number((found as Record<string, unknown>)[key]) + change.increment
+                    ? (stored == undefined ? 0 : Number(stored)) + change.increment
                     : change.set;
             }
-            return updated as DeepPartial<T>;
+            return [updated as DeepPartial<T>, increments];
         });
-        return this.persist(data, scope, true);
+        return this.persist(writes.map(([data]) => data), scope, true, writes.map(([, increments]) => increments));
     }
 
     /**
@@ -453,6 +536,42 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         }
         // into an entity storing nothing, which is what renaming is
         this.mergeStoredRowsFrom(currentTableName, transaction);
+    }
+
+    /**
+     * Removes the sets a many to many relation keeps for every row of this entity, for a migration
+     * removing the relation.
+     * @param propertyKey - The relation's property on this entity.
+     * @param transaction - The transaction of the migration.
+     */
+    removeJoins(propertyKey: string, transaction: Transaction): void {
+        const scope: InMemoryScope = this.scope(transaction);
+        for (const id of scope.ids(this.tableName)) {
+            scope.writeJoin(this.joinKey(id, propertyKey), new Set());
+        }
+    }
+
+    /**
+     * Removes every row of this entity, for a migration removing it, with the many to many relations
+     * they hold from both sides.
+     * @param transaction - The transaction of the migration.
+     */
+    removeStoredRows(transaction: Transaction): void {
+        const scope: InMemoryScope = this.scope(transaction);
+        const ids: string[] = scope.ids(this.tableName);
+        for (const [key, metadata] of ObjectUtilities.entries(this.properties)) {
+            if (metadata.type === Relation.MANY_TO_MANY) {
+                // moving none of the rows anywhere, which takes each of them off the other side
+                this.moveRelation(this.tableName, key, metadata.target(), metadata.inverseSide, ids, new Map(), scope);
+            }
+        }
+        // the sets of relations the entity no longer declares, which no metadata names
+        for (const joinKey of scope.joinKeys(`${this.tableName}:`)) {
+            scope.writeJoin(joinKey, new Set());
+        }
+        for (const id of ids) {
+            scope.deleteRow(this.tableName, id);
+        }
     }
 
     /**
@@ -735,7 +854,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
                 continue;
             }
             const entity: T = this.fromFields(row);
-            this.resolveRelations(entity, relationsById?.get(id) ?? requested, scope, options.related);
+            this.resolveRelationsOn(entity, relationsById?.get(id) ?? requested, scope, options.related);
             res.push(entity);
         }
         return res;
@@ -769,7 +888,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * @param scope - What to read through.
      * @param related - What the rows each relation reaches are narrowed to.
      */
-    private resolveRelations(entity: T, relations: RelationTree, scope: InMemoryScope, related: RelatedNarrowing | undefined): void {
+    private resolveRelationsOn(entity: T, relations: RelationTree, scope: InMemoryScope, related: RelatedNarrowing | undefined): void {
         for (const [key, below] of relations) {
             const metadata: PropertyMetadata | undefined = this.properties[key];
             if (metadata == undefined || !this.isRelation(metadata)) {
@@ -1031,7 +1150,8 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
                 }
                 value = typeof defaultValue === 'function' ? (defaultValue as () => unknown)() : defaultValue;
             }
-            res[key] = JSON.stringify(this.toStorableValue(value));
+            // a large whole number inside an object is written as its digits, the way a json column holds it
+            res[key] = JsonUtilities.stringify(this.toStorableValue(value));
         }
         return res;
     }
@@ -1207,8 +1327,13 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         if (typeof a === 'boolean' && typeof b === 'boolean') {
             return Number(a) - Number(b);
         }
+        // by value: written out, `10` sorts before `9`
+        if (NumberUtilities.isBigNumber(a) && NumberUtilities.isBigNumber(b)) {
+            return NumberUtilities.compare(a, b);
+        }
+        // ordering text is the application's answer, as it is for the stores this one stands in for
         // eslint-disable-next-line typescript/no-base-to-string
-        return String(a).localeCompare(String(b));
+        return inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).compareText(String(a), String(b));
     }
 
     /**

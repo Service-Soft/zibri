@@ -131,6 +131,11 @@ export class FakeLdapDirectory {
      */
     readonly searches: FakeLdapSearch[] = [];
 
+    /**
+     * How many connections were opened to the directory, on either port.
+     */
+    connectionsOpened: number = 0;
+
     private readonly plainServer: Server;
     private readonly tlsServer: TlsServer;
     private readonly sockets: Set<Socket> = new Set();
@@ -143,8 +148,14 @@ export class FakeLdapDirectory {
         readonly entries: FakeLdapEntry[],
         private readonly key: FakeKeyPair
     ) {
-        this.plainServer = createServer(socket => this.serve(socket, false));
-        this.tlsServer = createTlsServer({ key: key.privateKey, cert: key.certificate }, socket => this.serve(socket, true));
+        this.plainServer = createServer(socket => {
+            this.connectionsOpened++;
+            this.serve(socket, false);
+        });
+        this.tlsServer = createTlsServer({ key: key.privateKey, cert: key.certificate }, socket => {
+            this.connectionsOpened++;
+            this.serve(socket, true);
+        });
     }
 
     /**
@@ -212,6 +223,16 @@ export class FakeLdapDirectory {
             socket.destroy();
         }
         await Promise.all([this.plainServer, this.tlsServer].map(server => new Promise<void>(resolve => server.close(() => resolve()))));
+    }
+
+    /**
+     * Closes every open connection and goes on listening, the way a network outage or a restart of the
+     * server does to the connections a client keeps.
+     */
+    dropConnections(): void {
+        for (const socket of this.sockets) {
+            socket.destroy();
+        }
     }
 
     private getPorts(): Ports {
@@ -338,7 +359,12 @@ export class FakeLdapDirectory {
 
     private search(connection: Connection, request: SearchRequest): Buffer {
         const ldap: typeof import('ldapts') = ldapts();
-        this.searches.push({ baseDn: request.baseDN, filter: request.filter.toString(), boundAs: connection.boundAs });
+        this.searches.push({
+            baseDn: request.baseDN,
+            filter: request.filter.toString(),
+            attributes: [...request.attributes],
+            boundAs: connection.boundAs
+        });
         if (connection.boundAs == undefined) {
             return FakeLdapDirectory.result(
                 request.messageId,

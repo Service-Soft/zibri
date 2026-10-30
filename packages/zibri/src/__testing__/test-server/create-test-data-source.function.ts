@@ -1,9 +1,9 @@
-import { Logger as TypeOrmLogger } from 'typeorm';
 import { RoundTripCounter } from 'zibri-testing';
 
 import { DefaultTestServerMembershipRepository } from './membership-repository';
 import { DefaultTestServerRoleRepository } from './role-repository';
 import { DefaultTestServerUserRepository } from './user-repository';
+import { AuditCheckpoint } from '../../audit/audit-checkpoint.model';
 import { AuditEntry } from '../../audit/audit-entry.model';
 import { OtpCredentials } from '../../auth/2fa/methods/otp/otp-credentials.model';
 import { TwoFactorFailureStreak } from '../../auth/2fa/two-factor-failure-streak.model';
@@ -11,6 +11,7 @@ import { PasswordCredentials } from '../../auth/authenticators/password/password
 import { EncryptionKey } from '../../auth/encryption/encryption-key.model';
 import { EncryptionRotationFailure } from '../../auth/encryption/encryption-rotation-failure.model';
 import { EncryptionRotationProgress } from '../../auth/encryption/encryption-rotation-progress.model';
+import { SigningKey } from '../../auth/encryption/signing-key.model';
 import { EncryptionStrategyEntity } from '../../auth/encryption/strategies/encryption-strategy-entity.model';
 import { HashStrategyEntity } from '../../auth/hash/strategies/hash-strategy-entity.model';
 import { LoginTicket } from '../../auth/models/login-ticket.model';
@@ -18,10 +19,11 @@ import { PasswordResetToken } from '../../auth/models/password-reset-token.model
 import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
 import { CacheInvalidation } from '../../caching/cache-invalidation.model';
 import { CronJobEntity } from '../../cron/cron-job-entity.model';
+import { ChainAnchor } from '../../data-source/chain/chain-anchor.model';
 import { ChangeSet } from '../../data-source/change-sets/models/change-set.model';
 import { Change } from '../../data-source/change-sets/models/change.model';
+import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
 import { Migration } from '../../data-source/migration/migration.model';
@@ -36,7 +38,6 @@ import { Lease } from '../../leases/lease.model';
 import { Log } from '../../logging/log.model';
 import { ThreadJobEntity } from '../../multithreading/models/thread-job-entity.model';
 import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
 import { WebsocketChannel } from '../../websocket/models/websocket-channel.model';
 import { WebsocketMessageSequence } from '../../websocket/models/websocket-message-sequence.model';
 import { WebsocketMessage } from '../../websocket/models/websocket-message.model';
@@ -109,6 +110,7 @@ export const defaultTestServerEntities: Newable<BaseEntity>[] = [
     WebsocketMessageSequence,
     Log,
     AuditEntry,
+    AuditCheckpoint,
     PasswordResetToken,
     JwtUser,
     TestMembership,
@@ -125,7 +127,9 @@ export const defaultTestServerEntities: Newable<BaseEntity>[] = [
     EncryptionKey,
     EncryptionStrategyEntity,
     EncryptionRotationProgress,
-    EncryptionRotationFailure
+    EncryptionRotationFailure,
+    SigningKey,
+    ChainAnchor
 ];
 
 /**
@@ -153,7 +157,7 @@ export function createTestDataSource({
     migrations = []
 }: CreateTestDataSourceOptions = {}): Newable<PostgresDataSource & {
     /** The connection options of the data source. */
-    options: OmitStrict<PostgresOptions, 'type' | 'entities'>,
+    options: PostgresOptions,
     /** The entities of the data source. */
     entities: Newable<BaseEntity>[],
     /** The repository classes of the data source. */
@@ -166,7 +170,7 @@ export function createTestDataSource({
 
     @DataSource({ allowOrphan })
     class DbDataSource extends PostgresDataSource {
-        override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+        options: PostgresOptions = {
             host,
             username,
             password,
@@ -176,35 +180,22 @@ export function createTestDataSource({
             // spread rather than assigned, because an explicit undefined would take the framework
             // default away instead of leaving it in place
             ...poolSize != undefined ? { poolSize } : {},
-            ...connectionTimeoutInMs != undefined ? { extra: { connectionTimeoutMillis: connectionTimeoutInMs } } : {},
-            ...roundTrips != undefined ? { logging: true, logger: countingLogger(roundTrips) } : {}
+            ...connectionTimeoutInMs != undefined ? { connectTimeoutInMs: connectionTimeoutInMs } : {}
         };
         entities: Newable<BaseEntity>[] = entities ?? defaultTestServerEntities;
-        override readonly repositories: RepositoryClass[] = repositories;
+        readonly repositories: RepositoryClass[] = repositories;
         override migrations: Newable<Migration>[] = migrations;
         // a suite that ships no migrations and needs tables synchronizes, which is the one
         // deployment shape that is actually right for. It used to be implicit, which is the finding
         schemaManagement: SchemaManagement = schemaManagement;
         readonly pooler: PostgresPooler = 'none';
+
+        // recorded as it is sent, so a statement that fails is counted as well - it was a round
+        // trip all the same
+        protected override onStatementSent(statement: string): void {
+            roundTrips?.record(statement);
+        }
     }
 
     return DbDataSource;
-}
-
-/**
- * A typeorm logger that records each statement and prints nothing.
- * @param roundTrips - Where the statements are recorded.
- * @returns The logger.
- */
-function countingLogger(roundTrips: RoundTripCounter): TypeOrmLogger {
-    return {
-        // typeorm logs a statement as it sends it, so a statement that fails is counted as well -
-        // it was a round trip all the same
-        logQuery: (query: string) => roundTrips.record(query),
-        logQueryError: () => {},
-        logQuerySlow: () => {},
-        logSchemaBuild: () => {},
-        logMigration: () => {},
-        log: () => {}
-    };
 }

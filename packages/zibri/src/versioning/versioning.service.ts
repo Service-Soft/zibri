@@ -3,6 +3,7 @@ import { Dirent } from 'node:fs';
 import { RouteWithVersionData } from './route-with-version-data.model';
 import { StoredRoute } from './stored-route.model';
 import { SemVerMatcher, SupportedVersionsOptions, VersionMatcher } from './supported-versions-options.model';
+import { VersionOverlapError } from './version-overlap.error';
 import { Version, VersionFile } from './version.model';
 import { VersioningServiceInterface } from './versioning-service.interface';
 import { ZibriApplication } from '../application/application';
@@ -15,6 +16,7 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { BadRequestError } from '../error-handling/errors/bad-request.error';
 import { InternalError } from '../error-handling/internal-error.model';
 import { AfterAppInit } from '../global/after-app-init.interface';
+import { findHeader } from '../http/find-header.function';
 import { type Header } from '../http/header.type';
 import { $f } from '../localization/format.function';
 import { $ts } from '../localization/translate.function';
@@ -115,6 +117,17 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         if (currentLatestVersions.length === 1 && currentLatestVersions.at(0)?.value === app.options.version) {
             // is already at the latest version, doesn't need to do anything.
             return true;
+        }
+        // the record is written in development and shipped with the build; a production application
+        // only reads it. Writing it there took an empty folder mounted in a read-only image for a project
+        // that had never released anything, and dropped every check against the versions before (03 §H14)
+        if (app.options.environment === 'production') {
+            throw new InitVersioningServiceError([
+                // eslint-disable-next-line stylistic/max-len
+                `This application is version ${app.options.version}, and the versions folder at "${this.versionsPath}" does not record it as the latest.`,
+                'In production the record is only read. Start the application once in development to record the version,',
+                'commit the versions folder, and build again.'
+            ]);
         }
 
         if (!this.versionFiles.length) {
@@ -453,9 +466,16 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
             return await context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_VERSION);
         }
 
+        const query: string | string[] | undefined = context instanceof WebsocketRequestContext
+            ? undefined
+            : context.request.query[this.versionQueryParam];
+        // two versions named are two answers, and serving either is a guess the caller did not make
+        if (Array.isArray(query)) {
+            throw new BadRequestError($ts`The version is named more than once.`);
+        }
         const versionValue: string | undefined = context instanceof WebsocketRequestContext
-            ? context.connection?.resolvedVersion.value ?? context.request.headers?.[this.versionHeader]
-            : context.request.query[this.versionQueryParam] ?? context.request.headers?.[this.versionHeader];
+            ? context.connection?.resolvedVersion.value ?? findHeader(context.request.headers, this.versionHeader)
+            : query ?? findHeader(context.request.headers, this.versionHeader);
 
         try {
             if (versionValue == undefined) {
@@ -510,6 +530,20 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         }
 
         return version;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    validateNoOverlap(
+        subject: string,
+        declared: SupportedVersionsOptions,
+        versions: SupportedVersionsOptions,
+        currentLatest: SemVerVersion,
+        definedOn: string
+    ): void {
+        const overlapping: SupportedVersionsOptions = this.findOverlappingVersions(declared, versions, currentLatest);
+        if (overlapping === 'all' || overlapping.length) {
+            throw new VersionOverlapError(subject, overlapping, definedOn);
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

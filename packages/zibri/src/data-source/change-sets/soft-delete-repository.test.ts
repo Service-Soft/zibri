@@ -40,13 +40,25 @@ import { Post } from '../../routing/decorators/post.decorator';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { KeysetPage } from '../models/pagination-result.model';
 import { Where } from '../models/where/where-filter.model';
+import { whereFor } from '../models/where/where-for.function';
 import { Repository } from '../repository/repository';
+import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
 
 // ---------- Test entity ----------
 @Entity({ tenant: 'shared' })
 class Task extends SoftDeleteEntity {
     @Property.string()
     title!: string;
+}
+
+@Entity({ tenant: 'shared' })
+class Badge extends SoftDeleteEntity {
+    // a deleted badge keeps its code taken for good
+    @Property.string({ unique: { where: whereFor<Badge>({}) } })
+    code!: string;
+
+    @Property.number()
+    count!: number;
 }
 
 class CreateTaskDto extends OmitClass(Task, ['changeSets', 'id', 'deleted']) {}
@@ -125,7 +137,7 @@ beforeAll(async () => {
         // src/data-source/tests cover
         dataSources: [
             createInMemoryDataSource({
-                entities: [...defaultTestServerEntities, Task],
+                entities: [...defaultTestServerEntities, Task, Badge],
                 repositories: defaultTestServerRepositories
             })
         ],
@@ -249,6 +261,48 @@ describe('SoftDeleteRepository behavior', () => {
         });
     });
 
+    describe('restore', () => {
+        it('records who restored a row, after its delete', async () => {
+            const task: Task = await taskRepo.create({ title: 'Restored' });
+            await taskRepo.deleteById(task.id);
+
+            await taskRepo.updateById(task.id, { deleted: false }, { deleted: 'only' });
+
+            const changeSets: ChangeSet[] = await changeSetRepo.findAll({ where: { changeSetEntityId: task.id } });
+            expect(changeSets.map(cs => cs.type)).toEqual(expect.arrayContaining([ChangeSetType.DELETE, ChangeSetType.RESTORE]));
+        });
+
+        it('records no restore for an update of a row that was not deleted', async () => {
+            const task: Task = await taskRepo.create({ title: 'Live' });
+
+            await taskRepo.updateById(task.id, { deleted: false, title: 'Still live' });
+
+            const changeSets: ChangeSet[] = await changeSetRepo.findAll({ where: { changeSetEntityId: task.id } });
+            expect(changeSets.map(cs => cs.type)).not.toContain(ChangeSetType.RESTORE);
+        });
+    });
+
+    describe('upsert', () => {
+        it('records the change set of what it creates and of what it updates', async () => {
+            const badges: SoftDeleteRepository<Badge> = inject(repositoryTokenFor(Badge)) as SoftDeleteRepository<Badge>;
+            await badges.upsert({ code: 'recorded' }, { code: 'recorded', count: 1 }, { count: { increment: 1 } });
+            const badge: Badge = await badges.upsert({ code: 'recorded' }, { code: 'recorded', count: 1 }, { count: { increment: 1 } });
+
+            const changeSets: ChangeSet[] = await changeSetRepo.findAll({ where: { changeSetEntityId: badge.id } });
+            expect(changeSets.map(cs => cs.type).sort()).toEqual([ChangeSetType.CREATE, ChangeSetType.UPDATE].sort());
+        });
+
+        it('refuses an identity a soft deleted row holds, as creating it would', async () => {
+            const badges: SoftDeleteRepository<Badge> = inject(repositoryTokenFor(Badge)) as SoftDeleteRepository<Badge>;
+            const badge: Badge = await badges.create({ code: 'deleted', count: 1 });
+            await badges.deleteById(badge.id);
+
+            await expect(badges.upsert({ code: 'deleted' }, { code: 'deleted', count: 1 }, { count: { increment: 1 } }))
+                .rejects.toThrow(UniqueConstraintViolationError);
+            expect((await badges.findById(badge.id, { deleted: 'include' })).count).toBe(1);
+        });
+    });
+
     describe('conditional updateById', () => {
         let taskId: string;
 
@@ -295,6 +349,48 @@ describe('SoftDeleteRepository behavior', () => {
             await expect(
                 taskRepo.updateById(taskId, { title: 'Nope' }, { deleted: 'include', where: { title: 'stale' } })
             ).rejects.toThrow(ConflictError);
+        });
+    });
+
+    // 01 §Q7: the delete by id went its own way through the read, the update and the change set,
+    // beside the one the bulk delete takes. These hold what the by id path answers while it goes
+    // through the bulk one
+    describe('conditional deleteById', () => {
+        let taskId: string;
+
+        beforeEach(async () => {
+            const res: Response = await authFetch('/tasks', {
+                method: 'POST',
+                body: JsonUtilities.stringify({ title: 'Conditional' })
+            });
+            taskId = ((await res.json()) as Task).id;
+        });
+
+        it('marks the row deleted while the condition holds, and records it once', async () => {
+            const deleted: Task = await taskRepo.deleteById(taskId, { where: { title: 'Conditional' } });
+
+            expect(deleted.id).toBe(taskId);
+            expect(deleted.deleted).toBe(true);
+            expect((await taskRepo.findById(taskId, { deleted: 'include' })).deleted).toBe(true);
+            const changeSets: ChangeSet[] = await changeSetRepo.findAll({ where: { changeSetEntityId: taskId } });
+            expect(changeSets.filter(cs => cs.type === ChangeSetType.DELETE)).toHaveLength(1);
+        });
+
+        it('refuses with a conflict when the row no longer meets the condition, and leaves it', async () => {
+            await expect(taskRepo.deleteById(taskId, { where: { title: 'stale' } })).rejects.toThrow(ConflictError);
+
+            expect((await taskRepo.findById(taskId)).deleted).toBe(false);
+            expect(await changeSetRepo.count({ where: { changeSetEntityId: taskId, type: ChangeSetType.DELETE } })).toBe(0);
+        });
+
+        it('answers a row that is soft deleted as absent, whatever the condition', async () => {
+            await taskRepo.deleteById(taskId);
+
+            // absent rather than a conflict: the guard is what puts the row out of reach, as it does
+            // for a read and an update of it
+            await expect(taskRepo.deleteById(taskId)).rejects.toThrow(NotFoundError);
+            await expect(taskRepo.deleteById(taskId, { where: { title: 'Conditional' } })).rejects.toThrow(NotFoundError);
+            expect(await changeSetRepo.count({ where: { changeSetEntityId: taskId, type: ChangeSetType.DELETE } })).toBe(1);
         });
     });
 

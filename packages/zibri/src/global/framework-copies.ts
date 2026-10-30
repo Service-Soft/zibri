@@ -29,7 +29,9 @@ export class DuplicateFrameworkCopyError extends InternalError {
             'Each one has its own container, its own record of what is injectable and its own classes,',
             'so an injectable registered through one is invisible to the other, and an instanceof check',
             'across them says no about a value that is exactly what it claims to be.',
-            'Run "npm ls zibri" to see which packages pulled in more than one of it.',
+            'In a test, "jest.resetModules" or "jest.isolateModules" loads the second copy: a test that',
+            'resets the module registry goes in a file of its own, which has a registry of its own.',
+            'Otherwise, run "npm ls zibri" to see which packages pulled in more than one of it.',
             'A package built on top of zibri should list it under "peerDependencies" rather than',
             '"dependencies", so that it uses the copy the application already has.'
         ], options);
@@ -54,7 +56,8 @@ export function registerFrameworkCopy(): void {
  * The copies are deliberately not made to work with each other. Handing them one shared container
  * would still leave every class distinct, so `instanceof` would keep answering no across the
  * boundary for values that are what they claim to be - a residue much harder to find than the
- * install it came from. The install is the thing to fix, so this names it.
+ * install, or the module registry reset of a test, it came from. One of those is the thing to fix,
+ * so this names both.
  * @throws A DuplicateFrameworkCopyError when a second copy has been loaded into this realm.
  */
 export function validateSingleFrameworkCopy(): void {

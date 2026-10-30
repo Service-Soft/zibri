@@ -12,12 +12,14 @@ const FRAMEWORK_ESM_PACKAGES: string[] = ['jose'];
  * The jest configuration a Zibri application's tests run with.
  *
  * TypeScript and the templates compiled to commonjs, which is what jest runs a test in, a template's
- * `?client` import resolved to the package itself, as the build resolves it on the server, and the
- * packages that ship as es modules only compiled like the sources.
+ * `?client` import resolved to the package itself, as the build resolves it on the server, the
+ * packages that ship as es modules only compiled like the sources, and a test worker restarted once
+ * it holds more than 1 GB.
  * ```js
  * export default createJestConfig({ rootDir: 'src', esmPackages: ['nanoid'] });
  * ```
  * @param options - Any jest option, which is kept, and the application's own es module only packages.
+ * @param options.esmPackages - The application's own packages that ship as es modules only.
  * @returns The configuration.
  */
 export function createJestConfig({ esmPackages = [], ...config }: JestConfigOptions = {}): Config {
@@ -35,6 +37,9 @@ export function createJestConfig({ esmPackages = [], ...config }: JestConfigOpti
     };
     return {
         testEnvironment: 'node',
+        // a worker that has booted an application holds about a gigabyte, and grows with every test
+        // file that boots one. A run with a worker per core ended in the OOM killer
+        workerIdleMemoryLimit: '1GB',
         ...config,
         // jest takes the first pattern that matches, so the application's come first and win
         transform: { ...config.transform, ...transform, ...config.transform },

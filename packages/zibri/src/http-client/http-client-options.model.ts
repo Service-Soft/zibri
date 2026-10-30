@@ -1,22 +1,21 @@
 import { HttpClientCircuitBreakerOptions } from './http-client-circuit-breaker-options.model';
+import { HttpClientRedirect } from './http-client-redirect.model';
 import { FileSize } from '../entity/models/file-property-metadata.model';
 
+// Described here rather than imported from `undici-types`, which is the version undici's own
+// `Dispatcher` would have dragged in. Naming that package means naming a *version* of it, and there
+// is no version to name: `undici-types` reaches a project through `@types/node`, whose major decides
+// which one - measured across this repository's own workspaces, three different `@types/node`
+// versions brought undici-types 6, 7 and 8. A declaration written against any one of them is a
+// declaration the other two cannot satisfy, so the option would have refused the very `ProxyAgent`
+// it exists to accept, depending on nothing more than the consumer's `@types/node`.
 /**
  * What a request is sent over.
  *
  * Node's `fetch` is undici's, and a dispatcher is the one thing it takes that decides *how* the
- * connection is made rather than what is sent over it - so a proxy, a CA bundle, a client
- * certificate, keep-alive and per-host pooling are all one of these. Zibri does not build them: an
- * `Agent`, a `ProxyAgent` or an `EnvHttpProxyAgent` comes from the deployment's own `undici`, and
- * this is where it is handed over.
- *
- * **Described here rather than imported from `undici-types`**, which is the version undici's own
- * `Dispatcher` would have dragged in. Naming that package means naming a *version* of it, and there
- * is no version to name: `undici-types` reaches a project through `@types/node`, whose major decides
- * which one - measured across this repository's own workspaces, three different `@types/node`
- * versions brought undici-types 6, 7 and 8. A declaration written against any one of them is a
- * declaration the other two cannot satisfy, so the option would have refused the very `ProxyAgent`
- * it exists to accept, depending on nothing more than the consumer's `@types/node`.
+ * connection is made - so a proxy, a CA bundle, a client certificate, keep-alive and per-host
+ * pooling are all one of these. Zibri does not build them: an `Agent`, a `ProxyAgent` or an
+ * `EnvHttpProxyAgent` comes from the deployment's own `undici`, and this is where it is handed over.
  *
  * The framework never calls a dispatcher - it forwards one to `fetch` - so carrying it is all this
  * has to describe. Every real dispatcher satisfies it, whichever undici built it.
@@ -35,9 +34,8 @@ export type HttpClientOptions = {
     /**
      * How long a request may take, from sending it to having read the answer.
      *
-     * Covers the body rather than only the headers: an upstream that answers instantly and then
-     * dribbles its body forever is the case a deadline exists for, and one that ends at the first
-     * line of the response does not end it.
+     * Covers the body as well as the headers, so an upstream that answers instantly and then
+     * dribbles its body forever runs out of time.
      * @default 5000
      */
     defaultTimeoutInMs: number,
@@ -47,7 +45,7 @@ export type HttpClientOptions = {
      *
      * Large enough that no ordinary json answer meets it, small enough that an upstream which is
      * hostile or simply broken cannot spend the process's memory. Counted as the body arrives, so a
-     * body over the limit is stopped rather than downloaded and then refused.
+     * body over the limit is stopped before it is downloaded.
      *
      * A request that declares a `responseBody` derives its limit from that instead - it is the size of
      * the thing that was actually asked for. A body genuinely larger than this wants a stream, which
@@ -62,17 +60,23 @@ export type HttpClientOptions = {
      * all three are how a {@link HttpClientDispatcher} is built, and none of them can be expressed
      * any other way. Leaving it unset uses node's own, which is what an unconfigured `fetch` does.
      *
-     * Scoped to this client rather than installed with `setGlobalDispatcher`, deliberately: a
-     * global dispatcher changes where *every* library in the process sends its traffic, and a
-     * framework has no business deciding that on an application's behalf.
+     * Scoped to this client: what other libraries in the process send is not affected.
      * @default undefined
      */
+    // scoped to this client rather than installed with `setGlobalDispatcher`, deliberately: a global
+    // dispatcher changes where *every* library in the process sends its traffic, and a framework has
+    // no business deciding that on an application's behalf
     dispatcher?: HttpClientDispatcher,
     /**
      * When requests to an origin that keeps failing stop being sent, or false to always send them.
      * @default { failuresToOpen: 5, openForInMs: 30000 }
      */
-    circuitBreaker: HttpClientCircuitBreakerOptions | false
+    circuitBreaker: HttpClientCircuitBreakerOptions | false,
+    /**
+     * What a request does when it is answered with a redirect, unless the request says otherwise.
+     * @default 'follow'
+     */
+    redirect: HttpClientRedirect
 };
 
 /**

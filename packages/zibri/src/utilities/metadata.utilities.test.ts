@@ -7,7 +7,9 @@ import { Property, PropertyMetadata } from '../entity/decorators/property.decora
 import { PartialClass } from '../entity/partial-class.model';
 import { MimeType } from '../http/mime-type.enum';
 import { BodyMetadata } from '../routing/decorators/body-metadata.model';
+import { Get } from '../routing/decorators/get.decorator';
 import { Newable } from '../types/newable.type';
+import { WebsocketRoute } from '../websocket/decorators/websocket-route.decorator';
 
 /**
  * A project's own decorator, built on one of the framework's.
@@ -50,6 +52,47 @@ describe('MetadataUtilities — the file a class is declared in', () => {
         MetadataUtilities.setFilePath(Undecorated);
 
         expect(MetadataUtilities.getFilePath(Undecorated)).toBe('unknown');
+    });
+});
+
+describe('MetadataUtilities — the routes of controllers that extend one another', () => {
+    class BaseRoutes {
+        @Get('/ping')
+        ping(): void {}
+
+        @WebsocketRoute('joined')
+        joined(): void {}
+    }
+
+    class FirstRoutes extends BaseRoutes {
+        @Get('/list')
+        list(): void {}
+    }
+
+    class SecondRoutes extends BaseRoutes {
+        @Get('/list')
+        list(): void {}
+
+        @Get('/only-second')
+        onlySecond(): void {}
+
+        @Get('/ping-again')
+        override ping(): void {}
+
+        @WebsocketRoute('left')
+        left(): void {}
+    }
+
+    it('keeps the routes a class adds to itself', () => {
+        expect(MetadataUtilities.getControllerRoutes(BaseRoutes).map(route => route.controllerMethod)).toEqual(['ping']);
+        expect(MetadataUtilities.getControllerRoutes(FirstRoutes).map(route => route.controllerMethod)).toEqual(['ping', 'list']);
+        expect(MetadataUtilities.getWebsocketControllerRoutes(BaseRoutes).map(route => route.controllerMethod)).toEqual(['joined']);
+        expect(MetadataUtilities.getWebsocketControllerRoutes(FirstRoutes).map(route => route.controllerMethod)).toEqual(['joined']);
+    });
+
+    it('replaces the route of a method a class declares again', () => {
+        expect(MetadataUtilities.getControllerRoutes(SecondRoutes).map(route => route.route)).toEqual(['/list', '/only-second', '/ping-again']);
+        expect(MetadataUtilities.getWebsocketControllerRoutes(SecondRoutes).map(route => route.event)).toEqual(['joined', 'left']);
     });
 });
 

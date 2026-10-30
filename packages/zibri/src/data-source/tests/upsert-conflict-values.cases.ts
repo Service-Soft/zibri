@@ -28,6 +28,9 @@ export class Credential extends BaseEntity {
 
     @Property.string({ encryption: { bindToRow: false }, required: false })
     note?: string;
+
+    @Property.number({ required: false })
+    uses?: number | null;
 }
 
 /**
@@ -85,6 +88,18 @@ export function describeUpsertConflictValues(dataSourceName: string, credentials
             const stored: Credential = await credentialsOf().findById(created.id, { autoDecrypt: false });
             expect(stored.note).not.toBe('new');
             expect(res.note).toBe('new');
+        });
+
+        it('adds to a value that is null as to 0, as an update adds to it', async () => {
+            const handle: string = freshHandle();
+            // eslint-disable-next-line unicorn/no-null
+            await credentialsOf().create({ handle, secret: 's', pin: '1111', uses: null });
+
+            const res: Credential = await credentialsOf()
+                .upsert({ handle }, { handle, secret: 's', pin: '1111' }, { uses: { increment: 1 } });
+
+            expect(res.uses).toBe(1);
+            expect((await credentialsOf().findById(res.id)).uses).toBe(1);
         });
 
         it('stores the value the insert gives when the identity is free, not the one the conflict path would set', async () => {

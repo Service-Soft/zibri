@@ -30,6 +30,7 @@ type TouchedMembership = MembershipEventData & {
 export class MembershipEventWriteObserver implements EntityWriteObserver {
     // which memberships, whose and where, and whether they were active, of a write to every membership
     // a filter matches
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly properties: string[] = ['id', 'userId', 'tenantId', 'deactivatedAt'];
 
     constructor(
@@ -55,7 +56,10 @@ export class MembershipEventWriteObserver implements EntityWriteObserver {
         for (const touched of this.findTouched(written).values()) {
             // what is stored now rather than what the write did: a user may hold another membership
             // in the tenant the write did not touch, which keeps them a member, or made them one before
-            const active: BaseMembership<string> | undefined = await this.membershipService.findActiveMembership(touched.userId, touched.tenantId);
+            const active: BaseMembership<string> | undefined = await this.membershipService.findActiveMembership(
+                touched.userId,
+                touched.tenantId
+            );
             const type: EventTypeFor<MembershipEventData> | undefined = this.findEventType(touched, active);
             if (type != undefined) {
                 await FrameworkEventUtilities.emit(type, { userId: touched.userId, tenantId: touched.tenantId }, touched.tenantId);
@@ -69,7 +73,10 @@ export class MembershipEventWriteObserver implements EntityWriteObserver {
      * @param active - Their active membership there now, if any.
      * @returns The type the application named for it, undefined when the write started or ended nothing.
      */
-    private findEventType(touched: TouchedMembership, active: BaseMembership<string> | undefined): EventTypeFor<MembershipEventData> | undefined {
+    private findEventType(
+        touched: TouchedMembership,
+        active: BaseMembership<string> | undefined
+    ): EventTypeFor<MembershipEventData> | undefined {
         if (active == undefined) {
             return touched.wasActive ? this.names.membershipEnded : undefined;
         }

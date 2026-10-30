@@ -8,7 +8,7 @@ import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
 
 /**
  * The persisted state for a single GCRA (Generic Cell Rate Algorithm) limiter.
- * Rather than tracking a token count, GCRA tracks a single "theoretical
+ * GCRA tracks no token count, but a single "theoretical
  * arrival time" (TAT): the point in time until which the limiter should be
  * considered consumed. A fresh or fully-idle key behaves as if its TAT is
  * "now", i.e. At full capacity.

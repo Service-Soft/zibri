@@ -9,6 +9,17 @@ describe('server render codegen', () => {
             expect(renderComponent('const A = () => <div>hi</div>;')).toBe('<div>hi</div>');
         });
 
+        it('reads an entity in text and in a string attribute as the character it names', () => {
+            expect(renderComponent('const A = () => <p title="A &amp; B">Tom &amp; Jerry&nbsp;&#33;&#x21; &unknown;</p>;'))
+                .toBe('<p title="A &amp; B">Tom &amp; Jerry !! &amp;unknown;</p>');
+        });
+
+        it('hands a component the character an entity names', () => {
+            const label: CompiledComponent = compileComponent('const Label = ({ text, children }) => <b data-text={text}>{children}</b>;');
+            expect(renderComponent('const A = () => <Label text="A &amp; B">C &lt; D</Label>;', {}, { Label: label }))
+                .toBe('<b data-text="A &amp; B">C &lt; D</b>');
+        });
+
         it('interpolates and escapes dynamic text', () => {
             expect(renderComponent('const A = ({ t }) => <p>{t}</p>;', { t: '<b> & "x"' }))
                 .toBe('<p>&lt;b&gt; &amp; "x"</p>');

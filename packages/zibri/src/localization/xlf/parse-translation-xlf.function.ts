@@ -16,8 +16,10 @@ export async function parseTranslationXlf(content: string): Promise<Record<strin
 
     for (const file of document.files ?? []) {
         for (const unit of file.body.units ?? []) {
-            if (unit.target !== undefined) {
-                result[unit.id] = resolveTranslation(unit.target);
+            // an empty target is how a translation tool writes a unit nobody translated yet
+            const translation: string = unit.target === undefined ? '' : resolveTranslation(unit.target);
+            if (translation !== '') {
+                result[unit.id] = translation;
             }
         }
     }

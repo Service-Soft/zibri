@@ -14,6 +14,7 @@ Logging users in, and deciding what each request may do. An [authenticator](./gl
 | `FindUserOptions` | type | Whether looking a user up requires one to be found |
 | `UserAccount` | type | A user without their roles: what a stored user and the [`CurrentUser`](./roles-and-permissions.md#in-your-own-code) of a request have in common, and what the two factor methods take |
 | `AuthService`, `AuthServiceInterface` | class, interface | Manages the registered auth strategies and authenticators, logs users in and runs the auth checks. Replaceable through `ZIBRI_DI_TOKENS.AUTH_SERVICE` |
+| `RouteAuthService`, `RouteAuthServiceInterface` | class, interface | Resolves what the `@Auth` decorators of a route and the `auth` of a manually registered route require, the application's `defaultAuth` included, while the routes are registered. Replaceable through `ZIBRI_DI_TOKENS.ROUTE_AUTH_SERVICE` |
 | `AuthenticatorInterface` | interface | Contract for proving who someone is, such as by password |
 | `isAuthenticator`, `Authenticators` | function, type | Tells an authenticator apart, and a list of authenticator classes |
 | `IdentityLinkingAuthenticatorInterface` | interface | Contract for an authenticator whose users log in with an identity they have somewhere else, linked to them. See [connecting a provider](./login-through-a-provider.md#connecting-a-provider-to-an-account) |
@@ -32,7 +33,6 @@ Logging users in, and deciding what each request may do. An [authenticator](./gl
 | `PasswordCredentialsCreateData` | class | What a password is stored with: the user's id and the password, hashed as it is stored |
 | `PasswordCredentialsDto` | class | What a login with a password takes: the email and the password |
 | `PasswordResetToken` | entity | A token confirming a password reset. Kept hashed |
-| `PasswordResetTokenCleanupCronJob` | cron job | Deletes the reset tokens that expired unused, every hour. Registered for you when `PasswordAuthenticator` is |
 | `RequestPasswordResetData` | type | What mailing a user a reset link takes: the user, overrides for the email, and the transaction |
 | `ConfirmPasswordResetData` | class | What confirming a reset takes: the token from the link, the new password, and the transaction |
 | `PasswordResetEmailTemplate`, `PasswordResetEmailTemplateProps` | type, type | The email a reset link is sent in, via `ZIBRI_DI_TOKENS.PASSWORD_RESET_EMAIL_TEMPLATE`, and what it renders: the link and the user |
@@ -46,6 +46,7 @@ Logging users in, and deciding what each request may do. An [authenticator](./gl
 | `RouteAuthConfiguration` | type | The checks of a [manually registered route](#protecting-manually-registered-routes), with `skip` for one reachable without a login |
 | `AccountDeactivatedError` | class | What a login of a [deactivated user](#deactivating-a-user) is refused with |
 | `AuthStrategyInterface` | interface | Contract for saying who a request is from |
+| `ClaimedUser` | type | Who a credential says its caller is, by `id` and `roles`, as `resolveClaimedUser` of a strategy answers it, see [what a credential is worth](#what-a-credential-is-worth) |
 | `LoginAuthStrategyInterface` | interface | Contract for an auth strategy that also starts, refreshes and ends logins |
 | `isAuthStrategy`, `isLoginAuthStrategy`, `AuthStrategies` | function, function, type | Tell an auth strategy and one carrying logins apart, and a list of auth strategy classes |
 | `EndedLogin` | type | A login a strategy ended: whose it was, and the session at a provider it started from |
@@ -55,17 +56,15 @@ Logging users in, and deciding what each request may do. An [authenticator](./gl
 | `JwtAuthStrategy` | class | Builtin auth strategy sending a Bearer token, used by default |
 | `JwtAuthData` | class | What a JWT login and its refresh answer: the access and refresh token, the user's id and their roles |
 | `JwtRefreshToken` | entity | A refresh token of a JWT login. Kept hashed |
-| `JwtRefreshTokenCleanupCronJob` | cron job | Deletes the refresh tokens that expired. Registered for you |
 | `JwtRefreshLoginData`, `JwtRefreshLoginDto` | class, class | What refreshing a JWT login takes: the refresh token and the transaction, and the body a refresh and a logout are sent with |
 | `Jwt` | class | A token and when it expires |
-| `JwtAccessTokenPayload`, `isJwtAccessTokenPayload` | type, function | What an access token says about its user, and tells a verified payload of that shape apart |
+| `JwtAccessTokenPayload`, `isJwtAccessTokenPayload` | type, function | What an access token says about its user, their `id` and `roles` and nothing personal such as the email, and tells a verified payload of that shape apart |
 | `CookieAuthStrategy` | class | Builtin auth strategy keeping a login in session cookies, with a [CSRF token](#sending-the-csrf-token) |
 | `CookieAuthData` | class | What a cookie login and its refresh answer: the user's id and roles, the CSRF token, and when the session and the refresh session expire |
 | `CookieAuthRefreshLoginData`, `CookieAuthRefreshLoginDto` | class, class | What refreshing a cookie login takes, the transaction, and the empty body a refresh is sent with, since the cookies carry the login |
 | `CookieAuthLogoutData`, `CookieAuthLogoutDto` | class, class | What ending a cookie login takes, whether to clear the cookies and the transaction, and the body a logout is sent with |
 | `CookieAuthSessionOptionsInput` | type | The name and the attributes of a session cookie, such as `sameSite` and `secure`, via `ZIBRI_DI_TOKENS.COOKIE_AUTH_SESSION_OPTIONS` and `ZIBRI_DI_TOKENS.COOKIE_AUTH_REFRESH_SESSION_OPTIONS` |
 | `CookieAuthSession`, `CookieAuthRefreshSession` | entity | A session and a refresh session of a cookie login. Kept hashed |
-| `CookieAuthSessionCleanupCronJob` | cron job | Deletes the sessions and refresh sessions that expired. Registered for you |
 | `ApiKeyAuthStrategy` | class | Builtin auth strategy reading an api key of a user. See [api keys](./api-keys.md) |
 | `BaseClientCertificateAuthStrategy` | class | Auth strategy reading the client certificate a proxy forwards. See [client certificates](./client-certificates.md) |
 | `ClientAccessTokenAuthStrategy` | class | Builtin auth strategy reading the access tokens the authorization server issues to clients. See [issuing tokens to services](./authorization-server.md) |
@@ -88,6 +87,7 @@ Logging users in, and deciding what each request may do. An [authenticator](./gl
 | `Jwks`, `Jwk` | class, class | What `/.well-known/jwks.json` answers: the public keys, each as a JSON Web Key |
 | `UserRepositoryInterface` | interface | Contract for finding a user by email and resolving their credentials |
 | `ZIBRI_DI_TOKENS.REVALIDATE_USER_ON_AUTH_CHECK` | DI token | Whether checks read the account or trust the credential. Defaults to reading |
+| `ZIBRI_DI_TOKENS.MAX_LOGINS_PER_USER` | DI token | How many logins a user holds at most, see [where a user is logged in](#where-a-user-is-logged-in). Defaults to no limit |
 | `AuthRateLimiter` | class | What limits the builtin auth endpoints. Replaceable through `ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER` |
 | `AuthRateLimitOptions` | type | How many attempts per caller, over how long |
 | `PASSWORD_MAX_LENGTH` | constant | The longest password the builtin auth endpoints accept: 1024 characters |
@@ -303,6 +303,8 @@ The browser attaches your session cookie to every request to your api, including
 
 The token is checked on unsafe methods only: `GET`, `HEAD` and `OPTIONS` are exempt. It is also checked only on routes that resolve the session.
 
+A request with a valid session and a missing or wrong token counts as no login. On a route that needs a login, it is answered `403` with a `CsrfTokenRefusedError` instead of the `401` for no login, so your frontend reads the current token and retries rather than logging in again. It is recorded as `authz.check` with `reason: csrf`.
+
 `login` and `refresh-login` return the token in the response body. A client holding only the cookies, such as after a page reload, reads the token of its login from [`GET /auth/csrf-token`](./auth-routes.md#the-routes).
 
 Each token belongs to one refresh session. A refresh that rotates the session issues a new one, and the previous one stops being accepted.
@@ -448,6 +450,8 @@ defineProvider({ token: ZIBRI_DI_TOKENS.REVALIDATE_USER_ON_AUTH_CHECK, useFactor
 
 Then a strategy that can name its caller from the request alone, as `JwtAuthStrategy` does from the token payload, answers checks without reading anything. Strategies that cannot answer without a lookup ignore the setting, and `@CurrentUser` always gives you the stored user.
 
+In a [tenant](./glossary.md#tenant), an access token of `JwtAuthStrategy` then carries the roles of the user's [memberships](./glossary.md#membership) as well, by tenant, so a check in a tenant reads no membership either. A role given or taken in a tenant applies to a login at its next refresh, and the token grows with every tenant the user is a member of.
+
 > [!WARNING]
 > With `REVALIDATE_USER_ON_AUTH_CHECK` set to `false`, a revoked account keeps working until its access token expires. Shorten `accessTokenExpiresInMs` to the window you accept for a terminated account.
 
@@ -462,6 +466,9 @@ defineProvider({ token: ZIBRI_DI_TOKENS.ACCESS_TOKEN_REVOCATION, useValue: 'imme
 
 `'immediately'` requires `REVALIDATE_USER_ON_AUTH_CHECK` to be `true`. It covers the tokens
 [issued to services](./authorization-server.md#when-access-tokens-stop-working) too.
+
+> [!WARNING]
+> With `ACCESS_TOKEN_REVOCATION` at its default `'onExpiry'`, a logout, a password reset and ending a user's logins leave the access tokens already issued working until they expire, an hour by default. Set it to `'immediately'` where a logout has to end access at once.
 
 ## How often a caller may try
 The builtin auth endpoints, login and the three password reset routes, are rate limited per caller. They share one budget of 20 attempts per 10 minutes. A caller is an IPv4 address or an IPv6 /64, the block one subscriber holds. A login that succeeds costs nothing of the budget, so the budget counts wrong passwords, whichever accounts they were for. Exceeding it answers `429`.
@@ -565,7 +572,11 @@ subsystem records its own events in the [audit trail](./audit.md) instead:
 | `auth.password-reset.requested` | success / failure | `subject`, `userId` when a reset actually went out |
 | `auth.password-reset.confirmed` | success / failure | Nothing else |
 | `auth.password.locked` | success | `userId`, see [locking an account](#locking-an-account-after-too-many-wrong-passwords) |
+| `auth.password.changed` | success / failure | `userId`, `reason: refused` for a wrong current password, see [changing a password](#changing-a-password) |
+| `auth.login.ended`, `auth.logins.ended` | success / failure | `userId`, for one login and for every login a user ended, see [where a user is logged in](#where-a-user-is-logged-in) |
 | `auth.2fa` | failure | `userId` |
+| `auth.2fa.enrolled` | success / failure | `userId`, see [enrolling a user](./two-factor.md#enrolling-a-user) |
+| `auth.2fa.removed` | success / failure | `userId` |
 | `auth.identity.linked` | success / failure | `userId` on success, see [connecting a provider](./login-through-a-provider.md#connecting-a-provider-to-an-account) |
 | `auth.identity.unlinked` | success / failure | `userId` |
 | `auth.identity.login-revoked` | success / failure | `userId`, see [logging in and api access apart](./login-through-a-provider.md#logging-in-and-api-access-apart) |
@@ -578,6 +589,7 @@ subsystem records its own events in the [audit trail](./audit.md) instead:
 | `auth.user.deactivated` | success / failure | `userId`, see [deactivating a user](#deactivating-a-user) |
 | `auth.user.reactivated` | success / failure | `userId` |
 | `auth.access.ended` | success / failure | `userId`, see [deactivating a user](#deactivating-a-user) |
+| `auth.membership.deactivated`, `auth.membership.reactivated`, `auth.membership.deleted` | success / failure | `userId` of the member, in the tenant of the membership, see [members and their roles](./tenancy.md#members-and-their-roles) |
 | `authz.check` | failure | `userId`, and which check said no |
 
 A failed login records the submitted address in the clear, so one client trying many accounts and many clients trying one account both show. A recorded subject says what was submitted, not that the account exists.
@@ -626,13 +638,48 @@ that presents the spent credential gets one of its own in the same login. Past i
 spent credential ends the login everywhere and is recorded as `token-reused`. `0` accepts no spent
 credential.
 
+The stored cookie session and refresh session outlive their cookies by
+`COOKIE_AUTH_ROW_GRACE_IN_MS`, five minutes by default, for a client or a replica whose clock runs behind.
+
 ## Asking for a password reset
-`POST /auth/request-password-reset` answers the same whatever you send it: an address that exists, one that does not, and one that already has a reset in flight are indistinguishable. The route is unauthenticated, so any difference would tell anyone whether an address holds an account.
+`POST /auth/request-password-reset` answers the same whatever you send it, in what it says and in how long it takes: an address that exists, one that does not, and one that already has a reset in flight are indistinguishable. The route is unauthenticated, so any difference would tell anyone whether an address holds an account. It answers once the address is looked up, and the link and its email are made after that. A shutdown waits for them.
+
+To start a reset from your own code the same way, call `requestPasswordResetForEmail` on `ZIBRI_DI_TOKENS.AUTH_SERVICE` with the address.
+
+## Changing a password
+A logged in user changes their password at `POST /auth/change-password`, with `{ "currentPassword", "newPassword" }`. A wrong current password is answered `403`, and counts against the account like a wrong password at a login, see [locking an account](#locking-an-account-after-too-many-wrong-passwords). The route shares the login's [budget](#how-often-a-caller-may-try).
+
+Changing the password ends every other login of the user, in every strategy, and keeps the one asking. In your own code, `changePassword` of `AuthServiceInterface` does the same, given the user's id, the passwords with a transaction, and the request.
+
+## Where a user is logged in
+`GET /auth/logins` answers the logins of the user asking, one per device or browser, the most recently used first:
+
+| Field | What it is |
+|---|---|
+| `id` | What `DELETE /auth/logins/:loginId` ends the login by |
+| `strategy` | The strategy carrying the login, such as `jwt` |
+| `current` | Whether the request asking carries this login |
+| `authenticatedAt` | When the user logged in |
+| `lastUsedAt` | When the login started or was last refreshed |
+| `expiresAt` | When it ends unless it is refreshed before |
+| `userAgent`, `ipAddress` | The client that last used it, as the request that started or refreshed it said. A `User-Agent` is kept to 512 characters |
+
+`POST /auth/logout-everywhere` ends every login of the user, the one asking included. Like a logout, an access token already issued works until it expires, unless [`ACCESS_TOKEN_REVOCATION`](#what-a-credential-is-worth) is `'immediately'`. `findLogins`, `endLogin` and `endOwnLogins` of `AuthServiceInterface` do the same in your own code. `JwtAuthStrategy` and `CookieAuthStrategy` list their logins. A strategy of your own does by implementing `LoginListingAuthStrategyInterface`.
+
+To limit how many logins a user holds, provide `ZIBRI_DI_TOKENS.MAX_LOGINS_PER_USER`. A login starting past the limit ends the user's login used least recently, recorded as `auth.login.ended`:
+
+```ts
+// src/providers.ts
+import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
+
+defineProvider({ token: ZIBRI_DI_TOKENS.MAX_LOGINS_PER_USER, useValue: 5 })
+```
 
 For your UI:
 
 - A success does not mean an email was sent. Say "if that address is registered, check your inbox", not that an email went out.
 - While a reset token is still live, asking again sends nothing. Tokens last 5 minutes by default.
+- While addresses are [verified](./email-verification.md), a reset link goes to a verified address only.
 
 ## Creating and registering user models
 A user holds at least an email and an array of roles: their own roles, whose permissions `@Auth.hasPlatformPermission` checks, each one [declared](./roles-and-permissions.md) as a platform role. The roles a user holds in a tenant live on their [membership](./tenancy.md#members-and-their-roles) in it. A password is optional, since a user who logs in through a provider has none.

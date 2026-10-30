@@ -5,6 +5,7 @@ import { createInMemoryDataSource, FakeOAuthProvider, InMemoryDataSource, startF
 
 import { BaseOidcAuthenticator } from './base-oidc.authenticator';
 import { OidcAuthenticationTime } from './oidc-authentication-time.type';
+import { OidcDiscoveryAtBoot } from './oidc-discovery-at-boot.type';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
@@ -23,7 +24,8 @@ import { BadRequestError } from '../../../error-handling/errors/bad-request.erro
 import { NotFoundError } from '../../../error-handling/errors/not-found.error';
 import { KnownHeader } from '../../../http/known-header.enum';
 import { MimeType } from '../../../http/mime-type.enum';
-import { AuditAction, AuditOutcome } from '../../../logging/audit-event.model';
+import { AuditAction, AuditOutcome, AuditReason } from '../../../logging/audit-event.model';
+import { LogLevel } from '../../../logging/log-level.enum';
 import { Log } from '../../../logging/log.model';
 import { type LoggerInterface } from '../../../logging/logger.interface';
 import { Body } from '../../../routing/decorators/body.decorator';
@@ -32,6 +34,7 @@ import { Param } from '../../../routing/decorators/param.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
 import { JsonUtilities } from '../../../utilities/json.utilities';
+import { Ms } from '../../../utilities/ms';
 import { OtpTwoFactorMethod } from '../../2fa/methods/otp/otp.two-factor-method';
 import { AuthController } from '../../auth-controller/auth-controller.model';
 import { type AuthServiceInterface } from '../../auth-service.interface';
@@ -43,10 +46,10 @@ import { CookieAuthStrategy } from '../../strategies/cookie/cookie-auth.auth-str
 import { JwtAuthData } from '../../strategies/jwt/jwt-auth-data.model';
 import { JwtAuthStrategy } from '../../strategies/jwt/jwt.auth-strategy';
 import { FederatedConnectionCode } from '../federated/federated-connection-code.model';
-import { FederatedLinkIdentityStart } from '../federated/federated-link-identity-start.model';
 import { FederatedTicketCredentials } from '../federated/federated-credentials.model';
 import { FederatedHandoverCode } from '../federated/federated-handover-code.model';
 import { FederatedIdentity, FederatedIdentityCreateData } from '../federated/federated-identity.model';
+import { FederatedLinkIdentityStart } from '../federated/federated-link-identity-start.model';
 import { FederatedLoginAttempt } from '../federated/federated-login-attempt.model';
 import { FederatedRegistrationTicket } from '../federated/federated-registration-ticket.model';
 import { FederatedRegistration } from '../federated/federated-registration.model';
@@ -84,6 +87,8 @@ class FakeProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
 
     readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
+
     get issuer(): string {
         return provider.issuer;
     }
@@ -98,6 +103,8 @@ class FormPostProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUse
 
     readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
+
     override readonly responseMode: OAuthResponseMode = 'form_post';
 
     get issuer(): string {
@@ -105,14 +112,24 @@ class FormPostProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUse
     }
 }
 
+/**
+ * How long before it expires the provider with apis has its access token replaced, read as the
+ * authenticator is built, which is once per application.
+ */
+let apiRefreshMarginInMs: number = Ms.MINUTE;
+
 class ApiProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
     readonly name: string = 'fake-api';
+
+    override readonly accessTokenRefreshMarginInMs: number = apiRefreshMarginInMs;
 
     readonly clientId: string = CLIENT_ID;
 
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
 
     readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
+
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
 
     override readonly apiScopes: string[] = [READ_SCOPE, WRITE_SCOPE];
 
@@ -238,7 +255,7 @@ async function createUser(email: string, subject: string | undefined, at: FakeOA
     const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] });
     if (subject != undefined) {
         await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-            .create({ issuer: at.issuer, subject, userId: user.id, forLogin:true, grantedScopes: [] });
+            .create({ issuer: at.issuer, subject, userId: user.id, forLogin: true, grantedScopes: [] });
     }
     return user;
 }
@@ -371,7 +388,7 @@ class ConnectionController {
     ): Promise<FederatedLinkIdentityStart> {
         return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).requestLinkIdentity(
             FederatedRouteUtilities.resolveAuthenticator(provider),
-            { redirectTo: input.redirectTo, forLogin:true }
+            { redirectTo: input.redirectTo, forLogin: true }
         );
     }
 
@@ -385,7 +402,7 @@ class ConnectionController {
     ): Promise<FederatedLinkIdentityStart> {
         return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).requestLinkIdentity(
             FakeProviderAuthenticator,
-            { redirectTo: input.redirectTo, forLogin:true }
+            { redirectTo: input.redirectTo, forLogin: true }
         );
     }
 
@@ -592,6 +609,23 @@ describe('BaseOidcAuthenticator — logging in to cookies', () => {
         const { landing } = await logInAtProvider(newBrowser(baseUrl), authorizeUrl());
 
         expect(landing).toBe(`${ERROR_URL}?error=cancelled`);
+    });
+
+    // 05 §I6: an outage at the token endpoint read like a forged answer, on the user's screen and in the
+    // trail, and was logged nowhere
+    it('goes to the error url as a provider error, and logs it, when the provider cannot exchange the code', async () => {
+        provider.failNextTokenRequest(503);
+
+        const { landing } = await logInAtProvider(newBrowser(baseUrl), authorizeUrl());
+
+        expect(landing).toBe(`${ERROR_URL}?error=provider_error`);
+        expect(await auditEvents()).toContainEqual(expect.objectContaining({
+            action: AuditAction.LOGIN,
+            outcome: AuditOutcome.FAILURE,
+            reason: AuditReason.ERROR
+        }));
+        const warnings: Log[] = await inject<Repository<Log>>(repositoryTokenFor(Log)).findAll({ where: { level: LogLevel.WARN } });
+        expect(warnings.some(log => log.message.includes('could not exchange'))).toBe(true);
     });
 
     it('refuses an ID token issued for another client', async () => {
@@ -1070,7 +1104,7 @@ describe('BaseOidcAuthenticator — connecting a provider to an account', () => 
         const started: Response = await loggedIn.browser.open(`${baseUrl}/auth/link-identity/request?authenticator=fake`, {
             method: 'POST',
             headers,
-            body: JsonUtilities.stringify({ redirectTo: CONNECTED_URL, forLogin:true })
+            body: JsonUtilities.stringify({ redirectTo: CONNECTED_URL, forLogin: true })
         });
         expect(started.status).toBe(200);
         // eslint-disable-next-line typescript/no-unsafe-assignment
@@ -1092,7 +1126,7 @@ describe('BaseOidcAuthenticator — connecting a provider to an account', () => 
         const user: JwtUser = await createUser(`${subject}@example.com`, subject);
         const elsewhere: string = newSubject();
         await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-            .create({ issuer: formPostProvider.issuer, subject: elsewhere, userId: user.id, forLogin:true, grantedScopes: [] });
+            .create({ issuer: formPostProvider.issuer, subject: elsewhere, userId: user.id, forLogin: true, grantedScopes: [] });
 
         const linked: LinkedIdentity[] = await authService().findIdentities(user.id, undefined);
 
@@ -1284,8 +1318,8 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
         const authenticator: ApiProviderAuthenticator = inject(ApiProviderAuthenticator);
 
         // refused as a bad request: the connect route of AuthController takes what a client sends
-        await expect(authenticator.requestLinkIdentity(randomUUID(), { redirectTo: CONNECTED_URL, forLogin:false })).rejects.toThrow(BadRequestError);
-        await expect(authenticator.requestLinkIdentity(randomUUID(), { redirectTo: CONNECTED_URL, forLogin:true, scopes: ['drive'] }))
+        await expect(authenticator.requestLinkIdentity(randomUUID(), { redirectTo: CONNECTED_URL, forLogin: false })).rejects.toThrow(BadRequestError);
+        await expect(authenticator.requestLinkIdentity(randomUUID(), { redirectTo: CONNECTED_URL, forLogin: true, scopes: ['drive'] }))
             .rejects.toThrow(BadRequestError);
     });
 
@@ -1293,9 +1327,9 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
         const subject: string = newSubject();
 
-        expect(await connectApi(loggedIn, subject, { forLogin:false, scopes: [READ_SCOPE] })).toBe(CONNECTED_URL);
+        expect(await connectApi(loggedIn, subject, { forLogin: false, scopes: [READ_SCOPE] })).toBe(CONNECTED_URL);
 
-        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ subject, forLogin:false, grantedScopes: expect.arrayContaining([READ_SCOPE]) });
+        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ subject, forLogin: false, grantedScopes: expect.arrayContaining([READ_SCOPE]) });
         expect(await auditEvents()).toContainEqual({
             action: AuditAction.PROVIDER_ACCESS_GRANTED,
             outcome: AuditOutcome.SUCCESS,
@@ -1311,18 +1345,18 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
     it('turns logging in on when the identity is connected again to log in, and keeps its tokens', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
         const subject: string = newSubject();
-        await connectApi(loggedIn, subject, { forLogin:false, scopes: [READ_SCOPE] });
+        await connectApi(loggedIn, subject, { forLogin: false, scopes: [READ_SCOPE] });
 
-        await connectApi(loggedIn, subject, { forLogin:true, scopes: [] });
+        await connectApi(loggedIn, subject, { forLogin: true, scopes: [] });
 
-        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ forLogin:true, grantedScopes: expect.arrayContaining([READ_SCOPE]) });
+        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ forLogin: true, grantedScopes: expect.arrayContaining([READ_SCOPE]) });
     });
 
     it('keeps only the scopes the user granted', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
         apiProvider.declinedScopes = [WRITE_SCOPE];
         try {
-            await connectApi(loggedIn, newSubject(), { forLogin:false, scopes: [READ_SCOPE, WRITE_SCOPE] });
+            await connectApi(loggedIn, newSubject(), { forLogin: false, scopes: [READ_SCOPE, WRITE_SCOPE] });
         }
         finally {
             apiProvider.declinedScopes = [];
@@ -1337,7 +1371,7 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
 
     it('refreshes once for two requests at the same time, from a provider that rotates its refresh tokens', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
-        await connectApi(loggedIn, newSubject(), { forLogin:false, scopes: [READ_SCOPE] });
+        await connectApi(loggedIn, newSubject(), { forLogin: false, scopes: [READ_SCOPE] });
         const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
         const before: number = countRefreshes();
 
@@ -1356,7 +1390,7 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
     it('removes the tokens once the provider refuses the refresh', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
         const subject: string = newSubject();
-        await connectApi(loggedIn, subject, { forLogin:true, scopes: [READ_SCOPE] });
+        await connectApi(loggedIn, subject, { forLogin: true, scopes: [READ_SCOPE] });
         const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
         // the user removes the application from their account at the provider
         apiProvider.revokeGrantsOf(subject);
@@ -1365,7 +1399,7 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
             .toBe(ProviderAccessFailure.REVOKED);
         expect(await findFailure(authService().resolveProviderAccessToken(loggedIn.user.id, identityId, [READ_SCOPE])))
             .toBe(ProviderAccessFailure.NOT_CONNECTED);
-        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ forLogin:true, grantedScopes: [] });
+        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ forLogin: true, grantedScopes: [] });
         expect(await auditEvents()).toContainEqual(expect.objectContaining({
             action: AuditAction.PROVIDER_ACCESS_REVOKED,
             outcome: AuditOutcome.SUCCESS,
@@ -1375,21 +1409,21 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
 
     it('hands the tokens back when the access is revoked, and keeps an identity that logs in', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
-        await connectApi(loggedIn, newSubject(), { forLogin:true, scopes: [READ_SCOPE] });
+        await connectApi(loggedIn, newSubject(), { forLogin: true, scopes: [READ_SCOPE] });
         const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
         const revokedBefore: number = apiProvider.revokedTokens.length;
 
         await authService().revokeProviderAccess(loggedIn.user.id, identityId, undefined);
 
         expect(apiProvider.revokedTokens).toHaveLength(revokedBefore + 1);
-        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ forLogin:true, grantedScopes: [] });
+        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ forLogin: true, grantedScopes: [] });
         expect(await findFailure(authService().resolveProviderAccessToken(loggedIn.user.id, identityId, [READ_SCOPE])))
             .toBe(ProviderAccessFailure.NOT_CONNECTED);
     });
 
     it('unlinks an identity connected for apis only when its access is revoked', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
-        await connectApi(loggedIn, newSubject(), { forLogin:false, scopes: [READ_SCOPE] });
+        await connectApi(loggedIn, newSubject(), { forLogin: false, scopes: [READ_SCOPE] });
         const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
 
         await authService().revokeProviderAccess(loggedIn.user.id, identityId, undefined);
@@ -1404,12 +1438,12 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
 
     it('stops an identity logging in when its login is revoked, and keeps its tokens', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
-        await connectApi(loggedIn, newSubject(), { forLogin:true, scopes: [READ_SCOPE] });
+        await connectApi(loggedIn, newSubject(), { forLogin: true, scopes: [READ_SCOPE] });
         const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
 
         await authService().revokeProviderLogin(loggedIn.user.id, identityId, undefined);
 
-        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ forLogin:false, grantedScopes: expect.arrayContaining([READ_SCOPE]) });
+        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ forLogin: false, grantedScopes: expect.arrayContaining([READ_SCOPE]) });
         expect(await authService().resolveProviderAccessToken(loggedIn.user.id, identityId, [READ_SCOPE])).toBeTruthy();
         expect((await logInAtProvider(
             newBrowser(baseUrl),
@@ -1424,7 +1458,7 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
 
     it('unlinks an identity linked to log in only when its login is revoked', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
-        await connectApi(loggedIn, newSubject(), { forLogin:true, scopes: [] });
+        await connectApi(loggedIn, newSubject(), { forLogin: true, scopes: [] });
         const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
 
         await authService().revokeProviderLogin(loggedIn.user.id, identityId, undefined);
@@ -1439,7 +1473,7 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
 
     it('hands the tokens back when the identity is unlinked', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
-        await connectApi(loggedIn, newSubject(), { forLogin:true, scopes: [READ_SCOPE] });
+        await connectApi(loggedIn, newSubject(), { forLogin: true, scopes: [READ_SCOPE] });
         const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
         const revokedBefore: number = apiProvider.revokedTokens.length;
 
@@ -1450,7 +1484,7 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
 
     it('has no access token for an identity linked to log in only', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
-        await connectApi(loggedIn, newSubject(), { forLogin:true, scopes: [] });
+        await connectApi(loggedIn, newSubject(), { forLogin: true, scopes: [] });
         const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
 
         expect(await findFailure(authService().resolveProviderAccessToken(loggedIn.user.id, identityId, [READ_SCOPE])))
@@ -1473,5 +1507,41 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
         const identityId: string = (await findApiIdentity(userId))?.id ?? '';
 
         expect(await authService().resolveProviderAccessToken(userId, identityId, [READ_SCOPE])).toBeTruthy();
+    });
+});
+
+describe('BaseOidcAuthenticator — a provider\'s access token used until shortly before it expires', () => {
+    let server: StartedTestServer;
+    let baseUrl: string;
+
+    beforeAll(async () => {
+        // below the 30 seconds the provider's access tokens last
+        apiRefreshMarginInMs = Ms.SECOND * 10;
+        [server, baseUrl] = await startApp([CookieProviderAuthController, ConnectionController], CookieAuthStrategy, createFederationOptions());
+    }, TestTimeouts.inMemory.start);
+
+    afterAll(async () => {
+        apiRefreshMarginInMs = Ms.MINUTE;
+        await server?.shutdown();
+    }, TestTimeouts.inMemory.shutdown);
+
+    it('uses the access token it holds until accessTokenRefreshMarginInMs before it expires', async () => {
+        const loggedIn: LoggedIn = await logIn(baseUrl);
+        apiProvider.identity = { subject: newSubject() };
+        // eslint-disable-next-line typescript/no-unsafe-assignment
+        const { url }: { url: string } = await (await loggedIn.browser.open(`${baseUrl}/account/connect-api`, {
+            method: 'POST',
+            headers: { [KnownHeader.CONTENT_TYPE]: 'application/json', 'x-csrf-token': loggedIn.csrfToken },
+            body: JsonUtilities.stringify({ forLogin: false, scopes: [READ_SCOPE] })
+        })).json();
+        await logInAtProvider(loggedIn.browser, url);
+        const identityId: string = (await authService().findIdentities(loggedIn.user.id, undefined, [ApiProviderAuthenticator]))[0]?.identity.id ?? '';
+        const refreshesBefore: number = apiProvider.tokenRequests.filter(body => body.get('grant_type') === 'refresh_token').length;
+
+        const first: string = await authService().resolveProviderAccessToken(loggedIn.user.id, identityId, [READ_SCOPE]);
+        const second: string = await authService().resolveProviderAccessToken(loggedIn.user.id, identityId, [READ_SCOPE]);
+
+        expect(second).toBe(first);
+        expect(apiProvider.tokenRequests.filter(body => body.get('grant_type') === 'refresh_token')).toHaveLength(refreshesBefore);
     });
 });

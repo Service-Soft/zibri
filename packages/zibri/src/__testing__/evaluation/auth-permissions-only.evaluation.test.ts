@@ -107,7 +107,7 @@ class CallerController {
             throw new InternalError('A route is handled inside a request.');
         }
         const membership: CurrentMembership<TestMembership> = await authService
-            .getCurrentMembership<string, TestMembership>(request, authService.strategies, true);
+            .resolveCurrentMembership<string, TestMembership>(request, authService.strategies, true);
         return { user, membership };
     }
 

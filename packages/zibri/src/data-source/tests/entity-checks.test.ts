@@ -28,7 +28,8 @@ class ChoreUpdateData extends PartialClass(PickClass(Chore, ['status', 'complete
 class ChoreController {
     @Patch('/:id')
     async update(@Param.path('id') id: string, @Body(ChoreUpdateData) body: ChoreUpdateData): Promise<Chore> {
-        return await inject(dataSourceClass).getRepository(Chore).updateById(id, body);
+        return await inject(dataSourceClass).getRepository(Chore)
+            .updateById(id, body);
     }
 }
 

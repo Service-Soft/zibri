@@ -54,12 +54,11 @@ export function resolveAllKeys(ast: AstProgram, parentKey: string | undefined): 
             case 'MustacheStatement': {
                 // reached leaf
                 // 1) record the direct lookup, if any
-                if (
-                    element.path.original !== 'this'
-                    && !element.params.length
-                    && !element.hash?.pairs.length
-                ) {
-                    res.push(resolveKeyForMustacheStatement(element, parentKey));
+                const key: string | undefined = element.path.original === 'this' || element.params.length || element.hash?.pairs.length
+                    ? undefined
+                    : resolveKeyForMustacheStatement(element, parentKey);
+                if (key != undefined) {
+                    res.push(key);
                 }
                 // 2) now dive into any helper arguments to find nested keys!
                 for (const param of element.params) {

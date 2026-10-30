@@ -203,6 +203,26 @@ describe('reading a body that is the first of several shapes it fits', () => {
             .resolves.toEqual({ value: { address: '+49123456', carrier: 'network' }, problems: [] });
     });
 
+    // a key every object inherits counted as one the class declares, so the first class was chosen
+    // and validation then refused the key it had let through
+    it('goes on to the next class for a key named like something every object inherits', async () => {
+        class Strict {
+            @Property.string()
+            name!: string;
+        }
+        class Open {
+            @Property.string()
+            name!: string;
+        }
+        const shapes: JsonBodyShapeMetadataInput[] = [
+            { type: 'object', cls: () => Strict },
+            { type: 'object', cls: () => Open, allowAdditionalProperties: true }
+        ];
+
+        await expect(receiveAnyOf(shapes, { name: 'Ada', toString: 'yes' }))
+            .resolves.toEqual({ value: { name: 'Ada', toString: 'yes' }, problems: [] });
+    });
+
     it('chooses by declaration order rather than by which shape finishes deciding first', async () => {
         // the first shape takes longer to decide than the second, and both fit. Choosing whichever
         // settled first would make the same request read differently from one call to the next

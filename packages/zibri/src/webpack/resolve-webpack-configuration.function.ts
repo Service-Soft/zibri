@@ -99,8 +99,8 @@ export function resolveWebpackConfiguration(options: WebpackConfigurationOptions
     return {
         target: 'node',
         context: root,
-        // both come from the framework's own dependencies - typeorm's dynamic requires and handlebars'
-        // require.extensions - and cannot be acted on from inside an application
+        // both come from the framework's own dependencies - requires resolved only at runtime and
+        // handlebars' require.extensions - and cannot be acted on from inside an application
         ignoreWarnings: [
             { message: /Critical dependency: the request of a dependency is an expression/ },
             { message: /require\.extensions is not supported by webpack\./ }
@@ -121,10 +121,9 @@ export function resolveWebpackConfiguration(options: WebpackConfigurationOptions
             clean: true
         },
         devtool: 'source-map',
-        // what the framework's dependencies reach for only when a feature asks, or never on node:
-        // typeorm's drivers for every other database, the optional native add-ons, the pdf stack.
-        // Bundled, a package that is not installed fails the build; external, it is required at
-        // runtime by the feature that wants it, like every optional peer
+        // what the framework's dependencies reach for only when a feature asks, or never on node: the
+        // optional native add-ons, the pdf stack. Bundled, a package that is not installed fails the
+        // build; external, it is required at runtime by the feature that wants it, like every optional peer
         externals: Object.fromEntries([
             'pdfmake',
             'pdfkit',
@@ -133,29 +132,12 @@ export function resolveWebpackConfiguration(options: WebpackConfigurationOptions
             'osx-temperature-sensor',
             'pg-native',
             'cloudflare:sockets',
-            'react-native-sqlite-storage',
-            '@google-cloud/spanner',
-            'mssql',
-            'sql.js',
-            'redis',
             'pg-query-stream',
-            'typeorm-aurora-data-api-driver',
-            'oracledb',
-            'mysql',
-            'hdb-pool',
-            'better-sqlite3',
-            'sqlite3',
-            'ioredis',
-            'mysql2',
-            'mongodb',
-            '@sap/hana-client',
-            '@sap/hana-client/extension/Stream',
             'ts-node',
             'utf-8-validate',
             'bufferutil',
             'macos-temperature-sensor',
             'express',
-            'typeorm',
             'handlebars'
         ].map(name => [name, `commonjs2 ${name}`])),
         resolve: {
@@ -224,7 +206,7 @@ export function resolveWebpackConfiguration(options: WebpackConfigurationOptions
                 outDir: path.join(root, 'assets', 'public', 'vendor'),
                 resolveFrom: root
             }),
-            new RestartServerOnBuildPlugin(),
+            new RestartServerOnBuildPlugin(root),
             ...MiniCssPlugin == undefined ? [] : [new MiniCssPlugin({ filename: STYLESHEET })],
             // a package a template imports with ?client is the package itself on the server
             new ReplacementPlugin(

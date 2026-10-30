@@ -15,7 +15,6 @@ A service calls your API, or another service of yours, with an access token your
 | `ZIBRI_DI_TOKENS.ACCESS_TOKEN_REVOCATION` | DI token | When an access token stops working once what it was issued for has ended. Defaults to `'onExpiry'` |
 | `AccessTokenRevocation` | type | `'onExpiry'` or `'immediately'` |
 | `JwtRevokedAccessToken` | entity | The revoked tokens of clients, until they expire |
-| `JwtRevokedAccessTokenCleanupCronJob` | cron job | Deletes revoked tokens once they expire |
 | `OAuth2Error`, `OAuth2ErrorCode`, `OAuth2ErrorOptions` | class, enum, type | An error answered the way OAuth2 says errors look |
 | `ZIBRI_DI_TOKENS.AUTHORIZATION_SERVER_SERVICE` | DI token | The service answering the routes, replaceable |
 | `AuthorizationServerService` | class | Answers the routes of the authorization server. Replaceable through `ZIBRI_DI_TOKENS.AUTHORIZATION_SERVER_SERVICE` |
@@ -54,6 +53,7 @@ export class CompanyAuthorizationServerController extends AuthorizationServerCon
 |---|---|
 | `introspectionPermission` | The [platform permission](./roles-and-permissions.md#declaring-permissions) a platform role of a caller of `/introspect` carries. Required |
 | `resources` | The services tokens may be issued for besides your application, each by an absolute URL without a fragment. Required, `[]` for none |
+| `maxClientAssertionLifetimeInMs` | How far ahead a [JWT a client signs](#clients) may expire. A JWT is remembered as spent until it expires. One hour by default |
 
 The issuer of every token is your application's `baseUrl`, so set it to the URL your clients and services reach.
 
@@ -114,7 +114,7 @@ A client is an API key. It authenticates in one of five ways:
 
 [Clients without a secret](./api-keys.md#clients-without-a-secret) shows how to create each kind of key.
 
-A JWT a client signs names the key's id as `iss` and `sub`, your `baseUrl`, the URL of `/token` or the URL of the route it calls as `aud`, and carries a `jti`. It expires at most an hour ahead, and is taken once.
+A JWT a client signs names the key's id as `iss` and `sub`, your `baseUrl`, the URL of `/token` or the URL of the route it calls as `aud`, and carries a `jti`. It expires at most `maxClientAssertionLifetimeInMs` ahead, and is taken once.
 
 A token issued over a client certificate is bound to it: it carries the certificate's thumbprint as `cnf`, and a request sending it is taken only beside the same certificate. The certificate is read by the registered strategy implementing `ClientCertificateAuthStrategyInterface`, see [client certificates](./client-certificates.md).
 
@@ -193,7 +193,7 @@ defineProvider({ token: ZIBRI_DI_TOKENS.ACCESS_TOKEN_REVOCATION, useValue: 'imme
 | A login | The login ends: a logout, ending the user's logins, a password reset, deactivating the user, or the token revoked |
 | A client | The API key is revoked or expires, or the token is revoked |
 
-This covers every access token of `JwtAuthStrategy` and of `ClientAccessTokenAuthStrategy`. With `ClientAccessTokenAuthStrategy`, declare `JwtRevokedAccessToken` in the data source as well. `JwtRevokedAccessTokenCleanupCronJob` is registered for you. `'immediately'` needs `REVALIDATE_USER_ON_AUTH_CHECK` set to `true`, see [what a credential is worth](./auth.md#what-a-credential-is-worth).
+This covers every access token of `JwtAuthStrategy` and of `ClientAccessTokenAuthStrategy`. With `ClientAccessTokenAuthStrategy`, declare `JwtRevokedAccessToken` in the data source as well, whose rows are deleted once the token expired. `'immediately'` needs `REVALIDATE_USER_ON_AUTH_CHECK` set to `true`, see [what a credential is worth](./auth.md#what-a-credential-is-worth).
 
 A service that checks tokens by the keys learns of none of this. It asks `/introspect` to find out.
 

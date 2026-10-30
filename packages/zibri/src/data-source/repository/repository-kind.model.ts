@@ -67,6 +67,9 @@ export type RepositoryKind = {
 // here rather than beside the bases in auth and tenancy, which set the marks: the data layer reads
 // them while it registers repositories, before anything runs that could register them, and it
 // imports nothing built on it (09 §Q9)
+/**
+ * Every kind of rows the framework knows besides plain rows: users, memberships and roles.
+ */
 export const REPOSITORY_KINDS: RepositoryKind[] = [
     {
         name: 'user',

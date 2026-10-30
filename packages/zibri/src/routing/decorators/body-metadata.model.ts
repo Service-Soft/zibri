@@ -128,7 +128,7 @@ export type JsonBodyMetadataInput = Partial<OmitStrict<JsonBodyMetadata, 'shape'
      */
     maxSize?: FileSize,
     /**
-     * Whether the body is a list of the model rather than one of it.
+     * Whether the body is a list of the model, not one of it.
      */
     isArray?: boolean,
     /**

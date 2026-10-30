@@ -82,6 +82,11 @@ export class DataSourceService implements DataSourceServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    getDataSources(): DataSourceInterface[] {
+        return [...this.dataSources];
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async afterAppShutdown(): Promise<void> {
         await Promise.all(this.dataSources.map(ds => ds.shutDown()));
     }

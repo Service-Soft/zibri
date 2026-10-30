@@ -417,6 +417,22 @@ describe('InMemoryDataSource', () => {
         expect(await registrations.findAll({ where: { subscriberId: 'a' } })).toHaveLength(2);
     });
 
+    it('refuses to commit a row whose unique values another transaction committed first', async () => {
+        const registrations: Repository<EventSubscriberRegistration> = started.dataSource
+            .getRepository(EventSubscriberRegistration);
+        const first: Transaction = started.dataSource.startTransaction();
+        const second: Transaction = started.dataSource.startTransaction();
+
+        // neither sees the other's row, as on a store that holds back the second insert until the first commits
+        await registrations.create({ subscriberId: 'a', eventType: 'user.created', expiresAt: new Date() }, { transaction: first });
+        await registrations.create({ subscriberId: 'a', eventType: 'user.created', expiresAt: new Date() }, { transaction: second });
+        await first.commit();
+
+        await expect(second.commit()).rejects.toThrow(UniqueConstraintViolationError);
+        await second.rollback();
+        expect(await registrations.findAll({ where: { subscriberId: 'a' } })).toHaveLength(1);
+    });
+
     it('inserts on the first upsert and applies onConflict on the next', async () => {
         const registrations: Repository<EventSubscriberRegistration> = started.dataSource
             .getRepository(EventSubscriberRegistration);

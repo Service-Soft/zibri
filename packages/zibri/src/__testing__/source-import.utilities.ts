@@ -6,6 +6,12 @@ import { SourceImport } from './source-import.model';
 const srcDir: string = path.resolve(__dirname, '..');
 
 /**
+ * The directories a walk does not go into: what a package installed, and what a running suite writes
+ * and removes again, which a walk beside it would find half gone.
+ */
+const SKIPPED_DIRECTORIES: Set<string> = new Set(['node_modules', 'file-output']);
+
+/**
  * Reads which files the sources of the framework import, to check which way its subsystems depend on
  * each other.
  */
@@ -16,9 +22,30 @@ export abstract class SourceImportUtilities {
      * @returns The files, relative to `src`.
      */
     static findSourceFiles(dir: string): string[] {
-        return readdirSync(path.join(srcDir, dir), { recursive: true, encoding: 'utf8' })
-            .filter(file => file.endsWith('.ts') && !file.endsWith('.test.ts') && !file.endsWith('.cases.ts'))
-            .map(file => path.join(dir, file));
+        return this.findFiles(srcDir, dir, file => file.endsWith('.ts') && !file.endsWith('.test.ts') && !file.endsWith('.cases.ts'));
+    }
+
+    /**
+     * Finds the files under a directory, outside of what a package installed or a suite writes.
+     * @param root - What the directory and the files are relative to.
+     * @param dir - The directory.
+     * @param include - Whether a file is one to find.
+     * @returns The files, relative to the root.
+     */
+    static findFiles(root: string, dir: string, include: (file: string) => boolean): string[] {
+        const res: string[] = [];
+        for (const entry of readdirSync(path.join(root, dir), { withFileTypes: true })) {
+            const file: string = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                if (!SKIPPED_DIRECTORIES.has(entry.name)) {
+                    res.push(...this.findFiles(root, file, include));
+                }
+            }
+            else if (include(file)) {
+                res.push(file);
+            }
+        }
+        return res;
     }
 
     /**
@@ -36,13 +63,24 @@ export abstract class SourceImportUtilities {
      * @returns Each import of a relative path, resolved against `src`.
      */
     static findSourceImports(dir: string): SourceImport[] {
-        return this.findSourceFiles(dir).flatMap(file => [...this.readSourceFile(file)
-            .matchAll(/^import (?:(type )?([^;]*?) from )?'(\.[^']+)';/gm)]
+        return this.findSourceFiles(dir).flatMap(file => this.findFileImports(file));
+    }
+
+    /**
+     * Reads the imports of one source file.
+     * @param file - The file, relative to `src`.
+     * @returns Each import of a relative path, resolved against `src`.
+     */
+    static findFileImports(file: string): SourceImport[] {
+        return [
+            ...this.readSourceFile(file)
+                .matchAll(/^import (?:(type )?([^;]*?) from )?'(\.[^']+)';/gm)
+        ]
             .map(([, typeKeyword, clause, specifier = '']) => ({
                 file,
                 imported: path.relative(srcDir, path.resolve(srcDir, path.dirname(file), specifier)),
                 isTypeOnly: typeKeyword != undefined || (clause != undefined && this.isTypeOnlyClause(clause))
-            })));
+            }));
     }
 
     /**
@@ -77,6 +115,9 @@ export abstract class SourceImportUtilities {
         if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
             return false;
         }
-        return trimmed.slice(1, -1).split(',').map(name => name.trim()).filter(name => name.length).every(name => name.startsWith('type '));
+        return trimmed.slice(1, -1).split(',')
+            .map(name => name.trim())
+            .filter(name => name.length)
+            .every(name => name.startsWith('type '));
     }
 }

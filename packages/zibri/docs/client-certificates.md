@@ -19,10 +19,9 @@ import { X509Certificate } from 'node:crypto';
 import { BaseClientCertificateAuthStrategy, ClientCertificateHeaderFormat, inject, repositoryTokenFor } from 'zibri';
 
 import { environment } from '../environment';
-import { Role } from '../models/role.enum';
 import { User } from '../models/user.model';
 
-export class IngressClientCertificateAuthStrategy extends BaseClientCertificateAuthStrategy<Role, User> {
+export class IngressClientCertificateAuthStrategy extends BaseClientCertificateAuthStrategy<string, User> {
     readonly header: string = 'x-client-cert';
     readonly headerFormat: ClientCertificateHeaderFormat = 'url-encoded-pem';
     readonly trustedProxies: string[] = ['10.0.0.0/8'];

@@ -1,18 +1,19 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
 import { ReflectUtilities } from './reflect.utilities';
-import { InvalidDecoratorCombinationError } from '../error-handling/errors/invalid-decorator-combination.error';
 import { resolveCallSites } from './resolve-call-sites.function';
-import { CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
-import { HasPermissionMetadata, SkipHasPermissionMetadata } from '../auth/models/has-permission-metadata.model';
-import { IsLoggedInMetadata, SkipIsLoggedInMetadata } from '../auth/models/is-logged-in-metadata.model';
-import { IsNotLoggedInMetadata, SkipIsNotLoggedInMetadata } from '../auth/models/is-not-logged-in-metadata.model';
-import { Require2faMetadata, SkipRequire2faMetadata } from '../auth/models/require-2fa-metadata.model';
-import { SkipAuthMetadata } from '../auth/models/skip-auth-metadata.model';
+// every import of a subsystem built on utilities is marked `type`: this file only names their
+// metadata shapes, and a value import would put utilities in a runtime cycle with each of them
+import { type CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
+import { type HasPermissionMetadata, type SkipHasPermissionMetadata } from '../auth/models/has-permission-metadata.model';
+import { type IsLoggedInMetadata, type SkipIsLoggedInMetadata } from '../auth/models/is-logged-in-metadata.model';
+import { type IsNotLoggedInMetadata, type SkipIsNotLoggedInMetadata } from '../auth/models/is-not-logged-in-metadata.model';
+import { type Require2faMetadata, type SkipRequire2faMetadata } from '../auth/models/require-2fa-metadata.model';
+import { type SkipAuthMetadata } from '../auth/models/skip-auth-metadata.model';
 import { type Permission } from '../auth/roles/permission.type';
 import { type PlatformPermission } from '../auth/roles/platform-permission.type';
-import { BackupResourceInterface } from '../backup/backup-resource.interface';
-import { BackupResourceMetadata } from '../backup/decorators/backup-resource-metadata.model';
+import { type BackupResourceInterface } from '../backup/backup-resource.interface';
+import { type BackupResourceMetadata } from '../backup/decorators/backup-resource-metadata.model';
 import { DataSourceMetadata } from '../data-source/decorators/data-source.decorator';
 import { RepositoryForMetadata } from '../data-source/repository/repository-for-metadata.model';
 import { DiToken } from '../di/models/di-token.model';
@@ -20,19 +21,20 @@ import { type BaseEntity } from '../entity/base-entity.model';
 import { EntityMetadata } from '../entity/decorators/entity.decorator';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { type EntityCheck } from '../entity/models/entity-check.model';
-import { OpenApiResponse } from '../open-api/open-api.model';
+import { InvalidDecoratorCombinationError } from '../error-handling/errors/invalid-decorator-combination.error';
+import { type OpenApiResponse } from '../open-api/open-api.model';
 import { XmlPropertyMetadata } from '../parsing/xml/xml-property-metadata.model';
 import { XmlRootMetadata } from '../parsing/xml/xml-root-metadata.model';
-import { ControllerRouteConfiguration } from '../routing/controller-route-configuration.model';
-import { AcceptCrossSitePostsOptions } from '../routing/decorators/accept-cross-site-posts-options.model';
-import { BodyMetadata } from '../routing/decorators/body-metadata.model';
-import { ControllerData } from '../routing/decorators/controller.decorator';
-import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
+import { type ControllerRouteConfiguration } from '../routing/controller-route-configuration.model';
+import { type AcceptCrossSitePostsOptions } from '../routing/decorators/accept-cross-site-posts-options.model';
+import { type BodyMetadata } from '../routing/decorators/body-metadata.model';
+import { type ControllerData } from '../routing/decorators/controller.decorator';
+import { type PathParamMetadata, type QueryParamMetadata, type HeaderParamMetadata } from '../routing/decorators/param.decorator';
 import { Newable } from '../types/newable.type';
 import { type CustomValidationRule } from '../validation/custom-validation.model';
-import { CurrentWebsocketConnectionMetadata } from '../websocket/decorators/current-websocket-connection.decorator';
-import { WebsocketControllerData } from '../websocket/decorators/websocket-controller.decorator';
-import { WebsocketControllerRouteConfiguration } from '../websocket/models/websocket-controller-route-configuration.model';
+import { type CurrentWebsocketConnectionMetadata } from '../websocket/decorators/current-websocket-connection.decorator';
+import { type WebsocketControllerData } from '../websocket/decorators/websocket-controller.decorator';
+import { type WebsocketControllerRouteConfiguration } from '../websocket/models/websocket-controller-route-configuration.model';
 
 const modelPropertiesStore: WeakMap<Function, Record<string, PropertyMetadata>> = new WeakMap();
 const xmlPropertiesStore: WeakMap<Function, Record<string, XmlPropertyMetadata>> = new WeakMap();
@@ -264,6 +266,33 @@ export abstract class MetadataUtilities {
 
     static getControllerRoutes(controller: Function): ControllerRouteConfiguration[] {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_ROUTES, controller) ?? [];
+    }
+
+    static addControllerRoute(controller: Function, route: ControllerRouteConfiguration): void {
+        MetadataUtilities.setControllerRoutes(
+            controller,
+            MetadataUtilities.withRoute(
+                MetadataUtilities.getControllerRoutes(controller),
+                // eslint-disable-next-line typescript/no-unsafe-argument
+                MetadataUtilities.getControllerRoutes(Object.getPrototypeOf(controller)),
+                route
+            )
+        );
+    }
+
+    /**
+     * The routes of a controller with one more.
+     *
+     * Always a list of its own: the routes read off a class that declared none yet are its parent's
+     * list itself, which every other class extending that parent reads too. A route the parent declares
+     * for the same method is the route of the implementation being replaced, so it goes.
+     * @param routes - The routes the controller holds, its parent's included.
+     * @param inherited - The routes of its parent.
+     * @param route - The route to add.
+     * @returns The routes with it.
+     */
+    private static withRoute<Route extends { controllerMethod: string }>(routes: Route[], inherited: Route[], route: Route): Route[] {
+        return [...routes.filter(existing => existing.controllerMethod !== route.controllerMethod || !inherited.includes(existing)), route];
     }
 
     // ---------- route responses (method-level, inherit) ----------
@@ -782,6 +811,18 @@ export abstract class MetadataUtilities {
 
     static getWebsocketControllerRoutes(controller: Function): WebsocketControllerRouteConfiguration[] {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.WEBSOCKET_CONTROLLER_ROUTES, controller) ?? [];
+    }
+
+    static addWebsocketControllerRoute(controller: Function, route: WebsocketControllerRouteConfiguration): void {
+        MetadataUtilities.setWebsocketControllerRoutes(
+            controller,
+            MetadataUtilities.withRoute(
+                MetadataUtilities.getWebsocketControllerRoutes(controller),
+                // eslint-disable-next-line typescript/no-unsafe-argument
+                MetadataUtilities.getWebsocketControllerRoutes(Object.getPrototypeOf(controller)),
+                route
+            )
+        );
     }
 
     // current websocket connection

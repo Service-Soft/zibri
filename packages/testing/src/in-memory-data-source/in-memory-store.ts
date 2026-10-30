@@ -1,15 +1,30 @@
 import { DataSourceInterface, Newable } from 'zibri';
 
+// Encoded rather than kept as the object that was handed in, so it puts every value through the same
+// narrowing a real store applies, instead of handing the original instance back and hiding every
+// place production code depends on that conversion.
 /**
  * A stored row, holding one json encoded value per column.
  *
- * Encoded rather than kept as the object that was handed in, for two reasons. It isolates the store
- * from its callers, so an entity a test mutates after saving it cannot reach back into what is
- * stored. And it puts every value through the same narrowing a real store applies - a Date comes
- * back as a Date, a bigint as a bigint, a Buffer as a Buffer - rather than handing the original
- * instance back and hiding every place production code depends on that conversion.
+ * An entity a test mutates after saving it does not change what is stored, and every value comes
+ * back the way a real store hands it back - a Date as a Date, a bigint as a bigint, a Buffer as a
+ * Buffer.
  */
 export type StoredRow = Record<string, string>;
+
+/**
+ * What one write did to a row that was stored before it.
+ */
+export type StoredRowChange = {
+    /**
+     * The columns it wrote, json encoded.
+     */
+    fields: StoredRow,
+    /**
+     * The amounts it added, by column.
+     */
+    increments: Readonly<Record<string, number>>
+};
 
 /**
  * The whole content of a store, in the shape a backup carries it.
@@ -37,8 +52,7 @@ export type InMemoryStoreSnapshot = {
  * What a driver reads and writes through, whether or not there is a transaction.
  *
  * Both the store itself and a transaction on it answer this, so a driver resolves one of them once
- * and never branches on which it got. The operations are synchronous on purpose - see
- * {@link InMemoryStore}.
+ * and never branches on which it got. The operations are synchronous - see {@link InMemoryStore}.
  */
 export interface InMemoryScope {
     /**
@@ -50,9 +64,10 @@ export interface InMemoryScope {
      */
     ids: (tableName: string) => string[],
     /**
-     * Writes one row, replacing whatever the id held.
+     * Writes one row, replacing whatever the id held. The change, when given, is what the write did
+     * to the row it replaces, for a transaction to do again to the row as it is once it commits.
      */
-    writeRow: (tableName: string, id: string, row: StoredRow) => void,
+    writeRow: (tableName: string, id: string, row: StoredRow, change?: StoredRowChange) => void,
     /**
      * Removes one row.
      */
@@ -66,25 +81,28 @@ export interface InMemoryScope {
      */
     writeJoin: (key: string, members: Set<string>) => void,
     /**
+     * Lists the keys of the many to many joins that start with the given prefix.
+     */
+    joinKeys: (prefix: string) => string[],
+    /**
      * Hands out the next number for a table whose primary key is numeric.
      */
     nextSequenceValue: (tableName: string) => number
 }
 
+// Why every operation is synchronous: nothing here goes anywhere, so nothing here needs to be
+// awaited - and that is what makes the driver above it atomic without holding anything. A read
+// followed by a write is the shape every store has to protect (see `RepositoryDriverInterface.upsert`),
+// and the real ones protect it with a grant per key because another process can write between the
+// two. Here there is no other process, and with no `await` between the read and the write there is
+// not even another task: the runtime cannot interleave anything into a synchronous sequence. So a
+// lock would guard a window that does not exist.
+// This is the one place that is load bearing rather than convenient. If an operation in here ever
+// becomes async, every read-modify-write above it silently stops being atomic.
 /**
  * The storage behind an in memory data source: rows, joins and sequences held in maps.
  *
- * ## Why every operation is synchronous
- * Nothing here goes anywhere, so nothing here needs to be awaited - and that is what makes the
- * driver above it atomic without holding anything. A read followed by a write is the shape every
- * store has to protect (see `RepositoryDriverInterface.upsert`), and the real ones protect it with a
- * grant per key because another process can write between the two. Here there is no other process,
- * and with no `await` between the read and the write there is not even another task: the runtime
- * cannot interleave anything into a synchronous sequence. So a lock would guard a window that does
- * not exist.
- *
- * This is the one place that is load bearing rather than convenient. If an operation in here ever
- * becomes async, every read-modify-write above it silently stops being atomic.
+ * Every operation is synchronous, which makes a read followed by a write atomic.
  */
 export class InMemoryStore implements InMemoryScope {
 
@@ -108,8 +126,8 @@ export class InMemoryStore implements InMemoryScope {
     /**
      * Hands a message to everyone listening on the channel.
      *
-     * Each one later rather than now, the way a message that crossed a network arrives: whoever
-     * publishes is never inside a handler when the call returns.
+     * Each one on a later tick, the way a message that crossed a network arrives: whoever publishes
+     * is never inside a handler when the call returns.
      * @param channel - The channel.
      * @param message - The message.
      */
@@ -230,6 +248,15 @@ export class InMemoryStore implements InMemoryScope {
     }
 
     /**
+     * Lists the keys of the many to many relations that start with the given prefix.
+     * @param prefix - The prefix, such as the table name and a colon.
+     * @returns The keys.
+     */
+    joinKeys(prefix: string): string[] {
+        return [...this.joins.keys()].filter(key => key.startsWith(prefix));
+    }
+
+    /**
      * Hands out the next number for a table whose primary key is numeric.
      * @param tableName - The table the row is being inserted into.
      * @returns The next number, which no other caller receives.
@@ -243,8 +270,8 @@ export class InMemoryStore implements InMemoryScope {
     /**
      * Makes a table's numbers go on from at least where another table's are, for a table being renamed.
      *
-     * Carried over rather than moved, so that a rename rolled back leaves both tables handing out
-     * numbers neither handed out before.
+     * The numbers are carried over and stay with the old table as well, so that a rename rolled back
+     * leaves both tables handing out numbers neither handed out before.
      * @param currentTableName - The table the numbers were handed out for.
      * @param tableName - The table they go on for.
      */
@@ -257,11 +284,15 @@ export class InMemoryStore implements InMemoryScope {
 
     /**
      * Copies everything the store holds out of it.
+     * @param left - The tables whose rows the snapshot leaves out.
      * @returns The snapshot, sharing nothing with the store it was taken from.
      */
-    snapshot(): InMemoryStoreSnapshot {
+    snapshot(left: ReadonlySet<string> = new Set()): InMemoryStoreSnapshot {
         const tables: Record<string, Record<string, StoredRow>> = {};
         for (const [tableName, rows] of this.tables) {
+            if (left.has(tableName)) {
+                continue;
+            }
             tables[tableName] = Object.fromEntries([...rows].map(([id, row]) => [id, { ...row }]));
         }
         const joins: Record<string, string[]> = {};
@@ -274,13 +305,21 @@ export class InMemoryStore implements InMemoryScope {
     /**
      * Replaces everything the store holds with the given snapshot.
      *
-     * A replacement rather than a merge, which is what restoring a backup means: rows written since
-     * the backup was taken are not in it and do not survive it.
+     * Nothing is merged, which is what restoring a backup means: rows written since the backup was
+     * taken are not in it and do not survive it.
      * @param snapshot - The content to restore.
+     * @param kept - The tables that keep the rows they hold now, whatever the snapshot holds of them.
      */
-    restore(snapshot: InMemoryStoreSnapshot): void {
+    restore(snapshot: InMemoryStoreSnapshot, kept: ReadonlySet<string> = new Set()): void {
+        const keptRows: [string, Map<string, StoredRow>][] = [...this.tables].filter(([tableName]) => kept.has(tableName));
         this.clear();
+        for (const [tableName, rows] of keptRows) {
+            this.tables.set(tableName, rows);
+        }
         for (const [tableName, rows] of Object.entries(snapshot.tables)) {
+            if (kept.has(tableName)) {
+                continue;
+            }
             const table: Map<string, StoredRow> = this.rowsOf(tableName);
             for (const [id, row] of Object.entries(rows)) {
                 table.set(id, { ...row });
@@ -342,9 +381,9 @@ export function inMemoryStoreFor(dataSourceClass: Newable<DataSourceInterface>):
 /**
  * Gives the given data source class an empty store, discarding whatever the old one held.
  *
- * For whoever starts a *new* server rather than re-initializing one, which is the moment a
- * container-backed data source would get a new container. A test harness calls this as it boots; a
- * re-init deliberately does not, which is the whole of how the rows survive one.
+ * For whoever starts a *new* server, not one re-initializing, which is the moment a container-backed
+ * data source would get a new container. A test harness calls this as it boots; a re-init does not,
+ * which is how the rows survive one.
  *
  * Only needed by a suite that boots more than one server on the same data source class. A harness
  * that builds a class per server - as `createTestDataSource` does - already gets a store per server,

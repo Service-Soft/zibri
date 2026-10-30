@@ -43,12 +43,12 @@ export const CLUSTER_DATA_SOURCE_PORTS_ENV: string = 'ZIBRI_CLUSTER_DATA_SOURCE_
  */
 export const CLUSTER_MODULE_PATHS_ENV: string = 'ZIBRI_CLUSTER_MODULE_PATHS';
 
+// one for the cluster rather than one per instance: they are replicas of a single deployment, and
+// they shared this before it was a directory anybody chose - the framework resolved it relative to
+// itself, which is the same folder in every process
 /**
- * The environment variable holding the directory the instances write into.
- *
- * One for the cluster rather than one per instance: they are replicas of a single deployment, and
- * they shared this before it was a directory anybody chose - the framework resolved it relative to
- * itself, which is the same folder in every process. The parent removes it when the cluster stops.
+ * The environment variable holding the directory the instances write into, one for the whole
+ * cluster. The parent removes it when the cluster stops.
  */
 export const CLUSTER_SCRATCH_PATH_ENV: string = 'ZIBRI_CLUSTER_SCRATCH_PATH';
 

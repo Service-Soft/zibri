@@ -266,5 +266,38 @@ export function describeMovedEntities(dataSourceName: string, dataSourceOf: () =
             await expect(dataSourceOf().getRepository(Gizmo)
                 .create({ name: 'first' })).rejects.toThrow();
         });
+
+        // part of evaluation round 2, 02 §S14: what reverts a rename names the table the entity had,
+        // which no entity declares any more - and moved its rows without the relations they hold
+        it('keeps the relations of an entity moved back to a table name no entity declares, and forward again', async () => {
+            const dataSource: DataSourceInterface = dataSourceOf();
+            const moveBack: Transaction = await dataSource.startTransaction();
+            await dataSource.renameEntity({ entity: { tableName: 'old_gizmo' }, currentTableName: 'gizmo', transaction: moveBack });
+            await moveBack.commit();
+            const moveForward: Transaction = await dataSource.startTransaction();
+            await dataSource.renameEntity({ entity: Gizmo, currentTableName: 'old_gizmo', transaction: moveForward });
+            await moveForward.commit();
+
+            const gizmos: Gizmo[] = await dataSource.getRepository(Gizmo).findAll({ limit: 'all', relations: ['parts', 'tags'] });
+            const relatedByGizmo: [string, string[], string[]][] = gizmos
+                .map((g): [string, string[], string[]] => [g.name, g.parts.map(p => p.name).sort(), g.tags.map(t => t.name)])
+                .sort((a, b) => a[0].localeCompare(b[0]));
+            expect(relatedByGizmo).toStrictEqual([
+                ['first', ['axle', 'wheel'], ['new']],
+                ['second', ['axle'], []],
+                ['third', ['wheel'], []]
+            ]);
+        });
+
+        // last, since the gizmos still declare the tags removed
+        it('removes an entity named by its table with its relations, leaving the entities on their other side', async () => {
+            const dataSource: DataSourceInterface = dataSourceOf();
+            const transaction: Transaction = await dataSource.startTransaction();
+            await dataSource.removeEntity({ entity: { tableName: 'gizmo_tag' }, transaction });
+            await transaction.commit();
+
+            const gizmos: Gizmo[] = await dataSource.getRepository(Gizmo).findAll({ limit: 'all', relations: ['parts'] });
+            expect(gizmos.map(g => [g.name, g.parts.length]).sort()).toStrictEqual([['first', 2], ['second', 1], ['third', 1]]);
+        });
     });
 }

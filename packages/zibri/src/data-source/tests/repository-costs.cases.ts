@@ -72,7 +72,8 @@ type Measured = {
 
 /**
  * Many enough rows that something done once per row cannot hide, few enough to stay under every
- * batch size a store reads or writes in.
+ * batch size a store reads or writes in. That includes the whole table: a ValKey filter reads every
+ * row, and it reads them along with their ids only up to a bound, which the page states on its own.
  */
 const MANY_ROWS: number = 20;
 

@@ -9,7 +9,8 @@ import { TwoFactorMethods } from '../2fa/two-factor-methods.model';
 export type AuthControllerOptions<
     Strategies extends AuthControllerStrategyClass[],
     Authenticators extends AuthControllerAuthenticatorClass[],
-    Methods extends TwoFactorMethods
+    Methods extends TwoFactorMethods,
+    EmailVerification extends boolean = false
 > = {
     /**
      * The auth strategies a login can be started with. A request names the one it logs in with by its
@@ -24,5 +25,10 @@ export type AuthControllerOptions<
     /**
      * The two factor methods a user can enrol, remove and start. None for no 2fa routes.
      */
-    twoFactorMethods: Methods
+    twoFactorMethods: Methods,
+    /**
+     * Whether the routes verifying and changing the email address of a user are there, which
+     * `ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_OPTIONS` turns on. Not by default.
+     */
+    emailVerification?: EmailVerification
 };

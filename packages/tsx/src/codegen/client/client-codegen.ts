@@ -42,10 +42,11 @@ export type ClientScript = {
      */
     clientPropSites: ClientPropSite[],
     /**
-     * The component's own prop names that the client code actually references. Only these are
-     * serialized into the page, so server-only props never reach the browser.
+     * The keys of the component's props that the client code actually references, or `all` when it
+     * uses the props whole. Only these are serialized into the page, so server-only props never reach
+     * the browser.
      */
-    referencedProps: string[],
+    referencedProps: string[] | 'all',
     /**
      * What the client code reads from each referenced prop. Only that much of a prop is serialized into
      * the page.
@@ -127,6 +128,11 @@ const CLIENT_HOOKS: Readonly<Record<string, string>> = {
 const SETUP_LABEL: string = '__zibriSetup';
 
 /**
+ * The function inside the setup block that attaches the handlers and builds the client props.
+ */
+const ATTACH_FUNCTION: string = '__zibriAttach';
+
+/**
  * The body statements client code keeps, and what inside them never reaches the client.
  */
 type ClientBody = {
@@ -175,14 +181,15 @@ export function compileClientScript(fn: ComponentFunction, name: string, clientA
     const referenced: Set<ts.Symbol> = new Set(clientNodes.flatMap(node => [...collectReferencedSymbols(node, body.omitted)]));
     const outer: Set<string> = new Set(clientNodes.flatMap(node => [...collectOuterNames(node, fn, body.omitted)]));
 
-    const propBindings: ts.Identifier[] = fn.parameters.length === 0
+    // what the client reads from the props object as a whole, so a prop is picked by its own key however
+    // the parameter names it: `props.label`, `{ label: text }` and `{ item: { label } }` alike
+    const propsShape: AccessShape | undefined = fn.parameters.length === 0
+        ? undefined
+        : patternShape(fn.parameters[0].name, referenced, clientNodes, body.omitted);
+    const referencedProps: string[] | 'all' = propsShape === undefined
         ? []
-        : collectPatternBindings(fn.parameters[0]).filter(binding => isReferenced(binding, referenced));
-    const referencedProps: string[] = propBindings.map(binding => binding.text);
-    const propShapes: Record<string, AccessShape> = Object.fromEntries(propBindings.flatMap(binding => {
-        const symbol: ts.Symbol | undefined = symbolOf(binding);
-        return symbol === undefined ? [] : [[binding.text, accessShapeOf(symbol, clientNodes, body.omitted)]];
-    }));
+        : propsShape === 'whole' ? 'all' : Object.keys(propsShape.fields);
+    const propShapes: Record<string, AccessShape> = propsShape === undefined || propsShape === 'whole' ? {} : propsShape.fields;
     const referencedHooks: string[] = resolveHooks(outer);
     const referencedTranslations: TranslationSources = collectTranslationSources(clientNodes, body.omitted);
 
@@ -208,14 +215,22 @@ export function compileClientScript(fn: ComponentFunction, name: string, clientA
     }
 
     // The body's locals (handler functions, state) must be visible to the handler table, the
-    // client-prop factories and the reattachment, so they all live inside the labeled setup block.
-    const setupBlock: string = [
-        `${SETUP_LABEL}: {`,
-        bodySource,
+    // client-prop factories and the reattachment, so they all live inside the labeled setup block, in a
+    // function declared there. It is hoisted, so a JSX return calls it before it leaves the block: the
+    // markup an early return renders has handlers too, and they only read what was declared before it.
+    const attach: string = [
         handlerTable(sites),
         sites.length > 0 ? REATTACH_RUNTIME : '',
         clientPropFactories(propSites),
-        propSites.length > 0 ? CLIENT_PROPS_RUNTIME : '',
+        propSites.length > 0 ? CLIENT_PROPS_RUNTIME : ''
+    ].filter(part => part.trim().length > 0).join('\n');
+    const setupBlock: string = [
+        `${SETUP_LABEL}: {`,
+        bodySource,
+        `function ${ATTACH_FUNCTION}() {`,
+        attach,
+        '}',
+        `${ATTACH_FUNCTION}();`,
         '}'
     ].filter(part => part.trim().length > 0).join('\n');
 
@@ -225,8 +240,7 @@ export function compileClientScript(fn: ComponentFunction, name: string, clientA
         propSites.length > 0 ? `const ${CLIENT_PROP_VALUES} = {};` : '',
         setupBlock,
         // Handed back so the emitted call of a child component can pass in the functions this
-        // instance declared for it. An early JSX return skips the block, but then the child was not
-        // rendered either, so nothing asks for them.
+        // instance declared for it. An early JSX return builds them before it leaves the block.
         propSites.length > 0 ? `return ${CLIENT_PROP_VALUES};` : ''
     ]
         .filter(part => part.trim().length > 0)
@@ -308,6 +322,96 @@ function templateHash(source: string): string {
 function isReferenced(binding: ts.Identifier, referenced: ReadonlySet<ts.Symbol>): boolean {
     const symbol: ts.Symbol | undefined = symbolOf(binding);
     return symbol !== undefined && referenced.has(symbol);
+}
+
+/**
+ * What client code reads from the value a binding pattern takes apart.
+ * @param name - The pattern, or the name the value is bound to.
+ * @param referenced - The symbols client code references.
+ * @param nodes - The client code.
+ * @param omitted - The nodes left out of the client code.
+ * @returns The shape, or undefined when client code reads nothing of the value.
+ */
+function patternShape(
+    name: ts.BindingName,
+    referenced: ReadonlySet<ts.Symbol>,
+    nodes: readonly ts.Node[],
+    omitted: ReadonlySet<ts.Node>
+): AccessShape | undefined {
+    if (ts.isIdentifier(name)) {
+        const symbol: ts.Symbol | undefined = symbolOf(name);
+        return symbol === undefined || !referenced.has(symbol) ? undefined : accessShapeOf(symbol, nodes, omitted);
+    }
+    if (ts.isArrayBindingPattern(name)) {
+        return collectPatternBindings(name).some(binding => isReferenced(binding, referenced)) ? 'whole' : undefined;
+    }
+    return objectPatternShape(name, referenced, nodes, omitted);
+}
+
+/**
+ * What client code reads from the value an object binding pattern takes apart.
+ * @param pattern - The pattern.
+ * @param referenced - The symbols client code references.
+ * @param nodes - The client code.
+ * @param omitted - The nodes left out of the client code.
+ * @returns The shape, or undefined when client code reads nothing of the value.
+ */
+function objectPatternShape(
+    pattern: ts.ObjectBindingPattern,
+    referenced: ReadonlySet<ts.Symbol>,
+    nodes: readonly ts.Node[],
+    omitted: ReadonlySet<ts.Node>
+): AccessShape | undefined {
+    let shape: AccessShape | undefined = undefined;
+    for (const element of pattern.elements) {
+        const read: AccessShape | undefined = patternShape(element.name, referenced, nodes, omitted);
+        if (read === undefined) {
+            continue;
+        }
+        // a rest holds the fields the pattern does not name, so what is read from it is read from the value
+        const key: string | undefined = element.dotDotDotToken === undefined ? propertyKeyOf(element) : undefined;
+        if (element.dotDotDotToken !== undefined) {
+            shape = mergeShapes(shape, read);
+        }
+        else {
+            shape = key === undefined ? 'whole' : mergeShapes(shape, { fields: { [key]: read } });
+        }
+    }
+    return shape;
+}
+
+/**
+ * The key of the value an element of an object pattern takes.
+ * @param element - The element.
+ * @returns The key, or undefined for a computed one.
+ */
+function propertyKeyOf(element: ts.BindingElement): string | undefined {
+    const property: ts.PropertyName | ts.BindingName = element.propertyName ?? element.name;
+    if (ts.isIdentifier(property) || ts.isStringLiteral(property) || ts.isNumericLiteral(property)) {
+        return property.text;
+    }
+    return undefined;
+}
+
+/**
+ * What client code reads of a value in two places together.
+ * @param first - What one place reads, if anything.
+ * @param second - What the other place reads.
+ * @returns Both, a value read whole in either being read whole.
+ */
+function mergeShapes(first: AccessShape | undefined, second: AccessShape): AccessShape {
+    if (first === undefined) {
+        return second;
+    }
+    if (first === 'whole' || second === 'whole') {
+        return 'whole';
+    }
+    const fields: Record<string, AccessShape> = { ...first.fields };
+    for (const [field, read] of Object.entries(second.fields)) {
+        fields[field] = mergeShapes(fields[field], read);
+    }
+    const items: AccessShape | undefined = second.items === undefined ? first.items : mergeShapes(first.items, second.items);
+    return items === undefined ? { fields } : { fields, items };
 }
 
 /**
@@ -415,8 +519,9 @@ type Selection = {
  * and inside a kept declaration declarator by declarator. Everything else — `onServer` blocks included —
  * stays on the server.
  *
- * JSX `return` statements are neutralized to a `break`, so early-exit control flow is preserved
- * without rendering markup on the client.
+ * JSX `return` statements are neutralized to attaching the handlers and a `break`, so early-exit
+ * control flow is preserved without rendering markup on the client, and a statement returning markup
+ * early is kept whenever code after it is.
  * @param fn - The component function.
  * @param seeds - The variables the markup's client code reads, which the body has to provide.
  * @returns The kept statements and what inside them is left out.
@@ -434,7 +539,11 @@ function clientBody(fn: ComponentFunction, seeds: Set<ts.Symbol>): ClientBody {
     // What is kept can read a declaration that reads another, so grow until it settles.
     for (;;) {
         const selection: Selection = { needed, serverOnly };
-        const statements: ts.Statement[] = candidates.filter(statement => isRelevant(statement, selection));
+        const relevant: ts.Statement[] = candidates.filter(statement => isRelevant(statement, selection));
+        // a statement returning markup early, such as `if (!user) return <Login/>;`, ends the body for the
+        // client too, or code after it runs that the server never ran
+        const statements: ts.Statement[] = candidates.filter((statement, index) => relevant.includes(statement)
+            || (nestedJsxReturns(statement).length > 0 && candidates.slice(index + 1).some(later => relevant.includes(later))));
         const omitted: Set<ts.Node> = new Set<ts.Node>(serverOnly);
         for (const statement of statements) {
             omitUnneeded(statement, selection, omitted);
@@ -697,7 +806,7 @@ function isJsxReturn(statement: ts.Statement): statement is ValueReturn {
 
 /**
  * Rebuilds a statement the way the client runs it: every `onServer` call in its control flow with its
- * callback removed, every JSX `return` a `break` to the setup label, so an early exit leaves the setup
+ * callback removed, every JSX `return` the attaching of the handlers and a `break` to the setup label, so an early exit leaves the setup
  * block without aborting the surrounding script, and everything client code does not need left out.
  * @param statement - The kept statement.
  * @param omitted - What is left out.
@@ -712,7 +821,12 @@ function neutralizeStatementTree(statement: ts.Statement, omitted: ReadonlySet<t
         );
     }
     if (isJsxReturn(statement)) {
-        return ts.factory.createBreakStatement(SETUP_LABEL);
+        return ts.factory.createBlock([
+            ts.factory.createExpressionStatement(
+                ts.factory.createCallExpression(ts.factory.createIdentifier(ATTACH_FUNCTION), undefined, [])
+            ),
+            ts.factory.createBreakStatement(SETUP_LABEL)
+        ]);
     }
     if (ts.isVariableStatement(statement)) {
         const list: ts.VariableDeclarationList = statement.declarationList;

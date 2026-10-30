@@ -28,7 +28,8 @@ export function resolveKeysForExpression(
 ): string[] {
     switch (param.type) {
         case 'PathExpression': {
-            return [resolveKeyForPathExpression(param, parentKey)];
+            const key: string | undefined = resolveKeyForPathExpression(param, parentKey);
+            return key == undefined ? [] : [key];
         }
 
         case 'SubExpression': {

@@ -1,6 +1,4 @@
 import { EntityWriteObserver, ObservedWrite } from '../../data-source/write-observers/entity-write-observer.model';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
 import { type RoleServiceInterface } from '../roles/role-service.interface';
 import { RoleUtilities } from '../roles/role.utilities';
 
@@ -9,11 +7,12 @@ import { RoleUtilities } from '../roles/role.utilities';
  * role.
  */
 export class UserWriteObserver implements EntityWriteObserver {
+    /**
+     * None: the roles a user is written with are all it checks.
+     */
     readonly properties: string[] = [];
 
-    private get roleService(): RoleServiceInterface {
-        return inject(ZIBRI_DI_TOKENS.ROLE_SERVICE);
-    }
+    constructor(private readonly roleService: RoleServiceInterface) {}
 
     /**
      * Refuses the roles each row is written with.

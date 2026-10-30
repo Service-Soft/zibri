@@ -5,7 +5,7 @@ import { copyFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { afterEach, describe, expect, it } from '@jest/globals';
+import { afterEach, beforeAll, describe, expect, it } from '@jest/globals';
 import { first, firstValueFrom } from 'rxjs';
 import { InMemoryDataSource } from 'zibri-testing';
 
@@ -16,6 +16,7 @@ import { BackupServiceInterface } from './backup-service.interface';
 import { BackupStatus } from './backup-status.enum';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BackupTransport } from './decorators/backup-transport.decorator';
+import { RestoreJournalUtilities } from './restore-journal.utilities';
 import { BaseFsBackupTransport } from './transports/fs.backup-transport';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
@@ -200,6 +201,10 @@ async function findBackup(id: string): Promise<BackupEntity> {
     return await inject(repositoryTokenFor(BackupEntity)).findById(id, { relations: ['resources'] });
 }
 
+beforeAll(async () => {
+    await FsUtilities.rm(backupFolder);
+});
+
 // 09 §Q5: a backup stopped by a shutdown was deleted, and one whose instance died was abandoned
 describe('BackupService — a backup when the application stops', () => {
     let server: StartedTestServer | undefined;
@@ -381,5 +386,25 @@ describe('BackupService — a restore the process was killed in', () => {
 
         expect(inject(SecondStore).value).toBe('current');
         expect(await FsUtilities.glob(FsUtilities.getPath(stagingFolder, '*.restore-journal.json'))).toEqual([]);
+    }, 60000);
+
+    // found with evaluation round 2, 02 §S17: a snapshot was put back as it was found, and one a host
+    // going down left short is the resource's data with the end missing
+    it('puts back no snapshot that is not what the restore wrote, and keeps it for the next start', async () => {
+        server = await startServer();
+        const stagingFolder: FsPath = await leaveRestoreKilledWhileApplyingTheSecondResource('killed-restore-short-snapshot');
+        const [journalPath] = await RestoreJournalUtilities.findPaths(stagingFolder);
+        assert(journalPath, 'the restore left no journal');
+        const firstSnapshot: FsPath | undefined = (await RestoreJournalUtilities.resolve(journalPath)).applied
+            .find(e => e.resourceName === FirstStore.name)?.snapshotPath;
+        assert(firstSnapshot, 'the journal names no snapshot of the first store');
+        // what a host that went down before the file reached the disk leaves: the file, cut short
+        await FsUtilities.upsertFile(firstSnapshot, 'curr');
+
+        await server.reInit();
+
+        expect(inject(FirstStore).value).toBe('');
+        expect(inject(SecondStore).value).toBe('current');
+        expect(await FsUtilities.glob(FsUtilities.getPath(stagingFolder, '*.restore-journal.json'))).toEqual([journalPath]);
     }, 60000);
 });

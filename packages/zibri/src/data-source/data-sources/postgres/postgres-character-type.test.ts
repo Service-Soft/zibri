@@ -1,13 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
 import { PostgresPooler } from './postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from './postgres-typeorm-data-source.model';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Logger } from '../../../logging/logger';
 import { Newable } from '../../../types/newable.type';
-import { OmitStrict } from '../../../types/omit-strict.type';
 import { DataSource } from '../../decorators/data-source.decorator';
 import { SchemaManagement } from '../../models/schema-management.model';
 import { RepositoryClass } from '../../repository/repository-class.type';
@@ -32,7 +31,7 @@ const ASCII_ONLY: string = 'which counts only ascii as a letter';
 
 @DataSource()
 class CharacterTypeDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',

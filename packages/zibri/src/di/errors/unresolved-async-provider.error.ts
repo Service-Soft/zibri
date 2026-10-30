@@ -9,10 +9,10 @@ import { DiToken, tokenName } from '../models/di-token.model';
  * asks - so what is left is a provider registered once that was over, and a value first asked for
  * inside a request is a value nothing can wait for.
  *
- * The factory is not called here. Whether it has run is known from the provider alone, which is the
- * point of declaring that it is awaited rather than discovering it: a connection opened only to be thrown
- * away with the error would be a leak on the path that reports the mistake.
+ * The factory is not called here: whether it has run is known from the provider alone.
  */
+// that is the point of declaring that it is awaited rather than discovering it: a connection opened
+// only to be thrown away with the error would be a leak on the path that reports the mistake
 export class UnresolvedAsyncProviderError extends InternalError {
     constructor(
         /**

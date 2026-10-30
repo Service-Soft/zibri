@@ -15,6 +15,14 @@ describe('generateHandlebarType', () => {
         await FsUtilities.rm(outputFolder);
     });
 
+    it('writes a key that is no bare name of typescript as a string', async () => {
+        const ast: AstProgram = HandlebarUtilities.parse('{{first-name}} {{#each items}}{{@index}}{{/each}}', { srcName: './names.hbs' });
+        const lines: string[] = await generateHandlebarType(ast, FsUtilities.getPath(outputFolder, 'names.hbs'));
+
+        expect(lines).toContain('    \'first-name\': string,');
+        expect(lines).toContain('    items: string[]');
+    });
+
     it('example.hbs', async () => {
         const src: string = await FsUtilities.readFile(FsUtilities.getPath(__dirname, 'example.hbs'));
         const ast: AstProgram = HandlebarUtilities.parse(src, { srcName: './example.hbs' });
@@ -39,9 +47,10 @@ describe('generateHandlebarType', () => {
             '            data: {',
             '                categories: string[]',
             '            }',
-            '        }[]',
-            '    }[],',
-            '    categories: string[]',
+            '        }[],',
+            // inside `each tasks`, as every bare key there: handlebars reads it from the task
+            '        categories: string[]',
+            '    }[]',
             '};',
             '',
             'const renderTemplate: (ctx: Context) => string = raw;',

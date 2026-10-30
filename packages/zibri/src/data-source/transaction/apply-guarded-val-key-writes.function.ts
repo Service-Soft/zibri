@@ -1,6 +1,6 @@
 import type { GlideClient, GlideReturnType, Script } from '@valkey/valkey-glide';
 
-import { type ValKeyBufferedWrite } from './val-key-transaction.model';
+import { type ValKeyBufferedWrite, type ValKeyGrantRelease } from './val-key-transaction.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function';
@@ -50,7 +50,6 @@ function resolveGuardedWritesScript(): Script {
         + 'end '
         // a hash field by field: as many as it was read with, each holding what it held
         + 'for _, guard in ipairs(payload[2]) do '
-        // eslint-disable-next-line cspell/spellchecker
         + 'local stored = redis.call("hgetall", guard[1]) '
         + 'if #stored ~= #guard[2] then return 0 end '
         + 'local fields = {} '
@@ -64,6 +63,10 @@ function resolveGuardedWritesScript(): Script {
         + 'else for i = 1, #write[3], 1000 do '
         + 'redis.call(commands[write[1]], write[2], unpack(write[3], i, math.min(i + 999, #write[3]))) '
         + 'end end '
+        + 'end '
+        // the grants after the writes they protected, and only those still holding the token
+        + 'for _, key in ipairs(payload[5]) do '
+        + 'if redis.call("get", key) == payload[4] then redis.call("del", key) end '
         + 'end return 1'
     );
     return guardedWritesScript;
@@ -79,6 +82,8 @@ function resolveGuardedWritesScript(): Script {
  * @param client - The client to write through.
  * @param guards - What each guarded key and hash was read with.
  * @param writes - The writes, in the order they are applied.
+ * @param release - The grants to hand back once the writes are applied, in the same step. Nothing is
+ * handed back when a guard refuses the writes.
  * @returns True when the writes were applied, false when a guarded key or hash had changed and
  * nothing was.
  * @throws When the script answers with something other than whether it wrote.
@@ -86,14 +91,24 @@ function resolveGuardedWritesScript(): Script {
 export async function applyGuardedValKeyWrites(
     client: GlideClient,
     guards: ValKeyWriteGuards,
-    writes: ValKeyBufferedWrite[]
+    writes: ValKeyBufferedWrite[],
+    release: ValKeyGrantRelease = { token: '', lockKeys: [] }
 ): Promise<boolean> {
-    const payload: [[string, string][], [string, string[]][], ScriptWrite[]] = [
+    const payload: [[string, string][], [string, string[]][], ScriptWrite[], string, string[]] = [
         [...guards.values.entries()],
         [...guards.hashes.entries()].map(([key, fields]) => [key, Object.entries(fields).flat()]),
-        writes.map(w => toScriptWrite(w))
+        writes.map(w => toScriptWrite(w)),
+        release.token,
+        release.lockKeys
     ];
-    const keys: string[] = [...new Set([...guards.values.keys(), ...guards.hashes.keys(), ...writes.map(w => w.key)])];
+    const keys: string[] = [
+        ...new Set([
+            ...guards.values.keys(),
+            ...guards.hashes.keys(),
+            ...writes.map(w => w.key),
+            ...release.lockKeys
+        ])
+    ];
     const res: GlideReturnType = await client.invokeScript(resolveGuardedWritesScript(), {
         keys,
         args: [JsonUtilities.stringify(payload)]

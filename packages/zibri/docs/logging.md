@@ -14,8 +14,9 @@ Three transports come with the framework, and you can write your own:
 | `Logger` | class | The default `LoggerInterface`. Replaceable through ZIBRI_DI_TOKENS.LOGGER |
 | `LogContext`, `LogContextInput` | class, type | Where an entry was logged, with its metadata, request, error and collapsed count, and what you pass when you log |
 | `LogRequestContext`, `LogCollapsedContext`, `LogContextMetadata` | class, class, class | The request an entry was logged during, how many entries a collapsed row stands for, and metadata of your own |
-| `LoggerTransport` | class | Builder for a logger transport (such as `.console()`, `.db()`) |
-| `BaseLoggerTransportConfig` | type | The name, level and registration time every transport has |
+| `LoggerTransport` | class | Builder for a logger transport (such as `.console()`, `.json()`, `.db()`) |
+| `BaseLoggerTransportConfig` | type | The name, level, levels by origin and registration time every transport has |
+| `LoggerTransportOptions` | type | The [levels of some origins](#setting-the-level-of-one-part-of-the-application), which `LoggerTransport.console` and `LoggerTransport.json` take |
 | `LoggerTransportSend`, `LoggerTransportFlush` | type, type | What a transport does with a batch of entries, and how it writes out what it holds back when the logger is flushed |
 | `DbLoggerTransportOptions` | type | How many entries a minute `LoggerTransport.db` writes as rows of their own. Defaults to 1000 |
 | `EmailLoggerTransportConfigInput`, `EmailLoggerTransportConfig` | type, type | The recipients, template and limits `LoggerTransport.email` takes, and the configuration it builds from them |
@@ -80,6 +81,48 @@ defineProvider({
 ```
 
 Each transport takes the lowest level it logs. Give the email transport `LogLevel.CRITICAL`, for example, to mail only critical errors.
+
+### Writing JSON lines for a log collector
+
+`LoggerTransport.json` writes each entry to standard output as one JSON object on one line, the format log collectors such as Loki, Datadog or CloudWatch read. Use it in place of the console transport where a collector reads the output:
+
+```ts
+// src/providers.ts
+import { defineProvider, LoggerTransport, LogLevel, ZIBRI_DI_TOKENS } from 'zibri';
+
+defineProvider({
+    token: ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS,
+    useFactory: () => [
+        process.env['NODE_ENV'] === 'production' ? LoggerTransport.json(LogLevel.INFO) : LoggerTransport.console(LogLevel.INFO),
+        LoggerTransport.db(LogLevel.INFO)
+    ]
+});
+```
+
+A line holds `id`, `time`, `level` (`debug`, `info`, `warn`, `error` or `critical`), `message`, `tenantId`, `traceId`, `spanId` and `origin`, and the rest of the entry's context when it has one: `metadata`, `request`, `error`, `cache` and `collapsed`.
+
+A line names no instance. The collector adds where it read the line, such as the pod or the host, which
+is what tells the instances of one deployment apart. Index few labels at the collector, such as the
+application, the instance and `level`, and search the others as fields of the line: `traceId`,
+`tenantId` and `origin` take a new value with every request, tenant or file, and a label of each would
+make a stream per value. Filter by `traceId` to read [the lines of one request](#finding-the-lines-of-one-request),
+across every service it passed through.
+
+With a collector in place, the db transport is a second copy of the same entries. Keep it at a higher
+level, such as `LogLevel.WARN`, for what is read from inside the application, or leave it out.
+
+### Setting the level of one part of the application
+
+`levelsByOrigin` sets the level of a transport for the entries of some files. A key is a part of the path of the file that logs, and the longest key the path contains wins:
+
+```ts
+// src/providers.ts, one of the transports
+import { LoggerTransport, LogLevel } from 'zibri';
+
+LoggerTransport.console(LogLevel.INFO, { levelsByOrigin: { '/services/payment': LogLevel.DEBUG, '/services/sync': LogLevel.WARN } })
+```
+
+This console prints the debug entries of the payment service and only the warnings of the sync service, while every other transport keeps its own levels. The file is `.ts` in development and `.js` in a build, so choose a key that leaves the extension out. `LoggerTransport.db` takes `levelsByOrigin` beside `maxEntriesPerMinute`, and `LoggerTransport.email` in its configuration.
 
 ### How entries reach a transport
 

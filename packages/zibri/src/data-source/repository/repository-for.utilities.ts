@@ -1,14 +1,24 @@
 import { Repository } from './repository';
 import { RepositoryClass } from './repository-class.type';
 import { REPOSITORY_KINDS } from './repository-kind.model';
+import { type AuthServiceInterface } from '../../auth/auth-service.interface';
 import { inject } from '../../di/inject.function';
 import { DiVariant } from '../../di/models/di-variant.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../global/global-registry';
+import { type LoggerInterface } from '../../logging/logger.interface';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { DataSourceInterface } from '../data-sources/data-source.interface';
+import { ChangeSetRepository } from '../change-sets/change-set-repository';
+import { ChangeSetEntity } from '../change-sets/models/change-set-entity.model';
+import { ChangeSet } from '../change-sets/models/change-set.model';
+import { isChangeSetEntityNewable } from '../change-sets/models/is-change-set-entity.function';
+import { isSoftDeleteEntityNewable } from '../change-sets/models/is-soft-delete-entity.function';
+import { SoftDeleteEntity } from '../change-sets/models/soft-delete-entity.model';
+import { SoftDeleteRepository } from '../change-sets/soft-delete-repository';
+import { DataSourceInterface, RepositoryTypeForEntity } from '../data-sources/data-source.interface';
+import { RepositoryDriverInterface } from '../driver/repository-driver.interface';
 import { RegisteredDataSource } from '../entity-ownership.function';
 
 /**
@@ -23,6 +33,65 @@ export abstract class RepositoryForUtilities {
      */
     static findRepositoryClass(dataSource: DataSourceInterface, entity: Newable<BaseEntity>): RepositoryClass | undefined {
         return dataSource.repositories.find(r => MetadataUtilities.getRepositoryForMetadata(r)?.entity === entity);
+    }
+
+    /**
+     * Resolves the repository of an entity a data source declares, building it the first time: a soft
+     * delete or change set repository for such an entity, a plain one otherwise, each over a driver of
+     * the data source, and the class the data source lists for the entity over that.
+     * @param dataSource - The data source.
+     * @param entity - The entity.
+     * @param built - The repositories the data source has built so far, which a new one is added to.
+     * @param logger - The logger of the data source.
+     * @param authService - The auth service the change sets name their users with.
+     * @param createDriver - Creates a driver of the data source for the entity.
+     * @returns The repository.
+     * @throws When the data source does not declare the entity.
+     */
+    static resolveEntityRepository<T extends BaseEntity>(
+        dataSource: DataSourceInterface,
+        entity: Newable<T>,
+        built: Map<Newable<BaseEntity>, Repository<BaseEntity>>,
+        logger: LoggerInterface,
+        authService: AuthServiceInterface,
+        createDriver: () => RepositoryDriverInterface<T>
+    ): RepositoryTypeForEntity<T> {
+        if (!dataSource.entities.includes(entity)) {
+            throw new InternalError([
+                `The entity "${entity.name}" is not in this database.`,
+                'Did you forget to include it in the entities array?'
+            ]);
+        }
+        const existing: Repository<BaseEntity> | undefined = built.get(entity);
+        if (existing) {
+            return existing as RepositoryTypeForEntity<T>;
+        }
+        const driver: RepositoryDriverInterface<T> = createDriver();
+        // the guards narrow the class and not T, which the repository is typed in
+        const repository: RepositoryTypeForEntity<T> = isSoftDeleteEntityNewable(entity)
+            ? new SoftDeleteRepository(
+                entity,
+                driver as unknown as RepositoryDriverInterface<SoftDeleteEntity>,
+                logger,
+                dataSource,
+                authService,
+                dataSource.getRepository(ChangeSet)
+            ) as RepositoryTypeForEntity<T>
+            : isChangeSetEntityNewable(entity)
+                ? new ChangeSetRepository(
+                    entity,
+                    driver as unknown as RepositoryDriverInterface<ChangeSetEntity>,
+                    logger,
+                    dataSource,
+                    authService,
+                    dataSource.getRepository(ChangeSet)
+                ) as RepositoryTypeForEntity<T>
+                : new Repository<T>(entity, driver, logger, dataSource) as RepositoryTypeForEntity<T>;
+        // the class listed for the entity rather than the repository it is built over, so that what it
+        // overrides holds for every row of the entity, those written through a relation included
+        const resolved: Repository<BaseEntity> = this.resolveRepository(dataSource, entity, repository as Repository<BaseEntity>);
+        built.set(entity, resolved);
+        return resolved as RepositoryTypeForEntity<T>;
     }
 
     /**

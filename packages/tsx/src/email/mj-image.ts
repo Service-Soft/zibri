@@ -2,6 +2,7 @@ import { defineEmailComponent, TsxComponent } from './define-email-component';
 import { horizontalPadding, pixels } from './dimensions';
 import { EmailLayout, EmailLayoutContext } from './email-layout.context';
 import { withDefaults } from './with-defaults';
+import { isScriptUrl } from '../runtime/server-runtime';
 
 /**
  * Props for {@link MjImage}.
@@ -48,7 +49,8 @@ export const MjImage: TsxComponent<MjImageProps> = defineEmailComponent<MjImageP
     const width: number = p.width ? Math.min(pixels(p.width), columnWidth) : columnWidth;
     const heightStyle: string = p.height ? `height:${p.height};` : 'height:auto;';
     const heightAttr: string = p.height ? String(pixels(p.height)) : 'auto';
-    const src: string = p.src ?? '';
+    // a source that runs script is left out, as a page leaves it out of any attribute that takes a url
+    const src: string = p.src == undefined || isScriptUrl(p.src) ? '' : p.src;
     const alt: string = p.alt ?? '';
 
     return $ssr.raw(

@@ -6,6 +6,6 @@ import { BaseEntity } from '../../../entity/base-entity.model';
  * What every write that hands several rows back takes.
  *
  * The bulk half of {@link WriteRelationsOptions}: the rows a bulk write answers with are the rows
- * finding them would give, resolved in one read for the whole batch rather than one per row.
+ * finding them would give, resolved in one read for the whole batch.
  */
 export type BulkWriteOptions<T extends BaseEntity> = BaseRepositoryOptions & WriteRelationsOptions<T>;

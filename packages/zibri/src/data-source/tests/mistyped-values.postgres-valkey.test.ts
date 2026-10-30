@@ -2,12 +2,13 @@ import { afterAll, beforeAll } from '@jest/globals';
 
 import { describeMistypedColumnValues, describeMistypedValues, Gauge, MistypedValueFixture } from './mistyped-values.cases';
 import { TestTimeouts } from '../../__testing__/constants';
+import { queryPostgres } from '../../__testing__/query-postgres.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
-import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
 import { MigrationEntity } from '../migration/migration-entity.model';
 
@@ -33,7 +34,8 @@ beforeAll(async () => {
         overwrite: async (id, column, json) => {
             // a json column is the only one postgres takes a value of another type in, which is why
             // only the cases about a value inside an object run here
-            await postgresDataSource.query(Gauge).connection.query(
+            await queryPostgres(
+                postgresDataSource,
                 `UPDATE gauge SET "${column}" = $1::jsonb WHERE id = $2`,
                 [json, id]
             );

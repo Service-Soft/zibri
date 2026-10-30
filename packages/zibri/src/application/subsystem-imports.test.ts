@@ -51,4 +51,23 @@ describe('imports between subsystems', () => {
     it('lets the data layer import at runtime only what sits below it', () => {
         expect(SourceImportUtilities.findRuntimeImportsOutside(['data-source', 'entity'], BELOW_THE_DATA_LAYER)).toEqual([]);
     });
+
+    // 09 §Q15: MetadataUtilities imported the metadata shapes of auth, routing, websocket, backup and
+    // open api as values, so everything importing utilities sat in a cycle with all of them
+    it('lets utilities import at runtime none of the subsystems built on it', () => {
+        expect(SourceImportUtilities.findRuntimeImportsOutside(['utilities'], [...BELOW_THE_DATA_LAYER, 'validation', 'versioning'])).toEqual([]);
+    });
+
+    // 09 §Q16: error-handling and http import each other. The errors need the status, header and mime
+    // type enums of http, and a file that imports nothing at runtime cannot be part of a cycle, so
+    // those are what error-handling may take from http
+    it('lets error-handling import at runtime only files of http that import nothing themselves', () => {
+        const intoHttp: SourceImport[] = SourceImportUtilities.findSourceImports('error-handling')
+            .filter(i => !i.isTypeOnly && SourceImportUtilities.findTopLevelDir(i.imported) === 'http');
+        const notLeaves: string[] = intoHttp
+            .filter(i => SourceImportUtilities.findFileImports(`${i.imported}.ts`).some(own => !own.isTypeOnly))
+            .map(i => `${i.file} -> ${i.imported}`);
+
+        expect(notLeaves).toEqual([]);
+    });
 });

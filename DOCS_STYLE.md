@@ -273,6 +273,11 @@ an assistant copying one block gets code that works. The same test checks each b
 What another block of the page declares is imported from the file that block names, like any other
 file of the reader's.
 
+**A file of the reader's that the page does not show holds the running example.** The test checks a
+name imported from one, such as `User` from `../models`, against
+`packages/zibri/src/application/__testing__/docs-reader-project.ts`. When a page needs a name that
+file does not declare, add it there, typed the way `zi new` writes it.
+
 **The first line names the file**: `// src/providers.ts`. Browser code says so:
 `// src/login.ts, in the browser`.
 

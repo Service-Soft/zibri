@@ -21,6 +21,7 @@ import { Body } from '../../routing/decorators/body.decorator';
 import { Param } from '../../routing/decorators/param.decorator';
 import { Post } from '../../routing/decorators/post.decorator';
 import { Newable } from '../../types/newable.type';
+import { Ms } from '../../utilities/ms';
 import { Auth } from '../decorators/auth.decorator';
 
 /**
@@ -138,7 +139,8 @@ function toEndpoint(
         issuer: baseUrl.replace(/\/+$/, ''),
         url: ControllerUtilities.resolveUrl(controller),
         introspectionPermission: options.introspectionPermission,
-        resources: options.resources
+        resources: options.resources,
+        maxClientAssertionLifetimeInMs: options.maxClientAssertionLifetimeInMs ?? Ms.HOUR
     };
 }
 

@@ -5,6 +5,7 @@ import { createInMemoryDataSource, FakeOAuthProvider, startFakeOAuthProvider, Te
 
 import { BaseOidcAuthenticator } from './base-oidc.authenticator';
 import { OidcAuthenticationTime } from './oidc-authentication-time.type';
+import { OidcDiscoveryAtBoot } from './oidc-discovery-at-boot.type';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
@@ -17,6 +18,7 @@ import { repositoryTokenFor } from '../../../di/decorators/inject-repository.dec
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { defineProvider } from '../../../di/models/di-provider.model';
+import { BadRequestError } from '../../../error-handling/errors/bad-request.error';
 import { ForbiddenError } from '../../../error-handling/errors/forbidden.error';
 import { KnownHeader } from '../../../http/known-header.enum';
 import { MimeType } from '../../../http/mime-type.enum';
@@ -27,6 +29,7 @@ import { Get } from '../../../routing/decorators/get.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
 import { JsonUtilities } from '../../../utilities/json.utilities';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { OtpTwoFactorMethod } from '../../2fa/methods/otp/otp.two-factor-method';
 import { AuthController } from '../../auth-controller/auth-controller.model';
 import { type AuthServiceInterface } from '../../auth-service.interface';
@@ -54,6 +57,7 @@ const REGISTRATION_URL: string = 'https://app.example.com/register';
 const ERROR_URL: string = 'https://app.example.com/login-failed';
 const ADMINS_GROUP: string = 'app-admins';
 const BLOCKED_GROUP: string = 'app-blocked';
+const MALFORMED_GROUP: string = 'app-malformed';
 const MFA_METHOD: string = 'mfa';
 const MFA_CONTEXT_CLASS: string = 'urn:example:mfa';
 
@@ -73,6 +77,8 @@ class GroupsProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser>
 
     readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
+
     override readonly acrValues: string[] = [MFA_CONTEXT_CLASS];
 
     get issuer(): string {
@@ -88,6 +94,9 @@ class GroupsProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser>
         const names: string[] = Array.isArray(groups) ? groups.filter((group): group is string => typeof group === 'string') : [];
         if (names.includes(BLOCKED_GROUP)) {
             throw new ForbiddenError($ts`Your account has no access to this application.`);
+        }
+        if (names.includes(MALFORMED_GROUP)) {
+            throw new BadRequestError($ts`The groups of your account cannot be read.`);
         }
         const roles: Roles[] = names.includes(ADMINS_GROUP) ? [Roles.ADMIN] : [Roles.USER];
         return await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).updateById(user.id, { roles }, { transaction });
@@ -105,6 +114,8 @@ class PairwiseProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUse
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
 
     readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
+
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
 
     override readonly subjectClaim: string = 'oid';
 
@@ -401,6 +412,30 @@ describe('BaseOidcAuthenticator - what the provider proved', () => {
         const browser: TestBrowser = newBrowser();
 
         expect(await logIn(browser, 'groups')).toBe(`${ERROR_URL}?error=refused`);
+        expect(await isLoggedIn(browser)).toBe(false);
+    });
+
+    it('tells the error url that a refusal of the authenticator other than a forbidden one failed', async () => {
+        // it was `expired`, which sends the user to start over a login that will fail the same way
+        const subject: string = newSubject();
+        await createLinkedUser(subject, groupsProvider);
+        groupsProvider.identity = { subject, claims: { groups: [MALFORMED_GROUP] } };
+        const browser: TestBrowser = newBrowser();
+
+        expect(await logIn(browser, 'groups')).toBe(`${ERROR_URL}?error=failed`);
+        expect(await isLoggedIn(browser)).toBe(false);
+    });
+
+    it('tells the error url that no user is linked when the linked user is gone', async () => {
+        // deleting a user takes their identities along, so this is the state a user deleted between the
+        // callback finding the identity and the login taking the handover leaves behind
+        const subject: string = newSubject();
+        await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
+            .create({ issuer: groupsProvider.issuer, subject, userId: UUIDUtilities.generate(), forLogin: true, grantedScopes: [] });
+        groupsProvider.identity = { subject };
+        const browser: TestBrowser = newBrowser();
+
+        expect(await logIn(browser, 'groups')).toBe(`${ERROR_URL}?error=not_linked`);
         expect(await isLoggedIn(browser)).toBe(false);
     });
 

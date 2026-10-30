@@ -12,7 +12,7 @@ import { StartedTestServer, startTestServer } from '../../../__testing__/test-se
 import { inject } from '../../../di/inject.function';
 import { Newable } from '../../../types/newable.type';
 import { MigrationEntity } from '../../migration/migration-entity.model';
-import { PostgresDataSource } from '../postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../postgres/postgres-data-source.model';
 import { DataSourceSubscription } from '../pub-sub-data-source.interface';
 
 /**

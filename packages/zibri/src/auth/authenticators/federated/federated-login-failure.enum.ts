@@ -27,8 +27,18 @@ export enum FederatedLoginFailure {
      */
     NOT_FOR_LOGIN = 'not_for_login',
     /**
+     * No user is linked to the identity: the user it was linked to was deleted during the login, or
+     * the registration did not link one.
+     */
+    NOT_LINKED = 'not_linked',
+    /**
      * The user may not log in: their account is deactivated or locked, or the application refused
      * the login.
      */
-    REFUSED = 'refused'
+    REFUSED = 'refused',
+    /**
+     * The login was turned away for any other reason, such as too many attempts or a request the
+     * application could not take.
+     */
+    FAILED = 'failed'
 }

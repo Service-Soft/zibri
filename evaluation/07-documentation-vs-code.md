@@ -171,14 +171,25 @@ events still cannot call `emit` — which is correct, and is the whole point of 
   situation the framework creates by default.~~ **Closed for this case**: `docs/cron.md` says what
   `STOPPED_ON_ERROR` means, that it is a halt rather than a backoff, and that the job comes back at
   the next start. A runbook section as such is an open bullet below.
-- **Configuration schema.** *Open, filed on 2026-10-15 from the configuration bullet above.* A
+- ~~**Configuration schema.** *Filed on 2026-10-15 from the configuration bullet above.* A
   generated project reads its configuration from the environment, and nothing validates a variable
   beyond it being present: a port that is not a number or a url that is not one fails wherever it is
-  first used. Neither the docs nor the scaffold say how to describe and check one.
-- **Runbooks.** *Open, filed on 2026-10-15 from the bullet above.* What to do when a cron job stopped
+  first used. Neither the docs nor the scaffold say how to describe and check one.~~ **Closed
+  (2026-10-30)**: the generated `src/env.ts` has `requirePortEnv` and `requireUrlEnv` beside
+  `requireBooleanEnv` and `requireOneOfEnv`, and every port and url the scaffold reads goes through
+  one. `docs/deployment.md` lists them and shows a reader of your own. A model validated at boot was
+  weighed and left: the variables are read while modules load, before the application exists to
+  translate a validation message, and in a bundle that cannot await. **Found on the way**: the
+  scaffold read `SMTP_HOST` and `SMTP_PORT` with `optionalEnv`, so production started without a mail
+  server and failed per mail, where `.env.example` and the docs say it does not start; it requires
+  them now. `new.command.test.ts`, and the sandbox parity check of the variables read, widened to
+  every `require…Env` reader.
+- ~~**Runbooks.** *Filed on 2026-10-15 from the bullet above.* What to do when a cron job stopped
   on error, a backup was refused as interrupted, a restore could not be undone, an event failed, or a
   lease is held by an instance that is gone: each page states its own case, and no page gathers them
-  for whoever is on call.
+  for whoever is on call.~~ **Closed (2026-10-30)**: `docs/troubleshooting.md` gathers those cases,
+  a failed thread job and a failed mail, each with what to do and a link to the page that explains
+  it, and `docs/deployment.md` links it.
 
 ### Security
 
@@ -231,8 +242,11 @@ events still cannot call `emit` — which is correct, and is the whole point of 
 - Correlation ids are **closed**, by being replaced: a trace id is carried on every entry written
   while handling a request, continued from the caller's `traceparent` when one arrived, returned as
   `traceresponse` and repeated in a failed request's body — and `docs/logging.md` says so. Tracing
-  has `docs/tracing.md` of its own. **Open**: still nothing on log aggregation or metric label
-  cardinality ([02](./02-http-runtime-core.md) §C2).
+  has `docs/tracing.md` of its own. ~~Still nothing on log aggregation or metric label cardinality
+  ([02](./02-http-runtime-core.md) §C2).~~ **Closed (2026-10-30)**: `docs/metrics.md` has
+  "Choosing labels", on series per label value and keeping request data out of labels, and
+  `docs/logging.md` says what a collector adds to a line, which fields to index rather than label,
+  and where the db transport stands beside a collector.
 
 ### Lifecycle and change management
 

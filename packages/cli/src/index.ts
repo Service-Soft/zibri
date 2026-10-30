@@ -1,5 +1,14 @@
 #!/usr/bin/env node
-import { AddCommand, Command, HelpCommand, NewCommand, RemoveCommand, resolveCommand, UpgradeCommand, VersionCommand } from './commands';
+import { AddCommand,
+    Command,
+    GenerateCommand,
+    HelpCommand,
+    MigrateCommand,
+    NewCommand,
+    RemoveCommand,
+    resolveCommand,
+    UpgradeCommand,
+    VersionCommand } from './commands';
 import { FigletUtilities } from './encapsulation';
 import { exitOnSignal } from './utilities';
 
@@ -46,6 +55,16 @@ async function main(): Promise<void> {
         case Command.REMOVE:
         case Command.R: {
             await new RemoveCommand().start(args);
+            return;
+        }
+        case Command.MIGRATE:
+        case Command.M: {
+            await new MigrateCommand().start(args);
+            return;
+        }
+        case Command.GENERATE:
+        case Command.G: {
+            await new GenerateCommand().start(args);
             return;
         }
     }

@@ -1,3 +1,4 @@
+import type { PermissionWildcard } from './permission-wildcard.type';
 import type { Permission } from './permission.type';
 import type { PlatformPermission } from './platform-permission.type';
 import type { RoleLevel } from './role-level.type';
@@ -31,9 +32,10 @@ export type BaseRole = BaseEntity & {
     level: RoleLevel,
     /**
      * The permissions the role carries: tenant permissions for a tenant role, platform permissions for
-     * a platform role. A role standing above another lists the other's permissions as well.
+     * a platform role, each by name or by a wildcard. A role standing above another lists the other's
+     * permissions as well.
      */
-    permissions: (Permission | PlatformPermission)[]
+    permissions: (Permission | PlatformPermission | PermissionWildcard)[]
 };
 
 /**
@@ -55,5 +57,5 @@ export class BaseRoleEntity extends BaseEntity implements BaseRole {
     level!: RoleLevel;
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.array({ items: { type: 'string' } })
-    permissions!: (Permission | PlatformPermission)[];
+    permissions!: (Permission | PlatformPermission | PermissionWildcard)[];
 }

@@ -2,7 +2,6 @@ import { AsyncResource } from 'node:async_hooks';
 
 import { errorToLoggedError } from './error-to-logged-error.function';
 import { LogBuffer } from './log-buffer';
-import { LogCleanupCronJob } from './log-cleanup.cron-job';
 import { LogContextInput, LogRequestContext } from './log-context.model';
 import { LogLevel } from './log-level.enum';
 import { Log } from './log.model';
@@ -110,7 +109,7 @@ export class Logger implements LoggerInterface, OnAppInit {
      * with it.
      * @returns The drain.
      */
-    private startDrain(): Promise<void> {
+    private async startDrain(): Promise<void> {
         return this.drainScope.runInAsyncScope(async () => await this.drain());
     }
 
@@ -121,9 +120,6 @@ export class Logger implements LoggerInterface, OnAppInit {
         // sends through a budget of its own rather than through logToDb itself
         if (this.transports.some(t => t.config.name === 'DbLoggerTransport')) {
             validateEntitiesRegistered(Logger.name, app, Log);
-            if (!app.options.cronJobs.includes(LogCleanupCronJob)) {
-                app.options.cronJobs.push(LogCleanupCronJob);
-            }
         }
         if (inject(ZIBRI_DI_TOKENS.ACCESS_LOG)) {
             this.registerAccessLog(app);
@@ -199,14 +195,13 @@ export class Logger implements LoggerInterface, OnAppInit {
         }, MiddlewarePhase.OBSERVABILITY);
     }
 
+    // looped rather than a single await: writing can queue more, since the notice about dropped
+    // entries is itself a log entry. The wait before a drain is skipped rather than waited out - a
+    // caller asking to flush is saying it will not be around for the timer, which is exactly the
+    // shutdown case
     /**
-     * Waits until everything queued has been handed to the transports.
-     *
-     * Looped rather than a single await: writing can queue more, since the notice about dropped
-     * entries is itself a log entry.
-     *
-     * The wait before a drain is skipped here rather than waited out - a caller asking to flush is
-     * saying it will not be around for the timer, which is exactly the shutdown case.
+     * Waits until everything queued has been handed to the transports, without waiting for the next
+     * drain.
      *
      * Then whatever a transport holds back is written too, such as the rows the db transport counts
      * past its budget.
@@ -257,11 +252,16 @@ export class Logger implements LoggerInterface, OnAppInit {
     }
 
     private log(level: LogLevel, message: string, context: LogContextInput | undefined): void {
-        if (!this.transports.find(t => t.config.level <= level)) {
+        // two steps, because finding the origin walks the stack: an entry no transport admits from any
+        // origin costs nothing, and only one an origin's level might admit pays for the walk
+        if (!this.transports.some(t => t.resolveLowestLevel() <= level)) {
+            return;
+        }
+        const origin: string = resolveOrigin();
+        if (!this.transports.some(t => t.resolveLevel(origin) <= level)) {
             return;
         }
 
-        const origin: string = resolveOrigin();
         let error: Error | undefined;
         if (context && 'error' in context) {
             error = ErrorUtilities.isError(context.error) ? context.error : new Error('Error');
@@ -385,7 +385,7 @@ export class Logger implements LoggerInterface, OnAppInit {
             if (transport.config.register !== 'directly' && !laterTransportsWrite) {
                 return;
             }
-            const logs: Log[] = batch.filter(l => transport.config.level <= l.level);
+            const logs: Log[] = batch.filter(l => transport.resolveLevel(l.context.origin) <= l.level);
             // an empty batch is a round trip that buys nothing - a transaction writing no rows, or
             // a digest of nothing
             if (!logs.length) {

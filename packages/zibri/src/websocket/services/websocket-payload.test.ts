@@ -166,6 +166,22 @@ describe('what a websocket client receives', () => {
         expect(answer.data).toEqual(received);
     }, 15000);
 
+    // a request is an object: `null` reached Object.keys and was answered and logged as a server
+    // error, and a number or a list passed as a request naming nothing
+    it.each<[string, unknown]>([
+        // eslint-disable-next-line unicorn/no-null
+        ['null', null],
+        ['a number', 42],
+        ['a list', []],
+        ['a text', 'payload']
+    ])('answers a message that is %s rather than an object as a bad request', async (_what, message) => {
+        const socket: Socket = await connectClient();
+
+        const answer: WebsocketMessage = await socket.timeout(5000).emitWithAck('payload:values', message) as WebsocketMessage;
+
+        expect(answer).toMatchObject({ ok: false, status: 400 });
+    }, 15000);
+
     it('is the same json when it is sent to everyone', async () => {
         const socket: Socket = await connectClient();
         const broadcast: Promise<WebsocketMessage> = waitForMessage(socket, 'payload:broadcast');

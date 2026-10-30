@@ -1,6 +1,6 @@
 import * as ts from 'typescript';
 
-import { normalizeJsxText } from './jsx-text';
+import { decodeJsxEntities, normalizeJsxText } from './jsx-text';
 import { AccessShape } from '../../runtime/access-shape';
 import { escapeAttribute, escapeText, VOID_ELEMENTS } from '../../runtime/server-runtime';
 import { tagNameOf } from '../../semantics/validate-email';
@@ -346,7 +346,7 @@ class JsxLowering {
             return this.factory.createPropertyAssignment(key, this.factory.createTrue());
         }
         if (ts.isStringLiteral(initializer)) {
-            return this.factory.createPropertyAssignment(key, initializer);
+            return this.factory.createPropertyAssignment(key, this.quote(decodeJsxEntities(initializer.text)));
         }
         const expression: ts.Expression | undefined = attributeExpression(attribute);
         if (expression !== undefined && isEventHandlerName(name)) {
@@ -400,7 +400,7 @@ class JsxLowering {
      */
     private childValue(child: ts.JsxChild): ts.Expression[] {
         if (ts.isJsxText(child)) {
-            const text: string = normalizeJsxText(child.text);
+            const text: string = decodeJsxEntities(normalizeJsxText(child.text));
             return text ? [this.quote(text)] : [];
         }
         if (ts.isJsxExpression(child)) {
@@ -429,7 +429,7 @@ class JsxLowering {
      */
     private lowerChild(child: ts.JsxChild): ts.Expression[] {
         if (ts.isJsxText(child)) {
-            const text: string = normalizeJsxText(child.text);
+            const text: string = decodeJsxEntities(normalizeJsxText(child.text));
             return text ? [this.quote(escapeText(text))] : [];
         }
         if (ts.isJsxExpression(child)) {
@@ -459,7 +459,7 @@ class JsxLowering {
             return [this.quote(` ${mapAttributeName(name)}`)];
         }
         if (ts.isStringLiteral(initializer)) {
-            return [this.quote(` ${mapAttributeName(name)}="${escapeAttribute(initializer.text)}"`)];
+            return [this.quote(` ${mapAttributeName(name)}="${escapeAttribute(decodeJsxEntities(initializer.text))}"`)];
         }
         const expression: ts.Expression | undefined = attributeExpression(attribute);
         return [

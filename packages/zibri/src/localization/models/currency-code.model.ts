@@ -195,6 +195,6 @@ export type CurrencyCode = (typeof currencyCodes)[number];
  * The same codes as an enum shaped object.
  *
  * `@Property.string({ enum })` validates against the *values* of an object, which an array is not,
- * so a property that has to accept only real currency codes needs this rather than `currencyCodes`.
+ * so a property that has to accept only real currency codes names this one.
  */
 export const currencyCodeEnum: AnyEnum<string> = Object.fromEntries(currencyCodes.map(c => [c, c]));

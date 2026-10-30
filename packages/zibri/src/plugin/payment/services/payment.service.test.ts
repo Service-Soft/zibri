@@ -12,6 +12,7 @@ import { inject } from '../../../di/inject.function';
 import { defineProvider } from '../../../di/models/di-provider.model';
 import { type LoggerInterface } from '../../../logging/logger.interface';
 import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
+import { Ms } from '../../../utilities/ms';
 import { NumberUtilities } from '../../../utilities/number.utilities';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { KnownPaymentMethod, PaymentMethod } from '../models/payment-method.model';
@@ -41,7 +42,9 @@ function createFakeProvider(): AnyPaymentProviderInterface & Record<string, any>
         confirmPayment: jest.fn(),
         collectPaymentFromReservation: jest.fn(),
         cancelPayment: jest.fn(),
-        refundPayment: jest.fn()
+        refundPayment: jest.fn(),
+        approvalWindowInMs: Ms.DAY,
+        reconcilePayment: jest.fn()
     };
 }
 

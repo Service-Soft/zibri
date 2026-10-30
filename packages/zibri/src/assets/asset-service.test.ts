@@ -27,6 +27,25 @@ describe('AssetService', () => {
             const fileTree: TreeNode[] = await assetService.buildFileTree();
             expect(fileTree).toEqual(expectedTree);
         });
+
+        it('lists a file named after what every object has, and links one whose name a url has to encode', async () => {
+            const folder: FsPath = FsUtilities.getPath(testFileFolder, 'asset-names');
+            await FsUtilities.rm(folder);
+            await FsUtilities.createFile(FsUtilities.getPath(folder, 'public', 'constructor'), 'c', true);
+            await FsUtilities.createFile(FsUtilities.getPath(folder, 'public', '__proto__', 'a.txt'), 'a', true);
+            await FsUtilities.createFile(FsUtilities.getPath(folder, 'public', 'report #1.pdf'), 'r', true);
+            const assetService: AssetService = new AssetService(inject(ZIBRI_DI_TOKENS.LOGGER), folder);
+
+            const fileTree: TreeNode[] = await assetService.buildFileTree();
+
+            expect(fileTree).toEqual(expect.arrayContaining([
+                { name: 'constructor', type: 'file', route: '/assets/constructor' },
+                { name: '__proto__', type: 'directory', children: [{ name: 'a.txt', type: 'file', route: '/assets/__proto__/a.txt' }] },
+                { name: 'report #1.pdf', type: 'file', route: '/assets/report%20%231.pdf' }
+            ]));
+            expect(Object.prototype).not.toHaveProperty('directory');
+            await FsUtilities.rm(folder);
+        });
     });
 
     describe('onAppInit', () => {

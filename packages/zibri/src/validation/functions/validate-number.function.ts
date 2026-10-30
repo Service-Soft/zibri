@@ -12,7 +12,7 @@ import { $ts } from '../../localization/translate.function';
 import { INTEGER_REGEX } from '../../parsing/functions/parse-number.function';
 import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
 import { NumberParamMetadata } from '../../routing/models/number-param-metadata.model';
-import { BigNumber } from '../../utilities/number.utilities';
+import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
 
@@ -78,9 +78,9 @@ export function numberValueProblems(
     if (!isFormatValid(meta.format, property)) {
         return [{ key: fullKey, code: ValidationProblemCode.FORMAT, message: $ts`needs to be in format "${meta.format}"` }];
     }
-    // through a comparable form rather than the value itself, because a BigNumber compares by
-    // reference against a plain number - it would match no enum member and pass any bound
-    if (meta.enum && !ObjectUtilities.values(meta.enum).includes(comparableValueOf(property))) {
+    // compared by value rather than with `===` or `<`: a BigNumber compares by reference against a
+    // plain number, and read as a double it is rounded onto a bound it is past (round-2 11 §V1)
+    if (meta.enum && !ObjectUtilities.values(meta.enum).some(v => isNumber(v) && NumberUtilities.compare(property, v) === 0)) {
         return [
             {
                 key: fullKey,
@@ -89,10 +89,10 @@ export function numberValueProblems(
             }
         ];
     }
-    if (meta.min != undefined && comparableValueOf(property) < meta.min) {
+    if (meta.min != undefined && NumberUtilities.compare(property, meta.min) < 0) {
         return [{ key: fullKey, code: ValidationProblemCode.MIN, message: $ts`needs to be at least ${meta.min}` }];
     }
-    if (meta.max != undefined && comparableValueOf(property) > meta.max) {
+    if (meta.max != undefined && NumberUtilities.compare(property, meta.max) > 0) {
         return [{ key: fullKey, code: ValidationProblemCode.MAX, message: $ts`needs to be at most ${meta.max}` }];
     }
     return [];
@@ -123,9 +123,10 @@ function runtimeTypeOf(value: unknown): string {
     return value instanceof BigNumber ? 'BigNumber' : typeof value;
 }
 
+// an enum's values hold the names of its members as well, for a numeric one
 // eslint-disable-next-line jsdoc/require-jsdoc
-function comparableValueOf(value: AnyNumber): number | bigint {
-    return value instanceof BigNumber ? value.toNumber() : value;
+function isNumber(value: unknown): value is number | bigint {
+    return typeof value === 'number' || typeof value === 'bigint';
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc

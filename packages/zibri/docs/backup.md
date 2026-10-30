@@ -27,10 +27,20 @@ A backup copies the data of a resource, such as a data source, to one or more tr
 | `BackupStatus` | enum | `RUNNING`, `COMPLETED` or `FAILED`: where a backup stands |
 | `BackupResourceEntity` | class | Entity representing a resource's data within a backup, with the attempts spent storing it |
 | `BackupFailedError` | error | What `waitForBackup` fails with when a resource of the backup spent its attempts. Names the resource and what it failed with |
+| `BackupStoppedError` | error | What `waitForBackup` fails with when the application shuts down while waiting |
+| `RestoreStoppedError` | error | What a restore fails with when the application shuts down during it |
+| `RestoreNotUndoneError`, `NotUndoneResource` | error, type | What a failed restore fails with when a resource could not be put back, and where what it held is kept: `snapshotPaths` |
+| `UnreadableBackupError` | error | What a restore fails with for a backup written in a format this build does not read |
+| `IncompleteBackupError` | error | What a restore fails with for a resource that was never finished being written |
+| `CorruptBackupError` | error | What a restore fails with for stored data that is not what the backup recorded |
+| `BackupTransportNotFoundError` | error | What startup fails with for a backup resource no transport takes |
+| `InitBackupServiceError` | error | What startup fails with when the backup service cannot start |
 | `RunQueuedBackupsCronJob` | cron job | Stores the resources of queued backups that are due on this instance. Registered for you |
 | `ZIBRI_DI_TOKENS.BACKUP_MAX_ATTEMPTS` | DI token | How many times a resource is tried before its backup fails. Defaults to 3 |
 | `ZIBRI_DI_TOKENS.BACKUP_RETRY_DELAY_IN_MS` | DI token | How long the first retry of a resource waits, doubling for each one after it. Defaults to one minute |
 | `ZIBRI_DI_TOKENS.BACKUP_SERVICE` | DI token | Injects `BackupServiceInterface` |
+| `BackupRetention` | type | Which completed backups are kept: `daily`, `weekly`, `monthly` and the other rules, counted in a `timeZone` |
+| `ZIBRI_DI_TOKENS.BACKUP_RETENTION` | DI token | The `BackupRetention` applied each time a backup completes. Defaults to none, which keeps every backup |
 | `BACKUP_FORMAT_VERSION` | constant | The shape backups are written in by this build |
 | `READABLE_BACKUP_FORMAT_VERSIONS` | constant | The shapes this build restores from |
 | `ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER` | DI token | Where a backup is staged on its way to and from a transport |
@@ -55,7 +65,7 @@ This Postgres data source is backed up:
 
 ```ts
 // src/data-sources/db/db.data-source.ts
-import { Backup, BackupEntity, BackupResourceEntity, BackupTransport, BaseEntity, BaseFsBackupTransport, DataSource, FsPath, FsUtilities, Newable, OmitStrict, PostgresBackupScope, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
+import { Backup, BackupEntity, BackupResourceEntity, BackupTransport, BaseEntity, BaseFsBackupTransport, DataSource, FsPath, FsUtilities, Newable, PostgresBackupScope, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
 
 @BackupTransport()
 class DiskBackupTransport extends BaseFsBackupTransport {
@@ -66,7 +76,7 @@ class DiskBackupTransport extends BaseFsBackupTransport {
 @DataSource()
 @Backup({ transports: [DiskBackupTransport], encrypt: true })
 class DbDataSource extends PostgresDataSource {
-    options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+    options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -117,6 +127,8 @@ A `ValKeyDataSource` marked with `@Backup` sets `backupMode` instead, which says
 | `'walk'` | Reads the keys a batch at a time, while the server goes on answering. A transaction committed meanwhile can be in it with some of its rows and without others. | The store is too large to pause the server for. |
 
 Either way, a restore builds the ids, indexes and uniques of every entity again from the rows it restored.
+
+On every data source, a backup leaves out the rows of an entity declared `@Entity({ backedUp: false })`, and a restore keeps the rows it holds now. `Lease`, `BackupEntity` and `BackupResourceEntity` are declared so: their rows belong to the instances running now, such as the grants they hold and the backups they took. Declare it on an entity of your own whose rows belong to the running instances rather than to your data.
 
 ## Encrypting backups
 `encrypt` says whether a resource's data is encrypted before it leaves the application. With `true`, every backup is encrypted with a key of its own, and that key is stored with the backup, encrypted with the encryption service's `masterEncrypt` (see [the master key](./encryption-and-hashing.md#setting-the-master-key)). Neither this instance's disk nor any transport holds the data unencrypted.
@@ -247,7 +259,9 @@ export async function createBackup(): Promise<BackupEntity> {
 }
 ```
 
-Each resource is stored on its own, by whichever instance claims it. One whose transport fails is tried again after `ZIBRI_DI_TOKENS.BACKUP_RETRY_DELAY_IN_MS`, one minute by default, twice as long after each further attempt. Once a resource spent `ZIBRI_DI_TOKENS.BACKUP_MAX_ATTEMPTS`, 3 by default, the backup is `FAILED`, the resource keeps what it failed with as its `error`, and `waitForBackup` fails with a `BackupFailedError` naming it. A failed backup stays recorded until you `delete` it.
+A backup is named after the time it is taken. A `name` you give `queueBackup` instead is one segment of a path, since every transport stores the backup under it: it holds no slash, and is not empty, `.` or `..`.
+
+Each resource is stored on its own, by whichever instance claims it. One whose transport fails is tried again after `ZIBRI_DI_TOKENS.BACKUP_RETRY_DELAY_IN_MS`, one minute by default, twice as long after each further attempt. Once a resource spent `ZIBRI_DI_TOKENS.BACKUP_MAX_ATTEMPTS`, 3 by default, the backup is `FAILED`, the resource keeps what it failed with as its `error`, and `waitForBackup` fails with a `BackupFailedError` naming it. What a failed backup stored is removed from the transports. Its record stays, with the `error` of each resource, until you `delete` it.
 
 A backup is taken on whichever instance claims each resource, so a resource of your own reads the same data on every instance, as a data source does.
 
@@ -265,6 +279,8 @@ export async function restoreBackup(): Promise<void> {
 }
 ```
 
+A restore holds every resource it applies, across all instances. While a backup or another restore holds one of them, the restore is refused with a `409` naming it. A backup waits up to a minute for a resource a restore or another backup holds. After that, its attempt fails and is tried again like any other.
+
 `delete` removes a backup from every transport that holds it, and from the database:
 
 ```ts
@@ -280,6 +296,53 @@ export async function deleteBackup(): Promise<void> {
 ```
 
 A backup whose resources name a transport the application does not register is refused, and stays as it is.
+
+## Taking backups on a schedule
+A [cron job](./cron.md) of your own queues a backup at the times you choose, on one instance at a time:
+
+```ts
+// src/cron/nightly-backup.cron-job.ts
+import { BackupServiceInterface, CronExpression, CronJob, InitialCronConfig, inject, Injectable, ZIBRI_DI_TOKENS } from 'zibri';
+
+@Injectable()
+export class NightlyBackupCronJob extends CronJob {
+    readonly initialConfig: InitialCronConfig = {
+        name: 'NightlyBackup',
+        cron: CronExpression.daily().at(3, 'hours').build()
+    };
+
+    async onTick(): Promise<void> {
+        const backupService: BackupServiceInterface = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
+        await backupService.queueBackup();
+    }
+}
+```
+
+The backup is stored by whichever instance claims each resource, so the job ends once the backup is queued.
+
+## Deleting old backups
+`ZIBRI_DI_TOKENS.BACKUP_RETENTION` says which completed backups to keep. Each time a backup completes, every other completed backup is deleted, from the transports and from the database:
+
+```ts
+// src/providers.ts
+import { defineProvider, Ms, ZIBRI_DI_TOKENS } from 'zibri';
+
+defineProvider({
+    token: ZIBRI_DI_TOKENS.BACKUP_RETENTION,
+    useValue: { timeZone: 'Europe/Berlin', withinInMs: Ms.DAY * 2, daily: 7, weekly: 4, monthly: 12, yearly: 5 }
+});
+```
+
+| Option | What it is |
+|---|---|
+| `timeZone` | The time zone hours, days, weeks, months, quarters and years are counted in. Required |
+| `withinInMs` | Keeps every backup taken within this long before now |
+| `last` | Keeps this many of the newest backups |
+| `hourly`, `daily`, `weekly`, `monthly`, `quarterly`, `yearly` | Keeps the newest backup of each of this many hours, days, weeks, months, quarters or years, the newest first. A week starts on Monday, and a quarter is three months from January, April, July or October |
+
+The rules are those of `borg prune`. They apply in the order of the table, and a backup one rule keeps counts for no later rule. With the example above, the newest backups of the last 7 days are kept, then the newest of each of the 4 weeks before those, and so on. While a rule finds fewer periods than it asks for, it keeps the oldest backup too. A retention names at least one rule.
+
+A failed backup holds no data, and its record stays until you `delete` it. A backup that cannot be deleted, such as one on a transport that cannot be reached, is logged and tried again when the next backup completes.
 
 ## Backups the database does not know about yet
 When the application starts, it records every backup its transports hold that the database does not know about yet, such as after a restore of the database. A transport that cannot be reached then is skipped with a warning naming it, and the application starts. The next sync that reaches it records what only that transport holds.
@@ -312,6 +375,9 @@ started applying, from their snapshots, before anything else, and logs which one
 cannot be put back is logged with the file its snapshot is kept in, and tried again at every start
 until it is; the daily job keeps that file. The snapshots are on this instance's disk, so an instance
 started on a fresh disk has nothing to put back.
+
+A snapshot is checked against what was written before it is put back. One that differs, such as one a
+machine going down left short, is not put back, and the error names its file.
 
 ## A backup of another release
 
@@ -395,6 +461,7 @@ Your data source declares these entities:
 | Entity | Needed when |
 |---|---|
 | `BackupEntity`, `BackupResourceEntity` | A backup resource is registered |
+| `Lease` | `ZIBRI_DI_TOKENS.BACKUP_RETENTION` is set |
 
 How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
 

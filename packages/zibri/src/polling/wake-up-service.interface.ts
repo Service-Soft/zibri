@@ -3,7 +3,7 @@ import { DataSourceInterface } from '../data-source/data-sources/data-source.int
 
 /**
  * Tells the instances of a deployment that something they look for in a data source changed, so they
- * look now rather than at their next poll.
+ * look now, before their next poll.
  *
  * A wake up carries a topic and nothing else: the state it is about stays in the data source, and a
  * wake up that is lost only means an instance finds the change at its next poll.

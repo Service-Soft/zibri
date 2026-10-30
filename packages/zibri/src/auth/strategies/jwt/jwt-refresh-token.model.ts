@@ -4,12 +4,13 @@ import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitClass } from '../../../entity/omit-class.model';
 import type { HashString } from '../../hash/hash.utilities';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
+import { LOGIN_USER_AGENT_MAX_LENGTH } from '../../models/login-device.model';
 import { ProviderAuthentication } from '../../models/provider-authentication.model';
 
 /**
  * The jwt refresh token that gets stored in the data source.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate' })
 export class JwtRefreshToken extends BaseEntity {
     /**
      * The id of the user that this token belongs to.
@@ -58,6 +59,31 @@ export class JwtRefreshToken extends BaseEntity {
      */
     @Property.string({ format: 'uuid' })
     familyId!: string;
+
+    /**
+     * When the user logged in. Every token of one family carries the same value. Null when not known.
+     */
+    @Property.date({ required: false })
+    authenticatedAt?: Date | null;
+
+    /**
+     * When the token was issued: when the login started, or was refreshed into this token. Null when
+     * not known.
+     */
+    @Property.date({ required: false })
+    issuedAt?: Date | null;
+
+    /**
+     * The `User-Agent` of the client the token was issued to. Null when it sent none.
+     */
+    @Property.string({ required: false, maxLength: LOGIN_USER_AGENT_MAX_LENGTH })
+    userAgent?: string | null;
+
+    /**
+     * The address of the client the token was issued to. Null when not known.
+     */
+    @Property.string({ required: false })
+    ipAddress?: string | null;
 
     /**
      * The name of the provider the login was started at. Null for a login started some other way.

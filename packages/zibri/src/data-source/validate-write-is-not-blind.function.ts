@@ -47,11 +47,10 @@ export function validateWriteIsNotBlind<T extends BaseEntity>(
         }
         throw new InternalError(data == undefined
             ? `${entityClass.name}.${key} declares optimistic locking, so deleting a row has to say what it was:`
-                + ` pass { where: { ${key}: <the value you read> } } and the row is deleted only if nobody`
-                + ` changed it in between. Pass { where: { ${key}: undefined } } to delete it regardless.`
+            + ` pass { where: { ${key}: <the value you read> } } and the row is deleted only if nobody`
+            + ` changed it in between. Pass { where: { ${key}: undefined } } to delete it regardless.`
             : `${entityClass.name}.${key} declares optimistic locking, so writing it has to say what it was:`
                 + ` pass { where: { ${key}: <the value you read> } } and the write lands only if nobody`
-                + ` changed it in between. Pass { where: { ${key}: undefined } } to overwrite it regardless.`
-        );
+                + ` changed it in between. Pass { where: { ${key}: undefined } } to overwrite it regardless.`);
     }
 }

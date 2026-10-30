@@ -25,6 +25,12 @@ const DOCS_DIR: string = path.join(__dirname, '..', '..', 'docs');
 const COMPILED_LANGUAGES: string[] = ['ts', 'tsx', 'typescript'];
 
 /**
+ * The files of the reader's project that a page imports from without showing them: its entities,
+ * roles, data sources and options, typed as the running example of the docs has them.
+ */
+const READER_PROJECT: string = path.join(__dirname, '__testing__', 'docs-reader-project');
+
+/**
  * A single line named import, which is the form every page uses.
  *
  * Anything else - a default import, one broken across lines, one missing its `from` - is left where
@@ -217,15 +223,21 @@ function assemblePage(content: string): AssembledPage {
     }
 
     // a reader's file the page itself shows, such as a service imported by the controller block
-    // below it, is that block's declaration here rather than an import
+    // below it, is that block's declaration here rather than an import. One the page does not show
+    // comes from the reader project, whatever path the block names it by
     const declared: Map<string, boolean> = findTopLevelNames(body);
-    const header: string[] = [...importedFrom.entries()]
-        .map(([module, names]) => ({
-            module,
-            names: [...names].filter(name => !module.startsWith('.') || !declared.has(getLocalName(name)))
-        }))
-        .filter(({ names }) => names.length > 0)
-        .map(({ module, names }) => `import { ${names.join(', ')} } from '${module}';`);
+    const fromReaderProject: string[] = [];
+    const header: string[] = [];
+    for (const [module, names] of importedFrom.entries()) {
+        if (module.startsWith('.')) {
+            fromReaderProject.push(...[...names].filter(name => !declared.has(getLocalName(name))));
+            continue;
+        }
+        header.push(`import { ${[...names].join(', ')} } from '${module}';`);
+    }
+    if (fromReaderProject.length > 0) {
+        header.push(`import { ${fromReaderProject.join(', ')} } from '${READER_PROJECT}';`);
+    }
 
     return {
         lines: [...header, ...body],
@@ -345,9 +357,9 @@ function resolveBlockReferences(page: CompiledPage, sourceFile: ts.SourceFile, c
 /**
  * Whether a diagnostic is about one of the reader's own files rather than about the example.
  *
- * A page importing `../models` is telling the reader where the class they wrote goes. There is no
- * such file here and there is not meant to be, so the unresolved import is context rather than a
- * finding - the names it brings in stay usable and everything done with them is still checked.
+ * A named import from a reader's file is assembled into an import from the reader project, so what
+ * this leaves out are the imports the assembly leaves where they stand, such as the default import
+ * of a `.hbs` template. Nothing declares those files here, so a name they bring in is unchecked.
  * @param diagnostic - The diagnostic to judge.
  * @returns Whether to leave it out of the report.
  */

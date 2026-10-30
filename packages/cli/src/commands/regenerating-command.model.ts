@@ -1,7 +1,6 @@
 /* eslint-disable no-console */
-import { version } from '../../package.json';
 import { BaseCommand } from './base-command.model';
-import { NewCommand } from './new/new.command';
+import { version } from '../../package.json';
 import { ChalkUtilities, CPUtilities, FsUtilities, GitUtilities, MergeLabels, MergeResult } from '../encapsulation';
 import { SCAFFOLD_MANIFEST_FILE,
     ScaffoldAnswers,
@@ -9,6 +8,7 @@ import { SCAFFOLD_MANIFEST_FILE,
     ScaffoldManifest,
     ScaffoldUtilities } from '../scaffold';
 import { exitWithError, getPath, Path } from '../utilities';
+import { NewCommand } from './new/new.command';
 
 /**
  * What became of one generated file.
@@ -26,14 +26,33 @@ import { exitWithError, getPath, Path } from '../utilities';
 type FileOutcome = 'added' | 'updated' | 'merged' | 'conflicted' | 'written beside' | 'removed' | 'kept';
 
 /**
+ * What the manifest of the project records as generated last, while the project is generated again.
+ */
+type RecordedGeneration = {
+    /**
+     * The manifest.
+     */
+    manifest: ScaffoldManifest,
+    /**
+     * Every file its release generates from its answers, or undefined when that release could not be run.
+     * Generated the first time a file's base is in no commit.
+     */
+    files?: Promise<Map<string, Buffer> | undefined>
+};
+
+/**
  * A command that generates a project again from different answers or a different release, and
  * merges the result into the project.
  *
  * Each file is merged into the one the project has the way git merges a branch: what the project
  * never changed is replaced, what both changed is merged against the version that was generated
- * last, read out of the project's history.
+ * last, read out of the project's history or generated again by the release that generated it.
  */
 export abstract class RegeneratingCommand<Input extends object> extends BaseCommand<Input> {
+
+    // set for the duration of regenerate, so the release that generated the project last is run at
+    // most once however many files need it
+    private recorded: RecordedGeneration | undefined;
 
     /**
      * Reads the manifest of a project whose features are changed, which this release of the cli has to
@@ -66,13 +85,15 @@ export abstract class RegeneratingCommand<Input extends object> extends BaseComm
         const { installed } = await ScaffoldUtilities.resolvePackageJson(projectPath);
         const { dependencies, devDependencies }: ScaffoldDependencies = packages;
         // what the project has stays at the version it has: a range it chose is the project's to change
-        const lacking: (packages: string[]) => string[] = packages => packages.filter(spec => !installed.has(this.resolvePackageName(spec)));
+        const lacking: (packages: string[]) => string[] = packages => packages.filter(
+            spec => !installed.has(this.resolvePackageName(spec))
+        );
         const runtime: string[] = [
             ...withFramework ? [ScaffoldUtilities.resolveFrameworkDependency('zibri', 'zibri')] : [],
             ...lacking(dependencies)
         ];
         if (runtime.length) {
-            await CPUtilities.exec(`cd ${projectPath} && npm i ${runtime.join(' ')}`);
+            await CPUtilities.exec(`cd "${projectPath}" && npm i ${runtime.join(' ')}`);
         }
         // after the framework, which the harness peer depends on
         const development: string[] = [
@@ -80,7 +101,7 @@ export abstract class RegeneratingCommand<Input extends object> extends BaseComm
             ...lacking(devDependencies)
         ];
         if (development.length) {
-            await CPUtilities.exec(`cd ${projectPath} && npm i -D ${development.join(' ')}`);
+            await CPUtilities.exec(`cd "${projectPath}" && npm i -D ${development.join(' ')}`);
         }
     }
 
@@ -115,16 +136,23 @@ export abstract class RegeneratingCommand<Input extends object> extends BaseComm
             incoming
         };
         const outcomes: [string, FileOutcome][] = [];
-        for (const relativePath of [...new Set([...generated.keys(), ...Object.keys(recorded)])].sort()) {
-            const outcome: FileOutcome | undefined = await this.regenerateFile(
-                getPath(projectPath, relativePath),
-                generated.get(relativePath),
-                recorded[relativePath],
-                labels
-            );
-            if (outcome != undefined) {
-                outcomes.push([relativePath, outcome]);
+        this.recorded = manifest == undefined ? undefined : { manifest };
+        try {
+            for (const relativePath of [...new Set([...generated.keys(), ...Object.keys(recorded)])].sort()) {
+                const outcome: FileOutcome | undefined = await this.regenerateFile(
+                    projectPath,
+                    relativePath,
+                    generated.get(relativePath),
+                    recorded[relativePath],
+                    labels
+                );
+                if (outcome != undefined) {
+                    outcomes.push([relativePath, outcome]);
+                }
             }
+        }
+        finally {
+            this.recorded = undefined;
         }
 
         await ScaffoldUtilities.writeManifest(projectPath, ScaffoldUtilities.resolveManifest(answers, generated));
@@ -144,12 +172,48 @@ export abstract class RegeneratingCommand<Input extends object> extends BaseComm
         }
     }
 
+    /**
+     * Runs a release of the cli to generate a project again, the way it did.
+     * @param release - The release.
+     * @param answers - What it generated the project from.
+     * @returns Every file it generates, or undefined when it could not be run.
+     */
+    private async generateWithRelease(release: string, answers: ScaffoldAnswers): Promise<Map<string, Buffer> | undefined> {
+        const directory: Path = await FsUtilities.mkdtemp('zibri-upgrade-base-');
+        try {
+            const appPath: Path = getPath(directory, answers.name);
+            const { status } = CPUtilities.resolveResult('npx', [
+                '--yes',
+                `zibri-cli@${release}`,
+                'generate',
+                appPath,
+                answers.name,
+                answers.ci,
+                answers.defaultAuth,
+                answers.features.length ? answers.features.join(',') : 'none'
+            ], directory);
+            if (status !== 0) {
+                console.log(ChalkUtilities.error(
+                    `"npx zibri-cli@${release} generate" could not be run,`,
+                    'so a file it generated is merged only when that version of it is committed.'
+                ));
+                return undefined;
+            }
+            return await ScaffoldUtilities.resolveGeneratedFiles(appPath);
+        }
+        finally {
+            await FsUtilities.rm(directory);
+        }
+    }
+
     private async regenerateFile(
-        filePath: Path,
+        projectPath: Path,
+        relativePath: string,
         generated: Buffer | undefined,
         recordedHash: string | undefined,
         labels: MergeLabels
     ): Promise<FileOutcome | undefined> {
+        const filePath: Path = getPath(projectPath, relativePath);
         const current: Buffer | undefined = await FsUtilities.exists(filePath)
             ? await FsUtilities.readFileBuffer(filePath)
             : undefined;
@@ -185,7 +249,7 @@ export abstract class RegeneratingCommand<Input extends object> extends BaseComm
             return 'updated';
         }
 
-        const merge: MergeResult | undefined = await this.resolveMerge(filePath, current, recordedHash, generated, labels);
+        const merge: MergeResult | undefined = await this.resolveMerge(projectPath, relativePath, current, recordedHash, generated, labels);
         if (merge == undefined) {
             await FsUtilities.writeFileBuffer(getPath(`${filePath}${ScaffoldUtilities.BESIDE_SUFFIX}`), generated);
             return 'written beside';
@@ -195,22 +259,38 @@ export abstract class RegeneratingCommand<Input extends object> extends BaseComm
     }
 
     private async resolveMerge(
-        filePath: Path,
+        projectPath: Path,
+        relativePath: string,
         current: Buffer,
         recordedHash: string | undefined,
         generated: Buffer,
         labels: MergeLabels
     ): Promise<MergeResult | undefined> {
-        // the version generated last is the base, and the project's history is the one place it is
-        // kept: a project that was never committed, or a file from before the manifest, has none
+        // the version generated last is the base. A file from before the manifest has none
         const base: Buffer | undefined = recordedHash == undefined
             ? undefined
-            : GitUtilities.findBlob(getPath(filePath, '..'), recordedHash);
+            : GitUtilities.findBlob(getPath(projectPath, relativePath, '..'), recordedHash)
+                ?? await this.findRecordedFile(relativePath, recordedHash);
         // conflict markers in an image are a broken image
         if (base == undefined || [current, base, generated].some(content => content.includes(0))) {
             return undefined;
         }
         return await GitUtilities.resolveMerge(current, base, generated, labels);
+    }
+
+    // a version that was merged, or never committed, is in no commit: what was generated last is
+    // generated again from what the manifest records instead (round-2 11 §U1)
+    private async findRecordedFile(relativePath: string, recordedHash: string): Promise<Buffer | undefined> {
+        if (this.recorded == undefined) {
+            return undefined;
+        }
+        const { manifest } = this.recorded;
+        const files: Promise<Map<string, Buffer> | undefined> = this.recorded.files ??= manifest.version === version
+            ? this.generate(manifest.answers)
+            : this.generateWithRelease(manifest.version, manifest.answers);
+        const content: Buffer | undefined = (await files)?.get(relativePath);
+        // the manifest records what was generated, and this is that only when it hashes the same
+        return content != undefined && GitUtilities.resolveBlobHash(content) === recordedHash ? content : undefined;
     }
 
     private report(outcomes: [string, FileOutcome][]): void {

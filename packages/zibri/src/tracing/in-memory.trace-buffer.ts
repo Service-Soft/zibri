@@ -11,14 +11,13 @@ import { InternalError } from '../error-handling/internal-error.model';
  */
 const defaultTraceBufferSize: number = 1000;
 
+// a ring rather than a list that is trimmed: the oldest entry is overwritten in place, so recording
+// a span costs the same whether the buffer is empty or full and nothing is copied on the path of the
+// work being recorded
 /**
  * Keeps the most recent spans in this process, and nowhere else.
  *
- * A ring rather than a list that is trimmed: the oldest entry is overwritten in place, so recording
- * a span costs the same whether the buffer is empty or full and nothing is copied on the path of the
- * work being recorded.
- *
- * What it holds is a window rather than a history. At a few spans per request, a thousand of them is
+ * What it holds is a window, not a history. At a few spans per request, a thousand of them is
  * a few hundred requests - seconds of a busy service, minutes of a quiet one - so it answers what is
  * happening now. Anything that has to survive being asked about tomorrow belongs with an exporter.
  */

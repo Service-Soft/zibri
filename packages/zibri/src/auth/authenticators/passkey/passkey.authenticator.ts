@@ -1,13 +1,13 @@
 import { PasskeyAdditionRequest } from './passkey-addition-request.model';
 import { PasskeyCreationOptions } from './passkey-creation-options.model';
 import { PasskeyCredentials, PasskeyTicketCredentials } from './passkey-credentials.model';
+import { PasskeyLoginInput } from './passkey-login-input.model';
 import { PasskeyRegistrationInput } from './passkey-registration-input.model';
 import { PasskeyRegistrationRequest } from './passkey-registration-request.model';
 import { PasskeyRegistrationTicket } from './passkey-registration-ticket.model';
 import { PasskeyRegistration } from './passkey-registration.model';
 import { PasskeyRequestOptions } from './passkey-request-options.model';
 import { type PasskeyServiceInterface } from './passkey-service.interface';
-import { PasskeyLoginInput } from './passkey-login-input.model';
 import { Passkey } from './passkey.model';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { Inject } from '../../../di/decorators/inject.decorator';

@@ -232,6 +232,6 @@ describe('BackupService — encrypted backups', () => {
 
         // this one and the first, whose record the restores above put back as it was before its archive
         // key was written. What it needs was recorded when it was taken, so it is counted all the same
-        expect((await inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE).resolveRetiredKeyUsage()).masterKeys).toEqual([{ keyId: testMasterKey.id, dataKeys: 0, backups: 2 }]);
+        expect((await inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE).resolveRetiredKeyUsage()).masterKeys).toEqual([{ keyId: testMasterKey.id, dataKeys: 0, signingKeys: 0, backups: 2 }]);
     }, 30000);
 });

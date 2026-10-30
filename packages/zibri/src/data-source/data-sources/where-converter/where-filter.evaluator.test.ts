@@ -101,6 +101,16 @@ describe('WhereFilterEvaluator', () => {
             expect(matches({ name: null }, { name: { not: null } })).toBe(false);
         });
 
+        it('answers a list the caller changed in place since the last read by what it holds now', async () => {
+            const seen: string[] = [];
+            expect(matches({ name: 'a' }, { name: { notOneOf: seen } })).toBe(true);
+
+            seen.push('a');
+            await Promise.resolve();
+
+            expect(matches({ name: 'a' }, { name: { notOneOf: seen } })).toBe(false);
+        });
+
         it('oneOf', () => {
             expect(matches({ name: 'Alpha' }, { name: { oneOf: ['Alpha', 'Beta'] } })).toBe(true);
             expect(matches({ name: 'Gamma' }, { name: { oneOf: ['Alpha', 'Beta'] } })).toBe(false);
@@ -109,6 +119,11 @@ describe('WhereFilterEvaluator', () => {
         it('notOneOf', () => {
             expect(matches({ name: 'Gamma' }, { name: { notOneOf: ['Alpha'] } })).toBe(true);
             expect(matches({ name: 'Alpha' }, { name: { notOneOf: ['Alpha'] } })).toBe(false);
+        });
+
+        it('like takes one character for `_`, one outside the basic plane too', () => {
+            expect(matches({ name: 'a😀b' }, { name: { like: 'a_b' } })).toBe(true);
+            expect(matches({ name: 'a😀b' }, { name: { like: 'a\\😀b' } })).toBe(true);
         });
 
         it('like', () => {

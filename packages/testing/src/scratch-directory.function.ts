@@ -1,7 +1,14 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { defineProvider, DiProvider, FsPath, ZIBRI_DI_TOKENS } from 'zibri';
+
+/**
+ * A translation source with nothing in it: what the build writes for an application that marks no
+ * string for translation.
+ */
+const EMPTY_SOURCE_XLF: string = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    + '<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2"/>\n';
 
 /**
  * Where the scratch directories of a run are collected.
@@ -17,10 +24,8 @@ import { defineProvider, DiProvider, FsPath, ZIBRI_DI_TOKENS } from 'zibri';
 const scratchRoot: FsPath = path.join(process.cwd(), 'src', '__testing__', 'file-output') as FsPath;
 
 /**
- * Creates the directory one test server writes into.
- *
- * One per started server rather than one per run: two servers in the same file would otherwise read
- * back each other's route history, and a suite would start depending on the order it ran in.
+ * Creates the directory one test server writes into, one per started server: two servers in the
+ * same file do not read back each other's route history.
  * @returns The directory, which the caller owns and is responsible for removing.
  */
 export function createScratchDirectory(): FsPath {
@@ -30,15 +35,19 @@ export function createScratchDirectory(): FsPath {
     // than produced by a run, so the application refuses to start when it is missing instead of
     // treating the version it is on as the first that ever existed
     mkdirSync(path.join(scratchPath, 'versions'), { recursive: true });
+    // the translations a build would have written, with nothing in them: the localize service then
+    // starts the way it does in a deployment, reading the file, rather than warning on every boot
+    // that an application under test translates nothing
+    mkdirSync(path.join(scratchPath, 'translations'), { recursive: true });
+    writeFileSync(path.join(scratchPath, 'translations', 'source.xlf'), EMPTY_SOURCE_XLF);
     return scratchPath;
 }
 
 /**
  * Removes a scratch directory and everything a test server wrote into it.
  *
- * Called when the server shuts down, so a suite that ends normally leaves nothing behind. A run that
- * fails before it gets there leaves the directory where it is, which is the point of keeping it in
- * the project.
+ * Called when the server shuts down, and when its boot fails. A suite that never shuts its server
+ * down leaves the directory where it is.
  * @param scratchPath - The directory to remove.
  */
 export function removeScratchDirectory(scratchPath: FsPath): void {

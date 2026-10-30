@@ -1,15 +1,22 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 import { FederatedAnswerContext } from './federated-answer-context.model';
-import { FederatedAuthenticatorInterface, isFederatedAuthenticator } from './federated-authenticator.interface';
-import { FederatedCleanupCronJob } from './federated-cleanup.cron-job';
+import { FederatedAuthenticatorInterface } from './federated-authenticator.interface';
+import { FederatedBindingUtilities } from './federated-binding.utilities';
 import { FederatedConnectionCode, FederatedConnectionCodeCreateData } from './federated-connection-code.model';
 import { FederatedCredentials, FederatedHandoverCredentials, FederatedTicketCredentials } from './federated-credentials.model';
 import { FederatedHandoverCode, FederatedHandoverCodeCreateData } from './federated-handover-code.model';
 import { FederatedIdentity, FederatedIdentityCreateData } from './federated-identity.model';
 import { FederatedLinkIdentityRequest } from './federated-link-identity-request.model';
 import { FederatedLinkIdentityStart } from './federated-link-identity-start.model';
+import { FederatedLoginAction } from './federated-login-action.type';
 import { FederatedLoginAttempt, FederatedLoginAttemptCreateData } from './federated-login-attempt.model';
+import { FederatedLoginFailure } from './federated-login-failure.enum';
+import { FederatedLoginRequest } from './federated-login-request.model';
+import { FederatedLoginResult } from './federated-login-result.model';
+import { FederatedLoginStart } from './federated-login-start.model';
+import { FederatedLoginError } from './federated-login.error';
+import { FederatedLogin } from './federated-login.model';
 import { FederatedMetadata } from './federated-metadata.model';
 import { FederatedProviderIdentity } from './federated-provider-identity.model';
 import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model';
@@ -22,19 +29,10 @@ import { FederatedRouteEndpoint } from './federated-route-endpoint.model';
 import { FederatedRoute } from './federated-route.type';
 import { FederatedSessionMatch } from './federated-session-match.model';
 import { FederatedSession } from './federated-session.model';
-import { FederatedLoginAction } from './federated-login-action.type';
-import { FederatedLoginFailure } from './federated-login-failure.enum';
-import { FederatedLoginRequest } from './federated-login-request.model';
-import { FederatedLoginResult } from './federated-login-result.model';
-import { FederatedLoginStart } from './federated-login-start.model';
-import { FederatedLoginError } from './federated-login.error';
-import { FederatedLogin } from './federated-login.model';
 import { FederatedSoapLogout } from './federated-soap-logout.model';
 import { FederationOptions } from './federation-options.model';
 import { ProviderTokenGrant } from './provider-token-grant.model';
 import { ZibriApplication } from '../../../application/application';
-import { HttpRequestContext } from '../../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
 import { Repository } from '../../../data-source/repository/repository';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { UniqueConstraintViolationError } from '../../../data-source/unique-constraint-violation.error';
@@ -99,19 +97,9 @@ type FederatedGrantProofData = Pick<FederatedHandoverCodeCreateData, 'binding' |
 type FederatedSessionData = Pick<FederatedHandoverCodeCreateData, 'subjectKey' | 'sessionKey' | 'sessionLogout'>;
 
 /**
- * What the cookie a login is tied to the browser with is named, followed by the attempt's id.
- */
-const BINDING_COOKIE_PREFIX: string = 'zibri-federated-';
-
-/**
  * A PKCE challenge as S256 makes it: a sha256, in base64url without padding.
  */
 const CODE_CHALLENGE_PATTERN: RegExp = /^[\w-]{43}$/;
-
-/**
- * What a provider's name has to look like, since it is part of the urls of its routes.
- */
-const PROVIDER_NAME_PATTERN: RegExp = /^[\da-z-]+$/;
 
 /**
  * Authenticates a user by a login at a provider: the browser is sent there, and comes back with an
@@ -220,14 +208,10 @@ export abstract class BaseFederatedAuthenticator<
             FederatedConnectionCode
         );
         this.resolveOptions();
-        this.validateName(app);
         // the provider is sent to the routes of the auth controller the application declares, at its
         // path. None is no mistake yet: a subclass resolving urls of its own needs none, and the
         // application checks every url while it starts
         this.routesController = app.options.controllers.find(isAuthControllerClass);
-        if (!app.options.cronJobs.includes(FederatedCleanupCronJob)) {
-            app.options.cronJobs.push(FederatedCleanupCronJob);
-        }
     }
 
     /**
@@ -332,7 +316,7 @@ export abstract class BaseFederatedAuthenticator<
     /**
      * Sends a link requested with `requestLinkIdentity` on to the provider, and ties it to the browser.
      *
-     * The user is always asked to log in at the provider, rather than it reusing a session it has.
+     * The user is always asked to log in at the provider, even when it still has a session of theirs.
      * @param code - The one-time code of the connection.
      * @returns The url at the provider to send the browser to.
      * @throws FederatedLoginError when the code is unknown, spent or expired.
@@ -394,8 +378,8 @@ export abstract class BaseFederatedAuthenticator<
             throw new FederatedLoginError(FederatedLoginFailure.EXPIRED);
         }
         const action: FederatedLoginAction = attempt.userId == undefined ? AuditAction.LOGIN : AuditAction.IDENTITY_LINKED;
-        const bindingCookie: string = this.getBindingCookieName(attempt.id);
-        const binding: string | undefined = this.findCookie(bindingCookie);
+        const bindingCookie: string = FederatedBindingUtilities.getCookieName(attempt.id);
+        const binding: string | undefined = FederatedBindingUtilities.findCookie(bindingCookie);
         // a callback from another browser than the one the login started in is how an attacker logs
         // a victim into the attacker's own account: they send the victim the answer to their login.
         // For a connection, it is how they would link their own identity to the victim's account
@@ -409,7 +393,7 @@ export abstract class BaseFederatedAuthenticator<
 
         const failure: FederatedLoginFailure | undefined = this.findProviderFailure(answer);
         if (failure != undefined) {
-            this.clearCookie(bindingCookie);
+            FederatedBindingUtilities.clearCookie(bindingCookie);
             throw new FederatedLoginError(failure, { action });
         }
 
@@ -421,7 +405,7 @@ export abstract class BaseFederatedAuthenticator<
             action
         });
         if ('reauthenticate' in verified) {
-            this.clearCookie(bindingCookie);
+            FederatedBindingUtilities.clearCookie(bindingCookie);
             // a provider that ignored being asked once would be asked forever
             if (attempt.reauthenticate) {
                 throw new FederatedLoginError(FederatedLoginFailure.INVALID, { action });
@@ -446,7 +430,7 @@ export abstract class BaseFederatedAuthenticator<
         // for reading who logged in, which is done
         const tokens: ProviderTokenGrant | undefined = attempt.apiScopes.length ? login.tokens : undefined;
         if (attempt.userId != undefined) {
-            this.clearCookie(bindingCookie);
+            FederatedBindingUtilities.clearCookie(bindingCookie);
             await this.linkRequestedIdentity(attempt.userId, loggedIn, attempt.forLogin, tokens);
             return { type: 'linked', userId: attempt.userId, redirectTo: attempt.redirectTo };
         }
@@ -455,7 +439,7 @@ export abstract class BaseFederatedAuthenticator<
             : { binding: undefined, bindingCookie: undefined, codeChallenge: attempt.codeChallenge };
         if (attempt.codeChallenge != undefined) {
             // the frontend's verifier is the proof from here on
-            this.clearCookie(bindingCookie);
+            FederatedBindingUtilities.clearCookie(bindingCookie);
         }
 
         const session: FederatedSessionData = this.toSessionData(loggedIn, login.session);
@@ -516,7 +500,7 @@ export abstract class BaseFederatedAuthenticator<
             required: false
         });
         if (identity == undefined) {
-            throw new UnauthorizedError($ts`No user is linked to this login.`);
+            throw new FederatedLoginError(FederatedLoginFailure.NOT_LINKED);
         }
         await this.claim(async () => await this.registrationTicketRepository.updateById(
             ticket.id,
@@ -805,7 +789,8 @@ export abstract class BaseFederatedAuthenticator<
      * @returns Their identities here, of every other provider none.
      */
     protected async findOwnIdentitiesOf(userIds: string[], transaction: Transaction): Promise<FederatedIdentity[]> {
-        const identities: FederatedIdentity[] = await this.identityRepository.findAll({ where: { userId: { oneOf: userIds } }, transaction });
+        const identities: FederatedIdentity[] = await this.identityRepository
+            .findAll({ where: { userId: { oneOf: userIds } }, transaction });
         return identities.filter(identity => this.isOwnIssuer(identity.issuer));
     }
 
@@ -827,6 +812,18 @@ export abstract class BaseFederatedAuthenticator<
             throw new NotFoundError($ts`The user has no such identity at this provider.`);
         }
         return identity;
+    }
+
+    /**
+     * Whether an issuer is this provider: the issuer of an identity, or one a token or a logout names.
+     *
+     * Compared as urls: the issuer an identity is stored with is the one the provider publishes, which
+     * may differ from the configured one by a trailing slash.
+     * @param issuer - The issuer, a url.
+     * @returns True when it is this provider.
+     */
+    protected isOwnIssuer(issuer: string): boolean {
+        return new URL(issuer).href === new URL(this.issuer).href;
     }
 
     /**
@@ -929,8 +926,8 @@ export abstract class BaseFederatedAuthenticator<
         // a provider posting its answer does so from its own page, which is another site: a browser
         // sends a cookie along with that only when it is SameSite=None. The cookie still only counts
         // together with the state of the same attempt, which another site cannot make up
-        this.setBindingCookie(
-            this.getBindingCookieName(attempt.id),
+        FederatedBindingUtilities.setCookie(
+            FederatedBindingUtilities.getCookieName(attempt.id),
             binding,
             options.loginAttemptExpiresInMs,
             this.answersWithFormPost() ? 'none' : 'lax'
@@ -1003,7 +1000,7 @@ export abstract class BaseFederatedAuthenticator<
      */
     private validateForLogin(identity: FederatedIdentity, bindingCookie: string): void {
         if (!identity.forLogin) {
-            this.clearCookie(bindingCookie);
+            FederatedBindingUtilities.clearCookie(bindingCookie);
             throw new FederatedLoginError(FederatedLoginFailure.NOT_FOR_LOGIN);
         }
     }
@@ -1053,7 +1050,7 @@ export abstract class BaseFederatedAuthenticator<
         if (proof.bindingCookie != undefined && proof.binding != undefined) {
             // kept for as long as the registration may take, which is longer than the login. Lax
             // whichever way the provider answered: the registration is the application's own page
-            this.setBindingCookie(proof.bindingCookie, proof.binding, options.registrationTicketExpiresInMs, 'lax');
+            FederatedBindingUtilities.setCookie(proof.bindingCookie, proof.binding, options.registrationTicketExpiresInMs, 'lax');
         }
         return ticket;
     }
@@ -1091,18 +1088,6 @@ export abstract class BaseFederatedAuthenticator<
 
     private findScopesNotAllowed(scopes: string[]): string[] {
         return scopes.filter(scope => !this.apiScopes.includes(scope));
-    }
-
-    /**
-     * Whether an identity's issuer is this provider.
-     *
-     * Compared as urls: the issuer an identity is stored with is the one the provider publishes, which
-     * may differ from the configured one by a trailing slash.
-     * @param issuer - The issuer of an identity.
-     * @returns True when it is this provider.
-     */
-    private isOwnIssuer(issuer: string): boolean {
-        return new URL(issuer).href === new URL(this.issuer).href;
     }
 
     private async findHandoverCode(
@@ -1154,7 +1139,9 @@ export abstract class BaseFederatedAuthenticator<
             }
             return;
         }
-        const binding: string | undefined = grant.bindingCookie == undefined ? undefined : this.findCookie(grant.bindingCookie);
+        const binding: string | undefined = grant.bindingCookie == undefined
+            ? undefined
+            : FederatedBindingUtilities.findCookie(grant.bindingCookie);
         if (binding == undefined || grant.binding == undefined || !await this.hashService.equal(binding, grant.binding)) {
             throw new UnauthorizedError($ts`The login was started in another browser.`);
         }
@@ -1184,31 +1171,9 @@ export abstract class BaseFederatedAuthenticator<
     private async resolveUser(userId: string): Promise<UserType> {
         const user: UserType | undefined = await this.userService.findById<RoleType, UserType, false>(userId, { required: false });
         if (user == undefined) {
-            throw new UnauthorizedError($ts`No user is linked to this login.`);
+            throw new FederatedLoginError(FederatedLoginFailure.NOT_LINKED);
         }
         return user;
-    }
-
-    /**
-     * Refuses a name that cannot be part of a url, or that another provider already has.
-     * @param app - The application.
-     * @throws When the name is not usable.
-     */
-    private validateName(app: ZibriApplication): void {
-        if (!PROVIDER_NAME_PATTERN.test(this.name)) {
-            throw new InternalError(
-                `The name "${this.name}" of ${this.constructor.name} can only have lowercase letters, digits and dashes.`
-            );
-        }
-        const sharing: string[] = app.options.authenticators
-            .filter(authenticator => {
-                const instance: unknown = inject(authenticator);
-                return isFederatedAuthenticator(instance) && instance.name === this.name;
-            })
-            .map(authenticator => authenticator.name);
-        if (sharing.length > 1) {
-            throw new InternalError(`${sharing.join(', ')} share the name "${this.name}". Every provider needs a name of its own.`);
-        }
     }
 
     /**
@@ -1243,45 +1208,9 @@ export abstract class BaseFederatedAuthenticator<
         return left.length === right.length && timingSafeEqual(left, right);
     }
 
-    private getBindingCookieName(attemptId: string): string {
-        return `${BINDING_COOKIE_PREFIX}${attemptId}`;
-    }
-
-    private resolveHttpContext(): HttpRequestContext {
-        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
-        if (!(context instanceof HttpRequestContext)) {
-            throw new InternalError('A login at a provider runs inside an http request.');
-        }
-        return context;
-    }
-
-    private findCookie(name: string): string | undefined {
-        // eslint-disable-next-line typescript/no-unsafe-member-access
-        const value: unknown = this.resolveHttpContext().request.cookies?.[name];
-        return typeof value === 'string' ? value : undefined;
-    }
-
-    private setBindingCookie(name: string, value: string, maxAge: number, sameSite: 'lax' | 'none'): void {
-        const context: HttpRequestContext = this.resolveHttpContext();
-        // lax by default, which a browser still sends when the provider sends it back with a top level
-        // GET. A browser refuses SameSite=None on a cookie that is not secure
-        context.response.cookie(name, value, {
-            httpOnly: true,
-            sameSite,
-            secure: sameSite === 'none' || context.request.secure,
-            maxAge,
-            path: '/'
-        });
-    }
-
-    private clearCookie(name: string): void {
-        const context: HttpRequestContext = this.resolveHttpContext();
-        context.response.clearCookie(name, { httpOnly: true, sameSite: 'lax', secure: context.request.secure, path: '/' });
-    }
-
     private clearProofCookie(grant: FederatedGrantProof): void {
         if (grant.bindingCookie != undefined) {
-            this.clearCookie(grant.bindingCookie);
+            FederatedBindingUtilities.clearCookie(grant.bindingCookie);
         }
     }
 }

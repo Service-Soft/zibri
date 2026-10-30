@@ -2,7 +2,7 @@
  * Defines a transaction.
  *
  * The concrete shape of a transaction depends on the data source that started it,
- * eg. A TypeOrmTransaction holds a typeorm query runner while a ValKeyTransaction
+ * eg. A PostgresTransaction holds the connection it runs on while a ValKeyTransaction
  * buffers the commands until they are applied inside a single atomic batch.
  */
 export type Transaction = {

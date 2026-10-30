@@ -45,12 +45,11 @@ export namespace Auth {
      */
     export const require2fa: Require2faFn = require2faDecorator;
 
+    // the one place a public endpoint is declared rather than merely left undecorated
     /**
      * Skips all auth related validation, on a single route or on a whole controller.
      *
-     * This is also how a route opts out of an application wide `defaultAuth` of `'isLoggedIn'`,
-     * which is what makes it the one place a public endpoint is declared rather than merely left
-     * undecorated.
+     * This is also how a route opts out of an application wide `defaultAuth` of `'isLoggedIn'`.
      * @param options - Additional options for the skip.
      * @returns The decorator, usable on a route or on a controller.
      */

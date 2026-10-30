@@ -9,7 +9,6 @@ import { inject } from '../../di/inject.function';
 import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
 import { InjectionToken } from '../../di/models/injection-token.model';
 import { AfterAppInit } from '../../global/after-app-init.interface';
-import { LocalizeService } from '../../localization/localize.service';
 import { Ms } from '../../utilities/ms';
 import { compileTsxTemplate } from '../compile-tsx-template.function';
 import { testVersionsFolder } from '../constants';
@@ -84,18 +83,12 @@ export function rolesAndPermissionsProviders(
     ];
 }
 
-class TestLocalizeService extends LocalizeService {
-    override async onAppInit(): Promise<void> {
-        // do nothing
-    }
-}
-
 /**
  * What this repository's own test servers run with.
  *
- * The harness's defaults, plus the three things that are about *this* repository rather than about
- * running a Zibri application in a test: where its version folders and translations live, and a
- * password reset template compiled from a string instead of a file.
+ * The harness's defaults, plus what is about *this* repository rather than about running a Zibri
+ * application in a test: where its version folders live, a password reset template compiled from a
+ * string instead of a file, and its TypeScript worker files.
  */
 export const defaultTestServerProviders: DiProvider<unknown>[] = [
     ...defaultTestProviders,
@@ -113,9 +106,10 @@ export const defaultTestServerProviders: DiProvider<unknown>[] = [
         token: ZIBRI_DI_TOKENS.VERSIONS_PATH,
         useValue: testVersionsFolder
     }),
+    // the worker files of this repository's suites are TypeScript, run from the sources
     defineProvider({
-        token: ZIBRI_DI_TOKENS.LOCALIZE_SERVICE,
-        useClass: TestLocalizeService
+        token: ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS_INPUT,
+        useValue: { enableTsWorkerFiles: true }
     }),
     // what an application with websockets has to say, said once for the suites that only boot a
     // websocket controller. Here rather than in the harness's defaults: an application's own tests

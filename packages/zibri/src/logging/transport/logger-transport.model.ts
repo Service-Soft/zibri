@@ -5,6 +5,7 @@ import { LogBudget } from './log-budget';
 import { logToConsole } from './log-to-console.function';
 import { logToDb } from './log-to-db.function';
 import { createLogToEmail, EmailLoggerTransportConfig, EmailLoggerTransportConfigInput } from './log-to-email.function';
+import { logToJson } from './log-to-json.function';
 
 /**
  * Properties for a log email template.
@@ -13,9 +14,7 @@ export type LogEmailTemplateProps = {
     /**
      * The entries this email is reporting, oldest first.
      *
-     * A list rather than one entry, because one mail per entry is what turns a log storm into a mail
-     * storm. It holds at most `maxEntriesPerEmail` of them - the subject says how many there were
-     * in total.
+     * At most `maxEntriesPerEmail` of them - the subject says how many there were in total.
      */
     logs: Log[]
 };
@@ -42,15 +41,25 @@ export type BaseLoggerTransportConfig = {
      *
      * This is useful if the transport eg. Depends on a data source being available.
      */
-    register: 'directly' | 'afterStartup'
+    register: 'directly' | 'afterStartup',
+    /**
+     * The level of the entries of some origins, in place of `level`, keyed by a part of the path of
+     * the file that logs them, such as `'/services/payment'`. The longest key the path contains wins.
+     * @default undefined
+     */
+    levelsByOrigin?: Record<string, LogLevel>
 };
 
 /**
- * What a transport does with the entries it is given.
- *
- * A batch rather than one entry, because the logger buffers and therefore always has one - and a
- * transport handed them one at a time cannot do anything but one write per line. That is one INSERT
- * per log call on the way to the database and one queued mail per log call on the way to a mailbox.
+ * The options of a console or JSON logger transport.
+ */
+export type LoggerTransportOptions = Pick<BaseLoggerTransportConfig, 'levelsByOrigin'>;
+
+// A batch rather than one entry, because the logger buffers and therefore always has one - and a
+// transport handed them one at a time cannot do anything but one write per line. That is one INSERT
+// per log call on the way to the database and one queued mail per log call on the way to a mailbox.
+/**
+ * What a transport does with the entries it is given, a batch at a time.
  *
  * Only entries this transport's level admits are in the list, and it is never called with an empty
  * one. The order is the order they were logged.
@@ -66,7 +75,7 @@ export type LoggerTransportFlush = () => Promise<void>;
 /**
  * The options of a db logger transport.
  */
-export type DbLoggerTransportOptions = {
+export type DbLoggerTransportOptions = LoggerTransportOptions & {
     /**
      * How many entries a minute the transport writes as rows of their own, on this instance.
      *
@@ -100,6 +109,27 @@ export class LoggerTransport<T extends BaseLoggerTransportConfig> {
     }
 
     /**
+     * The lowest level this transport admits from any origin.
+     * @returns The level.
+     */
+    resolveLowestLevel(): LogLevel {
+        return Math.min(this.config.level, ...Object.values(this.config.levelsByOrigin ?? {}));
+    }
+
+    /**
+     * The level this transport admits from the given origin.
+     * @param origin - The path of the file that logs the entry.
+     * @returns The level of the longest key of `levelsByOrigin` the origin contains, or `level` without one.
+     */
+    resolveLevel(origin: string): LogLevel {
+        const levels: Record<string, LogLevel> = this.config.levelsByOrigin ?? {};
+        const key: string | undefined = Object.keys(levels)
+            .filter(k => origin.includes(k))
+            .sort((a, b) => b.length - a.length)[0];
+        return key == undefined ? this.config.level : levels[key] ?? this.config.level;
+    }
+
+    /**
      * Creates a new logger transport.
      * @param config - The configuration to be used by the transport.
      * @param send - What should happen when a new log should be send.
@@ -117,16 +147,31 @@ export class LoggerTransport<T extends BaseLoggerTransportConfig> {
     /**
      * Creates a new logger transport that prints the log to the terminal.
      * @param level - The log level at which the transport should be active.
+     * @param options - The levels of some origins.
      * @returns The newly created transport.
      */
-    static console(level: LogLevel): LoggerTransport<BaseLoggerTransportConfig> {
-        return this.create<BaseLoggerTransportConfig>({ level, name: 'ConsoleLoggerTransport', register: 'directly' }, logToConsole);
+    static console(level: LogLevel, options: LoggerTransportOptions = {}): LoggerTransport<BaseLoggerTransportConfig> {
+        return this.create<BaseLoggerTransportConfig>(
+            { ...options, level, name: 'ConsoleLoggerTransport', register: 'directly' },
+            logToConsole
+        );
+    }
+
+    /**
+     * Creates a new logger transport that writes the log to standard output as one JSON object per
+     * entry and line, which log collectors read.
+     * @param level - The log level at which the transport should be active.
+     * @param options - The levels of some origins.
+     * @returns The newly created transport.
+     */
+    static json(level: LogLevel, options: LoggerTransportOptions = {}): LoggerTransport<BaseLoggerTransportConfig> {
+        return this.create<BaseLoggerTransportConfig>({ ...options, level, name: 'JsonLoggerTransport', register: 'directly' }, logToJson);
     }
 
     /**
      * Creates a new logger transport that saves the log into the data source.
      * @param level - The log level at which the transport should be active.
-     * @param options - How many rows it writes.
+     * @param options - How many rows it writes, and the levels of some origins.
      * @returns The newly created transport.
      */
     static db(level: LogLevel, options: DbLoggerTransportOptions = {}): LoggerTransport<BaseLoggerTransportConfig> {
@@ -134,18 +179,16 @@ export class LoggerTransport<T extends BaseLoggerTransportConfig> {
         // rate. Per transport, for the reason the email transport keeps its throttle per transport
         const budget: LogBudget = new LogBudget(options.maxEntriesPerMinute ?? 1000, logToDb);
         return this.create<BaseLoggerTransportConfig>(
-            { level, name: 'DbLoggerTransport', register: 'afterStartup' },
+            { level, name: 'DbLoggerTransport', register: 'afterStartup', levelsByOrigin: options.levelsByOrigin },
             async logs => await budget.write(logs),
             async () => await budget.flush()
         );
     }
 
+    // the send is built per transport rather than shared, because throttling needs somewhere to
+    // remember when it last sent and how much it has swallowed since
     /**
      * Creates a new logger transport that sends the logs via email.
-     *
-     * The send is built per transport rather than shared, because throttling needs somewhere to
-     * remember when it last sent and how much it has swallowed since - and that belongs to this
-     * transport rather than to every transport at once.
      * @param config - The log level at which the transport should be active, and how much mail it may send.
      * @returns The newly created transport.
      */

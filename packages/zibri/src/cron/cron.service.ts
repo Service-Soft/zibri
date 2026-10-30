@@ -3,6 +3,7 @@ import { CreateCronJobEntityData, CronJobEntity } from './cron-job-entity.model'
 import { CronJob } from './cron-job.model';
 import { CronServiceInterface } from './cron-service.interface';
 import { CronSyncCronJob } from './cron-sync.cron-job';
+import { ExpiredRowsCleanupCronJob } from './expired-rows-cleanup.cron-job';
 import { ZibriApplication } from '../application/application';
 import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
@@ -71,6 +72,12 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         // asked for even without jobs to register here, because schedule can add one to a running
         // application - and that would otherwise be the first time anything needed the table
         validateEntitiesRegistered(CronService.name, app, CronJobEntity);
+        if (
+            !cronJobs.includes(ExpiredRowsCleanupCronJob)
+            && ExpiredRowsCleanupCronJob.hasExpiringEntities(inject(ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE).getDataSources())
+        ) {
+            cronJobs.push(ExpiredRowsCleanupCronJob);
+        }
         if (!cronJobs.length) {
             return;
         }

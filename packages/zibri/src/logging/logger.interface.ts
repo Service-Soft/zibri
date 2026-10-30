@@ -33,8 +33,7 @@ export interface LoggerInterface {
     /**
      * Waits until everything logged so far has reached the transports.
      *
-     * The logging methods above queue rather than write, so they return before anything has been
-     * persisted. Anything that has to see a log entry - a test asserting on it, a shutdown that must
+     * The logging methods above queue, so they return before anything has been persisted. Anything that has to see a log entry - a test asserting on it, a shutdown that must
      * not lose the reason it is shutting down - has to wait for this.
      */
     flush: () => Promise<void>

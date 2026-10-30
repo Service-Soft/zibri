@@ -184,6 +184,10 @@ describe('get / put / patch / delete / headers / query params / error handling',
             res.setHeader('x-response-token', `echo:${req.headers['x-request-token'] as string}`);
             res.json({ name: 'ok', value: 1 });
         });
+        app.options('/valid', (_req, res) => {
+            res.setHeader(KnownHeader.ALLOW, 'GET, DELETE, OPTIONS');
+            res.status(204).end();
+        });
         app.get('/error/json', (_req, res) => {
             res.status(500).json({ code: 'boom' });
         });
@@ -293,6 +297,36 @@ describe('get / put / patch / delete / headers / query params / error handling',
             responseHeaders: { 'x-response-token': { type: 'string' } }
         });
         expect(res.headers['x-response-token']).toBe('echo:my-token');
+    });
+
+    it('parses and validates the declared response headers without a declared body', async () => {
+        const res: HttpClientResponse<undefined, { [KnownHeader.CONTENT_LENGTH]: number }> = await http.get(`${baseUrl}/headers-echo`, {
+            responseHeaders: { [KnownHeader.CONTENT_LENGTH]: { type: 'number' } }
+        });
+        expect(res.headers[KnownHeader.CONTENT_LENGTH]).toBe(23);
+
+        await expect(http.get(`${baseUrl}/headers-echo`, { responseHeaders: { 'x-response-token': { type: 'number' } } }))
+            .rejects.toThrow('Could not validate response header "x-response-token"');
+    });
+
+    it('head() sends a HEAD request and hands back the headers without a body', async () => {
+        const res: HttpClientResponse<undefined, { 'x-response-token': string }> = await http.head(`${baseUrl}/headers-echo`, {
+            headers: { 'x-request-token': 'my-token' },
+            responseHeaders: { 'x-response-token': { type: 'string' } }
+        });
+        expect(res.status).toBe(200);
+        expect(res.headers['x-response-token']).toBe('echo:my-token');
+        expect(res.rawBody).toBeUndefined();
+    });
+
+    it('options() sends an OPTIONS request', async () => {
+        const res: HttpClientResponse = await http.options(`${baseUrl}/valid`);
+        expect(res.status).toBe(204);
+        expect(res.headers[KnownHeader.ALLOW]).toBe('GET, DELETE, OPTIONS');
+    });
+
+    it('refuses a TRACE request, which fetch cannot send', async () => {
+        await expect(http.request(HttpMethod.TRACE, `${baseUrl}/valid`, undefined, undefined)).rejects.toThrow('TRACE');
     });
 
     it('throws a HttpClientError with the parsed JSON body when the response is an error with a JSON body', async () => {

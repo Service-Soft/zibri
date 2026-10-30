@@ -3,6 +3,7 @@ import type { ClientAuth, Configuration, DiscoveryRequestOptions, IDToken, Serve
 
 import { OidcAuthenticationTime } from './oidc-authentication-time.type';
 import { OidcBearerTokens } from './oidc-bearer-tokens.model';
+import { OidcDiscoveryAtBoot } from './oidc-discovery-at-boot.type';
 import { ZibriApplication } from '../../../application/application';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
@@ -12,6 +13,7 @@ import { InternalError } from '../../../error-handling/internal-error.model';
 import { HttpMethod } from '../../../http/http-method.enum';
 import { type HttpClientInterface } from '../../../http-client/http-client.interface';
 import { $ts } from '../../../localization/translate.function';
+import { type LoggerInterface } from '../../../logging/logger.interface';
 import { JsonUtilities } from '../../../utilities/json.utilities';
 import { Ms } from '../../../utilities/ms';
 import { BaseUser } from '../../models/base-user.model';
@@ -22,6 +24,8 @@ import { JwtRemoteKeySet } from '../../strategies/jwt/jwt-remote-key-set.type';
 import { JwtUtilities } from '../../strategies/jwt/jwt.utilities';
 import { FederatedCredentials } from '../federated/federated-credentials.model';
 import { FederatedIdentity } from '../federated/federated-identity.model';
+import { FederatedLoginFailure } from '../federated/federated-login-failure.enum';
+import { FederatedLoginError } from '../federated/federated-login.error';
 import { FederatedProfile } from '../federated/federated-profile.model';
 import { FederatedProviderLogoutMessage } from '../federated/federated-provider-logout-message.model';
 import { FederatedProviderLogout } from '../federated/federated-provider-logout.model';
@@ -29,8 +33,6 @@ import { FederatedReauthentication } from '../federated/federated-reauthenticati
 import { FederatedRouteEndpoint } from '../federated/federated-route-endpoint.model';
 import { FederatedSessionMatch } from '../federated/federated-session-match.model';
 import { FederatedSession } from '../federated/federated-session.model';
-import { FederatedLoginFailure } from '../federated/federated-login-failure.enum';
-import { FederatedLoginError } from '../federated/federated-login.error';
 import { BaseOAuthAuthenticator } from '../oauth/base-oauth.authenticator';
 import { OAuthCodeExchange } from '../oauth/oauth-code-exchange.model';
 import { OAuthOfflineAccess } from '../oauth/oauth-offline-access.model';
@@ -43,11 +45,6 @@ import { ProviderToken } from '../provider-token.model';
  * The event a logout token carries, as OpenID Connect Back-Channel Logout 1.0 names it.
  */
 const BACK_CHANNEL_LOGOUT_EVENT: string = 'http://schemas.openid.net/event/backchannel-logout';
-
-/**
- * How long ago a logout token may have been issued, which is also how long one is remembered as taken.
- */
-const LOGOUT_TOKEN_MAX_AGE_IN_MS: number = Ms.MINUTE * 10;
 
 /**
  * Authenticates a user by a login at an OpenID Connect provider, which proves who logged in with a
@@ -73,6 +70,13 @@ export abstract class BaseOidcAuthenticator<
      */
     abstract readonly authenticationTime: OidcAuthenticationTime;
 
+    /**
+     * What happens when the provider's metadata cannot be read while the application starts:
+     * `required` stops the start, `whenReachable` starts with a warning while the provider cannot be
+     * reached, and reads it on the first login.
+     */
+    abstract readonly discoveryAtBoot: OidcDiscoveryAtBoot;
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly scopes: string[] = ['openid', 'email', 'profile'];
 
@@ -82,6 +86,12 @@ export abstract class BaseOidcAuthenticator<
      * another, such as Microsoft Entra ID.
      */
     readonly subjectClaim: string = 'sub';
+
+    /**
+     * How long ago a logout token the provider sends may have been issued, which is also how long one
+     * is remembered as taken. 10 minutes by default.
+     */
+    readonly logoutTokenMaxAgeInMs: number = Ms.MINUTE * 10;
 
     /**
      * The classes of authentication a login asks the provider for, as `acr_values`, such as one that
@@ -112,6 +122,10 @@ export abstract class BaseOidcAuthenticator<
         return inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
     }
 
+    private get oidcLogger(): LoggerInterface {
+        return inject(ZIBRI_DI_TOKENS.LOGGER);
+    }
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     get acceptsProviderTokens(): boolean {
         return this.bearerTokens != undefined;
@@ -127,7 +141,11 @@ export abstract class BaseOidcAuthenticator<
         ];
     }
 
-    override init(app: ZibriApplication): void {
+    // asynchronous although BaseOAuthAuthenticator declares init as void: AuthenticatorInterface
+    // declares it as `void | Promise<void>` and the auth service awaits it while the application boots,
+    // which is what lets the discovery at boot fail the boot
+    // eslint-disable-next-line typescript/no-misused-promises
+    override async init(app: ZibriApplication): Promise<void> {
         super.init(app);
         if (
             this.bearerTokens != undefined
@@ -139,6 +157,7 @@ export abstract class BaseOidcAuthenticator<
                 `${this.constructor.name} takes bearer tokens for no audience: name the api's in accessTokenAudiences, or the clients' in idTokenAudiences.`
             );
         }
+        await this.discoverAtBoot();
     }
 
     /**
@@ -156,11 +175,12 @@ export abstract class BaseOidcAuthenticator<
         }
         const metadata: ServerMetadata = (await this.resolveConfiguration()).serverMetadata();
         const keySet: JwtRemoteKeySet | undefined = this.resolveKeySet(metadata);
-        if (keySet == undefined) {
+        const issuer: string | undefined = this.findTokenIssuer(token);
+        if (keySet == undefined || issuer == undefined) {
             return undefined;
         }
         const verified: EncodedJwt<JWTPayload> | undefined = await JwtUtilities.verifyProviderToken(token, keySet, {
-            issuer: metadata.issuer,
+            issuer,
             audiences: [...bearerTokens.accessTokenAudiences, ...bearerTokens.idTokenAudiences],
             algorithms: this.allowedAlgorithms
         });
@@ -179,7 +199,7 @@ export abstract class BaseOidcAuthenticator<
         // the issuer identities are stored with is the one the ID token of the login named, which is
         // the one the token was verified against
         const identity: FederatedIdentity | undefined = await this.identityRepository.findOne({
-            where: { issuer: metadata.issuer, subject, forLogin: true },
+            where: { issuer, subject, forLogin: true },
             required: false
         });
         if (identity == undefined) {
@@ -237,7 +257,7 @@ export abstract class BaseOidcAuthenticator<
         }
         // the session alone: a front-channel logout names no user, and the page it is loaded in
         // carries the cookies of whoever is in the browser, which may be somebody else
-        if (issuer == undefined || !this.isOwnIssuerUrl(issuer) || sessionId == undefined) {
+        if (issuer == undefined || !URL.canParse(issuer) || !this.isOwnIssuer(issuer) || sessionId == undefined) {
             throw new BadRequestError($ts`The logout names another provider, or no session.`);
         }
         return {
@@ -260,13 +280,14 @@ export abstract class BaseOidcAuthenticator<
     override async resolveBackChannelLogout(token: string): Promise<FederatedSessionMatch> {
         const metadata: ServerMetadata = (await this.resolveConfiguration()).serverMetadata();
         const keySet: JwtRemoteKeySet | undefined = this.resolveKeySet(metadata);
-        const payload: JWTPayload | undefined = keySet == undefined
+        const issuer: string | undefined = this.findTokenIssuer(token);
+        const payload: JWTPayload | undefined = keySet == undefined || issuer == undefined
             ? undefined
             : await JwtUtilities.verifyLogoutToken(token, keySet, {
-                issuer: metadata.issuer,
+                issuer,
                 audiences: [this.clientId],
                 algorithms: this.allowedAlgorithms,
-                maxAgeInMs: LOGOUT_TOKEN_MAX_AGE_IN_MS
+                maxAgeInMs: this.logoutTokenMaxAgeInMs
             });
         const events: unknown = payload?.['events'];
         const sessionId: unknown = payload?.['sid'];
@@ -332,6 +353,47 @@ export abstract class BaseOidcAuthenticator<
     }
 
     /**
+     * Reads the provider's metadata while the application starts, so a wrong `issuer` or a provider
+     * that cannot be reached is found by the deployment rather than by the first user.
+     * @throws InternalError when it cannot be read, unless `discoveryAtBoot` lets a provider that cannot
+     * be reached by.
+     */
+    private async discoverAtBoot(): Promise<void> {
+        try {
+            await this.resolveConfiguration();
+        }
+        catch (error) {
+            if (this.discoveryAtBoot === 'whenReachable' && this.isUnreachable(error)) {
+                this.oidcLogger.warn(
+                    `${this.constructor.name} could not reach its provider at ${this.issuer}, and reads its metadata on the first login.`,
+                    { error }
+                );
+                return;
+            }
+            throw new InternalError(
+                `${this.constructor.name} could not read the metadata of its provider at ${this.issuer}.`,
+                { cause: error }
+            );
+        }
+    }
+
+    /**
+     * Whether reading the metadata failed because the provider could not be reached, rather than
+     * because it answered with something other than its metadata.
+     * @param error - What reading it threw.
+     * @returns True for a failed connection, a timeout, or an answer of the provider's server failing.
+     */
+    private isUnreachable(error: unknown): boolean {
+        const client: OpenIdClient = this.resolveOpenIdClient();
+        if (!(error instanceof client.ClientError)) {
+            return true;
+        }
+        // the answer openid-client found wrong rides along: a server error is an outage, any other
+        // answer is a provider saying something about the url, such as a 404 for a wrong issuer
+        return error.code === 'OAUTH_RESPONSE_IS_NOT_CONFORM' && error.cause instanceof Response && error.cause.status >= 500;
+    }
+
+    /**
      * Reads how the user proved who they are at the provider, off the `amr` and `acr` claims.
      * @param claims - The verified claims of a token.
      * @returns What they say, or undefined when the token carries neither.
@@ -370,6 +432,11 @@ export abstract class BaseOidcAuthenticator<
         // a token without the claim the identity is known by names nobody
         if (claims == undefined || subject == undefined || !this.isSignedWithAllowedAlgorithm(tokens.id_token)) {
             throw new FederatedLoginError(FederatedLoginFailure.INVALID, { action: exchange.action });
+        }
+        // verified already against the provider's issuer, which for a multi-tenant endpoint is every
+        // tenant's: which of them log in is the application's to say
+        if (!this.isOwnIssuer(claims.iss)) {
+            throw new FederatedLoginError(FederatedLoginFailure.REFUSED, { action: exchange.action });
         }
         const authenticatedAt: Date | FederatedReauthentication = this.resolveAuthenticatedAt(claims, exchange);
         if ('reauthenticate' in authenticatedAt) {
@@ -504,7 +571,7 @@ export abstract class BaseOidcAuthenticator<
      */
     private async spendLogoutToken(jti: string): Promise<void> {
         const first: boolean | undefined = await this.leaseService.withLease(
-            { key: `logout-token:${this.name}:${jti}`, leaseInMs: LOGOUT_TOKEN_MAX_AGE_IN_MS, mode: 'skip', onCompletion: 'retain' },
+            { key: `logout-token:${this.name}:${jti}`, leaseInMs: this.logoutTokenMaxAgeInMs, mode: 'skip', onCompletion: 'retain' },
             () => Promise.resolve(true)
         );
         if (first !== true) {
@@ -513,11 +580,16 @@ export abstract class BaseOidcAuthenticator<
     }
 
     /**
-     * Whether an issuer a logout names is this provider, compared as urls like an identity's issuer.
-     * @param issuer - The issuer named.
-     * @returns True when it is this provider.
+     * The issuer a token of the provider names, when it is this provider.
+     *
+     * Read before the token is verified, to know which issuer to verify it against, which the
+     * verification then holds it to: a multi-tenant endpoint names a template rather than an issuer.
+     * @param token - The token.
+     * @returns The issuer, or undefined when the token names none, or another.
      */
-    private isOwnIssuerUrl(issuer: string): boolean {
-        return URL.canParse(issuer) && new URL(issuer).href === new URL(this.issuer).href;
+    private findTokenIssuer(token: string): string | undefined {
+        const payload: unknown = JwtUtilities.findUnverifiedPayload(token);
+        const issuer: unknown = typeof payload === 'object' && payload != undefined && 'iss' in payload ? payload.iss : undefined;
+        return typeof issuer === 'string' && URL.canParse(issuer) && this.isOwnIssuer(issuer) ? issuer : undefined;
     }
 }

@@ -19,7 +19,7 @@ export class RemoveCommand extends RegeneratingCommand<FeatureChange> {
         const { dependencies, devDependencies }: ScaffoldDependencies = ScaffoldUtilities.resolveFeatureDependencies(changed);
         const packages: string[] = [...dependencies, ...devDependencies].map(spec => this.resolvePackageName(spec));
         if (packages.length) {
-            await CPUtilities.exec(`cd ${projectPath} && npm uninstall ${packages.join(' ')}`);
+            await CPUtilities.exec(`cd "${projectPath}" && npm uninstall ${packages.join(' ')}`);
         }
     }
 

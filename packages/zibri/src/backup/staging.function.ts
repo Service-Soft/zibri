@@ -70,6 +70,22 @@ export async function stage(data: Readable, p: FsPath, transform?: StagingTransf
 }
 
 /**
+ * Measures a file that was staged, the way staging measured it.
+ * @param p - The file.
+ * @returns What it holds.
+ */
+export async function resolveStagedDigest(p: FsPath): Promise<BackupDigest> {
+    const digest: Hash = createHash(BACKUP_CHECKSUM_ALGORITHM);
+    let size: number = 0;
+    for await (const chunk of FsUtilities.createReadStream(p)) {
+        const buffer: Buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+        digest.update(buffer);
+        size += buffer.length;
+    }
+    return { checksum: digest.digest('hex'), size };
+}
+
+/**
  * Reads a file that is still being written, from its start to wherever the writer stops.
  *
  * What lets a backup be stored and sent at the same time without either pacing the other. Piping one

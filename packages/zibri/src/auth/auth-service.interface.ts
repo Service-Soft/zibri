@@ -4,25 +4,23 @@ import { Newable } from '../types/newable.type';
 import { TwoFactorMethod } from './2fa/methods/two-factor-method.interface';
 import { AuthenticatorInterface } from './authenticators/authenticator.interface';
 import { Authenticators } from './authenticators/authenticators.model';
-import { LinkIdentityConfirmingAuthenticatorInterface } from './authenticators/link-identity-confirming-authenticator.interface';
+import { type FederatedAuthenticatorClass } from './authenticators/federated/federated-route.utilities';
 import { FederatedSessionMatch } from './authenticators/federated/federated-session-match.model';
 import { IdentityLinkingAuthenticatorInterface } from './authenticators/identity-linking-authenticator.interface';
 import { IdentityLinkingAuthenticators } from './authenticators/identity-linking-authenticators.model';
+import { LinkIdentityConfirmingAuthenticatorInterface } from './authenticators/link-identity-confirming-authenticator.interface';
 import { LinkedIdentity } from './authenticators/linked-identity.model';
+import { ChangePasswordData } from './authenticators/password/change-password-data.model';
 import { ConfirmPasswordResetData } from './authenticators/password/confirm-password-reset-data.model';
 import { RequestPasswordResetData } from './authenticators/password/request-password-reset-data.model';
 import { type CurrentUser } from './decorators/current-user.decorator';
 import { BaseUser } from './models/base-user.model';
-import { HasPermissionMetadata } from './models/has-permission-metadata.model';
-import { IsLoggedInMetadata } from './models/is-logged-in-metadata.model';
-import { IsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model';
 import { LogoutResult } from './models/logout-result.model';
-import { Require2faMetadata } from './models/require-2fa-metadata.model';
-import { ResolvedRouteAuth } from './models/resolved-auth-metadata.model';
 import { RouteAuthConfiguration } from './models/route-auth-configuration.model';
+import { UserLogin } from './models/user-login.model';
 import { type Permission } from './roles/permission.type';
 import { type PlatformPermission } from './roles/platform-permission.type';
-import { RoleLevel } from './roles/role-level.type';
+import { BaseEntity } from '../entity/base-entity.model';
 import { ApiKeyClientAuthentication } from './strategies/api-key/api-key-client-authentication.model';
 import { ApiKeyCreateData } from './strategies/api-key/api-key-create-data.model';
 import { ApiKey } from './strategies/api-key/api-key.model';
@@ -33,7 +31,6 @@ import { LoginAuthStrategyInterface } from './strategies/login-auth-strategy.int
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { Transaction } from '../data-source/transaction/transaction.model';
-import { BaseEntity } from '../entity/base-entity.model';
 
 /**
  * Interface for an auth service.
@@ -54,6 +51,10 @@ export interface AuthServiceInterface {
      * The different authenticators provided.
      */
     readonly authenticators: Authenticators,
+    /**
+     * Finds the registered authenticator that logs users in at the provider of the given name.
+     */
+    findFederatedAuthenticator: (provider: string) => FederatedAuthenticatorClass | undefined,
     /**
      * Checks if the provided method on the provided controller can be accessed by the current user.
      */
@@ -80,6 +81,11 @@ export interface AuthServiceInterface {
         context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies
     ) => Promise<boolean>,
+    /**
+     * Resolves whether a check or the handler of this request found out which user sent it, which is
+     * what makes an answer depend on who asked. Resolves no user itself.
+     */
+    resolveIsCallerIdentified: (context: HttpRequestContext | WebsocketRequestContext) => Promise<boolean>,
     /**
      * Checks whether one of the roles the currently logged in user holds in the active tenant, through
      * their membership in it, carries the provided permission.
@@ -114,12 +120,12 @@ export interface AuthServiceInterface {
      */
     resolveUserPermissions: (user: BaseUser<string>, tenantId: string | undefined) => Promise<(Permission | PlatformPermission)[]>,
     /**
-     * Gets the membership the currently logged in user acts through in the active tenant, without its
-     * roles: what they let the caller do, narrowed to what the credential of the request may use, is
-     * in the `permissions` of {@link AuthServiceInterface.getCurrentUser}.
+     * Resolves the membership the currently logged in user acts through in the active tenant, without
+     * its roles: what they let the caller do, narrowed to what the credential of the request may use,
+     * is in the `permissions` of {@link AuthServiceInterface.resolveCurrentUser}.
      * @throws A ForbiddenError when it is required and there is none.
      */
-    getCurrentMembership: <Role extends string, MembershipType extends BaseMembership<Role>, B extends boolean = true>(
+    resolveCurrentMembership: <Role extends string, MembershipType extends BaseMembership<Role>, B extends boolean = true>(
         context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies,
         required: B
@@ -139,91 +145,10 @@ export interface AuthServiceInterface {
      */
     resolveCredentialExpiry: (context: HttpRequestContext | WebsocketRequestContext) => Promise<Date | undefined>,
     /**
-     * Checks whether reaching the provided method on the provided controller requires an
-     * authenticated caller - including when it requires one only because the application declared
-     * `defaultAuth: 'isLoggedIn'` and the route says nothing itself.
-     */
-    requiresAuthentication: (
-        controllerClass: Newable<unknown>,
-        controllerMethod: string
-    ) => boolean | Promise<boolean>,
-    /**
-     * Checks whether reaching a manually registered route requires an authenticated caller -
-     * including when it requires one only because the application declared
-     * `defaultAuth: 'isLoggedIn'` and the route states nothing itself.
-     */
-    requiresRouteAuthentication: (auth: RouteAuthConfiguration | undefined) => boolean,
-    /**
-     * Refuses what a manually registered route states about who may reach it when it names a
-     * permission that is not declared. Called while the route is registered.
-     * @throws An InternalError naming the route and what it names.
-     */
-    validateRouteAuth: (auth: RouteAuthConfiguration | undefined, route: string) => void,
-    /**
-     * Refuses a permission that is not declared at a level in `ZIBRI_DI_TOKENS.PERMISSIONS`, for
-     * anything naming one outside a route. Called while the application starts.
-     * @param level - The level the permission is checked at.
-     * @param permission - The permission.
-     * @param usedBy - What names it, for the error.
-     * @throws An InternalError naming both.
-     */
-    validatePermissionIsDeclared: (level: RoleLevel, permission: string, usedBy: string) => void,
-    /**
      * Refuses permissions a credential cannot list, such as those of a new api key.
      * @throws A BadRequestError when a permission is declared at neither level.
      */
     validatePermissions: (permissions: string[]) => void,
-    /**
-     * Resolves everything the \@Auth decorators of the provided controller method and its controller
-     * mean for a caller, the application wide default included.
-     *
-     * Called while the route is registered - resolving a declaration is where an impossible one is
-     * refused and where the "Useless @Auth.skip" warnings come from, and both belong to booting.
-     * Whoever serves a request reads the answer back out of the route registry instead.
-     */
-    resolveRouteAuth: (
-        controllerClass: Newable<unknown>,
-        controllerMethod: string
-    ) => ResolvedRouteAuth,
-    /**
-     * Resolves the is logged in metadata for the provided controller method.
-     * (Whether it's required to be logged in, etc.).
-     */
-    resolveIsLoggedInMetadata: (
-        controllerClass: Newable<unknown>,
-        controllerMethod: string
-    ) => IsLoggedInMetadata | undefined | Promise<IsLoggedInMetadata | undefined>,
-    /**
-     * Resolves the is not logged in metadata for the provided controller method.
-     * (Whether it's required to be logged out, etc.).
-     */
-    resolveIsNotLoggedInMetadata: (
-        controllerClass: Newable<unknown>,
-        controllerMethod: string
-    ) => IsNotLoggedInMetadata | undefined | Promise<IsNotLoggedInMetadata | undefined>,
-    /**
-     * Resolves the has permission metadata for the provided controller method.
-     * @throws When the permission it names is not declared.
-     */
-    resolveHasPermissionMetadata: (
-        controllerClass: Newable<unknown>,
-        controllerMethod: string
-    ) => HasPermissionMetadata<Permission> | undefined | Promise<HasPermissionMetadata<Permission> | undefined>,
-    /**
-     * Resolves the has platform permission metadata for the provided controller method.
-     * @throws When the permission it names is not declared.
-     */
-    resolveHasPlatformPermissionMetadata: (
-        controllerClass: Newable<unknown>,
-        controllerMethod: string
-    ) => HasPermissionMetadata<PlatformPermission> | undefined | Promise<HasPermissionMetadata<PlatformPermission> | undefined>,
-    /**
-     * Resolves the require 2fa metadata for the provided controller method.
-     */
-    resolveRequire2faMetadata: (
-        controllerClass: Newable<unknown>,
-        controllerMethod: string
-    ) => Require2faMetadata | undefined | Promise<Require2faMetadata | undefined>,
     /**
      * Authenticates the provided credentials with the provided authenticator, and starts a login of
      * the provided auth strategy for the user they belong to.
@@ -268,7 +193,12 @@ export interface AuthServiceInterface {
         TwoFactorRegistrationRequestResult
     >(
         ticket: string,
-        method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, TwoFactorRegistrationRequestResult, unknown>,
+        method: TwoFactorMethod<
+            TwoFactorRegistrationRequestData,
+            TwoFactorRegistrationConfirmData,
+            TwoFactorRegistrationRequestResult,
+            unknown
+        >,
         data: TwoFactorRegistrationRequestData
     ) => Promise<TwoFactorRegistrationRequestResult>,
     /**
@@ -477,11 +407,11 @@ export interface AuthServiceInterface {
         transaction: Transaction | undefined
     ) => Promise<UserType>,
     /**
-     * Gets the currently logged in user, without their roles and with the permissions the request
+     * Resolves the currently logged in user, without their roles and with the permissions the request
      * may use, in the active tenant and of their own. When required is set to false this can return
      * undefined.
      */
-    getCurrentUser: <
+    resolveCurrentUser: <
         Role extends string,
         UserType extends BaseUser<Role>,
         B extends boolean = true
@@ -497,6 +427,15 @@ export interface AuthServiceInterface {
         data: RequestPasswordResetData<Role, UserType>
     ) => Promise<void>,
     /**
+     * Mails whoever holds the provided address a link to reset their password with, and records the
+     * request in the audit trail.
+     *
+     * Resolves once the address is looked up, whether or not anybody holds it. The link and its mail
+     * follow in the background, so the time it takes says nothing about the address, and a shutdown
+     * waits for them.
+     */
+    requestPasswordResetForEmail: (email: string) => Promise<void>,
+    /**
      * Whether a reset link still resets a password: its token is known, has not expired, and its user
      * still exists.
      */
@@ -509,6 +448,35 @@ export interface AuthServiceInterface {
      * Ends every login of the provided user, in every auth strategy.
      */
     endLogins: (userId: string, transaction: Transaction | undefined) => Promise<void>,
+    /**
+     * Finds the live logins of a user, in every strategy that lists them, the most recently used
+     * first. With the request asking, the login it carries is marked `current`.
+     */
+    findLogins: (
+        userId: string,
+        context: HttpRequestContext | WebsocketRequestContext | undefined,
+        transaction: Transaction | undefined
+    ) => Promise<UserLogin[]>,
+    /**
+     * Ends one login of a user, by the id `findLogins` lists it with, and records it.
+     * @throws A NotFoundError when the user has no such login.
+     */
+    endLogin: (userId: string, loginId: string, transaction: Transaction | undefined) => Promise<void>,
+    /**
+     * Ends every login of a user in every auth strategy, as `endLogins` does, and records it as asked
+     * for by the user.
+     */
+    endOwnLogins: (userId: string, transaction: Transaction | undefined) => Promise<void>,
+    /**
+     * Sets a new password for a user who knows the current one, ends every other login of theirs and
+     * records it. With the request asking, the login it carries stays.
+     * @throws A ForbiddenError when the current password is wrong.
+     */
+    changePassword: (
+        userId: string,
+        data: ChangePasswordData,
+        context: HttpRequestContext | WebsocketRequestContext | undefined
+    ) => Promise<void>,
     /**
      * Ends the logins started from a session at a provider, in every auth strategy, once the user
      * logged out there.

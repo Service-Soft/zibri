@@ -7,16 +7,7 @@ import { IsRequiredValidationProblem,
     TypeMismatchValidationProblem } from './validation-problem.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { BelongsToOnePropertyMetadata } from '../entity/models/belongs-to-one-property-metadata.model';
-import { HasOnePropertyMetadata } from '../entity/models/has-one-property-metadata.model';
-import { ManyToManyPropertyMetadata } from '../entity/models/many-to-many-property-metadata.model';
-import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property-metadata.model';
-import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model';
-import { Relation } from '../entity/models/relation.enum';
 import { MimeType } from '../http/mime-type.enum';
-
-class TargetEntity extends BaseEntity {}
 
 describe('validation problems', () => {
     let server: StartedTestServer;
@@ -63,98 +54,11 @@ describe('validation problems', () => {
         expect(problem.message).toContain(MimeType.PNG);
     });
 
-    describe('RelationsNotAllowedValidationProblem example generation', () => {
-        it('produces an object-shaped example for many-to-one relations, using the target entity name', () => {
-            const metadata: ManyToOnePropertyMetadata<BaseEntity> = {
-                type: Relation.MANY_TO_ONE,
-                target: () => TargetEntity,
-                inverseSide: 'id',
-                joinColumn: 'targetId',
-                cascade: false,
-                required: true,
-                description: undefined,
-                exclude: false,
-                excludeFromChangeSets: false
-            };
-            const problem: RelationsNotAllowedValidationProblem = new RelationsNotAllowedValidationProblem('target', metadata, 'target');
-
-            expect(problem.message).toContain('TargetEntityCreateDto');
-            expect(problem.message).toContain('@Property.object');
-            expect(problem.message).not.toContain('targetCreateDto');
-        });
-
-        it('produces an object-shaped example for has-one relations', () => {
-            const metadata: HasOnePropertyMetadata<BaseEntity> = {
-                type: Relation.HAS_ONE,
-                target: () => TargetEntity,
-                inverseSide: 'id',
-                cascade: false,
-                deletedRows: 'refuse',
-                required: true,
-                description: undefined,
-                exclude: false,
-                excludeFromChangeSets: false
-            };
-            const problem: RelationsNotAllowedValidationProblem = new RelationsNotAllowedValidationProblem('target', metadata, 'target');
-
-            expect(problem.message).toContain('TargetEntityCreateDto');
-            expect(problem.message).toContain('@Property.object');
-        });
-
-        it('produces an object-shaped example for belongs-to-one relations', () => {
-            const metadata: BelongsToOnePropertyMetadata<BaseEntity> = {
-                type: Relation.BELONGS_TO_ONE,
-                target: () => TargetEntity,
-                inverseSide: 'id',
-                joinColumn: 'targetId',
-                cascade: false,
-                required: true,
-                description: undefined,
-                exclude: false,
-                excludeFromChangeSets: false
-            };
-            const problem: RelationsNotAllowedValidationProblem = new RelationsNotAllowedValidationProblem('target', metadata, 'target');
-
-            expect(problem.message).toContain('TargetEntityCreateDto');
-            expect(problem.message).toContain('@Property.object');
-        });
-
-        it('produces an array-shaped example for one-to-many relations, using the target entity name', () => {
-            const metadata: OneToManyPropertyMetadata<BaseEntity> = {
-                type: Relation.ONE_TO_MANY,
-                target: () => TargetEntity,
-                inverseSide: 'id',
-                cascade: false,
-                deletedRows: 'refuse',
-                required: true,
-                description: undefined,
-                exclude: false,
-                excludeFromChangeSets: false
-            };
-            const problem: RelationsNotAllowedValidationProblem = new RelationsNotAllowedValidationProblem('targets', metadata, 'targets');
-
-            expect(problem.message).toContain('TargetEntityCreateDto[]');
-            expect(problem.message).toContain('@Property.array');
-            expect(problem.message).not.toContain('targetsCreateDto');
-        });
-
-        it('produces an array-shaped example for many-to-many relations', () => {
-            const metadata: ManyToManyPropertyMetadata<BaseEntity> = {
-                type: Relation.MANY_TO_MANY,
-                target: () => TargetEntity,
-                inverseSide: 'id',
-                joinTable: true,
-                persistence: true,
-                cascade: false,
-                required: true,
-                description: undefined,
-                exclude: false,
-                excludeFromChangeSets: false
-            };
-            const problem: RelationsNotAllowedValidationProblem = new RelationsNotAllowedValidationProblem('targets', metadata, 'targets');
-
-            expect(problem.message).toContain('TargetEntityCreateDto[]');
-            expect(problem.message).toContain('@Property.array');
-        });
+    // part of evaluation round 2, 03 §H7: it carried a TypeScript example naming the entity's classes,
+    // which reached every caller
+    it('RelationsNotAllowedValidationProblem says that a relation cannot be written, and nothing more', () => {
+        const problem: RelationsNotAllowedValidationProblem = new RelationsNotAllowedValidationProblem('target');
+        expect(problem.key).toBe('target');
+        expect(problem.message).toBe('relations are not allowed as part of create or update data.');
     });
 });

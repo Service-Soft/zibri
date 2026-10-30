@@ -9,6 +9,7 @@ import { type RolesChangedEventData } from '../../event/roles-changed-event-data
  */
 export class RoleEventWriteObserver implements EntityWriteObserver {
     // where a role is held, of a write to every role a filter matches
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly properties: string[] = ['tenantId'];
 
     constructor(private readonly type: EventTypeFor<RolesChangedEventData>) {}

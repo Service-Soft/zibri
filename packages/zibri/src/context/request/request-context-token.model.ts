@@ -52,8 +52,7 @@ export const ZIBRI_REQUEST_CONTEXT_TOKENS = {
      *
      * Read off the headers, where the trace context middleware wrote the resolved context - so a
      * trace this application started reads the same as one it was handed. A websocket request has
-     * none: the trace it belongs to is established around the handler rather than carried per
-     * message, and `TracingUtilities.getCurrentTraceContext()` is what reads it there.
+     * none: `TracingUtilities.getCurrentTraceContext()` reads the trace of its handler.
      */
     TRACE_CONTEXT: new RequestContextToken<TraceSpanContext | undefined>(
         'trace_context',
@@ -64,7 +63,7 @@ export const ZIBRI_REQUEST_CONTEXT_TOKENS = {
         async ctx => {
             const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
             if (!ctx.controllerClass || !ctx.controllerMethod) {
-                return await authService.getCurrentUser(ctx, authService.strategies, false);
+                return await authService.resolveCurrentUser(ctx, authService.strategies, false);
             }
 
             const currentUserMetadata: CurrentUserMetadata | undefined = RouteRegistry.get(
@@ -72,7 +71,7 @@ export const ZIBRI_REQUEST_CONTEXT_TOKENS = {
                 ctx.controllerMethod
             ).params.currentUser;
 
-            return await authService.getCurrentUser(
+            return await authService.resolveCurrentUser(
                 ctx,
                 currentUserMetadata?.allowedStrategies ?? authService.strategies,
                 currentUserMetadata?.required ?? false

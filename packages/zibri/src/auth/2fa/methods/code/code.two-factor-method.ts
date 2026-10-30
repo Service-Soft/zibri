@@ -1,6 +1,5 @@
 import { randomInt, timingSafeEqual } from 'node:crypto';
 
-import { TwoFactorCodeCleanupCronJob } from './two-factor-code-cleanup.cron-job';
 import { TwoFactorCodeCredentials, TwoFactorCodeCredentialsCreateData } from './two-factor-code-credentials.model';
 import { TwoFactorCodeOptions } from './two-factor-code-options.model';
 import { TwoFactorCode, TwoFactorCodeCreateData } from './two-factor-code.model';
@@ -19,6 +18,7 @@ import { ForbiddenError } from '../../../../error-handling/errors/forbidden.erro
 import { TooManyRequestsError } from '../../../../error-handling/errors/too-many-requests.error';
 import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error';
 import { InternalError } from '../../../../error-handling/internal-error.model';
+import { findHeader } from '../../../../http/find-header.function';
 import { $ts } from '../../../../localization/translate.function';
 import { RateLimitResult } from '../../../../rate-limiting/rate-limit-result.model';
 import { RateLimitStateEntity } from '../../../../rate-limiting/stores/rate-limit-state-entity.model';
@@ -105,9 +105,6 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
             if (value != undefined && (!Number.isInteger(value) || value <= 0)) {
                 throw new InternalError(`TWO_FACTOR_CODE_OPTIONS.${name} must be a whole number above 0, got ${value}.`);
             }
-        }
-        if (!app.options.cronJobs.includes(TwoFactorCodeCleanupCronJob)) {
-            app.options.cronJobs.push(TwoFactorCodeCleanupCronJob);
         }
     }
 
@@ -248,7 +245,7 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
 
     private extractCodeFromRequestContext(context: HttpRequestContext | WebsocketRequestContext): string {
         const header: string = this.resolveHeader();
-        const code: string | undefined = context.request.headers?.[header];
+        const code: string | undefined = findHeader(context.request.headers, header);
         if (!code) {
             throw new UnauthorizedError($ts`"${header}" header not found`);
         }
@@ -271,6 +268,7 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
     /**
      * Deletes the credentials that match, and the codes that were sent for them.
      * @param where - Which credentials.
+     * @param transaction - The transaction to delete in, if any.
      */
     private async deleteCredentials(where: Where<TwoFactorCodeCredentials>, transaction: Transaction | undefined): Promise<void> {
         const credentials: TwoFactorCodeCredentials[] = await this.credentialsRepository.findAll({ where, transaction });

@@ -81,11 +81,13 @@ describe('NewCommand', () => {
 
         const dockerfile: string = await FsUtilities.readFile(path.join(workDir, 'api', 'Dockerfile') as Path);
         // the target of every line handing something to the run user. The bundle and its dependencies
-        // stay the build's, so the process cannot change the code it runs
+        // stay the build's, so the process cannot change the code it runs. "versions" is only read in
+        // production (03 §H14), so it stays the build's too
         const owned: string[] = dockerfile.split('\n')
             .filter(line => line.includes('chown'))
-            .map(line => line.trim().split(/\s+/).at(-1) ?? '');
-        expect(owned).toStrictEqual(['./versions', '/app/.zibri']);
+            .map(line => line.trim().split(/\s+/)
+                .at(-1) ?? '');
+        expect(owned).toStrictEqual(['/app/.zibri']);
     });
 
     it('writes a package.json with the app name, without going through "npm init"', async () => {
@@ -100,7 +102,10 @@ describe('NewCommand', () => {
             scripts: {
                 start: 'webpack --watch',
                 build: 'webpack',
-                test: 'jest'
+                test: 'jest',
+                // run by the build, which carries the migrations to revert: a deployment has no cli
+                'migrate:list': 'node dist/index.js migrate list',
+                'migrate:down': 'node dist/index.js migrate down'
             },
             keywords: ['zibri'],
             // the author is read off the machine this runs on, the way npm reads it, so the only
@@ -116,14 +121,17 @@ describe('NewCommand', () => {
         await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
 
         const appDir: Path = path.join(workDir, 'api') as Path;
-        expect(execSpy).toHaveBeenNthCalledWith(1, expect.stringContaining(`cd ${appDir} && npm i -D `));
+        expect(execSpy).toHaveBeenNthCalledWith(1, expect.stringContaining(`cd "${appDir}" && npm i -D `));
         expect(execSpy.mock.calls[0][0]).toContain('webpack');
+        // the build generates the entities by loading src/models/generated/providers.ts, which takes
+        // ts-node. A project without it failed its first build wherever nothing else had hoisted it
+        expect(execSpy.mock.calls[0][0]).toContain(' ts-node@^10.9.2');
         // zibri-tsx is intentionally absent: it is a peer dependency of zibri and must not be
         // installed into the app directly.
         // the peers the app has to ask for: every one is an *optional* peer of zibri, so npm installs
-        // none of them, and every one is reached for by a project that takes the defaults. It runs
-        // TypeScript worker files, its data source refuses to start without the driver it opens a
-        // cursor through, its build extracts translations into XLIFF, its default body parsers read
+        // none of them, and every one is reached for by a project that takes the defaults. Its data
+        // source refuses to start without the driver it opens a cursor through, its build extracts
+        // translations into XLIFF, its default body parsers read
         // xml, and it is given the otp two factor method because it names none of its own. Two of those
         // were missing once: one made a new project's first build fail, the other its first boot.
         // The two OpenTelemetry packages are the same story - the tracer registered by default
@@ -132,10 +140,10 @@ describe('NewCommand', () => {
         // send them, so a project that never says is a project that never needs it.
         expect(execSpy).toHaveBeenNthCalledWith(
             2,
-            `cd ${appDir} && npm i zibri@${version} ts-node@^10.9.2 pg-query-stream@^4.10.3`
+            `cd "${appDir}" && npm i zibri@${version} pg-query-stream@^4.10.3`
             + ' saxes@^6.0.0 otpauth@^9.5.1 jose@^6.2.12 @opentelemetry/api@^1.9.1'
             + ' @opentelemetry/sdk-trace-node@^2.11.0 re2@^1.27.0 nodemailer@^10.1.0'
-            + ' prom-client@^15.1.3 @fastify/busboy@^3.2.3 systeminformation@^5.33.15 chart.js'
+            + ' @prometheus-io/client@^0.16.1 @fastify/busboy@^3.2.3 systeminformation@^5.33.15 chart.js'
         );
     });
 
@@ -208,7 +216,7 @@ describe('NewCommand', () => {
 
         // a path a feature names and no project has is a typo, and leaves the file it meant in every project
         const unmatched: string[] = SCAFFOLD_FEATURES.flatMap(feature => SCAFFOLD_FEATURE_FILES[feature]
-            .filter(named => !everything.some(file => file === named || named.endsWith('/') && file.startsWith(named)))
+            .filter(named => !everything.some(file => file === named || (named.endsWith('/') && file.startsWith(named))))
             .map(named => `${feature}: ${named}`));
         expect(unmatched).toEqual([]);
 
@@ -307,7 +315,7 @@ describe('NewCommand', () => {
         // an es module, which a script cannot evaluate - its import is handed in and its one export
         // handed out instead
         const exported: { config?: unknown } = {};
-        const createJestConfig = (options: unknown): unknown => ({ createdWith: options });
+        const createJestConfig: (options: unknown) => unknown = options => ({ createdWith: options });
         runInNewContext(
             source
                 .replace('import { createJestConfig } from \'zibri-testing/jest-config\';', '')
@@ -398,6 +406,15 @@ describe('NewCommand', () => {
         expect(providers).toContain('new LoggingEmailTransport()');
     });
 
+    // part of evaluation round 2, 03 §H16: the explorer follows defaultAuth, which for a project
+    // requiring a login left it closed to the browser that opens it, in every environment
+    it('opens the OpenAPI explorer to everyone, whatever defaultAuth and the environment are', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
+
+        const providers: string = await FsUtilities.readFile(path.join(workDir, 'api', 'src', 'providers.ts') as Path);
+        expect(providers).toContain('        token: ZIBRI_DI_TOKENS.OPEN_API_AUTH,\n        useValue: { skip: true }');
+    });
+
     it('reads a variable of a few values only when it holds one of them', async () => {
         await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
 
@@ -421,6 +438,63 @@ describe('NewCommand', () => {
         expect(() => requireOneOfEnv('ENVIRONMENT', ['development', 'production'])).toThrow(/ENVIRONMENT.*development, production/);
         env['ENVIRONMENT'] = '';
         expect(() => requireOneOfEnv('ENVIRONMENT', ['development', 'production'])).toThrow(/ENVIRONMENT/);
+    });
+
+    // round 1, 07 Part 2 "Configuration schema": a port that is no number read as NaN and failed
+    // where it was first used, and a url that is none was handed out in links
+    it('reads a port only when it is one, and a url only when it is one', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
+
+        const source: string = await FsUtilities.readFile(path.join(workDir, 'api', 'src', 'env.ts') as Path);
+        const compiled: string = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+        const env: Record<string, string | undefined> = {};
+        const exported: { requirePortEnv?: (key: string) => number, requireUrlEnv?: (key: string) => string } = {};
+        runInNewContext(compiled, {
+            exports: exported,
+            process: { env },
+            // a global of node rather than of the language, so a context of its own has none
+            URL,
+            require: (name: string) => name === 'node:fs' ? { existsSync: () => false } : {}
+        });
+        const { requirePortEnv, requireUrlEnv } = exported;
+        assert(requirePortEnv != undefined && requireUrlEnv != undefined, 'env.ts exports no requirePortEnv or requireUrlEnv');
+
+        env['PORT'] = '3000';
+        expect(requirePortEnv('PORT')).toBe(3000);
+        for (const port of ['', 'abc', '0', '65536', '3000.5', '-1', ' 3000']) {
+            env['PORT'] = port;
+            expect(() => requirePortEnv('PORT')).toThrow(/PORT/);
+        }
+        env['BASE_URL'] = 'https://api.example.com';
+        expect(requireUrlEnv('BASE_URL')).toBe('https://api.example.com');
+        for (const url of ['', 'api.example.com', 'ftp://api.example.com', 'http//api.example.com']) {
+            env['BASE_URL'] = url;
+            expect(() => requireUrlEnv('BASE_URL')).toThrow(/BASE_URL/);
+        }
+    });
+
+    it('checks every port and url it reads, and requires the mail server where mail is sent', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
+
+        const read: (relativePath: string) => Promise<string> = async relativePath => FsUtilities.readFile(path.join(workDir, 'api', relativePath) as Path);
+        const sources: string = (await Promise.all([
+            'src/index.ts',
+            'src/application-options.base.ts',
+            'src/providers.ts',
+            'src/data-sources/db/db.data-source.ts'
+        ].map(read))).join('\n');
+        expect(sources).not.toMatch(/Number\(\w+Env\(/);
+        for (const read of [
+            'requirePortEnv(\'PORT\')',
+            'requirePortEnv(\'DB_PORT\')',
+            'requireUrlEnv(\'BASE_URL\')',
+            'requireUrlEnv(\'CONFIRM_PASSWORD_RESET_URL\')',
+            // .env.example says production does not start without one
+            'requireEnv(\'SMTP_HOST\')',
+            'requirePortEnv(\'SMTP_PORT\')'
+        ]) {
+            expect(sources).toContain(read);
+        }
     });
 
     it('writes no workflow when the project is to have none', async () => {

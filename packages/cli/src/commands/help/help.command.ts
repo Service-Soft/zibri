@@ -32,6 +32,16 @@ export class HelpCommand extends BaseCommand {
             this.getCommandLabel(Command.REMOVE, Command.R),
             `removes features from the project in this folder, as "remove <${FEATURE_LIST}>"`
         );
+        console.log(
+            this.getCommandLabel(Command.MIGRATE, Command.M),
+            'writes the migrations of what the entities of the project in this folder changed, as "migrate create [name] [--empty]",'
+            + ' or where they start for a database that holds the entities already, as "migrate baseline"'
+        );
+        console.log(
+            this.getCommandLabel(Command.GENERATE, Command.G),
+            'writes the files of a project into a folder and installs nothing,'
+            + ` as "generate <folder> <name> <github|none> <isLoggedIn|public> <${FEATURE_LIST}|none>"`
+        );
     }
 
     private getCommandLabel(command: Command, shortForm: Command): string {

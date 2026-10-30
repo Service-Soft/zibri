@@ -6,6 +6,7 @@ import { CacheStoreConfig, CacheStoreInterface } from './cache-store.interface';
 import { CachedValue } from './cached-value.model';
 import { ValKeyDataSource } from '../../data-source/data-sources/val-key/val-key-data-source.model';
 import { valKeyGlide } from '../../data-source/data-sources/val-key/val-key-glide.function';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { parseObject } from '../../parsing/functions/parse-object.function';
 import { Newable } from '../../types/newable.type';
 import { Bytes } from '../../utilities/bytes';
@@ -20,7 +21,7 @@ import { nowInNs } from '../../utilities/now-in-ns.function';
 const EVICTION_CHUNK_SIZE: number = 50;
 
 /**
- * The two lua scripts the store's bookkeeping needs, each once it has been built.
+ * The lua scripts the store's bookkeeping needs, each once it has been built.
  */
 type CacheScripts = {
     /**
@@ -30,8 +31,30 @@ type CacheScripts = {
     /**
      * Removes entries and everything that was recorded about them.
      */
-    drop?: Script
+    drop?: Script,
+    /**
+     * Removes the entries of tags, and the tags.
+     */
+    invalidate?: Script
 };
+
+/**
+ * Lua that takes the entry in the variable `entry` out of the tags recorded for it.
+ * @param tagsHash - The lua expression of the hash the tags of every entry are recorded in.
+ * @param indent - What every line starts with.
+ * @returns The lines.
+ */
+function forgetTagsOfEntry(tagsHash: string, indent: string): string[] {
+    return [
+        `local tags = redis.call("hget", ${tagsHash}, entry)`,
+        'if tags then',
+        '  for tag in string.gmatch(tags, "[^\\n]+") do',
+        '    redis.call("srem", tag, entry)',
+        '  end',
+        `  redis.call("hdel", ${tagsHash}, entry)`,
+        'end'
+    ].map(line => `${indent}${line}`);
+}
 
 /**
  * The scripts, once they have been built.
@@ -55,6 +78,9 @@ const cacheScripts: CacheScripts = {};
  * @returns The script.
  */
 function writeEntryScript(): Script {
+    // KEYS: the entry, the sizes hash, the byte counter, the index, the tags hash, then the tag sets.
+    // The tags an entry is written with are recorded beside it, so whatever removes it later takes it
+    // out of them - and a write with other tags takes it out of the ones it had
     return cacheScripts.write ??= new (valKeyGlide().Script)([
         'local previous = redis.call("hget", KEYS[2], KEYS[1])',
         'if ARGV[2] == "" then',
@@ -69,39 +95,82 @@ function writeEntryScript(): Script {
         'else',
         '  redis.call("zadd", KEYS[4], ARGV[5], KEYS[1])',
         'end',
-        'for i = 5, #KEYS do',
-        '  redis.call("sadd", KEYS[i], KEYS[1])',
+        'local entry = KEYS[1]',
+        ...forgetTagsOfEntry('KEYS[5]', ''),
+        'for i = 6, #KEYS do',
+        '  redis.call("sadd", KEYS[i], entry)',
+        'end',
+        'if ARGV[6] ~= "" then',
+        '  redis.call("hset", KEYS[5], entry, ARGV[6])',
         'end',
         'return 1'
     ].join('\n'));
 }
 
 /**
- * Deletes entries and takes them out of the index, the sizes hash and the byte counter.
+ * Deletes entries and takes them out of the index, the sizes hash, the byte counter and their tags.
  *
  * Reading each size inside the same step is what makes removing an entry twice harmless: the second
  * caller finds no recorded size, subtracts nothing, and the counter stays right. Two instances
  * sweeping the same shared store do exactly that.
+ *
+ * With `ARGV[1]` "gone", an entry whose value is there again is left: a read that found it missing
+ * cleans up after the server's expiry, and a write since then is a value nobody removed.
  * @returns The script.
  */
 function dropEntriesScript(): Script {
+    // KEYS: the sizes hash, the byte counter, the index, the tags hash, then the entries
     return cacheScripts.drop ??= new (valKeyGlide().Script)([
         'local total = 0',
         'local tracked = 0',
-        'for i = 4, #KEYS do',
-        '  local size = redis.call("hget", KEYS[1], KEYS[i])',
-        '  if size then',
-        '    total = total + size',
-        '    tracked = tracked + 1',
-        '    redis.call("hdel", KEYS[1], KEYS[i])',
+        'for i = 5, #KEYS do',
+        '  local entry = KEYS[i]',
+        '  if ARGV[1] ~= "gone" or redis.call("exists", entry) == 0 then',
+        '    local size = redis.call("hget", KEYS[1], entry)',
+        '    if size then',
+        '      total = total + size',
+        '      tracked = tracked + 1',
+        '      redis.call("hdel", KEYS[1], entry)',
+        '    end',
+        '    redis.call("del", entry)',
+        '    redis.call("zrem", KEYS[3], entry)',
+        ...forgetTagsOfEntry('KEYS[4]', '    '),
         '  end',
-        '  redis.call("del", KEYS[i])',
-        '  redis.call("zrem", KEYS[3], KEYS[i])',
         'end',
         'if total > 0 then',
         '  redis.call("decrby", KEYS[2], total)',
         'end',
         'return tracked'
+    ].join('\n'));
+}
+
+/**
+ * Removes every entry of the given tags, and the tags, in one step: read apart from the removal, an
+ * entry written with one of the tags in between lost its place in the tag and outlived every later
+ * invalidation of it.
+ * @returns The script.
+ */
+function invalidateTagsScript(): Script {
+    // KEYS: the sizes hash, the byte counter, the index, the tags hash, then the tag sets
+    return cacheScripts.invalidate ??= new (valKeyGlide().Script)([
+        'local total = 0',
+        'for i = 5, #KEYS do',
+        '  for _, entry in ipairs(redis.call("smembers", KEYS[i])) do',
+        '    local size = redis.call("hget", KEYS[1], entry)',
+        '    if size then',
+        '      total = total + size',
+        '      redis.call("hdel", KEYS[1], entry)',
+        '    end',
+        '    redis.call("del", entry)',
+        '    redis.call("zrem", KEYS[3], entry)',
+        ...forgetTagsOfEntry('KEYS[4]', '    '),
+        '  end',
+        '  redis.call("del", KEYS[i])',
+        'end',
+        'if total > 0 then',
+        '  redis.call("decrby", KEYS[2], total)',
+        'end',
+        'return 1'
     ].join('\n'));
 }
 
@@ -125,10 +194,11 @@ export type ValKeyCacheStoreConfig = Partial<CacheStoreConfig> & {
  * A cache store that keeps its values on a valkey server, which makes the cache shared between
  * all instances of an app instead of living inside a single process.
  *
- * Next to the cached values themselves the store keeps three bookkeeping keys: a sorted set that
+ * Next to the cached values themselves the store keeps four bookkeeping keys: a sorted set that
  * orders the entries by the configured overflow strategy, a hash with the estimated size of every
- * entry and a counter holding the sum of those sizes. They are used to evict entries once
- * maxEntries or maxBytes is exceeded.
+ * entry, a counter holding the sum of those sizes, and a hash with the tags of every entry. The
+ * first three are used to evict entries once maxEntries or maxBytes is exceeded, the last to take a
+ * removed entry out of its tags.
  *
  * The counter is updated by every write instead of being summed up on demand, which keeps the
  * overflow check independent of how many entries the store holds. Writing an entry and removing one
@@ -160,6 +230,11 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
      */
     private readonly model: CacheModel;
 
+    /**
+     * The cache this store holds the entries of, once one was given it.
+     */
+    private cacheName: string | undefined;
+
     constructor(private readonly ds: ValKeyDataSource, configInput: ValKeyCacheStoreConfig) {
         const { model, ...storeConfig }: ValKeyCacheStoreConfig = configInput;
         this.model = model;
@@ -171,12 +246,26 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
         };
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    attachTo(cacheName: string): void {
+        // under one prefix, two caches read and overwrote each other's entries, counted them against
+        // one budget and cleared each other
+        if (this.cacheName != undefined && this.cacheName !== cacheName) {
+            throw new InternalError([
+                `A ValKeyCacheStore holds the entries of one cache. This one was given to "${this.cacheName}" and to "${cacheName}".`,
+                'Give each cache a store of its own.'
+            ]);
+        }
+        this.cacheName = cacheName;
+    }
+
     // eslint-disable-next-line jsdoc/require-returns
     /**
-     * The prefix that all keys of this store are stored under.
+     * The prefix that all keys of this store are stored under: those of its cache, which every
+     * instance of the application shares.
      */
     private get prefix(): string {
-        return `${this.ds.keyPrefix}:cache`;
+        return `${this.ds.keyPrefix}:cache:${this.cacheName ?? ''}`;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -192,8 +281,9 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
 
         if (raw == undefined) {
             // the value expired on the server while its bookkeeping stayed behind, so the entry is
-            // taken out of the index here rather than being left to count against the budget
-            this.expiredSinceLastReport += await this.drop([fullKey]);
+            // taken out of the index here rather than being left to count against the budget - unless
+            // somebody wrote it again since the read
+            this.expiredSinceLastReport += await this.drop([fullKey], 'gone');
             return undefined;
         }
         return this.toCachedValue(this.toStringValue(raw));
@@ -212,23 +302,25 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
 
         const byLeastFrequentlyUsed: boolean = this.config.removeOnOverflow === 'leastFrequentlyUsed';
 
+        const tagKeys: string[] = [...new Set(value.tags.map(t => this.tagKey(t)))];
         await this.ds.connection.invokeScript(writeEntryScript(), {
-            keys: [fullKey, this.sizesKey(), this.bytesKey(), this.indexKey(), ...value.tags.map(t => this.tagKey(t))],
+            keys: [fullKey, this.sizesKey(), this.bytesKey(), this.indexKey(), this.tagsKey(), ...tagKeys],
             args: [
                 serialized,
                 ttlMs == undefined ? '' : String(ttlMs),
                 String(Buffer.byteLength(serialized, 'utf8')),
                 byLeastFrequentlyUsed ? 'increment' : 'score',
-                String(Number(nowInNs()))
+                String(Number(nowInNs())),
+                tagKeys.join('\n')
             ]
         });
 
-        await this.evictOverflow();
+        await this.evictOverflow(fullKey);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async delete(key: K): Promise<void> {
-        await this.drop([this.toKey(key)]);
+        await this.drop([this.toKey(key)], 'all');
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -257,7 +349,7 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
             const gone: string[] = keys.filter((_, i) => values[i] == undefined);
 
             if (gone.length) {
-                removed += await this.drop(gone);
+                removed += await this.drop(gone, 'gone');
             }
             // the entries that are still there stay in the index, so the window has to move past
             // them - the ones that were dropped took their positions with them
@@ -284,15 +376,9 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
             return;
         }
 
-        const client: GlideClient = this.ds.connection;
-        const tagKeys: string[] = tags.map(t => this.tagKey(t));
-
-        // eslint-disable-next-line cspell/spellchecker
-        const memberSets: Set<GlideString>[] = await Promise.all(tagKeys.map(k => client.smembers(k)));
-        // an entry can carry multiple of the invalidated tags, it must only be forgotten once
-        const members: string[] = [...new Set(memberSets.flatMap(s => [...s].map(m => this.toStringValue(m))))];
-
-        await Promise.all([this.drop(members), client.del(tagKeys)]);
+        await this.ds.connection.invokeScript(invalidateTagsScript(), {
+            keys: [this.sizesKey(), this.bytesKey(), this.indexKey(), this.tagsKey(), ...new Set(tags.map(t => this.tagKey(t)))]
+        });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -324,31 +410,35 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
     }
 
     /**
-     * Deletes entries and takes them out of all three bookkeeping keys.
+     * Deletes entries and takes them out of the bookkeeping keys and their tags.
      * @param fullKeys - The keys of the entries.
+     * @param which - `all` of them, or only the ones whose value is `gone`.
      * @returns How many of them the store was still keeping bookkeeping for, which is how many
      * genuinely left rather than having been removed by somebody else already.
      */
-    private async drop(fullKeys: string[]): Promise<number> {
+    private async drop(fullKeys: string[], which: 'all' | 'gone'): Promise<number> {
         if (!fullKeys.length) {
             return 0;
         }
 
         const dropped: unknown = await this.ds.connection.invokeScript(dropEntriesScript(), {
-            keys: [this.sizesKey(), this.bytesKey(), this.indexKey(), ...fullKeys]
+            keys: [this.sizesKey(), this.bytesKey(), this.indexKey(), this.tagsKey(), ...fullKeys],
+            args: [which]
         });
         return Number(dropped);
     }
 
     /**
      * Evicts entries until the store is within its configured limits again.
+     * @param written - The entry just written, which stays: the one most recently used is always the
+     * one just written, and a new entry is the one least frequently used.
      */
-    private async evictOverflow(): Promise<void> {
+    private async evictOverflow(written: string): Promise<void> {
         // the usage is tracked locally from here on, so that it is only read from the server once
         let [entries, bytes]: [number, number] = await this.currentUsage();
 
         while (entries > this.config.maxEntries || bytes > this.config.maxBytes) {
-            const candidates: string[] = await this.nextEvictionCandidates();
+            const candidates: string[] = (await this.nextEvictionCandidates()).filter(candidate => candidate !== written);
             if (!candidates.length) {
                 return;
             }
@@ -367,7 +457,7 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
                 evictedCount++;
             }
 
-            await this.drop(candidates.slice(0, evictedCount));
+            await this.drop(candidates.slice(0, evictedCount), 'all');
         }
     }
 
@@ -495,6 +585,10 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
 
     private tagKey(tag: string): string {
         return `${this.prefix}:tag:${tag}`;
+    }
+
+    private tagsKey(): string {
+        return `${this.prefix}:tags`;
     }
 
     private toStringValue(value: GlideString): string {

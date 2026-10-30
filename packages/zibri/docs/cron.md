@@ -55,12 +55,16 @@ Add the job class to `cronJobs` in `index.ts`, and it starts with the applicatio
 
 ```ts
 // src/index.ts
-import { ZibriApplication } from 'zibri';
+import { SemVerUtilities, ZibriApplication } from 'zibri';
 
 import { version } from '../package.json';
 import { StatusCronJob } from './cron/status.cron-job';
 import { providers } from './providers';
 // ...
+
+if (!SemVerUtilities.isSemVerVersion(version)) {
+    throw new Error('The version of the package.json is not valid.');
+}
 
 const app: ZibriApplication = new ZibriApplication({
     name: 'Api',
@@ -157,6 +161,11 @@ export class NightlyInvoicesCronJob extends CronJob {
 ```
 
 `Timezone` is a union of the IANA zone names, so a typo is a compile error.
+
+> [!NOTE]
+> In a zone that changes its clocks, a schedule naming an hour follows the clock. On the day the clocks go forward, a time inside the skipped hour does not come, so a job at 02:30 in `Europe/Berlin` does not run that day. On the day they go back, it runs once. A schedule naming no hour, such as every ten seconds, runs through both days without a gap.
+
+`CronExpression.every` counts within its unit's own range, the way cron does: `every(2, 'days')` runs on the 1st, 3rd, … of each month, so on the 31st and again on the 1st, and `every(5, 'hours')` runs at 0, 5, … 20 and again at 0.
 
 ## Running at startup
 

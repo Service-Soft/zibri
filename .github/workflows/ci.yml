@@ -2,6 +2,8 @@ name: CI
 on:
     push:
         branches-ignore: [release, 'release-*']
+    # and while a change can still be turned down, which is what a pull request is for
+    pull_request:
 
 permissions:
     contents: read
@@ -15,8 +17,8 @@ jobs:
         outputs:
             majors: ${{ steps.resolve.outputs.majors }}
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:
                 node-version: '24'
             - id: resolve
@@ -24,8 +26,8 @@ jobs:
     lint:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:
                 node-version: '24'
             - run: npm ci
@@ -44,8 +46,8 @@ jobs:
                 node: ${{ fromJSON(needs.node-versions.outputs.majors) }}
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:
                 node-version: ${{ matrix.node }}
             - name: install PostgreSQL 17
@@ -65,7 +67,13 @@ jobs:
             # the cli's whole suite in one in-band run, which is what lets it report coverage without
             # merging two of them: its heavy tests need --runInBand anyway
             - run: npm run test:ci -w zibri-cli
-            - uses: codecov/codecov-action@v5
+            # what the generated deployment weighs and how long it takes to answer, measured by the
+            # cli's docker suite against the baseline beside it. Reported like the benchmark, not gated
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                name: deployment-report-node-${{ matrix.node }}
+                path: packages/cli/src/__testing__/file-output/deployment-report.json
+            - uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
               with:
                 token: ${{ secrets.CODECOV_TOKEN }}
                 files: packages/zibri/src/__testing__/coverage/report/lcov.info,packages/cli/src/__testing__/coverage/lcov.info
@@ -85,8 +93,8 @@ jobs:
                 node: ${{ fromJSON(needs.node-versions.outputs.majors) }}
         runs-on: ${{ matrix.os }}
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:
                 node-version: ${{ matrix.node }}
             - run: npm ci
@@ -104,15 +112,15 @@ jobs:
     benchmark:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:
                 node-version: '24'
             - run: npm ci
             - run: npm run build -w zibri-tsx
             - run: npm run build:prod -w zibri
             - run: npm run test:benchmark -w zibri
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               with:
                 name: benchmark-report
                 path: packages/zibri/src/__testing__/file-output/benchmark-report.json
@@ -125,8 +133,8 @@ jobs:
     audit:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:
                 node-version: '24'
             # installed for the manifests rather than to run anything: the lockfile records a license

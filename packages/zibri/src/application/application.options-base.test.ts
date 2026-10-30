@@ -10,9 +10,9 @@ import { TestTimeouts } from '../__testing__/constants';
 import { Authenticators } from '../auth/authenticators/authenticators.model';
 import { AuthStrategies } from '../auth/strategies/auth-strategies.model';
 import { CronJob } from '../cron/cron-job.model';
-import { Newable } from '../types/newable.type';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
+import { Newable } from '../types/newable.type';
 
 /**
  * Testing an application by building it from the options it ships with.

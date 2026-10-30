@@ -15,8 +15,8 @@ import { Backup } from '../../backup/decorators/backup-resource.decorator';
 import { BackupTransport } from '../../backup/decorators/backup-transport.decorator';
 import { BaseFsBackupTransport } from '../../backup/transports/fs.backup-transport';
 import { PostgresBackupScope } from '../../data-source/data-sources/postgres/postgres-backup-scope.model';
+import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { ValKeyDataSource, ValKeyOptions } from '../../data-source/data-sources/val-key/val-key-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
@@ -32,13 +32,13 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { zibriVersion } from '../../versioning/zibri-version.function';
 import { testFileFolder } from '../constants';
+import { queryPostgres } from '../query-postgres.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
@@ -131,7 +131,7 @@ class EvalBackupDataSource extends PostgresDataSource {
 
     override backupScope: PostgresBackupScope = 'schema';
 
-    override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -152,20 +152,6 @@ class EvalBackupDataSource extends PostgresDataSource {
 
     readonly pooler: PostgresPooler = 'none';
 }
-
-/**
- * What postgres says about the privileges of a role.
- */
-type RoleRow = {
-    /**
-     * Whether the role bypasses every permission check.
-     */
-    rolsuper: boolean,
-    /**
-     * Whether the role may create other roles, which is one step from being the superuser.
-     */
-    rolcreaterole: boolean
-};
 
 let server: StartedTestServer | undefined;
 let backupService: BackupService;
@@ -197,8 +183,8 @@ async function readStoredDump(backupName: string): Promise<string> {
  * @param sql - The statement.
  * @returns The rows it returned.
  */
-async function runSql<T>(sql: string): Promise<T[]> {
-    return await inject(EvalBackupDataSource).query(EvalBackupItem).connection.query(sql);
+async function runSql(sql: string): Promise<Record<string, unknown>[]> {
+    return await queryPostgres(inject(EvalBackupDataSource), sql);
 }
 
 /**
@@ -331,7 +317,8 @@ describe('evaluation/01-data-layer C6 - a backup is this application\'s database
         // dump read every object and a restore replace them. Asked of the server rather than taken
         // from the harness, because every case in this file proves least privilege only as far as
         // this holds
-        const roles: RoleRow[] = await dataSource.query(EvalBackupItem).connection.query(
+        const roles: Record<string, unknown>[] = await queryPostgres(
+            dataSource,
             'SELECT rolsuper, rolcreaterole FROM pg_roles WHERE rolname = current_user'
         );
         expect(roles).toEqual([{ rolsuper: false, rolcreaterole: false }]);
@@ -541,7 +528,7 @@ describe('evaluation/01-data-layer MINOR - postgres never requires tls', () => {
     it('does not compile a data source that leaves tls unsaid', () => {
         class EvalUnsaidPostgresDataSource extends PostgresDataSource {
             // @ts-expect-error - a postgres connection says whether it uses tls
-            override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+            override options: PostgresOptions = {
                 host: 'localhost',
                 database: 'db'
             };

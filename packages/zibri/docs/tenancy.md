@@ -255,6 +255,11 @@ answers `403`, and `findActiveMembership` and `findActiveMemberships` of the `Me
 It keeps its roles, so setting `deactivatedAt` back to `null` returns the user to the tenant as they
 were.
 
+Deactivating, reactivating and deleting a membership through `updateDeactivatedAt` and
+`deleteMembership` of the `MembershipService` is recorded in the tenant of the membership, as
+`auth.membership.deactivated`, `auth.membership.reactivated` and `auth.membership.deleted` with the
+member as `userId`. Writing memberships through the repository yourself records nothing.
+
 A route asks for a [permission](./roles-and-permissions.md) in one of two ways:
 
 | Decorator | Checks |
@@ -269,7 +274,7 @@ A platform role never makes a user a member of a tenant. Work across tenants is 
 
 A [scope](./data-source.md#what-a-scope-is-told) gets the `tenantId` and the `currentMembership` of
 the request next to the `currentUser`, whose `permissions` are those of that membership, and asks for
-one with `hasPermission`. `AuthService.getCurrentMembership` answers the membership a request acts
+one with `hasPermission`. `AuthService.resolveCurrentMembership` answers the membership a request acts
 through, without its roles: the `CurrentMembership`. `findActiveMembership` of the `MembershipService`
 answers it with its roles.
 

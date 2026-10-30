@@ -486,10 +486,15 @@ DuplicateFrameworkCopyError: 2 copies of zibri are loaded in this process.
 Each one has its own container, its own record of what is injectable and its own classes,
 so an injectable registered through one is invisible to the other, and an instanceof check
 across them says no about a value that is exactly what it claims to be.
-Run "npm ls zibri" to see which packages pulled in more than one of it.
+In a test, "jest.resetModules" or "jest.isolateModules" loads the second copy: a test that
+resets the module registry goes in a file of its own, which has a registry of its own.
+Otherwise, run "npm ls zibri" to see which packages pulled in more than one of it.
 A package built on top of zibri should list it under "peerDependencies" rather than
 "dependencies", so that it uses the copy the application already has.
 ```
+
+In a test, a module registry reset loads the second copy, see
+[starting your application in a test](./testing.md#starting-your-application-in-a-test).
 
 `npm ls zibri` names the packages that installed a copy of their own. A library that builds on the
 framework, such as a plugin, a shared set of injectables or a set of entities, lists `zibri` as a peer

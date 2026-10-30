@@ -189,6 +189,8 @@ The documented seam is "replace the logger" (`docs/logging.md:92-98`), which mea
 
 **Verify:** Unit test with the in-memory data source whose `deleteAll` is made to throw, run the job, assert the `CronJobEntity` row carries the error and `consecutiveFailures: 1`.
 
+> **Closed 2026-10-28.** The try/catch is gone, so a failed delete reaches `runOnError` like any other job's. Test: `event/event-cleanup.cron-job.on-failure.test.ts` boots an in-memory app with the real cron service. Its `@RepositoryFor(Event)` refuses every delete in `beforeDelete`. With a `FINISHED` event past its `cleanupAt`, `runOnTick` leaves the `Event Cleanup` row with `consecutiveFailures: 1` and the error in `errorMessage`. It was red before the fix, at 0 and no message. The unit case "silently swallows errors from the repository" now asserts that the error comes through.
+
 ### F12. `Lease.heldBy` is the application name, which every replica shares — MINOR
 *Filed 2026-10-21.*
 
@@ -196,12 +198,38 @@ The documented seam is "replace the logger" (`docs/logging.md:92-98`), which mea
 
 **Verify:** Unit test: two `LeaseService`s initialised with the same `app.options.name` take two keys; assert their `heldBy` differ.
 
+> **Closed 2026-10-28.** As decided:
+> - `ZIBRI_DI_TOKENS.INSTANCE_ID` is a replaceable string. The default provider gives `${os.hostname()}:${process.pid}`, the pod name in a container.
+> - `heldBy` is `${app.options.name}@${instanceId}`, so a web and a worker deployment sharing one table still tell apart.
+> - `ThreadJobEntity.instanceId` (and the in-memory `ThreadJob`) is written with `threadId` at the start of a run. It is cleared wherever `threadId` is: requeue, interrupted on shutdown, failed after exhausting its attempts. It is diagnostic like `heldBy`; the run condition stays `attempts` + `startedAtMs`.
+>
+> The upgrade migration adds the column. The schema recording test lists it as added since the recording. `configuration.md` and `replication.md` name the token.
+>
+> Test: `application/instance-id.test.ts`, in memory. With `INSTANCE_ID` provided, a grant reads `Api@pod-7f9c`, and a running endless thread job's row has `instanceId: 'pod-7f9c'` and its `thread-job:` claim the same `heldBy`. Without the provider, a grant reads `Api@<hostname>:<pid>`. All three were red before: `Api`, and no column.
+>
+> The Verify's two services in one process would share a hostname and pid. Two instances are told apart by the default only as two processes, which is the deployment shape.
+
 ### F13. Lease expiry is judged by each instance's own clock — MINOR
 *Filed 2026-10-21.*
 
 `expiresAt` is written from the holder's `Date.now()` (`lease.service.ts:272, 338`) and a competitor deletes it when `expiresAt < new Date()` on *its* clock (`:267`). An instance whose clock runs ahead by more than `leaseInMs` minus the renewal interval takes over live work; with `jobClaimInMs` = 30 s and renewal every 10 s, a 20 s skew is enough. 10 §"Deadlock endings" notes that comparing timestamps across replicas needs a shared clock, and `cache.service.ts:173-174` avoids timestamps for the same reason, but the lease table relies on them. Containers with NTP rarely skew that far; VMs after a pause do. Fix options: use the data source's clock (`now()` in the delete's predicate on postgres, `TIME` on valkey), or document the assumption and the bound next to `leaseInMs`.
 
 **Verify:** Unit test over `LeaseService` with `Date.now` stubbed 25 s ahead on a second instance against the in-memory data source; assert it does not acquire a key the first instance renewed 5 s ago.
+
+> **Closed 2026-10-28, with the store's clock in the statement, as decided.** A new primitive, `dataSourceNow(plusInMs?)`, stands for the time on the data source's clock.
+> - **Where it goes.** It is accepted as a date comparand (`after`, `before`, `afterOrOn`, `beforeOrOn`). It is also a date property's value in `create`, `createAll` and `updateAll` (`WithDataSourceTimes`, `UpdateAllData`).
+> - **In the repository.** The times are split off the write data at entry, the way increments are, so hooks, scope and validation never see them. They go back on the rows only at the driver call. `resolveWritten` reads them from the written row, and a scope reading the property judges the row afterwards. A time given for a property that holds no date is refused.
+> - **Postgres** resolves it inside the statement: `PostgresParameters.add` writes `statement_timestamp() + offset`.
+> - **Other drivers.** A driver that judges in process declares `resolveDataSourceTime`. The repository then wraps it in `DataSourceTimeResolvingRepositoryDriver`, which reads that clock once per call, and only for a call that names a time. Valkey reads it with `TIME`. In memory, the store's own clock is `performance`, so a test running `Date` ahead does not move it.
+> - **Leases.** The lapsed-grant delete, the insert, the renewal and `LeaseCleanupCronJob` all use it.
+>
+> Tests:
+> - `leases/lease.clock.test.ts`, in memory, with the new `runApplicationClockAhead` helper (fakes `Date` only). A held grant stays with its holder against an instance 40 s ahead. A grant written by an instance 40 s ahead is taken over once it lapsed by the store's clock. Both were red before.
+> - `data-source/data-source-time.cases.ts`, run in memory by `data-source-time.test.ts` and on Postgres and Valkey by `data-source-time.postgres-valkey.test.ts` (**not run here**). It checks create, createAll, updateAll with `returnUpdated`, all four comparisons, deleteAll, and the refusal on a text property (also a `@ts-expect-error`).
+>
+> **Costs.** The lease cost test trips when the clock read counts as a call. As decided, the in-memory counter does not record `resolveDataSourceTime`: the clock read happens in process, as Postgres does it in statement. The extra Valkey round trip is filed as 02 §S21.
+>
+> **Docs.** `data-source.md` gains "Comparing with the time of the data source" and its Key exports and table rows. `leases.md` says a grant lapses by the data source's clock.
 
 *Cross-reference, not a finding here:* round-2 02 §S10 (an abandoned postgres transaction never reports `isFinished`, so `withLease({ heldUntil })` renews its grant for the life of the process, `lease.service.ts:131-178`). I checked the consequences for my area: no cron, mail, event or thread-job claim passes `heldUntil` — they all go through `runHolding`, whose release is bound to the callback returning — and the only `heldUntil` caller in `src` is the LDAP first sign-in (`auth/authenticators/ldap/base-ldap.authenticator.ts:691`). So the exposure is confined to that key and to any application lease using `heldUntil`; the queues are not affected.
 
@@ -221,12 +249,24 @@ The documented seam is "replace the logger" (`docs/logging.md:92-98`), which mea
 
 **Verify:** Documentation test under `docs-examples.test.ts` is not the right harness; a `startTestServer` test that emits two events of one type, fails the first, and asserts the second's hook ran first documents the ordering as a held expectation.
 
+> **Closed 2026-10-28, with a documented convention, as decided; no version column.** `events.md` gains two sections:
+> - **"Handling events out of order".** No order across instances or across subscribers, and a retry runs after events emitted later. A hook that depends on order reads the current state, or ignores a payload older than what it handled.
+> - **"Changing what an event carries".** A hook may get an event from an older or a newer deploy, or a replayed one. A change the other version can read (a new optional property) needs nothing. A breaking change goes under a new event type: emit both, and remove the old one once none of its events is unfinished or failed.
+>
+> Test: `event/event.service.ordering.test.ts`, in memory. Event 1's hook fails once, event 2 is emitted and handled, then the retry handles event 1: the order is `[2, 1]`. It holds the documented expectation, so it was green from the start.
+
 ### F16. The default worker pool is sized from `os.availableParallelism()`, which ignores a container's cpu quota — MINOR
 *Filed 2026-10-21.*
 
 `maxThreads = Math.max(1, allThreads - UV_THREADPOOL_SIZE - 2)` with `allThreads = os.availableParallelism()` (`di/default/zibri-di-providers.default.ts:71-79`). Node's answer comes from the scheduler affinity mask, not from the cgroup cpu quota, so a pod limited to 1 CPU on a 64-core node starts 58 worker threads at boot (`multithreading.service.ts:311-316`), each a V8 isolate, and `validateInputs` is satisfied. `docs/replication.md:107-116` names the N-replicas-per-host case and says to set it explicitly; the single-pod-with-a-quota case is the common one and is not named. Fix: read `/sys/fs/cgroup/cpu.max` when present, or default to a small constant and let the deployment raise it.
 
 **Verify:** Unit test of the default factory with `os.availableParallelism` stubbed to 64 and a stubbed `cpu.max` of `100000 100000`; assert `maxThreads` is 1.
+
+> **Closed 2026-10-28: fixed upstream, no code change.** The premise held for libuv before 1.49.0 (2024-09-25). That release's "linux: fix uv_available_parallelism using cgroup" caps the answer by the cgroup CPU quota (`uv__get_constrained_cpu` in `uv_available_parallelism`). The package requires Node 24, which ships a later libuv; this machine has Node 24.21.0 with libuv 1.52.1. So a pod limited to 1 CPU gets `maxThreads` 1 from the existing factory.
+>
+> Test: `multithreading/default-thread-count.test.ts` starts `node:24-alpine` limited to one CPU and runs `os.availableParallelism()` in it, which must answer `1`. It holds the default to the oldest runtime an application may run on. **Not run here (container).**
+>
+> Docs: `replication.md`'s defaults table names the CPU limit and tells replicas without one to set `maxThreads`. `multithreading.md` says the default follows the container's CPU limit.
 
 ### F17. A mail batch larger than `maxEmailsPerHour` is never sent — MINOR
 *Filed 2026-10-21.*
@@ -235,12 +275,46 @@ The documented seam is "replace the logger" (`docs/logging.md:92-98`), which mea
 
 **Verify:** `startTestServer` with `maxEmailsPerHour: 5`, `sendBatchSize: 10`, queue 10 mails with a recording transport, run the job for three ticks, assert at least 5 were sent. None are.
 
+> **Closed 2026-10-28, both fixes.**
+> - **Default batch:** it is `min(10, maxEmailsPerHour)`.
+> - **Explicit batch above the limit:** refused in `EmailService`'s constructor, which fails the boot, since no pass could ever send it. The upgrade guide names the refusal.
+>
+> **Found on the way, fixed:** `findDueMails` held back a slot for every lower priority. A batch smaller than the three priorities therefore left HIGH and NORMAL no slot, and only LOW was ever sent; the cap makes such a batch the default at one or two mails an hour. The reservation now applies only when the batch has a slot for every priority, and a smaller batch takes the most urgent mails first.
+>
+> Test: `email/email.service.batch-size.test.ts`, in memory, with a recording transport. All three cases were red before:
+> - The default batch at `maxEmailsPerHour: 5` sends 1 to 5 of 10 queued mails, where it sent 0. It sends 4, since one slot waits for a LOW mail.
+> - An explicit `sendBatchSize: 10` boots no longer.
+> - At `maxEmailsPerHour: 1`, the HIGH mail of a NORMAL, a LOW and a HIGH one is sent, where only LOW could be.
+>
+> Docs: the `sendBatchSize` row and the priority paragraph in `email.md`, and the config JSDoc.
+
 ### F18. A payment the buyer never approves stays `CREATED` forever, and there is no provider-side reconciliation — MINOR
 *Filed 2026-10-21.*
 
 `startOrder` writes the row and the PayPal order (`pay-pal.payment-provider.ts:294-332`); confirmation only happens when the application calls `confirmPayment`. No cron job expires abandoned `CREATED` rows, no webhook endpoint exists in the plugin (grep `webhook` under `plugin/` finds nothing), so an order PayPal auto-voids after its approval window keeps a live-looking row with a `transactionId` that can never be reused (unique, `payment.model.ts:25-26`). The idempotency keys and `reconcile` path for a lost answer are good (`:557-588`); what is missing is the time axis. Fix: a plugin cron job that asks `getOrder` for `CREATED` payments older than the provider's window and moves them to `CANCELLED`.
 
 **Verify:** `startTestServer` with a fake PayPal client: start a payment, advance the clock a week, run the (new) reconciliation job, assert the row is `CANCELLED` and the `transactionId` can be used again.
+
+> **Closed 2026-10-28, asking the provider, as decided; the `transactionId` stays taken, also decided** (it is the client's key for one checkout attempt).
+> - **Provider contract.** `AnyPaymentProviderInterface` and `PaymentProviderInterface` gain the required `approvalWindowInMs` and `reconcilePayment(payment)`.
+> - **PayPal.** `approvalWindowInMs` is an option, one day by default: PayPal documents no expiry for an unapproved order. `reconcilePayment` reads the order:
+>   - a completed capture → `PAID`;
+>   - a pending capture → unchanged;
+>   - a declined or failed capture → `FAILED`;
+>   - a created authorization → `RESERVED`;
+>   - a pending authorization → unchanged;
+>   - anything else, an order PayPal answers 404 for, or a row without an order → `CANCELLED`.
+> - **Service.** `PaymentServiceInterface.reconcileAbandonedPayments()` reads, per provider, up to 100 `CREATED` payments of its methods past its window, across tenants. It runs each in its tenant through the existing per-payment lease, and skips one confirmed or cancelled since it was read. A provider failure doesn't stop the others; the method then throws, so the job's row records it.
+> - **Job.** `PaymentReconciliationCronJob` runs hourly and is registered by the plugin through `cronJobs`.
+>
+> Test: `plugin/payment/payment-reconciliation.cron-job.test.ts`, in memory, against the local PayPal. Red before (the job did not exist). It checks:
+> - the plugin registers the job;
+> - a two-day-old unapproved payment becomes `CANCELLED`, and its `transactionId` is still refused;
+> - a payment captured at PayPal whose capture answer and lookup were both lost (left `CREATED`) becomes `PAID` with its capture id;
+> - a minute-old payment is untouched, and PayPal is not asked about it;
+> - with lookups failing, the payment stays `CREATED` and the tick throws.
+>
+> The three test fakes of a provider gained the two members. Docs: `payment-plugin.md` "Settling abandoned payments" and the Key exports row.
 
 ### F19. A backup or restore is guarded per process only — MINOR
 *Filed 2026-10-21.*
@@ -249,12 +323,53 @@ The documented seam is "replace the logger" (`docs/logging.md:92-98`), which mea
 
 **Verify:** Cluster suite: start a restore on instance A against a slow transport, call `restore` on B, assert B waits or refuses rather than running concurrently.
 
+> **Closed 2026-10-28, with a lease per resource, and a busy restore refused, as decided.**
+> - **The leases.** A restore takes `backup:resource:<name>` for every resource it applies, through `withLeases`. A resource it doesn't get makes it throw a `ConflictError` (409) naming the busy resources, before anything is staged. Storing a resource takes the same key in `'wait'` mode for up to `RESOURCE_WAIT_IN_MS` (a minute). Two backups of one resource therefore queue behind each other; a restore longer than that fails the attempt, which is retried after the retry delay. It is not handed back: `QueuePollCronJob` loops while a pass ran something, so a handed-back item would spin for the whole restore.
+> - **Second decision: leases stay out of backups.** A data source backup held its `Lease` table. So it captured the backup's own grant on the resource, which blocked a restore for a minute. And a restore replaced the table, dropping the restore's grants partway through. Decided: `@Entity({ backedUp: false })`, new in `EntityMetadata`, set on `Lease`. The in-memory store's snapshot skips such tables and its restore keeps them. Postgres dumps them with `--exclude-table-data`; the restore script sets their live rows aside in temp tables before the clear and puts them back (by common columns) after the archive, which handles archives that still hold rows. Valkey skips their key prefix in the backup and on both sides of the restore.
+> - **Found on the way, fixed:** `BackupEntity` and `BackupResourceEntity` are also `backedUp: false`. Restoring a data source that holds them forgot every backup taken since, and brought back a backup still running when the data was read; the queue then stored it again over the completed archive. That had been masked by the restored queue claim, now gone with `Lease`.
+>
+> Tests:
+> - `backup/backup-service.across-instances.test.ts`, in memory, red before: a second restore while one is held mid-apply is refused with a `ConflictError` naming the resource; a backup queued during a held restore reads the resource only after the restore applied it.
+> - `backup/backup-service.several-resources.test.ts` "keeps the record of every backup across a restore": red when the two records are set back to backed up.
+> - `data-source/tests/not-backed-up.cases.ts`, run in memory and on Postgres and Valkey (`not-backed-up.postgres-valkey.test.ts`, **not run here**): rows of a `backedUp: false` entity stay out of the backup and survive the restore, while the other rows are replaced.
+>
+> The two-process form of the Verify is the cluster suite's.
+>
+> Docs: `backup.md` names the busy-resource behavior and `backedUp: false`.
+>
+> **Found by the user's run of the backup suites (2026-10-28): the put-back went in declaration order.** The three suites that restore on Postgres (`backup-service.test.ts`, `s3.backup-transport.test.ts`, `sftp.backup-transport.test.ts`) failed with `psql exited with code 3`, nothing else. They all declare `BackupResourceEntity` before `BackupEntity`, and a resource points at its backup, so the put-back inserted the resource rows before the backup rows they reference, after the dump had added the foreign key. The kept entities of `not-backed-up.cases.ts` had no reference between them, which is why it passed. Fixed: the kept tables are ordered so each comes after the ones its rows point at (`resolveEntitiesNotBackedUpInReferenceOrder`, through `manyToOne` and `belongsToOne`), the put-back clears them in the reverse of that order and inserts in it. Red-first: the new case "keeps rows that point at other kept rows, whichever order their entities are declared in" in `not-backed-up.cases.ts`, with `KeptRenewal` declared before the `KeptGrant` it points at in both test files. It is green in memory, which has no foreign keys, and **not run on Postgres here**. The restore and dump errors also carry the end of the tool's error output now, in place of inheriting it, so the next such failure names the statement.
+
 ### F20. The http client follows redirects unconditionally and has no `HEAD`/`OPTIONS` — MINOR
 *Filed 2026-10-21.*
 
 `fetch` is called without `redirect` (`http-client.ts:1039-1042`), so every call follows up to 20 redirects including cross-origin and https-to-http ones; the circuit breaker, the `server.address` attribute and the retry policy are keyed on the *original* origin (`:400, 980-986`), so a dependency that redirects to a failing host never opens its circuit. There is no option to set `redirect: 'manual' | 'error'`, which is what a webhook sender or anything fetching a customer-supplied url needs against SSRF via redirect. `HEAD`, `OPTIONS` and `TRACE` throw "Not implemented yet." (`:383-385`), which a client that validates response headers would reasonably be used for.
 
 **Verify:** `startTestServer` with a route redirecting to a second route; `get` with a new `redirect: 'error'` option asserts a thrown `HttpClientError` with status 302.
+
+> **Closed 2026-10-28, following hop by hop, and following by default except https→http, as decided.**
+> - **Correction to the finding.** The circuit did open: a redirect's 5xx or refused connection was recorded against the *original* origin. That was the actual defect. The failing host's own circuit stayed shut, and the redirecting host's circuit opened, blocking its working endpoints too.
+> - **Following.** `HttpClient.sendFollowingRedirects` sends with `redirect: 'manual'` and follows each `301/302/303/307/308` with a `Location` itself, at most 20 in a row (the fetch standard's limit). Each hop goes through `sendRequest`, so it is admitted and recorded by the circuit of its own origin. One deadline covers all hops: each gets what is left of `timeoutInMs`. Before the next hop the body is cancelled and the deadline released. The fetch standard's rules are kept. A POST answered 301/302, and anything but GET/HEAD answered 303, goes on as a GET, without the body or its describing headers. A hop to another origin drops `Authorization`, `Proxy-Authorization` and `Cookie`. A redirect counts toward `http.request.resend_count`, as the semantic convention says.
+> - **The option.** `HttpClientRedirect = 'follow' | 'same-origin' | 'error'`, on `HttpClientOptions.redirect` (default `'follow'`) and per request. A refused redirect throws an `HttpClientError` built from the 3xx: status, headers with `Location`, and a message naming where it led, with the query left out. `'follow'` refuses https→http, like Java's `HttpClient.Redirect.NORMAL`, and every mode refuses a scheme other than http(s). **`'manual'` was left out of the typed API**: there the response type promises the declared body, which a redirect doesn't have. `'error'` gives the caller the status and `Location` instead. `fetchForLibrary` honors a library's own `init.redirect` (`'manual'` hands back the 3xx, `'error'` refuses any); otherwise it follows by the application's option.
+> - **`head` and `options`** are on `HttpClientInterface` and `HttpClient`. `head` takes `HttpOptionsWithoutResponseBodyInput`, which has no `responseBody`. TRACE is refused with a clear `InternalError`: it is a forbidden method of the fetch standard, which node's fetch refuses with a bare TypeError.
+> - **Found on the way, fixed:** declared `responseHeaders` were only parsed and validated when a `responseBody` was declared too. So `http-client.md`'s own `getWithCheckedHeaders` example got a string where its type said number. They are now applied either way, which is what `head` needs.
+>
+> Tests (in memory; the https case trusts a `createFakeKeyPair` certificate through `tls.setDefaultCACertificates`, with no new dependency):
+> - `http-client/http-client.redirects.test.ts`, 11 of 12 red before:
+>   - follows by default;
+>   - `'error'` per request and app-wide, and the request's option wins;
+>   - `'same-origin'`;
+>   - credentials dropped across origins and kept within one;
+>   - 303/302 after POST become a GET without body, while 307 keeps the POST and its body;
+>   - 20 redirects, then a refusal (21 requests);
+>   - https→https followed, https→http refused;
+>   - each hop counted by its own origin's circuit;
+>   - `fetchForLibrary` with `'manual'` and under the app's `'error'`.
+> - `http-client/http-client.test.ts`: `head()`, `options()`, the TRACE refusal, and response headers parsed and validated without a declared body (red before).
+>
+> Docs:
+> - `http-client.md`: new "Following redirects", `head`/`options` under "Making a request", and the library's redirects;
+> - `configuration.md`: the options row;
+> - upgrade guide: "A redirect from https to http fails the request", and "The http client" paragraph for an `HttpClientInterface` of an app's own.
 
 ### F21. Console logging is human-formatted only, and levels are per transport rather than per origin — MINOR
 *Filed 2026-10-21.*
@@ -263,12 +378,42 @@ The documented seam is "replace the logger" (`docs/logging.md:92-98`), which mea
 
 **Verify:** A unit test that `LoggerTransport.json(LogLevel.INFO)` (new) writes one JSON object per entry with `level`, `message`, `traceId` and `origin`, parseable by `JSON.parse` per line.
 
+> **Closed 2026-10-28, with a JSON transport (the scaffold keeps the console), and levels per transport by path, as decided.**
+> - **`LoggerTransport.json(level, options?)`**, writing with `logToJson`. One `process.stdout.write` per batch, so concurrent writers don't interleave inside it. One `JsonUtilities.stringify` object per entry and line: `id`, `time` (ISO), `level` as a lowercase name, `message`, `tenantId`, `traceId`/`spanId` repeated at the top level for collectors that join on them, then the context (`origin`, `metadata`, `request`, `error`, `cache`, `collapsed`). The scaffold stays on `console`. `logging.md` shows the `NODE_ENV` switch.
+> - **`levelsByOrigin?: Record<string, LogLevel>`** on `BaseLoggerTransportConfig`, taken by `console`, `json`, `db` (beside `maxEntriesPerMinute`) and `email` (through its config input). A key matches when the caller's file path contains it, and the longest match wins. `LoggerTransport.resolveLevel(origin)` and `resolveLowestLevel()` are on the class, so a transport built with `create` gets them too. In `Logger.log`, the early return checks the lowest level any origin could have, so an entry nothing could admit still costs no stack walk. Once the origin is resolved, a second check drops an entry no transport admits from it. `write` filters each transport's batch by the entry's origin.
+>
+> Tests (in memory):
+> - `logging/transport/log-to-json.function.test.ts` (the Verify): two entries are two parseable lines with the fields, and a message with a line break stays on one line.
+> - `logging/logger.levels-by-origin.test.ts`, through a real `Logger`, 4 of 6 red before:
+>   - an origin turned up and turned down;
+>   - the longest key wins;
+>   - an unmatched origin keeps the transport's level;
+>   - one transport is set without touching another;
+>   - nothing is buffered when no origin could be admitted.
+>
+> Docs: `logging.md`, "Writing JSON lines for a log collector" and "Setting the level of one part of the application", and `LoggerTransportOptions` in Key exports. Additive, so there is no upgrade-guide entry.
+
 ### F22. `prom-client` is deprecated upstream in favour of `@prometheus-io/client` — MINOR (from `after-all-findings-fixed.md`)
 *Filed 2026-10-21.*
 
 `packages/zibri/package.json:83, 167, 234` pin `prom-client ^15.1.3` as an optional peer; `metrics.service.ts` uses only `Registry`, `Counter`, `Gauge`, `Histogram`, `collectDefaultMetrics` and `getMetricsAsJSON`, all of which the successor package carries under the same names. The migration is a rename plus the `optionalPeer` string; worth doing together with F9's exposition endpoint, since that is the API that differs most between the two.
 
 **Verify:** `published-package.test.ts` already loads the built package; extend it to assert `npm ls` shows no deprecated package in the optional peer set, or simply run the existing metrics tests after the swap.
+
+> **Closed 2026-10-28 with 07 §T13, by swapping to `@prometheus-io/client@^0.16.1`.**
+> - **Confirmed against the registry.** `npm view prom-client deprecated` = "prom-client has been replaced by @prometheus-io/client". The successor is the same project, moved to `prometheus/client_js` with the same author, under Apache-2.0, which is already in `allowed`. Its dependencies are `@opentelemetry/api` and `tdigest` → `bintrees`, both MIT and both already in the lock through prom-client. It runs on Node ^22, ^24 and ≥26.
+> - **The API matches.** Every name `metrics.service.ts` uses is exported, as read from the 0.16.1 tarball's `index.d.ts`: `Registry` (`metrics()`, `contentType`, `getMetricsAsJSON`), `Counter`, `Gauge`, `Histogram`, `collectDefaultMetrics` with `eventLoopMonitoringPrecision`, `MetricObjectWithValues` and `MetricValue`. The swap is the `import type` and the `optionalPeer` name.
+> - **Changed:**
+>   - `packages/zibri/package.json` (peer, its optional meta, devDependency);
+>   - `packages/sandbox/package.json`;
+>   - the scaffold's `SCAFFOLD_DEPENDENCIES`, with `new.command.test.ts` and the sandbox parity entry in `accepted-sandbox-differences.ts`;
+>   - `metrics.md` and `getting-started.md` (Requirements);
+>   - two comments.
+> - The upgrade guide sends an app to `getting-started.md`'s list of packages to install, which names the new one. There is no separate entry.
+>
+> **No red-first test.** Deprecation is only visible on the registry: neither an installed `package.json` nor the lock records it, so a permanent test would need the network. The check is the Verify's second form: the metrics suites (`metrics.service.test.ts`, container-backed) after `npm install`. **Not run here.** The zibri typecheck fails until the install, on the missing module. `new.command.test.ts` is green (29/29).
+>
+> **One difference the types hide, found by the user's run of `metrics.service.test.ts` (2026-10-28).** The new client hands over the `_sum` and `_count` of an unlabelled summary (its default `nodejs_eventloop_utilization_summary`) without `labels`, although `MetricValue` types them as present. "labels a request with the route template" then failed on `m.labels['route']`. `collect` now spreads each value's labels into a new object. Red-first in memory: `metrics/metrics.service.labels.test.ts`, which asserts that every metric in a snapshot carries a labels object, named the two series before the fix.
 
 ### F23. An invoice's year is the server's local calendar year — MINOR
 *Filed 2026-10-21.*
@@ -277,12 +422,36 @@ The documented seam is "replace the logger" (`docs/logging.md:92-98`), which mea
 
 **Verify:** Unit test with the clock at `2026-12-31T23:30:00Z`, `defaultTimezone: 'Europe/Berlin'`; assert the number starts with `2027`.
 
+> **Closed 2026-10-28, with a required `timezone` on `CompanyInfo`, as decided.** The company comes per tenant from `COMPANY_INFO_SERVICE`, so tenants in different zones each number by their own calendar. It is required, because UTC and a company's own zone are both legitimate and a silent default would hide which one was meant.
+> - `InvoiceNumberService.resolveCurrentYear()` takes the active tenant through `TENANT_SERVICE.getActiveTenantId()`, resolves its company, and reads the year with `getZonedDate(new Date(), company.timezone).year`. Outside a tenant it throws `NoActiveTenantError(NumberInvoices)`, the same error the counter's repository gives. `generateInvoiceNumber` and `generateTemporaryInvoiceNumber` each resolve the year once and hand it to `getConsecutiveNumber` and `getTemporaryConsecutiveNumber`, so the number and the counter row are always in the same year. The company info service is read when used, like the repositories, so `ZibriInvoicingPlugin.validate` still names a missing provider.
+> - Fixtures: the ten test companies got `timezone: 'Europe/Berlin'`, and `invoice-number.service.test.ts` and `invoicing.tenancy.test.ts` compute their expected year in that zone. The sandbox's company got `timezone: 'UTC'`, with its parity entry in `accepted-sandbox-differences.ts` updated to match.
+>
+> Test: `plugin/invoicing/services/invoice-number.service.timezone.test.ts`, in memory, the clock at `2026-12-31T23:30:00Z` through `runApplicationClockAhead`:
+> - a Berlin company numbers `2027-ACME-0001`, a New York one `2026-ACME-0001`;
+> - a temporary number is `TEMP-2027-…`;
+> - outside a tenant the call is refused.
+>
+> The New York case was red before. The Berlin case passed here only because this machine runs on Berlin time, and on a UTC server it is red as well.
+>
+> Docs:
+> - `invoicing-plugin.md` "Numbering invoices" names the zone;
+> - the upgrade guide's **Plugins** paragraph asks for `timezone` on each company.
+
 ### F24. One worker thread runs many jobs and many tenants, and only module scope is reset between them — MINOR
 *Filed 2026-10-21.*
 
 `loadWorkerFile` re-evaluates the file per job by dropping it from `require.cache` or importing a fresh url (`multithreading/services/worker/load-worker-file.function.ts:75-95`); the comment at `thread-job.worker.ts:25-28` names the shared state that survives: "module scope, the `functionCache` below, anything a job left behind". `globalThis`, patched prototypes, `process.env` mutations and listeners on `parentPort` all survive from one tenant's job to the next tenant's on the same thread, and a `run()` function source is cached by its text (`:70-82`) across callers. For a single application this is a hygiene note; for a multi-tenant deployment where worker files handle untrusted input it is the isolation boundary, and the docs do not say it is a thread rather than a process. Fix direction: say so in `docs/multithreading.md`, and offer `resourceLimits` plus an opt-in "fresh worker per job" for sensitive work.
 
 **Verify:** `startTestServer` test: a worker file that sets `globalThis.leak = workerData.tenantId`; queue it in tenant A, then in tenant B a file that reports `globalThis.leak`; assert the second reports `undefined` (it reports A today — a held expectation documenting the boundary, red until an isolation option exists).
+
+> **Closed 2026-10-28 as intended behavior, documented, with the tenant handed to the worker, by the user's call.**
+> - **What carries over, checked in the code:** `loadWorkerFile` evicts only the worker file itself. Every module it imports stays loaded with its state, and so do `globalThis`, patched prototypes, `process.env`, `process.on` listeners and uncleared timers. The finding understated the first of these.
+> - **Why no isolation option:** the user's question was what this buys. The main thread shares exactly the same module state across the requests of every tenant, and no framework runs a process per request. A worker is the same kind of long-lived thread. Isolation would only matter for code the tenants supplied, and the framework runs none (the source of a `run` function never leaves the process). Decided: document it and add no option. The held test the Verify describes is not written, since it would assert an isolation that was decided against.
+> - **What was missing, on the user's suggestion:** a worker file could not learn its tenant. The tenant was on the row (`ThreadJobEntity.tenantId`) but never reached the thread. So the advice to key per-tenant state by tenant was not actionable. `ThreadJobStartMessage` carries `tenantId`. The worker sets it under `THREAD_JOB_TENANT_ID_KEY`, a `Symbol.for`, beside the trace context, for every job, including one of no tenant, so no job reads the tenant of the one before. The new `getThreadJobTenantId()` in the worker helpers reads it.
+>
+> Test: `multithreading.service.tenancy.test.ts` "tells the worker file the tenant of the job it runs, on a thread the jobs of every tenant share". It is in memory, with a pool of one worker, and runs jobs in tenant A, tenant B and no tenant through `multithreading.service.tenant-id.test.worker.ts`. It was red before the change, and green after `npm run build -w zibri`, since the worker entry runs from `dist/cjs`.
+>
+> Docs: `multithreading.md` "Writing the worker file" says what carries over between jobs and tenants and points to `getThreadJobTenantId`. The function is in Key exports.
 
 ### F26. Nothing tells an edited or deleted row of the audit trail apart from a recorded one — MINOR
 *Filed 2026-10-22*, split out of F25 by the user's call: tamper evidence is a property of a table, not of auditing, so it is to be built as a capability of its own that the audit trail then uses.
@@ -299,6 +468,46 @@ Anyone who can write the `AuditEntry` table can change a subject, delete the ref
   - (b) Store as today and seal in the background: a polling job takes each tenant's unsealed entries in order under one lease, and chains and updates them in one batch. The cost is per active tenant per interval, not per event. The price is a window of unsealed entries.
 
   HMAC itself is microseconds per entry; the master key is unwrapped once per chain.
+
+> **Closed 2026-10-28. Chains are an opt-in utility. The audit trail uses a MAC per row and hourly checkpoints by default, and a chain if the app asks, by the user's call.**
+> - **How it got there:** the chain was built first as the fix direction says, with a `chained` entity option and the trail chained. The cost test then went from 2 statements to 5 per burst, and to 13 before the heads were read in a batch. The user stepped back and asked what tamper evidence buys over refusing updates and deletes. Refusing them only stops the application's own code. The adversary of an audit trail is someone with database access, and only a key held outside the database tells their changes. The per-write cost of a chain buys one more thing: a removal is told at once, instead of an hour later. Decided: keep the chain as a utility for the app's own tables. The trail defaults to the cheaper shape, and `ZIBRI_DI_TOKENS.AUDIT_INTEGRITY: 'chain'` switches it to a chain.
+> - **The utility:**
+>   - `@Entity({ appendOnly: true })`: the repository refuses `upsert`, `upsertAll`, `updateById`, `updateEach`, `updateAll`, `deleteById` and `deleteAll`. The new `Repository.prune(where)` is the one way to remove rows: it runs `deleteAll` under an async-local flag (`AppendOnlyUtilities`), across tenants and unscoped.
+>   - `@Entity({ chained: true })`, which implies `appendOnly`: as built for this finding. Each row carries an HMAC under the `SigningKey` `'chain'`, which the encryption service keeps under the master key and re-encrypts when the master key changes. The sequence is unique per tenant, a racing writer retries, and the heads of a batch are read in three statements. `pruneChains` writes a sealed `ChainAnchor` before it deletes. On a chained entity, `prune` goes through `pruneChains`, which now takes an array of filter branches too.
+> - **The trail by default (`'checkpoints'`):**
+>   - `AuditEntry` is append-only. It carries `recordedAt`, taken on each write attempt so a retried batch lands in the span it is written in, and `mac`, an HMAC over everything but the id under the `SigningKey` `'audit'`. A store costs no extra statement: the cost test is back at 2.
+>   - Hourly at :10, `AuditCheckpointCronJob` seals what each tenant stored up to the last full hour, five minutes back. It reads the newest `periodEnd` overall, counts the unsealed entries per tenant, reads each such tenant's last end, then streams the entries in one read in (`recordedAt`, `id`) order. Each tenant gets one `AuditCheckpoint` (entry count, sha256 over the MACs). Checkpoints are a chained entity, tile time without gaps, and are unique per (tenant, `periodEnd`), so two instances cannot seal one span twice. Each one is logged with its sequence and hash, which gives a copy outside the database for the tail that no chain can vouch for.
+>   - `resolveVerification(tenantId)` checks the checkpoint chain, that the spans follow each other, every entry's MAC, and each span's count and digest. It reports the first problem and `sealedUntil`.
+>   - Retention prunes the entries of each tenant's spans that ended before the cutoff, then those checkpoints. In that order, a failure in between leaves checkpoints the next run cleans up, not entries that no checkpoint names.
+>   - A copy of a recorded entry under a new id has a valid MAC, since the id is assigned after the hash is taken. Once its hour is sealed, the count catches it.
+> - **The trail as a chain:** `ChainedAuditEntry` shares the columns through `BaseAuditEntry` and declares `chainSequence` and `chainHash` itself. It is pruned by `lastOccurredAt` from the old end of each chain. `onAppInit` requires `AuditEntry` and `AuditCheckpoint`, or `ChainedAuditEntry`, depending on the mode.
+>
+> Tests:
+> - `audit/audit-integrity.cases.ts`, run in memory (`audit-integrity.test.ts`) and on postgres and valkey (`audit-integrity.postgres-valkey.test.ts`). Each case moves the clock with `runWithApplicationClockAhead`, the new wrapper around `runApplicationClockAhead`. The cases:
+>   - each tenant is sealed in a checkpoint of its own, and its trail holds;
+>   - a span is sealed once;
+>   - the next checkpoint starts where the last one ends;
+>   - the checkpoint is logged;
+>   - a changed entry is told, sealed or not;
+>   - a removed sealed entry is told by the count;
+>   - a copy slipped into a sealed hour is told;
+>   - a removed checkpoint breaks the chain;
+>   - updates and deletes through the repository are refused.
+> - `audit.service.chain.test.ts`: chain mode, with a removal told at once and pruning.
+> - `audit.service.test.ts`: retention through two sealed spans, and two new startup refusals.
+> - `data-source/repository/append-only.utilities.test.ts`: an app's own append-only entity, and `prune` refused for an ordinary one.
+> - `chain.cases.ts` now prunes through `prune`.
+> - `val-key-backup-mode.test.ts` declares `AuditCheckpoint`, `SigningKey` and `ChainAnchor`.
+>
+> The Verify note's "change the subject through the repository" is refused now, so the cases make the change past the repository, through the driver.
+>
+> Docs:
+> - a new `tamper-evident-tables.md` covers `appendOnly`, `chained`, `prune`, checking a chain and its limits;
+> - `audit.md` gains "Telling whether the trail was changed" and "Keeping the trail as a chain", plus Key exports and Requirements;
+> - `encryption-and-hashing.md` gains "Keeping a signing key";
+> - `framework-tables.md` gains rows for `AuditCheckpoint`, `ChainedAuditEntry`, `ChainAnchor` and `SigningKey`;
+> - the glossary gains "Hash chain";
+> - in the upgrade guide, the audit paragraph names the four entities and the migration creates them.
 
 ### F27. A mailing list subscriber on no list is kept for good — MINOR
 *Filed and closed 2026-10-26*, found by 08 §X27's research into what ends each framework table's rows.

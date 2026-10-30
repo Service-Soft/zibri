@@ -14,6 +14,7 @@ import { repositoryTokenFor } from '../../../di/decorators/inject-repository.dec
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { defineProvider } from '../../../di/models/di-provider.model';
+import { getZonedDate } from '../../../localization/format-date.function';
 import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
@@ -26,9 +27,8 @@ import { Invoice } from '../models/invoice.model';
 import { InvoicingOptions } from '../models/invoicing-options.model';
 import { NumberInvoices } from '../models/number-invoices.model';
 
-const currentYear: string = new Date()
-    .getFullYear()
-    .toString();
+// in the zone of the company below, which decides the year an invoice is numbered in
+const currentYear: string = getZonedDate(new Date(), 'Europe/Berlin').year.toString();
 
 const invoicingOptions: InvoicingOptions = {
     footerFontSize: 10,
@@ -69,6 +69,7 @@ const companyInfo: CompanyInfo = {
     fullName: 'Example Company LLC',
     email: 'info@example-company.com',
     phone: '12345 67890123',
+    timezone: 'Europe/Berlin',
     address: {
         street: 'Example street',
         number: '1b',

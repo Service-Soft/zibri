@@ -1,4 +1,4 @@
-import type { PostgresOptions } from './postgres-typeorm-data-source.model';
+import type { PostgresOptions } from './postgres-data-source.model';
 
 /**
  * Where a postgres data source reaches the server directly, when its `options` point at a pooler.
@@ -6,7 +6,12 @@ import type { PostgresOptions } from './postgres-typeorm-data-source.model';
  * What differs from `options`: the host always, and the port, credentials, database or tls when the
  * pooler is addressed by others than the server.
  */
-export type PostgresDirectConnection = { host: string } & Partial<Pick<PostgresOptions, 'port' | 'username' | 'password' | 'database' | 'ssl'>>;
+export type PostgresDirectConnection = {
+    /**
+     * The host of the server, or the directory of its unix socket.
+     */
+    host: string
+} & Partial<Pick<PostgresOptions, 'port' | 'username' | 'password' | 'database' | 'ssl'>>;
 
 /**
  * A pooler handing a connection to a client for one transaction at a time, such as PgBouncer in

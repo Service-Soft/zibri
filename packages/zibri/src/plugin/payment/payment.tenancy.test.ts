@@ -19,6 +19,7 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
+import { Ms } from '../../utilities/ms';
 import { NumberUtilities } from '../../utilities/number.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 
@@ -44,7 +45,9 @@ function createFakeProvider(): AnyPaymentProviderInterface {
         confirmPayment: jest.fn(),
         collectPaymentFromReservation: jest.fn(),
         cancelPayment: jest.fn(),
-        refundPayment: jest.fn()
+        refundPayment: jest.fn(),
+        approvalWindowInMs: Ms.DAY,
+        reconcilePayment: jest.fn()
     };
 }
 

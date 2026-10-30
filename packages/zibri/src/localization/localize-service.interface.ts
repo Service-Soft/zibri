@@ -103,9 +103,8 @@ export interface LocalizeServiceInterface {
      * Orders two texts the way the default locale does.
      *
      * Which text sorts after which is a question about a language - Swedish sorts `ä` after `z`
-     * where German sorts it with `a` - so it is answered here rather than by whatever is comparing. Every
-     * data source is held to this one answer: a postgres text column is created with the matching
-     * collation, and anything comparing in process calls this.
+     * where German sorts it with `a`. Every data source orders text by this one answer, and anything
+     * comparing in process calls this.
      *
      * Returns a negative number when the first text sorts first, a positive one when it sorts last,
      * and zero when the two sort the same.

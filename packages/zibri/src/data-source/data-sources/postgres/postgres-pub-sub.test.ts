@@ -2,7 +2,8 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { PostgresDataSource } from './postgres-typeorm-data-source.model';
+import { PostgresDataSource } from './postgres-data-source.model';
+import { queryPostgres } from '../../../__testing__/query-postgres.function';
 import { createTestDataSource } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../../di/inject.function';
@@ -81,6 +82,28 @@ describe('PostgresDataSource — publish and subscribe', () => {
         }
         finally {
             await back.subscription.unsubscribe();
+        }
+    });
+
+    it('listens again once the server ended the connection it listened on', async () => {
+        const dropped: { received: string[], subscription: DataSourceSubscription } = await collect('pub-sub.dropped');
+        try {
+            const terminated: Record<string, unknown>[] = await queryPostgres(
+                inject(dataSourceClass),
+                'SELECT pg_terminate_backend(pid) AS terminated FROM pg_stat_activity WHERE query LIKE $1 AND pid <> pg_backend_pid()',
+                ['LISTEN %pub-sub.dropped%']
+            );
+            expect(terminated).toEqual([{ terminated: true }]);
+            // what is published while nothing listens is gone, so until one arrives
+            for (let waited: number = 0; dropped.received.length === 0 && waited < 5000; waited += 250) {
+                await inject(dataSourceClass).publish('pub-sub.dropped', 'still there');
+                await sleep(250);
+            }
+
+            expect(dropped.received[0]).toBe('still there');
+        }
+        finally {
+            await dropped.subscription.unsubscribe();
         }
     });
 

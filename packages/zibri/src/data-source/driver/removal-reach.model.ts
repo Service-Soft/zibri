@@ -4,7 +4,7 @@ import { Where } from '../models/where/where-filter.model';
 
 /**
  * What the rows a delete removes have to match as they are removed: the caller's reach, judged in
- * the same window as the removal rather than by the read that found them.
+ * the same window as the removal, not by the read that found them.
  */
 export type RemovalReach<T extends BaseEntity> = {
     /**

@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
-import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -170,12 +170,12 @@ describe('evaluation/02-http-runtime-core M13 - a manually registered route is s
     });
 
     describe('the framework registers its own routes this way', () => {
-        it('serves the openapi spec to anyone, even where everything else needs a login', async () => {
-            // the OpenApi surface states its posture rather than inheriting, and what it states is
-            // public. A browser reaches the explorer by navigating to it, and a navigation carries no
-            // Authorization header, so inheriting a login requirement would leave a bearer token
-            // application with an explorer nobody can open rather than one only its callers can.
-            expect(await call('/explorer/spec/1.0.0')).toBe(200);
+        it('puts the openapi spec behind the login the application declared', async () => {
+            // the spec is a map of every endpoint the application has, and documents which of them
+            // answer anonymous callers. Round 2's 03 §H16 reversed what this case asserted first, an
+            // explorer open to anyone: it follows `defaultAuth` unless OPEN_API_AUTH says otherwise
+            expect(await call('/explorer/spec/1.0.0')).toBe(401);
+            expect(await call('/explorer/spec/1.0.0', userToken)).toBe(200);
         });
 
         it('serves the favicon without a login', async () => {
@@ -187,26 +187,20 @@ describe('evaluation/02-http-runtime-core M13 - a manually registered route is s
 
     // last in the file on purpose: it replaces the running application with one configured
     // differently, and nothing after it would be looking at the server the tests above started
-    describe('an application that does not publish its endpoint map', () => {
-        it('puts the whole openapi surface behind the login it declared', async () => {
+    describe('an application that publishes its endpoint map', () => {
+        it('serves the openapi spec to anyone, even where everything else needs a login', async () => {
             assert(server);
             await server.reInit({
                 providers: [
                     ...defaultTestServerProviders,
-                    // `{}` is a route that says nothing, which is how a manually registered route
-                    // asks for the application's default - the same thing an undecorated controller
-                    // route gets
-                    defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_AUTH, useFactory: () => ({}) })
+                    // a browser reaches the explorer by navigating to it, which carries no
+                    // Authorization header: an application whose explorer is for everyone says so
+                    defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_AUTH, useFactory: () => ({ skip: true }) })
                 ]
             });
             baseUrl = await server.start();
-            const token: string = await createAndLogIn('manual-openapi@example.com', [Roles.USER]);
 
-            // the spec is a map of every endpoint the application has, and since this rework it also
-            // documents which of them answer anonymous callers. An api whose shape is not for
-            // everyone can say so in one place, including behind a role.
-            expect(await call('/explorer/spec/1.0.0')).toBe(401);
-            expect(await call('/explorer/spec/1.0.0', token)).toBe(200);
+            expect(await call('/explorer/spec/1.0.0')).toBe(200);
         }, 60000);
     });
 });

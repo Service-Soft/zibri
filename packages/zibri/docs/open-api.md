@@ -9,7 +9,7 @@ Your application describes its routes as an [OpenAPI](https://spec.openapis.org/
 | `OpenApiComponentsObject` | type | The `components` of the document, `securitySchemes` among them |
 | `OpenApiSecuritySchemeObject`, `OpenApiSecuritySchemeType` | type, type | How an [auth strategy](./glossary.md#auth-strategy) appears under `securitySchemes`, and the kinds of scheme, `mutualTLS` among them |
 | `OpenApiReferenceObject`, `isOpenApiReferenceObject` | type, function | A `$ref` to a schema, and whether a value is one rather than a schema |
-| `ZIBRI_DI_TOKENS.OPEN_API_AUTH` | DI token | Who may open the explorer and the document. Everyone by default |
+| `ZIBRI_DI_TOKENS.OPEN_API_AUTH` | DI token | Who may open the explorer and the document. Defaults to what `defaultAuth` says |
 
 ## Reading the document
 
@@ -37,6 +37,8 @@ curl -o openapi.json https://api.example.com/explorer/spec/1.0.0
 
 A request body is described by the model of its `@Body`, and the responses by the `@Response` decorators of the route, see [defining OpenAPI responses](./creating-endpoints.md#defining-openapi-responses).
 
+A property that is not required may also be `null`, in a request and in a response, and the document says so: `type: ['string', 'null']`. A value of several shapes is described with `oneOf`, each shape by the name it is sent with.
+
 A route registered directly on the router is in the document as well, unless it sets `openApi: { useInOpenApi: false }`. It describes its responses and tags in `openApi`, since it has no decorators. `HEAD`, `OPTIONS` and `TRACE` routes are left out.
 
 ## How login appears
@@ -47,18 +49,20 @@ An operation that requires a login lists every strategy under `security`. One th
 A route behind a permission names it in `x-permission`, and one behind a permission of the platform in `x-platform-permission`, see [roles and permissions](./roles-and-permissions.md).
 
 ## Restricting the explorer
-The explorer, the scripts it loads and the documents answer anonymously by default, whatever `defaultAuth` says, since a browser opens the explorer by navigating to it, and a navigation carries no `Authorization` header.
+The explorer, the scripts it loads and the documents follow `defaultAuth`, like every route that says nothing of its own. An application that requires a login by default answers an anonymous caller with `401`. A browser opens the explorer by navigating to it, and a navigation carries no `Authorization` header, so with a bearer token login the explorer stays closed to a browser.
 
-To restrict them, provide `ZIBRI_DI_TOKENS.OPEN_API_AUTH`. It takes the configuration a manually registered route takes, so the explorer can require a login, require a permission, or follow the application's default. An empty configuration puts it behind the application's default, whatever that is:
+`ZIBRI_DI_TOKENS.OPEN_API_AUTH` decides it independent of `defaultAuth`. It takes the configuration a manually registered route takes, so the explorer can be open to everyone, require a login or require a permission. `{ skip: true }` opens it to everyone:
 
 ```typescript
 // src/providers.ts
 import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
 
 providers: [
-    defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_AUTH, useFactory: () => ({}) })
+    defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_AUTH, useFactory: () => ({ skip: true }) })
 ]
 ```
+
+A project `zi new` creates provides `{ skip: true }` in every environment. The document lists every route, every model and the permission each route asks for, so remove that provider where the document is not meant to be public.
 
 A permission puts it behind that permission, whatever the default is:
 
@@ -105,6 +109,17 @@ defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_SERVICE, useClass: ApiDocsServi
 ```
 
 The explorer is then at `/docs`, and the document of version `1.0.0` at `/docs/spec/1.0.0`.
+
+## Changing the look of the explorer
+The files of the explorer are your application's own, in `assets/public/open-api/`:
+
+| File | What it does |
+|---|---|
+| `custom.css` | Styles the explorer |
+| `custom.js` | Shows the logo and the name of the application, and the permission each route requires |
+| `swagger-ui-init.js` | Opens the explorer on the document of every version, the latest first |
+
+The page hands the two scripts the name of the application, the logo and the documents as JSON, in the element `zibri-explorer-config`.
 
 ## See also
 - [Creating endpoints](./creating-endpoints.md) — the decorators the document is built from

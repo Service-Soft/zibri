@@ -30,7 +30,6 @@ export type BaseMembership<Role extends string> = BaseEntity & {
     deactivatedAt?: Date | null
 };
 
-// eslint-disable-next-line jsdoc/require-returns
 /**
  * Defines a base membership entity class, whose roles are typed as the given ones.
  *
@@ -38,20 +37,22 @@ export type BaseMembership<Role extends string> = BaseEntity & {
  * tenant level: writing any other is refused.
  */
 export function BaseMembershipEntity<Role extends string = string>(): Newable<BaseMembership<Role>>;
-// eslint-disable-next-line jsdoc/require-returns
 /**
  * Defines a base membership entity class that soft deletes, whose roles are typed as the given
  * ones. It declares no unique, so a soft deleted membership holds no value another could want.
  * @param base - `SoftDeleteEntity`, which the class extends.
  */
-export function BaseMembershipEntity<Role extends string = string>(base: typeof SoftDeleteEntity): Newable<SoftDeleteEntity & BaseMembership<Role>>;
-// eslint-disable-next-line jsdoc/require-returns
+export function BaseMembershipEntity<Role extends string = string>(
+    base: typeof SoftDeleteEntity
+): Newable<SoftDeleteEntity & BaseMembership<Role>>;
 /**
  * Defines a base membership entity class that records its change sets, whose roles are typed as the
  * given ones.
  * @param base - `ChangeSetEntity`, which the class extends.
  */
-export function BaseMembershipEntity<Role extends string = string>(base: typeof ChangeSetEntity): Newable<ChangeSetEntity & BaseMembership<Role>>;
+export function BaseMembershipEntity<Role extends string = string>(
+    base: typeof ChangeSetEntity
+): Newable<ChangeSetEntity & BaseMembership<Role>>;
 export function BaseMembershipEntity<Role extends string = string>(base: typeof BaseEntity = BaseEntity): Newable<BaseMembership<Role>> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     class Temp extends base implements BaseMembership<Role> {

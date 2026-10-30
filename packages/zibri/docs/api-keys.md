@@ -126,7 +126,11 @@ GET /invoices HTTP/1.1
 Authorization: Bearer zibri_3q2-7wEAAAB6t...
 ```
 
-Every key starts with `zibri_`, which tells it apart from a JWT and lets a secret scanner find one that leaked. A request carrying a key and another credential, such as a JWT, is refused with `401`.
+Every key starts with `zibri_`, which tells it apart from a JWT and lets a secret scanner find one that leaked. Name a prefix of your own, letters and digits ending in `_`, as `prefix` of `ZIBRI_DI_TOKENS.API_KEY_OPTIONS`.
+
+> [!WARNING]
+> A key is taken only while it starts with the prefix, so changing the prefix makes every key issued before it unusable.
+ A request carrying a key and another credential, such as a JWT, is refused with `401`.
 
 ## What a key may do
 A request with a key acts as the key's user, holding those of the key's `permissions` the user's roles carry right now: the roles of their own for `@Auth.hasPlatformPermission`, and those of their membership in the tenant the request is for for `@Auth.hasPermission`. Take a role from the user or their membership, and their keys lose what it carried with the next request. The `platformPermissions` and `permissions` of the user a handler gets through `@CurrentUser` are the same, so a check of your own matches the route checks.

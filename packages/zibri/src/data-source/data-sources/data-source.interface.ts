@@ -1,18 +1,20 @@
 import { type BackupResourceInterface } from '../../backup/backup-resource.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
-import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { ChangeSetRepository } from '../change-sets/change-set-repository';
 import { ChangeSetEntity } from '../change-sets/models/change-set-entity.model';
 import { SoftDeleteEntity } from '../change-sets/models/soft-delete-entity.model';
 import { SoftDeleteRepository } from '../change-sets/soft-delete-repository';
+import { MigrationRevertTarget } from '../migration/migration-revert-target.model';
 import { Migration } from '../migration/migration.model';
 import { AddPropertyToEntityInput } from '../models/add-property-to-entity-input.model';
 import { ChangePropertyOfEntityInput } from '../models/change-property-of-entity-input.model';
 import { CreateEntityInput } from '../models/create-entity-input.model';
 import { MergeEntityInput } from '../models/merge-entity-input.model';
 import { MigrationPropertyMetadata } from '../models/migration-property-metadata.model';
+import { RemoveEntityInput } from '../models/remove-entity-input.model';
 import { RemovePropertyFromEntityInput } from '../models/remove-property-from-entity-input.model';
+import { RemoveRelationFromEntityInput } from '../models/remove-relation-from-entity-input.model';
 import { RenameEntityInput } from '../models/rename-entity-input.model';
 import { Repository } from '../repository/repository';
 import { RepositoryClass } from '../repository/repository-class.type';
@@ -45,9 +47,9 @@ export type StartTransactionOptions = {
      * - the happy path written without a catch, an early return above the commit - holds those for
      * the life of the process. The pool is a fixed size, so enough of them and no query anywhere can
      * be served again, and a grant that is never handed back stops every replica from writing that
-     * row rather than only this one.
+     * row.
      *
-     * Idle is the measure rather than age, so a transaction that keeps working keeps its full
+     * It measures idle time, not age, so a transaction that keeps working keeps its full
      * allowance however long it runs. Worth raising for a transaction that waits on something slow
      * between two of its writes, and worth setting to 0 for one that may sit idle for as long as it
      * likes. Ten seconds when it is not given, which is an order of magnitude over the longest gap
@@ -55,6 +57,14 @@ export type StartTransactionOptions = {
      */
     idleTimeoutInMs?: number
 };
+
+/**
+ * How long a transaction may sit idle before it is rolled back, when it does not give an
+ * `idleTimeoutInMs` of its own: ten seconds.
+ */
+// an ordinary gap between two statements is a few hundred milliseconds at most, and the save hooks
+// encrypting or hashing rows one by one can hold it for a moment; this leaves an order of magnitude
+export const DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS: number = 10000;
 
 /**
  * The inferred repository type for the given entity.
@@ -159,14 +169,15 @@ export interface DataSourceInterface extends BackupResourceInterface {
     runMigrations: () => Promise<void>,
 
     /**
-     * Takes the schema back to the given version, reverting everything applied above it.
+     * Takes the schema back to the given version or migration, reverting everything applied after it,
+     * newest first.
      *
      * Never happens on its own. Booting refuses to run against a database newer than the app instead
      * of reverting it, because an instance arriving late would otherwise take the schema away from
      * the ones already serving on it. This is the deliberate way back, and it is destructive: run it
      * with the newer instances stopped.
      */
-    revertMigrationsAfter: (targetVersion: SemVerVersion) => Promise<void>,
+    revertMigrationsAfter: (target: MigrationRevertTarget) => Promise<void>,
 
     /**
      * Adds a property to every stored entity, empty in the ones that already exist.
@@ -208,7 +219,19 @@ export interface DataSourceInterface extends BackupResourceInterface {
      *
      * A migration that manages the schema creates every entity it introduces with this.
      */
-    createEntity: <T extends BaseEntity>(input: CreateEntityInput<T>) => Promise<void>
+    createEntity: <T extends BaseEntity>(input: CreateEntityInput<T>) => Promise<void>,
+
+    /**
+     * Removes an entity: what it is stored in, its rows, and the many to many relations they hold.
+     */
+    removeEntity: <T extends BaseEntity>(input: RemoveEntityInput<T>) => Promise<void>,
+
+    /**
+     * Removes what a relation stores apart from the properties of either side, which is what a many
+     * to many relation holds. The column a relation to one row keeps its key in is a property, removed
+     * with removePropertyFromEntity.
+     */
+    removeRelationFromEntity: <T extends BaseEntity>(input: RemoveRelationFromEntityInput<T>) => Promise<void>
 }
 
 /**

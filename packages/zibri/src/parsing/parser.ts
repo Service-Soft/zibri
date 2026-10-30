@@ -13,10 +13,11 @@ import { DiVariants } from '../di/models/di-variant.model';
 import { UnsupportedMediaTypeError } from '../error-handling/errors/unsupported-media-type.error';
 import { InternalError } from '../error-handling/internal-error.model';
 import { OnAppInit } from '../global/on-app-init.interface';
+import { findHeader } from '../http/find-header.function';
 import { HttpRequest, isHttpRequest } from '../http/http-request.model';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
-import { isJsonMimeType, isMimeType, isXmlMimeType } from '../http/mime-type.helpers';
+import { MimeTypeUtilities } from '../http/mime-type.utilities';
 import { HttpClientResponse, isHttpClientResponse } from '../http-client/http-client-response.model';
 import { LoggerInterface } from '../logging/logger.interface';
 import { parseArray } from './functions/parse-array.function';
@@ -129,13 +130,13 @@ export class Parser implements ParserInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     parseHeaderParam(req: HttpRequest | WebsocketRequest | HttpClientResponse, metadata: HeaderParamMetadata): unknown {
-        const rawValue: string | undefined = req.headers?.[metadata.name as KnownHeader];
+        const rawValue: string | undefined = findHeader(req.headers, metadata.name);
         return this.headerParamParseFunctions[metadata.type](rawValue, metadata);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     parseQueryParam(req: HttpRequest | WebsocketRequest, metadata: QueryParamMetadata): unknown {
-        const rawValue: string | undefined = req.query?.[metadata.name];
+        const rawValue: unknown = req.query?.[metadata.name];
         const res: unknown = this.queryParamParseFunctions[metadata.type](rawValue, metadata);
         return res;
     }
@@ -170,22 +171,26 @@ export class Parser implements ParserInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async parseBody(req: HttpRequest | WebsocketRequest | HttpClientResponse, metadata: BodyMetadata): Promise<unknown> {
-        const contentTypeHeader: string | undefined = req.headers?.[KnownHeader.CONTENT_TYPE]
-            ?? req.headers?.[KnownHeader.CONTENT_TYPE.toLowerCase() as KnownHeader];
+        const contentTypeHeader: string | undefined = findHeader(req.headers, KnownHeader.CONTENT_TYPE);
         let contentType: string = contentTypeHeader?.split(';')[0]?.trim().toLowerCase() ?? '';
+        // a http request with nothing on the wire has no type to name, and is a missing body, which
+        // `required` decides on. One carrying something it names no type for is refused below
+        if (!contentType.length && isHttpRequest(req) && !this.hasContent(req)) {
+            return undefined;
+        }
         // a response or a websocket message that names no type is read as what it was declared as,
         // since neither has a sender that was asked to say. A http request that names none is refused
         if (!contentType.length && !isHttpRequest(req)) {
             contentType = metadata.type;
         }
         // xml has several media types, and every one of them is read by the same parser
-        if (isXmlMimeType(contentType)) {
+        if (MimeTypeUtilities.isXml(contentType)) {
             contentType = MimeType.XML;
         }
         // json has many media types too, everything with the `+json` suffix, and the json parser reads
         // them all: a body declared as plain json takes any of them, one declared as a specific one
         // only that one
-        if (metadata.type === MimeType.JSON && isJsonMimeType(contentType)) {
+        if (metadata.type === MimeType.JSON && MimeTypeUtilities.isJson(contentType)) {
             contentType = MimeType.JSON;
         }
         // a response declared as a stream is handed over as the bytes that arrived, which nothing reads by
@@ -196,34 +201,27 @@ export class Parser implements ParserInterface, OnAppInit {
             contentType = MimeType.OCTET_STREAM;
         }
 
-        if (!isMimeType(contentType)) {
+        if (!MimeTypeUtilities.isKnown(contentType)) {
             throw new UnsupportedMediaTypeError(contentType);
         }
         if (metadata.type !== contentType) {
             throw new UnsupportedMediaTypeError(contentType);
         }
 
-        // the cases only read the same: each narrows metadata to its own type, which is what lets it
-        // reach the parser typed for it - merged, they would need one parser that accepts every metadata
-        switch (metadata.type) {
-            case MimeType.JSON:
-            case MimeType.JSON_LD:
-            case MimeType.JSON_SCIM: {
-                return await this.parseBodyWith(this.findBodyParser(MimeType.JSON), req, metadata);
-            }
-            case MimeType.XML: {
-                return await this.parseBodyWith(this.findBodyParser(metadata.type), req, metadata);
-            }
-            case MimeType.FORM_DATA: {
-                return await this.parseBodyWith(this.findBodyParser(metadata.type), req, metadata);
-            }
-            case MimeType.FORM_URL_ENCODED: {
-                return await this.parseBodyWith(this.findBodyParser(metadata.type), req, metadata);
-            }
-            case MimeType.OCTET_STREAM: {
-                return await this.parseBodyWith(this.findBodyParser(metadata.type), req, metadata);
-            }
-        }
+        // every json media type reads through the json parser
+        const parserType: BodyMetadata['type'] = MimeTypeUtilities.isJson(metadata.type) ? MimeType.JSON : metadata.type;
+        return await this.parseBodyWith(this.findBodyParser(parserType), req, metadata);
+    }
+
+    /**
+     * Whether a request carries a body: one is sent with a length or chunked, and with neither there
+     * is none (RFC 9112, section 6.3).
+     * @param req - The request.
+     * @returns False when nothing follows the headers.
+     */
+    private hasContent(req: HttpRequest): boolean {
+        const length: string | undefined = req.headers['content-length'];
+        return req.headers['transfer-encoding'] != undefined || (length != undefined && length.trim() !== '0');
     }
 
     private findBodyParser<M extends MimeType>(contentType: M): BodyParserInterface<M> {

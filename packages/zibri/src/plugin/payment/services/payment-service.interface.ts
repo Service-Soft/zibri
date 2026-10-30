@@ -1,25 +1,19 @@
 import { PaymentDataForMethod, ValidatedPaymentDataForMethod, PaymentForMethod, AllowedReservationMethods, PaymentReservationForMethod, AllowedCancellationMethods, AllowedRefundMethods } from './payment-service.types';
-import { PaymentMethod } from '../models/payment-method.model';
 import { AnyPaymentProviderInterface } from '../providers/payment-provider.interface';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
-type MethodsCoveredByProviders<P extends readonly AnyPaymentProviderInterface[]>
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    = P[number] extends { __supportedMethods: infer SM }
-        ? SM extends readonly (infer S)[] ? S : never
-        : never;
+/**
+ * The methods the given providers take between them.
+ */
+export type MethodsCoveredByProviders<P extends readonly AnyPaymentProviderInterface[]> = P[number]['__supportedMethods'][number];
 
 /**
  * Interface for a payment service.
  */
+// a method no provider takes is refused by the constraint on Methods itself: a check in a defaulted
+// type parameter defaults to its own constraint, and so never fails
 export interface PaymentServiceInterface<
-    Methods extends readonly PaymentMethod[],
-    P extends readonly AnyPaymentProviderInterface[],
-    // eslint-disable-next-line unusedImports/no-unused-vars
-    _Check extends (Methods[number] extends MethodsCoveredByProviders<P>
-        // eslint-disable-next-line stylistic/max-len
-        ? unknown : 'Error: not all payment methods are covered by the provided providers') = Methods[number] extends MethodsCoveredByProviders<P>
-        ? unknown : 'Error: not all payment methods are covered by the provided providers'
+    Methods extends readonly MethodsCoveredByProviders<P>[],
+    P extends readonly AnyPaymentProviderInterface[]
 > {
     /**
      * Validates the given data of the given payment method.
@@ -69,5 +63,13 @@ export interface PaymentServiceInterface<
      */
     refundPayment: <M extends AllowedRefundMethods<Methods, P>>(
         payment: PaymentForMethod<Methods, M, P>
-    ) => void | Promise<void>
+    ) => void | Promise<void>,
+    /**
+     * Asks the providers what became of the payments of every tenant that are still `CREATED` after
+     * their provider's `approvalWindowInMs`, and records it. `PaymentReconciliationCronJob` calls it
+     * every hour.
+     * @returns How many payments were asked about.
+     * @throws When a provider could not be asked about one of them, after the others were.
+     */
+    reconcileAbandonedPayments: () => Promise<number>
 }

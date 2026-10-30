@@ -11,6 +11,7 @@ The email service queues mails in your data source and sends them in the backgro
 | `EmailConfigInput` | type | Options accepted by the `EMAIL_CONFIG` DI token |
 | `EmailConfig` | type | The email configuration with every option of `EmailConfigInput` filled in |
 | `ZIBRI_DI_TOKENS.EMAIL_CONFIG` | DI token | Configures the sender, the rate limit and how the queue is drained |
+| `ZIBRI_DI_TOKENS.EMAIL_RATE_LIMITER` | DI token | Holds sending to `maxEmailsPerHour`. The default counts in the memory of each instance. Replaceable |
 | `EmailTransportInterface` | interface | What delivers a mail |
 | `EmailSendResult` | type | What a transport answers for a mail: the recipients the provider refused |
 | `ZIBRI_DI_TOKENS.EMAIL_TRANSPORT` | DI token | Injects `EmailTransportInterface` |
@@ -65,11 +66,23 @@ export const providers: DiProvider<unknown>[] = [
 | `maxEmailsPerHour` | The hourly budget queued mails are rate limited against. Required |
 | `failedRetentionInMs` | How long a `FAILED` mail is kept, counted from when it was queued, or `'forever'`. Required |
 | `sendLeaseInMs` | How long one instance may hold a queued mail while sending it. Renewed while the send runs, so it decides how long a mail waits before another instance takes over from one that stopped existing. Defaults to one minute |
-| `sendBatchSize` | How many mails one pass of the queue sends at most. Raise it to drain a backlog faster, lower it for a provider that dislikes bursts. Defaults to 10 |
+| `sendBatchSize` | How many mails one pass of the queue sends at most. Raise it to drain a backlog faster, lower it for a provider that dislikes bursts. At most `maxEmailsPerHour`. Defaults to 10, or `maxEmailsPerHour` when that is lower |
 | `maxSendAttempts` | How many times sending a mail may throw before it is `FAILED`. Defaults to 5 |
 | `retryDelayInMs` | How long a mail whose send threw waits before it is tried again, doubling with each further attempt. Defaults to one minute |
 
-Every priority gets a place in each pass, whatever `sendBatchSize` is. A priority takes at most `sendBatchSize` places, less one per priority below it, so a steady flood of `HIGH` still leaves one place for `NORMAL` and one for `LOW`.
+Every priority gets a place in each pass when `sendBatchSize` is at least 3. A priority takes at most `sendBatchSize` places, less one per priority below it, so a steady flood of `HIGH` still leaves one place for `NORMAL` and one for `LOW`. A smaller batch takes the most urgent mails first.
+
+> [!WARNING]
+> The default limiter counts in the memory of each instance, so `maxEmailsPerHour` holds per instance: three replicas send up to three times as much, past what your mail provider allows. Running more than one instance, replace the limiter with one built on `RepositoryRateLimiterStore`, see [sharing limits across instances](./rate-limiting.md#sharing-limits-across-instances):
+
+```ts
+// src/providers.ts
+import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
+
+import { SharedEmailRateLimiter } from './services/shared-email-rate-limiter';
+
+defineProvider({ token: ZIBRI_DI_TOKENS.EMAIL_RATE_LIMITER, useClass: SharedEmailRateLimiter })
+```
 
 ## Sending through something other than SMTP
 To send through an HTTP API, such as SES, SendGrid or Postmark, implement `EmailTransportInterface` and register it under `ZIBRI_DI_TOKENS.EMAIL_TRANSPORT`. The queue works the same with every transport.

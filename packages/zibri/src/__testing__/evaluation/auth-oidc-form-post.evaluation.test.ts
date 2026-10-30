@@ -12,6 +12,7 @@ import { OAuthClientAuthentication } from '../../auth/authenticators/oauth/oauth
 import { OAuthResponseMode } from '../../auth/authenticators/oauth/oauth-response-mode.type';
 import { BaseOidcAuthenticator } from '../../auth/authenticators/oidc/base-oidc.authenticator';
 import { OidcAuthenticationTime } from '../../auth/authenticators/oidc/oidc-authentication-time.type';
+import { OidcDiscoveryAtBoot } from '../../auth/authenticators/oidc/oidc-discovery-at-boot.type';
 import { CookieAuthRefreshSession } from '../../auth/strategies/cookie/cookie-auth-refresh-session.model';
 import { CookieAuthSession } from '../../auth/strategies/cookie/cookie-auth-session.model';
 import { CookieAuthStrategy } from '../../auth/strategies/cookie/cookie-auth.auth-strategy';
@@ -46,6 +47,8 @@ class FormPostProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUse
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
 
     readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
+
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
 
     override readonly responseMode: OAuthResponseMode = 'form_post';
 

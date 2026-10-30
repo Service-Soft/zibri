@@ -27,6 +27,7 @@ import { FederatedLoginAttempt } from '../../federated/federated-login-attempt.m
 import { FederatedRegistrationTicket } from '../../federated/federated-registration-ticket.model';
 import { OAuthClientAuthentication } from '../../oauth/oauth-client-authentication.model';
 import { OAuthProviderTokens } from '../../oauth/oauth-provider-tokens.model';
+import { OidcDiscoveryAtBoot } from '../oidc-discovery-at-boot.type';
 
 const PUBLIC_URL: string = 'http://zibri.test';
 const CLIENT_ID: string = 'zibri-test-client';
@@ -38,6 +39,8 @@ let google: FakeOAuthProvider;
 
 class GoogleAuthenticator extends BaseGoogleAuthenticator<string, JwtUser> {
     readonly clientId: string = CLIENT_ID;
+
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
 
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
 

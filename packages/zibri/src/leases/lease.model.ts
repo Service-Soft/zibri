@@ -3,23 +3,28 @@ import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { OmitStrict } from '../types/omit-strict.type';
 
+// One table for every grant in the framework rather than one per subsystem. A named lock over schema
+// setup, a claim on a scheduled execution, a claim on a queued mail and a claim on an event are the
+// same object with different keys - see evaluation/10-leases-and-claims.md, which found the same
+// three operations hand rolled in three places before this existed.
 /**
- * A grant over one named thing, held by one instance at a time.
+ * A grant over one named thing, held by one instance at a time: a named lock, or a claim on a
+ * scheduled execution, a queued mail or an event.
  *
  * The row is the grant. Its key is unique, so the insert itself decides who gets it - exactly one
- * instance succeeds and the rest are told the answer immediately. No read-modify-write is involved,
- * which is what makes it correct without depending on anything else being disciplined.
- *
- * One table for every grant in the framework rather than one per subsystem. A named lock over schema
- * setup, a claim on a scheduled execution, a claim on a queued mail and a claim on an event are the
- * same object with different keys - see evaluation/10-leases-and-claims.md, which found the same
- * three operations hand rolled in three places before this existed.
+ * instance succeeds and the rest are told the answer immediately.
  *
  * Has to be registered in exactly one data source. Registering it twice would mean two instances
- * could hold the same key in different stores and neither would see the other, which is the failure
- * this exists to prevent.
+ * could hold the same key in different stores and neither would see the other.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+// not backed up: a grant belongs to the instances running now. One brought back by a restore would
+// hold work for an instance that may not exist, and a restore replacing the table would drop the
+// grants held while it runs, its own among them
+// acquiring clears only the lapsed grant of the key it asks for, which keeps a contended acquisition
+// from scanning the table, and a retained grant is never handed back: a job on a one minute schedule
+// would leave a row a minute behind. Only lapsed rows expire, since a grant that has not is held or
+// belongs to a tick not decided yet
+@Entity({ tenant: 'shared', allowOrphan: true, backedUp: false, expiresBy: 'expiresAt' })
 export class Lease extends BaseEntity {
     /**
      * Names the one thing being held.
@@ -44,7 +49,8 @@ export class Lease extends BaseEntity {
     expiresAt!: Date;
 
     /**
-     * The name of the instance holding it. Diagnostic only - nothing branches on it.
+     * The application and the instance holding it, as `name@instanceId`. Diagnostic only - nothing
+     * branches on it.
      */
     @Property.string()
     heldBy!: string;

@@ -1,7 +1,7 @@
 /**
  * Where a middleware sits in the request pipeline.
  *
- * A phase is a position rather than a moment: everything registered with `app.use` is collected and
+ * A phase is a position: everything registered with `app.use` is collected and
  * mounted in one pass when the application starts, so what decides the order is the phase a
  * middleware names and, within one phase, the order the calls were made in. When a middleware is
  * registered - from the constructor, from a lifecycle hook, or from your own code before `start` -
@@ -23,15 +23,13 @@ export enum MiddlewarePhase {
      * Turns what arrived into values the rest of the pipeline can read - cookies, signed and
      * unsigned.
      *
-     * A body is parsed per route rather than here, because what a route accepts is part of what it
-     * declares.
+     * A body is parsed per route, as the route declares it.
      */
     PARSING = 1,
     /**
      * Records that the request happened and how long it took.
      *
-     * Around everything below it, so that what is measured is the whole of the work rather than the
-     * part that runs after whatever a project added.
+     * Around everything below it, so that what is measured is the whole of the work.
      */
     OBSERVABILITY = 2,
     /**

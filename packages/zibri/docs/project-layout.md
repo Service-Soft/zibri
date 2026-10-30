@@ -19,7 +19,7 @@ Most changes start in four places:
 | `src/application-options.base.ts` | The controllers, plugins, providers and auth settings, see [architecture](./architecture.md#the-application) |
 | `src/application-options.ts` | The same options with the production data source added |
 | `src/providers.ts` | The values the framework reads through `ZIBRI_DI_TOKENS`: the [master key](./glossary.md#master-key), the jwt secrets, the mail transport and the templates it renders, see [configuring the framework](./configuration.md) |
-| `src/env.ts` | `requireEnv` and `optionalEnv`, which read the environment |
+| `src/env.ts` | `requireEnv`, `optionalEnv` and the readers that check a value, which read the environment |
 | `.env.example` | Every variable the application reads, with the secrets left blank. Committed |
 | `.env` | The values, with a secret generated for each blank. Git ignored |
 | `src/create-default-data.function.ts` | Creates the roles and the first administrator on startup, when they are missing, in one transaction. With the administrator, it creates the [tenant](./glossary.md#tenant) `Default` and their [membership](./glossary.md#membership) in it as its `admin` |

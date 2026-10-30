@@ -3,6 +3,7 @@ import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, D
 import { BaseEntity } from '../../entity/base-entity.model';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { AggregateRow } from '../models/aggregate.model';
+import { FindAllOptions } from '../models/options/find-all-options.model';
 import { PaginationResult } from '../models/pagination-result.model';
 import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
@@ -44,6 +45,16 @@ export abstract class ForwardingRepositoryDriver<T extends BaseEntity> implement
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveRelations(
+        entities: T[],
+        relations: FindAllOptions<T>['relations'],
+        related: RelatedNarrowing | undefined,
+        transaction: Transaction | undefined
+    ): Promise<T[]> {
+        return await this.inner.resolveRelations(entities, relations, related, transaction);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
         return await this.inner.findOne(options);
     }
@@ -71,6 +82,15 @@ export abstract class ForwardingRepositoryDriver<T extends BaseEntity> implement
     // eslint-disable-next-line jsdoc/require-jsdoc
     async remove(ids: string[], reach: RemovalReach<T> | undefined, transaction: Transaction | undefined): Promise<string[]> {
         return await this.inner.remove(ids, reach, transaction);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async removeMatching(
+        where: Where<T> | undefined,
+        related: RelatedNarrowing | undefined,
+        transaction: Transaction | undefined
+    ): Promise<string[]> {
+        return await this.inner.removeMatching(where, related, transaction);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

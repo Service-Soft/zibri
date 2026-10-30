@@ -12,8 +12,8 @@ import { BaseS3BackupTransport } from './s3.backup-transport';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { PostgresBackupScope } from '../../data-source/data-sources/postgres/postgres-backup-scope.model';
+import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
 import { Repository } from '../../data-source/repository/repository';
@@ -24,7 +24,6 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { BackupEntity } from '../backup-entity.model';
 import { BackupResourceEntity } from '../backup-resource-entity.model';
@@ -85,7 +84,7 @@ class DbDataSource extends PostgresDataSource {
     override backupScope: PostgresBackupScope = 'schema';
     override rootPw: string = 'password';
     override rootUsername: string = 'postgres';
-    override options: OmitStrict<PostgresOptions, 'type'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',

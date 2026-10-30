@@ -56,10 +56,12 @@ let effects: Repository<DeliveryEffect>;
 
 beforeAll(async () => {
     server = await startTestServer({
-        dataSources: [createInMemoryDataSource({
-            entities: [...defaultTestServerEntities, DeliveryEffect],
-            repositories: defaultTestServerRepositories
-        })],
+        dataSources: [
+            createInMemoryDataSource({
+                entities: [...defaultTestServerEntities, DeliveryEffect],
+                repositories: defaultTestServerRepositories
+            })
+        ],
         providers: [
             ...defaultTestServerProviders,
             defineProvider({ token: ZIBRI_DI_TOKENS.EVENT_RETRY_DELAY_IN_MS, useFactory: () => 1 }),

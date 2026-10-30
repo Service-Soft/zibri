@@ -257,6 +257,7 @@ export abstract class XmlReaderUtilities {
 
     private static resolveAttributes(tag: SaxesTagNS): Record<string, string> {
         const attributes: Record<string, string> = {};
+        const unprefixed: Set<string> = new Set<string>();
         for (const attribute of Object.values(tag.attributes)) {
             // a namespace declaration binds a prefix, it carries no data of the element
             if (attribute.name === 'xmlns' || attribute.prefix === 'xmlns') {
@@ -264,7 +265,16 @@ export abstract class XmlReaderUtilities {
             }
             // the xml prefix is bound in every document to the same namespace, so it is kept: xml:space
             // and xml:lang are attributes a model names as they are
-            attributes[attribute.prefix === 'xml' ? attribute.name : attribute.local] = attribute.value;
+            const key: string = attribute.prefix === 'xml' ? attribute.name : attribute.local;
+            // the element's own attribute over one of another namespace sharing its local name, such
+            // as `type` beside `xsi:type`: whichever came last used to win
+            if (unprefixed.has(key)) {
+                continue;
+            }
+            if (!attribute.prefix) {
+                unprefixed.add(key);
+            }
+            attributes[key] = attribute.value;
         }
         return attributes;
     }

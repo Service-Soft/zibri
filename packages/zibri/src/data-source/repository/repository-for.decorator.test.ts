@@ -325,6 +325,10 @@ class FieldMarkedUserRepository extends Repository<FieldMarkedUser> implements U
     async updateRoles(id: string, roles: string[], transaction: Transaction | undefined): Promise<void> {
         await this.updateById(id, { roles }, { transaction });
     }
+
+    async updateEmail(id: string, email: string, emailVerifiedAt: Date | null, transaction: Transaction | undefined): Promise<void> {
+        await this.updateById(id, { email, emailVerifiedAt }, { transaction });
+    }
 }
 
 // @ts-expect-error - the class is the repository of another entity

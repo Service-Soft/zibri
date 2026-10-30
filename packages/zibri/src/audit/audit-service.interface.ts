@@ -1,3 +1,4 @@
+import { AuditVerification } from './audit-verification.model';
 import { AuditEvent } from '../logging/audit-event.model';
 
 /**
@@ -18,8 +19,20 @@ export interface AuditServiceInterface {
      */
     flush: () => Promise<void>,
     /**
-     * Deletes the entries older than `ZIBRI_DI_TOKENS.AUDIT_RETENTION_IN_MS`.
-     * @returns How many were deleted.
+     * Deletes the entries older than `ZIBRI_DI_TOKENS.AUDIT_RETENTION_IN_MS`, along with the
+     * checkpoints sealing them.
+     * @returns How many entries were deleted.
      */
-    deleteExpiredEntries: () => Promise<number>
+    deleteExpiredEntries: () => Promise<number>,
+    /**
+     * Seals the entries stored in every hour that ended, in one `AuditCheckpoint` per tenant, and
+     * logs where each checkpoint leaves the chain of its tenant. Does nothing when the trail is a chain.
+     * @returns How many checkpoints were written.
+     */
+    writeCheckpoints: () => Promise<number>,
+    /**
+     * Resolves whether the trail of a tenant, or of the events of no tenant, holds: every entry as it
+     * was recorded, and none removed from what is sealed.
+     */
+    resolveVerification: (tenantId: string | undefined) => Promise<AuditVerification>
 }

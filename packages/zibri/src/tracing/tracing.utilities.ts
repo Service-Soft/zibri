@@ -12,7 +12,7 @@ import { inject } from '../di/inject.function';
  * What a caller says about the work it is about to do.
  *
  * Everything is optional: the common case is a name and nothing else, and what a span hangs under is
- * read off what is already running rather than passed down.
+ * read off what is already running.
  */
 export type TraceOptions = {
     /**
@@ -24,7 +24,7 @@ export type TraceOptions = {
      */
     attributes?: TraceSpanAttributes,
     /**
-     * Starts a new trace rather than hanging under whatever is running.
+     * Starts a new trace, not hanging under whatever is running.
      *
      * What background work does. A cron tick that fired while a request happened to be in flight is
      * not part of that request, and a trace that claimed otherwise would make one request look
@@ -37,7 +37,12 @@ export type TraceOptions = {
      * Only a request has one: it is read off the headers before anything here is running, so there
      * is nothing for the span to be found under. Everything else leaves this alone.
      */
-    parent?: TraceSpanContext
+    parent?: TraceSpanContext,
+    /**
+     * The tracer to start the span with, for a caller that starts many and holds the tracer rather
+     * than resolving it each time. The application's tracer otherwise.
+     */
+    tracer?: TracerInterface
 };
 
 /**
@@ -57,8 +62,8 @@ export abstract class TracingUtilities {
      *
      * The span ends when the function does, whichever way it ends: an error is recorded on it and
      * rethrown, so tracing never changes what the work does or what a caller sees.
-     * @param name - What the work is, as something low cardinality enough to group by. A route
-     * template rather than a url, an operation rather than the row it touched.
+     * @param name - What the work is, as something low cardinality enough to group by: a route
+     * template, not a url; an operation, not the row it touched.
      * @param options - What is known about the work.
      * @param fn - The work. Given the span, so that what is learned while it runs can be recorded.
      * @returns Whatever the function returned.
@@ -89,7 +94,7 @@ export abstract class TracingUtilities {
      * @returns The span.
      */
     static startSpan(name: string, options: TraceOptions = {}): TraceSpanInterface {
-        const tracer: TracerInterface = inject(ZIBRI_DI_TOKENS.TRACER);
+        const tracer: TracerInterface = options.tracer ?? inject(ZIBRI_DI_TOKENS.TRACER);
         return tracer.startSpan(name, {
             kind: options.kind ?? TraceSpanKind.INTERNAL,
             parent: options.root === true ? undefined : options.parent ?? this.getCurrentTraceContext(),

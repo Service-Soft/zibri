@@ -3,6 +3,7 @@ import { ChangeSetRepository } from '../../data-source/change-sets/change-set-re
 import { type ChangeSetEntity } from '../../data-source/change-sets/models/change-set-entity.model';
 import { type SoftDeleteEntity } from '../../data-source/change-sets/models/soft-delete-entity.model';
 import { SoftDeleteRepository } from '../../data-source/change-sets/soft-delete-repository';
+import { FindOneOptions } from '../../data-source/models/options/find-one-options.model';
 import { Where } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository/repository';
 import { USER_REPOSITORY } from '../../data-source/repository/repository-kind.model';
@@ -60,8 +61,8 @@ export function BaseUserRepository<T extends BaseUser<string>>(
         // entity that is still a type parameter, though every user entity has these columns
 
         // eslint-disable-next-line jsdoc/require-jsdoc
-        async findByEmail(email: string): Promise<T> {
-            return await this.findOne({ where: { email } as Where<T> });
+        async findByEmail(email: string, options?: Pick<FindOneOptions<T>, 'transaction'>): Promise<T> {
+            return await this.findOne({ where: { email } as Where<T>, transaction: options?.transaction });
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
@@ -72,6 +73,11 @@ export function BaseUserRepository<T extends BaseUser<string>>(
         // eslint-disable-next-line jsdoc/require-jsdoc
         async updateRoles(id: string, roles: string[], transaction: Transaction | undefined): Promise<void> {
             await this.updateById(id, { roles } as DeepPartial<T>, { transaction });
+        }
+
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        async updateEmail(id: string, email: string, emailVerifiedAt: Date | null, transaction: Transaction | undefined): Promise<void> {
+            await this.updateById(id, { email, emailVerifiedAt } as DeepPartial<T>, { transaction });
         }
     }
 

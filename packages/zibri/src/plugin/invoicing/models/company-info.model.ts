@@ -1,4 +1,5 @@
 import { type ElectronicAddress } from './electronic-address.model';
+import { type Timezone } from '../../../localization/models/timezone.model';
 
 /**
  * Contains base information about the company that issues an invoice.
@@ -40,6 +41,11 @@ export type CompanyInfo = {
      * The phone number of the company.
      */
     readonly phone: string,
+    /**
+     * The time zone the company keeps its books in. Its calendar year is the year an invoice is
+     * numbered in.
+     */
+    readonly timezone: Timezone,
     /**
      * The address the company receives electronic invoices at. A Peppol invoice requires it, an
      * XRechnung names the company by its email without it.

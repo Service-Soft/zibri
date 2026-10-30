@@ -10,6 +10,7 @@ export enum KnownHeader {
     ACCESS_CONTROL_ALLOW_HEADERS = 'access-control-allow-headers',
     ACCESS_CONTROL_ALLOW_CREDENTIALS = 'access-control-allow-credentials',
     ACCESS_CONTROL_EXPOSE_HEADERS = 'access-control-expose-headers',
+    ACCESS_CONTROL_MAX_AGE = 'access-control-max-age',
     ACCESS_CONTROL_REQUEST_METHOD = 'access-control-request-method',
     ALLOW = 'allow',
     VARY = 'vary',

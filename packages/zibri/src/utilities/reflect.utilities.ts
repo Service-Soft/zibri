@@ -59,6 +59,19 @@ export abstract class ReflectUtilities {
     }
 
     /**
+     * Deletes every metadata defined on a property of a target itself, leaving what it inherits.
+     * @param target - Class constructor.
+     * @param propertyKey - The property name.
+     */
+    static deleteOwnMetadata(target: Object, propertyKey: string): void {
+        // eslint-disable-next-line typescript/no-unsafe-assignment
+        const prototype: Object = (target as Function).prototype;
+        for (const key of Reflect.getOwnMetadataKeys(prototype, propertyKey)) {
+            Reflect.deleteMetadata(key, prototype, propertyKey);
+        }
+    }
+
+    /**
      * Gets all keys for metadata that has been defined on the given target.
      * @param target - Class constructor.
      * @param propertyKey - Optional property name.

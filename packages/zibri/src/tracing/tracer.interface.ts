@@ -6,9 +6,8 @@ import { TraceSpanInterface } from './trace-span.interface';
 /**
  * Everything a tracer needs to be told to start a span.
  *
- * Nothing here is optional except the attributes, because this is the inside of the seam rather than
- * the surface anybody calls: `TracingUtilities` is what decides the parent from what is running and
- * what a caller left unsaid, and hands the answer over already made.
+ * Nothing here is optional except the attributes: `TracingUtilities` decides the parent from what is
+ * running and what a caller left unsaid, and hands the answer over already made.
  */
 export type StartSpanOptions = {
     /**
@@ -46,8 +45,8 @@ export interface TracerInterface {
      * Never throws: tracing is a thing that watches work, and a watcher that can fail the work is
      * worse than no watcher. An implementation that cannot start a span returns one that records
      * nothing.
-     * @param name - What the work is, as something low cardinality enough to group by. A route
-     * template rather than a url, an operation rather than the row it touched.
+     * @param name - What the work is, as something low cardinality enough to group by: a route
+     * template, not a url; an operation, not the row it touched.
      * @param options - The kind of work, what it hangs under, and what is known about it already.
      * @returns The span, to be ended by whoever asked for it.
      */

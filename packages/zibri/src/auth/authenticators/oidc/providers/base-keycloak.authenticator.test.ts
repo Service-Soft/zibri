@@ -43,6 +43,7 @@ import { OAuthClientAuthentication } from '../../oauth/oauth-client-authenticati
 import { BaseSamlAuthenticator } from '../../saml/base-saml.authenticator';
 import { SamlIdentityProvider } from '../../saml/saml-identity-provider.model';
 import { OidcBearerTokens } from '../oidc-bearer-tokens.model';
+import { OidcDiscoveryAtBoot } from '../oidc-discovery-at-boot.type';
 
 /**
  * The Keycloak the login is tested against, run in development mode, which serves plain http.
@@ -127,6 +128,8 @@ class KeycloakAuthenticator extends BaseKeycloakAuthenticator<string, JwtUser> {
 
     readonly clientId: string = CLIENT_ID;
 
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
+
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
 
     // Keycloak marks its access tokens `JWT`
@@ -143,6 +146,8 @@ class KeycloakKeyAuthenticator extends BaseKeycloakAuthenticator<string, JwtUser
     readonly realm: string = REALM;
 
     readonly clientId: string = KEY_CLIENT_ID;
+
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
 
     get clientAuthentication(): OAuthClientAuthentication {
         return { method: 'private_key_jwt', privateKey, keyId: KEY_ID };

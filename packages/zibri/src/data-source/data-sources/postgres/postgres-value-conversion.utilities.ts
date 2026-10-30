@@ -58,7 +58,7 @@ export abstract class PostgresValueConversionUtilities {
         else {
             // the column itself says whether a value can be missing now, which is what a property
             // added and not yet made required is
-            if (!changed.stored.isNullable && current.stored.isNullable) {
+            if (!changed.stored.nullable && current.stored.nullable) {
                 refusals.push(`WHEN ${current.name} IS NULL THEN '${ConversionRefusal.MISSING}'`);
             }
             const fits: string | undefined = this.findFitsSql(current, conversion);

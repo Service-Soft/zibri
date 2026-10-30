@@ -40,6 +40,7 @@ An endpoint is a method of a controller class. Its decorators give it a route, r
 | `OpenApiResponse`, `JsonOpenApiResponse`, `EmptyOpenApiResponse`, `ErrorOpenApiResponse`, `FileOpenApiResponse`, `HtmlOpenApiResponse`, `RedirectOpenApiResponse` | type, type, type, type, type, type, type | One response a route documents, by its `type`. The `Response` decorators take it without the `type` |
 | `FileResponse` | class | Response type for returning files |
 | `PathFileResponseData`, `StreamFileResponseData` | type, type | What a `FileResponse` is made from: the path of a file, or a stream and its file name |
+| `ContentDisposition` | type | Whether a browser saves a file as a download, `'attachment'`, or shows it, `'inline'`. Defaults to `'attachment'` |
 | `HtmlResponse` | class | Response type for returning HTML |
 | `HtmlResponseOptions` | type | The content security policy of an `HtmlResponse`: `true` for the default policy, `false` for none, or the directives you set |
 | `RedirectResponse` | class | Response type for sending the caller to another URL |
@@ -58,8 +59,7 @@ An endpoint is a method of a controller class. Its decorators give it a route, r
 | `MimeType` | enum | Mime type constants (such as for allowed file uploads) |
 | `FileMimeType`, `LooseFileMimeType` | type, type | The mime types a file can have, and the same with any custom mime type string |
 | `FileExtension`, `mimeTypeToExtensions` | type, constant | The file extensions of every mime type that has them |
-| `resolveMimeType`, `resolveFileExtension` | function, function | The mime type of a file path, `MimeType.OCTET_STREAM` for an unknown extension, and the file extension of a mime type |
-| `isMimeType`, `isJsonMimeType`, `isXmlMimeType` | function, function, function | Whether a string is a known mime type, a JSON media type such as `application/scim+json`, or `application/xml` or `text/xml` |
+| `MimeTypeUtilities` | class | `resolveFromPath` gives the mime type of a file path, `MimeType.OCTET_STREAM` for an unknown extension, and `resolveFileExtension` the file extension of a mime type. `isKnown`, `isJson` and `isXml` tell whether a string is a known mime type, a JSON media type such as `application/scim+json`, or `application/xml` or `text/xml`. `isCompressible` tells whether a body of a content type is compressed on the way out: a type it does not know is sent as it is |
 | `OmitClass` | function | Creates a class that omits given properties from a base class |
 | `PickClass` | function | Creates a class that picks given properties from a base class |
 | `IntersectionClass` | function | Combines multiple classes into one |
@@ -69,8 +69,6 @@ An endpoint is a method of a controller class. Its decorators give it a route, r
 | `HttpStatus` | enum | HTTP status code constants |
 | `PaginationResult` | type | Shape of a paginated response |
 | `CompressionOptions` | type | Whether responses are compressed, and from what size on, via `ZIBRI_DI_TOKENS.COMPRESSION_OPTIONS`. Defaults to on, from one kilobyte |
-| `isCompressibleMimeType` | function | Whether a body of a content type is compressed on the way out. A type it does not know is sent as it is |
-
 ## Defining a controller
 `@Controller` makes a class a controller:
 
@@ -170,6 +168,8 @@ This controller serves these endpoints:
 - `GET /tasks/:id`, from `CrudController`, answering a single `Task`
 - `PATCH /tasks/:id`, from `CrudController`, updating a single `Task` with `TaskUpdateDTO`
 - `GET /tasks/dashboard`, from `MetricsController`, under the base route of the class that picked it
+
+A method two of the combined classes share is served from the last class naming it, under its route.
 
 `GET /tasks` takes `page` and `limit` from the query: whole numbers of at least 1, and a `limit` of
 at most 100. Anything else is answered with a 400. Pass `maxLimit` to allow larger pages:
@@ -698,6 +698,8 @@ export class DownloadFileController {
 
 ```
 
+The browser saves the file as a download under its name, in any language: `Rechnung März.pdf` stays `Rechnung März.pdf`. With `disposition: 'inline'`, it shows the file instead, such as a PDF or an image. Keep a file a user uploaded a download: shown, an HTML file is a page on your application's origin.
+
 ### Returning HTML
 To answer with HTML, return an `HtmlResponse`:
 
@@ -763,6 +765,68 @@ export class DocumentController {
 ```
 
 A `GET` answered with an `etag` answers a request whose `If-None-Match` names that etag with `304 Not Modified` and no body.
+
+A `status` answers in that status instead of the declared one, for a route with more than one outcome of the same body, such as a `PUT` that created or replaced what it names. Declare each status with `@Response`, so the [OpenAPI document](./open-api.md) lists them:
+
+```ts
+// src/controllers/setting.controller.ts
+import { Controller, HttpStatus, JsonResponse, Param, Property, Put, Response } from 'zibri';
+
+class SettingModel {
+    @Property.string()
+    key!: string;
+}
+
+const storedKeys: Set<string> = new Set();
+
+@Controller('/settings')
+export class SettingController {
+    @Response.object(SettingModel, { status: HttpStatus.CREATED })
+    @Response.object(SettingModel)
+    @Put('/:key')
+    replace(
+        @Param.path('key')
+        key: string
+    ): JsonResponse<SettingModel> {
+        const existed: boolean = storedKeys.has(key);
+        storedKeys.add(key);
+        return JsonResponse.of({ key }, { status: existed ? HttpStatus.OK : HttpStatus.CREATED });
+    }
+}
+```
+
+### Streaming a response
+To send a response piece by piece, such as server-sent events, write to the response of the request yourself and return nothing. Write the headers before the handler returns: a handler that returns with nothing written is answered `204 No Content`.
+
+```ts
+// src/controllers/progress.controller.ts
+import { Controller, Get, HttpRequestContext, HttpResponse, HttpStatus, inject, KnownHeader, MimeType, WebsocketRequestContext, ZIBRI_DI_TOKENS } from 'zibri';
+
+@Controller('/progress')
+export class ProgressController {
+    @Get('/')
+    stream(): void {
+        const ctx: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        if (ctx?.type !== 'http-request') {
+            return;
+        }
+        const res: HttpResponse = ctx.response;
+        res.writeHead(HttpStatus.OK, { [KnownHeader.CONTENT_TYPE]: MimeType.EVENT_STREAM });
+        let step: number = 0;
+        const timer: NodeJS.Timeout = setInterval(() => {
+            step++;
+            res.write(`data: ${step}\n\n`);
+            if (step === 10) {
+                clearInterval(timer);
+                res.end();
+            }
+        }, 1000);
+        res.on('close', () => clearInterval(timer));
+    }
+}
+```
+
+The stream runs past the [deadline](#deadlines) of the handler, which ends when it returns. For a file, return a [`FileResponse`](#returning-files) of a stream instead.
 
 ## Deadlines
 A handler has a limited time to produce a result. `handlerTimeoutInMs` of `ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS` sets it for the application, 30 seconds by default. A controller sets it for all of its routes, and a route sets its own:

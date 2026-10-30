@@ -3,7 +3,7 @@ import { generateEntityFile, GenerateEntityFileResult } from './generate-entity-
 import { getEntityFileName } from './get-entity-file-name.function';
 import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
 import { ErrorUtilities } from '../../error-handling/error.utilities';
-import { warn } from '../../logging/logger.helpers';
+import { ConsoleUtilities } from '../../logging/console.utilities';
 import type { OpenApiDefinition, OpenApiSchemas, OpenApiOperation, OpenApiResponseObject, OpenApiReferenceObject, OpenApiSchemaObject } from '../../open-api/open-api.model';
 import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
@@ -97,7 +97,7 @@ export async function generateEntityFilesForProvider(
         }
 
         if (ObjectUtilities.keys(schemas).length === 0) {
-            warn(`Could not find any schemas on spec for provider with prefix "${provider.prefix}"`);
+            ConsoleUtilities.warn(`Could not find any schemas on spec for provider with prefix "${provider.prefix}"`);
             return {
                 filesToGenerate: [],
                 indexLines: []
@@ -171,7 +171,7 @@ export async function generateEntityFilesForProvider(
         if (provider.onError === 'throw') {
             throw error;
         }
-        warn([
+        ConsoleUtilities.warn([
             `error generating entity files for the provider with prefix "${provider.prefix}":`,
             ErrorUtilities.unknownToErrorString(error)
         ].join('\n'));

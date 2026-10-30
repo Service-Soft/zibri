@@ -23,5 +23,10 @@ export type XmlElementNode = {
     /**
      * The text and the child elements, in document order.
      */
-    content: XmlContent[]
+    content: XmlContent[],
+    /**
+     * Whether the content is mixed content: text and elements whose every character counts, so
+     * nothing is written between its parts, not even when the document is indented.
+     */
+    mixed?: boolean
 };

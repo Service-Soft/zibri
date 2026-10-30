@@ -34,7 +34,7 @@ import { KeyDeclarationsChangedError } from '../../transaction/key-declarations-
 import { Transaction } from '../../transaction/transaction.model';
 import { ValKeyTransaction } from '../../transaction/val-key-transaction.model';
 import { UniqueConstraintViolationError } from '../../unique-constraint-violation.error';
-import { PostgresDataSource } from '../postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../postgres/postgres-data-source.model';
 
 // ---------- Test entities ----------
 
@@ -755,6 +755,32 @@ describe('ValKeyDataSource', () => {
 
             expect(ended).toEqual(['committed: true', 'rolled back: false']);
         });
+
+        it('hands back the rows it held as it commits', async () => {
+            const stored: ValKeyProduct = await productRepo.create({ name: 'a' });
+            const transaction: Transaction = await dataSource.startTransaction();
+            await productRepo.updateById(stored.id, { name: 'b' }, { transaction });
+            await transaction.commit();
+
+            // a row still held would keep this queueing until its claim gave up
+            await productRepo.updateById(stored.id, { name: 'c' });
+
+            expect((await productRepo.findById(stored.id)).name).toBe('c');
+        });
+
+        it('hands back the rows it held when its commit is refused', async () => {
+            const stored: ValKeyProduct = await productRepo.create({ name: 'a' });
+            const tagTable: string = MetadataUtilities.getEntityMetadata(ValKeyTag)?.tableName ?? '';
+            const transaction: Transaction = await dataSource.startTransaction();
+            assert(transaction instanceof ValKeyTransaction, 'a valkey data source hands out valkey transactions');
+            await productRepo.updateById(stored.id, { name: 'b' }, { transaction });
+            transaction.guardKey(`${dataSource.keyPrefix}:${tagTable}:keys`, '');
+            await expect(transaction.commit()).rejects.toThrow(KeyDeclarationsChangedError);
+
+            await productRepo.updateById(stored.id, { name: 'c' });
+
+            expect((await productRepo.findById(stored.id)).name).toBe('c');
+        });
     });
 
     describe('backups', () => {
@@ -777,6 +803,79 @@ describe('ValKeyDataSource', () => {
     });
 
     describe('ValKeyCacheStore', () => {
+        it('keeps the entries of two caches on one data source apart', async () => {
+            const tasks: ValKeyCacheStore<string, string> = new ValKeyCacheStore(dataSource, { model: 'plain' });
+            const users: ValKeyCacheStore<string, string> = new ValKeyCacheStore(dataSource, { model: 'plain' });
+            tasks.attachTo('TaskCountCache');
+            users.attachTo('UserCountCache');
+
+            await tasks.set('u1', { createdAt: new Date(), value: 'tasks', tags: [] });
+            await users.set('u1', { createdAt: new Date(), value: 'users', tags: [] });
+            await users.clear();
+
+            expect((await tasks.get('u1'))?.value).toBe('tasks');
+            expect(await users.get('u1')).toBeUndefined();
+            await tasks.clear();
+        });
+
+        it('invalidates an entry written while a tag of it was being invalidated', async () => {
+            const store: ValKeyCacheStore<string, string> = new ValKeyCacheStore(dataSource, { model: 'plain' });
+            store.attachTo('InvalidatedWhileWritten');
+
+            await Promise.all([
+                store.invalidateTags(['t']),
+                store.set('k2', { createdAt: new Date(), value: 'v', tags: ['t'] })
+            ]);
+            await store.invalidateTags(['t']);
+
+            expect(await store.get('k2')).toBeUndefined();
+            await store.clear();
+        });
+
+        it('takes a removed entry out of its tags', async () => {
+            const store: ValKeyCacheStore<string, string> = new ValKeyCacheStore(dataSource, { model: 'plain' });
+            store.attachTo('PrunedTags');
+
+            await store.set('k', { createdAt: new Date(), value: 'v', tags: ['t'] });
+            await store.delete('k');
+
+            // eslint-disable-next-line cspell/spellchecker
+            expect(await dataSource.connection.scard(`${dataSource.keyPrefix}:cache:PrunedTags:tag:t`)).toBe(0);
+            await store.clear();
+        });
+
+        it('keeps a value written while a read found the key missing', async () => {
+            const store: ValKeyCacheStore<string, string> = new ValKeyCacheStore(dataSource, { model: 'plain' });
+            store.attachTo('WrittenDuringMiss');
+
+            await Promise.all([
+                store.get('k'),
+                store.set('k', { createdAt: new Date(), value: 'written', tags: [] })
+            ]);
+
+            expect((await store.get('k'))?.value).toBe('written');
+            await store.clear();
+        });
+
+        it.each(['mostRecentlyUsed', 'leastFrequentlyUsed'] as const)('keeps the entry it just wrote when it is full, by %s', async removeOnOverflow => {
+            const store: ValKeyCacheStore<string, string> = new ValKeyCacheStore(dataSource, { model: 'plain', maxEntries: 2, removeOnOverflow });
+            store.attachTo(`FullBy-${removeOnOverflow}`);
+
+            for (const key of ['a', 'b', 'c']) {
+                await store.set(key, { createdAt: new Date(), value: key, tags: [] });
+            }
+
+            expect((await store.get('c'))?.value).toBe('c');
+            await store.clear();
+        });
+
+        it('refuses to hold the entries of a second cache', () => {
+            const store: ValKeyCacheStore<string, string> = new ValKeyCacheStore(dataSource, { model: 'plain' });
+            store.attachTo('TaskCountCache');
+
+            expect(() => store.attachTo('UserCountCache')).toThrow('holds the entries of one cache');
+        });
+
         it('stores and reads a cached value', async () => {
             const store: ValKeyCacheStore<string, string> = new ValKeyCacheStore(dataSource, { model: 'plain' });
             const value: CachedValue<string> = { createdAt: new Date(), value: 'cached', tags: ['tag-a'] };

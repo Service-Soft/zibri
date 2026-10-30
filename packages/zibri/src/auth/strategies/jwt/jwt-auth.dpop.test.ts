@@ -201,11 +201,17 @@ describe('JwtAuthStrategy — DPoP, by default', () => {
     it('binds only the logins that send a proof, which carries no nonce', async () => {
         const bearer: Tokens = tokensOf(await login(await createUser('default-bearer'), undefined));
         expect((await send('GET', '/dpop-test/me', { authorization: `Bearer ${bearer.accessToken}` })).status).toBe(200);
+        // 05 §I11: the scheme is case-insensitive (RFC 9110 §11.1)
+        expect((await send('GET', '/dpop-test/me', { authorization: `bearer ${bearer.accessToken}` })).status).toBe(200);
 
         const key: FakeDpopKey = new FakeDpopKey();
         const bound: Tokens = tokensOf(await login(await createUser('default-bound'), key));
         expect(JwtUtilities.findUnverifiedPayload(bound.accessToken)).toMatchObject({ cnf: { jkt: key.thumbprint } });
         expect((await callBound(bound.accessToken, key)).status).toBe(200);
+        expect((await send('GET', '/dpop-test/me', {
+            authorization: `dpop ${bound.accessToken}`,
+            dpop: key.createProof('GET', urlOf('/dpop-test/me'), { accessToken: bound.accessToken })
+        })).status).toBe(200);
     });
 });
 
@@ -287,6 +293,39 @@ describe('JwtAuthStrategy — logins bound to a DPoP key when they send a proof'
         expect(answer.status).toBe(400);
         expect(answer.body).toMatchObject({ error: 'invalid_dpop_proof' });
     });
+});
+
+describe('JwtAuthStrategy — DPoP proofs taken for longer', () => {
+    /**
+     * Calls the protected route with a proof issued some time ago.
+     * @param ageInMs - How long ago the proof was issued.
+     * @returns The status of the answer.
+     */
+    async function callWithProofOfAge(ageInMs: number): Promise<number> {
+        const key: FakeDpopKey = new FakeDpopKey();
+        const { accessToken } = tokensOf(await login(await createUser('aged'), key));
+        const proof: string = key.createProof('GET', urlOf('/dpop-test/me'), { accessToken, issuedAt: new Date(Date.now() - ageInMs) });
+        return (await send('GET', '/dpop-test/me', { authorization: `DPoP ${accessToken}`, dpop: proof })).status;
+    }
+
+    afterAll(async () => {
+        await server?.shutdown();
+    });
+
+    // 04 §A15: five minutes was a constant, and clocks across an enterprise drift further than that
+    it('takes a proof as old as ZIBRI_DI_TOKENS.DPOP_PROOF_MAX_AGE_IN_MS allows, five minutes by default', async () => {
+        server = await startApp(bindingLogins(false, false));
+        baseUrl = await server.start();
+        expect(await callWithProofOfAge(6 * 60 * 1000)).toBe(401);
+        await server.shutdown();
+
+        server = await startApp([
+            ...bindingLogins(false, false),
+            defineProvider({ token: ZIBRI_DI_TOKENS.DPOP_PROOF_MAX_AGE_IN_MS, useValue: 7 * 60 * 1000 })
+        ]);
+        baseUrl = await server.start();
+        expect(await callWithProofOfAge(6 * 60 * 1000)).toBe(200);
+    }, TestTimeouts.inMemory.start * 2);
 });
 
 describe('JwtAuthStrategy — logins that have to be bound to a DPoP key', () => {

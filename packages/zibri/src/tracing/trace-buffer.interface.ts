@@ -8,8 +8,7 @@ import { TraceSpanRecord } from './trace-span-record.model';
  * true, which is what a bounded buffer answers - the oldest span is dropped to make room for the
  * newest, so what is held costs a fixed amount of memory no matter how long the process runs.
  *
- * It holds spans rather than whole traces, so a trace at the far end of the buffer can be there in
- * part. Reading one back is therefore reading what is still held of it.
+ * It holds spans, not whole traces, so a trace at the far end of the buffer can be there in part. Reading one back is therefore reading what is still held of it.
  */
 export interface TraceBufferInterface {
     /**

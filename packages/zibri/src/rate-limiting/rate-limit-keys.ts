@@ -14,14 +14,14 @@ const GLOBAL_KEY: string = 'global';
  *
  * Counting everything against one bucket is right for a shared resource - an outgoing mail server
  * has a capacity of its own - and wrong for anything a caller can trigger, where it means one
- * attacker exhausts the limit for every user at once. These read the current request rather than the
- * arguments, because who is calling is rarely one of them.
+ * attacker exhausts the limit for every user at once. These read the current request, not the
+ * arguments of the limited method.
  */
 export abstract class RateLimitKeys {
     /**
      * Counts every call against one bucket, whoever makes it.
      *
-     * For a limit that belongs to the resource rather than to the caller: a mail server that accepts
+     * For a limit that belongs to the resource, not to the caller: a mail server that accepts
      * so many messages an hour whoever asked for them. Worth saying out loud, because a shared
      * bucket is also what lets one caller spend everybody else's capacity.
      *
@@ -41,11 +41,11 @@ export abstract class RateLimitKeys {
      * `security.trustProxy`, or every request appears to come from that proxy and shares one bucket.
      * An IPv4 address is one caller. An IPv6 address is counted by its /64, the block one subscriber
      * holds, so every address of it is one caller.
-     * A websocket is counted per connection rather than per address, because that is what a
-     * websocket caller *is* - and reconnecting to escape a limit costs a handshake every time.
+     * A websocket is counted per connection, not per address - and reconnecting to escape a limit
+     * costs a handshake every time.
      * @returns The key.
      */
-    static perConnection(): string {
+    static resolveConnectionKey(): string {
         const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
         if (!(context instanceof HttpRequestContext)) {
             return context?.connection ? `connection:${context.connection.id}` : GLOBAL_KEY;
@@ -92,20 +92,20 @@ export abstract class RateLimitKeys {
     }
 
     /**
-     * Counts per logged in user, falling back to {@link RateLimitKeys.perConnection} for callers
-     * that are not logged in.
+     * Counts per logged in user, falling back to {@link RateLimitKeys.resolveConnectionKey} for
+     * callers that are not logged in.
      *
      * The fallback is the point: without it every anonymous caller shares one key, so a route that
      * can be reached without logging in would have no per caller limit exactly where it needs one.
      * @returns The key.
      */
-    static async perUser(): Promise<string> {
+    static async resolveUserKey(): Promise<string> {
         const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
         if (!context) {
             return GLOBAL_KEY;
         }
         const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
-        const user: CurrentUser | undefined = await authService.getCurrentUser(context, authService.strategies, false);
-        return user ? `user:${user.id}` : RateLimitKeys.perConnection();
+        const user: CurrentUser | undefined = await authService.resolveCurrentUser(context, authService.strategies, false);
+        return user ? `user:${user.id}` : RateLimitKeys.resolveConnectionKey();
     }
 }

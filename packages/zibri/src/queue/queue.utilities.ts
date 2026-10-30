@@ -78,7 +78,7 @@ export abstract class QueueUtilities {
     /**
      * Runs one attempt at a claimed row the way it is delivered, and records how it ended.
      * @param queue - The queue.
-     * @param item - The row.
+     * @param claimed - The row.
      * @param lost - Fires when the claim is lost.
      */
     private static async attempt<T extends QueuedWorkItem>(queue: QueueDefinition<T>, claimed: T, lost: AbortSignal): Promise<void> {
@@ -91,7 +91,11 @@ export abstract class QueueUtilities {
         if (delivery === 'atMostOnce') {
             // written down as failed before it runs, so an instance stopping during it leaves it
             // failed rather than run again
-            await queue.record(item, this.resolveFailure(queue, item, attempts, new InternalError('The attempt stopped before it finished'), false), undefined);
+            await queue.record(
+                item,
+                this.resolveFailure(queue, item, attempts, new InternalError('The attempt stopped before it finished'), false),
+                undefined
+            );
         }
         if (delivery === 'transactional') {
             await this.attemptInTransaction(queue, item, attempts, runId, lost);
@@ -174,7 +178,10 @@ export abstract class QueueUtilities {
             : this.resolveFailure(queue, item, attempts, failure, mayRetry);
         await queue.record(item, outcome, transaction);
         if (outcome.nextAttemptAt != undefined) {
-            this.logger.warn(`Attempt ${attempts} at ${queue.name} ${queue.findRunId(item)} failed, retrying after ${outcome.nextAttemptAt.toISOString()}`);
+            this.logger.warn(
+                // eslint-disable-next-line stylistic/max-len
+                `Attempt ${attempts} at ${queue.name} ${queue.findRunId(item)} failed, retrying after ${outcome.nextAttemptAt.toISOString()}`
+            );
             inject(ZIBRI_DI_TOKENS.WAKE_UP_SERVICE).wakeAt(queue.wakeUpTopic, outcome.nextAttemptAt);
         }
         else if (outcome.kind === 'failed' && failure != undefined) {

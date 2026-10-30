@@ -1,6 +1,6 @@
 import { HttpError } from './http.error';
 import { HttpStatus } from '../../http/http-status.enum';
-import { MimeType } from '../../http/mime-type.enum';
+import { type MimeType } from '../../http/mime-type.enum';
 import { $ts } from '../../localization/translate.function';
 
 /**

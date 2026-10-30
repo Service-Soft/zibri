@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
 import { defineDateFormat } from './define-date-format.function';
+import { FormatDateOptions, FormatPercentOptions, FormatPriceOptions } from './localize-service.interface';
 import { LocalizeService } from './localize.service';
 import { LocaleCode } from './models/locale-code.model';
 import { LocaleConfiguration, LocalizeOptions } from './models/localize-options.model';
@@ -288,10 +289,22 @@ describe('LocalizeService', () => {
             supportedLocales: ['de-DE'],
             expected: 'de-DE'
         },
+        // q=0 is "not acceptable" (RFC 9110, 12.4.2)
         {
             header: 'en-US;q=0',
             supportedLocales: ['en-US'],
-            expected: 'en-US'
+            expected: undefined
+        },
+        {
+            header: 'fr, de;q=0',
+            supportedLocales: ['en', 'de'],
+            expected: undefined
+        },
+        // whitespace is allowed before the weight
+        {
+            header: 'en; q=0.1, de',
+            supportedLocales: ['de', 'en'],
+            expected: 'de'
         },
         {
             header: 'en-US;q=.8',
@@ -313,9 +326,7 @@ describe('LocalizeService', () => {
 
         // the translations folder belongs to the application, and an application that localizes
         // nothing has none - so reading source.xlf unconditionally made having nothing to translate
-        // a boot failure, reported as a bare ENOENT naming a path inside node_modules. It is also
-        // why the test harness had to replace this method with an empty one, which meant the
-        // startup path of a shipped service was run by nothing.
+        // a boot failure, reported as a bare ENOENT naming a path inside node_modules
         await expect(localizeService.onAppInit()).resolves.toBeUndefined();
     });
 
@@ -344,6 +355,18 @@ describe('LocalizeService', () => {
 
             await expect(localizeService.onAppInit()).resolves.toBeUndefined();
         });
+    });
+
+    it('leaves the options a value is formatted with as the caller passed them', () => {
+        const percentOptions: FormatPercentOptions = {};
+        const dateOptions: FormatDateOptions = {};
+        const priceOptions: FormatPriceOptions = { currency: 'EUR' };
+
+        localizeService.formatPercent(0.5, percentOptions);
+        localizeService.formatDate(new Date('2026-01-01T00:00:00.000Z'), 'YYYY', dateOptions);
+        localizeService.formatPrice(5, priceOptions);
+
+        expect([percentOptions, dateOptions, priceOptions]).toEqual([{}, {}, { currency: 'EUR' }]);
     });
 
     describe('ordering text', () => {

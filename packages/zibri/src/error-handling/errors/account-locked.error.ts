@@ -5,8 +5,8 @@ import { $ts } from '../../localization/translate.function';
  * An error to throw when a user whose account is locked after too many wrong two factor codes tries to
  * log in.
  *
- * Forbidden rather than unauthorized: the credentials were right, so sending them again cannot help
- * until the user's second factors are reset.
+ * Answers 403: the credentials were right, and sending them again does not help until the user's
+ * second factors are reset.
  */
 export class AccountLockedError extends ForbiddenError {
     constructor(options?: ErrorOptions) {

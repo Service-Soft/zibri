@@ -68,6 +68,8 @@ abstract class TestDomain extends BaseActiveDirectoryAuthenticator<string, JwtUs
 
     readonly groupSearchBase: string = DOMAIN;
 
+    readonly refreshCheckIntervalInMs: number = 0;
+
     // read as the authenticator is built, which is once the key is made
     override readonly trustedCertificates: string[] = [authority.certificate];
 

@@ -22,58 +22,6 @@ export const CLI_ROOT: string = path.join(__dirname, '..', '..');
  */
 export const SANDBOX_DIR: Path = path.join(CLI_ROOT, '..', 'sandbox') as Path;
 
-const EXPLICITLY_CREATED_FILES: string[] = [
-    'package.json',
-    'tsconfig.json',
-    '.gitignore',
-    '.dockerignore',
-    'Dockerfile',
-    '.env.example',
-    // git records files rather than folders, so without these the first commit of a generated
-    // project drops both directories and the clone after it neither builds nor starts
-    'versions/.gitkeep',
-    'translations/.gitkeep',
-    'postcss.config.js',
-    'tailwind.config.js',
-    'webpack.config.js',
-    'jest.config.mjs',
-    'src/tsx.d.ts',
-    'src/env.ts',
-    'src/index.ts',
-    'src/application-options.base.ts',
-    'src/application-options.ts',
-    'src/__testing__/test-application-options.ts',
-    'src/__testing__/health.test.ts',
-    'src/__testing__/home-page.test.ts',
-    'src/providers.ts',
-    'src/create-default-data.function.ts',
-    'src/data-sources/db/db.data-source.ts',
-    'src/data-sources/db/entities.ts',
-    'src/data-sources/db/repositories.ts',
-    'src/data-sources/db/migrations/index.ts',
-    'src/data-sources/db/index.ts',
-    'src/data-sources/index.ts',
-    'src/repositories/index.ts',
-    'src/repositories/user.repository.ts',
-    'src/repositories/membership.repository.ts',
-    'src/repositories/role.repository.ts',
-    'src/controllers/auth.controller.ts',
-    'src/controllers/health.controller.ts',
-    'src/controllers/page.controller.ts',
-    'src/controllers/index.ts',
-    'src/models/index.ts',
-    'src/models/generated/providers.ts',
-    'src/models/roles.enum.ts',
-    'src/models/platform-roles.enum.ts',
-    'src/models/permissions.ts',
-    'src/models/role.model.ts',
-    'src/models/user.model.ts',
-    'src/models/membership.model.ts',
-    'src/models/tenant.model.ts',
-    'src/cron/index.ts',
-    'src/services/index.ts'
-];
-
 // eslint-disable-next-line jsdoc/require-jsdoc
 function listCopiedTemplateFiles(sourceDir: string, destinationPrefix: string): string[] {
     const entries: Dirent[] = readdirSync(sourceDir, { withFileTypes: true });
@@ -81,7 +29,7 @@ function listCopiedTemplateFiles(sourceDir: string, destinationPrefix: string): 
     for (const entry of entries) {
         const sourcePath: string = path.join(sourceDir, entry.name);
         const destName: string = entry.name.split('.tpl')[0];
-        const destinationPath: string = `${destinationPrefix}/${destName}`;
+        const destinationPath: string = path.posix.join(destinationPrefix, destName);
         if (entry.isDirectory()) {
             files.push(...listCopiedTemplateFiles(sourcePath, destinationPath));
             continue;
@@ -92,25 +40,32 @@ function listCopiedTemplateFiles(sourceDir: string, destinationPrefix: string): 
 }
 
 /**
+ * Every file "zi new" renders from a template of `project`, as a project without a workflow of its
+ * own has them: the sandbox lives inside this repository, whose own workflows are the ones GitHub runs.
+ */
+const RENDERED_FILES: string[] = listCopiedTemplateFiles(path.join(CLI_ROOT, 'project'), '')
+    .filter(filePath => !filePath.startsWith('.github/'));
+
+/**
  * Every file "zi new" writes with every feature that another copy of it can be compared against.
  *
  * All of them but `NOT_IN_VERSION_CONTROL`, which by construction has nothing to compare to.
  */
 export const GENERATED_FILE_PATHS: string[] = [
-    ...EXPLICITLY_CREATED_FILES,
+    ...RENDERED_FILES,
     ...listCopiedTemplateFiles(path.join(CLI_ROOT, 'assets'), 'assets'),
     ...listCopiedTemplateFiles(path.join(CLI_ROOT, 'templates'), 'src/templates')
 ];
 
 /**
- * Every file the generator assembles line by line, rather than copying.
+ * Every file the generator renders, rather than copying.
  *
  * The distinction is what a syntax check is worth on each: the templates and assets are copied byte
  * for byte out of this package, where the repository's own build already compiles them, while these
- * exist only as string arrays in the command until a project is generated. Nothing reads them as
- * code before a consumer runs `npm run build`.
+ * are templates whose `.tpl` keeps that build away from them, and whose sections only a rendering
+ * puts together. Nothing reads them as code before a consumer runs `npm run build`.
  */
-export const AUTHORED_CODE_PATHS: string[] = EXPLICITLY_CREATED_FILES
+export const AUTHORED_CODE_PATHS: string[] = RENDERED_FILES
     .filter(filePath => /\.(?:ts|tsx|js|mjs)$/.test(filePath));
 
 /**

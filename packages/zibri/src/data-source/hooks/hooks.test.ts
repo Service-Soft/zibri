@@ -17,7 +17,7 @@ import { ChangeSetType } from '../change-sets/models/change-set-type.enum';
 import { ChangeSet } from '../change-sets/models/change-set.model';
 import { SoftDeleteEntity } from '../change-sets/models/soft-delete-entity.model';
 import { SoftDeleteRepository } from '../change-sets/soft-delete-repository';
-import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { Repository } from '../repository/repository';
 
 // ==================== TEST ENTITIES ====================
@@ -131,11 +131,11 @@ describe('before‑save hooks', () => {
             });
 
             // Use the query builder to read the raw column – no before‑return hook runs
-            const raw: HookTestEntity | null = await (repo.dataSource as PostgresDataSource)
+            const raw: Pick<HookTestEntity, 'secretValue'> | undefined = await (repo.dataSource as PostgresDataSource)
                 .query(HookTestEntity)
-                .select(`${HookTestEntity.name}.secretValue`)
+                .select(`${HookTestEntity.name}.secretValue`, 'secretValue')
                 .where(`${HookTestEntity.name}.id = :id`, { id: entity.id })
-                .getOne();
+                .getRawOne<Pick<HookTestEntity, 'secretValue'>>();
 
             // The stored value must be encrypted (not plain text)
             expect(raw?.secretValue).not.toBe('super-secret');

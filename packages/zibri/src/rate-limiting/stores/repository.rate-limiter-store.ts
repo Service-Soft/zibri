@@ -55,8 +55,8 @@ export type RepositoryRateLimiterStoreOptions = {
     /**
      * How many keys this store holds at most, across every instance sharing it.
      *
-     * Once it is full, a key it has never seen is refused rather than added, which the limiter turns
-     * into whatever its `onStoreFailure` says. Keys already in the store keep counting normally.
+     * Once it is full, a key it has never seen is refused, which the limiter turns into whatever its
+     * `onStoreFailure` says. Keys already in the store keep counting normally.
      * Reaching it is reported once as an error, because it is a symptom: the limiter keys on
      * something with no natural bound. The size is counted at most every ten seconds, so instances
      * creating keys at the same time can take it past this by what they create in that time.

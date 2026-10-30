@@ -1,3 +1,4 @@
+import { DataSourceTimeFor } from './data-source-time.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { DeepPartial } from '../../types/deep-partial.type';
 
@@ -17,11 +18,11 @@ export type Increment = {
 export type IncrementFor<TValue> = NonNullable<TValue> extends number ? Increment : never;
 
 /**
- * The change `updateAll` applies to every matching row: a value per property, or for a number
- * property an amount added to what each row stores.
+ * The change `updateAll` applies to every matching row: a value per property, for a number property
+ * an amount added to what each row stores, and for a date property the time of the data source.
  */
 export type UpdateAllData<T extends BaseEntity, UpdateData extends DeepPartial<T> = DeepPartial<T>> = {
-    [K in keyof UpdateData]?: UpdateData[K] | IncrementFor<UpdateData[K]>
+    [K in keyof UpdateData]?: UpdateData[K] | IncrementFor<UpdateData[K]> | DataSourceTimeFor<UpdateData[K]>
 };
 
 /**

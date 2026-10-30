@@ -16,15 +16,14 @@ export type BaseRepositoryOptions = {
      * reads or writes across the restriction - a cron job, a migration, an administrative endpoint
      * behind its own role check - because a scoped entity is otherwise unreachable without a logged
      * in user.
-     *
-     * Every use is a place the restriction does not hold, which is why it is spelled out at the call
-     * rather than configured away somewhere.
      */
+    // every use is a place the restriction does not hold, which is why it is spelled out at the call
+    // rather than configured away somewhere
     unscoped?: Unscoped,
     /**
-     * Whether this call reaches the rows of every tenant rather than those of the active one.
+     * Whether this call reaches the rows of every tenant, not only those of the active one.
      *
-     * Separate from `unscoped` on purpose: lifting an entity's scopes never reaches another tenant's
+     * Separate from `unscoped`: lifting an entity's scopes never reaches another tenant's
      * rows. Needed by work that serves every tenant at once - a job draining a queue, a platform
      * report - and by code outside any tenant writing a tenant's row, which then names the tenant in
      * the data. A row's tenant cannot be changed either way.

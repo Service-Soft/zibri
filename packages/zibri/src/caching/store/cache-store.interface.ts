@@ -36,6 +36,11 @@ export interface CacheStoreInterface<K, V> {
      */
     readonly config: CacheStoreConfig,
     /**
+     * Called once by the cache the store is given to, with its name. A store shared between all the
+     * instances of an application keeps the entries of each cache apart by it.
+     */
+    attachTo?: (cacheName: string) => void,
+    /**
      * Gets the cached value stored under the given key.
      */
     get: (key: K) => CachedValue<V> | undefined | Promise<CachedValue<V> | undefined>,

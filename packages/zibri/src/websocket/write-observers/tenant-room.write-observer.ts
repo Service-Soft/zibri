@@ -13,6 +13,7 @@ import { Newable } from '../../types/newable.type';
  */
 export class TenantRoomWriteObserver implements EntityWriteObserver {
     // whose memberships, and where, of a write to every membership a filter matches
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly properties: string[] = ['userId', 'tenantId'];
 
     constructor(

@@ -1,6 +1,6 @@
 import { AesGcmEncryptionStrategy, CompanyInfo, defineDateFormat, defineProvider, DiProvider, EmailConfigInput, GlobalRegistry, inject, JwtAuthOptionsInput, LoggerTransport, LoggingEmailTransport, LogLevel, Ms, repositoryTokenFor, SmtpEmailTransport, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
 
-import { optionalEnv, requireEnv } from './env';
+import { optionalEnv, requireEnv, requirePortEnv, requireUrlEnv } from './env';
 import { permissions, Tenant } from './models';
 import { MailingListBaseEmail } from './templates/email-components/mailing-list-base-email';
 import { MailingListSubscribeConfirmationEmail } from './templates/emails/mailing-list-subscribe-confirmation';
@@ -60,8 +60,8 @@ export const providers: DiProvider<unknown>[] = [
         useFactory: () => GlobalRegistry.getAppData('environment') === 'development'
             ? new LoggingEmailTransport()
             : new SmtpEmailTransport({
-                host: optionalEnv('SMTP_HOST'),
-                port: Number(optionalEnv('SMTP_PORT')),
+                host: requireEnv('SMTP_HOST'),
+                port: requirePortEnv('SMTP_PORT'),
                 auth: {
                     user: optionalEnv('SMTP_USER'),
                     pass: optionalEnv('SMTP_PASSWORD')
@@ -82,7 +82,12 @@ export const providers: DiProvider<unknown>[] = [
     }),
     defineProvider({
         token: ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL,
-        useFactory: () => requireEnv('CONFIRM_PASSWORD_RESET_URL')
+        useFactory: () => requireUrlEnv('CONFIRM_PASSWORD_RESET_URL')
+    }),
+    defineProvider({
+        // the OpenAPI explorer open to everyone, whatever defaultAuth says. Remove this to put it behind defaultAuth
+        token: ZIBRI_DI_TOKENS.OPEN_API_AUTH,
+        useValue: { skip: true }
     }),
     defineProvider({
         token: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.PREFERENCES_PAGE_TEMPLATE,
@@ -121,7 +126,8 @@ export const providers: DiProvider<unknown>[] = [
                     name: tenant.name,
                     fullName: tenant.name,
                     email: '',
-                    phone: ''
+                    phone: '',
+                    timezone: 'UTC'
                 };
             }
         }

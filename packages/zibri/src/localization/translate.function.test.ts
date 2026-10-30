@@ -26,4 +26,12 @@ describe('$t function', () => {
         // 'de-DE' etc. should fall back to 'de'
         expect(token.getValue('de-DE')).toBe('Hallo Mr. James Smith');
     });
+
+    it('fills in only the placeholders the string has, not names every object answers to', () => {
+        TranslationRegistry.translations['de'] ??= {};
+        TranslationRegistry.translations['de']['Bye {$1}'] = 'Tschüss {$1} {constructor} {toString}';
+        const name: string = 'Ada';
+
+        expect($t`Bye ${name}`.getValue('de')).toBe('Tschüss Ada {constructor} {toString}');
+    });
 });

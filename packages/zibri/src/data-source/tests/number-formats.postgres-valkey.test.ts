@@ -1,14 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { Table } from 'typeorm';
 
 import { describeNumberFormats, Measurement } from './number-formats.cases';
 import { TestTimeouts } from '../../__testing__/constants';
+import { findStoredColumns, StoredColumn } from '../../__testing__/find-stored-columns.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
-import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { Repository } from '../repository/repository';
@@ -42,15 +42,14 @@ describeNumberFormats('valkey', () => valKey);
 
 describe('what a number property is stored as', () => {
     it('declares the column each kind needs', async () => {
-        const dataSource: PostgresDataSource = inject(postgresDataSourceClass);
-        const table: Table | undefined = await dataSource.createQueryRunner().getTable('measurement');
+        const columns: Map<string, StoredColumn> = await findStoredColumns(inject(postgresDataSourceClass), 'measurement');
 
         // what the format buys beyond the type: a counter in an int8 rather than in an arbitrary
         // precision numeric, which indexes and aggregates as the whole number it is. Not an int4,
         // because the format takes every whole number a double holds exactly
-        expect(table?.findColumnByName('temperature')?.type).toBe('double precision');
-        expect(table?.findColumnByName('readings')?.type).toBe('bigint');
-        expect(table?.findColumnByName('sequence')?.type).toBe('bigint');
-        expect(table?.findColumnByName('price')?.type).toBe('numeric');
+        expect(columns.get('temperature')?.type).toBe('double precision');
+        expect(columns.get('readings')?.type).toBe('bigint');
+        expect(columns.get('sequence')?.type).toBe('bigint');
+        expect(columns.get('price')?.type).toBe('numeric');
     }, 30000);
 });

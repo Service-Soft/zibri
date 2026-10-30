@@ -1,0 +1,40 @@
+import { afterAll, beforeAll } from '@jest/globals';
+
+import { BoundedRow, describeBoundedReturns } from './bounded-returns.cases';
+import { TestTimeouts } from '../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
+import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
+import { inject } from '../../di/inject.function';
+import { Newable } from '../../types/newable.type';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
+import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
+import { MigrationEntity } from '../migration/migration-entity.model';
+import { Repository } from '../repository/repository';
+
+const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
+    entities: [...defaultTestServerEntities, BoundedRow],
+    repositories: defaultTestServerRepositories
+});
+
+const valKeyDataSourceClass: Newable<ValKeyDataSource> = createTestValKeyDataSource({
+    entities: [MigrationEntity, BoundedRow]
+});
+
+let server: StartedTestServer | undefined;
+let postgres: Repository<BoundedRow>;
+let valKey: Repository<BoundedRow>;
+
+beforeAll(async () => {
+    server = await startTestServer({ dataSources: [postgresDataSourceClass, valKeyDataSourceClass] });
+    postgres = inject(postgresDataSourceClass).getRepository(BoundedRow);
+    valKey = inject(valKeyDataSourceClass).getRepository(BoundedRow);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').start);
+
+afterAll(async () => {
+    await server?.shutdown();
+}, TestTimeouts.resolveCombined('postgres', 'valKey').shutdown);
+
+describeBoundedReturns('postgres', () => postgres);
+
+describeBoundedReturns('valkey', () => valKey);

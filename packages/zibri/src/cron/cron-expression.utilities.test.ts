@@ -1,4 +1,5 @@
-import { describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
+import cron, { ScheduledTask } from 'node-cron';
 
 import { CronExpression } from './cron-expression.utilities';
 
@@ -103,5 +104,37 @@ describe('CronExpression', () => {
         it('refuses an expression with the wrong number of fields', () => {
             expect(() => CronExpression.fromString('* * * *')).toThrow('Expected 6 fields');
         });
+    });
+});
+
+describe('the zone a schedule is read in, across a change of the clocks', () => {
+    afterEach(() => {
+        jest.useRealTimers();
+    });
+
+    /**
+     * The next run of a schedule after a moment, read the way a cron job reads it.
+     * @param expression - The schedule.
+     * @param timezone - The zone of the job.
+     * @param now - The moment.
+     * @returns The next run.
+     */
+    function nextRunOf(expression: string, timezone: string, now: string): string | undefined {
+        jest.useFakeTimers({ now: new Date(now) });
+        const task: ScheduledTask = cron.createTask(expression, () => undefined, { timezone: CronExpression.resolveTimezoneOfTask(expression, timezone) });
+        return task.getNextRuns(1)[0]?.toISOString();
+    }
+
+    it('runs a job of every few seconds through the hour Berlin goes through twice', () => {
+        // 2026-10-25T00:00Z is 02:00 summer time, the first of the two 02:00 hours
+        expect(nextRunOf(CronExpression.every(10, 'seconds').build(), 'Europe/Berlin', '2026-10-25T00:00:00.000Z')).toBe('2026-10-25T00:00:10.000Z');
+    });
+
+    it('reads a schedule that names an hour in the zone it is given', () => {
+        expect(CronExpression.resolveTimezoneOfTask('0 30 2 * * *', 'Europe/Berlin')).toBe('Europe/Berlin');
+    });
+
+    it('reads a schedule of every few minutes in a zone half an hour off in its own zone', () => {
+        expect(CronExpression.resolveTimezoneOfTask('0 */7 * * * *', 'Australia/Adelaide')).toBe('Australia/Adelaide');
     });
 });

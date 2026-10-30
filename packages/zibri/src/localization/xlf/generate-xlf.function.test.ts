@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { generateXlf } from './generate-xlf.function';
-import { ExtractedTranslationString } from './transform-source-translation-tokens.function';
+import { ExtractedTranslationString } from './models/extracted-translation-string.model';
 
 function entry(overrides: Partial<ExtractedTranslationString> = {}): ExtractedTranslationString {
     return {

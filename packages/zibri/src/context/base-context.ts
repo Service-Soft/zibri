@@ -9,12 +9,11 @@ export abstract class BaseContext<T> {
      * The cached token values.
      */
     protected readonly tokenValues: Map<string, unknown> = new Map();
+    // here rather than in the container because this is the thing whose lifetime they share: the
+    // context is dropped when the request is done and takes them with it, so nothing has to remember
+    // to clear them
     /**
      * The request scoped values that have been built while handling this.
-     *
-     * Lives here rather than in the container because this is the thing whose lifetime they share:
-     * the context is dropped when the request is done and takes them with it, so nothing has to
-     * remember to clear them.
      */
     readonly scopedInstances: Map<DiToken<unknown>, unknown> = new Map();
     /**
@@ -49,8 +48,7 @@ export abstract class BaseContext<T> {
      * Fires `signal`, which is everything still running inside the request finding out. What called
      * this differs - a handler out of time, a client that hung up - and the reason is how anything
      * that gives up says which it was.
-     * @param reason - What anything giving up because of this should fail with, so that every
-     * abandoned wait reports the same thing rather than each inventing its own error.
+     * @param reason - What anything giving up because of this fails with.
      */
     abandon(reason: Error): void {
         this.abortController.abort(reason);

@@ -1,9 +1,8 @@
 import { ChildProcess, fork } from 'node:child_process';
 import { createRequire } from 'node:module';
 
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import type { ExecResult } from 'testcontainers';
-import { DataSourceInterface, FsPath, FsUtilities, inject, Newable, optionalPeer, PostgresDataSource } from 'zibri';
+import type { ExecResult, StartedTestContainer } from 'testcontainers';
+import { DataSourceInterface, FsPath, FsUtilities, inject, JsonUtilities, Newable, optionalPeer, PostgresDataSource } from 'zibri';
 import { DiContainer, initDiContainer } from 'zibri/internal';
 
 import { defaultClusterDataSources } from './cluster-data-sources';
@@ -36,6 +35,19 @@ const modulePathsPreload: FsPath = FsUtilities.getPath(__dirname, `cluster-modul
 const bootTimeoutInMs: number = 15000;
 
 const killTimeoutInMs: number = 5000;
+
+/**
+ * Reads what every other session of the database is doing, what it waits on, and which sessions it
+ * waits for.
+ */
+const DATA_SOURCE_ACTIVITY_SQL: string = [
+    'select pid, state, wait_event_type as "waitEventType", wait_event as "waitEvent",',
+    'pg_blocking_pids(pid) as "blockedBy", backend_xmin is not null as "holdsSnapshot",',
+    'round(extract(epoch from now() - query_start) * 1000) as "sinceQueryStartInMs", left(query, 300) as "query"',
+    'from pg_stat_activity',
+    'where datname = current_database() and pid <> pg_backend_pid() and backend_type = \'client backend\'',
+    'order by pid'
+].join(' ');
 
 /**
  * Runs a statement inside the container of one data source and returns its raw output.
@@ -98,17 +110,36 @@ export class ClusterInstance {
         return this.outputChunks.join('');
     }
 
-    constructor(readonly id: string, private readonly child: ChildProcess) {
+    constructor(
+        readonly id: string,
+        private readonly child: ChildProcess,
+        /**
+         * Reads what the sessions of the cluster's data sources are doing.
+         */
+        private readonly resolveDataSourceActivity: () => Promise<string>
+    ) {
         // buffered rather than inherited: several instances logging at info level otherwise bury
         // the assertion that failed. It is attached to whatever error the harness throws instead.
         this.child.stdout?.on('data', (chunk: Buffer) => this.outputChunks.push(chunk.toString()));
         this.child.stderr?.on('data', (chunk: Buffer) => this.outputChunks.push(chunk.toString()));
+        // in the format the instance logs its own times in, so the two can be read against each other
+        const forkedAt: Date = new Date();
+        const startedAt: string = `${forkedAt.toTimeString().slice(0, 8)}.${String(forkedAt.getMilliseconds()).padStart(3, '0')}`;
 
         this.readyPromise = new Promise<void>((resolve, reject) => {
-            const timeout: NodeJS.Timeout = setTimeout(
-                () => reject(new Error(`the cluster instance "${id}" did not become ready within ${bootTimeoutInMs}ms\n${this.output}`)),
-                bootTimeoutInMs
-            );
+            const timeout: NodeJS.Timeout = setTimeout(() => {
+                void (async () => {
+                    // an instance waiting on another one says nothing in its own log, and what it
+                    // waits on is in the database: read as it gives up, while it still waits
+                    const activity: string = await this.resolveDataSourceActivity();
+                    reject(new Error([
+                        `the cluster instance "${id}" started at ${startedAt} did not become ready within ${bootTimeoutInMs}ms`,
+                        this.output,
+                        'What the sessions of its data sources were doing then:',
+                        activity
+                    ].join('\n')));
+                })();
+            }, bootTimeoutInMs);
             timeout.unref();
 
             this.child.on('message', (raw: unknown) => {
@@ -186,15 +217,7 @@ function createSqlRunner(started: StartedDataSourceContainer): SqlRunner | undef
     if (!(dataSource instanceof PostgresDataSource)) {
         return undefined;
     }
-    // loaded already: the container was started with it
-    const { StartedPostgreSqlContainer: PostgresContainer } = optionalPeer<typeof import('@testcontainers/postgresql')>(
-        '@testcontainers/postgresql',
-        'Running sql in a cluster\'s data source'
-    );
-    if (!(started.container instanceof PostgresContainer)) {
-        return undefined;
-    }
-    const container: StartedPostgreSqlContainer = started.container;
+    const container: StartedTestContainer = started.container;
     const username: string = dataSource.options.username ?? 'postgres';
     const database: string = dataSource.options.database ?? 'db';
 
@@ -213,9 +236,9 @@ function createSqlRunner(started: StartedDataSourceContainer): SqlRunner | undef
 /**
  * A running cluster: several instances of one application against one shared set of data sources.
  *
- * Observations are made from here, never from an instance. The query goes through the container
- * rather than through any repository, so nothing about the answer shares a code path with the thing
- * being asserted about.
+ * Observations are made from here, never from an instance. The query goes through the container,
+ * not through any repository, so nothing about the answer shares a code path with the thing being
+ * asserted about.
  */
 export class StartedTestCluster {
     private readonly startedInstances: ClusterInstance[] = [];
@@ -269,8 +292,7 @@ export class StartedTestCluster {
      * The instance at the given position, in the order they were started.
      *
      * What a test uses to address one replica of the several it asked for. The count is the count
-     * the test set up, so there is always one there - said once here rather than at each of the
-     * places that would otherwise have to check what they just destructured.
+     * the test set up, so there is always one there.
      * @param index - The position, counting from zero.
      * @returns The instance.
      * @throws When this cluster has no instance at that position.
@@ -286,8 +308,8 @@ export class StartedTestCluster {
     /**
      * Ends one instance and removes it from the cluster.
      *
-     * What a test uses to take a replica down, rather than ClusterInstance.kill: that one only ends
-     * the process, so the cluster would still count it and scaleTo would not replace it.
+     * What a test uses to take a replica down. ClusterInstance.kill only ends the process, so the
+     * cluster would still count it and scaleTo would not replace it.
      * @param id - The id of the instance to end.
      * @param signal - The signal to end it with. Defaults to SIGTERM.
      */
@@ -429,6 +451,26 @@ export class StartedTestCluster {
     }
 
     /**
+     * Reads what every session of the data sources that answer sql is doing, one line per session.
+     * @returns The sessions, under the data source they belong to.
+     */
+    private async resolveDataSourceActivity(): Promise<string> {
+        const reports: string[][] = await Promise.all(this.sqlRunners.map(async (run, index) => {
+            if (run == undefined) {
+                return [];
+            }
+            try {
+                const sessions: Record<string, unknown>[] = await this.sql(DATA_SOURCE_ACTIVITY_SQL, index);
+                return [`data source ${index}:`, ...sessions.map(session => JsonUtilities.stringify(session))];
+            }
+            catch (error) {
+                return [`data source ${index} could not be read: ${error instanceof Error ? error.message : String(error)}`];
+            }
+        }));
+        return reports.flat().join('\n');
+    }
+
+    /**
      * Ends every instance, stops every container, and removes what the instances wrote.
      */
     async shutdown(): Promise<void> {
@@ -476,7 +518,7 @@ export class StartedTestCluster {
                 [CLUSTER_DATA_SOURCE_PORTS_ENV]: JSON.stringify(this.containers.map(c => c.ports))
             }
         });
-        return new ClusterInstance(id, child);
+        return new ClusterInstance(id, child, async () => await this.resolveDataSourceActivity());
     }
 }
 
@@ -488,8 +530,7 @@ export type StartTestClusterOptions = {
      * The path of the module that default exports the StartTestServerOptions every instance boots
      * with.
      *
-     * A path rather than the options themselves, because a class cannot cross a process boundary.
-     * Both sides import the module: the parent to learn which containers to start, the instances to
+     * A path, since a class cannot cross a process boundary. Both sides import the module: the parent to learn which containers to start, the instances to
      * actually boot. Nothing at its top level may assume it is running inside an instance -
      * clusterInstanceId() has to be read per request, not once on load, or the parent's import of
      * it throws.
@@ -503,10 +544,10 @@ export type StartTestClusterOptions = {
      * How the instances boot. Defaults to sequential.
      *
      * Sequential lets the first instance settle the schema before the rest connect. Simultaneous is
-     * what a rolling deploy actually does, and is the point of the migration findings - but until
-     * those are fixed it also makes every other test fail on a ddl collision rather than on what it
-     * set out to assert.
+     * what a rolling deploy actually does.
      */
+    // simultaneous is the point of the migration findings - but until those are fixed it also makes
+    // every other test fail on a ddl collision rather than on what it set out to assert
     bootMode?: ClusterBootMode
 };
 

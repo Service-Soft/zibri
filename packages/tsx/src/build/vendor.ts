@@ -3,6 +3,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 
+import * as ts from 'typescript';
+
 import { vendorFileName } from '../vendor-file-name';
 
 const PACKAGE_MANIFEST: string = 'package.json';
@@ -87,11 +89,16 @@ async function matchesExisting(file: string, code: string): Promise<boolean> {
 }
 
 /**
- * Reads a package's browser distribution bundle.
+ * Reads a package's browser distribution bundle: the first of the browser entries its manifest
+ * names that is a classic script.
+ *
+ * The page loads the file with a classic script tag, so the contract is a global - and a browser
+ * entry that is an ES module is a file every browser refuses. Many packages name a module as their
+ * `exports['.'].browser` and keep a UMD build under `unpkg` or `browser`, which is the one to serve.
  * @param packageName - The package to resolve.
  * @param require - A require anchored at the application root.
  * @returns The bundle source.
- * @throws When the package exposes no browser distribution.
+ * @throws When the package exposes no browser distribution, or only ES modules.
  */
 async function readBrowserDist(packageName: string, require: NodeJS.Require): Promise<string> {
     const packageDir: string = findPackageDir(packageName, require);
@@ -99,14 +106,53 @@ async function readBrowserDist(packageName: string, require: NodeJS.Require): Pr
         await readFile(join(packageDir, PACKAGE_MANIFEST), 'utf8')
     ) as Record<string, unknown>;
 
-    const entry: string | undefined = resolveBrowserEntry(manifest);
-    if (!entry) {
+    const entries: string[] = resolveBrowserEntries(manifest);
+    if (entries.length === 0) {
         throw new Error(
             `Package '${packageName}' has no browser distribution. It must expose one via `
             + '\'browser\', \'unpkg\', \'cdn\', or exports[\'browser\'] in its package.json.'
         );
     }
-    return await readFile(join(packageDir, entry), 'utf8');
+    for (const entry of entries) {
+        const code: string = await readFile(join(packageDir, entry), 'utf8');
+        if (!isEsModule(entry, code)) {
+            return code;
+        }
+    }
+    throw new Error(
+        `Package '${packageName}' ships its browser distribution as an ES module (${entries.join(', ')}), `
+        + 'which a page loads with a classic script tag and no browser runs. A \'?client\' package has to '
+        + 'provide a classic script that sets a global, such as a UMD or IIFE build; import it from a '
+        + 'package that does, or bundle the module into one yourself.'
+    );
+}
+
+/**
+ * Whether a browser entry is an ES module rather than a classic script.
+ *
+ * Decided by the extension where it says so, a `.mjs` file is a module and a `.cjs` file is not,
+ * and by the code otherwise: a static `import` or `export` statement at the top level is what only
+ * a module can hold. The manifest's `"type"` says nothing here: a UMD build is a classic script in
+ * a `"type": "module"` package as much as in any other, and the browser never reads the manifest.
+ * @param entry - The entry's path inside the package.
+ * @param code - The entry's content.
+ * @returns True for an ES module.
+ */
+function isEsModule(entry: string, code: string): boolean {
+    if (entry.endsWith('.mjs')) {
+        return true;
+    }
+    if (entry.endsWith('.cjs')) {
+        return false;
+    }
+    // parsed rather than searched: a minified build holds the words in its strings ("Please import
+    // and register the plugin"), and only the parser knows a statement from a string
+    const sourceFile: ts.SourceFile = ts.createSourceFile(entry, code, ts.ScriptTarget.Latest, false, ts.ScriptKind.JS);
+    return sourceFile.statements.some(statement => ts.isImportDeclaration(statement)
+        || ts.isExportDeclaration(statement)
+        || ts.isExportAssignment(statement)
+        || (ts.canHaveModifiers(statement)
+            && ts.getModifiers(statement)?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword) === true));
 }
 
 /**
@@ -157,50 +203,46 @@ function isPackageRoot(dir: string, packageName: string): boolean {
 }
 
 /**
- * Picks the browser entry from a package manifest.
+ * The browser entries a package manifest names, most specific first and without repeats.
  * @param manifest - The parsed package.json.
- * @returns The relative entry path, or undefined when there is none.
+ * @returns The relative entry paths, empty when there is none.
  */
-function resolveBrowserEntry(manifest: Record<string, unknown>): string | undefined {
+function resolveBrowserEntries(manifest: Record<string, unknown>): string[] {
     const exports: Record<string, unknown> | undefined = asRecord(manifest['exports']);
-    if (exports) {
-        return resolveFromExports(exports) ?? resolveFromTopLevelFields(manifest);
-    }
-    return resolveFromTopLevelFields(manifest);
+    const entries: string[] = [...exports ? resolveFromExports(exports) : [], ...resolveFromTopLevelFields(manifest)];
+    return entries.filter((entry, index) => entries.indexOf(entry) === index);
 }
 
 /**
- * Picks the browser entry out of an exports map.
+ * The browser entries an exports map names.
  * @param exports - The parsed exports map.
- * @returns The relative entry path, or undefined when there is none.
+ * @returns The relative entry paths.
  */
-function resolveFromExports(exports: Record<string, unknown>): string | undefined {
+function resolveFromExports(exports: Record<string, unknown>): string[] {
+    const entries: string[] = [];
     const browser: unknown = asRecord(exports['.'])?.['browser'];
     if (typeof browser === 'string') {
-        return stripLeadingDot(browser);
+        entries.push(stripLeadingDot(browser));
     }
-    // Fall back to a directly exported flat dist bundle, e.g. "./dist/socket.io.js".
+    // and any directly exported flat dist bundle, e.g. "./dist/socket.io.js".
     for (const [key, value] of Object.entries(exports)) {
         if (typeof value === 'string' && /^\.\/dist\/.+\.js$/.test(key) && !key.includes('.min.')) {
-            return stripLeadingDot(value);
+            entries.push(stripLeadingDot(value));
         }
     }
-    return undefined;
+    return entries;
 }
 
 /**
- * Picks the browser entry out of the legacy top-level manifest fields.
+ * The browser entries the legacy top-level manifest fields name.
  * @param manifest - The parsed package.json.
- * @returns The relative entry path, or undefined when there is none.
+ * @returns The relative entry paths.
  */
-function resolveFromTopLevelFields(manifest: Record<string, unknown>): string | undefined {
-    for (const field of ['browser', 'unpkg', 'cdn']) {
-        const value: unknown = manifest[field];
-        if (typeof value === 'string') {
-            return value;
-        }
-    }
-    return undefined;
+function resolveFromTopLevelFields(manifest: Record<string, unknown>): string[] {
+    return ['browser', 'unpkg', 'cdn']
+        .map(field => manifest[field])
+        .filter((value): value is string => typeof value === 'string')
+        .map(value => stripLeadingDot(value));
 }
 
 /**

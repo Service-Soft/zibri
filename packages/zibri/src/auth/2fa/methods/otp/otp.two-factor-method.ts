@@ -6,7 +6,7 @@ import { TwoFactorMethod } from '../two-factor-method.interface';
 import { base32Encode } from './base32-encode.function';
 import { OtpCodeAlreadyUsedError } from './otp-code-already-used.error';
 import { OtpCredentials, OtpCredentialsCreateData } from './otp-credentials.model';
-import { OTP_PERIOD_IN_SECONDS, OtpUtilities, type OtpValidationWindowInMs } from './otp.utilities';
+import { OtpUtilities, type OtpValidationWindowInMs } from './otp.utilities';
 import { ZibriApplication } from '../../../../application/application';
 import { HttpRequestContext } from '../../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context';
@@ -18,6 +18,8 @@ import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default'
 import { inject } from '../../../../di/inject.function';
 import { Property } from '../../../../entity/decorators/property.decorator';
 import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error';
+import { InternalError } from '../../../../error-handling/internal-error.model';
+import { findHeader } from '../../../../http/find-header.function';
 import { KnownHeader } from '../../../../http/known-header.enum';
 import { type LeaseServiceInterface } from '../../../../leases/lease-service.interface';
 import { $ts } from '../../../../localization/translate.function';
@@ -84,6 +86,12 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpRegistration
         return inject(repositoryTokenFor(OtpCredentials));
     }
 
+    // read when used rather than injected, so that a method of an application's own extending this one
+    // keeps the constructor it has
+    private get periodInSeconds(): number {
+        return inject(ZIBRI_DI_TOKENS.OTP_PERIOD_IN_SECONDS);
+    }
+
     constructor(
         @Inject(ZIBRI_DI_TOKENS.OTP_HEADER)
         private readonly otpHeader: KnownHeader,
@@ -104,6 +112,17 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpRegistration
     // eslint-disable-next-line jsdoc/require-jsdoc
     init(app: ZibriApplication): void {
         validateEntitiesRegistered(OtpTwoFactorMethod.name, app, OtpCredentials);
+        const period: number = this.periodInSeconds;
+        if (!Number.isInteger(period) || period < 1) {
+            throw new InternalError(`ZIBRI_DI_TOKENS.OTP_PERIOD_IN_SECONDS must be a whole number of at least 1, got ${period}.`);
+        }
+        // a code belongs to a step or it does not, so a window between two steps is no window
+        if (this.validationWindowInMs % (period * Ms.SECOND) !== 0) {
+            throw new InternalError(
+                'ZIBRI_DI_TOKENS.OTP_VALIDATION_WINDOW_IN_MS must be a whole number of OTP_PERIOD_IN_SECONDS,'
+                + ` got ${this.validationWindowInMs} for ${period}.`
+            );
+        }
     }
 
     /**
@@ -124,7 +143,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpRegistration
                 key: `otp:${credentialsId}:${step}`,
                 // the step's own length plus the skew allowed either side of it, which is exactly how
                 // long this step can still be presented for
-                leaseInMs: (this.validationWindowInMs * 2) + (OTP_PERIOD_IN_SECONDS * Ms.SECOND),
+                leaseInMs: (this.validationWindowInMs * 2) + (this.periodInSeconds * Ms.SECOND),
                 mode: 'skip',
                 onCompletion: 'retain'
             },
@@ -153,7 +172,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpRegistration
         // so a column holding it was a second, unprotected copy of exactly what the encrypted one
         // guards - and nothing ever read it back, which is why enrolling had no way to show a user
         // their qr code at all.
-        return { qrCodeUrl: OtpUtilities.createQrCodeUrl(secret), secret };
+        return { qrCodeUrl: OtpUtilities.createQrCodeUrl(secret, this.periodInSeconds), secret };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -173,7 +192,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpRegistration
             where: { userId: user.id, confirmed: false }
         });
         for (const c of credentials) {
-            const step: number | undefined = OtpUtilities.validate(c.secret, data.token, this.validationWindowInMs);
+            const step: number | undefined = OtpUtilities.validate(c.secret, data.token, this.validationWindowInMs, this.periodInSeconds);
             if (step != undefined) {
                 // spent here too: confirming is a successful validation, so letting the same digits
                 // through again afterwards would leave the very first code a user enters open to
@@ -221,7 +240,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpRegistration
         });
         const token: string = this.extractTokenFromRequestContext(context);
         for (const c of credentials) {
-            const step: number | undefined = OtpUtilities.validate(c.secret, token, this.validationWindowInMs);
+            const step: number | undefined = OtpUtilities.validate(c.secret, token, this.validationWindowInMs, this.periodInSeconds);
             if (step != undefined) {
                 await this.consumeStep(c.id, step);
                 return;
@@ -231,7 +250,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpRegistration
     }
 
     private extractTokenFromRequestContext(context: HttpRequestContext | WebsocketRequestContext): string {
-        const code: string | undefined = context.request.headers?.[this.otpHeader];
+        const code: string | undefined = findHeader(context.request.headers, this.otpHeader);
         if (!code) {
             throw new UnauthorizedError($ts`"${this.otpHeader}" header not found`);
         }

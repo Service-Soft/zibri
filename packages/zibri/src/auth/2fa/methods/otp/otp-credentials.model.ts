@@ -13,12 +13,13 @@ export class OtpCredentials extends BaseEntity {
      */
     @Property.string({ format: 'uuid' })
     userId!: string;
+    // encrypted rather than hashed, because it has to be read back: validating a code means
+    // recomputing it from the seed
     /**
-     * The secret to use for generating the OTP.
+     * The secret to use for generating the OTP, stored encrypted.
      *
-     * Encrypted rather than hashed, because it has to be read back: validating a code means
-     * recomputing it from the seed. That is also what makes a leak of it permanent - the seed is the
-     * second factor, and anyone holding it reproduces every future code until the user re-enrolls.
+     * A leak of it is permanent: the seed is the second factor, and anyone holding it reproduces
+     * every future code until the user re-enrolls.
      */
     @Property.string({ encryption: true })
     secret!: string;

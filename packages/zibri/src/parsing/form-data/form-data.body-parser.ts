@@ -12,6 +12,7 @@ import { inject } from '../../di/inject.function';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { OnAppInit } from '../../global/on-app-init.interface';
+import { FileExtension } from '../../http/file-extension.model';
 import { HttpRequest } from '../../http/http-request.model';
 import { MimeType } from '../../http/mime-type.enum';
 import { HttpClientResponse } from '../../http-client/http-client-response.model';
@@ -23,7 +24,7 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { ContentTooLargeError } from '../../error-handling/errors/content-too-large.error';
 import { KnownHeader } from '../../http/known-header.enum';
-import { FileExtension, resolveFileExtension } from '../../http/mime-type.helpers';
+import { MimeTypeUtilities } from '../../http/mime-type.utilities';
 import { $ts } from '../../localization/translate.function';
 import { BodyShapeMetadata, FormDataBodyMetadata } from '../../routing/decorators/body-metadata.model';
 import { resolveMaxBodySize } from '../../routing/decorators/body.decorator';
@@ -134,7 +135,7 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
 
     private getTempFileName(mimetype: string): string {
         const id: string = UUIDUtilities.generate();
-        const ext: FileExtension | undefined = resolveFileExtension(mimetype);
+        const ext: FileExtension | undefined = MimeTypeUtilities.resolveFileExtension(mimetype);
         if (ext) {
             return `${id}${ext}`;
         }

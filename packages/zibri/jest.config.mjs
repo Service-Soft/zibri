@@ -33,6 +33,11 @@ const config = {
     globalSetup: '<rootDir>/jest.global-setup.ts',
     setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
     bail: false,
+    // memory, not cores, is what limits this suite. A worker that has loaded the framework holds
+    // about a gigabyte, and anything that outlives a test file and reaches into it keeps that file's
+    // whole environment alive. `node scripts/find-retained-test-environments.mjs <files>` names what
+    // does; this restarts a worker before whatever is left adds up
+    workerIdleMemoryLimit: '1GB',
     modulePathIgnorePatterns: ['tmp'],
     // coverage
     // collectCoverage: true,

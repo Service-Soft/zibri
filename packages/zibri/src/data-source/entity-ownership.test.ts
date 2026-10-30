@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { PostgresDataSource } from './data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from './data-sources/postgres/postgres-data-source.model';
 import { ValKeyDataSource } from './data-sources/val-key/val-key-data-source.model';
 import { MigrationEntity } from './migration/migration-entity.model';
 import { Repository } from './repository/repository';

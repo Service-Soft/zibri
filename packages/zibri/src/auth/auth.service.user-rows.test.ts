@@ -1,6 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { createInMemoryDataSource } from 'zibri-testing';
+import { createInMemoryDataSource, FakeOAuthProvider, startFakeOAuthProvider } from 'zibri-testing';
 
+import { TestTimeouts } from '../__testing__/constants';
+import { inject } from '../di/inject.function';
+import { BaseEntity } from '../entity/base-entity.model';
+import { Newable } from '../types/newable.type';
+import { Ms } from '../utilities/ms';
+import { UUIDUtilities } from '../utilities/uuid.utilities';
 import { EmailTwoFactorMethod } from './2fa/methods/code/email.two-factor-method';
 import { TwoFactorCodeCredentials, TwoFactorCodeCredentialsCreateData } from './2fa/methods/code/two-factor-code-credentials.model';
 import { TwoFactorCode, TwoFactorCodeCreateData } from './2fa/methods/code/two-factor-code.model';
@@ -23,11 +29,12 @@ import { OAuthClientAuthentication } from './authenticators/oauth/oauth-client-a
 import { OAuthProviderTokens, OAuthProviderTokensCreateData } from './authenticators/oauth/oauth-provider-tokens.model';
 import { BaseOidcAuthenticator } from './authenticators/oidc/base-oidc.authenticator';
 import { OidcAuthenticationTime } from './authenticators/oidc/oidc-authentication-time.type';
+import { OidcDiscoveryAtBoot } from './authenticators/oidc/oidc-discovery-at-boot.type';
 import { PasskeyCeremony } from './authenticators/passkey/passkey-ceremony.enum';
 import { PasskeyChallenge, PasskeyChallengeCreateData } from './authenticators/passkey/passkey-challenge.model';
 import { PasskeyRegistrationTicket, PasskeyRegistrationTicketCreateData } from './authenticators/passkey/passkey-registration-ticket.model';
-import { Passkey, PasskeyCreateData } from './authenticators/passkey/passkey.model';
 import { PasskeyAuthenticator } from './authenticators/passkey/passkey.authenticator';
+import { Passkey, PasskeyCreateData } from './authenticators/passkey/passkey.model';
 import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
 import { PasswordFailureStreak, PasswordFailureStreakCreateData } from './authenticators/password/password-failure-streak.model';
 import { PasswordAuthenticator } from './authenticators/password/password.authenticator';
@@ -43,7 +50,6 @@ import { CookieAuthStrategy } from './strategies/cookie/cookie-auth.auth-strateg
 import { JwtRefreshToken, JwtRefreshTokenCreateDto } from './strategies/jwt/jwt-refresh-token.model';
 import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
 import { BaseUserRepository } from './user/base-user-repository.model';
-import { TestTimeouts } from '../__testing__/constants';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../__testing__/mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
@@ -51,20 +57,18 @@ import { defaultTestServerProviders } from '../__testing__/test-server/providers
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { SoftDeleteEntity } from '../data-source/change-sets/models/soft-delete-entity.model';
 import { SoftDeleteRepository } from '../data-source/change-sets/soft-delete-repository';
-import { RateLimitStateEntity } from '../rate-limiting/stores/rate-limit-state-entity.model';
 import { Repository } from '../data-source/repository/repository';
 import { RepositoryFor } from '../data-source/repository/repository-for.decorator';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { Entity } from '../entity/decorators/entity.decorator';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Newable } from '../types/newable.type';
-import { Ms } from '../utilities/ms';
-import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { RateLimitStateEntity } from '../rate-limiting/stores/rate-limit-state-entity.model';
 
-const ISSUER: string = 'https://login.example.com';
+/**
+ * The provider identities are linked at, whose metadata the application reads while it starts.
+ */
+let provider: FakeOAuthProvider;
 
 /**
  * A provider an identity is linked at, whose apis are called for it, so its tokens are kept.
@@ -72,13 +76,17 @@ const ISSUER: string = 'https://login.example.com';
 class ExampleProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
     readonly name: string = 'example';
 
-    readonly issuer: string = ISSUER;
+    get issuer(): string {
+        return provider.issuer;
+    }
 
     readonly clientId: string = 'zibri-test-client';
 
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: 'zibri-test-secret' };
 
     readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
+
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
 
     override readonly apiScopes: string[] = ['calendar.read'];
 }
@@ -101,11 +109,13 @@ class CompanyDirectory extends BaseLdapAuthenticator<string, JwtUser> {
 
     readonly groupSearchBase: string | undefined = undefined;
 
-    resolveFirstLogin(): Promise<JwtUser> {
+    readonly refreshCheckIntervalInMs: number = 0;
+
+    async resolveFirstLogin(): Promise<JwtUser> {
         return Promise.reject(new Error('not reached'));
     }
 
-    resolveLogin(_: LdapEntry, user: JwtUser): Promise<JwtUser> {
+    async resolveLogin(_: LdapEntry, user: JwtUser): Promise<JwtUser> {
         return Promise.resolve(user);
     }
 }
@@ -180,6 +190,7 @@ async function giveRows(userId: string): Promise<IndirectRows> {
     await inject<Repository<PasswordFailureStreak, PasswordFailureStreakCreateData>>(repositoryTokenFor(PasswordFailureStreak))
         .create({ userId, count: 1 });
     await inject<Repository<OtpCredentials, OtpCredentialsCreateData>>(repositoryTokenFor(OtpCredentials))
+        // eslint-disable-next-line cspell/spellchecker
         .create({ userId, secret: 'JBSWY3DPEHPK3PXP' });
     const codeCredentials: TwoFactorCodeCredentials = await inject<Repository<TwoFactorCodeCredentials, TwoFactorCodeCredentialsCreateData>>(
         repositoryTokenFor(TwoFactorCodeCredentials)
@@ -197,12 +208,23 @@ async function giveRows(userId: string): Promise<IndirectRows> {
         value: tag, ceremony: PasskeyCeremony.ADDITION, userId, spent: false, expirationDate: later
     });
     await inject<Repository<PasskeyRegistrationTicket, PasskeyRegistrationTicketCreateData>>(repositoryTokenFor(PasskeyRegistrationTicket)).create({
-        value: tag, userId, userName: 'ada', credentialId: tag, publicKey: 'key', counter: 0, transports: [], aaguid: 'aaguid',
-        userHandle: tag, synced: false, authenticatedAt: new Date(), spent: false, expirationDate: later
+        value: tag,
+        userId,
+        userName: 'ada',
+        credentialId: tag,
+        publicKey: 'key',
+        counter: 0,
+        transports: [],
+        aaguid: 'aaguid',
+        userHandle: tag,
+        synced: false,
+        authenticatedAt: new Date(),
+        spent: false,
+        expirationDate: later
     });
     const identity: FederatedIdentity = await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(
         repositoryTokenFor(FederatedIdentity)
-    ).create({ issuer: ISSUER, subject: tag, userId, forLogin: true, grantedScopes: ['calendar.read'] });
+    ).create({ issuer: provider.issuer, subject: tag, userId, forLogin: true, grantedScopes: ['calendar.read'] });
     await inject<Repository<OAuthProviderTokens, OAuthProviderTokensCreateData>>(repositoryTokenFor(OAuthProviderTokens)).create({
         identityId: identity.id, accessToken: 'access', refreshToken: 'refresh', accessTokenExpirationDate: later
     });
@@ -210,36 +232,90 @@ async function giveRows(userId: string): Promise<IndirectRows> {
         value: tag, provider: 'example', userId, redirectTo: 'https://app.example.com', forLogin: true, apiScopes: [], spent: false, expirationDate: later
     });
     await inject<Repository<FederatedHandoverCode, FederatedHandoverCodeCreateData>>(repositoryTokenFor(FederatedHandoverCode)).create({
-        value: tag, binding: undefined, provider: 'example', userId, authenticatedAt: new Date(), claims: {}, providerAuthentication: undefined,
-        subjectKey: undefined, sessionKey: undefined, sessionLogout: undefined, bindingCookie: undefined, codeChallenge: undefined, spent: false,
+        value: tag,
+        binding: undefined,
+        provider: 'example',
+        userId,
+        authenticatedAt: new Date(),
+        claims: {},
+        providerAuthentication: undefined,
+        subjectKey: undefined,
+        sessionKey: undefined,
+        sessionLogout: undefined,
+        bindingCookie: undefined,
+        codeChallenge: undefined,
+        spent: false,
         expirationDate: later
     });
     await inject<Repository<FederatedLoginAttempt, FederatedLoginAttemptCreateData>>(repositoryTokenFor(FederatedLoginAttempt)).create({
-        state: tag, binding: tag, provider: 'example', redirectTo: 'https://app.example.com', reauthenticate: false, codeChallenge: undefined,
-        strategy: undefined, userId, forLogin: true, apiScopes: [], spent: false, expirationDate: later
+        state: tag,
+        binding: tag,
+        provider: 'example',
+        redirectTo: 'https://app.example.com',
+        reauthenticate: false,
+        codeChallenge: undefined,
+        strategy: undefined,
+        userId,
+        forLogin: true,
+        apiScopes: [],
+        spent: false,
+        expirationDate: later
     });
     await inject<Repository<LdapIdentity, LdapIdentityCreateData>>(repositoryTokenFor(LdapIdentity))
         .create({ directory: 'company', entryId: tag, userId });
     await inject<Repository<ApiKey, ApiKeyCreateDto>>(repositoryTokenFor(ApiKey)).create({
-        userId, name: 'ci', value: tag, permissions: [], tenantId: undefined, authenticationMethod: ApiKeyAuthenticationMethod.SECRET,
-        publicKey: undefined, jwksUrl: undefined, certificateThumbprint: undefined, requireDpop: false, expiresAt: undefined
+        userId,
+        name: 'ci',
+        value: tag,
+        permissions: [],
+        tenantId: undefined,
+        authenticationMethod: ApiKeyAuthenticationMethod.SECRET,
+        publicKey: undefined,
+        jwksUrl: undefined,
+        certificateThumbprint: undefined,
+        requireDpop: false,
+        expiresAt: undefined
     });
     await inject<Repository<JwtRefreshToken, JwtRefreshTokenCreateDto>>(repositoryTokenFor(JwtRefreshToken)).create({
-        userId, value: tag, blacklisted: false, expirationDate: later, familyId: UUIDUtilities.generate(), federatedProvider: undefined,
-        federatedSubjectKey: undefined, federatedSessionKey: undefined, federatedLogout: undefined, dpopKeyThumbprint: undefined,
+        userId,
+        value: tag,
+        blacklisted: false,
+        expirationDate: later,
+        familyId: UUIDUtilities.generate(),
+        federatedProvider: undefined,
+        federatedSubjectKey: undefined,
+        federatedSessionKey: undefined,
+        federatedLogout: undefined,
+        dpopKeyThumbprint: undefined,
         providerAuthentication: undefined
     });
     await inject<Repository<CookieAuthSession, CookieAuthSessionCreateData>>(repositoryTokenFor(CookieAuthSession)).create({
         token: tag, userId, expirationDate: later, familyId: UUIDUtilities.generate()
     });
     await inject<Repository<CookieAuthRefreshSession, CookieAuthRefreshSessionCreateData>>(repositoryTokenFor(CookieAuthRefreshSession)).create({
-        token: tag, userId, expirationDate: later, blacklisted: false, familyId: UUIDUtilities.generate(), authenticatedAt: new Date(),
-        federatedProvider: undefined, federatedSubjectKey: undefined, federatedSessionKey: undefined, federatedLogout: undefined,
+        token: tag,
+        userId,
+        expirationDate: later,
+        blacklisted: false,
+        familyId: UUIDUtilities.generate(),
+        authenticatedAt: new Date(),
+        federatedProvider: undefined,
+        federatedSubjectKey: undefined,
+        federatedSessionKey: undefined,
+        federatedLogout: undefined,
         providerAuthentication: undefined
     });
     await inject<Repository<LoginTicket, LoginTicketCreateData>>(repositoryTokenFor(LoginTicket)).create({
-        value: tag, userId, subject: undefined, authenticatedAt: new Date(), federatedProvider: undefined, federatedSubjectKey: undefined,
-        federatedSessionKey: undefined, federatedLogout: undefined, spent: false, expirationDate: later
+        value: tag,
+        userId,
+        subject: undefined,
+        authenticatedAt: new Date(),
+        federatedProvider: undefined,
+        federatedSubjectKey: undefined,
+        federatedSessionKey: undefined,
+        federatedLogout: undefined,
+        spent: false,
+        expirationDate: later
     });
     return { identityId: identity.id, codeCredentialsId: codeCredentials.id };
 }
@@ -276,6 +352,7 @@ describe('deleting a user', () => {
     let server: StartedTestServer;
 
     beforeAll(async () => {
+        provider = await startFakeOAuthProvider({ clientId: 'zibri-test-client', clientSecret: 'zibri-test-secret' });
         server = await startTestServer({
             dataSources: [
                 createInMemoryDataSource({
@@ -333,6 +410,7 @@ describe('deleting a user', () => {
 
     afterAll(async () => {
         await server?.shutdown();
+        await provider?.stop();
     }, TestTimeouts.inMemory.shutdown);
 
     it('deletes every row the framework keeps for them, and no row of anyone else', async () => {

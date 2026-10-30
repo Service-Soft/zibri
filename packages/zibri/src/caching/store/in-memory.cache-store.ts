@@ -1,5 +1,6 @@
-import { CacheStoreConfig, CacheStoreInterface } from './cache-store.interface';
+import { CacheStoreInterface } from './cache-store.interface';
 import { CachedValue } from './cached-value.model';
+import { InMemoryCacheStoreConfig } from './in-memory-cache-store-config.model';
 import { Bytes } from '../../utilities/bytes';
 import { DoublyLinkedList, LinkedListNode } from '../../utilities/doubly-linked-list';
 import { JsonUtilities } from '../../utilities/json.utilities';
@@ -52,20 +53,21 @@ export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
     private minFrequency: number = 0;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly config: CacheStoreConfig;
+    readonly config: InMemoryCacheStoreConfig;
 
-    constructor(configInput?: Partial<CacheStoreConfig>) {
+    constructor(configInput?: Partial<InMemoryCacheStoreConfig>) {
         this.config = {
             maxEntries: 5000,
             maxBytes: Bytes.MB * 25,
             removeOnOverflow: 'leastRecentlyUsed',
+            perTenant: true,
             ...configInput
         };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     get(key: K): CachedValue<V> | undefined {
-        const id: string = cacheKeyOf(key);
+        const id: string = this.resolveId(key);
         const entry: CacheEntry<V> | undefined = this.entries.get(id);
         if (!entry) {
             return undefined;
@@ -85,19 +87,24 @@ export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     set(key: K, value: CachedValue<V>): void {
-        const id: string = cacheKeyOf(key);
+        const id: string = this.resolveId(key);
         const existing: CacheEntry<V> | undefined = this.entries.get(id);
 
-        if (existing) {
-            this.currentBytes = NumberUtilities.subtract(this.currentBytes, existing.byteSize).toNumber();
-            existing.value = value;
-            existing.byteSize = this.estimateBytes(id, value);
-            this.currentBytes = NumberUtilities.add(this.currentBytes, existing.byteSize).toNumber();
-            this.recordAccess(existing);
-            return;
-        }
-
         const byteSize: number = this.estimateBytes(id, value);
+
+        if (existing) {
+            const bytesOfOthers: number = NumberUtilities.subtract(this.currentBytes, existing.byteSize).toNumber();
+            if (NumberUtilities.add(bytesOfOthers, byteSize).comparedTo(this.config.maxBytes) !== 1) {
+                this.currentBytes = NumberUtilities.add(bytesOfOthers, byteSize).toNumber();
+                existing.value = value;
+                existing.byteSize = byteSize;
+                this.recordAccess(existing);
+                return;
+            }
+            // grown past the room the others leave, it is written like a new value: room is made by
+            // evicting others, or it is not cached at all
+            this.deleteById(id);
+        }
 
         // Evict until there is enough space
         while (
@@ -130,13 +137,22 @@ export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     delete(key: K): void {
-        this.deleteById(cacheKeyOf(key));
+        this.deleteById(this.resolveId(key));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     has(key: K): boolean {
-        const entry: CacheEntry<V> | undefined = this.entries.get(cacheKeyOf(key));
+        const entry: CacheEntry<V> | undefined = this.entries.get(this.resolveId(key));
         return entry != undefined && !this.hasExpired(entry);
+    }
+
+    /**
+     * Resolves what an entry is stored under.
+     * @param key - The key it was asked for with.
+     * @returns The key as {@link cacheKeyOf} resolves it, per tenant unless the store is not.
+     */
+    private resolveId(key: K): string {
+        return cacheKeyOf(key, this.config.perTenant);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

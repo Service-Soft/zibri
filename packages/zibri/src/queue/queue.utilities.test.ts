@@ -60,10 +60,12 @@ let effects: Repository<TestWorkEffect>;
 
 beforeAll(async () => {
     server = await startTestServer({
-        dataSources: [createInMemoryDataSource({
-            entities: [...defaultTestServerEntities, TestWork, TestWorkEffect],
-            repositories: defaultTestServerRepositories
-        })]
+        dataSources: [
+            createInMemoryDataSource({
+                entities: [...defaultTestServerEntities, TestWork, TestWorkEffect],
+                repositories: defaultTestServerRepositories
+            })
+        ]
     });
     works = inject(repositoryTokenFor(TestWork));
     effects = inject(repositoryTokenFor(TestWorkEffect));
@@ -123,11 +125,13 @@ describe('QueueUtilities', () => {
         const work: TestWork = await queueWork('once');
         const runs: QueuedWorkRun[] = [];
 
+        // eslint-disable-next-line typescript/require-await
         expect(await QueueUtilities.poll(defineQueue(async (_, run) => {
             runs.push(run);
         }))).toBe(true);
 
         expect(runs.map(run => [run.runId, run.attempt, run.transaction])).toEqual([[work.id, 1, undefined]]);
+        // eslint-disable-next-line unicorn/no-null
         expect(await works.findById(work.id)).toMatchObject({ status: TestWorkStatus.DONE, attempts: 1, error: null, nextAttemptAt: null });
     });
 
@@ -138,7 +142,7 @@ describe('QueueUtilities', () => {
     it('retries a row that failed after the first delay, doubling it, and gives up after its attempts', async () => {
         const work: TestWork = await queueWork('flaky');
         const runIds: string[] = [];
-        const queue: QueueDefinition<TestWork> = defineQueue(async (_, run) => {
+        const queue: QueueDefinition<TestWork> = defineQueue((_, run) => {
             runIds.push(run.runId);
             throw new Error('the mail server is down');
         });
@@ -146,7 +150,7 @@ describe('QueueUtilities', () => {
         await QueueUtilities.poll(queue);
         const retried: TestWork = await works.findById(work.id);
         expect(retried).toMatchObject({ status: TestWorkStatus.QUEUED, attempts: 1 });
-        expect(retried.nextAttemptAt?.getTime()).toBeGreaterThan(Date.now() + Ms.SECOND * 0.5);
+        expect(retried.nextAttemptAt?.getTime()).toBeGreaterThan(Date.now() + (Ms.SECOND * 0.5));
         expect(retried.error?.paragraphs.join('\n')).toContain('the mail server is down');
 
         // not due yet
@@ -154,6 +158,7 @@ describe('QueueUtilities', () => {
 
         await works.updateById(work.id, { nextAttemptAt: new Date(Date.now() - 1) });
         await QueueUtilities.poll(queue);
+        // eslint-disable-next-line unicorn/no-null
         expect(await works.findById(work.id)).toMatchObject({ status: TestWorkStatus.FAILED, attempts: 2, nextAttemptAt: null });
         expect(runIds).toEqual([work.id, work.id]);
     });
@@ -182,16 +187,18 @@ describe('QueueUtilities', () => {
 
             expect(whileRunning[0]).toMatchObject({ status: TestWorkStatus.FAILED, attempts: 1 });
             expect(whileRunning[0]?.error?.paragraphs.join('\n')).toContain('stopped before it finished');
+            // eslint-disable-next-line unicorn/no-null
             expect(await works.findById(work.id)).toMatchObject({ status: TestWorkStatus.DONE, attempts: 1, error: null });
         });
 
         it('does not retry a row that failed', async () => {
             const work: TestWork = await queueWork('at-most-once-failing');
 
-            await QueueUtilities.poll(defineQueue(async () => {
+            await QueueUtilities.poll(defineQueue(() => {
                 throw new Error('the push service refused it');
             }, { findDelivery: () => 'atMostOnce' }));
 
+            // eslint-disable-next-line unicorn/no-null
             expect(await works.findById(work.id)).toMatchObject({ status: TestWorkStatus.FAILED, attempts: 1, nextAttemptAt: null });
         });
     });

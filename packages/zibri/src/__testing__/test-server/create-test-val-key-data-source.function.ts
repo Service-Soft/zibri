@@ -28,6 +28,11 @@ export type CreateTestValKeyDataSourceOptions = {
      */
     host?: string,
     /**
+     * Whether the built class may exist without an application using it, for a suite whose other
+     * applications leave it out.
+     */
+    allowOrphan?: boolean,
+    /**
      * Records every call the data source makes on its client. A batch or a script is one call, since
      * it is sent as one request.
      *
@@ -53,17 +58,25 @@ export const defaultTestValKeyEntities: Newable<BaseEntity>[] = [MigrationEntity
  */
 export function createTestValKeyDataSource(
     options: CreateTestValKeyDataSourceOptions = {}
-): Newable<ValKeyDataSource & { entities: Newable<BaseEntity>[] }> {
+): Newable<ValKeyDataSource & {
+    /** The connection options of the data source. Named here so a class extending this one counts as concrete. */
+    options: ValKeyOptions,
+    /** The entities of the data source. */
+    entities: Newable<BaseEntity>[],
+    /** The repository classes of the data source. Named here for the same reason as the options. */
+    repositories: RepositoryClass[]
+}> {
     const {
         entities = defaultTestValKeyEntities,
         repositories = [],
         migrations = [],
         host = 'localhost',
+        allowOrphan = false,
         roundTrips
     } = options;
     const keyPrefix: string = `test-${UUIDUtilities.generate()}`;
 
-    @DataSource()
+    @DataSource({ allowOrphan })
     class ValKeyDbDataSource extends ValKeyDataSource {
         override options: ValKeyOptions = {
             host,

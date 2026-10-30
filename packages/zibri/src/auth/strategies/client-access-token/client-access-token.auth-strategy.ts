@@ -16,6 +16,7 @@ import { OAuth2ErrorCode } from '../../authorization-server/oauth2-error-code.en
 import { OAuth2Error } from '../../authorization-server/oauth2.error';
 import { type DpopServiceInterface } from '../../dpop/dpop-service.interface';
 import { BaseUser } from '../../models/base-user.model';
+import { ClaimedUser } from '../../models/claimed-user.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { type ApiKeyServiceInterface } from '../api-key/api-key-service.interface';
 import { ApiKey } from '../api-key/api-key.model';
@@ -30,7 +31,6 @@ import { IssuedClientAccessToken } from '../issued-client-access-token.model';
 import { type AccessTokenRevocation } from '../jwt/access-token-revocation.type';
 import { isJwtClientAccessTokenPayload, JwtClientAccessTokenPayload } from '../jwt/jwt-client-access-token-payload.model';
 import { isJwtConfirmation, JwtConfirmation } from '../jwt/jwt-confirmation.model';
-import { JwtRevokedAccessTokenCleanupCronJob } from '../jwt/jwt-revoked-access-token-cleanup.cron-job';
 import { JwtRevokedAccessToken, JwtRevokedAccessTokenCreateData } from '../jwt/jwt-revoked-access-token.model';
 import { type JwtServiceInterface } from '../jwt/jwt-service.interface';
 import { VerifiedJwt } from '../jwt/verified-jwt.model';
@@ -112,9 +112,6 @@ export class ClientAccessTokenAuthStrategy<
         }
         // revoked at once: a token stops working with its api key, and is kept as revoked until it expires
         validateEntitiesRegistered(ClientAccessTokenAuthStrategy.name, app, ApiKey, JwtRevokedAccessToken);
-        if (!app.options.cronJobs.includes(JwtRevokedAccessTokenCleanupCronJob)) {
-            app.options.cronJobs.push(JwtRevokedAccessTokenCleanupCronJob);
-        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -140,11 +137,11 @@ export class ClientAccessTokenAuthStrategy<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async resolveClaimedUser(context: HttpRequestContext | WebsocketRequestContext): Promise<BaseUser<RoleType> | undefined> {
+    async resolveClaimedUser(context: HttpRequestContext | WebsocketRequestContext): Promise<ClaimedUser<RoleType> | undefined> {
         const token: ClientAccessToken | undefined = await this.findRequestToken(context);
         return token == undefined
             ? undefined
-            : { id: token.payload.sub, email: token.payload.email, roles: token.payload.roles.filter(role => this.isRole<RoleType>(role)) };
+            : { id: token.payload.sub, roles: token.payload.roles.filter(role => this.isRole<RoleType>(role)) };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -175,7 +172,6 @@ export class ClientAccessTokenAuthStrategy<
         };
         const payload: JwtClientAccessTokenPayload = {
             sub: user.id,
-            email: user.email,
             scope: grant.permissions.join(' '),
             roles: user.roles,
             client_id: grant.clientId,

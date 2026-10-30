@@ -50,10 +50,7 @@ export abstract class ObjectUtilities {
         if (prototype !== Object.prototype && prototype !== null) {
             return value;
         }
-        const res: Record<string, unknown> = {};
-        for (const [key, item] of Object.entries(value)) {
-            res[key] = this.copyDeep<unknown>(item);
-        }
-        return res as T;
+        // built from entries, so a key named `__proto__` is a property of the copy rather than its prototype
+        return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, this.copyDeep<unknown>(item)])) as T;
     }
 }

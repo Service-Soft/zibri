@@ -14,5 +14,9 @@ export type ScimControllerOptions = {
     /**
      * How much one bulk request may do.
      */
-    bulk?: ScimBulkOptions
+    bulk?: ScimBulkOptions,
+    /**
+     * How many resources a list answers at most. 200 by default.
+     */
+    maxResults?: number
 };

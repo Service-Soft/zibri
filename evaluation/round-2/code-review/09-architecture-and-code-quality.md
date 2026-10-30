@@ -313,6 +313,77 @@ own, and a driver whose every line is reachable from the shared case files.
 **Verify:** the shared case files green on a fourth store; a size budget on `data-source/` (today
 24,179 lines) that the pg driver must come in under; `npm ls typeorm` empty in the published package.
 
+> **Closed 2026-10-27.** Decisions (the user's): replaced in 3.0 rather than kept beside; `synchronize`
+> kept, as a diff of Zibri's own; relations read through joins, so `costs.md` holds; `data-source/`
+> has to shrink; `query()` gets a query builder of Zibri's own.
+>
+> - `PostgresSchema` builds the tables from the entity metadata, named the way typeorm named them
+>   (`PK_`/`FK_`/`REL_`/`IDX_` hashes, join tables and their columns), with a codec per column in place
+>   of the value transformers. `postgres-schema.test.ts` holds it to what typeorm built for 14 groups
+>   of entities, recorded while typeorm was still there (`postgres-schema.typeorm-tables.json`). The one
+>   chosen difference: a generated uuid defaults to `gen_random_uuid()`, which needs no extension.
+> - `PostgresWhereFilterConverter` writes the condition itself: the two typeorm converters merged, the
+>   `Raw` placeholder substitution gone since the column is known. Filters through a relation run
+>   inside update and delete statements too, which read their rows under an alias.
+> - `PostgresRepositoryDriver` reads with joins and hydrates the rows itself, takes a window over the
+>   ids when a to-many relation is joined, and writes many to many rows itself. Upsert moved in from
+>   the base data source.
+> - `PostgresSchemaManager`: the migration operations, `synchronize` as a diff against the catalog
+>   (`resolveSynchronizeSteps`), and the key and check reconciliation that was already Zibri's.
+> - `PostgresDataSource` talks to `pg` directly: pool, transactions (`BEGIN` and its `SET LOCAL`s in one
+>   round trip), statement limits, cancellation, errors classified by SQLSTATE. `PostgresOptions` is
+>   Zibri's own, `connectTimeoutMS` → `connectTimeoutInMs`. `QueryBuilder` is Zibri's own (select,
+>   joins, where, group, having, order, window, raw rows). `TypeOrmBaseDataSource` and the
+>   statement-limiting seam are gone.
+>
+> Tests: `application/data-layer-footprint.test.ts` (red first: no ORM imported in any package or
+> listed in any manifest, `data-source/` under 31,094 lines, the Postgres side under the 8,696 typeorm
+> side lines; both line counts dropped 2026-10-27 at the user's decision, when the migration generator
+> of 02 §S14 took the data layer past them), `postgres-schema.test.ts`, `postgres-where-filter.converter.test.ts` (the old find-options
+> cases, as SQL), and ~70 container suites moved off typeorm by a subagent. `costs.md` has to be
+> measured again: reads with relations take one statement now where typeorm paged with two.
+>
+> ValKey, checked alongside at the user's request. The round trips the driver could save were mapped
+> call by call, and the three with the widest reach are done:
+> - **A:** a save hands back the rows as it wrote them instead of reading them again.
+> - **B:** a commit releases its grants inside the script that applies its writes.
+> - **C:** an update or upsert reads the held rows together with the keys list, and its save reuses
+>   both. On a filter it re-reads only the held ids.
+>
+> Red first: the `costs.md` ValKey column went to the new counts, so `repository-costs` failed. For
+> example, `create` went from 7 to 5, `updateById` from 7 to 4, `updateAll` from 8 to 5 and `upsert`
+> from 9 to 6. `val-key-data-source.test.ts` adds that a transaction's rows are handed back on commit
+> and on a refused commit. Further merges (one claim for the row and its uniques, a Lua read of ids
+> and rows, an ordered stream read once) stay open for the user to decide on.
+>
+> The first cluster run needed more than its 15 s boot timeout. `postgres-schema-manager.costs.test.ts`
+> (red first) found why: setting up the schema cost round trips per entity, 345 on an empty database
+> and 85 on a matching one. Two reads per entity for the stored indexes and checks, and per table a
+> `CREATE TABLE`, plus a concurrent build and a comment for each declared index. Now the stored
+> indexes and checks are read once for all tables. A table that `synchronize` creates gets its
+> declared indexes, uniques and checks built plainly, since it is still empty. The steps without a
+> fallback go in one batch. The timeout is back at 15 s.
+>
+> The same holds for migrations, which the test now measures too, apart from the migration's own
+> statements. The tables a boot's migrations create get their declared keys and checks in one batch,
+> after the last migration. If a seeded row breaks one of them, the batch rolls back and the
+> one-at-a-time path names the row. `createTable` sends a table and its indexes together.
+> Found on the way: `changeProperty` left the trigram index on a column it retyped, and a trigram
+> index takes text only, so retyping a searchable string to a number failed. It now drops that index
+> first, and reconciling builds it again where one is declared. The case "retypes a property a search
+> reads into a number, and back" in `migration-helpers.cases.ts` covers it.
+>
+> The first heavy run (2026-10-28) showed that an upsert split into several statements handed them all
+> at once to its transaction's one connection, which `pg` 8 queues with a deprecation warning and `pg` 9
+> refuses. They run one after the other now. Test: `postgres-split-upsert.test.ts` (a data source binding
+> 20 values per statement; red: the warning). The same run lost a connection in the middle of the
+> upsert cases of `large-batches.postgres-valkey.heavy.test.ts`: building an upsert's statement copied
+> each column's list of `CASE` branches once per row, the square of the batch, and redone at every halving.
+> The event loop stayed blocked for longer than a transaction may sit idle, so postgres ended the
+> scoped case's transaction, which the repository opens before the statements are built, and the
+> unscoped case ran past the test's 50 s. The branches are added to now. Test: the two upsert cases of
+> that suite (red: the idle-in-transaction timeout and the test timeout).
+
 ### Q3. The where model has one language and four semantics, and the one that decides a security question is not the one that answers reads — CRITICAL
 *Filed 2026-10-21.*
 
@@ -392,6 +463,18 @@ map); `DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS` and `STREAM_BATCH_SIZE` are decla
 `createDriver(cls)` from the subclass) and the shared constants removes ~150 lines and the chance of the
 in-memory driver's `50` drifting from `500` (it already has). **Verify:** a test asserting the three
 drivers' batch size is one exported constant.
+
+> **Closed 2026-10-29.** Still true after §Q2: the Postgres, Valkey and in-memory data sources built
+> their repositories with the same 35 lines, and each declared `STREAM_BATCH_SIZE` and the idle
+> timeout itself. `inTransaction` is a private helper per driver now, not a copy. No base class:
+> `RepositoryForUtilities.resolveEntityRepository` holds the entity check, the cache, the
+> soft-delete/change-set choice with its casts and the listed class, and each `getRepository` hands it
+> a function that creates its driver. `STREAM_BATCH_SIZE` is declared once beside
+> `RepositoryDriverInterface` (public, with the driver SPI), and
+> `DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS` beside `StartTransactionOptions` (on `zibri/internal`).
+> Test, red first: `application/data-layer-footprint.test.ts` asserts that one file builds a
+> `SoftDeleteRepository` and one declares each constant (three of each before). The in-memory
+> change set and repository suites stay green; the container suites are yours to run.
 
 ---
 
@@ -613,6 +696,28 @@ the honest home is an abstract/overridable `options` member on each base class (
 each `Base*Authenticator` exposes its lifetimes through its options type (compile-time, with
 `@ts-expect-error` on a wrong key).
 
+> **Narrowed 2026-10-29.** Most of the list went with 05 §I9 (2026-10-28): the SAML, OAuth and LDAP
+> lifetimes are readonly members with defaults, and the client assertion lifetime is an option of
+> `AuthorizationServerController`. The DPoP ones are tokens. Two more followed the same shape:
+> - `BaseOidcAuthenticator.logoutTokenMaxAgeInMs` (10 minutes) replaces `LOGOUT_TOKEN_MAX_AGE_IN_MS`.
+>   Red first in `base-oidc.authenticator.logout.test.ts`: an authenticator allowing 30 minutes
+>   refused a token issued 20 minutes ago. `login-through-a-provider.md` has the row.
+> - `ScimControllerOptions.maxResults` (200) replaces SCIM's `MAX_RESULTS`. It is carried on
+>   `ScimEndpoint` and read by the list count and `/ServiceProviderConfig`'s `filter.maxResults`. Red
+>   first in `scim-controller.model.test.ts`: a controller with `maxResults: 2` answered 3 of 3 users.
+>   `scim.md` says so.
+>
+> Left as constants, not being policy: Apple's `CLIENT_SECRET_LIFETIME_IN_SECONDS` (a JWT signed for
+> each token request), `MIN_RSA_MODULUS_LENGTH` (a security floor), and page sizes and filter bounds
+> that are internal. The recovery code count is already an option's default. Open: the five minutes
+> a login waits for its second factor (`LOGIN_TICKET_EXPIRES_IN_MS` in `auth.service.ts`), an
+> application-wide setting with no token, which is the user's to decide.
+
+> **Fixed 2026-10-29.** The user chose a token: `ZIBRI_DI_TOKENS.LOGIN_TICKET_EXPIRES_IN_MS`, 5 minutes
+> by default, injected into `AuthService`. Red first in `auth.service.two-factor-at-login.test.ts`: an
+> application giving 30 minutes got a ticket expiring after 5. `two-factor.md` and `configuration.md`
+> have the rows.
+
 ### Q8. Twenty-five cron jobs, seventeen of them the same cleanup job — MINOR
 *Filed 2026-10-21.*
 
@@ -628,6 +733,12 @@ trivial jobs become 13 one-line declarations an application can also use for its
 pollers become instances of the queue primitive (Q5). The four non-trivial cleanups (backup staging,
 form-data temp files, cache, rate limiting) stay as they are. **Verify:** a count test — the number of
 registered cron jobs on the sandbox app drops from 25 to ≤ 12 without any retention case going red.
+
+> **Closed 2026-10-29 with 05 §Q3 (user's decision: a declaration on the entity), where the
+> closure is.** `@Entity({ expiresBy })`, which an application can declare on its own entities, and
+> one `ExpiredRowsCleanupCronJob` replace 11 jobs. The count is 34 → 24 job classes. Retention by age
+> (failed mail and events, audit, thread jobs) stays with its jobs: their age is a token's, not a
+> column's. The pollers were §Q5's.
 
 ---
 
@@ -841,6 +952,12 @@ convention (`…AtMs` is fine) and one is a duration convention; durations shoul
 memory note "precise names over compat" says take the rename. Also `maxAgeInSeconds` vs `maxAgeSeconds`
 both exist. **Verify:** a lint rule or a test over the exported option types' keys.
 
+> **Closed 2026-10-29.** The durations in milliseconds went with 08 §X21 (closed 2026-10-25), whose
+> test in `entry-points.test.ts` holds every public name to `InMs`/`AtMs`. That test did not look at
+> seconds. It now does: a duration in seconds says `InSeconds`. Red first with the one name left,
+> `HstsOptions.maxAgeSeconds`, now `maxAgeInSeconds` (and in `app-settings.md`). It existed in 2.x;
+> the upgrade guide leaves a rename to the compiler.
+
 ### Q12. Transactions are positional on services and an option on repositories — MINOR
 *Filed 2026-10-21.*
 
@@ -852,6 +969,10 @@ every repository method takes `options.transaction`, `withLease` takes `options.
 to a service changes convention. Recommend `options: { transaction? }` as the last parameter everywhere
 a method can take one. **Verify:** a type test over the service interfaces.
 
+> **Closed 2026-10-29 as a decision (the user's: keep positional).** 219 such parameters in 41 files
+> when picked up. A service's `transaction: Transaction | undefined` stays positional, so every call
+> says whether it passes one.
+
 ### Q13. `Base` prefix is applied to some extension points and not others — MINOR
 *Filed 2026-10-21.*
 
@@ -861,6 +982,11 @@ classes without it: `PostgresDataSource`, `ValKeyDataSource`, `TypeOrmBaseDataSo
 middle), `CronJob`, `Migration`, `ZibriPlugin`, `CodeTwoFactorMethod`, the 12 `*Cache` strategy classes,
 `ModelDescriptor`. The memory rule ("provider classes apps extend are `Base{Provider}`") is followed in
 auth and backup and not in data sources, cron, migrations and plugins.
+
+> **Closed 2026-10-29 as a decision (the user's: `Base` only for providers).** `Base` marks a partial
+> implementation of a provider that an application finishes, such as an authenticator or a backup
+> transport. A data source, a cron job, a migration or a plugin is the thing the application writes,
+> and keeps its plain name. The `start…/confirm…` half closed with 08 §X21's request/confirm rule.
 
 **Errors.** 14 classes extend `HttpError`, 33 extend `InternalError`, 3 extend `Error` directly
 (`ExternalError`, `InternalError`, `HttpClientError`). A caller can discriminate by class and by
@@ -906,6 +1032,17 @@ comment beside the code it explains.
 contains `deliberately`, `on purpose` or `rather than`, with a short allowlist for the ones that
 describe behavior. The docs-style test cannot do it: it reads `docs/`, not the published API.
 
+> **Closed 2026-10-29.** `published-comments.test.ts` walks what typedoc publishes with the
+> TypeScript checker (`EntryPointUtilities.resolvePublishedComments`: the exports of an entry point
+> and their public members, leaving out function bodies, private and protected members and what a
+> namespace does not export, as `typedoc.json` does) rather than running typedoc, for zibri and
+> zibri-testing. Its markers are the three words and `evaluation/`, since seven published blocks
+> pointed into the evaluation. The first run found 270 blocks in 178 files, far more than the grep's
+> 61, because `rather than` was not in it. Each was read: the reason moved to a `//` comment beside
+> the declaration, the description stayed (reworded where the marker was only phrasing), and data
+> source specifics found on the way (a postgres collation in `compareText` and `textOrder`) went too.
+> One entry is allowlisted, `ThreadJobStatus`'s "stopped on purpose", which describes behavior.
+
 ### Q15. `MetadataUtilities` holds the metadata accessors of every subsystem — MINOR
 *Filed 2026-10-26, split out of §Q9 (user's scope: the data layer first).*
 
@@ -920,6 +1057,14 @@ today with 17 runtime imports from `metadata.utilities.ts` and one from
 `validate-entities-registered.function.ts` (of `application`), asserts that `utilities` imports at
 runtime none of the subsystems built on it.
 
+> **Closed 2026-10-29 by marking the imports `type` (user's decision: no split).** Every one of the 18
+> imports named only a type, and the compiler already erased them: the built
+> `metadata.utilities.js` loaded four files, all in `utilities` and `error-handling`. So the cycle was
+> between directories, not modules. The imports now say `type`, so a value import of a subsystem
+> above `utilities` is a test failure, not something only the compiler catches. The assertion moved
+> to `application/subsystem-imports.test.ts` (in `test:normal`). `MetadataUtilities` still holds every
+> subsystem's accessors. That cohesion part is not split, by decision.
+
 ### Q16. `HttpStatus` ties `error-handling` and `http` into a cycle — MINOR
 *Filed 2026-10-26, split out of §Q9.*
 
@@ -930,6 +1075,18 @@ and `JsonMimeType`, and `method-not-allowed.error.ts` importing `HttpMethod`. So
 half of it: the error handler, which writes the response, belongs in `http`, and the plain enums go
 to `types` or `error-handling`. **Verify:** `__testing__/evaluation/subsystem-imports.evaluation.test.ts`
 asserts that `error-handling` imports nothing of `http` at runtime (red today).
+
+> **Closed 2026-10-29 without moving anything (user's decision: `error-handling` may import from
+> `http`).** What the errors and the handler need at runtime is `HttpStatus`, `KnownHeader` and
+> `MimeType`, and none of those files imports anything at runtime. A file with no runtime imports
+> cannot be part of a module cycle, so the edge is a cycle between directories only. Every other
+> import into `http` named a type only and is now marked `type`: the request and response models in
+> the handler and its model, `JsonMimeType`, `HttpMethod`, `MimeType` in `not-acceptable.error.ts`,
+> and `KnownHeader` in `custom-body-http.error.ts`. `ExcludeStrict` in `mime-type.enum.ts` is marked
+> too, which made that enum a leaf. The assertion in `application/subsystem-imports.test.ts` now
+> says that `error-handling` imports at runtime only files of `http` that import nothing at runtime
+> themselves. Red first, it listed 8 imports (the two models, `JsonMimeType` and `MimeType`). The
+> evaluation file is gone with its last case.
 
 ---
 

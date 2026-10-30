@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -6,9 +7,17 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { optionalPeer } from './optional-peer.function';
 
+/**
+ * What the context peer exports: a function running a callback in the context the peer loaded in.
+ */
+type ContextPeer = {
+    runAsLoaded: <R>(fn: () => R) => R
+};
+
 describe('optionalPeer', () => {
     let directory: string;
     let brokenPeer: string;
+    let contextPeer: string;
 
     beforeAll(() => {
         directory = mkdtempSync(path.join(tmpdir(), 'optional-peer-'));
@@ -16,6 +25,22 @@ describe('optionalPeer', () => {
         // runtime that cannot load it
         brokenPeer = path.join(directory, 'broken-peer.js');
         writeFileSync(brokenPeer, 'throw new Error(\'Must use import to load ES Module\');');
+        // a peer keeping what it starts as it loads, the way a channel, a timer or a pool does: each
+        // of them keeps the async context it was made in, and runs its callbacks in it
+        contextPeer = path.join(directory, 'context-peer.js');
+        writeFileSync(contextPeer, 'exports.runAsLoaded = require(\'node:async_hooks\').AsyncLocalStorage.snapshot();');
+    });
+
+    // a peer is loaded by the first call that needs it, which can be a request: whatever the peer
+    // started then held that request's context - its tenant, its user - for as long as the process
+    // ran. In the framework's own suite, @prometheus-io/client's channel kept every test file's
+    // environment alive that way, a few dozen megabytes each
+    it('loads a peer outside of the context of the call that needed it', () => {
+        const requestContext: AsyncLocalStorage<{ tenant: string }> = new AsyncLocalStorage();
+
+        const peer: ContextPeer = requestContext.run({ tenant: 'acme' }, () => optionalPeer<ContextPeer>(contextPeer, 'The feature'));
+
+        expect(peer.runAsLoaded(() => requestContext.getStore())).toBeUndefined();
     });
 
     afterAll(() => {

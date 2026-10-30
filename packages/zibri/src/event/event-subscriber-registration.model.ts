@@ -13,17 +13,17 @@ import { type RunsOn } from '../types/runs-on.type';
  */
 export const ALL_EVENTS_TYPE: string = 'zibri.all-events';
 
+// Without this table each process could only see its own subscribers, so a replica that emitted an
+// event marked it finished as soon as *its* subscribers had run - and a subscriber living only on
+// other replicas never ran at all, with nothing reporting a failure.
 /**
- * Which subscribers exist anywhere in the deployment, rather than in the process asking.
+ * Which subscribers exist anywhere in the deployment.
  *
- * Emitting has to record which subscribers owe the event a run, and finishing has to know which of
- * those still exist. Both read this table. Without it each process could only see its own
- * subscribers, so a replica that emitted an event marked it finished as soon as *its* subscribers had
- * run - and a subscriber living only on other replicas never ran at all, with nothing reporting a
- * failure.
+ * Emitting records which subscribers owe the event a run, and finishing reads which of those still
+ * exist. Both read this table.
  *
  * One row per subscriber and event type, not per instance: replicas hosting the same subscriber are
- * copies of it, and it is the subscriber that owes the event a run rather than any one process.
+ * copies of it.
  *
  * Has to be registered in exactly one data source, for the same reason as the events themselves - two
  * stores would mean two registries and neither would see the other.
@@ -57,9 +57,9 @@ export class EventSubscriberRegistration extends BaseEntity {
      * open, or every event it was recorded against would stay unfinished forever. Any instance still
      * hosting it refreshes the row, so it only lapses once none of them are left.
      *
-     * The window is a trade rather than a tuning knob: too short and a rolling deploy briefly looks
-     * like the subscriber is gone, so events emitted in that gap never reach it. Too long and a
-     * genuinely removed subscriber holds events open for that much longer.
+     * Too short a window and a rolling deploy briefly looks like the subscriber is gone, so events
+     * emitted in that gap never reach it. Too long and a genuinely removed subscriber holds events
+     * open for that much longer.
      */
     @Property.date()
     expiresAt!: Date;

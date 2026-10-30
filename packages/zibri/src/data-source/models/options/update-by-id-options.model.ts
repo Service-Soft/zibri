@@ -7,9 +7,6 @@ import { Where } from '../where/where-filter.model';
  * Options for updating an entity by its id.
  */
 export type UpdateByIdOptions<T extends BaseEntity> = BaseRepositoryOptions & WriteRelationsOptions<T> & {
-    // should never be allowed, as that would cause typeorm's manager.save method to create a new entity instead of updating the existing one.
-    // allowId?: boolean
-
     /**
      * An additional condition the row has to still meet for the update to happen.
      *
@@ -19,9 +16,8 @@ export type UpdateByIdOptions<T extends BaseEntity> = BaseRepositoryOptions & Wr
      * believe they were the one that changed it.
      *
      * Reach for it whenever the update is only correct because of something you read first. The
-     * condition is checked as part of the write rather than before it, so nothing can slip in
-     * between - which is the entire point, and is why checking it yourself beforehand is not the
-     * same thing.
+     * condition is checked as part of the write, so nothing can slip in between. Checking it
+     * yourself beforehand is not the same thing.
      */
     where?: Where<T>
 };

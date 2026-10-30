@@ -30,13 +30,12 @@ export function WebsocketRoute(event: string, options: WebsocketRouteOptions = {
     return (target, propertyKey) => {
         const ctor: Function = target.constructor;
         MetadataUtilities.setFilePath(ctor);
-        const routes: WebsocketControllerRouteConfiguration[] = MetadataUtilities.getWebsocketControllerRoutes(ctor);
-        routes.push({
+        const route: WebsocketControllerRouteConfiguration = {
             event,
             controllerMethod: propertyKey.toString(),
             versions: options.versions,
             timeoutInMs: options.timeoutInMs
-        });
-        MetadataUtilities.setWebsocketControllerRoutes(ctor, routes);
+        };
+        MetadataUtilities.addWebsocketControllerRoute(ctor, route);
     };
 }

@@ -35,9 +35,7 @@ export type FindAllOptions<T extends BaseEntity, S extends EntitySelection<T> | 
          * How many entities to read at most, or `'all'` for every one that matches.
          *
          * A call that says neither is claiming the result is small enough to hold, and that claim is
-         * checked: reading a table that has grown past what the call assumed is refused rather than
-         * quietly cut short, because a caller that loops over a trimmed result does part of its work
-         * and nothing says so.
+         * checked: reading a table that has grown past what the call assumed is refused.
          *
          * `'all'` is how a read that means it says so. It is the same unbounded read either way - it
          * is only no longer an accident, and it can be searched for.
@@ -62,7 +60,7 @@ export type FindAllOptions<T extends BaseEntity, S extends EntitySelection<T> | 
          * Set it to false to get the values exactly as they are stored. What that gets you is the
          * envelope - which strategy and key a value was written with, and whether it is bound to its
          * row - none of which survives decryption. That is what makes it possible to ask whether a
-         * value is still stored the way it should be, rather than only what it says.
+         * value is still stored the way it should be.
          *
          * The values come back as encryption strings, so anything reading the property as a plain
          * value will be wrong about it. Writing one back through a repository re-encrypts it, which

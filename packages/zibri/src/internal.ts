@@ -36,15 +36,18 @@ export * from './auth/strategies/jwt/jwt-logout-token-verify-options.model';
 export { CookieAuthRefreshSessionCreateData } from './auth/strategies/cookie/cookie-auth-refresh-session.model';
 export { CookieAuthSessionCreateData } from './auth/strategies/cookie/cookie-auth-session.model';
 export { ApiKeyCreateDto } from './auth/strategies/api-key/api-key.model';
-export { API_KEY_PREFIX } from './auth/strategies/api-key/api-key.service';
+export { DEFAULT_API_KEY_PREFIX } from './auth/strategies/api-key/api-key.service';
+export * from './auth/scim/scim-bulk.utilities';
 export * from './auth/scim/scim-filter.model';
 export * from './auth/scim/scim-filter-match.model';
 export * from './auth/scim/scim-filter.utilities';
 export * from './auth/scim/scim-indexed-filter.model';
+export * from './auth/scim/scim-paging.utilities';
 export * from './auth/scim/scim-patch-operation.model';
 export * from './auth/scim/scim-patch.utilities';
 export * from './auth/scim/scim-schema.enum';
 export * from './auth/scim/scim-schema.utilities';
+export * from './auth/scim/scim-user-pages.model';
 export * from './auth/scim/scim-user-value.utilities';
 export * from './auth/scim/scim-value-sort.model';
 export * from './auth/scim/scim-where.utilities';
@@ -117,6 +120,9 @@ export * from './error-handling/error-handler';
 
 // audit
 export { type AuditEntryCreateData } from './audit/audit-entry.model';
+export { type ChainedAuditEntryCreateData } from './audit/chained-audit-entry.model';
+export { type AuditCheckpointCreateData } from './audit/audit-checkpoint.model';
+export { type RecordedAuditEntry } from './audit/base-audit-entry.model';
 
 // global
 export * from './global/model-registry/model.registry';
@@ -125,11 +131,11 @@ export * from './global/model-registry/restore-exclude-properties.function';
 export * from './global/model-registry/set-default-values.function';
 
 // logging
-export * from './logging/audit-reason-for.function';
+export * from './logging/audit.utilities';
 export { createLogToEmail } from './logging/transport/log-to-email.function';
 
 // openapi
-export { type OpenApiContentObject, type OpenApiOperation, type OpenApiParameter, type OpenApiParameterLocation, type OpenApiPaths, type OpenApiRequestBodyObject, type OpenApiResponseObject, type OpenApiResponsesObject, type OpenApiSchemaObject, type OpenApiSchemas, type OpenApiSecurityRequirementObject, type OpenApiTagObject, type OpenApiXmlObject } from './open-api/open-api.model';
+export { type OpenApiContentObject, type OpenApiOperation, type OpenApiParameter, type OpenApiParameterLocation, type OpenApiPaths, type OpenApiRequestBodyObject, type OpenApiResponseObject, type OpenApiResponsesObject, type OpenApiSchemaObject, type OpenApiSchemaObjectType, type OpenApiSchemas, type OpenApiSecurityRequirementObject, type OpenApiTagObject, type OpenApiXmlObject } from './open-api/open-api.model';
 export { KeysetPageClass, PaginationResultClass } from './data-source/models/pagination-result.model';
 
 // entity
@@ -169,6 +175,7 @@ export { CLEANUP_AT_FILE_NAME, type FormDataValue } from './parsing/form-data/fo
 
 // http
 export { compressionMiddleware } from './http/compression.middleware';
+export { resolveContentDisposition } from './http/content-disposition.function';
 export { corsMiddleware } from './http/cors.middleware';
 export { httpMethodKey } from './http/http-method.enum';
 export * from './http/cookie-options.model';
@@ -198,18 +205,17 @@ export * from './data-source/repository/repository-for-metadata.model';
 export * from './data-source/repository/repository-for.utilities';
 export { REPOSITORY_KINDS, type RepositoryKind } from './data-source/repository/repository-kind.model';
 export { type DataSourceMetadata } from './data-source/decorators/data-source.decorator';
-export { SCHEMA_LOCK_KEY } from './data-source/data-sources/data-source.interface';
-export * from './data-source/data-sources/typeorm-base-data-source.model';
-export * from './data-source/data-sources/where-converter/typeorm-where-filter.converter';
-export * from './data-source/data-sources/where-converter/postgres-typeorm-where-filter.converter';
+export { DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS, SCHEMA_LOCK_KEY } from './data-source/data-sources/data-source.interface';
+export * from './data-source/data-sources/postgres/postgres-schema.model';
+export * from './data-source/data-sources/postgres/postgres-table.model';
+export * from './data-source/data-sources/postgres/postgres-where-filter.converter';
 export * from './data-source/data-sources/where-converter/where-filter.evaluator';
-export * from './data-source/driver/typeorm.repository-driver';
+export * from './data-source/driver/postgres.repository-driver';
 export * from './data-source/driver/val-key.repository-driver';
 export * from './data-source/keyset/after-cursor-where.function';
 export * from './data-source/keyset/keyset-order.model';
-export * from './data-source/transaction/typeorm-transaction.model';
+export * from './data-source/transaction/postgres-transaction.model';
 export * from './data-source/transaction/val-key-transaction.model';
-export * from './data-source/models/data-source-options.model';
 export * from './data-source/models/column-type.model';
 export * from './data-source/models/entity-migration-input.model';
 export * from './data-source/models/migration-property-value.model';
@@ -223,6 +229,11 @@ export * from './data-source/models/refused-value.model';
 export * from './data-source/models/conversion-refusal.enum';
 export { type AtomicUpdateValue } from './data-source/models/atomic-update.model';
 export { type IncrementAmounts, type IncrementFor } from './data-source/models/update-all-data.model';
+export * from './data-source/data-source-time.utilities';
+export * from './data-source/chain/chain.utilities';
+export { type ChainAnchorCreateData } from './data-source/chain/chain-anchor.model';
+export { type SigningKeyCreateData } from './auth/encryption/signing-key.model';
+export * from './data-source/repository/append-only.utilities';
 export * from './data-source/models/keyset-cursor.model';
 export { type IsOneOf, type NamedShapeValue } from './data-source/models/where/one-of-where-filter.model';
 export * from './data-source/models/where/one-of-where-filter.utilities';
@@ -231,6 +242,7 @@ export * from './data-source/models/where/where-filter-keys.model';
 export * from './data-source/scopes/related-narrowing.utilities';
 export * from './data-source/scopes/scope-where.utilities';
 export * from './data-source/migration/run-migrations.function';
+export * from './data-source/migration/migration-command.utilities';
 
 // cron
 export { type CreateCronJobEntityData } from './cron/cron-job-entity.model';
@@ -269,7 +281,9 @@ export { MailingListSubscriptionConfirmationTokenCreateData } from './plugin/mai
 
 // localization
 export * from './localization/translation.registry';
-export { type ExtractedTranslationString, transformSourceTranslationOriginTokens, type TransformResult } from './localization/xlf/transform-source-translation-tokens.function';
+export * from './localization/xlf/extract-translation-strings.function';
+export * from './localization/xlf/get-framework-translation-origin.function';
+export * from './localization/xlf/models/extracted-translation-string.model';
 
 // multithreading
 export * from './multithreading/models/thread-job-message.model';

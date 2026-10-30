@@ -1,6 +1,7 @@
 import { defineEmailComponent, TsxComponent } from './define-email-component';
 import { EmailLayout, EmailLayoutContext } from './email-layout.context';
 import { withDefaults } from './with-defaults';
+import { isScriptUrl } from '../runtime/server-runtime';
 
 /**
  * Props for {@link MjButton}.
@@ -58,7 +59,8 @@ export const MjButton: TsxComponent<MjButtonProps> = defineEmailComponent<MjButt
     const padding: string = p.padding ?? '10px 25px';
     const innerPadding: string = p.innerPadding ?? '10px 25px';
     const fontSize: string = p.fontSize ?? '13px';
-    const href: string = p.href ?? '';
+    // a link that runs script is left out, as a page leaves it out of any attribute that takes a url
+    const href: string = p.href == undefined || isScriptUrl(p.href) ? '' : p.href;
     const cssClass: string = p.cssClass ? ` class="${p.cssClass}"` : '';
 
     return $ssr.raw(

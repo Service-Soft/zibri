@@ -9,14 +9,14 @@ import { $ts } from '../../localization/translate.function';
  * Thrown when a rate limiter cannot read or write its state at all.
  *
  * A limiter that cannot reach its store knows nothing about the caller, so it can neither say yes nor
- * say no. What should happen then is a policy rather than a fact, which is what `onStoreFailure` on
- * the limiter decides - this error is what the default policy lets through.
+ * say no. What happens then is what `onStoreFailure` on the limiter decides - this error is what the
+ * default policy lets through.
  *
- * A 503 rather than a 500 on purpose: the request was fine, the limiter was not, and trying again is
- * a reasonable thing for the caller to do. The message says nothing about which limiter or which
- * store, because an external error reaches the caller as written; the limiter is on
+ * Answers 503: the request was fine, the limiter was not, and trying again is a reasonable thing for
+ * the caller to do. The message says nothing about which limiter or which store; the limiter is on
  * `limiterName` and what actually failed is on `cause`, both of which are logged.
  */
+// the message names neither, because an external error reaches the caller as written
 export class RateLimitStoreUnavailableError extends ServiceUnavailableError {
     constructor(
         readonly limiterName: string,

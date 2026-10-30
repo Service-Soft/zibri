@@ -1,7 +1,7 @@
 import { defaultClusterTestEntities, StartTestServerOptions } from 'zibri-testing';
 
+import { PostgresDataSource, PostgresOptions } from '../../../data-source/data-sources/postgres/postgres-data-source.model';
 import { PostgresPooler } from '../../../data-source/data-sources/postgres/postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from '../../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../../data-source/decorators/data-source.decorator';
 import { Migration } from '../../../data-source/migration/migration.model';
 import { SchemaManagement } from '../../../data-source/models/schema-management.model';
@@ -9,7 +9,6 @@ import { RepositoryClass } from '../../../data-source/repository/repository-clas
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Newable } from '../../../types/newable.type';
-import { OmitStrict } from '../../../types/omit-strict.type';
 import { SemVerVersion } from '../../../utilities/sem-ver.utilities';
 
 /**
@@ -47,7 +46,7 @@ class PooledClusterMigration extends Migration {
  */
 @DataSource()
 class PooledMigrationDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',

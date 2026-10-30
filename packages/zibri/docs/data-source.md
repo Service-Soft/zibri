@@ -12,34 +12,39 @@ side.
 | `DataSourceInterface` | interface | Contract a data source must implement |
 | `DataSourceInitializationError` | error | Thrown when a data source is used before it was initialized |
 | `isDataSource` | function | Whether a value is a data source |
-| `SqlDataSourceInterface`, `QueryOptions`, `QueryBuilder` | interface, type, type | A data source whose `query` starts a SQL query builder on the table of an entity, the options `query` takes, and the builder it returns |
+| `SqlDataSourceInterface`, `QueryOptions`, `QueryBuilder`, `QueryOrder` | interface, type, interface, type | A data source whose `query` starts a SQL query builder on the table of an entity, the options `query` takes, the builder it returns, and the direction it orders rows in |
 | `ParameterizedSql` | type | A piece of SQL with a `:name` placeholder for every value, and the values they stand for |
 | `PubSubDataSourceInterface`, `isPubSubDataSource`, `DataSourceSubscription` | interface, function, type | A data source that carries messages between instances with `publish` and `subscribe`, whether a value is one, and a subscription that `unsubscribe` ends |
 | `DataSourceServiceInterface`, `DataSourceService` | interface, class | Starts and stops the data sources. Replaceable through `ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE` |
 | `PostgresDataSource` | class | Predefined data source for Postgres, extend from this instead of implementing `DataSourceInterface` directly |
-| `PostgresOptions` | interface | Connection/config options for `PostgresDataSource` |
+| `PostgresOptions` | type | How a `PostgresDataSource` connects to its server |
 | `PostgresPooler`, `PostgresTransactionPooler`, `PostgresDirectConnection` | type, type, type | What stands between a Postgres data source and its server, a pooler in transaction mode, and where the server itself is behind one. Required |
 | `SchemaManagement` | type | Who makes the database match the entities of a SQL data source: `'synchronize'`, `'migrations'` or `'external'`. Required |
 | `ValKeyDataSource` | class | Predefined data source for Valkey, extend from this instead of implementing `DataSourceInterface` directly |
 | `ValKeyOptions` | interface | Connection/config options for `ValKeyDataSource` |
 | `RepositoryDriverInterface` | interface | The storage specific part of a repository, implemented once per data source type |
+| `STREAM_BATCH_SIZE` | constant | How many rows a driver's `stream` reads into entities at once: 500 |
 | `DriverFindOptions`, `DriverStreamOptions`, `DriverFindAndCountOptions`, `DriverAggregateOptions`, `DriverUpdateAllOptions` | type, type, type, type, type | What a driver is handed to find, stream, find and count, aggregate and update rows, with the defaults of the entity already applied |
 | `RelationTree`, `SelectionTree`, `RelatedNarrowing`, `RemovalReach` | type, type, type, type | The relations and the selection of a read in the shape a driver walks, the rows of each entity reached through a relation that the caller may see, and what the rows of a delete have to match as they are removed |
 | `WriteDataUtilities` | class | Copies the data of a write, and merges, replaces or increments what it gives into the stored row, for a driver |
 | `AggregateUtilities` | class | Checks what a value may be taken of, reads what a store answers, and takes the value over rows held in memory, for a driver |
 | `TransactionUtilities` | class | Runs work in a transaction, and again from the start after a conflict, for the `runInTransaction` of a data source of your own |
 | `StoredValueTypeMismatchError`, `MistypedStoredValue` | error, type | Thrown when a filter finds a stored value its property does not describe, and the path, declared type and value it names |
-| `QueryFailedError` | error | A SQL query that failed |
+| `QueryFailedError`, `FailedStatement` | error, type | A SQL query that failed, and what it is described by |
 | `UniqueConstraintViolationError` | error | Thrown when a write takes a value a unique key already holds. Answers 409 over HTTP |
 | `CheckConstraintViolationError` | error | Thrown when a write breaks a check of its entity. Answers 400 over HTTP, with the check as its problem |
+| `UnboundedReturnError` | error | Thrown when `updateAll` or `deleteAll` is asked to return more than 10,000 rows. Nothing is written |
 | `BaseEntity` | class | Base class entities must extend, defines an id property |
 | `BaseTenantEntity`, `TenantRow` | function, type | `BaseEntity`, or the `SoftDeleteEntity` or `ChangeSetEntity` it is given, with the uuid `tenantId`, for an entity whose rows each belong to a [tenant](./glossary.md#tenant) |
 | `ChangeSetOnlyEntityClass` | type | `ChangeSetEntity`, or a class extending it that does not [soft delete](./glossary.md#soft-delete), as the bases take it |
 | `Entity` | decorator | Registers a class as an entity, and declares the `scope` restricting its rows |
 | `EntityMetadataInput` | type | What `@Entity` takes |
+| `ExpiredRowsCleanupCronJob` | cron job | Deletes the rows of every entity declaring `expiresBy` once their date has passed, every hour, see [deleting rows once they expire](#deleting-rows-once-they-expire). Registered for you |
 | `whereFor` | function | Types a filter in `uniques`, `unique` or `checks` against the entity it is declared on |
 | `propertyOf` | function | Names another property of the same row for a comparison to compare with, such as `{ endsAt: { after: propertyOf('startsAt') } }` |
 | `PropertyReference`, `PropertiesHolding` | type, type | What `propertyOf` returns, and the properties of an entity holding a kind of value, which it can name |
+| `dataSourceNow` | function | The time on the clock of the data source, for a date comparison or a date written, such as `{ expiresAt: { before: dataSourceNow() } }` |
+| `DataSourceTime`, `DataSourceTimeFor`, `WithDataSourceTimes` | type, type, type | What `dataSourceNow` returns, the properties that take it, and write data in which a date property takes it |
 | `UniqueDeclaration`, `UniqueGroupInput`, `KeyWhere` | type, type, type | What `unique` of a property takes, a group of properties unique together in `uniques`, and the rows a key covers, written with `whereFor` |
 | `scopeFor` | function | Types a `scope` against the entity it is declared on |
 | `EntityScopeContext` | type | What a `scope` is told about the caller it decides for |
@@ -84,7 +89,7 @@ side.
 | `ChangeSetRepository` | class | Extended `Repository` that tracks who changed what, and when |
 | `ChangeSetEntity` | class | Base class for an entity whose changes are recorded, which gets a `ChangeSetRepository` |
 | `isChangeSetEntityNewable` | function | Whether a class is a `ChangeSetEntity` |
-| `ChangeSetType` | enum | What a [change set](./glossary.md#change-set) records: a create, replace, reset, update or delete |
+| `ChangeSetType` | enum | What a [change set](./glossary.md#change-set) records: a create, replace, reset, update, delete or the restore of a soft deleted row |
 | `ResetChangeSetResult` | type | What resetting a change set answers: the entity, and the values that changed |
 | `SoftDeleteRepository` | class | Extended `ChangeSetRepository` that adds [soft delete](./glossary.md#soft-delete) functionality |
 | `SoftDeleteEntity` | class | Base class for an entity that deletes softly, which gets a `SoftDeleteRepository` |
@@ -103,7 +108,9 @@ side.
 | `Migration` | class | Base class to extend when defining a migration |
 | `SemVerVersion` | type | Version type used for `Migration.version` |
 | `MigrationEntity` | entity | The migrations a data source has run |
-| `CreateEntityInput`, `RenameEntityInput`, `MergeEntityInput`, `AddPropertyToEntityInput`, `ChangePropertyOfEntityInput`, `RemovePropertyFromEntityInput` | type, type, type, type, type, type | What `createEntity`, `renameEntity`, `mergeEntity`, `addPropertyToEntity`, `changePropertyOfEntity` and `removePropertyFromEntity` take |
+| `MigrationRevertTarget` | type | Where `revertMigrationsAfter` stops: a version, or the name of a migration |
+| `CreateEntityInput`, `RenameEntityInput`, `MergeEntityInput`, `AddPropertyToEntityInput`, `ChangePropertyOfEntityInput`, `RemovePropertyFromEntityInput`, `RemoveEntityInput`, `RemoveRelationFromEntityInput` | type, type, type, type, type, type, type, type | What `createEntity`, `renameEntity`, `mergeEntity`, `addPropertyToEntity`, `changePropertyOfEntity`, `removePropertyFromEntity`, `removeEntity` and `removeRelationFromEntity` take |
+| `MigrationTableReference` | type | An entity a migration names by the table it is stored in, such as `{ tableName: 'task' }` |
 | `MigrationPropertyMetadata`, `PropertyConversion` | type, type | A property as a migration writes it out, and what happens to its stored values when a migration changes its storage |
 | `ValueConversion` | enum | What `changePropertyOfEntity` does with a stored value its `convert` does not list |
 
@@ -113,7 +120,7 @@ instead of implementing it yourself, and decorate it with `@DataSource`:
 
 ```ts
 // src/data-sources/db/db.data-source.ts
-import { BaseEntity, DataSource, Migration, Newable, OmitStrict, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
+import { BaseEntity, DataSource, Migration, Newable, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
 
 import { Task } from '../../models/task.model';
 import { TaskRepository } from '../../repositories/task.repository';
@@ -121,7 +128,7 @@ import { RenameTaskNameMigration } from './migrations/rename-task-name.migration
 
 @DataSource()
 export class DbDataSource extends PostgresDataSource {
-    options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+    options: PostgresOptions = {
         host: 'localhost',
         port: 5432,
         username: 'postgres',
@@ -140,6 +147,22 @@ export class DbDataSource extends PostgresDataSource {
     pooler: PostgresPooler = 'none';
 }
 ```
+
+`options` says how the data source connects to its server:
+
+| Option | What it is |
+|---|---|
+| `host` | The server, or the directory of its unix socket |
+| `port` | Its port. 5432 by default |
+| `username`, `password` | Who the connections log in as. The password can be a function resolving it, such as from a secret store |
+| `database` | The database to connect to |
+| `schema` | The schema the tables are in. The first one of the role's search path by default |
+| `ssl` | Whether the connection is encrypted, see below. Required |
+| `applicationName` | The name the connections give the server, which it shows beside them |
+| `poolSize` | How many connections one instance holds at once. 20 by default |
+| `connectTimeoutInMs` | How long a call waits for a connection. 30 seconds by default |
+| `maxBoundValuesPerStatement` | How many values one statement binds, see below. What the database accepts by default |
+| `extra` | Settings handed to the `pg` pool as they are |
 
 `repositories` lists the repositories of your own, an empty list when there are none, see
 [writing a repository of your own](#writing-a-repository-of-your-own).
@@ -201,11 +224,11 @@ says so on the declaration:
 
 ```ts
 // src/data-sources/reporting/reporting.data-source.ts
-import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
+import { BaseEntity, DataSource, Newable, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
 
 @DataSource({ allowOrphan: true })
 class ReportingDataSource extends PostgresDataSource {
-    options: OmitStrict<PostgresOptions, 'type' | 'entities'> = { host: 'reporting.internal', database: 'reporting', ssl: true };
+    options: PostgresOptions = { host: 'reporting.internal', database: 'reporting', ssl: true };
     entities: Newable<BaseEntity>[] = [];
     repositories: RepositoryClass[] = [];
     schemaManagement: SchemaManagement = 'external';
@@ -232,12 +255,12 @@ Everything else goes through the pooler. `direct` takes the `host`, and the `por
 
 ```ts
 // src/data-sources/pooled/pooled.data-source.ts
-import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
+import { BaseEntity, DataSource, Newable, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
 
 @DataSource()
 export class PooledDataSource extends PostgresDataSource {
     // the pooler
-    options: OmitStrict<PostgresOptions, 'type' | 'entities'> = { host: 'pgbouncer.internal', port: 6432, username: 'app', database: 'db', ssl: true };
+    options: PostgresOptions = { host: 'pgbouncer.internal', port: 6432, username: 'app', database: 'db', ssl: true };
     // the server itself
     pooler: PostgresPooler = { mode: 'transaction', direct: { host: 'db.internal', port: 5432 } };
     entities: Newable<BaseEntity>[] = [];
@@ -417,7 +440,7 @@ or "where: {}" to keep the value taken for good.
 | `where` | A soft deleted row |
 |---|---|
 | `whereFor<Account>({ deleted: false })` | Frees its value, so someone can register again with the same address. Restoring the row fails with a `UniqueConstraintViolationError` when another row took the value meanwhile |
-| `{}` | Keeps its value taken for good |
+| `{}` | Keeps its value taken for good. A create or an `upsert` of the value fails with a `UniqueConstraintViolationError` |
 
 A key covering only some rows is an `upsert` target like any other, and the rows it leaves out are not in its way. An `upsert` identified by an account's email and handle lands on the live row holding them, and inserts beside the deleted ones that still hold them.
 
@@ -554,6 +577,11 @@ index or a unique, changing which rows it covers, or deleting it is all a releas
 - A transaction that commits while a newer release next to it changes the indexes and uniques of an
   entity it wrote fails with `KeyDeclarationsChangedError`. Nothing it wrote is applied, so run it
   again.
+
+With `schemaManagement: 'migrations'`, the relations are kept the same way: the foreign key of a
+relation, the unique of a one to one relation, and the join table of a many to many relation are
+created once the migrations have run, and a foreign key or unique no entity declares is removed. A join
+table holds the relations themselves, so a migration removes it, with `removeRelationFromEntity`.
 
 With `schemaManagement: 'synchronize'`, synchronizing keeps them instead. With `'external'`, whoever
 owns the schema does.
@@ -1221,8 +1249,10 @@ The repositories of the users, the [memberships](./glossary.md#membership) and t
 ## Writing a query by hand
 A SQL data source starts a query builder on the table of an entity with `query`. Use it for what the
 repository has no form for, such as a report that groups and counts. `transaction` is the
-transaction it runs in, and `alias` names the table in the query, the entity's name by default. The
-builder is TypeORM's query builder.
+transaction it runs in, and `alias` names the table in the query, the entity's name by default. An
+expression names a property as `alias.property`, which is written as the column the property is
+stored in, and a value as `:name`, bound from the parameters given beside it. `leftJoin` and
+`innerJoin` join the table of another entity under an alias of its own.
 
 ```ts
 // src/services/task-report.service.ts
@@ -1959,9 +1989,13 @@ A migration says how each property is stored, with the same metadata the `@Prope
 | `removePropertyFromEntity` | Removes a property and what it holds |
 | `renameEntity` | Moves every stored entity from `currentTableName` to the table name the entity declares, with its relations, indexes and uniques. It fails when entities are stored under the declared table name already |
 | `mergeEntity` | Moves every stored entity from `currentTableName` to the entity, next to the ones it stores, with its relations. An entity that holds what a stored one holds under its id or a unique the entity declares is left out |
-| `createEntity` | Creates what an entity is stored in. `properties` is written out or `'resolveFromEntity'`. Relations are only created when it is resolved |
+| `createEntity` | Creates what an entity is stored in. `properties` is written out or `'resolveFromEntity'`. Written out, its relations are created once the migrations have run, see [keeping indexes and uniques](#keeping-indexes-and-uniques) |
+| `removeEntity` | Removes an entity: what it is stored in, its rows, and the many to many relations they hold |
+| `removeRelationFromEntity` | Removes what a many to many relation holds, on both sides. `relation` names its property, the entity on its other side as `target`, and the property there as `inverseSide` |
 
 Something written out means the same in every later version. Something resolved means whatever the entity has become by the time the migration runs.
+
+`entity` is the entity's class, or the table it is stored in, such as `{ tableName: 'task' }`. Named by its table, a migration means the same in every later version, even once the class is renamed or gone. Renaming an entity back names the table it had: `renameEntity({ entity: { tableName: 'task' }, currentTableName: 'job', transaction })` moves the entity stored in `job` back, with its relations.
 
 Setting the schema up and running each migration take as long as they need. They run under the data
 source's `migrationTimeoutInMs`, not under [the time a statement may take](#how-long-a-call-may-take),
@@ -1994,6 +2028,30 @@ export class RemovePaidInvoicesMigration extends Migration {
     }
 }
 ```
+
+### Generating a migration
+`zi migrate create` writes the migration of what your entities changed since the last one, and adds it to the `migrations` your data source runs, in `migrations/index.ts` next to the data source:
+
+```sh
+zi migrate create
+zi migrate create AddDueDateToTask
+```
+
+It builds your project and compares what the entities of each data source declare with the snapshot committed next to its migrations, `entities.snapshot.json`. Every data source whose entities changed gets a migration of its own, named after what it changes unless you name it, and its snapshot is updated. Commit the migration and the snapshot together. A snapshot holds how each property is stored, and no default, no encryption option and no validation.
+
+The migration names every entity by its table and writes every property out, so it means the same in every later version. Read it before you commit it:
+
+- A property that becomes required is added empty, then made required. Fill it in on the rows already stored between the two, or the migration fails on them.
+- A change of type that has no cast lists what each stored value becomes in `convert`, which you fill in.
+- A renamed property is removed and added again, empty. To keep what it holds, replace both with one `changePropertyOfEntity`.
+- An entity whose class keeps its name and moves to another table is renamed, with what it stores.
+- A change of the indexes, uniques or checks of an entity gets a migration that calls nothing, since they are kept as the entities declare them once the migrations have run. Change the stored rows that break a new unique or check in its `up()`.
+
+`zi migrate create --empty` writes a migration that changes nothing, for a change of the data of your own, such as removing duplicates before a unique is declared.
+
+It runs your build, so it needs the environment variables your application starts with. It connects to no database.
+
+Without a snapshot, the first migration creates every entity. When the database holds the tables already, such as when a data source moves from `'synchronize'` to `'migrations'`, run `zi migrate baseline` instead. It commits the snapshot of every data source that has none, and writes no migration, so the next `zi migrate create` writes only what changes after it.
 
 ### Converting values
 `changePropertyOfEntity` converts every stored value, and fails without changing anything when one of them cannot be converted. The error names each of those values. `convert` lists values that become specific other values, and its `default` says what happens to all the others:
@@ -2048,27 +2106,51 @@ name of its own.
 On boot, every migration up to and including the app's version that the database has not recorded yet is applied, in the order the data source lists them. A [restore](./backup.md#a-backup-of-another-release) applies them the same way to what it restored.
 
 ### Going back
-An application whose database is migrated past its own version refuses to start, and says which migrations it found:
+An application whose database was migrated by a newer build refuses to start. It says which migrations it found, and what to run. A newer build is one of a newer version, or one that applied a migration this build does not carry after this build's own, such as a later commit of the same release:
 
 ```
-This app is version 1.2.0, but its database has already been migrated to "AddInvoiceTable" (1.3.0).
+This app is version 1.2.0, but its database has already been migrated by a newer build:
+"AddInvoiceTable" (1.3.0).
 Running an older instance against a newer schema is not supported, so it refuses to start rather
 than reverting the schema that the newer instances are using.
+To go back to this build: stop the newer instances, run "migrate down RenameTaskNameMigration"
+with the newer build, then start this one.
 ```
+
+A migration this build does not carry that ran before its own is not counted, so you can take a migration out of the code base once every database ran it.
 
 The schema is shared with the instances already serving on it, so an instance that starts late, after
 a rollback, a restart or a scale event, never reverts it.
 
-A release that changed the [indexes and uniques](#keeping-indexes-and-uniques) counts the same: its version is recorded under `zibri:indexes-and-uniques`, and an older release refuses to start against it. `revertMigrationsAfter` removes that record along with the migrations, and the older build then brings the indexes and uniques back to what its own entities declare when it starts.
+A release that changed the [indexes and uniques](#keeping-indexes-and-uniques) counts the same: its version is recorded under `zibri:indexes-and-uniques`, and an older release refuses to start against it. Within one release, the migration [`zi migrate create`](#generating-a-migration) writes for such a change is what an earlier commit refuses to start on. Reverting removes that record along with the migrations, and the older build then brings the indexes and uniques back to what its own entities declare when it starts.
 
-To roll back past a migration:
+A migration is reverted by the build that carries it, since its `down()` is part of that build. To go back to an older build:
 
-1. Stop the instances running the newer version.
-2. Run `await dataSource.revertMigrationsAfter('1.2.0')`. It runs `down()` for everything above that version, in the reverse of the order it was applied in.
+1. Stop the instances running the newer build.
+2. Run `npm run migrate:down -- RenameTaskNameMigration` with the newer build, naming the newest migration the older build carries. It runs `down()` for every migration applied after that one, newest first.
 3. Deploy the older build.
+
+A version in place of the name, such as `npm run migrate:down -- 1.2.0`, reverts every migration of a newer version. `npm run migrate:down -- --all` reverts every applied migration, for an older build that carries none of them. `npm run migrate:list` lists the migrations every data source applied, in the order they ran, and marks the ones the build does not carry. Without npm, run the build directly: `node dist/index.js migrate down RenameTaskNameMigration`.
 
 > [!WARNING]
 > Step 2 takes the schema away from any newer instance still serving, and a `down()` that drops a column drops its data. Stop the newer instances first.
+
+The commands run through your application, which sets up no schema for them. `runCommand` runs the command the process was started with, and returns `false` when it names none:
+
+```ts
+// src/index.ts
+import { ZibriApplication } from 'zibri';
+
+export async function start(app: ZibriApplication): Promise<void> {
+    if (await app.runCommand(process.argv.slice(2))) {
+        return;
+    }
+    await app.init();
+    await app.start(3000);
+}
+```
+
+`dataSource.revertMigrationsAfter({ migrationName: 'RenameTaskNameMigration' })` reverts from your own code, and takes `{ version: '1.2.0' }` and `{ all: true }` the same way.
 
 During a rolling deploy, instances of both versions serve at the same time. Keep each migration backward compatible with the version before it: add a nullable column instead of renaming one in place, and remove the old column in a later release.
 
@@ -2093,6 +2175,7 @@ Raise it when your migrations take longer than that.
 | [`upsert`](#changing-a-value-based-on-what-is-stored) | The new value of one row depends on the stored one, such as a counter or a running total |
 | [`updateAll`](#changing-every-row-that-matches-a-filter) | Every row that matches a filter changes, such as when claiming queued work |
 | [`{ increment }`](#adding-to-what-every-matching-row-stores) | An amount is added to what every matching row stores |
+| [`dataSourceNow()`](#comparing-with-the-time-of-the-data-source) | A row expires, and every instance has to agree on when |
 | [a lease](#serializing-work-with-a-lease) | Only one instance may do a piece of work |
 
 ### Changing a value based on what is stored
@@ -2189,7 +2272,7 @@ You do not have to pass a transaction for that. One is taken for the operation w
 
 ### Adding to what every matching row stores
 
-A number property takes `{ increment: amount }` instead of a value. The amount is added to what each row stores, in the same write, so two callers adding at the same time both land:
+A number property takes `{ increment: amount }` instead of a value. The amount is added to what each row stores, in the same write, so two callers adding at the same time both land. A row storing `null` counts as 0, in an `upsert` as well:
 
 ```ts
 // src/models/page-view.model.ts
@@ -2223,6 +2306,54 @@ async function countView(path: string, referrer: string): Promise<void> {
 - When your [scope](#restricting-which-rows-a-caller-may-see) reads the property, each row is judged on what it holds after the amount was added, and the whole update is undone with a `403` when one of them left what you may see.
 
 To add to one row that may not exist yet, use `upsert` above.
+
+### Comparing with the time of the data source
+
+Every instance reads its own clock, and two clocks drift apart. A row that expires, such as a
+reservation or a claim, is then expired for one instance and still valid for another.
+`dataSourceNow()` is the time on the clock of the data source, which every instance shares. It goes
+where a date comparison takes its value, and where `create`, `createAll` and `updateAll` take the
+value of a date property:
+
+```ts
+// src/models/task-reservation.model.ts
+import { BaseTenantEntity, Entity, Property } from 'zibri';
+
+@Entity()
+export class TaskReservation extends BaseTenantEntity() {
+    @Property.string({ format: 'uuid' })
+    taskId!: string;
+
+    @Property.string({ format: 'uuid' })
+    userId!: string;
+
+    @Property.date()
+    expiresAt!: Date;
+}
+```
+
+```ts
+// src/services/task-reservation.service.ts
+import { dataSourceNow, inject, Ms, Repository, repositoryTokenFor } from 'zibri';
+
+import { TaskReservation } from '../models/task-reservation.model';
+
+const reservationRepository: Repository<TaskReservation> = inject(repositoryTokenFor(TaskReservation));
+
+async function reserve(taskId: string, userId: string): Promise<void> {
+    await reservationRepository.deleteAll({ taskId, expiresAt: { before: dataSourceNow() } });
+    await reservationRepository.create({ taskId, userId, expiresAt: dataSourceNow(10 * Ms.MINUTE) });
+}
+
+async function extend(taskId: string, userId: string): Promise<void> {
+    await reservationRepository.updateAll({ taskId, userId }, { expiresAt: dataSourceNow(10 * Ms.MINUTE) });
+}
+```
+
+- `dataSourceNow(plusInMs)` adds an offset. A negative one is a time before.
+- Only a date property takes it, which the filter and the data check as you write them.
+- A write hands back the row holding the date that was stored.
+- A `beforeSave` hook sees no value for the property. The data source fills it in as it writes.
 
 ### Serializing work with a lease
 
@@ -2351,6 +2482,33 @@ count of it counts those; a soft deleted row is reached through the repository o
 
 `hardDelete: true` on `deleteById` or `deleteAll` removes rows for good, soft deleted ones included.
 
+## Deleting rows once they expire
+Declare `expiresBy` on an entity whose rows are of no use once a date has passed, such as an
+invitation to a team. It names a `@Property.date()` of the entity:
+
+```ts
+// src/invitation.entity.ts
+import { BaseEntity, Entity, Property } from 'zibri';
+
+@Entity({ expiresBy: 'expiresAt' })
+export class Invitation extends BaseEntity {
+    @Property.string({ format: 'uuid' })
+    tenantId!: string;
+
+    @Property.string()
+    email!: string;
+
+    @Property.date()
+    expiresAt!: Date;
+}
+```
+
+`ExpiredRowsCleanupCronJob` deletes every row whose date has passed, every hour, in every tenant. It
+compares by the clock of the data source, like
+[`dataSourceNow`](#comparing-with-the-time-of-the-data-source), so every instance agrees on what
+has expired. The entities of the framework whose rows expire, such as reset tokens, sessions and
+leases, declare it as well.
+
 ## How long a call may take
 Every statement a data source runs has a time limit, inside a request or not, in a cron job, an
 event subscriber and a thread job as well. A statement past it fails. A Postgres data source gives a
@@ -2364,11 +2522,11 @@ store. `0` lifts the limit. A single Valkey command keeps its `requestTimeout` e
 
 ```ts
 // src/data-sources/warehouse/warehouse.data-source.ts
-import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
+import { BaseEntity, DataSource, Newable, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
 
 @DataSource()
 class WarehouseDataSource extends PostgresDataSource {
-    options: OmitStrict<PostgresOptions, 'type' | 'entities'> = { host: 'warehouse.internal', database: 'warehouse', ssl: true };
+    options: PostgresOptions = { host: 'warehouse.internal', database: 'warehouse', ssl: true };
     entities: Newable<BaseEntity>[] = [];
     repositories: RepositoryClass[] = [];
     schemaManagement: SchemaManagement = 'external';
@@ -2389,7 +2547,7 @@ A stream counts the time between two of its rows too: it has run out of time onc
 for longer than its `timeoutInMs`, however much of it was read.
 
 A call that finds every connection of a postgres data source's pool taken waits for one to come free,
-for 30 seconds at most, and fails past that. `connectTimeoutMS` in the data source's `options` says
+for 30 seconds at most, and fails past that. `connectTimeoutInMs` in the data source's `options` says
 otherwise. A call's `timeoutInMs`, and the request it belongs to, end the wait sooner. Starting a
 transaction waits the same way.
 
@@ -2409,7 +2567,6 @@ See [deadlines](./creating-endpoints.md#deadlines).
 ## Requirements
 | Package | Used for |
 |---|---|
-| `typeorm` | Reading and writing a Postgres data source |
 | `pg` | Connecting to Postgres. You install it |
 | `pg-query-stream` | Reading the rows of a Postgres data source with `stream`. You install it |
 | `@valkey/valkey-glide` | Connecting to Valkey. You install it |
@@ -2418,7 +2575,7 @@ Your data source declares these entities:
 
 | Entity | Needed when |
 |---|---|
-| `MigrationEntity` | Its `schemaManagement` is `'migrations'`, see [handling migrations](#handling-migrations) |
+| `MigrationEntity` | Its `schemaManagement` is `'migrations'`, or it has none, such as `ValKeyDataSource`, see [handling migrations](#handling-migrations) |
 | `ChangeSet`, `Change` | One of its entities records who changed what, see [recording who changed what](#recording-who-changed-what) |
 
 How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).

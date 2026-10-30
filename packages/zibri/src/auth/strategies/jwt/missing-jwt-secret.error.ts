@@ -1,10 +1,10 @@
 import { InternalError } from '../../../error-handling/internal-error.model';
 
+// There is deliberately no default: a framework that invented one would ship every application the
+// same signing key, and anyone who read the source could mint tokens for all of them.
 /**
  * An error to throw when the access token key or the refresh token secret has not been configured.
- *
- * There is deliberately no default: a framework that invented one would ship every application the
- * same signing key, and anyone who read the source could mint tokens for all of them.
+ * Neither has a default.
  */
 export class MissingJwtSecretError extends InternalError {
     constructor(secret: 'accessTokenKey' | 'refreshTokenSecret', options?: ErrorOptions) {

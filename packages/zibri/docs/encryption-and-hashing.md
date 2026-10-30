@@ -46,6 +46,7 @@ key, and the data keys are encrypted with a [master key](./glossary.md#master-ke
 | `EncryptionRotationCronJob` | cron job | Rewrites the values encrypted under deprecated keys and strategies, a bounded number of rows per run. Registered for you |
 | `EncryptionRotationProgress` | entity | How far the rotation job is through the stored values |
 | `EncryptionRotationFailure` | entity | A row the rotation job could not rewrite, and when it tries again |
+| `SigningKey` | entity | A key for keyed hashes, kept encrypted under the master key, see [keeping a signing key](#keeping-a-signing-key) |
 | `RetiredKeyUsage` | type | What is still encrypted under the keys being retired, see [telling when a rotation is done](#telling-when-a-rotation-is-done) |
 | `RetiredDataKeyUsage`, `RetiredMasterUsage`, `RetiredMasterKeyUsage`, `RetiredMasterStrategyUsage` | type, type, type, type | The parts of `RetiredKeyUsage`: a deprecated data key and how many values it encrypts, and the data keys and backups an old master key or strategy is needed for |
 
@@ -331,6 +332,23 @@ the user out for good. Leave the property off the update, or set it to a new pla
 ## Encrypting or hashing a value yourself
 To encrypt or hash a value yourself, inject `ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE` or `ZIBRI_DI_TOKENS.HASH_SERVICE`.
 
+## Keeping a signing key
+`resolveSigningKey(name)` hands out a key for keyed hashes, such as the hashes of a [tamper-evident table](./tamper-evident-tables.md):
+
+```ts
+// src/services/webhook-signature.function.ts
+import { createHmac } from 'node:crypto';
+
+import { EncryptionServiceInterface } from 'zibri';
+
+export async function signWebhook(encryptionService: EncryptionServiceInterface, body: string): Promise<string> {
+    const key: Buffer = await encryptionService.resolveSigningKey('webhooks');
+    return createHmac('sha256', key).update(body).digest('base64url');
+}
+```
+
+The key is 32 random bytes, made the first time its name is asked for and stored as a `SigningKey`, encrypted under the master key. A new master key encrypts it anew at startup, and the key itself stays, so what it signed stays valid. `resolveRetiredKeyUsage` counts the signing keys still under a retired master key.
+
 ## Choosing the algorithms
 By default scrypt and aes-256-gcm are used, with `Sha256HashStrategy` also registered so a property can ask for it by name. For a different algorithm, override `ZIBRI_DI_TOKENS.HASH_STRATEGIES` and/or `ZIBRI_DI_TOKENS.ENCRYPTION_STRATEGIES`.
 
@@ -440,7 +458,7 @@ Your data source declares these entities:
 | Entity | Needed when |
 |---|---|
 | `HashStrategyEntity` | Every application |
-| `EncryptionStrategyEntity`, `EncryptionKey`, `EncryptionRotationProgress`, `EncryptionRotationFailure` | Every application |
+| `EncryptionStrategyEntity`, `EncryptionKey`, `EncryptionRotationProgress`, `EncryptionRotationFailure`, `SigningKey` | Every application |
 
 How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
 

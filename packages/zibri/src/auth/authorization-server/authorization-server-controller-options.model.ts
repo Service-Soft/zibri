@@ -13,5 +13,10 @@ export type AuthorizationServerControllerOptions = {
      * The services besides the application that a client may ask for a token for, by their urls
      * (RFC 8707), such as `https://reports.example.com`. Empty when tokens are for the application only.
      */
-    resources: string[]
+    resources: string[],
+    /**
+     * How far ahead a jwt a client signs to authenticate itself may expire. A jwt is remembered as spent
+     * until it expires. One hour by default.
+     */
+    maxClientAssertionLifetimeInMs?: number
 };

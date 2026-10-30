@@ -1,12 +1,15 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { AuditCollapse, AuditEntry } from './audit-entry.model';
+import { AuditCheckpoint } from './audit-checkpoint.model';
+import { AuditCollapse } from './audit-collapse.enum';
+import { AuditEntry } from './audit-entry.model';
 import { type AuditServiceInterface } from './audit-service.interface';
 import { TestTimeouts } from '../__testing__/constants';
 import { JwtTestAuthController } from '../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../__testing__/mocks/entities/roles.enum';
+import { runWithApplicationClockAhead } from '../__testing__/run-with-application-clock-ahead.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
@@ -116,6 +119,18 @@ describe('AuditService - at startup', () => {
 
     it('refuses an application whose data sources do not hold the trail, and names it', async () => {
         await expect(startAndStopTestServerWithout([AuditEntry])).rejects.toThrow(/Error initializing AuditService[\S\s]*AuditEntry/);
+    }, TestTimeouts.inMemory.start);
+
+    it('refuses an application kept with checkpoints whose data sources do not hold them, and names them', async () => {
+        await expect(startAndStopTestServerWithout([AuditCheckpoint])).rejects.toThrow(/Error initializing AuditService[\S\s]*AuditCheckpoint/);
+    }, TestTimeouts.inMemory.start);
+
+    it('refuses an application kept as a chain whose data sources do not hold the chained entries, and names them', async () => {
+        const start: Promise<void> = startAndStopTestServerWithout([], {
+            providers: [...defaultTestServerProviders, defineProvider({ token: ZIBRI_DI_TOKENS.AUDIT_INTEGRITY, useValue: 'chain' })]
+        });
+
+        await expect(start).rejects.toThrow(/Error initializing AuditService[\S\s]*ChainedAuditEntry/);
     }, TestTimeouts.inMemory.start);
 });
 
@@ -251,17 +266,22 @@ describe('AuditService', () => {
         expect(found.map(e => [e.action, e.subject])).toEqual([[AuditAction.USER_DEACTIVATED, 'bob']]);
     });
 
-    it('deletes the entries older than the retention, and only those', async () => {
+    it('deletes the entries of the hours that ended before the retention, and only those', async () => {
         const tenantId: string = UUIDUtilities.generate();
-        const now: number = Date.now();
-        await entries.createAll([
-            { tenantId, action: AuditAction.LOGOUT, outcome: AuditOutcome.SUCCESS, occurredAt: new Date(now - RETENTION_IN_MS - Ms.MINUTE), lastOccurredAt: new Date(now - RETENTION_IN_MS - Ms.MINUTE), count: 1 },
-            { tenantId, action: AuditAction.LOGOUT, outcome: AuditOutcome.SUCCESS, occurredAt: new Date(now - RETENTION_IN_MS + Ms.MINUTE), lastOccurredAt: new Date(now - RETENTION_IN_MS + Ms.MINUTE), count: 1 }
-        ], { acrossTenants: true });
+        await runWithApplicationClockAhead(-RETENTION_IN_MS - (Ms.HOUR * 3), async () => {
+            await recordIn(tenantId, () => auditService.record({ action: AuditAction.LOGOUT, outcome: AuditOutcome.SUCCESS, subject: 'expired' }));
+            await auditService.flush();
+        });
+        await runWithApplicationClockAhead(-RETENTION_IN_MS - Ms.HOUR, async () => await auditService.writeCheckpoints());
+        await runWithApplicationClockAhead(-Ms.HOUR * 2, async () => {
+            await recordIn(tenantId, () => auditService.record({ action: AuditAction.LOGOUT, outcome: AuditOutcome.SUCCESS, subject: 'kept' }));
+            await auditService.flush();
+        });
+        await auditService.writeCheckpoints();
 
-        await auditService.deleteExpiredEntries();
+        expect(await auditService.deleteExpiredEntries()).toBe(1);
 
-        const found: AuditEntry[] = await findEntriesOf(tenantId);
-        expect(found.map(e => e.occurredAt.getTime())).toEqual([now - RETENTION_IN_MS + Ms.MINUTE]);
+        expect((await findEntriesOf(tenantId)).map(e => e.subject)).toEqual(['kept']);
+        expect(await auditService.resolveVerification(tenantId)).toMatchObject({ intact: true, newestSequence: 2 });
     });
 });

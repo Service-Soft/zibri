@@ -4,6 +4,8 @@ import { type PropertyMetadata } from './property.decorator';
 // decorated with @Entity themselves, which would evaluate this module from inside its own loading
 import { isSoftDeleteEntityNewable } from '../../data-source/change-sets/models/is-soft-delete-entity.function';
 import { CheckConstraintViolationError } from '../../data-source/check-constraint-violation.error';
+import { Where } from '../../data-source/models/where/where-filter.model';
+import { whereFor } from '../../data-source/models/where/where-for.function';
 import { keyWhereToSql } from '../../data-source/where/key-where-to-sql.function';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../global/global-registry';
@@ -38,6 +40,31 @@ export type EntityMetadata<T extends BaseEntity = BaseEntity> = {
      * Whether or not this entity is allowed to exist in multiple a data sources.
      */
     allowDuplicate: boolean,
+    /**
+     * Whether a backup of the data source holding it takes its rows. A restore leaves the rows of an
+     * entity that is not backed up as they are, for rows that belong to the running instances rather
+     * than to the data, such as the grants of `Lease`.
+     */
+    backedUp: boolean,
+    /**
+     * Whether its rows are only created. The repository refuses to update or delete them, and removes
+     * them with `prune` alone. `chained` implies it.
+     */
+    appendOnly: boolean,
+    /**
+     * Whether its rows form a chain per tenant, which tells a row that was changed, removed or slipped
+     * in apart from the ones that were written. A row of a chained entity is only created, and `prune`
+     * removes rows from the old end of their chains.
+     *
+     * The entity extends `BaseChainedEntity`, whose `chainSequence` and `chainHash` the repository
+     * fills in, and declares no encrypted or hashed property.
+     */
+    chained: boolean,
+    /**
+     * The date property a row expires by. `ExpiredRowsCleanupCronJob` deletes every row whose date
+     * has passed, in every tenant, by the clock of the data source.
+     */
+    expiresBy?: string,
     /**
      * Default ordering to apply to results when nothing has been specified.
      */
@@ -132,13 +159,19 @@ export type EntityMetadataInput<
     TRelationKey extends string = never,
     TUniqueKey extends string = never,
     TIndexKey extends string = never,
-    TTenant extends EntityTenant = DefaultTenant
-> = OmitStrict<Partial<EntityMetadata>, 'defaultOrder' | 'defaultRelations' | 'uniques' | 'indexes' | 'checks' | 'tenant'> & {
+    TTenant extends EntityTenant = DefaultTenant,
+    TExpiresKey extends string = never
+> = OmitStrict<Partial<EntityMetadata>, 'defaultOrder' | 'defaultRelations' | 'uniques' | 'indexes' | 'checks' | 'tenant' | 'expiresBy'> & {
     /**
      * Which tenant the rows of this entity belong to: `'shared'`, or the string property holding the
      * tenant of each row. Defaults to the property `tenantId`.
      */
     tenant?: TTenant,
+    /**
+     * The date property a row expires by. `ExpiredRowsCleanupCronJob` deletes every row whose date
+     * has passed, in every tenant, by the clock of the data source.
+     */
+    expiresBy?: TExpiresKey,
     /**
      * Default ordering to apply to results when nothing has been specified.
      */
@@ -201,9 +234,10 @@ export function Entity<
     TRelationKey extends string = never,
     TUniqueKey extends string = never,
     TIndexKey extends string = never,
-    const TTenant extends EntityTenant = DefaultTenant
+    const TTenant extends EntityTenant = DefaultTenant,
+    TExpiresKey extends string = never
 >(
-    options: EntityMetadataInput<TOrderKey, TRelationKey, TUniqueKey, TIndexKey, TTenant> = {}
+    options: EntityMetadataInput<TOrderKey, TRelationKey, TUniqueKey, TIndexKey, TTenant, TExpiresKey> = {}
 ) {
     const {
         tableName,
@@ -213,22 +247,33 @@ export function Entity<
         indexes,
         checks,
         scope,
+        expiresBy,
         tenant = defaultTenant,
         allowOrphan = false,
-        allowDuplicate = false
+        allowDuplicate = false,
+        backedUp = true,
+        appendOnly = false,
+        chained = false
     } = options;
     // normalized here, so that the two ways of writing a group are one shape everywhere below and in
     // every store that reads them back
     const uniqueGroups: UniqueGroup[] | undefined = uniques
         ?.map(group => Array.isArray(group) ? { properties: group } : { properties: group.properties, where: group.where });
-    const entityChecks: EntityCheck[] | undefined = checks?.map(check => isEntityCheck(check) ? check : CheckConstraintViolationError.resolveFilterCheck(check));
-    return <T extends ConstrainKeys<T, TOrderKey | TRelationKey | TUniqueKey | TIndexKey | TenantKeyOf<TTenant>>>(
+    const entityChecks: EntityCheck[] | undefined = checks
+        ?.map(check => isEntityCheck(check) ? check : CheckConstraintViolationError.resolveFilterCheck(check));
+    return <T extends ConstrainKeys<T, TOrderKey | TRelationKey | TUniqueKey | TIndexKey | TenantKeyOf<TTenant> | TExpiresKey>>(
         target: Newable<T>
     ): void => {
         validateTenantProperty(target, tenant);
+        if (expiresBy != undefined) {
+            validateExpiresBy(target, expiresBy);
+        }
         validateGroupsAddSomething(target, uniqueGroups ?? [], indexes ?? [], tenant);
         validateSoftDeleteKeysSayWhichRows(target, uniqueGroups ?? []);
         validateUniqueValuesCompare(target, uniqueGroups ?? []);
+        if (chained) {
+            validateChainable(target, allowDuplicate);
+        }
         // turned into what the schema would hold, which refuses a filter no store could check alike -
         // here rather than while a schema is built, which a store judging the filter itself never does
         for (const check of entityChecks ?? []) {
@@ -238,13 +283,18 @@ export function Entity<
             tableName: tableName ?? toSnakeCase(target.name),
             allowOrphan,
             allowDuplicate,
+            backedUp,
+            // a chain holds only while its rows stay as written, so chaining them is appending them
+            appendOnly: appendOnly || chained,
+            chained,
+            expiresBy,
             // the one place the two halves of these meet. What is written on the decorator is checked
             // against the class by its keys, because the class is not known until the line below;
             // what is stored is stated in terms of the entity, because everything reading it back has
             // one. They describe the same thing and neither is expressible as the other here
             defaultOrder: defaultOrder as EntityMetadata['defaultOrder'],
             defaultRelations: defaultRelations as EntityMetadata['defaultRelations'],
-            uniques: uniqueGroups,
+            uniques: chained ? [...uniqueGroups ?? [], ...resolveChainUniques(tenant)] : uniqueGroups,
             indexes,
             checks: entityChecks,
             scope,
@@ -256,6 +306,66 @@ export function Entity<
 }
 
 /**
+ * Refuses a chained entity whose rows cannot be chained.
+ *
+ * A row's hash covers what is stored, and it is checked against what is read back. An encrypted or
+ * hashed value is stored as something new whenever its key is rotated, which would read as a changed
+ * row, so the two do not go together. Neither does a second data source: a chain is read through the
+ * one repository of its entity.
+ * @param target - The class being decorated.
+ * @param allowDuplicate - Whether it may be declared in several data sources.
+ * @throws When it lacks the chain properties, declares an encrypted or hashed property, or may be
+ * declared in several data sources.
+ */
+function validateChainable(target: Newable<unknown>, allowDuplicate: boolean): void {
+    if (allowDuplicate) {
+        throw new InternalError([
+            `${target.name}: A chained entity is kept in one data source, and this one says "allowDuplicate".`,
+            'Each chain is read through the one repository of its entity.'
+        ]);
+    }
+    const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(target);
+    const sequence: PropertyMetadata | undefined = properties['chainSequence'];
+    const hash: PropertyMetadata | undefined = properties['chainHash'];
+    if (sequence?.type !== 'number' || hash?.type !== 'string') {
+        throw new InternalError([
+            `${target.name}: A chained entity holds the place and the hash of each row in "chainSequence" and "chainHash".`,
+            'Extend BaseChainedEntity, which declares them.'
+        ]);
+    }
+    const sealed: string[] = ObjectUtilities.entries(properties)
+        .filter(([, metadata]) => ('encryption' in metadata && metadata.encryption != undefined && metadata.encryption !== false)
+            || ('hash' in metadata && metadata.hash != undefined && metadata.hash !== false))
+        .map(([key]) => key);
+    if (sealed.length) {
+        const declared: string = sealed.map(k => `"${k}"`).join(', ');
+        throw new InternalError([
+            `${target.name}: A chained entity declares no encrypted or hashed property, and this one declares ${declared}.`,
+            'Rotating a key stores such a value anew, which its chain would read as a changed row.'
+        ]);
+    }
+}
+
+/**
+ * The groups that keep each place of a chain to one row: a chain per tenant, and one for the rows of
+ * no tenant, which a group with the tenant in it does not reach, since rows holding no value never
+ * conflict.
+ * @param tenant - Which tenant the rows belong to.
+ * @returns The groups.
+ */
+function resolveChainUniques(tenant: EntityTenant): UniqueGroup[] {
+    if (tenant === 'shared') {
+        return [{ properties: ['chainSequence'] }];
+    }
+    // eslint-disable-next-line unicorn/no-null
+    const ofNoTenant: Where<BaseEntity> = Object.fromEntries([[tenant.property, null]]);
+    return [
+        { properties: [tenant.property, 'chainSequence'] },
+        { properties: ['chainSequence'], where: whereFor(ofNoTenant) }
+    ];
+}
+
+/**
  * Whether a check is written out, rather than as its filter alone.
  * @param check - The check, as declared.
  * @returns True for `{ where, code, message }`.
@@ -264,6 +374,26 @@ function isEntityCheck(check: KeyWhere | EntityCheck): check is EntityCheck {
     // a filter is an array of branches or an object of property names, and `where` is a filter key
     // of nested values, never a property of its own - so the two cannot be mistaken for each other
     return !Array.isArray(check) && 'code' in check && 'message' in check && 'where' in check;
+}
+
+/**
+ * Refuses a property to expire by that holds no date.
+ * @param target - The class being decorated.
+ * @param expiresBy - The property its rows expire by.
+ * @throws When the property is missing, or is not a date property.
+ */
+function validateExpiresBy(target: Newable<unknown>, expiresBy: string): void {
+    // compared with the clock of the data source, which only a date can be
+    const metadata: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(target)[expiresBy];
+    if (metadata == undefined) {
+        throw new InternalError(`${target.name}: The rows expire by "${expiresBy}", which is not a declared property.`);
+    }
+    if (metadata.type !== 'date') {
+        throw new InternalError([
+            `${target.name}: The rows expire by "${expiresBy}", which is a ${metadata.type} property.`,
+            'A row expires once the date it holds there has passed, so it has to be a "@Property.date()".'
+        ]);
+    }
 }
 
 /**

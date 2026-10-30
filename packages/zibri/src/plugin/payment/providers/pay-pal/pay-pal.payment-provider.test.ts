@@ -1,8 +1,8 @@
 import assert from 'node:assert';
+import { existsSync, readFileSync } from 'node:fs';
+import { parseEnv } from 'node:util';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-// eslint-disable-next-line eslintImport/no-unassigned-import
-import 'dotenv/config';
 import { Browser, chromium, Page } from 'playwright';
 
 import { PayPalPaymentData, PayPalPaymentProvider, PayPalPaymentProviderPaymentData, PayPalValidatedPaymentData } from './pay-pal.payment-provider';
@@ -85,6 +85,14 @@ async function simulateBuyerApproval(approvalUrl: string, buyerEmail: string, bu
 }
 
 // ── Test suite ────────────────────────────────────────────────────────────────
+
+// the sandbox credentials, from the .env file of whoever runs this when there is one. Written into
+// this file's process.env rather than loaded with process.loadEnvFile: jest hands every test file a
+// copy of the environment, and loadEnvFile writes to the real one, which the copy never sees - so the
+// suite skipped itself with the credentials right there
+if (existsSync('.env')) {
+    Object.assign(process.env, parseEnv(readFileSync('.env', 'utf8')));
+}
 
 const clientId: string | undefined = process.env['PAYPAL_CLIENT_ID'];
 

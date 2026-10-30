@@ -1,11 +1,12 @@
 import { randomBytes } from 'node:crypto';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { POSTGRES_TEST_IMAGE } from 'zibri-testing';
+import { StartedTestContainer } from 'testcontainers';
+import { createPostgresTestContainer } from 'zibri-testing';
 
 import { MigrationEntity } from './migration-entity.model';
 import { Migration } from './migration.model';
+import { queryPostgres } from '../../__testing__/query-postgres.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -18,12 +19,12 @@ import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { GlobalRegistry } from '../../global/global-registry';
 import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
 import { SemVerVersion } from '../../utilities/sem-ver.utilities';
-import { TypeOrmUtilities } from '../../utilities/typeorm.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-data-source.model';
 import { PostgresPooler } from '../data-sources/postgres/postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresSchemaManager, SynchronizeStep } from '../data-sources/postgres/postgres-schema-manager.model';
+import { PostgresSchema } from '../data-sources/postgres/postgres-schema.model';
 import { DataSource } from '../decorators/data-source.decorator';
 import { SchemaManagement } from '../models/schema-management.model';
 import { RepositoryClass } from '../repository/repository-class.type';
@@ -99,7 +100,7 @@ class CreateEverythingMigration extends Migration {
 
 @DataSource()
 class DbDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -111,18 +112,31 @@ class DbDataSource extends PostgresDataSource {
     override migrations: Newable<Migration>[] = [CreateEverythingMigration];
     schemaManagement: SchemaManagement = 'migrations';
     readonly pooler: PostgresPooler = 'none';
+
+    /**
+     * Resolves what synchronizing the database with the entities would still run.
+     * @returns The statements, none when the database is what synchronizing would have created.
+     */
+    async resolvePendingSynchronizeSteps(): Promise<string[]> {
+        const entities: Newable<BaseEntity>[] = [...new Set(this.entities)];
+        const manager: PostgresSchemaManager = new PostgresSchemaManager(
+            new PostgresSchema(entities, this.columnSettings),
+            this.columnSettings,
+            entities,
+            { threshold: undefined, thresholdIsInclusive: false },
+            this.logger
+        );
+        const steps: SynchronizeStep[] = await manager.resolveSynchronizeSteps(async (sql, values = []) => await queryPostgres(this, sql, values));
+        return steps.map(step => step.sql);
+    }
 }
 
 describe('createEntity', () => {
-    let container: StartedPostgreSqlContainer;
+    let container: StartedTestContainer;
 
     beforeAll(async () => {
         initDiContainer();
-        container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
-            .withDatabase('db')
-            .withUsername('postgres')
-            .withPassword('password')
-            .start();
+        container = await createPostgresTestContainer({ username: 'postgres', password: 'password', database: 'db' }).start();
 
         GlobalRegistry['appData'].version = '0.0.1';
         register({
@@ -145,12 +159,7 @@ describe('createEntity', () => {
 
         // what synchronizing would still change is the difference between the two, so nothing left
         // is the schema synchronizing would have created
-        const transaction: Transaction = await dataSource.startTransaction();
-        const pending: string[] = (await TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner.connection.driver
-            .createSchemaBuilder()
-            .log()).upQueries.map(q => q.query);
-        await transaction.rollback();
-        expect(pending).toStrictEqual([]);
+        expect(await dataSource.resolvePendingSynchronizeSteps()).toStrictEqual([]);
 
         // and it is usable: the foreign key the tool could not have been created with holds
         const workshop: Workshop = await dataSource.getRepository(Workshop).create({ name: 'north' });

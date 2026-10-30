@@ -1,12 +1,12 @@
 import { randomBytes } from 'node:crypto';
 
 import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
-import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { Table, TableColumn } from 'typeorm';
-import { POSTGRES_TEST_IMAGE } from 'zibri-testing';
+import { StartedTestContainer } from 'testcontainers';
+import { createPostgresTestContainer } from 'zibri-testing';
 
 import { MigrationEntity } from './migration-entity.model';
 import { Migration } from './migration.model';
+import { findStoredColumns, StoredColumn } from '../../__testing__/find-stored-columns.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
@@ -20,10 +20,9 @@ import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { GlobalRegistry } from '../../global/global-registry';
 import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
 import { SemVerVersion } from '../../utilities/sem-ver.utilities';
+import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-data-source.model';
 import { PostgresPooler } from '../data-sources/postgres/postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../decorators/data-source.decorator';
 import { SchemaManagement } from '../models/schema-management.model';
 import { Repository } from '../repository/repository';
@@ -38,7 +37,7 @@ class LegacyItem {
 
 @DataSource()
 class LegacyDbDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -63,7 +62,7 @@ class Item {
 
 @DataSource()
 class DbDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -102,16 +101,12 @@ class AddTestValueMigration extends Migration {
 }
 
 describe('AddTestValueMigration', () => {
-    let container: StartedPostgreSqlContainer;
+    let container: StartedTestContainer;
     let createdId: string;
 
     beforeAll(async () => {
         initDiContainer();
-        container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
-            .withDatabase('db')
-            .withUsername('postgres')
-            .withPassword('password')
-            .start();
+        container = await createPostgresTestContainer({ username: 'postgres', password: 'password', database: 'db' }).start();
 
         GlobalRegistry['appData'].version = '0.0.1';
         register({
@@ -144,11 +139,9 @@ describe('AddTestValueMigration', () => {
         await dataSource.init();
 
         // inspect column metadata
-        const table: Table | undefined = await dataSource.createQueryRunner().getTable('item');
-        expect(table).not.toBeUndefined();
-        const col: TableColumn | undefined = table?.findColumnByName('value');
+        const col: StoredColumn | undefined = (await findStoredColumns(dataSource, 'item')).get('value');
         expect(col).not.toBeUndefined();
-        expect(col?.isNullable).toBe(false);
+        expect(col?.nullable).toBe(false);
 
         // old item must have non-null value
         const itemRepository: Repository<Item> = dataSource.getRepository(Item);

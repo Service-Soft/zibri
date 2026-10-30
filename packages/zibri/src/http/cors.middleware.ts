@@ -12,7 +12,7 @@ import { InternalError } from '../error-handling/internal-error.model';
  *
  * Scheme and host, and a port when it is not the default one - which is exactly what a browser puts
  * in the origin header and therefore the only thing that can ever match. A bare host or a trailing
- * slash never matches anything, so both are kept out of the type rather than left to be debugged.
+ * slash never matches anything, and the type refuses both.
  */
 export type CorsOrigin = `https://${string}` | `http://${string}`;
 
@@ -20,14 +20,14 @@ export type CorsOrigin = `https://${string}` | `http://${string}`;
  * Which browser origins may call this api, and what they may send.
  *
  * Only relevant to browsers: cors is enforced by them and nothing else, so it decides what a page on
- * another origin may do with a user's credentials rather than who can reach the api at all.
+ * another origin may do with a user's credentials, not who can reach the api at all.
  */
 export type CorsOptions = {
     /**
      * The origins a browser page may call this api from.
      *
      * `'*'` allows every one, which is right for an api that is public or is only ever called with a
-     * token the calling page had to be handed deliberately. It is wrong as soon as the browser
+     * token the calling page had to be handed explicitly. It is wrong as soon as the browser
      * attaches credentials by itself - see `credentials`.
      */
     origins: '*' | CorsOrigin[],
@@ -36,31 +36,42 @@ export type CorsOptions = {
      */
     methods?: HttpMethod[],
     /**
-     * Request headers a browser may send **on top of** the ones the framework needs itself.
-     *
-     * Additional rather than replacing, because the framework's own headers - the csrf token, the two
-     * factor code, the trace context - have to be allowed for its own features to work from a
-     * browser at all. A list that replaced them would quietly disable them.
+     * Request headers a browser may send **on top of** the ones the framework needs itself: the csrf
+     * token, the two factor code, the trace context.
      */
+    // additional rather than replacing: a list that replaced the framework's own headers would quietly
+    // disable its features from a browser
     additionalAllowedHeaders?: Header[],
     /**
      * Whether a browser may send cookies and credentials it holds for this api.
      *
      * Required for cookie based auth from another origin, and refused together with `origins: '*'`:
      * a wildcard plus credentials means "any page anywhere may act as this user", which browsers
-     * reject outright rather than honor.
+     * reject outright.
      */
-    credentials?: boolean
+    credentials?: boolean,
+    /**
+     * How long a browser may keep the answer to a preflight, before it asks again. Defaults to two
+     * hours, the most Chromium keeps one for.
+     */
+    preflightMaxAgeInMs?: number
 };
 
 /**
- * The default, and what it is chosen for.
+ * How long a browser keeps the answer to a preflight by default: the most Chromium keeps one for.
+ * Without the header it keeps it for five seconds, and every call the framework's clients make needs
+ * one, since each carries a header of its own.
+ */
+const DEFAULT_PREFLIGHT_MAX_AGE_IN_MS: number = 2 * 60 * 60 * 1000;
+
+// Locking it down is one option away, and has to be, because the right value depends on where the
+// api is deployed rather than on the framework.
+/**
+ * The default: every origin, no credentials.
  *
- * Every origin, no credentials. Nothing a browser does on its own reaches an api under this - a page
- * on another origin may send a request, but no cookies are attached to it, so acting as a logged in
- * user still needs a token that page was given deliberately. Locking it down is one option away, and
- * has to be, because the right value depends on where the api is deployed rather than on the
- * framework.
+ * Nothing a browser does on its own reaches an api under this - a page on another origin may send a
+ * request, but no cookies are attached to it, so acting as a logged in user still needs a token that
+ * page was given explicitly.
  */
 export const defaultCorsOptions: CorsOptions = { origins: '*' };
 
@@ -122,7 +133,7 @@ export function corsMiddleware(options: CorsOptions): RequestHandler {
             res.vary(KnownHeader.ORIGIN);
         }
 
-        const origin: CorsOrigin | '*' | undefined = allowedOrigin(req, options);
+        const origin: string | undefined = allowedOrigin(req, options);
         if (origin != undefined) {
             res.setHeader(KnownHeader.ACCESS_CONTROL_ALLOW_ORIGIN, origin);
             res.setHeader(KnownHeader.ACCESS_CONTROL_ALLOW_METHODS, allowedMethods);
@@ -141,6 +152,8 @@ export function corsMiddleware(options: CorsOptions): RequestHandler {
         const isPreflight: boolean = req.method === HttpMethod.OPTIONS
             && req.headers[KnownHeader.ACCESS_CONTROL_REQUEST_METHOD] != undefined;
         if (isPreflight) {
+            const maxAgeInMs: number = options.preflightMaxAgeInMs ?? DEFAULT_PREFLIGHT_MAX_AGE_IN_MS;
+            res.setHeader(KnownHeader.ACCESS_CONTROL_MAX_AGE, String(Math.floor(maxAgeInMs / 1000)));
             res.sendStatus(200);
             return;
         }
@@ -158,10 +171,13 @@ export function corsMiddleware(options: CorsOptions): RequestHandler {
  * @param options - The configured origins.
  * @returns What to put in the allow origin header, if anything.
  */
-function allowedOrigin(req: Request, options: CorsOptions): CorsOrigin | '*' | undefined {
+function allowedOrigin(req: Request, options: CorsOptions): string | undefined {
     if (options.origins === '*') {
         return '*';
     }
     const origin: string | undefined = req.headers[KnownHeader.ORIGIN];
-    return options.origins.find(o => o === origin);
+    // a browser sends the origin lowercase and compares the answer with what it sent, so a configured
+    // origin is matched in any spelling and answered as the browser wrote it (03 §H19)
+    const matches: boolean = origin != undefined && options.origins.some(o => o.toLowerCase() === origin.toLowerCase());
+    return matches ? origin : undefined;
 }

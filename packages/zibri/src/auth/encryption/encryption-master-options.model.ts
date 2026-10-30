@@ -11,9 +11,9 @@ export type EncryptionMasterKey<TKey> = {
     /**
      * Whatever the strategy needs in order to use this key.
      *
-     * Deliberately typed by the strategy rather than by the framework, so it does not have to be key
-     * material. A strategy backed by a kms or an hsm makes this a key handle - an arn, a label, a
-     * slot - and never has the bytes in process at all. Nothing here inspects it.
+     * Typed by the strategy, so it does not have to be key material. A strategy backed by a kms or an
+     * hsm makes this a key handle - an arn, a label, a slot - and never has the bytes in process at
+     * all. Nothing here inspects it.
      */
     value: TKey
 };

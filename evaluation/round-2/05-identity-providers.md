@@ -105,12 +105,48 @@ Fix direction: classify by cause — openid-client's `ResponseBodyError` with an
 
 **Verify:** In `base-oidc.authenticator.test.ts`, stop the fake provider's token endpoint (or make it answer 503) between authorize and callback; assert the error url carries `provider_error` and a warning was logged. Red today (`invalid`, nothing logged).
 
+> **Closed 2026-10-28.** `BaseOAuthAuthenticator.resolveExchangeFailure` classifies by a positive list: the
+> provider's OAuth error below 500 (`ResponseBodyError`), an `AuthorizationResponseError`, and the
+> `openid-client` codes that mean checking the answer found it wrong (claim, attribute, timestamp,
+> invalid response, parse, key selection, unsupported operation) are `INVALID`; everything else, a
+> non-OAuth status or body, a 5xx OAuth error, a timeout, a network failure, a `WWW-Authenticate`
+> challenge, is `PROVIDER_ERROR` and logged as a warning with its cause. `FederatedRouteUtilities.toFailure`
+> records a `PROVIDER_ERROR` with `reason: error` instead of `refused`, so the trail shows an outage as one.
+> The fake provider gained `failNextTokenRequest(status)` (answers a gateway's HTML page). Test:
+> `base-oidc.authenticator.test.ts` ("goes to the error url as a provider error, and logs it…"), red
+> with `invalid`; the audience and nonce cases stay `invalid`. `login-through-a-provider.md` says so.
+
 ### I7. One issuer per authenticator: a multi-tenant Entra registration (`common`/`organizations`) cannot sign anyone in — MINOR
 *Filed 2026-10-21.*
 
 `BaseMicrosoftAuthenticator.issuer` is `https://login.microsoftonline.com/${tenantId}/v2.0` (`oidc/providers/base-microsoft.authenticator.ts:26-28`) and `createConfiguration` discovers exactly that issuer (`base-oidc.authenticator.ts:170-176`). Entra's multi-tenant endpoints publish an issuer template with `{tenantid}` and sign tokens with the real tenant's issuer, which openid-client refuses as a mismatch. An application that wants any Microsoft work account — or a group with several Entra tenants after acquisitions, where the user should not have to pick the tenant first — has no way through; one authenticator per known tenant is the only option, each under its own `name` and callback url. §H2 listed "a multi-tenant issuer such as Entra's `common`" as out of scope and §H20 (open) covers a tenant bringing its own provider as data, which is a different feature. Fix direction: an `allowedIssuers`/issuer-pattern on `BaseOidcAuthenticator` with per-tenant discovery keyed by the ID token's `tid`, validated after the exchange.
 
 **Verify:** A fake provider whose discovery issuer carries a placeholder and whose ID token names a concrete tenant issuer; a sign-in through an authenticator configured for the placeholder issuer should succeed when the concrete issuer is allowed. Red today at discovery.
+
+> **Closed 2026-10-28, the issuer template the user chose.** The premise "red at discovery" is out of date:
+> openid-client 6 accepts Entra's `{tenantid}` template for discovery at `login.microsoftonline.com` and
+> checks an ID token's `iss` against it with `tid` filled in. It does so for that origin only, through a
+> private symbol, so a template for any other provider cannot be built on top of the library; the
+> generic part therefore sits in the framework's own issuer checks. What failed was everything after the
+> exchange: the identity is stored under the concrete tenant issuer, which `isOwnIssuer` (compared with
+> the configured `common`/`organizations` URL) did not count as the provider's, so `findIdentities` and
+> `findOwnIdentity` missed it, and provider tokens and logout tokens were verified against the template
+> and never matched; and every tenant in the world could log in. Now `BaseFederatedAuthenticator.isOwnIssuer`
+> is a protected hook. `BaseOidcAuthenticator` refuses a login whose verified `iss` it rejects with
+> `REFUSED`, and verifies provider tokens and back-channel logout tokens against the issuer the token
+> names once the hook takes it (read before verification only to choose it; jose then holds the token to
+> it), and the front-channel logout's `iss` goes through the hook too. `BaseMicrosoftAuthenticator` takes
+> `tenantId` `organizations` or `common`, and `allowedTenantIds: string[] | 'any'`, refused at boot when
+> left out for those two (`'any'` added beyond the user's list, for the finding's "any Microsoft work
+> account" case, so the choice is spelled out rather than defaulted); its `isOwnIssuer` takes the tenant
+> issuers of the allowed tenants. Testing: the fake OAuth provider gained `publicUrl`, `issuer` (with
+> `{tenantid}` filled from `identity.claims.tid`) and `listeningUrl`; `TestBrowser` a third argument
+> mapping other sites. Test: `base-microsoft.authenticator.test.ts` (in memory, the http client routing
+> `login.microsoftonline.com/organizations/v2.0` to the fake): boot refused without `allowedTenantIds`; an
+> allowed tenant's account logs in as its identity under the tenant issuer; another tenant lands on
+> `error=refused`; an access token for the api is taken from the allowed tenant only. All four red
+> without the change. Docs: the Entra section of `login-through-a-provider.md`, the fake's options in
+> `testing.md`.
 
 ### I8. Provider metadata is read lazily, cached for the life of the process and never checked at boot — MINOR
 *Filed 2026-10-21.*
@@ -121,12 +157,54 @@ Fix direction: a boot-time discovery in `init` (with a documented opt-out for en
 
 **Verify:** In `base-oidc.authenticator.test.ts`, boot with a fake provider whose discovery answers 500: today the application starts and the first sign-in lands on `provider_error`. And with a provider whose `token_endpoint` changes after the first sign-in: the second exchange still goes to the old url.
 
+> **Closed 2026-10-28, the user's choice of a required member.** `BaseOidcAuthenticator.discoveryAtBoot:
+> OidcDiscoveryAtBoot` (`'required' | 'whenReachable'`, abstract, exported) and its `init`, now async (the
+> auth service awaits an authenticator's `init`), reads the metadata. `required` refuses the start on any
+> failure; `whenReachable` starts with a warning when the provider cannot be reached (anything that is not
+> an openid-client `ClientError`, or a `RESPONSE_IS_NOT_CONFORM` whose response is 5xx) and refuses on
+> any other answer, such as a 404 for a wrong issuer or a mismatched issuer. `BaseOAuthAuthenticator.metadataMaxAgeInMs`
+> (one day) re-reads the configuration, the SAML shape: one reading for every login meanwhile, and the
+> one from before kept, with a warning, while a re-read fails. On the OAuth base because the cache is
+> there; for plain OAuth2 the re-read rebuilds the same static configuration at no cost. No upgrade entry:
+> OIDC did not exist in 2.x. Every OIDC authenticator in the tests and the docs names `'required'`;
+> `auth.service.user-rows.test.ts` pointed at a provider that did not exist and now starts a fake one.
+> The fake OAuth provider gained `failNextDiscovery(status)` and `metadataReads`. Test:
+> `base-oidc.authenticator.discovery.test.ts` (in memory): metadata read during the start; 503 refuses
+> `required`; 503 lets `whenReachable` start and the metadata is read when first needed; 404 refuses
+> `whenReachable`; with `metadataMaxAgeInMs: 0` every use reads again and a 503 meanwhile keeps the last
+> good one. Red without the change (no read at boot, nothing refused; the run against the old code also
+> left a started server behind, since the refusal it expects never came). The finding's "changed
+> `token_endpoint`" variant is covered by the re-read count rather than a moving endpoint, which the fake
+> does not model. Docs: `discoveryAtBoot` and `metadataMaxAgeInMs` rows and `OidcDiscoveryAtBoot` in
+> `login-through-a-provider.md`, every example; `failNextDiscovery`, `metadataReads` and I6's
+> `failNextTokenRequest` (which had been left out) in `testing.md`.
+
 ### I9. The protocol constants an enterprise would tune are hardcoded — MINOR, from `after-all-findings-fixed.md` item 13
 *Filed 2026-10-21.*
 
 From the user's own list. The ones in this area, each a literal rather than an option or a member: SAML accepted clock skew of one minute (`saml/base-saml.authenticator.ts:86`, passed at 749) and metadata max age of one day (line 91); the provider access token refresh margin of 60 s (`oauth/base-oauth.authenticator.ts:42`) and the refresh lease of 30 s / 15 s acquire (line 173) — a provider whose token endpoint takes longer than 30 s lets a second refresh start under an expired lease, which is the race the lease is there for; the first-sign-in lease of 30 s in LDAP (`ldap/base-ldap.authenticator.ts:40`); the client assertion lifetime of one hour (`authorization-server/authorization-server.service.ts:71`, modified in the working tree); the `DisabledLdapEntriesCronJob` page size and interval; the federated cleanup every hour (`federated/federated-cleanup.cron-job.ts:18`). An ADFS whose clock drifts two minutes refuses every assertion with `invalid` and the operator cannot widen the window without a subclass that does not exist. `timeoutInMs` on `BaseLdapAuthenticator` shows the right shape (a readonly member with a default); the SAML and OAuth ones should follow it, and the two leases should at least exceed the http client's timeout by construction.
 
 **Verify:** A unit test asserting that a subclass can set `acceptedClockSkewMs` and that an assertion two minutes ahead of the application clock is accepted under it; today there is no member to set.
+
+> **Closed 2026-10-28.** Each literal became a readonly member with its default, the shape `timeoutInMs`
+> already had: `BaseSamlAuthenticator.acceptedClockSkewInMs` (one minute) and `metadataMaxAgeInMs` (one
+> day), `BaseOAuthAuthenticator.accessTokenRefreshMarginInMs` (one minute),
+> `BaseLdapAuthenticator.disabledEntryPageSize` (100). The client assertion lifetime is
+> `maxClientAssertionLifetimeInMs` on the options of `AuthorizationServerController` (one hour), carried on
+> `AuthorizationServerEndpoint`, since the service is reached through its token and the controller is
+> where an application already says what its authorization server allows. Not changed, on purpose: the
+> OAuth refresh lease and the LDAP first-login lease are renewed for as long as their work runs (see
+> `leases.md`, "it renews the grant while the work runs"), so a token endpoint slower than 30 s keeps the
+> lease rather than letting a second refresh in, and the race the finding describes cannot happen; the
+> cron intervals of `DisabledLdapEntriesCronJob` and the federated cleanup are changed through the cron
+> service like every other job's. Tests, each red without its change: `base-saml.authenticator.test.ts`
+> (an answer whose provider clock runs three minutes ahead is taken with a skew of four minutes, refused
+> by default), `base-oidc.authenticator.test.ts` (with a margin of 10 s, the provider's 30-second access token
+> is used twice without a refresh), `base-ldap.authenticator.test.ts` (with a page size of 1, the job
+> searches once per linked entry), `authorization-server-controller.model.test.ts` (with a lifetime of
+> three hours, a JWT expiring two hours ahead is taken and one four hours ahead refused; two hours stays
+> refused by default). The fake SAML provider gained `issuedAheadByInMs`. The members are in the tables of
+> `login-through-a-provider.md`, `login-through-a-directory.md` and `authorization-server.md`.
 
 ### I10. LDAP opens a fresh TLS connection and bind for every sign-in, every refresh and every cookie renewal, and fails over sequentially — MINOR
 *Filed 2026-10-21.*
@@ -137,10 +215,66 @@ Deliberate in part — the one-at-a-time failover is commented at line 550, and 
 
 **Verify:** Against the fake directory (in memory), count connections opened for 100 refreshes of one user (today 100), and time a refresh with two unreachable servers listed first (today ≥ 20 s). For the size limit, the 389 heavy suite with three entries sharing a `uid` and `sizeLimit: 2`.
 
+> **Closed 2026-10-28, all four parts the user chose.**
+>
+> - **Pool.** Up to `connectionPoolSize` (5) connections bound as the service account are kept on
+>   `BaseLdapAuthenticator`, and searches, group reads and the job run on them. A user's password is
+>   checked on a short-lived connection of its own, to the server the entry was found on, so a pooled
+>   connection never changes who it is bound as. The pool is closed in `onAppShutdown`. A kept connection is
+>   taken only while ldapts says `isBound` *and* its socket has not closed. Found on the way: ldapts 9.2
+>   misses a StartTLS-upgraded socket closing (its close handler compares against the replaced socket),
+>   so it would send on, and unbind, a dead connection until `timeoutInMs`. Service connections are
+>   therefore made through ldapts's `createSecureConnection` option with a close listener, and a dropped
+>   connection is let go without an unbind. A kept connection that fails without a directory answer is
+>   retried once on a new one, with a warning.
+> - **Raced failover.** A new connection is opened to every server at once; the first to bind wins, the
+>   others are unbound, a refusal of the service account settles it at once, and only all servers
+>   failing is "no server could be reached". This replaces the random start: logins are no longer spread
+>   across servers, since pooled connections carry them. The test "starts at a random server" became
+>   "connects through whichever server answers first".
+> - **`refreshCheckIntervalInMs`**: abstract, no default, as the user decided. `LdapIdentity.checkedAt` (new
+>   column; LDAP is 3.x-only, so no upgrade entry) is set by a login and by a refresh that asked the
+>   directory (only when the interval is above 0). Within the interval a refresh asks nothing and does
+>   not run `resolveLogin`.
+> - **Narrowed attributes.** `DisabledLdapEntriesCronJob` reads only the id and `entryStateAttributes`. A
+>   refresh still reads `attributes`, because it hands the entry to `resolveLogin`; an application that
+>   does not need `thumbnailPhoto` narrows `attributes`, which the docs table already says.
+> - **`sizeLimitExceeded`**: not a bug with ldapts 9.2, which returns the entries without throwing when the
+>   search set a `sizeLimit`. The fake directory already answered with result code 4, so the finding's
+>   "the fake does not reproduce this" no longer holds. Kept as guards: "refuses a name more entries
+>   have…" in memory (three `triple` entries), and the same case in `base-ldap.authenticator.heavy.test.ts`
+>   (three entries sharing a `mail`), for the user to run.
+>
+> The fake directory gained `connectionsOpened`, `dropConnections()` and `attributes` on each search.
+> New tests in `base-ldap.authenticator.test.ts`, red before:
+>
+> - 20 refreshes open at most one connection (20 before).
+> - Four silent servers and one good one log in under half a second (2 s before).
+> - Within the interval a refresh of a disabled entry passes without a search, and is refused once
+>   `checkedAt` is two hours old.
+> - The job asks only for the three attributes.
+> - A dropped StartTLS connection is passed over in under a second (the 10 s stall above, found when the
+>   job case timed out).
+>
+> Existing cases adjusted to the pool: the bind sequences of "binds for an unknown name" and "reads the
+> groups as the service account" count only the user's binds; the outage case drops the open
+> connections, as a real outage would. Every LDAP authenticator in the tests and docs names
+> `refreshCheckIntervalInMs`. Docs: `login-through-a-directory.md` (members, `urls`, later logins, a
+> disabled entry) and `testing.md` (the fake's new members).
+
 ### I11. `Bearer` and the api key header are matched case-sensitively — MINOR
 *Filed 2026-10-21.*
 
 `AuthorizationHeaderUtilities.findToken` takes only `Bearer` and `DPoP` spelled exactly so (`strategies/authorization-header.utilities.ts:26`), and `ApiKeyAuthStrategy.findBearerKey` the same (`strategies/api-key/api-key.auth-strategy.ts:166`, modified in the working tree); RFC 9110 §11.1 makes the scheme case-insensitive, and `bearer` from a hand-written client or a load balancer that normalises headers is refused as no credential at all, which on a guarded route is a bare 401 with nothing explaining why. `ApiKeyAuthStrategy` also reads `context.request.headers?.[this.header]` with the injected header name as given (`api-key.auth-strategy.ts:61, 139`); node lowercases incoming header names, so an application that provides `ZIBRI_DI_TOKENS.API_KEY_HEADER` as `X-Api-Key` silently never sees a key, while `BaseClientCertificateAuthStrategy` lowercases its header (`client-certificate/base-client-certificate.auth-strategy.ts:193`). The OpenAPI scheme would still advertise the configured spelling. **Verify:** two in-memory cases in `api-key.auth-strategy.test.ts`: `authorization: bearer zibri_…` is taken, and a strategy built with `X-Api-Key` takes the key.
+
+> **Half done 2026-10-27, with 03 §H19:** the api key header is read through `findHeader`, in any spelling (a
+> case in `api-key.auth-strategy.test.ts`). The `Bearer`/`DPoP` scheme is still matched case-sensitively.
+>
+> **Closed 2026-10-28.** `AuthorizationHeaderUtilities.findToken` takes the scheme in any case and answers it
+> spelled `Bearer` or `DPoP`, so every check comparing it keeps working; `ApiKeyAuthStrategy.findBearerKey`
+> reads the header through it rather than splitting it itself. Tests: `bearer` with an access token and
+> `dpop` with a bound one in `jwt-auth.dpop.test.ts`, `bearer` with an api key in
+> `api-key.auth-strategy.test.ts`, in memory, red with 401.
 
 ## Code quality and architecture
 

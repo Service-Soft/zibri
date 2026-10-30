@@ -28,10 +28,14 @@ export type BaseUser<Role extends string> = BaseEntity & {
      * When the user was deactivated. A deactivated user cannot log in, and no request acts as them,
      * until they are reactivated. Undefined or null for an active user.
      */
-    deactivatedAt?: Date | null
+    deactivatedAt?: Date | null,
+    /**
+     * When the user proved that `email` is theirs, by a link mailed to it. Undefined or null while
+     * they have not.
+     */
+    emailVerifiedAt?: Date | null
 };
 
-// eslint-disable-next-line jsdoc/require-returns
 /**
  * Defines a base user entity class, whose roles are typed as the given ones.
  *
@@ -39,7 +43,7 @@ export type BaseUser<Role extends string> = BaseEntity & {
  * platform level: writing any other is refused.
  */
 export function BaseUserEntity<Role extends string = string>(): Newable<BaseUser<Role>>;
-// eslint-disable-next-line jsdoc/require-returns
+
 /**
  * Defines a base user entity class that soft deletes, whose roles are typed as the given ones.
  * @param base - `SoftDeleteEntity`, which the class extends.
@@ -49,7 +53,7 @@ export function BaseUserEntity<Role extends string = string>(
     base: typeof SoftDeleteEntity,
     options: SoftDeletingUserEntityOptions
 ): Newable<SoftDeleteEntity & BaseUser<Role>>;
-// eslint-disable-next-line jsdoc/require-returns
+
 /**
  * Defines a base user entity class that records its change sets, whose roles are typed as the given
  * ones.
@@ -70,7 +74,11 @@ export function BaseUserEntity<Role extends string = string>(
     }
     const emailUnique: UniqueDeclaration = !softDeletes
         ? true
-        : { where: options?.deletedUserKeepsEmail === true ? whereFor<SoftDeleteEntity>({}) : whereFor<SoftDeleteEntity>({ deleted: false }) };
+        : {
+            where: options?.deletedUserKeepsEmail === true
+                ? whereFor<SoftDeleteEntity>({})
+                : whereFor<SoftDeleteEntity>({ deleted: false })
+        };
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     class Temp extends base implements BaseUser<Role> {
@@ -85,6 +93,9 @@ export function BaseUserEntity<Role extends string = string>(
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Property.date({ required: false })
         deactivatedAt?: Date | null;
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Property.date({ required: false })
+        emailVerifiedAt?: Date | null;
     }
 
     return Temp;

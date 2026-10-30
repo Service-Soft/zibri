@@ -1,9 +1,8 @@
+// required rather than defaulted, because every value is right for somebody and the wrong one is
+// only noticed after it has already acted. Stating it is cheap; discovering it from behavior is a
+// dropped column
 /**
- * Who is responsible for making the database match the entities.
- *
- * Required on every sql data source rather than defaulted, because every value is right for somebody
- * and the wrong one is only noticed after it has already acted. Stating it is cheap; discovering it
- * from behavior is a dropped column.
+ * Who is responsible for making the database match the entities. Required on every sql data source.
  */
 export type SchemaManagement
     /**

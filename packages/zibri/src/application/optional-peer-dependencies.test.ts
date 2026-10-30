@@ -29,8 +29,8 @@ const builtWorker: string = path.join(
 );
 const fixtureDir: string = path.join(packageDir, 'src', 'multithreading', 'services');
 const builtRegister: string = path.join(packageDir, 'dist', 'cjs', 'utilities', 'register-ts-node.function.js');
-const builtXlfTransform: string = path.join(
-    packageDir, 'dist', 'cjs', 'localization', 'xlf', 'transform-source-translation-tokens.function.js'
+const builtXlfExtraction: string = path.join(
+    packageDir, 'dist', 'cjs', 'localization', 'xlf', 'extract-translation-strings.function.js'
 );
 // the test harness, a package of its own that a consumer installs beside the framework. Its built
 // output rather than its sources, which is what a consumer loads: needs `npm run build -w zibri-testing`
@@ -141,8 +141,8 @@ function extractingWith(installedAs: string): Extraction {
             return resolve.call(this, request === 'typescript' ? ${JsonUtilities.stringify(installedAs)} : request, ...rest);
         };
         const require = Module.createRequire(process.cwd() + '/index.cjs');
-        const { transformSourceTranslationOriginTokens } = require(${JsonUtilities.stringify(builtXlfTransform)});
-        const result = await transformSourceTranslationOriginTokens([{
+        const { extractTranslationStrings } = require(${JsonUtilities.stringify(builtXlfExtraction)});
+        const result = await extractTranslationStrings(process.cwd(), [{
             origin: 'zibri',
             originLocale: 'en-US',
             // the framework's own sources only: "__testing__" is where other suites write files of
@@ -151,7 +151,7 @@ function extractingWith(installedAs: string): Extraction {
         }]);
         console.log(JSON.stringify({
             version: require('typescript').version,
-            count: Object.values(result).flatMap(file => file.extracted).length
+            count: result.length
         }));
     `);
 }
@@ -198,21 +198,29 @@ describe('ts-node', () => {
         expect(optionalPeers()).toContain('ts-node');
     });
 
-    it('can be looked for without being loaded', () => {
-        const res: { installed: boolean, hidden: boolean } = inConsumerProcess(`
+    // 07 §T9: the startup check answered for ts-node alone, and ts-node compiles nothing without
+    // typescript - which a production image prunes with its devDependencies. The first job naming
+    // a .ts file then failed with a bare "Cannot find module 'typescript'", days after a startup
+    // check that was written to catch exactly that
+    it.each(['ts-node', 'typescript'])('is asked for at startup together with typescript, naming %s when it is missing', missing => {
+        const res: { message: string } = inConsumerProcess(`
+            ${hiding([missing])}
             const { createRequire } = await import('node:module');
             const require = createRequire(process.cwd() + '/index.cjs');
-            const { isTsNodeInstalled } = require(${JsonUtilities.stringify(builtRegister)});
-            const installed = isTsNodeInstalled();
-            ${hiding(['ts-node'])}
-            console.log(JSON.stringify({ installed, hidden: isTsNodeInstalled() }));
+            const { validateTsNodeInstalled } = require(${JsonUtilities.stringify(builtRegister)});
+            let message = 'it did not fail';
+            try {
+                validateTsNodeInstalled('Running worker files written in TypeScript');
+            }
+            catch (error) {
+                message = error.message;
+            }
+            console.log(JSON.stringify({ message }));
         `);
 
-        // this is what lets the answer be given at startup instead of at the first job to want a
-        // compiler - which can be days after the deployment that left one out. It resolves without
-        // loading, so asking the question costs nothing in a process that will never need one.
-        expect(res.installed).toBe(true);
-        expect(res.hidden).toBe(false);
+        expect(res.message).toContain(`"${missing}"`);
+        expect(res.message).toContain(`npm i ${missing}`);
+        expect(res.message).toContain('Running worker files written in TypeScript');
     });
 
     it('is not needed to load the framework', () => {
@@ -351,12 +359,12 @@ describe('typescript', () => {
             ${hiding(['typescript'])}
             const { createRequire } = await import('node:module');
             const require = createRequire(process.cwd() + '/index.cjs');
-            const { transformSourceTranslationOriginTokens } = require(${JsonUtilities.stringify(builtXlfTransform)});
+            const { extractTranslationStrings } = require(${JsonUtilities.stringify(builtXlfExtraction)});
             let message = 'it did not fail';
             try {
                 // no origins, so nothing is read: the question is whether asking at all names the
                 // package, rather than whether some file happened to need it
-                await transformSourceTranslationOriginTokens([]);
+                await extractTranslationStrings(process.cwd(), []);
             }
             catch (error) {
                 message = error.message;
@@ -632,7 +640,7 @@ describe('the test harness', () => {
 
     it('says so by name when a container is started without testcontainers', () => {
         const res: { message: string } = inConsumerProcess(`
-            ${hiding(['testcontainers', '@testcontainers/postgresql'])}
+            ${hiding(['testcontainers'])}
             const { createRequire } = await import('node:module');
             const require = createRequire(process.cwd() + '/index.cjs');
             const { createPostgresTestDataSource, startDataSourceContainers } = require(${JsonUtilities.stringify(builtHarness)});

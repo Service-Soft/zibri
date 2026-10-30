@@ -69,6 +69,44 @@ export function requireOneOfEnv<T extends string>(key: string, values: readonly 
 }
 
 /**
+ * Reads a port the application cannot run without.
+ * @param key - The name of the variable.
+ * @returns The port.
+ * @throws When it is unset or no whole number from 1 to 65535, naming the variable. A typo stops
+ * here, rather than as a server that cannot listen or a database that cannot be reached.
+ */
+export function requirePortEnv(key: string): number {
+    const value: string = requireEnv(key);
+    const port: number = Number(value);
+    if (!/^\d+$/.test(value) || port < 1 || port > 65535) {
+        throw new Error(`The environment variable "${key}" has to be a port from 1 to 65535, got "${value}".`);
+    }
+    return port;
+}
+
+/**
+ * Reads an http or https url the application cannot run without.
+ * @param key - The name of the variable.
+ * @returns The url, as it is written.
+ * @throws When it is unset or no absolute http or https url, naming the variable. A typo stops here,
+ * rather than in every link the application hands out.
+ */
+export function requireUrlEnv(key: string): string {
+    const value: string = requireEnv(key);
+    let protocol: string | undefined;
+    try {
+        protocol = new URL(value).protocol;
+    }
+    catch {
+        protocol = undefined;
+    }
+    if (protocol !== 'http:' && protocol !== 'https:') {
+        throw new Error(`The environment variable "${key}" has to be an http or https url, got "${value}".`);
+    }
+    return value;
+}
+
+/**
  * Reads a variable the application runs without.
  * @param key - The name of the variable.
  * @returns Its value, or an empty string when it is unset.

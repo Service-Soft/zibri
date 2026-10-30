@@ -2,12 +2,12 @@ import { Readable } from 'node:stream';
 
 import { FederatedAuthenticatorInterface, isFederatedAuthenticator } from './federated-authenticator.interface';
 import { FederatedCallbackForm } from './federated-callback-form.model';
+import { FederatedLoginFailure } from './federated-login-failure.enum';
+import { FederatedLoginError } from './federated-login.error';
 import { FederatedMetadata } from './federated-metadata.model';
 import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model';
 import { FederatedProviderLogout } from './federated-provider-logout.model';
 import { FederatedSessionMatch } from './federated-session-match.model';
-import { FederatedLoginFailure } from './federated-login-failure.enum';
-import { FederatedLoginError } from './federated-login.error';
 import { FederatedSoapLogout } from './federated-soap-logout.model';
 import { FederationOptions } from './federation-options.model';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
@@ -19,17 +19,19 @@ import { inject } from '../../../di/inject.function';
 import { ErrorUtilities } from '../../../error-handling/error.utilities';
 import { ForbiddenError } from '../../../error-handling/errors/forbidden.error';
 import { NotFoundError } from '../../../error-handling/errors/not-found.error';
+import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../../global/global-registry';
 import { HttpMethod } from '../../../http/http-method.enum';
 import { MimeType } from '../../../http/mime-type.enum';
 import { RedirectResponse } from '../../../http/redirect-response.model';
 import { $ts } from '../../../localization/translate.function';
-import { AuditAction, AuditOutcome } from '../../../logging/audit-event.model';
-import { auditReasonFor } from '../../../logging/audit-reason-for.function';
+import { AuditAction, AuditOutcome, AuditReason } from '../../../logging/audit-event.model';
+import { AuditUtilities } from '../../../logging/audit.utilities';
 import { FileResponse } from '../../../parsing/form-data/file-response.model';
 import { CspSource } from '../../../parsing/html/csp-options.model';
 import { HtmlResponse } from '../../../parsing/html/html-response.model';
+import { HtmlUtilities } from '../../../parsing/html/html.utilities';
 import { Newable } from '../../../types/newable.type';
 import { BaseUser } from '../../models/base-user.model';
 import { Authenticators } from '../authenticators.model';
@@ -38,6 +40,11 @@ import { Authenticators } from '../authenticators.model';
  * A class of an authenticator that logs users in at a provider.
  */
 export type FederatedAuthenticatorClass = Newable<FederatedAuthenticatorInterface<string, BaseUser<string>>>;
+
+/**
+ * What a provider's name has to look like, since it is part of the urls of its routes.
+ */
+const PROVIDER_NAME_PATTERN: RegExp = /^[\da-z-]+$/;
 
 /**
  * What the routes of a login at a provider share, whichever strategy they log in with.
@@ -66,6 +73,31 @@ export abstract class FederatedRouteUtilities {
         return authenticators.filter(
             (authenticator): authenticator is FederatedAuthenticatorClass => isFederatedAuthenticator(inject(authenticator))
         );
+    }
+
+    /**
+     * Names the authenticators of the application that log users in at a provider by the name of
+     * their provider, which the urls of their routes carry.
+     * @param authenticators - The authenticators of the application.
+     * @returns The ones implementing `FederatedAuthenticatorInterface`, by name.
+     * @throws When a name cannot be part of a url, or two of them share one.
+     */
+    static resolveAuthenticatorsByName(authenticators: Authenticators): Map<string, FederatedAuthenticatorClass> {
+        const byName: Map<string, FederatedAuthenticatorClass> = new Map();
+        for (const authenticator of this.findAuthenticators(authenticators)) {
+            const name: string = inject(authenticator).name;
+            if (!PROVIDER_NAME_PATTERN.test(name)) {
+                throw new InternalError(`The name "${name}" of ${authenticator.name} can only have lowercase letters, digits and dashes.`);
+            }
+            const sharing: FederatedAuthenticatorClass | undefined = byName.get(name);
+            if (sharing != undefined) {
+                throw new InternalError(
+                    `${sharing.name}, ${authenticator.name} share the name "${name}". Every provider needs a name of its own.`
+                );
+            }
+            byName.set(name, authenticator);
+        }
+        return byName;
     }
 
     /**
@@ -312,14 +344,13 @@ export abstract class FederatedRouteUtilities {
         return RedirectResponse.to(url);
     }
 
+    // a fault is thrown on rather than turned into a redirect: it is not something the user did, and
+    // folding it in would make an outage look like a failed login
     /**
      * Sends the browser to the error url when the login was refused, and records the refusal.
-     *
-     * A fault is thrown on rather than turned into a redirect: it is not something the user did, and
-     * folding it in would make an outage look like a failed login.
      * @param error - Why the login did not complete.
      * @returns The redirect.
-     * @throws The error, when it is a fault rather than a refusal.
+     * @throws The error, when it is a fault: a server error, or anything that is not an http error.
      */
     static toFailure(error: unknown): RedirectResponse {
         if (!ErrorUtilities.isRefusal(error)) {
@@ -328,7 +359,11 @@ export abstract class FederatedRouteUtilities {
         inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({
             action: error instanceof FederatedLoginError ? error.action : AuditAction.LOGIN,
             outcome: AuditOutcome.FAILURE,
-            reason: auditReasonFor(error)
+            // a provider that did not answer is a fault rather than a refusal, though the user is sent to
+            // the error url all the same: a trail reading it as refused shows an outage as an attack
+            reason: error instanceof FederatedLoginError && error.failure === FederatedLoginFailure.PROVIDER_ERROR
+                ? AuditReason.ERROR
+                : AuditUtilities.resolveReason(error)
         });
         const url: URL = new URL(this.resolveOptions().errorUrl);
         url.searchParams.set('error', this.toFailureCode(error));
@@ -345,9 +380,17 @@ export abstract class FederatedRouteUtilities {
             return error.failure;
         }
         // a login that was proven and then turned away: the account is deactivated or locked, or the
-        // authenticator refused it. Everything else a refusal can be here is a code or a ticket that
-        // is no longer good
-        return error instanceof ForbiddenError ? FederatedLoginFailure.REFUSED : FederatedLoginFailure.EXPIRED;
+        // authenticator refused it
+        if (error instanceof ForbiddenError) {
+            return FederatedLoginFailure.REFUSED;
+        }
+        // a code, a ticket or its proof that is no longer good, which starting over fixes
+        if (error instanceof UnauthorizedError) {
+            return FederatedLoginFailure.EXPIRED;
+        }
+        // too many attempts, or a hook that could not take the request: starting over would fail the
+        // same way, which `expired` would have told the user to do
+        return FederatedLoginFailure.FAILED;
     }
 
     /**
@@ -377,28 +420,23 @@ export abstract class FederatedRouteUtilities {
         const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
         const nonce: string | undefined = context?.get(ZIBRI_REQUEST_CONTEXT_TOKENS.NONCE);
         const inputs: string = Object.entries(fields)
-            .map(([name, value]) => `<input type="hidden" name="${this.escape(name)}" value="${this.escape(value)}">`)
+            .map(([name, value]) => `<input type="hidden" name="${HtmlUtilities.escape(name)}" value="${HtmlUtilities.escape(value)}">`)
             .join('');
         const target: URL = new URL(url);
         const html: string = [
             '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Logging out</title></head><body>',
-            `<form method="post" action="${this.escape(url)}">${inputs}<noscript><button type="submit">Continue</button></noscript></form>`,
+            `<form method="post" action="${HtmlUtilities.escape(url)}">${inputs}`
+            + '<noscript><button type="submit">Continue</button></noscript></form>',
             // eslint-disable-next-line sonar/no-nested-template-literals
-            `<script${nonce == undefined ? '' : ` nonce="${this.escape(nonce)}"`}>document.forms[0].submit()</script>`,
+            `<script${nonce == undefined ? '' : ` nonce="${HtmlUtilities.escape(nonce)}"`}>document.forms[0].submit()</script>`,
             '</body></html>'
         ].join('');
         const formAction: CspSource = target.protocol === 'https:' ? `https://${target.host}` : `http://${target.host}`;
         return HtmlResponse.fromString(html, { csp: { formAction: [formAction] } });
     }
 
-    private static escape(value: string): string {
-        return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;')
-            .replaceAll('>', '&gt;')
-            .replaceAll('"', '&quot;');
-    }
-
     private static findAuthenticator(provider: string): FederatedAuthenticatorClass | undefined {
-        return this.findAuthenticators(inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).authenticators).find(a => inject(a).name === provider);
+        return inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).findFederatedAuthenticator(provider);
     }
 
     private static resolveOptions(): FederationOptions {

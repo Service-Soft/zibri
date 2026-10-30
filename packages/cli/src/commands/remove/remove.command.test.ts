@@ -73,7 +73,7 @@ describe('RemoveCommand', () => {
     it('uninstalls what only the feature needs', async () => {
         await remove('metricsDashboard');
 
-        expect(execSpy.mock.calls.map(([command]) => command)).toEqual([`cd ${project.appDir} && npm uninstall chart.js`]);
+        expect(execSpy.mock.calls.map(([command]) => command)).toEqual([`cd "${project.appDir}" && npm uninstall chart.js`]);
     });
 
     it('refuses to remove a feature another one is built on, before changing anything', async () => {

@@ -3,9 +3,10 @@ import * as ts from 'typescript';
 import { ClientScript, compileClientScript } from './client/client-codegen';
 import { CLIENT_HOOK_SOURCES } from './client/hooks';
 import { unavailableNamesIn } from './client/script-names';
-import { emitModuleCode, eraseTypes } from './erase-types';
+import { EmittedModule, emitModuleCode, eraseTypes } from './erase-types';
 import { printNode, SERVER_INLINED_HOOKS } from './server/print';
 import { compileServerRender, ServerRenderCode } from './server/render-codegen';
+import { concatLines, emitLines, EmittedLines, emitVerbatim, resolveOrigin, resolveOriginAt, resolveTemplateSourceMap, SourceMap } from './source-map';
 import { Diagnostic, DiagnosticSeverity } from '../diagnostics/diagnostic.model';
 import { collectClientGlobalAliases, collectClientPackages } from '../semantics/client-packages';
 import { ComponentInfo, findComponents } from '../semantics/component';
@@ -36,7 +37,11 @@ export type CompileOptions = {
      * resolve dual packages through different conditions, which ends in two copies of the same
      * dependency - for zibri that would mean two `GlobalRegistry` and `TranslationRegistry` instances.
      */
-    module?: ModuleFormat
+    module?: ModuleFormat,
+    /**
+     * The template's path, which its source map names. Defaults to `template.tsx`.
+     */
+    fileName?: string
 };
 
 /**
@@ -51,6 +56,11 @@ export type CompileResult = {
      * The emitted JavaScript module, or undefined when compilation failed.
      */
     code: string | undefined,
+    /**
+     * The source map of the emitted module, leading back to the template, or undefined when
+     * compilation failed.
+     */
+    map: SourceMap | undefined,
     /**
      * The name of the template's first component (its export name).
      */
@@ -82,7 +92,14 @@ export function compile(source: string, options: CompileOptions = {}): CompileRe
     const file: ts.SourceFile = parseTemplate(source);
     const syntaxErrors: Diagnostic[] = syntaxErrorsOf(file);
     if (syntaxErrors.length > 0) {
-        return { diagnostics: syntaxErrors, code: undefined, componentName: undefined, client: undefined, clientPackages: [] };
+        return {
+            diagnostics: syntaxErrors,
+            code: undefined,
+            map: undefined,
+            componentName: undefined,
+            client: undefined,
+            clientPackages: []
+        };
     }
     try {
         return compileTemplate(file, options);
@@ -96,7 +113,14 @@ export function compile(source: string, options: CompileOptions = {}): CompileRe
                 severity: DiagnosticSeverity.ERROR,
                 span: error.span
             };
-            return { diagnostics: [diagnostic], code: undefined, componentName: undefined, client: undefined, clientPackages: [] };
+            return {
+                diagnostics: [diagnostic],
+                code: undefined,
+                map: undefined,
+                componentName: undefined,
+                client: undefined,
+                clientPackages: []
+            };
         }
         throw error;
     }
@@ -113,23 +137,41 @@ function compileTemplate(file: ts.SourceFile, options: CompileOptions): CompileR
     const clientPackages: string[] = collectClientPackages(file);
     const diagnostics: Diagnostic[] = validate(file);
     if (diagnostics.length > 0) {
-        return { diagnostics, code: undefined, componentName: undefined, client: undefined, clientPackages };
+        return { diagnostics, code: undefined, map: undefined, componentName: undefined, client: undefined, clientPackages };
     }
 
     const components: ComponentInfo[] = findComponents(file);
     if (components.length === 0) {
-        return { diagnostics, code: undefined, componentName: undefined, client: undefined, clientPackages };
+        return { diagnostics, code: undefined, map: undefined, componentName: undefined, client: undefined, clientPackages };
     }
-    const outsideComponents: Diagnostic[] = validateRenderSyntaxOutsideComponents(file, components, Object.keys(SERVER_INLINED_HOOKS));
+    const outsideComponents: Diagnostic[] = validateRenderSyntaxOutsideComponents(
+        file,
+        components,
+        Object.keys(SERVER_INLINED_HOOKS)
+    );
     if (outsideComponents.length > 0) {
-        return { diagnostics: outsideComponents, code: undefined, componentName: undefined, client: undefined, clientPackages };
+        return {
+            diagnostics: outsideComponents,
+            code: undefined,
+            map: undefined,
+            componentName: undefined,
+            client: undefined,
+            clientPackages
+        };
     }
 
     const compiled: CompiledTemplateComponent[] = [];
     for (const component of components) {
         const compilation: CompiledTemplateComponent | Diagnostic[] = compileTemplateComponent(file, component);
         if (Array.isArray(compilation)) {
-            return { diagnostics: compilation, code: undefined, componentName: undefined, client: undefined, clientPackages };
+            return {
+                diagnostics: compilation,
+                code: undefined,
+                map: undefined,
+                componentName: undefined,
+                client: undefined,
+                clientPackages
+            };
         }
         compiled.push(compilation);
     }
@@ -140,11 +182,18 @@ function compileTemplate(file: ts.SourceFile, options: CompileOptions): CompileR
         ...validateNoClientInEmail(file, compiled.some(component => component.client.code !== undefined), clientPackages)
     ];
     if (emailDiagnostics.length > 0) {
-        return { diagnostics: emailDiagnostics, code: undefined, componentName: undefined, client: undefined, clientPackages };
+        return {
+            diagnostics: emailDiagnostics,
+            code: undefined,
+            map: undefined,
+            componentName: undefined,
+            client: undefined,
+            clientPackages
+        };
     }
 
-    const code: string = emitModule(file, compiled, clientPackages, options.module ?? 'esm');
-    return { diagnostics, code, componentName: compiled[0].info.name, client: compiled[0].client, clientPackages };
+    const { code, map } = emitModule(file, compiled, clientPackages, options.module ?? 'esm', options.fileName ?? 'template.tsx');
+    return { diagnostics, code, map, componentName: compiled[0].info.name, client: compiled[0].client, clientPackages };
 }
 
 /**
@@ -222,6 +271,20 @@ function validateFinishedClientScript(file: ts.SourceFile, code: string | undefi
 }
 
 /**
+ * The emitted server module of a template, with its source map.
+ */
+type EmittedTemplateModule = {
+    /**
+     * The module source.
+     */
+    code: string,
+    /**
+     * Its map back to the template.
+     */
+    map: SourceMap
+};
+
+/**
  * Emits the server module of a template: the template itself, statement by statement, with every
  * component declaration replaced by its compiled component. What the components read at module level -
  * constants, helpers, contexts - stays beside them, exactly as written.
@@ -229,23 +292,38 @@ function validateFinishedClientScript(file: ts.SourceFile, code: string | undefi
  * @param components - Its compiled components.
  * @param clientPackages - The `?client` packages the template needs in the browser.
  * @param format - The module format to emit.
- * @returns The module source.
+ * @param fileName - The template's path, for its source map.
+ * @returns The module source and its source map.
  */
-function emitModule(file: ts.SourceFile, components: CompiledTemplateComponent[], clientPackages: string[], format: ModuleFormat): string {
+function emitModule(
+    file: ts.SourceFile,
+    components: CompiledTemplateComponent[],
+    clientPackages: string[],
+    format: ModuleFormat,
+    fileName: string
+): EmittedTemplateModule {
     const byStatement: Map<ts.Node, CompiledTemplateComponent[]> = new Map<ts.Node, CompiledTemplateComponent[]>();
     for (const component of components) {
         const statement: ts.Node = topLevelStatementOf(component.info.fn);
         byStatement.set(statement, [...byStatement.get(statement) ?? [], component]);
     }
-    const body: string[] = file.statements
+    const body: EmittedLines[] = file.statements
         .filter(statement => !ts.isImportDeclaration(statement))
-        .flatMap(statement => {
+        .map(statement => {
             const declared: CompiledTemplateComponent[] | undefined = byStatement.get(statement);
-            return declared === undefined ? [printNode(statement)] : emitComponentStatement(statement, declared, clientPackages);
+            // as written, so every line and column of it is one of the template's: the types and
+            // comments in it are taken out by the transpile below, as a printer would take them
+            return declared === undefined
+                ? emitVerbatim(statement, file)
+                : emitComponentStatement(statement, declared, clientPackages, file);
         });
     // The module is written as an ES module; commonjs is converted from it by TypeScript.
-    const module: string = [...emitImports(readImports(file)), ...body].join('\n');
-    return emitModuleCode(module, format === 'cjs' ? ts.ModuleKind.CommonJS : ts.ModuleKind.ESNext);
+    const assembled: EmittedLines = concatLines([...emitImports(readImports(file), file), ...body]);
+    const emitted: EmittedModule = emitModuleCode(
+        assembled.lines.join('\n'),
+        format === 'cjs' ? ts.ModuleKind.CommonJS : ts.ModuleKind.ESNext
+    );
+    return { code: emitted.code, map: resolveTemplateSourceMap(emitted.mappings, assembled.origins, fileName, file.text) };
 }
 
 /**
@@ -267,24 +345,33 @@ function topLevelStatementOf(node: ts.Node): ts.Node {
  * @param statement - The statement.
  * @param components - The components it declares.
  * @param clientPackages - The `?client` packages the template needs in the browser.
+ * @param file - The template.
  * @returns The emitted statements.
  */
-function emitComponentStatement(statement: ts.Node, components: CompiledTemplateComponent[], clientPackages: string[]): string[] {
+function emitComponentStatement(
+    statement: ts.Node,
+    components: CompiledTemplateComponent[],
+    clientPackages: string[],
+    file: ts.SourceFile
+): EmittedLines {
     if (!ts.isVariableStatement(statement)) {
-        return components.map(component => emitCompiledComponent(component, clientPackages));
+        return concatLines(components.map(component => emitCompiledComponent(component, clientPackages, file)));
     }
     const list: ts.VariableDeclarationList = statement.declarationList;
-    return list.declarations.map(declaration => {
+    return concatLines(list.declarations.map(declaration => {
         const component: CompiledTemplateComponent | undefined = components.find(candidate => candidate.info.fn.parent === declaration
             || candidate.info.fn.parent.parent === declaration);
         return component === undefined
-            ? printNode(ts.factory.updateVariableStatement(
-                statement,
-                statement.modifiers,
-                ts.factory.updateVariableDeclarationList(list, [declaration])
-            ))
-            : emitCompiledComponent(component, clientPackages);
-    });
+            ? emitLines(
+                printNode(ts.factory.updateVariableStatement(
+                    statement,
+                    statement.modifiers,
+                    ts.factory.updateVariableDeclarationList(list, [declaration])
+                )),
+                resolveOrigin(declaration, file)
+            )
+            : emitCompiledComponent(component, clientPackages, file);
+    }));
 }
 
 /**
@@ -292,16 +379,18 @@ function emitComponentStatement(statement: ts.Node, components: CompiledTemplate
  * template exported the component.
  * @param component - The compiled component.
  * @param clientPackages - The `?client` packages the template needs in the browser.
+ * @param file - The template.
  * @returns The emitted statements.
  */
-function emitCompiledComponent(component: CompiledTemplateComponent, clientPackages: string[]): string {
+function emitCompiledComponent(component: CompiledTemplateComponent, clientPackages: string[], file: ts.SourceFile): EmittedLines {
     const { info, server, client } = component;
     const renderName: string = `__render$${info.name}`;
-    const serverCode: string = server.code.replace(`function ${server.componentName}(`, () => `function ${renderName}(`);
+    // the function's own name is on its first line, and the lines of the render stay as many
+    const [header = '', ...rest] = server.emitted.lines;
+    const serverLines: string[] = [header.replace(`function ${server.componentName}(`, () => `function ${renderName}(`), ...rest];
     // An anonymous default export has no name to declare, so it is bound under one.
     const binding: string = info.name === 'default' ? DEFAULT_EXPORT_BINDING : info.name;
-    return [
-        serverCode,
+    const componentObject: string = [
         `${info.exported && !info.isDefault ? 'export ' : ''}const ${binding} = {`,
         `    name: ${JSON.stringify(info.name)},`,
         `    render: (props, $ssr) => ${renderName}($ssr, props),`,
@@ -317,17 +406,25 @@ function emitCompiledComponent(component: CompiledTemplateComponent, clientPacka
         '};',
         ...info.isDefault ? [`export default ${binding};`] : []
     ].join('\n');
+    return concatLines([
+        { lines: serverLines, origins: server.emitted.origins },
+        emitLines(componentObject, resolveOrigin(info.fn, file))
+    ]);
 }
 
 /**
  * Re-emits the template's runtime-relevant imports, dropping type-only and `?client` ones.
  * @param imports - The template's imports.
- * @returns The import statements to emit.
+ * @param file - The template.
+ * @returns The import statements to emit, each from where its declaration is.
  */
-function emitImports(imports: TemplateImport[]): string[] {
+function emitImports(imports: TemplateImport[], file: ts.SourceFile): EmittedLines[] {
     return imports
         .filter(item => !item.typeOnly && !item.client)
-        .flatMap(item => esmImport(item) ?? []);
+        .flatMap(item => {
+            const emitted: string | undefined = esmImport(item);
+            return emitted === undefined ? [] : [emitLines(emitted, resolveOriginAt(item.span.start, file))];
+        });
 }
 
 /**

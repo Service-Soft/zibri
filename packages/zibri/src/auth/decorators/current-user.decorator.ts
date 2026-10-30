@@ -1,10 +1,10 @@
+import { CurrentUserOptions } from './current-user-options.model';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { type BaseUser } from '../models/base-user.model';
 import { type Permission } from '../roles/permission.type';
 import { type PlatformPermission } from '../roles/platform-permission.type';
 import { AuthStrategies } from '../strategies/auth-strategies.model';
-import { CurrentUserOptions } from './current-user-options.model';
 
 /**
  * The user a request is from, as a handler or a scope is handed it: who they are, and what the

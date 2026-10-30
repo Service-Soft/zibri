@@ -5,12 +5,11 @@ import { type BaseEntity } from '../base-entity.model';
  */
 type RelatedEntityOf<TValue> = NonNullable<TValue> extends (infer TItem)[] ? NonNullable<TItem> : NonNullable<TValue>;
 
+// read off the declared type rather than off the metadata, because a type cannot ask a decorator
+// anything. The entity classes are the only things shaped like one in practice
 /**
- * The properties of an entity that hold other entities.
- *
- * Read off the declared type rather than off the metadata, because a type cannot ask a decorator
- * anything. What that costs is a property holding a plain object with an `id` of its own being
- * counted as a relation - the entity classes are the only things shaped like one in practice.
+ * The properties of an entity that hold other entities, read off the declared type: a property
+ * holding a plain object with an `id` of its own counts as a relation as well.
  */
 export type RelationKeysOf<T> = {
     [K in keyof T]-?: NonNullable<T[K]> extends BaseEntity | BaseEntity[] ? K : never
@@ -45,8 +44,8 @@ export type ColumnKeysOf<T> = {
  * `{ album: { artist: true } }`, and every level is one read of its own - so what a tree asks for is
  * what it costs.
  *
- * Only what is named is resolved. A relation that is left out comes back unset rather than empty,
- * which is the difference between "nobody asked" and "there is nothing there".
+ * Only what is named is resolved. A relation that is left out comes back unset, and one with nothing
+ * there comes back empty.
  */
 export type EntityRelations<T> = {
     [K in RelationKeysOf<T>]?: true | EntityRelations<RelatedEntityOf<T[K]>>

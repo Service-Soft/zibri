@@ -65,12 +65,13 @@ export type EventSubscriptionInterface = {
  * }
  * ```
  *
- * An interface rather than a type parameter on the service, because a DI token carries one type and
- * hands every consumer that same type. A parameter has to be instantiated at the token, which can
- * only name the widest map there is, so every consumer gets that one and none of them can narrow it
- * back. Declaring the map in one place is what lets `emit` refuse an event nobody declared, and
+ * Declaring the map in one place is what lets `emit` refuse an event nobody declared, and
  * `subscribe` hand a hook the payload belonging to the type it named.
  */
+// An interface rather than a type parameter on the service, because a DI token carries one type and
+// hands every consumer that same type. A parameter has to be instantiated at the token, which can
+// only name the widest map there is, so every consumer gets that one and none of them can narrow it
+// back.
 // eslint-disable-next-line typescript/no-empty-interface
 export interface ZibriEventMap {}
 
@@ -91,9 +92,8 @@ export interface EventServiceInterface {
      * Records that this instance's subscribers still exist, and clears registrations that have
      * lapsed.
      *
-     * Emitting and finishing both have to know which subscribers exist across the whole deployment
-     * rather than in one process, which means the set has to be written down somewhere every
-     * instance can read. This is what keeps that current: a subscriber stops counting only once no
+     * Emitting and finishing both read which subscribers exist across the whole deployment, from a
+     * set every instance can read. This keeps it current: a subscriber stops counting only once no
      * instance hosting it is left to say otherwise.
      */
     refreshSubscriberRegistrations: () => Promise<void>,

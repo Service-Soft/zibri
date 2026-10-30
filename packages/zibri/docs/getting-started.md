@@ -84,13 +84,13 @@ uses. Install the package of a feature you use:
 | `PdfUtilities` and the invoicing plugin | `pdfmake` |
 | The xml body parser, which ships as one of the default body parsers, translations, `XmlUtilities`, XRechnung and Peppol invoices | `saxes` |
 | The form data body parser, which ships as one of the default body parsers, see [file uploads](./creating-endpoints.md#handling-file-uploads) | `@fastify/busboy` |
-| Metrics, which the default metrics service collects, see [metrics](./metrics.md) | `prom-client`, `systeminformation` |
+| Metrics, which the default metrics service collects, see [metrics](./metrics.md) | `@prometheus-io/client`, `systeminformation` |
 | Sending emails over smtp with `SmtpEmailTransport`, see [email](./email.md) | `nodemailer` |
 | Generating entities from an OpenAPI document with `OpenApiFileProvider` or `OpenApiUrlProvider` | `swagger2openapi` |
 | Handlebars templates | `handlebars` |
 | TypeScript worker files, see [multithreading](./multithreading.md) | `ts-node` |
 | Extracting source translations, see [localization](./localization.md) | `typescript`, `saxes` |
-| The webpack configuration of `zibri/webpack`, which a generated project builds with | `webpack`, `copy-webpack-plugin`, `mini-css-extract-plugin` |
+| The webpack configuration of `zibri/webpack`, which a generated project builds with | `webpack`, `copy-webpack-plugin`, `mini-css-extract-plugin`, and `ts-node` to generate the entities of `src/models/generated/providers.ts` |
 
 Install the ones you use, such as `npm i socket.io`.
 
@@ -143,7 +143,9 @@ Two files describe that:
   production, the project starts once `SMTP_HOST` and `SMTP_PORT` name a mail server.
 
 `src/env.ts` reads them. `requireEnv` is for a variable the project needs, `requireOneOfEnv` for one
-that holds one of a few values, and `optionalEnv` for one it runs without.
+that holds one of a few values, `requirePortEnv` and `requireUrlEnv` for a port and a URL, and
+`optionalEnv` for one it runs without. Each stops the project at startup on a value it cannot use, see
+[configuration](./deployment.md#configuration).
 
 A deployment that sets its variables directly needs no `.env` at all: the file is loaded when it is
 there and skipped when it is not.
@@ -172,10 +174,10 @@ yours does not have. Then it brings each file `zi new` generated to what that re
   both changed the same lines, the file has conflict markers for you to resolve.
 - a file you deleted stays deleted.
 
-`zibri-scaffold.json` records what was generated, and the merge reads that version back out of your
-git history. Commit before you upgrade, and commit the result. A file whose generated version is not in
-the history keeps your content, with the release's version beside it as `<file>.zibri-upgrade` to
-compare.
+`zibri-scaffold.json` records what was generated. The merge reads that version back out of your git
+history, or generates it again with `npx zibri-cli@<recorded release> generate`. Commit before you
+upgrade, and commit the result. A file whose generated version is found in neither keeps your content,
+with the release's version beside it as `<file>.zibri-upgrade` to compare.
 
 `zi upgrade github` or `zi upgrade none` changes which continuous integration workflow the project has.
 

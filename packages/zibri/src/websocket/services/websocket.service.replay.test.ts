@@ -183,6 +183,32 @@ describe('replaying what a reconnecting client missed', () => {
         }
     });
 
+    // with socket.io's connection state recovery on, its client sent the id of the last message it
+    // received as `offset`, a string, wherever the application's own offset was left out - and the
+    // handshake refused it unless socket.io recovered the connection, which it cannot past two
+    // minutes, on another instance or after a restart. A refused client does not try again
+    it('lets a client that sends no offset connect again after it was sent a message', async () => {
+        const socket: Socket = io(baseUrl, { autoConnect: false, reconnection: false });
+        sockets.push(socket);
+        await new Promise<void>((resolve, reject) => {
+            socket.once('connect', () => resolve());
+            socket.once('connect_error', reject);
+            socket.connect();
+        });
+        const noted: Promise<void> = new Promise(resolve => socket.once(noteEvent, () => resolve()));
+        await sendNote();
+        await noted;
+        socket.disconnect();
+
+        const reconnected: Promise<string> = new Promise(resolve => {
+            socket.once('connect', () => resolve('connected'));
+            socket.once('connect_error', (error: Error) => resolve(error.message));
+        });
+        socket.connect();
+
+        expect(await reconnected).toBe('connected');
+    }, TestTimeouts.inMemory.start);
+
     it('sends every missed message in order, without waiting for the client to answer each', async () => {
         const offset: number = await resolveNewestSeq();
         for (let i: number = 0; i < maxReplayedMessages; i++) {

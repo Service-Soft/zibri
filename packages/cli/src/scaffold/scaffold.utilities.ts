@@ -83,7 +83,7 @@ function isScaffoldManifest(value: unknown): value is ScaffoldManifest | Manifes
         && 'name' in answers && typeof answers.name === 'string'
         && 'ci' in answers && CONTINUOUS_INTEGRATIONS.some(ci => ci === answers.ci)
         && 'defaultAuth' in answers && DEFAULT_AUTHS.some(defaultAuth => defaultAuth === answers.defaultAuth)
-        && (!('features' in answers) || Array.isArray(answers.features) && answers.features.every(isScaffoldFeature));
+        && (!('features' in answers) || (Array.isArray(answers.features) && answers.features.every(isScaffoldFeature)));
 }
 
 /**
@@ -166,7 +166,8 @@ export abstract class ScaffoldUtilities {
         for (const feature of features) {
             const missing: ScaffoldFeature[] = SCAFFOLD_FEATURE_REQUIREMENTS[feature].filter(required => !features.includes(required));
             if (missing.length) {
-                await exitWithError(`The feature "${feature}" needs ${missing.map(required => `"${required}"`).join(', ')} as well.`);
+                const missingNames: string = missing.map(required => `"${required}"`).join(', ');
+                await exitWithError(`The feature "${feature}" needs ${missingNames} as well.`);
             }
         }
     }
@@ -179,7 +180,9 @@ export abstract class ScaffoldUtilities {
      */
     static isWrittenFor(relativePath: string, features: ScaffoldFeature[]): boolean {
         return SCAFFOLD_FEATURES.every(feature => features.includes(feature)
-            || !SCAFFOLD_FEATURE_FILES[feature].some(named => named === relativePath || named.endsWith('/') && relativePath.startsWith(named)));
+            || !SCAFFOLD_FEATURE_FILES[feature].some(
+                named => named === relativePath || (named.endsWith('/') && relativePath.startsWith(named))
+            ));
     }
 
     /**

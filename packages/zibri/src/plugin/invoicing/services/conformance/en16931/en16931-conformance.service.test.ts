@@ -9,7 +9,7 @@ import { companyInfoProvider } from '../../../../../__testing__/mocks/company-in
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../../__testing__/test-server/start-test-server.function';
-import { PostgresDataSource } from '../../../../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../../../../../data-source/data-sources/postgres/postgres-data-source.model';
 import { Repository } from '../../../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../../../di/default/zibri-di-tokens.default';
@@ -68,6 +68,7 @@ const baseCompanyInfo: CompanyInfo = {
     fullName: 'Example Company LLC',
     email: 'info@example-company.com',
     phone: '12345 67890123',
+    timezone: 'Europe/Berlin',
     address: {
         street: 'Example street',
         number: '1b',

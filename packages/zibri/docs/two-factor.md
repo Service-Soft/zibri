@@ -12,7 +12,7 @@ A [second factor](./glossary.md#second-factor) is a further proof a user present
 | `Require2faFn`, `Require2faMetadata` | interface, type | The type of `@Auth.require2fa`, with its `skip`, and what it declares: the methods allowed, `reauth` and `providerFactors` |
 | `OtpTwoFactorMethod` | class | The TOTP method. Registered by default when you configure none |
 | `PasskeyTwoFactorMethod` | class | A [passkey](./glossary.md#passkey) as the second factor, see [passkeys](./passkeys.md#as-a-second-factor) |
-| `EmailTwoFactorMethod` | class | A code mailed to the user's address, see [codes by email or text message](#codes-by-email-or-text-message) |
+| `EmailTwoFactorMethod` | class | A code mailed to the user's address, see [codes by email or text message](#codes-by-email-or-text-message). Only to a verified address while addresses are [verified](./email-verification.md) |
 | `SmsTwoFactorMethod` | class | A code sent as a text message |
 | `CodeTwoFactorMethod` | class | What the two above are built on. Extend it for another way of sending a code, see [another way of sending](#another-way-of-sending) |
 | `SmsServiceInterface` | interface | What sends a text message. You provide it |
@@ -22,7 +22,6 @@ A [second factor](./glossary.md#second-factor) is a further proof a user present
 | `CodeRegistrationConfirmData` | class | What confirming the enrollment of a method sending codes takes: the code that was sent |
 | `TwoFactorCodeCredentials` | entity | Where a user receives codes, and whether they confirmed it |
 | `TwoFactorCode` | entity | A code that was sent and not yet entered. Kept encrypted |
-| `TwoFactorCodeCleanupCronJob` | cron job | Deletes the codes that expired before they were entered. Registered for you |
 | `TwoFactorCodeOptions` | type | How many digits a code has, how long it lasts, how often one can be sent, how many wrong ones it takes |
 | `ZIBRI_DI_TOKENS.TWO_FACTOR_CODE_OPTIONS` | DI token | Configures the codes |
 | `ZIBRI_DI_TOKENS.EMAIL_CODE_HEADER` | DI token | Which header carries a mailed code. Defaults to `x-authorization-email-code` |
@@ -49,6 +48,8 @@ A [second factor](./glossary.md#second-factor) is a further proof a user present
 | `RecoveryCodeRegistrationConfirmData` | class | What confirming recovery codes takes: one code of the set, with or without its dash |
 | `TwoFactorRecoveryCode` | entity | One recovery code of a user. Kept hashed |
 | `ZIBRI_DI_TOKENS.RECOVERY_CODE_HEADER` | DI token | Which header carries a recovery code. Defaults to `x-authorization-recovery-code` |
+| `ZIBRI_DI_TOKENS.RECOVERY_CODE_OPTIONS`, `RecoveryCodeOptions` | DI token, type | How many recovery codes a set holds, and how long each is. Defaults to 10 of 10 characters |
+| `ZIBRI_DI_TOKENS.OTP_PERIOD_IN_SECONDS` | DI token | How long an authenticator app shows one code. Defaults to 30 seconds |
 | `OtpValidationWindowInMs` | type | The clock skew a code may be accepted across |
 | `ZIBRI_DI_TOKENS.OTP_HEADER` | DI token | Which header carries the code. Defaults to `x-authorization-otp` |
 | `ZIBRI_DI_TOKENS.OTP_VALIDATION_WINDOW_IN_MS` | DI token | How much skew to allow. Defaults to 30 seconds |
@@ -63,8 +64,8 @@ A [second factor](./glossary.md#second-factor) is a further proof a user present
 | `TwoFactorAtLogin` | type | The `twoFactorAtLogin` app option: whether a login asks for a second factor, see [asking for a second factor at login](#asking-for-a-second-factor-at-login) |
 | `SecondFactorRequiredError` | error | What a login that waits for its second factor answers. `401`, with the [ticket](./glossary.md#ticket) the login continues with |
 | `LoginTicket` | entity | A login that waits for its second factor. Kept hashed |
-| `LoginTicketCleanupCronJob` | cron job | Deletes the tickets of logins never completed with their second factor. Registered for you when `twoFactorAtLogin` is not `'never'` |
 | `ZIBRI_DI_TOKENS.LOGIN_TICKET_HEADER` | DI token | Which header carries the ticket. Defaults to `x-login-ticket` |
+| `ZIBRI_DI_TOKENS.LOGIN_TICKET_EXPIRES_IN_MS` | DI token | How long the ticket works. Defaults to 5 minutes |
 
 ## What a second factor is for
 
@@ -74,15 +75,17 @@ Put it on the operations that matter:
 
 ```ts
 // src/controllers/account.controller.ts
-import { Auth, Body, Controller, Get, Patch } from 'zibri';
+import { Auth, Body, Controller, CurrentUser, Get, Patch } from 'zibri';
 
-import { Account, PaymentDetails } from '../models';
+import { PaymentDetails, User } from '../models';
 
 @Controller('/account')
 class AccountController {
     @Auth.isLoggedIn()
     @Get('/')
-    async read(): Promise<Account> { /* your own code */ }
+    async read(@CurrentUser() user: CurrentUser<User>): Promise<CurrentUser<User>> {
+        return user;
+    }
 
     @Auth.require2fa()
     @Patch('/payment-details')
@@ -220,7 +223,7 @@ x-authorization-email-code: 123456
                                 answers what the login route answers
 ```
 
-`confirm` takes the second factor in its header, exactly as a guarded route does, and names the strategy in `strategy` like the login route. A wrong code is refused as on any guarded route, and the ticket stays. The ticket is spent by the login it completes, and expires after 5 minutes.
+`confirm` takes the second factor in its header, exactly as a guarded route does, and names the strategy in `strategy` like the login route. A wrong code is refused as on any guarded route, and the ticket stays. The ticket is spent by the login it completes, and expires after 5 minutes, or after what `ZIBRI_DI_TOKENS.LOGIN_TICKET_EXPIRES_IN_MS` says.
 
 An empty `methods` list means the user has no second factor, and `twoFactorAtLogin` is `'required'`: the ticket enrolls their first, at `POST /auth/login/2fa/registration/request` and `POST /auth/login/2fa/registration/confirm`, which take what [enrolling](#enrolling-a-user) takes. A user who has a second factor is refused there with `403`.
 
@@ -267,6 +270,8 @@ An unconfirmed enrollment satisfies no check.
 
 Asking for a new enrollment abandons any unfinished one. A confirmed credential stays until the new one is confirmed, so a user setting up a new device keeps the one that works.
 
+Confirming an enrollment is recorded as `auth.2fa.enrolled`, and removing a second factor as `auth.2fa.removed`, each with the `userId` and a `failure` when it was refused.
+
 ## Codes are single use
 
 A TOTP code stays the same for its whole 30-second window, so the same six digits are shown for up to half a minute. Each code is accepted once, as RFC 6238 §5.2 requires. Presenting it again is refused with:
@@ -289,6 +294,8 @@ defineProvider({ token: ZIBRI_DI_TOKENS.OTP_VALIDATION_WINDOW_IN_MS, useFactory:
 ```
 
 `0` accepts only the current code. It leaves the least room for replaying a code, and a client whose clock is off by more than a few seconds starts failing. Phone clocks drift.
+
+An authenticator app shows each code for 30 seconds, which is what most apps generate. `ZIBRI_DI_TOKENS.OTP_PERIOD_IN_SECONDS` sets another period, which the QR code tells the app. The window is a whole number of periods, or the application does not start.
 
 The type accepts `0`, `30_000`, `60_000` and `90_000`, whole 30-second windows. Every window more is another code an observer could still spend.
 
@@ -353,6 +360,8 @@ Confirming takes one of the codes, which proves the user kept them, and does not
 A code is sent in the `x-authorization-recovery-code` header, with or without its dash and in any case, and works once in place of a second factor. While the user's second factor is [locked](#locking-after-too-many-wrong-codes), recovery codes are the only method checked: a correct one removes the user's other methods, lifts the lock, and lets the request through, so the user enrolls a new authenticator. A wrong one counts towards the wait like any wrong code.
 
 Declare `TwoFactorRecoveryCode` in your data source. Rename the header through `ZIBRI_DI_TOKENS.RECOVERY_CODE_HEADER`.
+
+A set holds 10 codes of 10 characters. Change both with `ZIBRI_DI_TOKENS.RECOVERY_CODE_OPTIONS`, such as `{ count: 16, length: 16 }`. A code has at least 10 characters.
 
 ## Resetting a user's second factors
 `resetSecondFactors` removes every second factor of a user, recovery codes included, and lifts a lock. Call it from a support or admin route of your own, for a user who lost everything or whose account is locked:

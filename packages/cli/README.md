@@ -13,6 +13,7 @@ npm i -g zibri-cli
 | `zi add <features>` | Adds features to the project in this folder |
 | `zi remove <features>` | Removes features from the project in this folder |
 | `zi upgrade` | Brings the project in this folder to what this release generates, merging the files you changed |
+| `zi generate <folder> <name> <ci> <defaultAuth> <features>` | Writes the files of a project into a folder and installs nothing. What `zi upgrade` of a later release runs to merge against |
 | `zi version` | Shows the version of the cli |
 | `zi help` | Lists the commands |
 

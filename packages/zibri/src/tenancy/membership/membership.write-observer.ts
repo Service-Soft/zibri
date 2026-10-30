@@ -1,8 +1,6 @@
 import { type RoleServiceInterface } from '../../auth/roles/role-service.interface';
 import { RoleUtilities } from '../../auth/roles/role.utilities';
 import { EntityWriteObserver, ObservedWrite, RowWrite } from '../../data-source/write-observers/entity-write-observer.model';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
 import { type TenantServiceInterface } from '../tenant-service.interface';
 
 /**
@@ -10,13 +8,13 @@ import { type TenantServiceInterface } from '../tenant-service.interface';
  */
 export class MembershipWriteObserver implements EntityWriteObserver {
     // the tenant a membership belongs to, of a write to every membership a filter matches
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly properties: string[] = ['tenantId'];
 
-    constructor(private readonly tenantService: TenantServiceInterface) {}
-
-    private get roleService(): RoleServiceInterface {
-        return inject(ZIBRI_DI_TOKENS.ROLE_SERVICE);
-    }
+    constructor(
+        private readonly tenantService: TenantServiceInterface,
+        private readonly roleService: RoleServiceInterface
+    ) {}
 
     /**
      * Refuses the roles a write gives memberships, in the tenant of each.

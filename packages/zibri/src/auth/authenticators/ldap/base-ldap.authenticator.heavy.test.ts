@@ -68,6 +68,8 @@ abstract class TestDirectory extends BaseLdapAuthenticator<string, JwtUser> {
 
     readonly groupSearchBase: string = GROUPS;
 
+    readonly refreshCheckIntervalInMs: number = 0;
+
     // the id 389 Directory Server gives every entry
     override readonly idAttribute: string = 'nsUniqueId';
 
@@ -254,6 +256,10 @@ describe('BaseLdapAuthenticator against 389 Directory Server', () => {
             // an inactivated account, which the directory refuses whatever the password
             await addPerson('carla', { nsAccountLock: 'true' });
             await addPerson('dave');
+            // three entries with one address, more than the two a login asks for
+            for (const uid of ['hana', 'ivan', 'jules']) {
+                await addPerson(uid, { mail: 'shared@zibri.test' });
+            }
             await addGroup('staff', [`uid=dave,${PEOPLE}`]);
             // a member of admins through staff
             await addGroup('admins', [`cn=staff,${GROUPS}`]);
@@ -318,6 +324,10 @@ describe('BaseLdapAuthenticator against 389 Directory Server', () => {
 
     it('reads the typed name as a name, never as a part of the filter', async () => {
         expect((await logIn({ username: 'ann*', password: 'anna-secret' })).status).toBe(401);
+    });
+
+    it('refuses a name more entries have than a login asks for, which the directory answers past its size limit', async () => {
+        expect((await logIn({ username: 'shared@zibri.test', password: 'hana-secret' })).status).toBe(401);
     });
 
     it('hands the groups of the entry to the hooks, nested ones included, and keeps the roles in step with them', async () => {

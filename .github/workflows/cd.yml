@@ -18,15 +18,16 @@ jobs:
             dist_tag: ${{ steps.version.outputs.dist_tag }}
         steps:
             # the merge itself rather than the branch, which may have moved on by the time this runs
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
               with:
                 ref: ${{ github.event.pull_request.merge_commit_sha }}
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:
                 node-version: '24'
                 registry-url: 'https://registry.npmjs.org'
-            # Ensure npm 11.5.1 or later is installed
-            - run: npm install -g npm@latest
+            # the client that signs the provenance attestation, at a version rather than whatever npm
+            # shipped that morning; 11.5.1 is the first that attests
+            - run: npm install -g npm@12.2.1
             - run: npm ci
 
             # Everything that can refuse the release happens before anything is published. A publish
@@ -109,17 +110,17 @@ jobs:
         # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
               with:
                 ref: ${{ github.event.pull_request.merge_commit_sha }}
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:
                 node-version: '24'
             - run: npm ci
             - run: npm run build -w zibri-tsx
             - run: npm run build:prod -w zibri
-            - uses: actions/configure-pages@v5
-            - uses: actions/upload-pages-artifact@v3
+            - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+            - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
               with:
                 path: packages/zibri/docs/generated
-            - uses: actions/deploy-pages@v4
+            - uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

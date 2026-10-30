@@ -39,7 +39,8 @@ export type DefinedPlatformPermissions<Values extends readonly string[]> = {
  * ```
  * @param values - The permissions, `as const` so that each is known by name.
  * @returns Each permission by its {@link PermissionKey}.
- * @throws An InternalError when a permission is listed twice, or two of them have the same key.
+ * @throws An InternalError when a permission is listed twice, two of them have the same key, or one
+ * holds a `*`.
  */
 export function definePermissions<const Values extends readonly string[]>(values: Values): DefinedPermissions<Values> {
     // the one cast that may produce a Permission. The mark says the value was defined as a tenant
@@ -57,7 +58,8 @@ export function definePermissions<const Values extends readonly string[]>(values
  * ```
  * @param values - The permissions, `as const` so that each is known by name.
  * @returns Each permission by its {@link PermissionKey}.
- * @throws An InternalError when a permission is listed twice, or two of them have the same key.
+ * @throws An InternalError when a permission is listed twice, two of them have the same key, or one
+ * holds a `*`.
  */
 export function definePlatformPermissions<const Values extends readonly string[]>(values: Values): DefinedPlatformPermissions<Values> {
     // the one cast that may produce a PlatformPermission, for the reason definePermissions gives
@@ -68,11 +70,16 @@ export function definePlatformPermissions<const Values extends readonly string[]
  * Keys permissions the way {@link PermissionKey} does.
  * @param values - The permissions.
  * @returns Each permission by its key.
- * @throws An InternalError when a permission is listed twice, or two of them have the same key.
+ * @throws An InternalError when a permission is listed twice, two of them have the same key, or one
+ * holds a `*`.
  */
 function keyByPermission(values: readonly string[]): Readonly<Record<string, string>> {
     const keyed: Record<string, string> = {};
     for (const value of values) {
+        // a role names permissions by a pattern with it, which a permission named so would make ambiguous
+        if (value.includes('*')) {
+            throw new InternalError(`The permission '${value}' holds a '*', which a role uses to name permissions by a wildcard.`);
+        }
         const key: string = value.replaceAll(/[.-]/g, '_').toUpperCase();
         if (key in keyed) {
             throw new InternalError(keyed[key] === value

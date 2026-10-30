@@ -1,3 +1,4 @@
+/* eslint-disable typescript/require-await */
 import { describe, expect, it } from '@jest/globals';
 
 import { Response } from './response.decorator';
@@ -26,7 +27,7 @@ class Comment {
  * second time. A declaration the method cannot return is a compile error (08 §X22), checked by
  * `npm run typecheck`: the `@ts-expect-error` lines below fail it when the declaration is accepted.
  */
-// eslint-disable-next-line jsdoc/require-jsdoc
+
 class DeclaredResponses {
     @Response.object(Task)
     @Response.array(Task)

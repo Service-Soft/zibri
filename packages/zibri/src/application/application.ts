@@ -13,6 +13,7 @@ import { isAuthStrategy } from '../auth/strategies/auth-strategy.interface';
 import { JwtAuthStrategy } from '../auth/strategies/jwt/jwt.auth-strategy';
 import { CronJob } from '../cron/cron-job.model';
 import { isDataSource } from '../data-source/data-sources/data-source.interface';
+import { MigrationCommand, MigrationCommandUtilities } from '../data-source/migration/migration-command.utilities';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { DiContainer } from '../di/di-container';
 import { InvalidClassMarkedWithInjectableError } from '../di/errors/invalid-class-marked-with-injectable.error';
@@ -24,19 +25,21 @@ import { DiProvider } from '../di/models/di-provider.model';
 import { DiToken } from '../di/models/di-token.model';
 import { DiVariants } from '../di/models/di-variant.model';
 import { register } from '../di/register.function';
+import { errorHandler } from '../error-handling/error-handler';
+import { GlobalErrorHandler } from '../error-handling/error-handler.model';
 import { UnmatchedRouteError } from '../error-handling/errors/unmatched-route.error';
 import { InternalError } from '../error-handling/internal-error.model';
 import { implementsAfterAppInit } from '../global/after-app-init.interface';
-import { AfterAppShutdown, AfterAppShutdownError, implementsAfterAppShutdown } from '../global/after-app-shutdown.interface';
+import { AfterAppShutdownError, implementsAfterAppShutdown } from '../global/after-app-shutdown.interface';
 import { implementsAfterAppStart } from '../global/after-app-start.interface';
 import { AppState } from '../global/app-state.enum';
 import { implementsBeforeAppInit } from '../global/before-app-init.interface';
-import { BeforeAppShutdown, BeforeAppShutdownError, implementsBeforeAppShutdown } from '../global/before-app-shutdown.interface';
+import { BeforeAppShutdownError, implementsBeforeAppShutdown } from '../global/before-app-shutdown.interface';
 import { declaresLifecycleHook } from '../global/declares-lifecycle-hook.function';
 import { GlobalRegistry } from '../global/global-registry';
 import { LifecyclePhase } from '../global/lifecycle-phase.enum';
 import { implementsOnAppInit } from '../global/on-app-init.interface';
-import { implementsOnAppShutdown, OnAppShutdown, OnAppShutdownError } from '../global/on-app-shutdown.interface';
+import { implementsOnAppShutdown, OnAppShutdownError } from '../global/on-app-shutdown.interface';
 import { implementsOnAppStart } from '../global/on-app-start.interface';
 import { HandlebarUtilities } from '../handlebars/handlebar.utilities';
 import { compressionMiddleware } from '../http/compression.middleware';
@@ -88,7 +91,7 @@ const DEFAULT_SHUTDOWN_TIMEOUT_IN_MS: number = Ms.SECOND * 30;
 const LOG_FLUSH_TIMEOUT_IN_MS: number = Ms.SECOND * 5;
 
 const defaultHstsOptions: HstsOptions = {
-    maxAgeSeconds: NumberUtilities.multiply(Ms.YEAR, 2).dividedBy(1000)
+    maxAgeInSeconds: NumberUtilities.multiply(Ms.YEAR, 2).dividedBy(1000)
         .toNumber(),
     includeSubDomains: true,
     preload: false
@@ -221,7 +224,7 @@ export class ZibriApplication {
                 res.setHeader(
                     KnownHeader.STRICT_TRANSPORT_SECURITY,
                     [
-                        `max-age=${options.maxAgeSeconds}`,
+                        `max-age=${options.maxAgeInSeconds}`,
                         ...options.includeSubDomains ? ['includeSubDomains'] : [],
                         ...options.preload ? ['preload'] : []
                     ].join('; ')
@@ -337,10 +340,17 @@ export class ZibriApplication {
             this.express.use(path, handler);
         }
 
+        const globalErrorHandler: GlobalErrorHandler = inject(ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER);
+        if (globalErrorHandler === errorHandler && inject(ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE) == undefined) {
+            this.logger.warn(
+                'No ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE is provided, so a browser is answered with an error as json.'
+                + ' Provide one, or an error handler of your own as ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER.'
+            );
+        }
         // the one place express hands over its own request and response rather than being handed the
         // framework's, which declares both narrower - a method that is an enum, headers that are
         // known. The router asserts the same boundary for the same reason
-        this.express.use(inject(ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER) as ErrorRequestHandler);
+        this.express.use(globalErrorHandler as ErrorRequestHandler);
         this.middlewareMounted = true;
     }
 
@@ -348,20 +358,7 @@ export class ZibriApplication {
      * Initializes the app.
      */
     async init(): Promise<void> {
-        initDiContainer();
-
-        // checked at runtime as well: the type requires it, but an application built against an older
-        // declaration passes nothing, and "nothing" must not read as either environment
-        if (!ZIBRI_ENVIRONMENTS.includes(this.options.environment)) {
-            throw new InternalError(
-                `The environment has to be one of ${ZIBRI_ENVIRONMENTS.join(', ')}, got ${String(this.options.environment)}.`
-            );
-        }
-        GlobalRegistry.setAppData(this.options);
-
-        for (const provider of this.options.providers) {
-            register(provider);
-        }
+        this.prepareContainer();
         // before any lifecycle hook, which may attach to it - the websocket server does
         this.httpServer = this.createHttpServer();
 
@@ -403,6 +400,72 @@ export class ZibriApplication {
         }
 
         GlobalRegistry.markAppAsInitialized();
+    }
+
+    /**
+     * Fills the container with the application's providers, which is everything initializing does
+     * before it builds anything.
+     * @throws When the environment is none of the known ones.
+     */
+    private prepareContainer(): void {
+        initDiContainer();
+
+        // checked at runtime as well: the type requires it, but an application built against an older
+        // declaration passes nothing, and "nothing" must not read as either environment
+        if (!ZIBRI_ENVIRONMENTS.includes(this.options.environment)) {
+            throw new InternalError(
+                `The environment has to be one of ${ZIBRI_ENVIRONMENTS.join(', ')}, got ${String(this.options.environment)}.`
+            );
+        }
+        GlobalRegistry.setAppData(this.options);
+
+        for (const provider of this.options.providers) {
+            register(provider);
+        }
+    }
+
+    /**
+     * Runs the command the process was started with, when it names one, in place of starting.
+     *
+     * `migrate list` lists the migrations every data source has applied. `migrate down <version |
+     * migration name>` reverts every migration applied after it, newest first, and `migrate down
+     * --all` every applied migration. The application is
+     * initialized for the command, without listening, and shut down once it is done.
+     * @param args - The arguments the process was started with, after the script:
+     * `process.argv.slice(2)`.
+     * @returns Whether a command ran, in which case the application must not be started.
+     * @throws When the arguments start with `migrate` and name no command of it, or the command fails.
+     */
+    async runCommand(args: string[]): Promise<boolean> {
+        // read before initializing, so that a mistyped command fails before it touches anything
+        const command: MigrationCommand | undefined = MigrationCommandUtilities.resolveCommand(args);
+        if (command == undefined) {
+            return false;
+        }
+        // what generating reads is what the data sources declare, which needs no connection: it runs
+        // where the application is developed, with no database to reach
+        if (command.action === 'generate') {
+            this.prepareContainer();
+            try {
+                await MigrationCommandUtilities.generate(command, this.options.dataSources);
+            }
+            finally {
+                await this.shutdown();
+            }
+            return true;
+        }
+        // so that initializing sets no schema up: booting applies the migrations not yet recorded,
+        // which put back what a revert just took away, and refuses a database a newer build migrated,
+        // which is what listing is for
+        GlobalRegistry.markAppAsRunningCommand();
+        await this.init();
+        try {
+            await MigrationCommandUtilities.run(command, this.options.dataSources, this.logger);
+        }
+        finally {
+            await this.shutdown();
+        }
+        return true;
     }
 
     /**
@@ -540,39 +603,14 @@ export class ZibriApplication {
      * @param signal - The signal that shuts down the application. Can be left empty if manually called.
      */
     async shutdown(signal?: ShutdownSignal): Promise<void> {
-        switch (GlobalRegistry.getAppData('state')) {
+        const state: AppState = GlobalRegistry.getAppData('state');
+        switch (state) {
             case AppState.OFFLINE:
             case AppState.SHUTTING_DOWN: {
                 // is already offline or shutting down, nothing to do here
                 return;
             }
-            case AppState.CREATED: {
-                // init() may have partially run (eg. a data source already connected in beforeAppInit)
-                // before failing, so this can't just no-op: only the values that were actually
-                // constructed so far are torn down — getAllInstantiatedValues() (unlike
-                // getAllRegisteredTokens()) never force-constructs something the failed init never touched.
-                this.logger.info('shutting down...');
-                GlobalRegistry.markAppAsShuttingDown();
-                for (const [signal, handler] of this.signalHandlers) {
-                    process.off(signal, handler);
-                }
-                this.removeErrorHandlers();
-
-                const injectables: unknown[] = getAllInstantiatedValues();
-                await this.beforeAppShutdown(injectables, signal);
-                await this.onAppShutdown(injectables, signal);
-                // what the hooks so far logged, written while the data sources are still open: the
-                // next phase closes them. After the phase rather than by a hook of the logger's own
-                // in it, which ran beside the other hooks and so before what they logged
-                await this.flushLogs();
-                await this.afterAppShutdown(injectables, signal);
-                await this.releaseProcess();
-
-                if (signal != undefined) {
-                    process.exit(this.shutdownFailed ? 1 : 0);
-                }
-                return;
-            }
+            case AppState.CREATED:
             case AppState.INITIALIZED:
             case AppState.STARTED: {
                 this.logger.info('shutting down...');
@@ -582,19 +620,16 @@ export class ZibriApplication {
                 }
                 this.removeErrorHandlers();
 
-                await this.shutdownHttpServer();
-                // the same reasoning as the branch above, which only ever applied it to a failed
-                // init: resolving every registered token here constructs whatever nothing used, so
-                // that a value can be handed a shutdown on the first and only moment it exists
-                const injectables: unknown[] = getAllInstantiatedValues();
-                await this.beforeAppShutdown(injectables, signal);
-                await this.onAppShutdown(injectables, signal);
-                // what the hooks so far logged, written while the data sources are still open: the
-                // next phase closes them. After the phase rather than by a hook of the logger's own
-                // in it, which ran beside the other hooks and so before what they logged
-                await this.flushLogs();
-                await this.afterAppShutdown(injectables, signal);
-                await this.releaseProcess();
+                // an application that was only created never listened: init() may have partially run
+                // (eg. a data source already connected in beforeAppInit) before failing
+                if (state !== AppState.CREATED) {
+                    await this.shutdownHttpServer();
+                }
+                // only the values that were actually constructed so far are torn down:
+                // getAllInstantiatedValues() (unlike getAllRegisteredTokens()) never force-constructs
+                // something a failed init never touched, or a running application never used, so a
+                // value is not handed a shutdown on the first and only moment it exists
+                await this.runShutdownPhases(getAllInstantiatedValues(), signal);
 
                 if (signal != undefined) {
                     process.exit(this.shutdownFailed ? 1 : 0);
@@ -856,71 +891,68 @@ export class ZibriApplication {
         GlobalRegistry.markLifecyclePhaseAsFinished(phase);
     }
 
-    private async afterAppShutdown(injectables: unknown[], signal: ShutdownSignal | undefined): Promise<void> {
-        const elements: AfterAppShutdown[] = injectables.filter(i => implementsAfterAppShutdown(i));
-        await Promise.all(elements.map(async e => {
-            try {
-                const timeoutInMs: number = e.shutdownTimeoutInMs ?? DEFAULT_SHUTDOWN_TIMEOUT_IN_MS;
-                // no abort signal here because stopping the api does that.
-                await PromiseUtilities.withTimeout(() => e.afterAppShutdown(this, signal), timeoutInMs);
-            }
-            catch (error) {
-                // a hook is allowed to fail without stopping the others - they are independent, and
-                // one broken teardown should not strand the rest. It does have to change how the
-                // process ends though, or an orchestrator reads a clean exit and a rolling deploy
-                // carries on as if nothing happened.
-                this.shutdownFailed = true;
-                this.logger.error(
-                    error instanceof Error
-                        ? error
-                        : new AfterAppShutdownError(e.constructor.name, { cause: error })
-                );
-            }
-        }));
+    /**
+     * Runs the three shutdown phases on the values built so far, and releases the process.
+     * @param injectables - The values built so far.
+     * @param signal - The signal that shuts down the application, if any.
+     */
+    private async runShutdownPhases(injectables: unknown[], signal: ShutdownSignal | undefined): Promise<void> {
+        await this.runShutdownPhase(
+            injectables,
+            implementsBeforeAppShutdown,
+            async hook => await hook.beforeAppShutdown(this, signal),
+            (name, options) => new BeforeAppShutdownError(name, options)
+        );
+        await this.runShutdownPhase(
+            injectables,
+            implementsOnAppShutdown,
+            async hook => await hook.onAppShutdown(this, signal),
+            (name, options) => new OnAppShutdownError(name, options)
+        );
+        // what the hooks so far logged, written while the data sources are still open: the next
+        // phase closes them. After the phase rather than by a hook of the logger's own in it, which
+        // ran beside the other hooks and so before what they logged
+        await this.flushLogs();
+        await this.runShutdownPhase(
+            injectables,
+            implementsAfterAppShutdown,
+            async hook => await hook.afterAppShutdown(this, signal),
+            (name, options) => new AfterAppShutdownError(name, options)
+        );
+        await this.releaseProcess();
     }
 
-    private async onAppShutdown(injectables: unknown[], signal: ShutdownSignal | undefined): Promise<void> {
-        const elements: OnAppShutdown[] = injectables.filter(i => implementsOnAppShutdown(i));
+    /**
+     * Runs one shutdown hook on every value that declares it, each under its own timeout.
+     *
+     * A hook is allowed to fail without stopping the others - they are independent, and one broken
+     * teardown should not strand the rest. It does have to change how the process ends though, or an
+     * orchestrator reads a clean exit and a rolling deploy carries on as if nothing happened.
+     * @param injectables - The values built so far.
+     * @param declares - Whether a value declares the hook.
+     * @param run - Runs the hook on a value.
+     * @param toError - The error a thrown value that is not an error is logged as, named after the value.
+     */
+    private async runShutdownPhase<H extends {
+        /**
+         * The timeout for after which the hook counts as failed.
+         */
+        shutdownTimeoutInMs?: number
+    }>(
+        injectables: unknown[],
+        declares: (value: unknown) => value is H,
+        run: (hook: H) => Promise<void>,
+        toError: (name: string, options: ErrorOptions) => Error
+    ): Promise<void> {
+        const elements: H[] = injectables.filter(i => declares(i));
         await Promise.all(elements.map(async e => {
             try {
-                const timeoutInMs: number = e.shutdownTimeoutInMs ?? DEFAULT_SHUTDOWN_TIMEOUT_IN_MS;
                 // no abort signal here because stopping the api does that.
-                await PromiseUtilities.withTimeout(() => e.onAppShutdown(this, signal), timeoutInMs);
+                await PromiseUtilities.withTimeout(() => run(e), e.shutdownTimeoutInMs ?? DEFAULT_SHUTDOWN_TIMEOUT_IN_MS);
             }
             catch (error) {
-                // a hook is allowed to fail without stopping the others - they are independent, and
-                // one broken teardown should not strand the rest. It does have to change how the
-                // process ends though, or an orchestrator reads a clean exit and a rolling deploy
-                // carries on as if nothing happened.
                 this.shutdownFailed = true;
-                this.logger.error(
-                    error instanceof Error
-                        ? error
-                        : new OnAppShutdownError(e.constructor.name, { cause: error })
-                );
-            }
-        }));
-    }
-
-    private async beforeAppShutdown(injectables: unknown[], signal: ShutdownSignal | undefined): Promise<void> {
-        const elements: BeforeAppShutdown[] = injectables.filter(i => implementsBeforeAppShutdown(i));
-        await Promise.all(elements.map(async e => {
-            try {
-                const timeoutInMs: number = e.shutdownTimeoutInMs ?? DEFAULT_SHUTDOWN_TIMEOUT_IN_MS;
-                // no abort signal here because stopping the api does that.
-                await PromiseUtilities.withTimeout(() => e.beforeAppShutdown(this, signal), timeoutInMs);
-            }
-            catch (error) {
-                // a hook is allowed to fail without stopping the others - they are independent, and
-                // one broken teardown should not strand the rest. It does have to change how the
-                // process ends though, or an orchestrator reads a clean exit and a rolling deploy
-                // carries on as if nothing happened.
-                this.shutdownFailed = true;
-                this.logger.error(
-                    error instanceof Error
-                        ? error
-                        : new BeforeAppShutdownError(e.constructor.name, { cause: error })
-                );
+                this.logger.error(error instanceof Error ? error : toError(e.constructor.name, { cause: error }));
             }
         }));
     }
@@ -1122,6 +1154,11 @@ export class ZibriApplication {
             res.controllers = [...plugin.controllers, ...res.controllers];
             res.cronJobs = [...plugin.cronJobs, ...res.cronJobs];
             res.providers = [...plugin.providers, ...res.providers];
+            res.websocketControllers = [...plugin.websocketControllers, ...res.websocketControllers];
+            res.dataSources = [...plugin.dataSources, ...res.dataSources];
+            res.twoFactorMethods = [...plugin.twoFactorMethods, ...res.twoFactorMethods];
+            res.backupTransports = [...plugin.backupTransports, ...res.backupTransports];
+            res.additionalLifecycleServices = [...plugin.additionalLifecycleServices, ...res.additionalLifecycleServices];
         }
 
         if (!res.authStrategies.length) {

@@ -352,3 +352,37 @@ describe('declaring the checks of an entity', () => {
         }).toThrow(/Ticket\.dueAt: "after" compares a date with "points", which holds a number/);
     });
 });
+
+// 05 §Q3, 06 §Q9, 09 §Q8: every entity whose rows expire had a cleanup job of its own, the same few
+// lines each, registered by whichever service remembered to
+describe('declaring when the rows of an entity expire', () => {
+    it('keeps the date property a row expires by', () => {
+        @Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true, expiresBy: 'expiresAt' })
+        class Invite extends BaseEntity {
+            @Property.date()
+            expiresAt!: Date;
+        }
+
+        expect(MetadataUtilities.getEntityMetadata(Invite)?.expiresBy).toBe('expiresAt');
+    });
+
+    it('refuses a property the entity does not declare while compiling, and one that holds no date while starting', () => {
+        expect(() => {
+            // @ts-expect-error - "expiresOn" is no property of the class
+            @Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true, expiresBy: 'expiresOn' })
+            class Misnamed extends BaseEntity {
+                @Property.date()
+                expiresAt!: Date;
+            }
+            return Misnamed;
+        }).toThrow(/Misnamed: The rows expire by "expiresOn", which is not a declared property/);
+        expect(() => {
+            @Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true, expiresBy: 'validForDays' })
+            class Counted extends BaseEntity {
+                @Property.number()
+                validForDays!: number;
+            }
+            return Counted;
+        }).toThrow(/Counted: The rows expire by "validForDays", which is a number property/);
+    });
+});

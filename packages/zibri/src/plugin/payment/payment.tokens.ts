@@ -27,7 +27,7 @@ export const ZIBRI_PAYMENT_PLUGIN_DI_TOKENS = {
      * >(ZIBRI_PAYMENT_DI_TOKENS.PAYMENT_SERVICE)
      */
     // eslint-disable-next-line typescript/no-explicit-any
-    PAYMENT_SERVICE: paymentToken<PaymentServiceInterface<any, any, any>>('zi.payment.payment_service')
+    PAYMENT_SERVICE: paymentToken<PaymentServiceInterface<any, any>>('zi.payment.payment_service')
 } as const satisfies TokenRecord;
 
 function paymentToken<T = never>(k: `zi.payment.${string}`): InjectionToken<T> {

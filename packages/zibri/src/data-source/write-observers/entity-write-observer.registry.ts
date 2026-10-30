@@ -30,7 +30,9 @@ export class EntityWriteObserverRegistry {
         // right. Until then, since a service observing the entities of another finds them only once
         // that one's onAppInit has run, in an order nobody chose
         if (GlobalRegistry.isLifecyclePhaseFinished(LifecyclePhase.AFTER_APP_INIT)) {
-            throw new InternalError(`An observer of ${entityClass.name} is registered after afterAppInit, where writes have been made without it.`);
+            throw new InternalError(
+                `An observer of ${entityClass.name} is registered after afterAppInit, where writes have been made without it.`
+            );
         }
         this.observers.set(entityClass, [...this.findObservers(entityClass), observer]);
     }

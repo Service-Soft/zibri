@@ -11,13 +11,13 @@ import { inject } from '../di/inject.function';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpMethod } from '../http/http-method.enum';
+import { KnownHeader } from '../http/known-header.enum';
 import { MiddlewarePhase } from '../http/middleware-phase.enum';
 import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { Route } from '../routing/controller-route-configuration.model';
 import { FsUtilities, type FsPath } from '../utilities/fs.utilities';
-import { ObjectUtilities } from '../utilities/object.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export type FileNode = { type: 'file', name: string, route: string };
@@ -28,8 +28,24 @@ export type DirectoryNode = { type: 'directory', name: string, children: TreeNod
 // eslint-disable-next-line jsdoc/require-jsdoc
 export type TreeNode = FileNode | DirectoryNode;
 
+// a map rather than an object, so a file named like a member of every object, such as `constructor`
+// or `__proto__`, is an entry of its own rather than a lookup that finds something else
 // eslint-disable-next-line jsdoc/require-jsdoc
-type NodeMap = Record<string, { directory?: NodeMap, fileRoute?: string }>;
+type NodeMap = Map<string, MapNode>;
+
+/**
+ * A path segment while the tree is built.
+ */
+type MapNode = {
+    /**
+     * What lies below the segment, when it is a directory.
+     */
+    directory?: NodeMap,
+    /**
+     * The route the file is served at, when it is a file.
+     */
+    fileRoute?: string
+};
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type WalkedPath = { relPath: string, isFile: boolean };
@@ -69,11 +85,15 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
         inject(ZIBRI_DI_TOKENS.ROUTER).registerRoute({
             httpMethod: HttpMethod.GET,
             route: '/favicon.ico',
-            handler: async () => {
+            handler: async (req, res) => {
                 const faviconPath: FsPath = FsUtilities.getPath(this.publicAssetsPath, 'favicon.png');
                 if (!await FsUtilities.exists(faviconPath)) {
                     throw new NotFoundError($ts`No favicon.png was found in the public assets folder.`);
                 }
+                // what the static middleware answers the other public assets with: anyone may keep it,
+                // and asks again whether it changed. A file the router sends is called public by
+                // nobody but its route
+                res.setHeader(KnownHeader.CACHE_CONTROL, 'public, max-age=0');
                 return FileResponse.fromPath(faviconPath);
             },
             versions: 'all',
@@ -93,7 +113,7 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
         const items: WalkedPath[] = await this.walk(this.publicAssetsPath);
 
         // Intermediate map structure for building
-        const root: NodeMap = {};
+        const root: NodeMap = new Map();
 
         for (const item of items) {
             const segments: string[] = item.relPath.split(FsUtilities.separator);
@@ -101,19 +121,20 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
 
             for (const [i, seg] of segments.entries()) {
                 const isLeaf: boolean = i === segments.length - 1;
-                current[seg] ??= {};
+                const node: MapNode = current.get(seg) ?? {};
+                current.set(seg, node);
                 if (isLeaf) {
                     if (item.isFile) {
-                        current[seg].fileRoute = `${this.assetsRoute}/${item.relPath.replaceAll('\\', '/')}`;
+                        // each segment encoded, so a name holding a space, `#` or `%` is the file it names
+                        node.fileRoute = `${this.assetsRoute}/${segments.map(segment => encodeURIComponent(segment)).join('/')}`;
                     }
                     else {
-                        current[seg].directory ??= {};
-
+                        node.directory ??= new Map();
                     }
                 }
                 else {
-                    current[seg].directory ??= {};
-                    current = current[seg].directory;
+                    node.directory ??= new Map();
+                    current = node.directory;
                 }
             }
         }
@@ -122,7 +143,7 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
     }
 
     private mapToTree(nodes: NodeMap): TreeNode[] {
-        return ObjectUtilities.entries(nodes).map(([name, info]) => {
+        return [...nodes.entries()].map(([name, info]) => {
             return info.directory
                 ? {
                     type: 'directory',

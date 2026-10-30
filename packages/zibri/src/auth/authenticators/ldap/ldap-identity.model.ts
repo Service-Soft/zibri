@@ -32,6 +32,13 @@ export class LdapIdentity extends BaseEntity {
      */
     @Property.date({ required: false })
     disabledAt?: Date | null;
+
+    /**
+     * When the directory was last asked about the entry, by a login or a refresh of a login of the
+     * user. Read against `refreshCheckIntervalInMs` of the authenticator.
+     */
+    @Property.date({ required: false })
+    checkedAt?: Date | null;
 }
 
 /**

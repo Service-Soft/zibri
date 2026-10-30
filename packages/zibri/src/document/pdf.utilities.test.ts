@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { PdfDocument, PdfUtilities } from './pdf.utilities';
+import { PdfAttachmentDefinition, PdfDocument, PdfUtilities } from './pdf.utilities';
+import { FsUtilities } from '../utilities/fs.utilities';
 
 /**
  * Reads a created document to its end.
@@ -17,6 +18,22 @@ async function render(doc: PdfDocument): Promise<string> {
 }
 
 describe('PdfUtilities', () => {
+    // 07 §T15: a string handed as `src` is read as a file path, so the type asks for the path brand
+    // the rest of the framework resolves one with, rather than for any string a request carried
+    it('attaches a file by a resolved path, raw content, or nothing a plain string could be', async () => {
+        const definition: PdfAttachmentDefinition[] = [
+            { src: FsUtilities.getPath(__dirname, 'pdf.utilities.test.ts'), options: { name: 'by-path.ts' } },
+            { src: Buffer.from('raw file content'), options: { name: 'raw.txt' } },
+            // @ts-expect-error a plain string is not a path the framework resolved
+            { src: '/etc/passwd', options: { name: 'any-string.txt' } }
+        ];
+
+        const pdf: string = await render(PdfUtilities.create({ content: ['with attachments'], attachments: definition.slice(0, 2) }, undefined));
+
+        expect(pdf).toContain('/F (by-path.ts)');
+        expect(pdf).toContain('/F (raw.txt)');
+    });
+
     it('sets bold and italic text in fonts of their own', async () => {
         const pdf: string = await render(PdfUtilities.create(
             {

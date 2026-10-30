@@ -1,14 +1,12 @@
-import type { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import type { ExecResult, StartedNetwork, StartedTestContainer } from 'testcontainers';
-import { DataSourceInterface, inject, Newable, OmitStrict, optionalPeer, PostgresDataSource, PostgresOptions, PostgresPooler, PostgresTransactionPooler, ValKeyDataSource, ValKeyOptions } from 'zibri';
+import type { ExecResult, GenericContainer, StartedNetwork, StartedTestContainer } from 'testcontainers';
+import { DataSourceInterface, inject, Newable, optionalPeer, PostgresDataSource, PostgresOptions, PostgresPooler, PostgresTransactionPooler, ValKeyDataSource, ValKeyOptions } from 'zibri';
 import { DiContainer } from 'zibri/internal';
 
 import { settleAfterFailure } from './settle-after-failure.function';
 
+// pinned rather than `latest`, so a suite that passes today passes tomorrow for the same reason
 /**
  * The postgres image every container backed test runs against.
- *
- * Pinned rather than `latest`, so a suite that passes today passes tomorrow for the same reason.
  */
 export const POSTGRES_TEST_IMAGE: string = 'postgres:17.6';
 
@@ -19,6 +17,16 @@ export const POSTGRES_TEST_IMAGE: string = 'postgres:17.6';
 const POSTGRES_PROVISIONING_USER: string = 'zibri_testing_provisioner';
 
 /**
+ * The port postgres listens on inside its container.
+ */
+const POSTGRES_PORT: number = 5432;
+
+/**
+ * What postgres logs once it accepts connections.
+ */
+const POSTGRES_READY_LOG: RegExp = /database system is ready to accept connections/;
+
+/**
  * The valkey image every container backed test runs against.
  */
 export const VALKEY_TEST_IMAGE: string = 'valkey/valkey:8-alpine';
@@ -27,6 +35,11 @@ export const VALKEY_TEST_IMAGE: string = 'valkey/valkey:8-alpine';
  * The port valkey listens on inside its container.
  */
 export const VALKEY_PORT: number = 6379;
+
+/**
+ * What valkey logs once it accepts connections.
+ */
+const VALKEY_READY_LOG: RegExp = /Ready to accept connections/;
 
 /**
  * The image PgBouncer runs in, in front of the postgres container of a data source behind a
@@ -66,6 +79,24 @@ const CONTAINERS_FEATURE: string = 'Starting a container for a data source';
  * Any data source a test harness knows how to start a container for.
  */
 export type TestDataSource = PostgresDataSource | ValKeyDataSource;
+
+/**
+ * Who a postgres test container is set up for.
+ */
+export type PostgresTestContainerOptions = {
+    /**
+     * The superuser the container is created with.
+     */
+    username: string,
+    /**
+     * The superuser's password.
+     */
+    password: string,
+    /**
+     * The database the container is created with.
+     */
+    database: string
+};
 
 /**
  * The host ports a data source is pointed at once its containers run.
@@ -172,10 +203,12 @@ export function applyContainerPorts(dataSource: TestDataSource, ports: DataSourc
         (dataSource.options as ValKeyOptions) = { ...dataSource.options, port };
         return;
     }
-    (dataSource.options as OmitStrict<PostgresOptions, 'type'>) = { ...dataSource.options, port };
+    // eslint-disable-next-line typescript/no-unnecessary-type-assertion
+    (dataSource.options as PostgresOptions) = { ...dataSource.options, port };
     // the server itself is a second address, known as late as the first
     const pooler: PostgresTransactionPooler | undefined = findTransactionPooler(dataSource);
     if (pooler != undefined && ports.directPort != undefined) {
+        // eslint-disable-next-line typescript/no-unnecessary-type-assertion
         (dataSource.pooler as PostgresPooler) = { ...pooler, direct: { ...pooler.direct, port: ports.directPort } };
     }
 }
@@ -196,7 +229,7 @@ function findTransactionPooler(dataSource: PostgresDataSource): PostgresTransact
  * @param dataSource - The data source whose credentials and database are created.
  * @throws When a statement is refused, naming what postgres said.
  */
-async function provisionApplicationRole(container: StartedPostgreSqlContainer, dataSource: PostgresDataSource): Promise<void> {
+async function provisionApplicationRole(container: StartedTestContainer, dataSource: PostgresDataSource): Promise<void> {
     // an application running as the superuser is an application nobody deploys, and a suite running
     // as one cannot see anything that needs a privilege the application would not have - a boot that
     // installs an extension, a backup that reads the cluster. Written out rather than left to the
@@ -220,7 +253,9 @@ async function provisionApplicationRole(container: StartedPostgreSqlContainer, d
         `CREATE DATABASE ${database} OWNER ${role}`,
         // behind a transaction pooler a connection carries what its role carries, which is the
         // operator's to set, the way the data source names it
-        ...findTransactionPooler(dataSource) == undefined ? [] : dataSource.resolveRoleSettingsSql().flatMap(statement => ['--command', statement])
+        ...findTransactionPooler(dataSource) == undefined
+            ? []
+            : dataSource.resolveRoleSettingsSql().flatMap(statement => ['--command', statement])
     ]);
     if (result.exitCode !== 0) {
         throw new Error(`Could not provision the role of ${dataSource.constructor.name}:\n${result.output}`);
@@ -300,6 +335,33 @@ export async function runAsSuperuser(container: StartedTestContainer, dataSource
 }
 
 /**
+ * Creates a postgres container for a test, which counts as started once postgres accepts connections.
+ *
+ * Postgres says so in its log, so nothing is run inside the container to find out, and it carries no
+ * health check either.
+ * @param options - The superuser and the database the container is created with.
+ * @param options.username - The superuser the container is created with.
+ * @param options.password - The superuser's password.
+ * @param options.database - The database the container is created with.
+ * @returns The container, not started yet.
+ */
+export function createPostgresTestContainer({ username, password, database }: PostgresTestContainerOptions): GenericContainer {
+    // a plain container rather than the postgres module's: that one asks the container runtime whether
+    // it is ready by running commands inside it, three every tenth of a second until the port is
+    // bound, which is only after the database is initialized, and adds a health check the runtime
+    // runs inside it every quarter of a second for as long as it runs. Each container starting beside
+    // it made the others slower, and a boot of a few seconds took over forty in a full run
+    const { GenericContainer: Container, Wait } = optionalPeer<typeof import('testcontainers')>('testcontainers', CONTAINERS_FEATURE);
+    return new Container(POSTGRES_TEST_IMAGE)
+        .withEnvironment({ POSTGRES_USER: username, POSTGRES_PASSWORD: password, POSTGRES_DB: database })
+        .withExposedPorts(POSTGRES_PORT)
+        // twice: once by the server that initializes the database, which accepts no connections over
+        // the network, and once by the one that serves it
+        .withWaitStrategy(Wait.forLogMessage(POSTGRES_READY_LOG, 2))
+        .withLabels(processLabels());
+}
+
+/**
  * Quotes a name for use as a sql identifier.
  * @param name - The name to quote.
  * @returns The quoted identifier.
@@ -340,12 +402,15 @@ export async function startDataSourceContainers(
                 return undefined;
             }
 
-            // loaded here rather than imported, because both are optional peers: a project testing
-            // against an in-memory data source installs neither, and loads this module all the same
+            // loaded here rather than imported, because it is an optional peer: a project testing
+            // against an in-memory data source does not install it, and loads this module all the same
+            const { GenericContainer, Network, Wait } = optionalPeer<typeof import('testcontainers')>('testcontainers', CONTAINERS_FEATURE);
             if (dataSource instanceof ValKeyDataSource) {
-                const { GenericContainer } = optionalPeer<typeof import('testcontainers')>('testcontainers', CONTAINERS_FEATURE);
                 const valKeyContainer: StartedTestContainer = await new GenericContainer(VALKEY_TEST_IMAGE)
                     .withExposedPorts(VALKEY_PORT)
+                    // from its log rather than by running commands inside it, for the reason
+                    // createPostgresTestContainer gives
+                    .withWaitStrategy(Wait.forLogMessage(VALKEY_READY_LOG))
                     .withLabels(processLabels())
                     .start();
                 const ports: DataSourcePorts = { port: valKeyContainer.getMappedPort(VALKEY_PORT), directPort: undefined };
@@ -353,22 +418,21 @@ export async function startDataSourceContainers(
                 return { dataSourceClass, container: valKeyContainer, ports, pooler: undefined };
             }
 
-            const { PostgreSqlContainer } = optionalPeer<typeof import('@testcontainers/postgresql')>(
-                '@testcontainers/postgresql',
-                CONTAINERS_FEATURE
-            );
-            const { Network } = optionalPeer<typeof import('testcontainers')>('testcontainers', CONTAINERS_FEATURE);
             // a network only for a data source behind a pooler, which reaches the server by its name on it
             const network: StartedNetwork | undefined = findTransactionPooler(dataSource) == undefined
                 ? undefined
                 : await new Network().start();
-            const starting: PostgreSqlContainer = new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
-                .withDatabase('postgres')
-                .withUsername(POSTGRES_PROVISIONING_USER)
-                .withLabels(processLabels());
-            const container: StartedPostgreSqlContainer = network == undefined
+            // the superuser's password is never used: only the harness connects as it, from inside
+            // the container, where the image trusts local connections
+            const starting: GenericContainer = createPostgresTestContainer({
+                username: POSTGRES_PROVISIONING_USER,
+                password: 'password',
+                database: 'postgres'
+            });
+            const container: StartedTestContainer = network == undefined
                 ? await starting.start()
-                : await starting.withNetwork(network).withNetworkAliases(POSTGRES_NETWORK_ALIAS).start();
+                : await starting.withNetwork(network).withNetworkAliases(POSTGRES_NETWORK_ALIAS)
+                    .start();
             let pooler: StartedPooler | undefined;
             try {
                 await provisionApplicationRole(container, dataSource);
@@ -381,8 +445,8 @@ export async function startDataSourceContainers(
                 throw error;
             }
             const ports: DataSourcePorts = pooler == undefined
-                ? { port: container.getMappedPort(5432), directPort: undefined }
-                : { port: pooler.container.getMappedPort(PGBOUNCER_PORT), directPort: container.getMappedPort(5432) };
+                ? { port: container.getMappedPort(POSTGRES_PORT), directPort: undefined }
+                : { port: pooler.container.getMappedPort(PGBOUNCER_PORT), directPort: container.getMappedPort(POSTGRES_PORT) };
             applyContainerPorts(dataSource, ports);
             return { dataSourceClass, container, ports, pooler };
         })

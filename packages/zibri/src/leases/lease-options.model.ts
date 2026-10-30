@@ -1,11 +1,9 @@
 import { Transaction } from '../data-source/transaction/transaction.model';
 
+// The only thing that ever differed between the framework's locks and its claims, which is why it
+// is a parameter here rather than two separate primitives - see evaluation/10-leases-and-claims.md.
 /**
  * What to do when somebody else already holds the grant.
- *
- * The only thing that ever differed between the framework's locks and its claims, which is why it
- * is a parameter here rather than two separate primitives - see
- * evaluation/10-leases-and-claims.md.
  */
 export type LeaseAcquisitionMode
     /**
@@ -68,13 +66,12 @@ export type LeaseCompletion
      */
         | 'retainOnError';
 
+// no `mode` or `acquireTimeoutInMs`: queueing for several keys at once is how two callers that want
+// the same two keys in a different order wait for each other forever
 /**
  * What to take when taking several things at once, and how.
  *
- * No `mode` or `acquireTimeoutInMs`, and that is the type saying so rather than a note in a doc
- * comment: queueing for several keys at once is how two callers that want the same two keys in a
- * different order wait for each other forever. Taking a set is always 'skip', and the work runs over
- * whichever of the keys were free.
+ * Taking a set is always 'skip', and the work runs over whichever of the keys were free.
  */
 export type LeaseSetOptions = {
     /**
@@ -107,8 +104,7 @@ export type LeaseOptions = LeaseSetOptions & {
      * How long to keep trying in 'wait' mode before giving up.
      *
      * Waiting forever turns one stuck replica into a stuck deployment, so there is always a limit.
-     * Reaching it throws rather than returning, since a caller that asked to queue cannot be told
-     * "never mind" and left to carry on. Ignored in 'skip' mode, which never waits.
+     * Reaching it throws a `LeaseAcquisitionTimeoutError`. Ignored in 'skip' mode, which never waits.
      *
      * Defaults to `leaseInMs`, which is the wrong value whenever the work may legitimately outlive
      * one lease - the two answer different questions. How long the work takes is not how long
@@ -117,8 +113,7 @@ export type LeaseOptions = LeaseSetOptions & {
     acquireTimeoutInMs?: number,
     /**
      * A transaction the work writes in. The grant is then held until the work has returned and the
-     * transaction has ended, rather than until the work has returned, so the next holder sees what
-     * was written once it is committed. Undefined, or a transaction that has ended already, holds it
+     * transaction has ended, so the next holder sees what was written once it is committed. Undefined, or a transaction that has ended already, holds it
      * until the work has returned.
      *
      * A transaction that is rolled back counts as work that threw, for `onCompletion`.

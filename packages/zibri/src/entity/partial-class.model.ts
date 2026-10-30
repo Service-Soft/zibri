@@ -2,6 +2,7 @@ import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 import { PropertyMetadata } from './decorators/property.decorator';
+import { resolveRequiredWhenGiven } from './required-when-given.function';
 
 // eslint-disable-next-line jsdoc/require-returns
 /**
@@ -17,7 +18,9 @@ export function PartialClass<T>(
     const original: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(Base);
     const partialMeta: Record<string, PropertyMetadata> = {};
     for (const [prop, meta] of ObjectUtilities.entries(original)) {
-        partialMeta[prop] = { ...meta, required: false };
+        // a property the base requires may be left out, but given it is given a value: null where the
+        // base requires one is a value the row the base describes cannot hold
+        partialMeta[prop] = { ...meta, required: meta.required === false ? false : resolveRequiredWhenGiven(prop) };
     }
     MetadataUtilities.setModelProperties(PartialClass, partialMeta);
     MetadataUtilities.stopInheritingCustomValidations(PartialClass);

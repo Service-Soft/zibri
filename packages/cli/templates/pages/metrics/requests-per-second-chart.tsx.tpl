@@ -66,7 +66,6 @@ export const RequestsPerSecondChart: TsxComponent<Props> = ({ secondary, classNa
 
         // build event‑loop lag series (in ms)
         const lagSeries: DataPoint[] = snaps.map(snap => {
-            // eslint-disable-next-line cspell/spellchecker
             const m: Metric | undefined = snap.metrics.find(m => m.name === 'nodejs_eventloop_lag_seconds');
             return {
                 x: new Date(snap.timestamp),

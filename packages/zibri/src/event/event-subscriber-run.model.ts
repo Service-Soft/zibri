@@ -4,21 +4,20 @@ import { Property } from '../entity/decorators/property.decorator';
 import { QueuedWorkEntity } from '../queue/queued-work-entity.model';
 import { OmitStrict } from '../types/omit-strict.type';
 
+// Three states rather than a `finishedAt` timestamp, because a run that is over and a run that
+// succeeded are not the same thing and every reader of this row needs to tell them apart. A single
+// timestamp could only say that something happened, which is what let a subscriber that threw count
+// as one that was done.
 /**
  * How one subscriber's handling of one event ended, or has not ended yet.
- *
- * Three states rather than a `finishedAt` timestamp, because a run that is over and a run that
- * succeeded are not the same thing and every reader of this row needs to tell them apart. A single
- * timestamp could only say that something happened, which is what let a subscriber that threw count
- * as one that was done.
  */
 export enum EventSubscriberRunStatus {
+    // a state rather than a deletion: something has to remember that this is a retry and how many
+    // have already been spent
     /**
      * The last attempt failed and another one is owed.
      *
-     * `nextAttemptAt` says when. Until then the subscriber is passed over, which is the whole reason
-     * the failure is a state rather than a deletion: something has to remember that this is a retry
-     * and how many have already been spent.
+     * `nextAttemptAt` says when. Until then the subscriber is passed over.
      */
     PENDING_RETRY = 'PENDING_RETRY',
     /**
@@ -28,8 +27,8 @@ export enum EventSubscriberRunStatus {
     /**
      * Every attempt was spent and the last one failed. Terminal.
      *
-     * The row is what is left of the work, so it is kept: the event it belongs to is marked failed
-     * rather than finished, and the cleanup job passes over both.
+     * The row is what is left of the work, so it is kept: the event it belongs to is marked failed,
+     * and the cleanup job passes over both.
      */
     FAILED = 'FAILED'
 }
@@ -79,9 +78,10 @@ export class EventSubscriberRun<T> extends QueuedWorkEntity {
      * When the last attempt ended, successfully or not.
      *
      * Set on every attempt, so it also says how long a run that is still being retried has been
-     * going. Kept as data rather than inferred from `createdAt`, which is when the *first* attempt
-     * started and stops being useful the moment there is a second.
+     * going.
      */
+    // kept as data rather than inferred from `createdAt`, which is when the *first* attempt started
+    // and stops being useful the moment there is a second
     @Property.date()
     finishedAt!: Date;
 }

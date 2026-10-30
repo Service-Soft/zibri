@@ -38,6 +38,10 @@ export abstract class RequestDeadlineUtilities {
             return await fn();
         }
 
+        // a timer of its own rather than an operation limit (OperationLimitUtilities.openLimit): a
+        // deadline answers the caller when it passes, whatever the handler is waiting for, where a
+        // limit only fires a signal. And a limit caps every statement as well, which costs a round
+        // trip on each connection a request takes (round 2's code review 03 §Q6)
         let timer: NodeJS.Timeout | undefined = undefined;
         const deadline: Promise<never> = new Promise<never>((_resolve, reject) => {
             timer = setTimeout(

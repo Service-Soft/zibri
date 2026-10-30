@@ -15,8 +15,8 @@ import { BaseEntity } from '../../entity/base-entity.model';
  */
 export type CreateEntityInput<T extends BaseEntity> = EntityMigrationInput<T> & {
     /**
-     * The properties by name, `id` included when it is not the default primary key. Relations are only
-     * created when resolved from the entity.
+     * The properties by name, `id` included when it is not the default primary key. Written out, the
+     * relations are created once the migrations have run, as the entities declare them.
      */
     properties: Record<string, MigrationPropertyMetadata> | 'resolveFromEntity'
 };

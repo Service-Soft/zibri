@@ -1,5 +1,6 @@
 import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from './decorators/param.decorator';
 import { CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
+import { InternalError } from '../error-handling/internal-error.model';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
@@ -29,14 +30,6 @@ export type RouteParam<T> = {
  */
 export type RouteParamMetadata = {
     /**
-     * The controller the route is on. Only used to name it when a parameter cannot be resolved.
-     */
-    readonly controllerClass: Newable<unknown>,
-    /**
-     * The method that handles the route.
-     */
-    readonly controllerMethod: string,
-    /**
      * The parameters filled from the path.
      */
     readonly pathParams: RouteParam<PathParamMetadata>[],
@@ -59,11 +52,7 @@ export type RouteParamMetadata = {
     /**
      * The parameter filled with the connection, if the route asks for one.
      */
-    readonly currentWebsocketConnection: CurrentWebsocketConnectionMetadata | undefined,
-    /**
-     * How many parameters the declarations above account for.
-     */
-    readonly declaredParamCount: number
+    readonly currentWebsocketConnection: CurrentWebsocketConnectionMetadata | undefined
 };
 
 /**
@@ -71,6 +60,7 @@ export type RouteParamMetadata = {
  * @param controllerClass - The controller the route is on.
  * @param controllerMethod - The method that handles the route.
  * @returns The declarations, in the shape a request is served from.
+ * @throws When the method takes a parameter no decorator declares.
  */
 export function resolveRouteParamMetadata(controllerClass: Newable<unknown>, controllerMethod: string): RouteParamMetadata {
     const pathParams: RouteParam<PathParamMetadata>[] = toRouteParams(
@@ -87,22 +77,26 @@ export function resolveRouteParamMetadata(controllerClass: Newable<unknown>, con
     const currentWebsocketConnection: CurrentWebsocketConnectionMetadata | undefined
         = MetadataUtilities.getRouteCurrentWebsocketConnection(controllerClass, controllerMethod);
 
-    return {
-        controllerClass,
-        controllerMethod,
-        pathParams,
-        queryParams,
-        headerParams,
-        body,
-        currentUser,
-        currentWebsocketConnection,
-        declaredParamCount: pathParams.length
-            + queryParams.length
-            + headerParams.length
-            + (body ? 1 : 0)
-            + (currentUser ? 1 : 0)
-            + (currentWebsocketConnection ? 1 : 0)
-    };
+    const declaredParamCount: number = pathParams.length
+        + queryParams.length
+        + headerParams.length
+        + (body ? 1 : 0)
+        + (currentUser ? 1 : 0)
+        + (currentWebsocketConnection ? 1 : 0);
+    // here, while the route is registered, rather than on every request: the method is known now,
+    // and a parameter nothing fills is a declaration nothing can satisfy (03 §H9)
+    const prototype: unknown = controllerClass.prototype;
+    const handler: unknown = typeof prototype === 'object' && prototype != undefined ? Reflect.get(prototype, controllerMethod) : undefined;
+    const takenParamCount: number = typeof handler === 'function' ? handler.length : 0;
+    if (declaredParamCount < takenParamCount) {
+        throw new InternalError([
+            `${controllerClass.name}.${controllerMethod} takes ${takenParamCount} parameters,`
+            + ` and decorators declare ${declaredParamCount} of them.`,
+            'Decorate every parameter of a route, such as with @Param.query() or @Body().'
+        ]);
+    }
+
+    return { pathParams, queryParams, headerParams, body, currentUser, currentWebsocketConnection };
 }
 
 /**

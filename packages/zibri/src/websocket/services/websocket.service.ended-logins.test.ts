@@ -21,10 +21,10 @@ import { CreatedApiKey } from '../../auth/strategies/api-key/created-api-key.mod
 import { ClientAccessTokenAuthStrategy } from '../../auth/strategies/client-access-token/client-access-token.auth-strategy';
 import { IssuedClientAccessToken } from '../../auth/strategies/issued-client-access-token.model';
 import { JwtAuthData } from '../../auth/strategies/jwt/jwt-auth-data.model';
-import { type JwtServiceInterface } from '../../auth/strategies/jwt/jwt-service.interface';
-import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy';
 import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
 import { JwtRevokedAccessToken } from '../../auth/strategies/jwt/jwt-revoked-access-token.model';
+import { type JwtServiceInterface } from '../../auth/strategies/jwt/jwt-service.interface';
+import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy';
 import { type UserServiceInterface } from '../../auth/user/user-service.interface';
 import { Repository } from '../../data-source/repository/repository';
 import { Transaction } from '../../data-source/transaction/transaction.model';
@@ -150,10 +150,12 @@ describe('a socket whose login has ended', () => {
     beforeAll(async () => {
         server = await startTestServer({
             websocketControllers: [EndedLoginsWsController],
-            dataSources: [createInMemoryDataSource({
-                entities: [...defaultTestServerEntities, ApiKey, JwtRevokedAccessToken],
-                repositories: defaultTestServerRepositories
-            })],
+            dataSources: [
+                createInMemoryDataSource({
+                    entities: [...defaultTestServerEntities, ApiKey, JwtRevokedAccessToken],
+                    repositories: defaultTestServerRepositories
+                })
+            ],
             authStrategies: [JwtAuthStrategy, ApiKeyAuthStrategy, ClientAccessTokenAuthStrategy],
             providers: [
                 ...defaultTestServerProviders,

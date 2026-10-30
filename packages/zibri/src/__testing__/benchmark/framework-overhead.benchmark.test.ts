@@ -1,10 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { DataSource as ToDataSource } from 'typeorm';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { BenchmarkTiming } from './benchmark-timing.model';
 import { BenchmarkUtilities } from './benchmark.utilities';
-import { PostgresTypeOrmWhereFilterConverter } from '../../data-source/data-sources/where-converter/postgres-typeorm-where-filter.converter';
+import { type HashServiceInterface } from '../../auth/hash/hash-service.interface';
+import { HashString } from '../../auth/hash/hash.utilities';
+import { PostgresSchema } from '../../data-source/data-sources/postgres/postgres-schema.model';
+import { PostgresWhereFilterConverter } from '../../data-source/data-sources/postgres/postgres-where-filter.converter';
 import { Where } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository/repository';
 import { InjectRepository, repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -40,6 +42,11 @@ import { StartedTestServer, startTestServer } from '../test-server/start-test-se
 const RUNS: number = 500;
 
 const LISTED_ROWS: number = 100;
+
+/**
+ * Fewer than the other runs, since a password is slow to verify by design.
+ */
+const PASSWORD_RUNS: number = 20;
 
 const baselinePath: FsPath = FsUtilities.getPath(__dirname, 'baseline.json');
 
@@ -149,11 +156,12 @@ describe('what the framework costs in time', () => {
             async () => await items.create({ name: 'created', count: 1 })
         ));
 
-        // what a postgres query spends turning its filter into find options, timed on its own because
-        // the in memory store above never converts one. Converted on every query rather than kept,
-        // since the result carries that query's values - this is what keeps the cost of that in view
-        const converter: PostgresTypeOrmWhereFilterConverter = new PostgresTypeOrmWhereFilterConverter(
-            new ToDataSource({ type: 'postgres' }),
+        // what a postgres query spends turning its filter into sql, timed on its own because the in
+        // memory store above never converts one. Converted on every query rather than kept, since the
+        // result carries that query's values - this is what keeps the cost of that in view. What type a
+        // column is stored as decides nothing about how long converting a filter on it takes
+        const converter: PostgresWhereFilterConverter = new PostgresWhereFilterConverter(
+            new PostgresSchema([BenchmarkItem], { resolveType: () => 'character varying', textCollation: 'en-US-x-icu', resolveDefault: () => undefined }),
             inject(ZIBRI_DI_TOKENS.LOGGER),
             { threshold: undefined, thresholdIsInclusive: false }
         );
@@ -161,7 +169,18 @@ describe('what the framework costs in time', () => {
         timings.push(await BenchmarkUtilities.resolveTiming(
             'where filter conversion',
             RUNS,
-            async () => await Promise.resolve(converter.convert(filter, BenchmarkItem))
+            async () => await Promise.resolve(converter.convert(filter, BenchmarkItem, 'item'))
+        ));
+
+        // what a login in a test costs beyond the framework: verifying a password at the cost the test
+        // providers hash with, an eighth of the shipped default. Timed so that a test doing several of
+        // them is sized against a number rather than a guess
+        const hashService: HashServiceInterface = inject(ZIBRI_DI_TOKENS.HASH_SERVICE);
+        const hashed: HashString = await hashService.hash('benchmark password');
+        timings.push(await BenchmarkUtilities.resolveTiming(
+            'password verification',
+            PASSWORD_RUNS,
+            async () => expect(await hashService.equal('benchmark password', hashed)).toBe(true)
         ));
 
         const report: string = await BenchmarkUtilities.resolveReport(

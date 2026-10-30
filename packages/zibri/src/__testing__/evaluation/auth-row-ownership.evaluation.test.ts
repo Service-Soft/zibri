@@ -8,7 +8,7 @@ import { AlsUtilities } from '../../context/als.utilities';
 import { type HttpRequestContext } from '../../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
 import { type WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { PaginationResult } from '../../data-source/models/pagination-result.model';
 import { Repository } from '../../data-source/repository/repository';
 import { InjectRepository, repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -427,7 +427,9 @@ beforeEach(async () => {
     ({ user: alice, token: aliceToken } = await register('alice-ownership@example.com', [Roles.USER]));
     ({ user: bob, token: bobToken } = await register('bob-ownership@example.com', [Roles.USER]));
     ({ token: rootToken } = await register('root-ownership@example.com', [Roles.ADMIN]));
-});
+    // a quarter of a second alone, and past jest's five while every evaluation suite runs a postgres
+    // of its own: seven deletes, three accounts and three logins before every test
+}, 30000);
 
 /**
  * Seeds one invoice for each of the two ordinary accounts.

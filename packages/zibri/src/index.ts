@@ -18,12 +18,14 @@ export { type Require2faFn } from './auth/decorators/require-2fa.decorator';
 
 export { type IsLoggedInMetadata } from './auth/models/is-logged-in-metadata.model';
 export * from './auth/models/base-user.model';
+export * from './auth/models/claimed-user.model';
 export * from './auth/models/soft-deleting-user-entity-options.model';
 export * from './auth/models/user-account.model';
 export * from './auth/models/authentication.model';
 export { type HasPermissionMetadata } from './auth/models/has-permission-metadata.model';
 export * from './auth/roles/role-level.type';
 export * from './auth/roles/permission.type';
+export * from './auth/roles/permission-wildcard.type';
 export * from './auth/roles/platform-permission.type';
 export * from './auth/roles/define-permissions.function';
 export * from './auth/roles/permission-declaration.model';
@@ -49,11 +51,12 @@ export * from './auth/models/provider-authentication.model';
 export * from './auth/models/ended-login.model';
 export * from './auth/models/logout-result.model';
 export { LoginTicket } from './auth/models/login-ticket.model';
-export * from './auth/login-ticket-cleanup.cron-job';
 
 export * from './auth/auth-service.interface';
 export * from './auth/auth.rate-limiter';
 export * from './auth/auth.service';
+export * from './auth/route-auth-service.interface';
+export * from './auth/route-auth.service';
 export * from './auth/auth-controller/auth-controller.model';
 export * from './auth/auth-controller/auth-controller-options.model';
 export * from './auth/auth-controller/auth-controller-class.type';
@@ -80,7 +83,6 @@ export * from './auth/strategies/jwt/jwks.model';
 export * from './auth/strategies/jwt/jwks.controller';
 export * from './auth/strategies/jwt/jwt.model';
 export { JwtRefreshToken } from './auth/strategies/jwt/jwt-refresh-token.model';
-export * from './auth/strategies/jwt/jwt-refresh-token-cleanup.cron-job';
 export * from './auth/strategies/jwt/access-token-revocation.type';
 export * from './auth/strategies/jwt/jwt-confirmation.model';
 export * from './auth/strategies/jwt/jwt-service.interface';
@@ -92,7 +94,6 @@ export * from './auth/strategies/jwt/jwt-refresh-login-data.model';
 export * from './auth/dpop/dpop-service.interface';
 export * from './auth/dpop/dpop.service';
 export { JwtRevokedAccessToken } from './auth/strategies/jwt/jwt-revoked-access-token.model';
-export * from './auth/strategies/jwt/jwt-revoked-access-token-cleanup.cron-job';
 export * from './auth/strategies/jwt/jwt-sign-options.model';
 export * from './auth/strategies/jwt/jwt-verify-options.model';
 
@@ -100,7 +101,6 @@ export * from './auth/strategies/cookie/cookie-auth-data.model';
 export * from './auth/strategies/cookie/cookie-auth-logout-data.model';
 export * from './auth/strategies/cookie/cookie-auth-refresh-login-data.model';
 export { CookieAuthRefreshSession } from './auth/strategies/cookie/cookie-auth-refresh-session.model';
-export * from './auth/strategies/cookie/cookie-auth-session-cleanup.cron-job';
 export { CookieAuthSession } from './auth/strategies/cookie/cookie-auth-session.model';
 export * from './auth/strategies/cookie/cookie-auth.auth-strategy';
 
@@ -171,6 +171,11 @@ export * from './auth/strategies/client-certificate-auth-strategy.interface';
 export * from './auth/strategies/auth-strategy.interface';
 export * from './auth/strategies/login-auth-strategy.interface';
 export * from './auth/strategies/token-introspecting-auth-strategy.interface';
+export * from './auth/strategies/login-listing-auth-strategy.interface';
+export * from './auth/strategies/resolve-login-device.function';
+export * from './auth/models/user-login.model';
+export * from './auth/models/listed-login.model';
+export * from './auth/models/login-device.model';
 export * from './auth/strategies/auth-strategies.model';
 
 export * from './auth/authenticators/authenticator.interface';
@@ -190,13 +195,22 @@ export * from './auth/authenticators/provider-access.error';
 export * from './auth/authenticators/provider-token-authenticator.interface';
 export * from './auth/authenticators/provider-token.model';
 export * from './auth/authenticators/password/password.authenticator';
-export * from './auth/authenticators/password/password-reset-token-cleanup.cron-job';
 export * from './auth/authenticators/password/password-credentials.model';
 export * from './auth/authenticators/password/password-failure-limit.model';
 export { PasswordFailureStreak } from './auth/authenticators/password/password-failure-streak.model';
 export * from './auth/authenticators/password/password-reset-email-template.model';
 export * from './auth/authenticators/password/request-password-reset-data.model';
 export * from './auth/authenticators/password/confirm-password-reset-data.model';
+export * from './auth/authenticators/password/change-password-data.model';
+export * from './auth/email-verification/email-verification-options.model';
+export * from './auth/email-verification/email-verification-purpose.type';
+export * from './auth/email-verification/email-verification-email-template.model';
+export * from './auth/email-verification/email-changed-email-template.model';
+export * from './auth/email-verification/email-verification-service.interface';
+export * from './auth/email-verification/email-verification.service';
+export * from './auth/email-verification/email-verification-token.model';
+export * from './auth/email-verification/email-verification-token-input.model';
+export * from './auth/email-verification/request-email-change-input.model';
 export * from './auth/authenticators/password/request-password-reset-input.model';
 export * from './auth/authenticators/password/password-reset-token-input.model';
 export * from './auth/authenticators/password/password-reset-token-validity.model';
@@ -228,6 +242,7 @@ export { Passkey } from './auth/authenticators/passkey/passkey.model';
 export * from './auth/authenticators/passkey/passkey.service';
 export { BaseFederatedAuthenticator } from './auth/authenticators/federated/base-federated.authenticator';
 export * from './auth/authenticators/federated/federated-authenticator.interface';
+export * from './auth/authenticators/federated/federated-binding.utilities';
 export * from './auth/authenticators/federated/federation-options.model';
 export * from './auth/authenticators/federated/federated-answer-context.model';
 export * from './auth/authenticators/federated/federated-credentials.model';
@@ -251,7 +266,6 @@ export { FederatedRegistrationTicket } from './auth/authenticators/federated/fed
 export { FederatedConnectionCode } from './auth/authenticators/federated/federated-connection-code.model';
 export * from './auth/authenticators/federated/federated-link-identity-request.model';
 export * from './auth/authenticators/federated/federated-link-identity-start.model';
-export * from './auth/authenticators/federated/federated-cleanup.cron-job';
 export * from './auth/authenticators/federated/federated-route.utilities';
 export * from './auth/authenticators/federated/federated-route.type';
 export * from './auth/authenticators/federated/federated-route-endpoint.model';
@@ -290,6 +304,7 @@ export * from './auth/authenticators/oauth/oauth-response-mode.type';
 export * from './auth/authenticators/oidc/base-oidc.authenticator';
 export * from './auth/authenticators/oidc/oidc-authentication-time.type';
 export * from './auth/authenticators/oidc/oidc-bearer-tokens.model';
+export * from './auth/authenticators/oidc/oidc-discovery-at-boot.type';
 export * from './auth/authenticators/oidc/providers/base-google.authenticator';
 export * from './auth/authenticators/oidc/providers/base-apple.authenticator';
 export * from './auth/authenticators/oidc/providers/base-microsoft.authenticator';
@@ -318,6 +333,7 @@ export * from './auth/2fa/methods/two-factor-method.interface';
 export * from './auth/2fa/methods/no-registration-request-data.model';
 export * from './auth/2fa/methods/otp/otp.two-factor-method';
 export * from './auth/2fa/methods/recovery-code/recovery-code.two-factor-method';
+export * from './auth/2fa/methods/recovery-code/recovery-code-options.model';
 export { TwoFactorRecoveryCode } from './auth/2fa/methods/recovery-code/two-factor-recovery-code.model';
 export * from './auth/2fa/methods/passkey/passkey.two-factor-method';
 export * from './auth/2fa/methods/code/code.two-factor-method';
@@ -327,7 +343,6 @@ export * from './auth/2fa/methods/code/sms-registration-request-data.model';
 export * from './auth/2fa/methods/code/sms-code-limits.model';
 export * from './auth/2fa/methods/code/sms-code-budget.rate-limiter';
 export * from './auth/2fa/methods/code/sms-code-number.rate-limiter';
-export * from './auth/2fa/methods/code/two-factor-code-cleanup.cron-job';
 export { TwoFactorCodeCredentials } from './auth/2fa/methods/code/two-factor-code-credentials.model';
 export * from './auth/2fa/methods/code/two-factor-code-options.model';
 export { TwoFactorCode } from './auth/2fa/methods/code/two-factor-code.model';
@@ -347,6 +362,7 @@ export * from './auth/encryption/encryption.utilities';
 export * from './auth/encryption/keys-in-use.model';
 export * from './auth/encryption/master-key-reference.model';
 export * from './auth/encryption/retired-key-usage.model';
+export { SigningKey } from './auth/encryption/signing-key.model';
 
 export * from './auth/encryption/strategies/aes-gcm.encryption-strategy';
 export { EncryptionStrategyEntity, EncryptionStrategyStatus } from './auth/encryption/strategies/encryption-strategy-entity.model';
@@ -463,6 +479,8 @@ export * from './error-handling/errors/validation.error';
 export * from './error-handling/errors/unauthorized.error';
 export * from './error-handling/errors/forbidden.error';
 export * from './error-handling/errors/credential-cloned.error';
+export * from './error-handling/errors/csrf-token-refused.error';
+export * from './error-handling/errors/email-not-verified.error';
 export * from './error-handling/errors/credential-reused.error';
 export * from './error-handling/errors/account-deactivated.error';
 export * from './error-handling/errors/password-locked.error';
@@ -479,10 +497,17 @@ export * from './error-handling/errors/global.error';
 export * from './error-handling/errors/unsupported-media-type.error';
 
 // audit
-export { AuditCollapse, AuditEntry } from './audit/audit-entry.model';
+export * from './audit/audit-collapse.enum';
+export { BaseAuditEntry } from './audit/base-audit-entry.model';
+export { AuditEntry } from './audit/audit-entry.model';
+export { ChainedAuditEntry } from './audit/chained-audit-entry.model';
+export { AuditCheckpoint } from './audit/audit-checkpoint.model';
+export * from './audit/audit-integrity.type';
+export * from './audit/audit-verification.model';
 export * from './audit/audit-service.interface';
 export * from './audit/audit.service';
 export * from './audit/audit-cleanup.cron-job';
+export * from './audit/audit-checkpoint.cron-job';
 
 // assets
 export * from './assets/asset-service.interface';
@@ -591,6 +616,7 @@ export { FormData } from './parsing/form-data/form-data.model';
 export * from './parsing/form-url-encoded/form-url-encoded.body-parser';
 export * from './parsing/form-data/file.model';
 export * from './parsing/form-data/file-response.model';
+export { type ContentDisposition } from './http/content-disposition.function';
 
 // http
 export { type CompressionOptions } from './http/compression.middleware';
@@ -607,7 +633,8 @@ export * from './http/http-request.model';
 export * from './http/http-response.model';
 export * from './http/redirect-response.model';
 export * from './http/json-response.model';
-export * from './http/mime-type.helpers';
+export * from './http/mime-type.utilities';
+export * from './http/file-extension.model';
 export * from './http/handler-timeout.type';
 export * from './http/http-server-limits.model';
 
@@ -652,6 +679,7 @@ export * from './data-source/stored-value-type-mismatch.error';
 export * from './data-source/query-failed.error';
 export * from './data-source/unique-constraint-violation.error';
 export * from './data-source/check-constraint-violation.error';
+export * from './data-source/unbounded-return.error';
 // needed by a driver, which merges what an update gives an object property into the stored object
 export * from './data-source/write-data.utilities';
 
@@ -670,7 +698,7 @@ export * from './data-source/data-sources/where-converter/parameterized-sql.mode
 
 export * from './data-source/data-sources/postgres/postgres-backup-scope.model';
 export * from './data-source/data-sources/postgres/postgres-pooler.model';
-export * from './data-source/data-sources/postgres/postgres-typeorm-data-source.model';
+export * from './data-source/data-sources/postgres/postgres-data-source.model';
 
 export * from './data-source/data-sources/val-key/val-key-backup-mode.model';
 export * from './data-source/data-sources/val-key/val-key-data-source.model';
@@ -695,11 +723,21 @@ export * from './data-source/models/rename-entity-input.model';
 export * from './data-source/models/merge-entity-input.model';
 export * from './data-source/models/migration-property-metadata.model';
 export * from './data-source/models/create-entity-input.model';
+export * from './data-source/models/migration-table-reference.model';
+export * from './data-source/models/remove-entity-input.model';
+export * from './data-source/models/remove-relation-from-entity-input.model';
 export * from './data-source/models/property-conversion.model';
 export * from './data-source/models/value-conversion.enum';
 // the shape of the onConflict argument, so a caller can type one outside the call
 export { type AtomicUpdate } from './data-source/models/atomic-update.model';
 export { type Increment, type UpdateAllData } from './data-source/models/update-all-data.model';
+export * from './data-source/models/data-source-time.model';
+export * from './data-source/models/data-source-now.function';
+export * from './data-source/chain/base-chained-entity.model';
+export { ChainAnchor } from './data-source/chain/chain-anchor.model';
+export * from './data-source/chain/chain-service.interface';
+export * from './data-source/chain/chain.service';
+export * from './data-source/chain/chain-verification.model';
 export * from './data-source/models/aggregate.model';
 export * from './data-source/aggregate.utilities';
 
@@ -739,6 +777,7 @@ export * from './data-source/models/where/property-reference.model';
 
 export * from './data-source/migration/migration.model';
 export * from './data-source/migration/migration-entity.model';
+export * from './data-source/migration/migration-revert-target.model';
 
 export * from './data-source/hooks/before-delete';
 export * from './data-source/hooks/before-return';
@@ -754,6 +793,7 @@ export * from './cron/cron-back-off-options.model';
 export * from './cron/cron-service.interface';
 export * from './cron/cron-sync.cron-job';
 export * from './cron/cron.service';
+export * from './cron/expired-rows-cleanup.cron-job';
 export * from './cron/run-execution.type';
 export * from './cron/cron-expression.utilities';
 
@@ -761,7 +801,6 @@ export * from './cron/cron-expression.utilities';
 export * from './leases/held-lease.model';
 export * from './leases/lease-acquisition-timeout.error';
 export * from './leases/lease-lost.error';
-export * from './leases/lease-cleanup.cron-job';
 export * from './leases/lease-options.model';
 export * from './leases/lease-service.interface';
 export { Lease } from './leases/lease.model';
@@ -944,6 +983,7 @@ export * from './plugin/invoicing/models/company-info.model';
 // plugin payment
 export * from './plugin/payment/payment.plugin';
 export * from './plugin/payment/payment.tokens';
+export * from './plugin/payment/payment-reconciliation.cron-job';
 
 export * from './plugin/payment/models/payment-plugin-options-input.model';
 export * from './plugin/payment/models/payment-plugin-options.model';
@@ -961,7 +1001,7 @@ export * from './plugin/payment/providers/pay-pal/pay-pal.payment-provider';
 
 // localization
 export * from './localization/xlf/generate-source-xlf.function';
-export { type SourceTranslationOrigin } from './localization/xlf/transform-source-translation-tokens.function';
+export * from './localization/xlf/models/source-translation-origin.model';
 
 export * from './localization/localize-service.interface';
 export * from './localization/localize.service';
@@ -985,8 +1025,11 @@ export * from './multithreading/models/base-thread-job-worker-data.model';
 export * from './multithreading/models/thread-job-data.model';
 export * from './multithreading/models/thread-job-function.model';
 export * from './multithreading/models/thread-job-entity.model';
+export * from './multithreading/models/thread-job-checkpoint.model';
+export * from './multithreading/models/requeue-thread-job-options.model';
 export * from './multithreading/run-queued-thread-jobs.cron-job';
 export * from './multithreading/thread-job-cleanup.cron-job';
+export * from './multithreading/thread-job-checkpoint-not-stored.error';
 
 export * from './multithreading/services/multithreading-service.interface';
 export * from './multithreading/services/multithreading.service';
@@ -1018,7 +1061,16 @@ export { CurrentWebsocketConnection } from './websocket/decorators/current-webso
 // backup
 export { BackupEntity } from './backup/backup-entity.model';
 export * from './backup/backup-failed.error';
+export * from './backup/backup-stopped.error';
+export * from './backup/backup-transport-not-found.error';
+export * from './backup/corrupt-backup.error';
+export * from './backup/incomplete-backup.error';
+export * from './backup/init-backup-service.error';
+export * from './backup/restore-not-undone.error';
+export * from './backup/restore-stopped.error';
+export * from './backup/unreadable-backup.error';
 export * from './backup/backup-format';
+export * from './backup/backup-retention.model';
 export * from './backup/backup-status.enum';
 export * from './backup/run-queued-backups.cron-job';
 export * from './backup/backup.service';
@@ -1044,12 +1096,14 @@ export * from './backup/decorators/backup-transport.decorator';
 export * from './http-client/http-client';
 export * from './http-client/http-client.interface';
 export * from './http-client/http-client-response.model';
+export * from './http-client/http-client-result.type';
 export * from './http-client/fetch-for-library-options.model';
 export * from './http-client/http-client-options.model';
 export * from './http-client/http-client.error';
 export * from './http-client/circuit-open.error';
 export * from './http-client/http-client-circuit-breaker-options.model';
 export * from './http-client/http-client-idempotency-key.model';
+export * from './http-client/http-client-redirect.model';
 
 // caching
 export * from './caching/cache-service.interface';
@@ -1086,6 +1140,7 @@ export * from './caching/decorators/cached.decorator';
 export * from './caching/store/cache-store.interface';
 export * from './caching/store/cached-value.model';
 export * from './caching/store/in-memory.cache-store';
+export * from './caching/store/in-memory-cache-store-config.model';
 export * from './caching/store/val-key.cache-store';
 export { type CacheModel } from './caching/store/cache-model.model';
 
@@ -1093,6 +1148,7 @@ export { type CacheModel } from './caching/store/cache-model.model';
 export * from './versioning/stored-route.model';
 export * from './versioning/supported-versions-options.model';
 export * from './versioning/version.model';
+export * from './versioning/version-overlap.error';
 export * from './versioning/versioning-service.interface';
 export * from './versioning/versioning.service';
 

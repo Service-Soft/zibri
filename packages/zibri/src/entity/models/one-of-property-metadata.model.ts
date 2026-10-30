@@ -36,11 +36,10 @@ export type OneOfShapeMetadataInput<TStringInput = StringPropertyMetadataInput> 
     { type: 'oneOf' } | { type: 'file' }
 >;
 
+// an interface rather than a record, because a shape can be an array whose items are one of several
+// shapes again, and only an interface lets the input types refer to each other that way
 /**
  * Input metadata of several shapes, by name.
- *
- * An interface rather than a record, because a shape can be an array whose items are one of several
- * shapes again, and only an interface lets the input types refer to each other that way.
  */
 export interface OneOfShapesMetadataInput<TStringInput = StringPropertyMetadataInput> {
     [name: string]: OneOfShapeMetadataInput<TStringInput>

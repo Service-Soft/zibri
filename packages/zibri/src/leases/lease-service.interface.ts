@@ -5,13 +5,12 @@ import { LeaseOptions, LeaseSetOptions } from './lease-options.model';
  * Interface for a lease service.
  */
 export interface LeaseServiceInterface {
+    // the whole cycle in one call, because every part of it has been got wrong separately: acquiring
+    // without renewing loses the grant under long work, renewing without releasing conditionally
+    // frees somebody else's, and releasing before the work has finished is what a lock scoped to a
+    // callback does. See evaluation/10-leases-and-claims.md
     /**
      * Takes the named grant, runs the work while keeping it alive, and hands it back afterwards.
-     *
-     * The whole cycle in one call, because every part of it has been got wrong separately: acquiring
-     * without renewing loses the grant under long work, renewing without releasing conditionally
-     * frees somebody else's, and releasing before the work has finished is what a lock scoped to a
-     * callback does. See evaluation/10-leases-and-claims.md.
      *
      * Returns undefined when the grant was not taken, which in 'skip' mode is the normal outcome on
      * every instance but one and is not an error.
@@ -33,8 +32,7 @@ export interface LeaseServiceInterface {
      * afterwards.
      *
      * For work that is a batch: several items claimed together, done together, and released
-     * together. The claim has to be on each item rather than on the batch, because the next batch a
-     * moment later is a different set of items and would otherwise be free to take one that is
+     * together. The claim is on each item, so the next batch a moment later cannot take one that is
      * still being worked on.
      *
      * `fn` is given the keys that were actually taken, which may be fewer than were asked for and
@@ -42,9 +40,9 @@ export interface LeaseServiceInterface {
      * work at all - and the signal `withLease` hands its work, which here fires once any of them
      * is lost.
      *
-     * Always skips what it cannot take. There is deliberately no waiting form: queueing for several
-     * keys at once is how two callers that want the same two keys in a different order wait for
-     * each other forever.
+     * Always skips what it cannot take. There is no waiting form: queueing for several keys at once
+     * is how two callers that want the same two keys in a different order wait for each other
+     * forever.
      */
     withLeases: <T>(
         keys: string[],

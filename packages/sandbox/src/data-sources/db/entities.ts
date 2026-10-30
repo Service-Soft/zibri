@@ -1,4 +1,4 @@
-import { AuditEntry, BaseEntity, BackupEntity, BackupResourceEntity, CacheInvalidation, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionRotationFailure, EncryptionRotationProgress, EncryptionStrategyEntity, Entity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, Invoice, InvoiceRecipientAbbreviation, JwtRefreshToken, Lease, Log, LoginTicket, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MigrationEntity, Newable, NumberInvoices, OmitClass, OtpCredentials, PasswordCredentials, PasswordResetToken, ThreadJobEntity, TwoFactorFailureStreak, WebsocketChannel, WebsocketMessage, WebsocketMessageSequence } from 'zibri';
+import { AuditCheckpoint, AuditEntry, BaseEntity, BackupEntity, BackupResourceEntity, CacheInvalidation, ChainAnchor, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionRotationFailure, EncryptionRotationProgress, EncryptionStrategyEntity, Entity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, Invoice, InvoiceRecipientAbbreviation, JwtRefreshToken, Lease, Log, LoginTicket, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MigrationEntity, Newable, NumberInvoices, OmitClass, OtpCredentials, PasswordCredentials, PasswordResetToken, SigningKey, ThreadJobEntity, TwoFactorFailureStreak, WebsocketChannel, WebsocketMessage, WebsocketMessageSequence } from 'zibri';
 
 import { Membership, Role, Tenant, Test, User } from '../../models';
 
@@ -28,6 +28,7 @@ export const entities: Newable<BaseEntity>[] = [
     MailingListSubscriptionConfirmationToken,
     Log,
     AuditEntry,
+    AuditCheckpoint,
     Change,
     ChangeSet,
     Invoice,
@@ -53,5 +54,7 @@ export const entities: Newable<BaseEntity>[] = [
     EncryptionKey,
     EncryptionRotationProgress,
     EncryptionRotationFailure,
+    SigningKey,
+    ChainAnchor,
     CacheInvalidation
 ];

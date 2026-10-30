@@ -1,4 +1,5 @@
 import { MigratedEntityUtilities } from './migration/migrated-entity.utilities';
+import { CastCheckedProperty } from './models/cast-checked-property.model';
 import { ChangePropertyOfEntityInput } from './models/change-property-of-entity-input.model';
 import { ConversionRefusal } from './models/conversion-refusal.enum';
 import { ConvertedValue } from './models/converted-value.model';
@@ -14,6 +15,7 @@ import { StoredStringPropertyMetadata } from '../entity/models/string-property-m
 import { InternalError } from '../error-handling/internal-error.model';
 import { INTEGER_REGEX } from '../parsing/functions/parse-number.function';
 import { toJsonValue } from '../parsing/functions/to-json-value.function';
+import { isNewable } from '../types/newable.type';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { BigNumber } from '../utilities/number.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
@@ -47,7 +49,7 @@ export abstract class ValueConversionUtilities {
         input: ChangePropertyOfEntityInput<T, C, M>
     ): ResolvedPropertyConversion {
         const res: ResolvedPropertyConversion = {
-            entity: input.entity.name,
+            entity: isNewable(input.entity) ? input.entity.name : input.entity.tableName,
             currentName: String(input.currentProperty.name),
             current: MigratedEntityUtilities.resolvePropertyMetadata(input.currentProperty),
             changedName: String(input.property.name),
@@ -123,10 +125,13 @@ export abstract class ValueConversionUtilities {
      * @returns True for two properties of the same type, and for a number and a string either way. Two
      * arrays only when their items are the same.
      */
-    private static isCastable(current: PropertyMetadata, changed: PropertyMetadata): boolean {
+    static isCastable(current: CastCheckedProperty, changed: CastCheckedProperty): boolean {
         if (current.type === 'array' && changed.type === 'array') {
-            return current.items.type === changed.items.type
-                && this.formatOf(current.items) === this.formatOf(changed.items);
+            // a number's format decides what it holds, while a string's decides only what it is checked for
+            const numberFormatOf: (items: CastCheckedProperty['items']) => string | undefined
+                = items => items?.type === 'number' ? items.format : undefined;
+            return current.items?.type === changed.items?.type
+                && numberFormatOf(current.items) === numberFormatOf(changed.items);
         }
         if (current.type === changed.type) {
             return true;
@@ -405,14 +410,5 @@ export abstract class ValueConversionUtilities {
                 return `a ${metadata.type} relation`;
             }
         }
-    }
-
-    /**
-     * The format of a number, for telling apart two arrays whose items are numbers.
-     * @param metadata - The items.
-     * @returns The format, or undefined for anything that is not a number.
-     */
-    private static formatOf(metadata: PropertyMetadata): NumberFormat | undefined {
-        return metadata.type === 'number' ? metadata.format : undefined;
     }
 }

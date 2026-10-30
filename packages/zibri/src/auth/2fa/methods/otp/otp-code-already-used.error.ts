@@ -1,6 +1,10 @@
 import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error';
 import { $ts } from '../../../../localization/translate.function';
 
+// Separate from a wrong code on purpose, though both answer 401. Two step up operations close
+// together is a normal thing to do, and telling that user their code was invalid sends them looking
+// for a mistake they did not make - the answer is to wait for the next one. It gives an attacker
+// nothing they do not already have, since replaying a code means they knew it was valid.
 /**
  * Thrown when a one time password is presented a second time.
  *
@@ -8,10 +12,7 @@ import { $ts } from '../../../../localization/translate.function';
  * thirty seconds. Accepting them twice would make them not one time: anyone who saw a code once
  * could use it for the rest of that step, which is what RFC 6238 requires a verifier to refuse.
  *
- * Separate from a wrong code on purpose, though both answer 401. Two step up operations close
- * together is a normal thing to do, and telling that user their code was invalid sends them looking
- * for a mistake they did not make - the answer is to wait for the next one. It gives an attacker
- * nothing they do not already have, since replaying a code means they knew it was valid.
+ * Answers 401, like a wrong code, with a message telling the user to wait for the next code.
  */
 export class OtpCodeAlreadyUsedError extends UnauthorizedError {
     constructor(options?: ErrorOptions) {

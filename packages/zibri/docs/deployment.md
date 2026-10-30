@@ -23,10 +23,10 @@ started from.
 `dist` carries the bundle together with the assets, the compiled templates and the translations,
 which the bundle reads from inside it. Copy the one folder.
 
-`versions` sits beside `dist`, because the application writes to it: each release records the routes
-it serves, and the release after it is checked against that record. Commit it to version control,
-and copy it into every deployment. The folder is required. Create it empty to start recording from
-the current version.
+`versions` sits beside `dist`: each release records the routes it serves, and the release after it is
+checked against that record. A release is recorded when the application starts in development. Commit
+the folder to version control, and copy it into every deployment, where the application only reads it
+and refuses to start on a version it does not record, see [versioning](./versioning.md).
 
 ## Configuration
 
@@ -35,8 +35,29 @@ is the committed list of what a deployment sets, and `src/env.ts` reads it:
 
 - `requireEnv` stops the application at startup when a variable is unset, naming the one that is
   missing.
+- `requireBooleanEnv` does the same, and also when a variable holds anything but `true` or `false`.
 - `requireOneOfEnv` does the same, and also when a variable holds none of the values it may hold.
+- `requirePortEnv` does the same, and also when a variable holds no port from 1 to 65535.
+- `requireUrlEnv` does the same, and also when a variable holds no absolute HTTP or HTTPS URL.
 - `optionalEnv` answers with an empty string, for what the application runs without.
+
+A variable of another kind gets a reader of its own in `src/env.ts`, which checks the value and stops
+the application naming the variable:
+
+```ts
+// src/env.ts
+export function requireBatchSizeEnv(key: string): number {
+    const value: string = process.env[key] ?? '';
+    const size: number = Number(value);
+    if (!Number.isInteger(size) || size < 1 || size > 100) {
+        throw new Error(`The environment variable "${key}" has to be a whole number from 1 to 100, got "${value}".`);
+    }
+    return size;
+}
+```
+
+Read every variable where the module that uses it is loaded, as the generated files do, and a
+deployment with a wrong value stops before it serves anything.
 
 A deployment sets `ENVIRONMENT=production`, and `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER` and
 `SMTP_PASSWORD` for the mail server. In production the application does not start without a mail
@@ -142,13 +163,12 @@ SIGTERM on. Size the sleep before it in your manifest.
 
 ## What the application writes
 
-Three paths are written while the application runs, and all of them live at the application root:
+Two paths are written while the application runs in production, and both live in `.zibri` at the application root:
 
-- `versions`: the route record described above, updated at startup when the version changes.
 - `.zibri/uploads`: where an upload is written while a request is handled.
 - `.zibri/backups`: where a [backup](./backup.md) is staged on its way to and from a transport.
 
-The user the application runs as owns these three. Everything else stays read only to it: the generated `Dockerfile` hands the `node` user `versions` and `.zibri`, and leaves the bundle and its dependencies to the build.
+`versions`, the route record described above, is written in development only. The user the application runs as owns `.zibri`. Everything else stays read only to it: the generated `Dockerfile` hands the `node` user `.zibri`, and leaves `versions`, the bundle and its dependencies to the build.
 
 To keep the image unwritable for any user, run the container with a read-only root filesystem and mount a writable directory at `.zibri`. It can be empty and live as long as the container:
 
@@ -174,7 +194,10 @@ services:
       - /app/.zibri
 ```
 
-`versions` stays as the image ships it. The application writes to it only when the record does not hold the version it runs, so build the image from a `versions` folder that already records the release. A read-only container that starts on a version its record lacks stops at startup.
+> [!WARNING]
+> A [restore](./backup.md#a-restore-of-several-resources) killed halfway is put back at the next start from the snapshots it keeps in `.zibri/backups`. A container restarted with an empty `.zibri` has none of them, and the resources stay half restored. Restore on an instance whose `.zibri/backups` outlives its container, such as one with a persistent volume there or `ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER` pointing at one.
+
+`versions` stays as the image ships it, so build the image from a `versions` folder that already records the release. A container that starts on a version the record lacks stops at startup, and the error says how to record it.
 
 ## What the application is made of
 
@@ -204,3 +227,4 @@ executions, claimed events, and the leases underneath both.
 - [Versioning](./versioning.md) — what the `versions` folder records, and what it validates
 - [Application lifecycle](./application-lifecycle.md) — the hooks that run on the way up and down
 - [Logging](./logging.md) — where a deployment sends what it records
+- [Recovering work that stopped](./troubleshooting.md) — what to do when a job, an event, a mail or a backup failed

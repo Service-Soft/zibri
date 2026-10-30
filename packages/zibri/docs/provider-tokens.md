@@ -14,13 +14,13 @@ Set `bearerTokens` on the authenticator of the provider, and register `ProviderT
 
 ```ts
 // src/auth/keycloak.authenticator.ts
-import { AuthController, BaseKeycloakAuthenticator, Controller, JwtAuthStrategy, OAuthClientAuthentication, OidcBearerTokens, OtpTwoFactorMethod, ProviderTokenAuthStrategy, ZibriApplicationOptions } from 'zibri';
+import { AuthController, BaseKeycloakAuthenticator, Controller, JwtAuthStrategy, OAuthClientAuthentication, OidcBearerTokens, OidcDiscoveryAtBoot, OtpTwoFactorMethod, ProviderTokenAuthStrategy, ZibriApplicationOptions } from 'zibri';
 
-import { Roles } from '../models/roles.enum';
 import { User } from '../models/user.model';
 
-export class KeycloakAuthenticator extends BaseKeycloakAuthenticator<Roles, User> {
+export class KeycloakAuthenticator extends BaseKeycloakAuthenticator<string, User> {
     readonly baseUrl: string = 'https://login.example.com';
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
     readonly realm: string = 'employees';
     readonly clientId: string = 'web';
     readonly clientAuthentication: OAuthClientAuthentication = {

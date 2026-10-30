@@ -426,6 +426,19 @@ constraint next to `startTestServer`.
 **Verify:** a jest file with two cases that each `jest.isolateModules(() => require('zibri'))` and
 boot through `startTestServer`; the second fails today with the install message.
 
+> **Closed 2026-10-28, message and docs, as the fix direction says.** The refusal stays: a reset
+> module registry is a second copy in every way that matters (its own `GlobalRegistry`, its own
+> classes), and a count that told the two causes apart would have to let a duplicate install through
+> whenever the application's copy happened to load last. `DuplicateFrameworkCopyError` now names the
+> test runner before the install: "In a test, "jest.resetModules" or "jest.isolateModules" loads the
+> second copy: a test that resets the module registry goes in a file of its own, which has a registry
+> of its own. Otherwise, run "npm ls zibri" …". `docs/testing.md` says the same under *Starting your
+> application in a test*, linking to *One copy per process* in `di.md`, which quotes the new message
+> and links back. Test: `framework-copies.test.ts` now boots the only copy through `startTestServer`
+> on an in-memory data source, and after `jest.resetModules()` asserts the message names
+> `jest.resetModules` and that a boot through `startTestServer` rejects with the error, which is what
+> the Verify note's consumer sees. The new message assertion was red before the change.
+
 ### T8. Translation extraction re-parses, transforms and prints the whole shipped framework source on every build and discards the printed output — MINOR
 *Filed 2026-10-21.* `src/localization` was never reviewed (09).
 
@@ -446,6 +459,27 @@ project's origin; drop the print.
 
 **Verify:** time `generateSourceXlf` with the sandbox's two origins before and after; a unit test that
 the framework origin is read from a shipped file rather than globbed.
+
+> **Closed 2026-10-28, shipping the framework's strings, as the fix direction says.** `npm run build
+> -w zibri` ends in `build:translations` (`scripts/extract-translations.mjs`), which writes
+> `packages/zibri/translations/source.xlf` from the package's own sources
+> (`getFrameworkTranslationOrigin`: `src` without tests, cases and fixtures) and ships it (`files`). It
+> is committed, and *ships the strings its sources mark for translation* in
+> `framework-source-xlf.test.ts` compares it with a fresh extraction, so a `$t` added without a build
+> since is red. `generateSourceXlf(root, origins)` takes an origin as files to scan
+> (`ScannedTranslationOrigin`) or as a `source.xlf` another build wrote (`ShippedTranslationOrigin`),
+> writes `root/translations/source.xlf` and names files relative to `root`: the `process.cwd()` anchor
+> and the `// TODO: fix` are gone. `GenerateSourcesOnBuildPlugin` hands it the shipped file and the
+> project's `src`. The transform and its print went with §T22 (below): extraction reads the code and
+> changes nothing, and `TransformResult` and `transformSourceTranslationOriginTokens` are gone
+> (`extractTranslationStrings` in `zibri/internal`). Tests: *takes the strings of an origin whose
+> source.xlf ships with it as they are, scanning nothing of it* in
+> `generate-source-xlf.function.test.ts` (glob is called with the scanned origin only), and
+> `generate-sources-on-build.plugin.test.ts` runs the plugin's `beforeCompile` on a scratch project
+> and finds the framework's `Monday` beside the project's string, with no glob under `zibri/src`.
+> Measured: the scan of the framework's 296 strings that every build paid is about 1.0 s on this
+> machine (the whole of the currency test); reading the shipped file is one parse. The sandbox's
+> `translations/source.xlf` is rewritten by its next build, with the ids of §T22.
 
 ### T9. The scaffold installs `ts-node` as a production dependency for TypeScript worker files, prunes `typescript` from the image, and bundles the application so no `.ts` worker path can exist — MINOR
 *Filed 2026-10-21.* Touches 06 §C4's "the generator installs what its own generated configuration reaches for".
@@ -476,6 +510,45 @@ worker files as a webpack entry; separately, make the boot check resolve `typesc
 (throws); and a multithreading test that stubs `typescript` out of resolution and asserts the boot
 check refuses.
 
+> **Closed 2026-10-28, default off, as decided** (user: the default becomes `false`, and what running
+> a TypeScript worker takes is asked for at boot through `optionalPeer`). A correction to the text
+> above first: "no `.ts` worker path can exist" is too strong. The scaffold's image cannot run one
+> (no sources, `typescript` pruned), and the documented `__dirname` form names `dist/`; a bundle run
+> beside its sources with the devDependencies present can, by a path into `src`. What stands is that
+> the default made every deployment carry a compiler for a path only development uses.
+> `enableTsWorkerFiles` defaults to `false`. `ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS_INPUT`
+> (`MultithreadingOptionsInput`, a `Partial`) is merged over the defaults into
+> `MULTITHREADING_OPTIONS`, like the other `_INPUT` tokens, so an application sets the one field
+> rather than re-declaring the machine-sized ones. With it `true`, `onAppInit` runs
+> `validateTsNodeInstalled`, which loads `ts-node` and `typescript` through `optionalPeer` and names
+> the missing one with "npm i …"; `isTsNodeInstalled` (resolution only, ts-node only) is gone. The
+> scaffold no longer installs `ts-node` (`SCAFFOLD_DEPENDENCIES`, its comment, `new.command.test.ts`),
+> the sandbox drops it from its `dependencies` (lockfile: `npm install`), and the accepted sandbox
+> differences lose the line. The repository's own test server sets `enableTsWorkerFiles: true`
+> through the input token, since its worker files run from the sources. Docs: `multithreading.md`
+> gains *Shipping the worker file* (the file as a webpack entry, the job naming the compiled `.js`)
+> and *Running TypeScript worker files*; its configuration example and Key exports use the input
+> token; Requirements list `ts-node` and `typescript` with the option; `configuration.md` has both
+> rows; `upgrading-to-3.md` says worker files are JavaScript by default and that the options go
+> through the input token. Tests: *is asked for at startup together with typescript, naming X when it
+> is missing* in `optional-peer-dependencies.test.ts` runs `validateTsNodeInstalled` in a consumer
+> process with `ts-node` and then `typescript` hidden (the second was red: the old check saw
+> `ts-node` and said nothing); `multithreading.service.options.test.ts` boots on the harness's own
+> providers and reads `enableTsWorkerFiles === false`, then boots with the input token and reads the
+> merge (both red before). The Verify's first half, pruning the registry-installed scaffold, is yours
+> to run; what it would show is the premise of the typescript case.
+>
+> **Corrected 2026-10-29.** Dropping `ts-node` went one step too far. The build's
+> `GenerateSourcesOnBuildPlugin` loads `src/models/generated/providers.ts` through it, so the
+> scaffold's first `npm run build` failed in `new.command.docker.heavy.test.ts`. In the monorepo the
+> root had hoisted it. `ts-node` is now in `SCAFFOLD_DEV_DEPENDENCIES` and in the sandbox's
+> devDependencies (lockfile: `npm install`). The image prunes it with the other devDependencies, so
+> the runtime half of this item stands. The `getting-started.md` peer row of the webpack
+> configuration names it, and `upgrading-to-3.md` says the build uses it. Red first: the install case
+> of `new.command.test.ts` asks for `ts-node@^10.9.2` among the devDependencies. Found with it: the
+> accepted sandbox differences still had the scripts from before 02 §S14 added `migrate:list` and
+> `migrate:down` to both sides.
+
 ### T10. A `?client` package whose browser entry is an ES module is copied and served as a classic script, failing in the browser rather than at build — MINOR
 *Filed 2026-10-21.* The vendor splitting was never reviewed (09).
 
@@ -496,6 +569,26 @@ Fix direction: sniff the chosen file for `import`/`export` statements (or `"type
 **Verify:** a `vendor.test.ts` fixture package whose `exports['.'].browser` points at an ESM file;
 assert `generateVendorBundles` throws (red today: it writes the file).
 
+> **Closed 2026-10-28, refusing at build, and one step wider than the fix direction.**
+> `readBrowserDist` no longer takes the first entry the manifest names: it walks every browser entry
+> (`exports['.'].browser`, the flat `./dist/*.js` export keys, then `browser`, `unpkg`, `cdn`) and
+> serves the first that is a classic script, so a package that names a module as its `browser` export
+> and keeps a UMD build under `unpkg` is served, not refused. Only a package with modules alone fails
+> the build: "Package 'x' ships its browser distribution as an ES module (dist/index.js), which a page
+> loads with a classic script tag and no browser runs …", naming what to do. Telling a module from a
+> script: `.mjs` and `.cjs` by extension, and otherwise by parsing the file with TypeScript's parser
+> and looking for a top-level import or export statement. The sniff the fix direction suggested was
+> tried first and failed on `chart.js` itself: its minified UMD build holds "Please import and
+> register the 'Filler' plugin" in a string, and `exports` matches `export\s*[a-z]`. The manifest's
+> `"type": "module"` is not a signal either, `chart.js` is one and its UMD file is a script. Tests in
+> `vendor.test.ts`, each on a package written into a scratch `node_modules`: a `"type": "module"`
+> package whose only browser entry exports (refused, nothing written), a package whose `browser`
+> field names a minified module with the manifest saying nothing (refused), and a package whose
+> `browser` export is `.mjs` beside an `unpkg` UMD (the UMD is served). The first two were red; the
+> third served the module. `docs/templating.md` says under *Running code in the browser* what the
+> build takes and that a modules-only package fails the build by name; the file name it quoted,
+> `chart.js.js`, was wrong and is `chart-js.js`.
+
 ### T11. Compiled templates carry no source map through the webpack loader or the jest transform — MINOR
 *Filed 2026-10-21.* "Source-map fidelity" was never reviewed (09).
 
@@ -509,6 +602,26 @@ by hand and would need a generator.
 
 **Verify:** render a template whose handler throws and read the stack; a test asserting
 `compile()` returns a `map` whose mappings for the component body point into the `.tsx` source.
+
+> **Closed 2026-10-28.** `compile()` returns `map`, a v3 source map naming the template
+> (`CompileOptions.fileName`) and carrying its source; the loader hands it to webpack through
+> `this.callback(null, code, map)`, which `devtool: 'source-map'` composes into the bundle's, and the
+> jest transformer returns `{ code, map }`, which jest applies to stack traces. How it is built, in
+> `codegen/source-map.ts` with no new dependency: the assembled module is tracked line by line
+> (`EmittedLines`, each line with its `LineOrigin`), and TypeScript's own map from the final
+> `transpileModule` (ESM→CJS, type erasure) is decoded, followed through the origins and re-encoded,
+> with a VLQ codec of about forty lines. Precision by kind of line: a statement outside the components
+> is now emitted *verbatim* from the template rather than reprinted (the transpile removes its comments
+> and types the way the printer did), so every line and column of it is the template's; a statement of
+> a component body maps to the line and column it is written on (render-codegen emits the body per
+> statement with origins); the render function's header, the component object and a re-emitted
+> import map to the declaration they come from. Not mapped: the client script, which is a string in
+> the page. Tests: `source-map.test.ts` round-trips the codec against what TypeScript writes, and for
+> both formats compiles a template with a module-level `throw` and a body statement, asserting the
+> `throw` maps to its own line *and column* and the body statement to its line (red before: no map);
+> the loader and transformer tests assert the map reaches webpack and jest, naming the template. The
+> Verify's stack trace is yours to read: build the sandbox, make a handler throw, and the frame names
+> the `.tsx`.
 
 ### T12. Supply-chain polish on the workflows: actions pinned by major tag, an unpinned `npm@latest` in the release job, CI not run on pull requests — MINOR
 *Filed 2026-10-21.* Cross-checked against 06 §CI2/§CD1-4, which cover the gates, not these.
@@ -525,6 +638,20 @@ provenance work in 06 shows the project cares about exactly this surface.
 **Verify:** two cases in `ci-workflows.test.ts`: every `uses:` reference is a 40-character SHA with
 a version comment, and no `npm install -g npm@latest` without a version.
 
+> **Closed 2026-10-28.** Every `uses:` in the four workflows is pinned to the commit its major tag
+> pointed at on this day, with the release as a comment, resolved with `git ls-remote` against each
+> repository (annotated tags peeled): `actions/checkout` v4.4.0, `actions/setup-node` v4.4.0,
+> `codecov/codecov-action` v5.5.5, `actions/upload-artifact` v4.6.2, `actions/dependency-review-action`
+> v4.9.0 (its `v4` is a branch), `actions/configure-pages` v5.0.0, `actions/upload-pages-artifact`
+> v3.0.1, `actions/deploy-pages` v4.0.5, `github/codeql-action` v3.39.1. The release job installs
+> `npm@12.2.1`, the registry's `latest` today. `ci.yml` runs on `pull_request` as well as `push`.
+> Tests, the Verify's two and one more, in `ci-workflows.test.ts`: *pins every action it uses to a
+> commit, with the release the commit is* (every `uses:` of every workflow file matches
+> `@<40 hex> # vX.Y.Z`; 17 unpinned before), *installs npm at a version in the job that signs the
+> release*, and *runs on pull requests, not only on pushes*. A pinned action is updated by hand or by
+> a bot; no dependabot configuration exists in the repository, which is yours to add if you want the
+> pins moved for you.
+
 ### T13. `prom-client` is deprecated in favour of `@prometheus-io/client` — MINOR
 *Filed 2026-10-21.* From the user's list (`after-all-findings-fixed.md:12`).
 
@@ -536,6 +663,10 @@ registry from here to confirm the deprecation notice; the user's list records it
 
 **Verify:** `npm view prom-client deprecated`; then a branch swapping the import in
 `metrics.service.ts` and running `metrics.service.test.ts`.
+
+> **Closed 2026-10-28 with 06 §F22**, which holds the whole closure. The deprecation was confirmed
+> with `npm view`. The peer, the sandbox and the scaffold are on `@prometheus-io/client@^0.16.1`.
+> `metrics.service.test.ts` runs after `npm install`, which only the user can run here.
 
 ### T14. Nothing measures the size or start time of a built production application — MINOR
 *Filed 2026-10-21.* From the user's list (`after-all-findings-fixed.md:20`).
@@ -550,6 +681,20 @@ dev dependencies (the pruned tree is what matters and is not recorded).
 **Verify:** extend the docker heavy test to record image size and the delay from container start to
 the first `200` from `/health/ready` into a baseline file beside `src/__testing__/benchmark/baseline.json`,
 reported like the benchmark job rather than gated.
+
+> **Closed 2026-10-28, as the Verify note says; the numbers are yours to record.**
+> `new.command.docker.heavy.test.ts` gains *reports what it weighs and how long it takes to answer,
+> against the baseline*: the image (`docker image inspect`), the bundle, `dist` with maps and assets,
+> the pruned `node_modules` (all read inside the running container) and the time from `docker run` to
+> the first `200` from `/health/ready`, polled every 250 ms rather than every second so the time is
+> worth reading. `DeploymentMeasurementUtilities` (`packages/cli/src/__testing__/`) writes the report
+> to `file-output/deployment-report.json`, compares each number with
+> `src/__testing__/deployment-baseline.json`, calls a size 1.25× its baseline *larger* and a time
+> *slower*, and replaces the baseline when `ZIBRI_DEPLOYMENT_UPDATE_BASELINE=1`; never a failure, the
+> way the benchmark is. Its test holds the report and the verdicts (red before the utilities existed).
+> CI's `test` job uploads the report as `deployment-report-node-<major>`. The baseline file is empty
+> until you run the heavy suite once with the variable set on the machine you compare on; the
+> checkout's sandbox numbers in the text above are not an image's.
 
 ### T15. A PDF attachment's `src: string` is a file path read by pdfkit, and the framework's own `FsPath` brand is not used — MINOR
 *Filed 2026-10-21.* `src/document` was never reviewed (09).
@@ -566,6 +711,14 @@ something.
 **Verify:** a type test in `pdf.utilities.test.ts` with `@ts-expect-error` on a plain string once
 the type is `FsPath | Buffer | ArrayBuffer`.
 
+> **Closed 2026-10-28.** `PdfAttachmentDefinition.src` is `FsPath | ArrayBuffer | Buffer`, and its
+> JSDoc says what a path is. The framework's one caller (`en16931-conformance.service.ts`) hands a
+> `Buffer`, so nothing else moved; `docs/document.md` names `FsUtilities.getPath` as where a path comes
+> from. Test: *attaches a file by a resolved path, raw content, or nothing a plain string could be* in
+> `pdf.utilities.test.ts` attaches this file by its resolved path and a buffer, reads both names out
+> of the pdf, and carries the Verify's `@ts-expect-error` on `'/etc/passwd'`, which `npm run
+> typecheck` reported as unused before the change (TS2578) and accepts after.
+
 ### T21. The metrics explorer is framework UI copied into the project — MINOR
 *Filed 2026-10-23,* from §T5, whose closure left it here on purpose.
 
@@ -580,6 +733,76 @@ config.
 
 **Verify:** none until the direction is decided; a heavy test generating a project and requesting
 `/metrics/dashboard` from the framework would hold it.
+
+> **Closed 2026-10-29 as decided: the explorer stays copied.** The user chose to keep the twenty
+> files in the project, owned and reviewed there and carried forward by `zi upgrade`'s merge (§T5),
+> over a framework-served explorer with a tsx build and styles of its own. Nothing changes; the
+> finding is recorded as a decision rather than a defect.
+
+### T22. Parameterized translations never match: `source.xlf` names a placeholder after its expression, `$t` numbers it — MINOR
+*Filed 2026-10-28,* found closing §T8.
+
+The extractor rewrote `${user.firstName}` into `${{ "user.firstName": user.firstName }}` and recorded
+the source as `Hello {user.firstName}`, on the assumption that the rewritten code is what runs (`$t`:
+"Transform ran — use the named key"). Nothing applied the rewrite: not `ts-loader` (no custom
+transformer in `resolveWebpackConfiguration`), not `zibri-tsx`, not `ts-jest`, not the framework's own
+`tsc` build, and `git log -S getCustomTransformers` finds nothing that ever did. At runtime `$t` builds
+`Hello {$1}`, so a `<target>` keyed by what `source.xlf` listed was never found, and the boot's
+"Missing translation" warning named ids nothing looks up. All 149 parameterized `$t`/`$ts` in `zibri`
+and the sandbox are the bare form. `zibri-tsx`'s client table already mirrored the runtime
+(`translation-sources.ts`: positional unless an inline single key object).
+
+Decision (user, 2026-10-28): positional, named by an inline object, rather than applying the rewrite
+in every compile path.
+
+> **Closed 2026-10-28.** `extractTranslationStrings` records a source the way `$t` builds it: `{$n}`
+> by position, or the single key of an inline object literal (`${{ firstName: user.firstName }}`,
+> shorthand and string keys included, through parentheses, `as`, `satisfies` and `!`). The rewrite,
+> the printer and `TransformResult` are gone. `docs/localization.md` says so under *Adding parameters
+> to a string*, with the de.xlf example keyed `Hello {firstName} {lastName}`, and `upgrading-to-3.md`
+> gets *A placeholder is numbered*: an existing `<trans-unit>` keyed by an expression is re-keyed.
+> Fixed on the same page: it said `src/translations/`; the folder is `translations/`, which `zi new`
+> writes and the build copies. Test: `translation-round-trip.test.ts` writes `source.xlf` from a file
+> with both forms, derives `de.xlf` from it the way a translator does, boots an in-memory app on that
+> folder with the real `LocalizeService` (§T23) and gets `Hallo Ada` from
+> `` $t`Hello ${name}`.getValue('de') `` and from the named form. Before the change the ids were
+> `Hello {name}` and the lookup fell through to `Hello Ada`; the old extractor test *uses the member
+> access chain as the placeholder key* recorded that as intended. `extract-translation-strings.function.test.ts`
+> holds each placeholder rule. Not covered: a variable that happens to hold a single key object at
+> runtime is named by `$t` and numbered by the extractor, the gap `zibri-tsx` marks `complete: false`;
+> the docs name the inline form as the one that names a placeholder.
+
+### T23. The repository's test servers replace the localize service's startup with nothing — MINOR
+*Filed 2026-10-28,* found closing §T22.
+
+`defaultTestServerProviders` (`src/__testing__/test-server/providers.ts:87-91`, `:116-119`) registers a
+`TestLocalizeService` whose `onAppInit` does nothing. It dates from when a missing `source.xlf` was a
+boot failure; the service now warns and goes on (`localize.service.ts:108-114`), and
+`localize.service.test.ts:314-318` says the override is why "the startup path of a shipped service was
+run by nothing". It still is: every suite booting through `startTestServer` runs an application whose
+localization never starts, so the text-order check, the `source.xlf` read and the missing-translation
+warnings are exercised only by that file's direct calls, and §T22's round trip had to put the real
+service back by hand.
+
+Fix direction: remove `TestLocalizeService`. Every boot then warns "Found no translations" once,
+which is what an application without translations gets; if that is noise, the harness's scratch
+`translations` folder can hold an empty `source.xlf`.
+
+**Verify:** `localize-startup.evaluation.test.ts` boots through `startTestServer` with the defaults
+and expects "Initializes localization for the locales" in the boot log; red today.
+
+> **Closed 2026-10-29, the override removed and the harness writing an empty source, as decided.**
+> `TestLocalizeService` is gone from `defaultTestServerProviders`, so every test server of the
+> repository runs the real `LocalizeService.onAppInit`. The harness's `createScratchDirectory`
+> (zibri-testing) writes `translations/source.xlf` holding an empty XLIFF document beside `versions`,
+> so an application under test starts the way a deployment with nothing to translate does: the file
+> is read, no warning. Consumers get the same, and `docs/testing.md` says so under *Where a test
+> server writes*. The evaluation test went green and moved, by `mv`, to
+> `localization/localize.service.startup.test.ts`, asserting the startup line and the locale in the
+> boot log. `translation-round-trip.test.ts` no longer puts the service back by hand (the provider
+> stays harmless and was left as the explicit statement of what that suite is about). The three
+> "Found no translations" warnings in `localize.service.test.ts`'s output are its own direct calls on
+> the default path, as before.
 
 ## Code quality and architecture
 

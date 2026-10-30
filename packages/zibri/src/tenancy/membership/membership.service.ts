@@ -1,8 +1,9 @@
 import { BaseMembership } from './base-membership.model';
+import { MembershipEventWriteObserver } from './membership-event.write-observer';
 import { isMembershipRepository, MembershipRepositoryInterface } from './membership-repository.interface';
 import { MembershipServiceInterface } from './membership-service.interface';
-import { MembershipEventWriteObserver } from './membership-event.write-observer';
 import { MembershipWriteObserver } from './membership.write-observer';
+import { type AuditServiceInterface } from '../../audit/audit-service.interface';
 import { RoleUtilities } from '../../auth/roles/role.utilities';
 import { type UserServiceInterface } from '../../auth/user/user-service.interface';
 import { Repository } from '../../data-source/repository/repository';
@@ -21,6 +22,8 @@ import { InternalError } from '../../error-handling/internal-error.model';
 import { FrameworkEventNames } from '../../event/framework-event-names.model';
 import { AfterAppInit } from '../../global/after-app-init.interface';
 import { OnAppInit } from '../../global/on-app-init.interface';
+import { AuditAction, AuditOutcome } from '../../logging/audit-event.model';
+import { AuditUtilities } from '../../logging/audit.utilities';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { Newable } from '../../types/newable.type';
 import { type TenantServiceInterface } from '../tenant-service.interface';
@@ -41,6 +44,10 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
 
     private get userService(): UserServiceInterface {
         return inject(ZIBRI_DI_TOKENS.USER_SERVICE);
+    }
+
+    private get auditService(): AuditServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE);
     }
 
     constructor(
@@ -71,7 +78,11 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
             }
             this.repository = repository;
             this.entityRepository = repository;
-            inject(EntityWriteObserverRegistry).register(repository.entityClass, new MembershipWriteObserver(this.tenantService));
+            inject(EntityWriteObserverRegistry).register(
+                repository.entityClass,
+                // given the role service here rather than resolving it per write (01 §Q3)
+                new MembershipWriteObserver(this.tenantService, inject(ZIBRI_DI_TOKENS.ROLE_SERVICE))
+            );
             // only when the application named one, since each costs every write to memberships a read
             // before it and an event
             const names: FrameworkEventNames = inject(ZIBRI_DI_TOKENS.FRAMEWORK_EVENT_NAMES);
@@ -115,7 +126,8 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
     // eslint-disable-next-line jsdoc/require-jsdoc
     async findActiveMembership<Role extends string, T extends BaseMembership<Role>>(
         userId: string,
-        tenantId: string
+        tenantId: string,
+        transaction?: Transaction
     ): Promise<T | undefined> {
         const repository: MembershipRepositoryInterface<string, BaseMembership<string>> | undefined = this.repository;
         if (repository == undefined) {
@@ -125,7 +137,7 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
         // tenant the caller happens to be in
         const membership: BaseMembership<string> | undefined = await this.tenantService.runAs(
             tenantId,
-            async () => await repository.findMembership(userId, tenantId)
+            async () => await repository.findMembership(userId, tenantId, transaction)
         );
         // left out here rather than by every caller, so that no check asking whether a user belongs
         // to a tenant can forget it
@@ -156,13 +168,46 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
         transaction: Transaction | undefined
     ): Promise<void> {
         const repository: MembershipRepositoryInterface<string, BaseMembership<string>> = this.getRepository();
-        await this.tenantService.runAs(tenantId, async () => await repository.updateDeactivatedAt(userId, deactivatedAt, transaction));
+        await this.audited(
+            deactivatedAt == undefined ? AuditAction.MEMBERSHIP_REACTIVATED : AuditAction.MEMBERSHIP_DEACTIVATED,
+            userId,
+            tenantId,
+            async () => await repository.updateDeactivatedAt(userId, deactivatedAt, transaction)
+        );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async deleteMembership(userId: string, tenantId: string, transaction: Transaction | undefined): Promise<void> {
         const repository: MembershipRepositoryInterface<string, BaseMembership<string>> = this.getRepository();
-        await this.tenantService.runAs(tenantId, async () => await repository.deleteMembership(userId, transaction));
+        await this.audited(
+            AuditAction.MEMBERSHIP_DELETED,
+            userId,
+            tenantId,
+            async () => await repository.deleteMembership(userId, transaction)
+        );
+    }
+
+    /**
+     * Changes a membership in its tenant, recording that it happened or why it did not.
+     *
+     * Recorded because losing a tenant is losing every role in it, which is recorded when it happens
+     * one role at a time.
+     * @param action - The change.
+     * @param userId - The id of the member.
+     * @param tenantId - The tenant of the membership, which the entry is recorded in.
+     * @param change - Makes the change.
+     */
+    private async audited(action: AuditAction, userId: string, tenantId: string, change: () => Promise<void>): Promise<void> {
+        await this.tenantService.runAs(tenantId, async () => {
+            try {
+                await change();
+                this.auditService.record({ action, outcome: AuditOutcome.SUCCESS, userId });
+            }
+            catch (error) {
+                this.auditService.record({ action, outcome: AuditOutcome.FAILURE, reason: AuditUtilities.resolveReason(error), userId });
+                throw error;
+            }
+        });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

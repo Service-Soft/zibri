@@ -19,7 +19,7 @@ import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -309,5 +309,7 @@ describe('evaluation/02-http-runtime-core M5 - the second factor token', () => {
         // constant.
         expect(res.status).toBe(200);
         expect(await res.json()).toEqual({ has2fa: true });
-    });
+        // tens of milliseconds alone, and past jest's five while every evaluation suite runs a
+        // postgres of its own: an enrollment, its confirmation and a request with the code
+    }, 30000);
 });

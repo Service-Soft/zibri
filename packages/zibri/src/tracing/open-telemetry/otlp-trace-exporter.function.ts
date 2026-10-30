@@ -4,8 +4,8 @@ import { optionalPeer } from '../../utilities/optional-peer.function';
 /**
  * Where finished spans are sent, and how.
  *
- * Every field is stated rather than read from the environment, so what an application does with its
- * spans is decided in the same file as everything else it is configured with, and is the same
+ * Every field is stated here, none is read from the environment, so what an application does with
+ * its spans is decided in the same file as everything else it is configured with, and is the same
  * wherever it runs.
  */
 export type OtlpTraceExporterOptions = {

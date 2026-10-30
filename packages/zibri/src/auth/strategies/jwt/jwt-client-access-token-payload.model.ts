@@ -5,14 +5,11 @@ import { isJwtConfirmation, JwtConfirmation } from './jwt-confirmation.model';
  * RFC 9068 gives such a token.
  */
 export type JwtClientAccessTokenPayload = {
+    // no email beside it, for the reason the access token of a login carries none
     /**
      * The id of the user the client's api key acts as.
      */
     sub: string,
-    /**
-     * The email of that user.
-     */
-    email: string,
     /**
      * The permissions the token may use, separated by spaces. A request made with it holds those of
      * them the user's roles still carry.
@@ -53,7 +50,6 @@ export function isJwtClientAccessTokenPayload(payload: unknown): payload is JwtC
         return false;
     }
     return 'sub' in payload && typeof payload.sub === 'string'
-        && 'email' in payload && typeof payload.email === 'string'
         && 'scope' in payload && typeof payload.scope === 'string'
         && 'roles' in payload && Array.isArray(payload.roles) && payload.roles.every(r => typeof r === 'string')
         && 'client_id' in payload && typeof payload.client_id === 'string'

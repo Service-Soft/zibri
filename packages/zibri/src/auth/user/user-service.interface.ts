@@ -6,14 +6,12 @@ import { Newable } from '../../types/newable.type';
 import { BaseUser } from '../models/base-user.model';
 
 /**
- * Options for looking a user up.
- *
- * The repository's own requirement flag, and only that one: which data source a user comes from is
- * the user repository's business, so nothing else here would mean anything.
+ * Options for looking a user up: whether the user has to exist, and the transaction to read in, as
+ * every user repository is asked in it.
  */
 export type FindUserOptions<Required extends boolean = true> = Pick<
     FindByIdOptions<BaseUser<string>, Required>,
-    'required'
+    'required' | 'transaction'
 >;
 
 /**
@@ -49,6 +47,12 @@ export interface UserServiceInterface {
      * @throws A NotFoundError when no user repository holds the user.
      */
     updateRoles: (id: string, roles: string[], transaction: Transaction | undefined) => Promise<void>,
+    /**
+     * Stores the email of a user and when it was verified, or null while it is not, in the user
+     * repository that holds them.
+     * @throws A NotFoundError when no user repository holds the user.
+     */
+    updateEmail: (id: string, email: string, emailVerifiedAt: Date | null, transaction: Transaction | undefined) => Promise<void>,
     /**
      * Whether the rows of an entity are users, because a user repository reads them.
      *
@@ -86,6 +90,7 @@ export function isUserService(value: unknown): value is UserServiceInterface {
         'findById',
         'updateDeactivatedAt',
         'updateRoles',
+        'updateEmail',
         'isUserEntity',
         'getUserEntityClasses',
         'findUnknownRoles',

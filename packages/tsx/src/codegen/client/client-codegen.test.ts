@@ -234,6 +234,40 @@ describe('end-to-end reattachment', () => {
         expect(seen).toEqual(['c', 'a']);
     });
 
+    it.each([
+        ['a callback body', 'const A = ({ items }) => <ul>{items.map(item => { const url = \'/i/\' + item.id; return <li onClick={() => picked(url)}>x</li>; })}</ul>;'],
+        ['a callback body, under the name of a browser global', 'const A = ({ items }) => <ul>{items.map(item => { const name = \'/i/\' + item.id; return <li onClick={() => picked(name)}>x</li>; })}</ul>;'],
+        ['a nested block', 'const A = ({ items }) => { if (items.length > 0) { const url = \'/i/\' + items[0].id; return <b onClick={() => picked(url)}>x</b>; } return <i/>; };']
+    ])('captures a local declared in %s for its handler', (_where, source) => {
+        const items: Record<string, unknown>[] = [{ id: 1 }];
+        const { html, handlers } = renderComponentResult(source, { items });
+        const elements: FakeElement[] = elementsFrom(html);
+        let received: string | undefined;
+        runClient(clientOf(source), { items }, elements, handlers, {
+            picked: (v: string) => {
+                received = v;
+            }
+        });
+        elements[0].fire('click');
+        expect(received).toBe('/i/1');
+    });
+
+    it('attaches the handlers of markup an early return renders', () => {
+        const source: string = 'const A = ({ user }) => { function login() { picked(\'login\'); } '
+            + 'if (!user) { return <button onClick={login}>Log in</button>; } '
+            + 'const name = user.name; return <b onClick={() => picked(name)}>x</b>; };';
+        const { html, handlers } = renderComponentResult(source, { user: undefined });
+        const elements: FakeElement[] = elementsFrom(html);
+        let received: string | undefined;
+        runClient(clientOf(source), {}, elements, handlers, {
+            picked: (v: string) => {
+                received = v;
+            }
+        });
+        elements[0].fire('click');
+        expect(received).toBe('login');
+    });
+
     it('threads a handler across a component boundary and reattaches it', () => {
         const button: string = 'const Button = ({ onClick, children }) => <button onClick={onClick}>{children}</button>;';
         const page: string = 'const Page = () => { function inc() { picked(\'x\'); } return <Button onClick={inc}>Go</Button>; };';

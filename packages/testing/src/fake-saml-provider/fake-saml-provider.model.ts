@@ -213,8 +213,8 @@ export class FakeSamlProvider {
     }
 
     /**
-     * Answers the next login with the given second level status rather than logging the user in, as
-     * a provider does when the user is refused.
+     * Answers the next login with the given second level status, without logging the user in, as a
+     * provider does when the user is refused.
      * @param status - The status, eg. `urn:oasis:names:tc:SAML:2.0:status:RequestDenied`.
      */
     denyNext(status: string): void {
@@ -594,9 +594,10 @@ export class FakeSamlProvider {
 
     private createResponse(request: FakeSamlRequest, changes: FakeSamlAnswerChanges, status: string, assertion: string): string {
         const inResponseTo: string | undefined = changes.unsolicited === true ? undefined : request.id;
+        const issueInstant: string = new Date(Date.now() + (changes.issuedAheadByInMs ?? 0)).toISOString();
         return [
             '<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"',
-            ` ID="_${randomBytes(16).toString('hex')}" Version="2.0" IssueInstant="${new Date().toISOString()}"`,
+            ` ID="_${randomBytes(16).toString('hex')}" Version="2.0" IssueInstant="${issueInstant}"`,
             ` Destination="${this.escape(request.assertionConsumerServiceUrl)}"`,
             inResponseTo == undefined ? '' : ` InResponseTo="${this.escape(inResponseTo)}"`,
             '>',
@@ -608,7 +609,7 @@ export class FakeSamlProvider {
     }
 
     private createAssertion(request: FakeSamlRequest, changes: FakeSamlAnswerChanges, sessionIndex: string | undefined): string {
-        const now: Date = new Date();
+        const now: Date = new Date(Date.now() + (changes.issuedAheadByInMs ?? 0));
         const notOnOrAfter: string = (changes.notOnOrAfter ?? new Date(now.getTime() + ASSERTION_LIFETIME_IN_MS)).toISOString();
         const inResponseTo: string | undefined = changes.unsolicited === true ? undefined : request.id;
         // a request asking for a new login gets one, which is now

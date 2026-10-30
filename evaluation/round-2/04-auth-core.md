@@ -233,6 +233,13 @@ Fix direction: make `ACCESS_TOKEN_REVOCATION` required on the application option
 the field) once it is required; until then, `startTestServer` with defaults: log in, log out, call an
 `@Auth.isLoggedIn` route with the old access token and observe 200.
 
+> **Closed 2026-10-27 (user: keep the default).** `'onExpiry'` stays the default and nothing is made
+> required; the trade is the documented one, not a silent one. `auth.md`'s section on what a credential
+> is worth gained a WARNING naming what a logout, a password reset and ending the logins leave working,
+> and the `POST /logout` row of `auth-routes.md` points to it, which is where the auditor of the scenario
+> reads. No test: the behavior is unchanged and the existing `websocket.service.ended-logins.test.ts`
+> and authorization-server cases cover both modes.
+
 ### A7. `POST /request-password-reset` is a timing oracle for account existence — MINOR
 *Filed 2026-10-21.*
 
@@ -254,6 +261,25 @@ queue) so both paths cost one template render and one write-sized wait; or answe
 registered and an unregistered address, compare the medians; the test asserts the medians are within the noise of
 each other and is red today.
 
+> **Closed 2026-10-27 (user: answer off the request).** The route answers once the address is looked
+> up, the one read both paths cost. `AuthServiceInterface.requestPasswordResetForEmail` (new, the route
+> calls it) makes the link, renders and queues the mail and records the audit entry in the background,
+> in a transaction of its own; a failure there is recorded with its reason and logged, since nobody is
+> waiting for it. Two things the move needed: a per-user lease (`password-reset:<id>`, skip mode), since
+> two requests in a row are now both answered before either link exists and both found none, which
+> mailed two (the lease also covers two instances, which the old in-request check did not); and
+> `AuthService` implements `BeforeAppShutdown`, waiting for the resets still being made before the
+> audit trail flushes and the mail transport closes. The audit entry moved from the controller into
+> the service with the same fields. Not a statistical test: the medians the Verify note asks for would
+> be flaky, and holding the lease shows the property directly. Test:
+> `auth-controller.password-reset.test.ts` (in memory, the lease service held at `password-reset:`
+> keys): the answer arrives while the reset is held and no token exists yet, the token, mail and
+> success entry follow once released; an unknown address is recorded as `no-such-subject`; two
+> requests in a row make one token and one mail; a shutdown does not finish while a reset is held and
+> the reset is made before it does. Red on the first and the last when written. The jwt and cookie
+> controller tests, `password.authenticator.test.ts` and the auth evaluation suite wait for the mail,
+> the row or the audit entry instead of reading them right after the answer. `auth.md` says so.
+
 ### A8. Enrolling or removing a second factor is not audited; neither is deactivating a membership — MINOR
 *Filed 2026-10-21.*
 
@@ -269,6 +295,25 @@ losing a tenant is recorded nowhere, while losing a role is.
 **Verify:** `startTestServer`, in-memory data source, OTP: `POST /auth/2fa/register` then `/2fa/confirm`, read the
 audit rows of the logger's db transport filtered by `metadata.audit.action` and assert one `auth.2fa.enrolled` (or
 whatever name is chosen) with the user id; today none exists.
+
+> **Closed 2026-10-27.** Five new `AuditAction` members: `auth.2fa.enrolled` (recorded by
+> `TwoFactorService.confirmTwoFactorRegistration`; asking for an enrollment changes nothing in force,
+> so it is not recorded), `auth.2fa.removed` (`removeTwoFactorRegistration`), and
+> `auth.membership.deactivated`, `.reactivated` and `.deleted` (`MembershipService.updateDeactivatedAt`
+> by whether it sets or clears the date, and `deleteMembership`). Each records success, or failure with
+> `auditReasonFor`, and rethrows, the shape `RoleService.audited` and the api key paths have. A
+> membership entry is recorded inside `runAs` of the membership's tenant, so the entry's `tenantId` is
+> the tenant that was lost, and carries the member as `userId`: neither method is told who asks, as
+> `deactivateUser` is not, so there is no actor to record. SCIM goes through both methods and is
+> covered with them. Not recorded: deleting a user's memberships with the user (`deleteMemberships`),
+> which the user's deletion stands for, and writes through the membership repository directly, which
+> `tenancy.md` says, as `roles-and-permissions.md` says for roles. No method field: `AuditEntry` has no
+> column for it, and adding one is a schema change for every application. Tests:
+> `code.two-factor-method.test.ts` (a refused confirmation, a confirmation and a removal, in that order
+> with their outcomes) and `membership.service.test.ts` (deactivate, reactivate, delete, each in its
+> tenant), in memory; the membership case red with no entries, the 2FA case red on its first run on a
+> wrong filter key and not rerun red before the change. `auth.md`'s table, `two-factor.md` and
+> `tenancy.md` list them.
 
 ### A9. The cookie strategy's documented in-request renewal cannot happen in a browser, and a missing csrf header is reported as "not logged in" — MINOR
 *Filed 2026-10-21.*
@@ -298,6 +343,21 @@ token on a request that does carry a valid session.
 compute it): wait past `sessionExpiresInMs` set to one second, call an `@Auth.isLoggedIn` route and observe 401 with
 no `x-csrf-token` response header. Second: `POST` with valid cookies and no csrf header, assert status 403 and audit
 reason `csrf` — red today (401, `not-logged-in`).
+
+> **Closed 2026-10-27.** The first half was already gone when this was reached: a lapsed session is
+> recognized by the refresh cookie arriving alone (`resolveAndValidateSessions`), so the in-request
+> renewal happens for a browser that dropped the session cookie at its `Max-Age`, which
+> `cookie-auth.auth-strategy.reuse-grace.test.ts` ("renews the session inside a request that carries
+> the refresh cookie alone") holds and `auth.md` describes. The second half: the strategy throws
+> `CsrfTokenRefusedError` (new, public, a `ForbiddenError`) for an http request with a valid refresh
+> session and a missing or wrong csrf token; a websocket keeps reading as no cookie login.
+> `AuthService.resolveUserOf` catches it, answers no login and remembers it per request, so a route
+> skipping auth and a login started again with stale cookies work as before; `runChecks` throws it
+> where a login is needed and records `authz.check` with the new `AuditReason.CSRF`. Test:
+> `cookie-auth.auth-strategy.csrf.test.ts` (in memory): a missing and a wrong token on a route needing
+> a login answer 403 with two `csrf` entries and the right token 200; an `@Auth.skip` route serves the
+> request as anonymous; logging in again with the cookies works. Red with 401 when written.
+> `auth.md`, `error-handling.md` and `upgrading-to-3.md` (a front end acting on every 401) say so.
 
 ### A10. Deleting a user leaves their sessions, refresh tokens and api keys behind, and a cookie session of a deleted user answers 404 naming the id — MINOR
 *Filed 2026-10-21.*
@@ -346,6 +406,55 @@ them again and the ones that forget `endLogins` on a password change ship a know
 **Verify:** no executable form beyond absence; an evaluation test that posts to `/auth/change-password` and asserts
 200 then a 401 for the previous session on a second client is the shape to leave red.
 
+> **Closed 2026-10-28 (user: change password, logout everywhere, session listing with device info
+> and a cap ending the oldest, email verification and change, stored as `emailVerifiedAt` on the
+> user, enforced for the email second factor, reset mails, optionally login, and a notice to the
+> old address).** Forced password change and password history were not chosen and stay with the
+> application; the `TODO` naming the former stays where it is.
+>
+> - **Logins.** A new capability, `LoginListingAuthStrategyInterface` (`findLogins`, `endLogin`,
+>   `resolveLoginId`), which `JwtAuthStrategy` and `CookieAuthStrategy` implement over their refresh
+>   families. Each refresh row records `issuedAt`, `userAgent` (cut to 512) and `ipAddress` of the
+>   request that issued it (`resolveLoginDevice`), and the jwt row `authenticatedAt`, so a login lists
+>   where it was last used from. `AuthService` gains `findLogins` (marking the request's own login
+>   `current`), `endLogin`, `endOwnLogins` and `changePassword`; `AuthController` gains
+>   `POST /logout-everywhere`, `GET /logins`, `DELETE /logins/:loginId` and `POST /change-password`
+>   (by the classes, like every other route group). Change password verifies through
+>   `PasswordAuthenticator.authenticate`, so a wrong password counts against the streak and a lock
+>   holds; a wrong one is a 403, since the caller is logged in; every other login ends, the one asking
+>   stays. `MAX_LOGINS_PER_USER` (undefined by default, a whole number of at least 1) ends the least
+>   recently used login once one past it starts. New audit actions: `auth.password.changed`,
+>   `auth.login.ended`, `auth.logins.ended`.
+> - **Email.** `emailVerifiedAt` on `BaseUserEntity`; `EmailVerificationService` behind
+>   `EMAIL_VERIFICATION_SERVICE`, on only when `EMAIL_VERIFICATION_OPTIONS` is provided (link url, two
+>   templates, required `requiredForLogin`, `linkExpiresInMs`); the entity `EmailVerificationToken`
+>   (hashed, one live verification link at a time, the change link replaced by the next) with an hourly
+>   cleanup job and a place in `deleteUserRows`; four routes behind `AuthController`'s new
+>   `emailVerification` option (a fourth generic, so the routes are in the type only then, and a boot
+>   error when the option is set without the token); a change requested with a second factor or a
+>   recent login. A refused login mails the link itself, after the password matched, so no
+>   unauthenticated resend route exists to leak anything. A write observer refuses a write changing a
+>   user's `email` without `emailVerifiedAt`, so a change made around the flow cannot inherit the old
+>   verification; `UserRepositoryInterface`/`UserServiceInterface` gain `updateEmail` for it. Reset
+>   mails refused for an unverified address are recorded as `email-not-verified` (new `AuditReason`)
+>   and no longer logged as errors. New audit actions `auth.email.verified`, `.change-requested`,
+>   `.changed`; new public error `EmailNotVerifiedError`.
+> - **Found on the way.** `updateHeldRoles`'s reads ran outside the caller's transaction (fixed under
+>   §A12), and `UserService.findById`/`findByEmail` could not read inside one at all.
+>
+> Tests (in memory): `auth-controller.logins.test.ts` (listing with the current login and the
+> clients, ending one and refusing another user's, logout everywhere, change password with the 403,
+> the audit and the other login ended, the cap, and listing and ending with cookies) and
+> `email-verification.test.ts` (a login refused until verified and the mailed link verifying it, a
+> change confirmed by the new address with the notice to the old, reset only to a verified address,
+> the email second factor refused for an unverified one, a change around the flow refused). The
+> jwt cases were red with 404 before the routes; the cookie case and the cap's listing were written
+> after their implementation; `email-verification.test.ts` was red only because its modules did not
+> exist. Docs: `auth.md` (changing a password, where a user is logged in, the cap), `auth-routes.md`,
+> the new page `email-verification.md`, `two-factor.md`, `configuration.md`, `framework-tables.md`,
+> and `upgrading-to-3.md` (the new columns in the shipped migration, `emailVerifiedAt` and the
+> repository methods for an application's own user entity).
+
 ### A12. Roles carry only what they list: no inheritance or wildcard, so every new permission needs a data migration before anybody passes its routes; role assignment is a read-modify-write — MINOR
 *Filed 2026-10-21.*
 
@@ -373,6 +482,27 @@ second time with one more permission declared and a route guarded by it; a holde
 second: two concurrent `assignRole` calls without a transaction for one user, assert both roles held (red
 intermittently; run 50 times).
 
+> **Closed 2026-10-27 (user: wildcards; a per-user lease).** First half: a stored role may carry
+> `PermissionWildcard`s (new public type), `'*'` for every permission of its level and `'prefix.*'`
+> for every one below the prefix. `RoleUtilities.expandPermissions` expands them when the shared and
+> the tenant indexes are built, against what the code declares, so a release declaring a permission
+> gives it to every matching role without a migration; a wildcard matching nothing stays literal, so
+> the startup check of stored roles names it like an undeclared permission, and a write is refused
+> for it (`isDeclaredIn`). A role carrying a wildcard needs the `.with_any_permission` guard: holding
+> every permission today does not cover what the wildcard hands out tomorrow. `definePermissions`
+> refuses a permission holding a `*`. `BaseRole.permissions` is typed with the wildcard. Second half:
+> `updateHeldRoles` reads and writes under a lease (`roles:<user>` or `roles:<tenant>:<user>`, wait
+> mode, `heldUntil` the caller's transaction), and a transaction already holding the key goes ahead
+> (`withHeldRoles`), or a second change in it would wait for itself. Writing the test found the
+> in-transaction read was outside the transaction, so two assignments in one transaction lost the
+> first as well: `FindUserOptions` and `UserRepositoryInterface.findById`/`findByEmail` take the
+> transaction, and `findActiveMembership`/`MembershipRepositoryInterface.findMembership` an optional
+> one. Tests: `role.service.wildcard.test.ts` (expansion at both levels, refusal of a wildcard
+> matching nothing at either level, the guard, the expansion as a pure function, `definePermissions`
+> refusing `*`) and `role.service.assignment.test.ts` (two platform and two tenant roles given at once
+> keep both, two in one transaction keep both), in memory, all red when written.
+> `roles-and-permissions.md` says so, and its seed example uses `'*'` and `'invoices.*'`.
+
 ### A13. Access tokens carry the user's email and role names — MINOR
 *Filed 2026-10-21.*
 
@@ -386,6 +516,17 @@ is logged, and the role names map the authorization model for whoever reads a ca
 email is still there. OAuth profiles (RFC 9068) put identity in `sub` and leave profile claims to the ID token.
 
 **Verify:** unit test decoding the token from `startLogin` and asserting the payload has no `email`; red today.
+
+> **Closed 2026-10-27 (user: drop email, keep roles).** `JwtAccessTokenPayload` and the RFC 9068
+> `JwtClientAccessTokenPayload` lose `email`, and their guards stop asking for it, so a token issued
+> before still verifies. `roles` stays for the stateless check. `resolveClaimedUser` answers the new
+> public `ClaimedUser` (`id`, `roles`) instead of a `BaseUser` it could no longer fill, and
+> `AuthService` keeps claims in a memo of their own: with revalidation on, `resolvePrincipal` is
+> `resolveCurrentAccount`, the same memo entry `getCurrentUser` reads, as before. Tests:
+> `jwt-auth.asymmetric.test.ts` ("carries who the user is by id, and not their email") and the RFC
+> 9068 case of `authorization-server-controller.model.test.ts`, in memory, red with the address in
+> both. `auth.md` and `upgrading-to-3.md` (a frontend reading the email off the token) say so.
+> Running the in-memory auth suites for it found 03 §H11's favicon regression, noted there.
 
 ### A14. `REVALIDATE_USER_ON_AUTH_CHECK: false` saves no read in a tenant and weakens platform checks for nothing — MINOR
 *Filed 2026-10-21.*
@@ -401,6 +542,21 @@ single-tenant deployments only.
 
 **Verify:** `RoundTripCounter.describe()` around an `@Auth.hasPermission` route in a tenant with the option
 `false`: the count equals the count with it `true`.
+
+> **Closed 2026-10-27 (user: a membership claim in the token).** With the option `false`, the access
+> token of `JwtAuthStrategy` carries `tenant_roles`, the roles of the user's active memberships by
+> tenant, read once per login and refresh (`resolveTenantRoles`). `ClaimedUser` carries them as
+> `tenantRoles`, and `AuthService.resolveCheckedMembership` answers the permission and membership
+> checks from them, honoring a credential bound to another tenant as the read did; without the claim,
+> or with the option `true`, it reads the membership as before. `getCurrentUser` and
+> `getCurrentMembership` still read the stored rows, as `@CurrentUser` is the stored user.
+> Staleness and token size are the accepted cost: a role given or taken in a tenant applies at the
+> next refresh, and the token grows with the tenants. Client access tokens carry no claim, so they
+> keep reading. Not changed: `require2fa`'s `resolveCurrentAccount` still reads the account on the
+> routes declaring it, which the finding notes beside the membership. Test:
+> `auth.service.trusted-credentials.test.ts` (in memory, the counter on the data source): a permission
+> granted and one refused in the user's tenant, and a request in a tenant they are no member of, all
+> without a read of the membership; red with two and one. `auth.md` says so.
 
 ### A15. Hardcoded constants in the reworked auth code: which deserve a token — MINOR
 *Filed 2026-10-21.*
@@ -420,6 +576,28 @@ as constants: `PASSWORD_MAX_LENGTH` (read where decorators run, per §E1), the r
 **Verify:** none needed beyond a typecheck once the tokens exist; the DPoP one gets a test that a proof `iat` six
 minutes old is accepted when the token says seven.
 
+> **Closed 2026-10-28.** New tokens, each defaulting to the constant it replaces:
+> `DPOP_PROOF_MAX_AGE_IN_MS` and `DPOP_NONCE_LIFETIME_IN_MS` (five minutes), `COOKIE_AUTH_ROW_GRACE_IN_MS`
+> (five minutes), `RECOVERY_CODE_OPTIONS` (`{ count, length }`, 10 and 10, a length below 10 refused at
+> init, and the codes drawn from as many bytes as the length needs), `OTP_PERIOD_IN_SECONDS` (30, the
+> validation window refused at init unless a whole number of periods, `OtpUtilities` taking the period
+> as a parameter), and `prefix` on `API_KEY_OPTIONS` (`zibri_`, letters and digits ending in `_`, read
+> through the new `ApiKeyServiceInterface.getKeyPrefix`; the internal constant is `DEFAULT_API_KEY_PREFIX`).
+> The methods and the cookie strategy read theirs when used, so a subclass keeps its constructor. The
+> auth limiter's store bound was configurable already (`maxKeys`, §A4). Kept as constants on purpose:
+> the 2FA check's 30-second lease, which is renewed while the check runs and only bounds a crashed
+> holder, and its one-second `Retry-After`, which says how long another check of the same user takes;
+> neither is a policy a deployment disagrees with. Writing the DPoP test found a defect: the proof
+> check passed `maxTokenAge` and `clockTolerance` of five minutes each, which jose adds together, so a
+> proof of up to ten minutes passed and was remembered as spent for only as long as the age it was meant
+> to have. `verifyDpopProof` checks the age itself now, five minutes either way. Tests (in memory):
+> `jwt-auth.dpop.test.ts` (a six-minute proof refused by default, red with 200, and taken with seven),
+> `two-factor.options.test.ts` (the defaults, 16 codes of 16 and a 60-second period whose app code
+> confirms, the refusals at start), `api-key.auth-strategy.test.ts` (a key with `acme_` issued and
+> taken, the same key with `zibri_` refused) and `cookie-auth.auth-strategy.row-grace.test.ts`; red
+> before the tokens existed. Docs: `dpop.md`, `two-factor.md`, `api-keys.md` (a WARNING that a new prefix
+> strands the keys issued before), `auth.md`, `configuration.md`.
+
 ### A16. Recheck of what auth refusals tell the caller — MINOR (mostly clean)
 *Filed 2026-10-21.*
 
@@ -436,6 +614,14 @@ listed so the recheck is on record.
 
 **Verify:** the existing `auth-controller.jwt.test.ts` oracle cases cover the clean items; A7 and A10 carry the two
 that are not.
+
+> **Closed 2026-10-28 (on record, no change).** The two that were not clean are closed with their own
+> findings: the reset timing with §A7, the 404 naming a user id with §A10. What stays named is the
+> strategies of a request carrying several credentials and the authenticators and strategies of a
+> request naming none of them, which the OpenAPI document lists for anyone anyway. The refusals added
+> since (`CsrfTokenRefusedError` of §A9, `EmailNotVerifiedError` and the 403 of a wrong current password
+> of §A11) are answered only after a valid session or a matching password, so they tell nobody anything
+> they did not prove.
 
 ### A17. An expired, unused password reset token is never deleted — MINOR
 *Filed and closed 2026-10-26*, found by 08 §X27's research into what ends each framework table's rows.

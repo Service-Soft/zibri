@@ -30,6 +30,8 @@ export const SCAFFOLD_DEV_DEPENDENCIES: string[] = [
     'source-map-loader@^5.0.0',
     'ts-jest@^29.4.11',
     'ts-loader@^9.5.4',
+    // the build generates the entities by loading src/models/generated/providers.ts, through ts-node
+    'ts-node@^10.9.2',
     'typescript@^5.9.3',
     'webpack@^5.105.3',
     'webpack-cli@^6.0.1'
@@ -38,12 +40,11 @@ export const SCAFFOLD_DEV_DEPENDENCIES: string[] = [
 // zibri-tsx is not among them: it is a peer dependency of zibri, so npm resolves it on its own and
 // the generated app does not need to declare it.
 //
-// ts-node and pg-query-stream are, because they are *optional* peer dependencies and npm therefore
-// installs none of them. A generated app runs its worker files as TypeScript, which is what
-// `multithreading.enableTsWorkerFiles` defaults to, so it has to ask for the compiler itself. An app
-// that ships compiled worker files can turn that option off and drop this. pg-query-stream is what a
-// postgres data source opens a cursor through, and the generated app has one, so it is refused at
-// boot without it.
+// pg-query-stream is, because it is an *optional* peer dependency and npm therefore installs none of
+// them: it is what a postgres data source opens a cursor through, and the generated app has one, so
+// it is refused at boot without it. ts-node is not, at runtime: a generated app ships compiled worker
+// files, and `multithreading.enableTsWorkerFiles` is off unless an app turns it on. Its build needs it,
+// so it is among the devDependencies.
 //
 // saxes is an optional peer needed by the defaults as well: the xml body parser is one of the
 // default body parsers, the translations the generated webpack config extracts on every build are
@@ -72,7 +73,6 @@ export const SCAFFOLD_DEV_DEPENDENCIES: string[] = [
  * `zi new` installs all of them, and `zi upgrade` those a project lacks.
  */
 export const SCAFFOLD_DEPENDENCIES: string[] = [
-    'ts-node@^10.9.2',
     'pg-query-stream@^4.10.3',
     'saxes@^6.0.0',
     'otpauth@^9.5.1',
@@ -81,7 +81,7 @@ export const SCAFFOLD_DEPENDENCIES: string[] = [
     '@opentelemetry/sdk-trace-node@^2.11.0',
     're2@^1.27.0',
     'nodemailer@^10.1.0',
-    'prom-client@^15.1.3',
+    '@prometheus-io/client@^0.16.1',
     '@fastify/busboy@^3.2.3',
     'systeminformation@^5.33.15'
 ];

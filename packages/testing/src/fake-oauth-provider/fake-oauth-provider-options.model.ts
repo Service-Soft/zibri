@@ -10,7 +10,7 @@ export type FakeOAuthProviderOptions = {
     clientId: string,
     /**
      * The secret of that client, sent as http basic authentication or in the request body. Or a check of
-     * the secret the client sends, for one that is signed rather than fixed, like Apple's.
+     * the secret the client sends, for one that is signed and changes, like Apple's.
      */
     clientSecret: string | ((secret: string) => boolean | Promise<boolean>),
     /**
@@ -58,5 +58,19 @@ export type FakeOAuthProviderOptions = {
      * Whether a refresh gives out a new refresh token and refuses the old one from then on.
      * @default false
      */
-    rotatesRefreshTokens?: boolean
+    rotatesRefreshTokens?: boolean,
+    /**
+     * The url the provider is reached at from the outside, which every url it names starts with in
+     * place of where it listens, such as `https://login.microsoftonline.com/organizations/v2.0`. A test
+     * resolves it to `listeningUrl`.
+     * @default undefined
+     */
+    publicUrl?: string,
+    /**
+     * The issuer the provider's metadata names. A `{tenantid}` in it, as in the metadata of Microsoft
+     * Entra ID's multi-tenant endpoints, is filled in for every token from the `tid` claim of the
+     * identity. The public url, when undefined.
+     * @default undefined
+     */
+    issuer?: string
 };

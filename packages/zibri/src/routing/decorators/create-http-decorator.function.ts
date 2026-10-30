@@ -8,14 +8,13 @@ export function createHttpDecorator(method: HttpMethod, path: Route, options: Ba
     return (target, propertyKey) => {
         const ctor: Function = target.constructor;
         MetadataUtilities.setFilePath(ctor);
-        const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(ctor);
-        routes.push({
+        const route: ControllerRouteConfiguration = {
             httpMethod: method,
             route: path,
             controllerMethod: propertyKey.toString(),
             versions: options.versions,
             timeoutInMs: options.timeoutInMs
-        });
-        MetadataUtilities.setControllerRoutes(ctor, routes);
+        };
+        MetadataUtilities.addControllerRoute(ctor, route);
     };
 }

@@ -127,7 +127,8 @@ export class DiContainer {
      * makes directly, say - and need a framework default rather than the failure `inject` answers a
      * missing registration with.
      * @param token - The token to look for.
-     * @returns True when injecting it would find something.
+     * @returns True when a provider is registered for it. An injectable declared globally and not
+     * registered yet is not counted, though `inject` would still find it.
      */
     isRegistered(token: DiToken<unknown>): boolean {
         return this.providers.has(token);
@@ -171,7 +172,9 @@ export class DiContainer {
         const unique: DiProvider<unknown>[] = [];
 
         for (const [token, provider] of this.providers) {
-            const identity: unknown = provider.useClass ?? provider.useFactory ?? provider.useValue ?? token;
+            // a class or a factory registered under two tokens is one provider; a value is its token's
+            // own, since two tokens worth the same primitive are two providers
+            const identity: unknown = provider.useClass ?? provider.useFactory ?? token;
             if (!seen.has(identity)) {
                 seen.add(identity);
                 unique.push(provider);

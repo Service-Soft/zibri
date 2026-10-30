@@ -38,13 +38,13 @@ import { FederatedHandoverCredentials, FederatedTicketCredentials } from '../fed
 import { FederatedHandoverCode } from '../federated/federated-handover-code.model';
 import { FederatedIdentity, FederatedIdentityCreateData } from '../federated/federated-identity.model';
 import { FederatedLoginAttempt } from '../federated/federated-login-attempt.model';
+import { FederatedLoginResult } from '../federated/federated-login-result.model';
 import { FederatedProviderIdentity } from '../federated/federated-provider-identity.model';
 import { FederatedRegistrationTicket } from '../federated/federated-registration-ticket.model';
 import { FederatedRegistration } from '../federated/federated-registration.model';
 import type { FederatedRouteEndpoint } from '../federated/federated-route-endpoint.model';
 import type { FederatedRoute } from '../federated/federated-route.type';
 import { FederatedRouteUtilities } from '../federated/federated-route.utilities';
-import { FederatedLoginResult } from '../federated/federated-login-result.model';
 import { OAuthClientAuthentication } from '../oauth/oauth-client-authentication.model';
 import { OAuthProviderTokens } from '../oauth/oauth-provider-tokens.model';
 import type { OAuthResponseMode } from '../oauth/oauth-response-mode.type';

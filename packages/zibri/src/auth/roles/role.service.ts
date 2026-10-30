@@ -3,6 +3,7 @@ import { PermissionDeclaration } from './permission-declaration.model';
 import { type Permission } from './permission.type';
 import { type PlatformPermission } from './platform-permission.type';
 import { RoleCreateData } from './role-create-data.model';
+import { RoleEventWriteObserver } from './role-event.write-observer';
 import { RoleIdentity } from './role-identity.model';
 import { RoleIndex } from './role-index.model';
 import { RoleLevel } from './role-level.type';
@@ -10,9 +11,8 @@ import { isRoleRepository } from './role-repository.interface';
 import { RoleServiceInterface } from './role-service.interface';
 import { RoleUpdateData } from './role-update-data.model';
 import { RoleUtilities } from './role.utilities';
-import { TenantRoleIndex } from './tenant-role-index.model';
-import { RoleEventWriteObserver } from './role-event.write-observer';
 import { RoleWriteObserver } from './role.write-observer';
+import { TenantRoleIndex } from './tenant-role-index.model';
 import { WrittenRole } from './written-role.model';
 import { ZibriPermissions, ZibriPlatformPermissions } from './zibri-permissions.model';
 import { ZibriApplication } from '../../application/application';
@@ -39,14 +39,16 @@ import { type EventTypeFor } from '../../event/event-type-for.type';
 import { type RolesChangedEventData } from '../../event/roles-changed-event-data.model';
 import { AfterAppInit } from '../../global/after-app-init.interface';
 import { OnAppInit } from '../../global/on-app-init.interface';
+import { type LeaseServiceInterface } from '../../leases/lease-service.interface';
 import { $ts } from '../../localization/translate.function';
 import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model';
-import { auditReasonFor } from '../../logging/audit-reason-for.function';
+import { AuditUtilities } from '../../logging/audit.utilities';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { BaseMembership } from '../../tenancy/membership/base-membership.model';
 import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { Ms } from '../../utilities/ms';
 import { type CurrentUser } from '../decorators/current-user.decorator';
 import { BaseUser } from '../models/base-user.model';
 import { type UserServiceInterface } from '../user/user-service.interface';
@@ -60,11 +62,6 @@ const ROLES_TAG: string = 'zibri.roles';
  * What the tag the roles of one tenant's own are invalidated by starts with, followed by the tenant.
  */
 const TENANT_ROLES_TAG_PREFIX: string = 'zibri.roles:';
-
-/**
- * What the roles of a tenant's own are kept under, with that tenant active.
- */
-const TENANT_INDEX_KEY: string = 'roles';
 
 const PERMISSIONS_TOKEN: string = 'ZIBRI_DI_TOKENS.PERMISSIONS';
 
@@ -121,14 +118,17 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
      * Every role every tenant shares, indexed. Read again whenever one is written, on this instance
      * or another.
      */
-    private index: RoleIndex = RoleUtilities.resolveRoleIndex([]);
+    private index: RoleIndex = RoleUtilities.resolveRoleIndex([], { tenant: new Set(), platform: new Set() });
 
     /**
      * The roles of the tenants' own, by tenant: read with the first check in a tenant that needs
      * them, forgotten whenever one of them is written, and the least recently used given up first,
      * so that what this instance keeps stays bounded however many tenants there are.
      */
-    private readonly tenantIndexes: InMemoryCacheStore<string, TenantRoleIndex> = new InMemoryCacheStore();
+    // keyed by the tenant rather than per tenant: kept per tenant, the tenant had to be made active
+    // around every access, and a check in the tenant and an invalidation from outside every tenant
+    // only met by that (round 2's code review 04 §Q5)
+    private readonly tenantIndexes: InMemoryCacheStore<string, TenantRoleIndex> = new InMemoryCacheStore({ perTenant: false });
 
     /**
      * The reads of the roles of a tenant's own still running, so that the requests arriving in a
@@ -140,6 +140,16 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
      * The permissions declared in code, read once when first asked for.
      */
     private declared: DeclaredPermissions | undefined;
+
+    /**
+     * The roles each transaction holds the lease on, see withHeldRoles. Keyed by the transaction, so
+     * an entry is gone with it.
+     */
+    private readonly heldUntilTransactionEnds: WeakMap<Transaction, Set<string>> = new WeakMap();
+
+    private get leaseService(): LeaseServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.LEASE_SERVICE);
+    }
 
     private get userService(): UserServiceInterface {
         return inject(ZIBRI_DI_TOKENS.USER_SERVICE);
@@ -204,7 +214,10 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
             app,
             RoleService.name,
             tag => tag.startsWith(TENANT_ROLES_TAG_PREFIX),
-            async tag => await this.forgetTenantRoles(tag.slice(TENANT_ROLES_TAG_PREFIX.length))
+            tag => {
+                this.forgetTenantRoles(tag.slice(TENANT_ROLES_TAG_PREFIX.length));
+                return Promise.resolve();
+            }
         );
         this.logger.info(`configures the role repository ${getDiTokenName(provider.token)}`);
     }
@@ -296,7 +309,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
         if (roles.some(role => !index.levels.has(role) && RoleUtilities.findTenantRolePermissions(own, role) == undefined)) {
             index = await this.readIndex(transaction);
             if (transaction == undefined) {
-                await this.forgetTenantRoles(tenantId);
+                this.forgetTenantRoles(tenantId);
                 own = await this.findTenantIndexFor(roles, tenantId);
             }
             else {
@@ -349,25 +362,38 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
     }
 
     /**
-     * Whether a permission is declared at a level.
+     * Whether a permission, or a wildcard, is declared at a level.
      * @param level - The level, undefined for a write changing only the permissions of a stored role.
-     * @param permission - The permission.
-     * @returns Whether it is declared there, or at either level without one.
+     * @param permission - The permission, or a wildcard.
+     * @returns Whether it is declared there, or at either level without one. A wildcard is when it
+     * matches a permission declared there.
      */
     private isDeclaredAt(level: RoleLevel | undefined, permission: string): boolean {
+        const { tenant, platform } = this.resolveDeclared();
         switch (level) {
             case 'tenant': {
-                return this.isPermission(permission);
+                return this.isDeclaredIn(tenant, permission);
             }
             case 'platform': {
-                return this.isPlatformPermission(permission);
+                return this.isDeclaredIn(platform, permission);
             }
             case undefined: {
                 // what they may be is known only of the level the stored role keeps, and a permission
                 // of the other level carries nothing there
-                return this.isPermission(permission) || this.isPlatformPermission(permission);
+                return this.isDeclaredIn(tenant, permission) || this.isDeclaredIn(platform, permission);
             }
         }
+    }
+
+    /**
+     * Whether a permission, or a wildcard, is among the declared ones.
+     * @param declared - The permissions declared at a level.
+     * @param permission - The permission, or a wildcard.
+     * @returns Whether it is declared, or the wildcard matches a declared one.
+     */
+    private isDeclaredIn(declared: ReadonlySet<string>, permission: string): boolean {
+        // a misspelled prefix matches nothing, and is refused like a misspelled permission
+        return RoleUtilities.expandPermissions([permission], declared).every(p => declared.has(p));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -529,8 +555,6 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
         change: (held: string[]) => string[]
     ): Promise<void> {
         const role: BaseRole = await this.resolveRole(name, transaction);
-        // read and written in two steps, in the transaction the caller gives: two of these for one user
-        // at once without a transaction can leave one of them unwritten, like any other read and write
         if (role.level === 'platform') {
             this.validateMayUse(
                 caller.platformPermissions,
@@ -538,8 +562,10 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
                 role.permissions,
                 caller.platformPermissions
             );
-            const user: BaseUser<string> = await this.userService.findById(userId);
-            await this.userService.updateRoles(userId, change(user.roles), transaction);
+            await this.withHeldRoles(`roles:${userId}`, transaction, async () => {
+                const user: BaseUser<string> = await this.userService.findById(userId, { transaction });
+                await this.userService.updateRoles(userId, change(user.roles), transaction);
+            });
             return;
         }
         const tenantId: string | undefined = this.tenantService.getActiveTenantId();
@@ -549,11 +575,43 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
         // a tenant permission, of the caller's membership in that tenant: whoever manages the roles of
         // a tenant does it there, those of its own as well as those every tenant shares
         this.validateMayUse(caller.permissions, this.findGuard(operation, 'tenant'), role.permissions, caller.permissions);
-        const membership: BaseMembership<string> | undefined = await this.membershipService.findActiveMembership(userId, tenantId);
-        if (membership == undefined) {
-            throw new NotFoundError($ts`The user is no member of the tenant "${tenantId}".`);
+        await this.withHeldRoles(`roles:${tenantId}:${userId}`, transaction, async () => {
+            const membership: BaseMembership<string> | undefined = await this.membershipService
+                .findActiveMembership(userId, tenantId, transaction);
+            if (membership == undefined) {
+                throw new NotFoundError($ts`The user is no member of the tenant "${tenantId}".`);
+            }
+            await this.membershipService.updateRoles(userId, tenantId, change(membership.roles), transaction);
+        });
+    }
+
+    /**
+     * Reads and writes the roles a user or a membership holds, as the only one doing so, on every
+     * instance, until the transaction of the write has ended.
+     *
+     * The roles are read and written back changed, so two of these at once both read what neither
+     * wrote yet, and the later write took the earlier one's role away, in a transaction too.
+     * @param key - What is held: the roles of a user, or of their membership in a tenant.
+     * @param transaction - The transaction the roles are written in, if any.
+     * @param work - Reads and writes them.
+     */
+    private async withHeldRoles(key: string, transaction: Transaction | undefined, work: () => Promise<void>): Promise<void> {
+        // a transaction that already holds the key holds it until it ends, so a second change in it
+        // goes ahead rather than waiting for the transaction it is part of. Changes run in parallel
+        // inside one transaction would each wait for the other
+        const held: Set<string> | undefined = transaction == undefined ? undefined : this.heldUntilTransactionEnds.get(transaction);
+        if (held?.has(key) === true) {
+            await work();
+            return;
         }
-        await this.membershipService.updateRoles(userId, tenantId, change(membership.roles), transaction);
+        await this.leaseService.withLease({ key, leaseInMs: Ms.SECOND * 30, mode: 'wait', heldUntil: transaction }, async () => {
+            if (transaction != undefined) {
+                const keys: Set<string> = this.heldUntilTransactionEnds.get(transaction) ?? new Set();
+                keys.add(key);
+                this.heldUntilTransactionEnds.set(transaction, keys);
+            }
+            await work();
+        });
     }
 
     /**
@@ -597,7 +655,13 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
         if (granted.includes(guard.withAnyPermission)) {
             return;
         }
-        if (granted.includes(guard.withOwnPermissions) && carried.every(permission => own.includes(permission))) {
+        // a wildcard carries what a later release declares as well, which no permission held today
+        // covers: whoever holds every permission there is still hands out more than they hold
+        if (
+            granted.includes(guard.withOwnPermissions)
+            && !carried.some(permission => RoleUtilities.isWildcard(permission))
+            && carried.every(permission => own.includes(permission))
+        ) {
             return;
         }
         // worded like the refusal of a route, for the reason it gives: which permission is missing is
@@ -728,7 +792,9 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
             return result;
         }
         catch (error) {
-            const reason: AuditReason = error instanceof ForbiddenError ? AuditReason.MISSING_PERMISSION : auditReasonFor(error);
+            const reason: AuditReason = error instanceof ForbiddenError
+                ? AuditReason.MISSING_PERMISSION
+                : AuditUtilities.resolveReason(error);
             this.auditService.record({ action, outcome: AuditOutcome.FAILURE, reason, role, subject, userId: caller.id });
             throw error;
         }
@@ -784,7 +850,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
             limit: 'all',
             transaction
         });
-        return RoleUtilities.resolveRoleIndex(roles);
+        return RoleUtilities.resolveRoleIndex(roles, this.resolveDeclared());
     }
 
     /**
@@ -804,10 +870,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
      * @returns The roles, indexed.
      */
     private async resolveTenantIndex(tenantId: string): Promise<TenantRoleIndex> {
-        const kept: TenantRoleIndex | undefined = await this.inTenantIndexes(
-            tenantId,
-            () => this.tenantIndexes.get(TENANT_INDEX_KEY)?.value
-        );
+        const kept: TenantRoleIndex | undefined = this.tenantIndexes.get(tenantId)?.value;
         if (kept != undefined) {
             return kept;
         }
@@ -822,10 +885,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
             // kept only while no write forgot it in the meantime: a read started before the write would
             // keep what the write changed until the next one
             if (this.loadingTenantIndexes.get(tenantId) === loading) {
-                await this.inTenantIndexes(
-                    tenantId,
-                    () => this.tenantIndexes.set(TENANT_INDEX_KEY, { createdAt: new Date(), value: index, tags: [] })
-                );
+                this.tenantIndexes.set(tenantId, { createdAt: new Date(), value: index, tags: [] });
             }
             return index;
         }
@@ -849,31 +909,17 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
             limit: 'all',
             transaction
         });
-        return RoleUtilities.resolveTenantRoleIndex(roles);
+        return RoleUtilities.resolveTenantRoleIndex(roles, this.resolveDeclared().tenant);
     }
 
     /**
      * Forgets the roles of a tenant's own, so that the next check in the tenant reads them again.
      * @param tenantId - The tenant.
      */
-    private async forgetTenantRoles(tenantId: string): Promise<void> {
-        // the read still running first, before anything is awaited, so that it is not kept either
+    private forgetTenantRoles(tenantId: string): void {
+        // the read still running too, so that it is not kept either
         this.loadingTenantIndexes.delete(tenantId);
-        await this.inTenantIndexes(tenantId, () => this.tenantIndexes.delete(TENANT_INDEX_KEY));
-    }
-
-    /**
-     * Reaches what is kept of a tenant's own roles, with that tenant active.
-     *
-     * The store keys what it holds by the tenant active when it is asked, so asked with whatever
-     * tenant the caller happens to be in, a check in the tenant and the invalidation applied outside
-     * every tenant - by the tick of another instance's write - would reach two different entries.
-     * @param tenantId - The tenant.
-     * @param access - What to do with the store.
-     * @returns What the access answers.
-     */
-    private async inTenantIndexes<T>(tenantId: string, access: () => T): Promise<T> {
-        return await this.tenantService.runAs(tenantId, () => Promise.resolve(access()));
+        this.tenantIndexes.delete(tenantId);
     }
 
     /**
@@ -914,7 +960,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
                 platform.push(`'${role.name}' of ${role.tenantId ?? ''}`);
             }
             undeclared.push(...role.permissions
-                .filter(permission => !this.isPermission(permission))
+                .filter(permission => !this.isDeclaredAt('tenant', permission))
                 .map(permission => `'${permission}' of '${role.name}'`));
         }
         if (platform.length) {

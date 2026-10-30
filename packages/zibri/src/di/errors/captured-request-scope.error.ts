@@ -7,7 +7,7 @@ import { DiToken, tokenName } from '../models/di-token.model';
  *
  * The value would be correct exactly once. Its holder is built one time and kept, so the first
  * request to trigger that construction leaves its value in place for every request after it -
- * silently, and as the wrong user or the wrong tenant rather than as a failure.
+ * silently, as the wrong user or the wrong tenant.
  */
 export class CapturedRequestScopeError extends InternalError {
     constructor(token: DiToken<unknown>, holder: DiToken<unknown>, options?: ErrorOptions) {

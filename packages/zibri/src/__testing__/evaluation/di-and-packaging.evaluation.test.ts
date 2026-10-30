@@ -61,9 +61,10 @@ async function readPackageJson(): Promise<PackageJson> {
  *
  * Refused only where the framework's own files ask, because that is the whole of what optional
  * claims: a module this package loads must not reach for one. What another package requires is that
- * package's business and arrives with it either way - `prom-client` requires `@opentelemetry/api`
- * at the top of a file, so it is in every tree the framework is in, whatever this manifest says
- * about it. Refusing that one everywhere would measure prom-client rather than this package.
+ * package's business and arrives with it either way - `@prometheus-io/client` requires
+ * `@opentelemetry/api` at the top of a file, so it is in every tree the framework is in, whatever
+ * this manifest says about it. Refusing that one everywhere would measure the prometheus client
+ * rather than this package.
  * @param names - The packages to leave out.
  * @returns True if `require('zibri')` still answers.
  */

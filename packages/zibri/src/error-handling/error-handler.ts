@@ -9,18 +9,16 @@ import { CheckConstraintViolationError } from '../data-source/check-constraint-v
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { XmlWriterUtilities } from '../document/xml-writer.utilities';
-import { HttpRequest } from '../http/http-request.model';
-import { HttpResponse } from '../http/http-response.model';
+import { type HttpRequest } from '../http/http-request.model';
+import { type HttpResponse } from '../http/http-response.model';
 import { HttpError } from './errors/http.error';
 import { HttpStatus } from '../http/http-status.enum';
-import { JsonMimeType } from '../http/json-mime-type.type';
+import { type JsonMimeType } from '../http/json-mime-type.type';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { AuditAction, AuditOutcome } from '../logging/audit-event.model';
-import { LoggerInterface } from '../logging/logger.interface';
 import { TracingUtilities } from '../tracing/tracing.utilities';
 import { TsxUtilities } from '../tsx/tsx.utilities';
-import { GlobalError } from './errors/global.error';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { MethodNotAllowedError } from './errors/method-not-allowed.error';
 import { TooManyRequestsError } from './errors/too-many-requests.error';
@@ -70,7 +68,9 @@ export const errorHandler: GlobalErrorHandler = async (error: unknown, req: Http
         name: httpError.name,
         message: httpError.message,
         paragraphs: httpError.paragraphs,
-        problems: httpError instanceof ValidationError || httpError instanceof CheckConstraintViolationError ? httpError.problems : undefined,
+        problems: httpError instanceof ValidationError || httpError instanceof CheckConstraintViolationError
+            ? httpError.problems
+            : undefined,
         traceId: TracingUtilities.getCurrentTraceContext()?.traceId
     };
 
@@ -89,13 +89,9 @@ export const errorHandler: GlobalErrorHandler = async (error: unknown, req: Http
     }
 
     const template: ErrorPageTemplate | undefined = inject(ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE);
+    // said once, when the application mounts this handler, rather than per request: a scan of unknown
+    // urls wrote three warnings each (03 §H15)
     if (!template) {
-        const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-        logger.warn('Could not find a template for the error page.');
-        logger.warn(
-            'Either provide ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE or your own error handler (ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER).'
-        );
-        logger.warn('Falling back to returning a json response');
         res.status(httpError.status).json(body);
         return;
     }
@@ -185,31 +181,18 @@ function handleRateLimitHeaders(error: unknown, res: HttpResponse): void {
  * @param httpError - The response it was translated into, which is what decides the level.
  */
 function handleLogging(error: unknown, httpError: HttpError): void {
-    const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-
-    // the one case the wrapper is for: a thrown value that is not an Error has no message and no
-    // stack of its own, so GlobalError is what gives the record a name and keeps the value as a cause
-    if (!ErrorUtilities.isError(error)) {
-        logger.critical(new GlobalError(error));
-        return;
-    }
-
     // a client error is not a defect and does not belong on a level that says something is broken.
     // The ones that are security relevant - a refused login, an authorization denial, a replayed
     // refresh token - are recorded by the audit trail where they happen, with a reason a detection
-    // rule can key on. The rest are an access log's job
-    if (httpError.status < HttpStatus.INTERNAL_SERVER_ERROR) {
-        // except this one. A rate limit refusal is the one client error that is a security event of
-        // its own, and this is where it becomes a refusal to a caller rather than backpressure the
-        // application absorbed itself - the mail queue waiting its turn raises the same error and is
-        // never seen here. It cannot double up with the audit event of whatever was being attempted:
-        // `@RateLimited` sits on the route method, so a limiter that trips means the body that would
-        // have audited never ran. The log context carries the url and the client ip with it
-        if (error instanceof TooManyRequestsError) {
-            inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({ action: AuditAction.RATE_LIMITED, outcome: AuditOutcome.FAILURE });
-        }
-        return;
+    // rule can key on. The rest are an access log's job - except this one. A rate limit refusal is
+    // the one client error that is a security event of its own, and this is where it becomes a
+    // refusal to a caller rather than backpressure the application absorbed itself - the mail queue
+    // waiting its turn raises the same error and is never seen here. It cannot double up with the
+    // audit event of whatever was being attempted: `@RateLimited` sits on the route method, so a
+    // limiter that trips means the body that would have audited never ran. The log context carries
+    // the url and the client ip with it
+    if (httpError.status < HttpStatus.INTERNAL_SERVER_ERROR && error instanceof TooManyRequestsError) {
+        inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({ action: AuditAction.RATE_LIMITED, outcome: AuditOutcome.FAILURE });
     }
-
-    logger.error(error);
+    ErrorUtilities.reportToLog(error, inject(ZIBRI_DI_TOKENS.LOGGER));
 }

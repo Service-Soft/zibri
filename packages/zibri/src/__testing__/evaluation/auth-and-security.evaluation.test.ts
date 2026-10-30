@@ -23,7 +23,7 @@ import { CookieAuthSession } from '../../auth/strategies/cookie/cookie-auth-sess
 import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
 import { type HttpRequestContext } from '../../context/request/http-request.context';
 import { type WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -51,6 +51,7 @@ import { Roles } from '../mocks/entities/roles.enum';
 import { createTestDataSource } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders, testMasterKey } from '../test-server/providers';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { waitUntil } from '../wait-until.function';
 
 /**
  * Executable form of evaluation/03-auth-and-security.md.
@@ -741,7 +742,12 @@ describe('evaluation/03-auth-and-security', () => {
 
             // which makes the trail the only place that says an address was asked about at all.
             // Nobody holds this address, so no reset went out - and a run of exactly these is what
-            // probing a list of addresses looks like from the inside.
+            // probing a list of addresses looks like from the inside. Recorded once the answer is out,
+            // so that a held address does not answer slower than this one
+            await waitUntil(async () => (await auditEvents()).some(
+                event => typeof event === 'object' && event != undefined && 'action' in event
+                    && event.action === AuditAction.PASSWORD_RESET_REQUESTED
+            ));
             expect(await auditEvents()).toContainEqual({
                 action: AuditAction.PASSWORD_RESET_REQUESTED,
                 outcome: AuditOutcome.FAILURE,

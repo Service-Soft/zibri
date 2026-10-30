@@ -30,7 +30,7 @@ import { HttpClientInterface } from '../../http-client/http-client.interface';
 import { type LeaseServiceInterface } from '../../leases/lease-service.interface';
 import { $ts } from '../../localization/translate.function';
 import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model';
-import { auditReasonFor } from '../../logging/audit-reason-for.function';
+import { AuditUtilities } from '../../logging/audit.utilities';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { Ms } from '../../utilities/ms';
 import { type AuthServiceInterface } from '../auth-service.interface';
@@ -64,12 +64,6 @@ const CLIENT_CREDENTIALS_GRANT: string = 'client_credentials';
  * The kind of a jwt a client signed to authenticate itself (RFC 7523, 2.2).
  */
 const JWT_BEARER_ASSERTION_TYPE: string = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
-
-/**
- * How far ahead a jwt a client signed may expire. A jwt is remembered as spent until it expires, so
- * this bounds how long that is.
- */
-const MAX_ASSERTION_LIFETIME_IN_MS: number = Ms.HOUR;
 
 /**
  * Every way a client may authenticate, as RFC 8414 names them.
@@ -294,7 +288,7 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
             this.auditService.record({
                 action: AuditAction.TOKEN_ISSUED,
                 outcome: AuditOutcome.FAILURE,
-                reason: auditReasonFor(error),
+                reason: AuditUtilities.resolveReason(error),
                 subject: presented?.clientId
             });
             throw error;
@@ -393,7 +387,7 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
         this.apiKeyService.registerReader(app, 'AuthorizationServerController');
         for (const controller of controllers) {
             const options: AuthorizationServerControllerOptions = controller.authorizationServerOptions;
-            this.authService.validatePermissionIsDeclared(
+            inject(ZIBRI_DI_TOKENS.ROUTE_AUTH_SERVICE).validatePermissionIsDeclared(
                 'platform',
                 options.introspectionPermission,
                 `${controller.name} in introspectionPermission`
@@ -608,7 +602,13 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
                 if (apiKey.authenticationMethod !== ApiKeyAuthenticationMethod.PRIVATE_KEY_JWT || presented.proof == undefined) {
                     throw refused;
                 }
-                await this.validateAssertion(presented.proof, apiKey, [endpoint.issuer, `${endpoint.url}/token`, calledUrl], refused);
+                await this.validateAssertion(
+                    presented.proof,
+                    apiKey,
+                    endpoint,
+                    [endpoint.issuer, `${endpoint.url}/token`, calledUrl],
+                    refused
+                );
                 return undefined;
             }
             case 'certificate': {
@@ -621,18 +621,25 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
      * Checks a jwt a client signed to authenticate itself, and spends it.
      * @param assertion - The jwt.
      * @param apiKey - The client's api key.
+     * @param endpoint - The routes the jwt was sent to, which say how far ahead it may expire.
      * @param audiences - Who the jwt may be for.
      * @param refused - What a jwt that does not verify is refused with.
      * @throws The refusal, when the jwt does not verify, expires too far ahead or was spent before.
      */
-    private async validateAssertion(assertion: string, apiKey: ApiKey, audiences: string[], refused: OAuth2Error): Promise<void> {
+    private async validateAssertion(
+        assertion: string,
+        apiKey: ApiKey,
+        endpoint: AuthorizationServerEndpoint,
+        audiences: string[],
+        refused: OAuth2Error
+    ): Promise<void> {
         const key: KeyObject | JwtRemoteKeySet | undefined = this.findClientKey(apiKey);
         const payload: Record<string, unknown> | undefined = key == undefined
             ? undefined
             : await JwtUtilities.verifyAssertion(assertion, key, { clientId: apiKey.id, audiences });
         const expiresAt: number = typeof payload?.['exp'] === 'number' ? payload['exp'] * Ms.SECOND : 0;
         const jwtId: unknown = payload?.['jti'];
-        if (typeof jwtId !== 'string' || expiresAt - Date.now() > MAX_ASSERTION_LIFETIME_IN_MS) {
+        if (typeof jwtId !== 'string' || expiresAt - Date.now() > endpoint.maxClientAssertionLifetimeInMs) {
             throw refused;
         }
         // kept rather than handed back, for as long as the jwt could be presented: it is the record
@@ -781,7 +788,7 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
         const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
         const user: CurrentUser | undefined = context == undefined
             ? undefined
-            : await this.authService.getCurrentUser<string, BaseUser<string>, false>(context, this.authService.strategies, false);
+            : await this.authService.resolveCurrentUser<string, BaseUser<string>, false>(context, this.authService.strategies, false);
         if (user == undefined) {
             this.auditService.record({
                 action: AuditAction.AUTHORIZATION,

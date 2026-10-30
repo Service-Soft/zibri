@@ -118,8 +118,7 @@ export class CronExpression {
     /**
      * Runs every N units.
      *
-     * Everything below the named unit is fixed rather than left open, so this means what it says:
-     * "every five minutes" is twelve runs an hour. A field left open matches every value of itself,
+     * Everything below the named unit is fixed, so "every five minutes" is twelve runs an hour. A field left open matches every value of itself,
      * so an expression that only names minutes would run once a second for the whole of every fifth
      * minute. Chain `at` to move a run within its window - the floor is a default, not a lock.
      * @param value - The interval at which to run.
@@ -186,6 +185,47 @@ export class CronExpression {
             );
         }
         return new CronExpression(parts as CronFields).build();
+    }
+
+    /**
+     * The zone a schedule is read in: the one it is given, or UTC where that names the same moments.
+     *
+     * A schedule that names no hour, day or month, such as every ten seconds, runs at the same
+     * moments in UTC as in a zone whose clocks are a whole number of hours off UTC both in summer and
+     * in winter. Read in UTC, it also runs through the hour such a zone goes through twice when its
+     * clocks go back.
+     * @param expression - The schedule, in node-cron's form.
+     * @param timezone - The zone of the job.
+     * @returns The zone to read the schedule in.
+     */
+    static resolveTimezoneOfTask(expression: string, timezone: string): string {
+        const fields: string[] = expression.trim().split(/\s+/);
+        // the hour, the day, the month and the weekday, with or without a field of seconds
+        const calendarFields: string[] = fields.slice(fields.length - 4);
+        if (!calendarFields.every(field => field === '*')) {
+            return timezone;
+        }
+        const year: number = new Date().getUTCFullYear();
+        const wholeHours: boolean = [new Date(Date.UTC(year, 0, 1)), new Date(Date.UTC(year, 6, 1))]
+            .every(moment => CronExpression.resolveOffsetInMinutes(timezone, moment) % 60 === 0);
+        return wholeHours ? 'UTC' : timezone;
+    }
+
+    /**
+     * How far a zone's clocks are off UTC at a moment.
+     * @param timezone - The zone.
+     * @param moment - The moment.
+     * @returns The offset in minutes.
+     */
+    private static resolveOffsetInMinutes(timezone: string, moment: Date): number {
+        const name: string = new Intl.DateTimeFormat('en-US', { timeZone: timezone, timeZoneName: 'longOffset' })
+            .formatToParts(moment)
+            .find(part => part.type === 'timeZoneName')?.value ?? 'GMT';
+        const match: RegExpExecArray | null = /GMT([+-])(\d{2}):(\d{2})/.exec(name);
+        if (match == undefined) {
+            return 0;
+        }
+        return (match[1] === '-' ? -1 : 1) * ((Number(match[2]) * 60) + Number(match[3]));
     }
 
     // ── Instance modifiers ───────────────────────────────────────────────────

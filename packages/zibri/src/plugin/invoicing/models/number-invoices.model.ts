@@ -7,7 +7,7 @@ import { Property } from '../../../entity/decorators/property.decorator';
  */
 // one counter per recipient per year in each tenant, and neither column is unique on its own.
 // Besides keeping a second counter row from ever existing, the constraint is what lets
-// getConsecutiveNumber claim its number in a single statement instead of reading and writing it back.
+// resolveConsecutiveNumber claim its number in a single statement instead of reading and writing it back.
 @Entity({ allowOrphan: true, uniques: [['year', 'recipientId']] })
 export class NumberInvoices extends BaseEntity {
     /**

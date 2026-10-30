@@ -24,7 +24,12 @@ export interface TwoFactorServiceInterface {
         TwoFactorRegistrationRequestResult
     >(
         user: UserType,
-        method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, TwoFactorRegistrationRequestResult, unknown>,
+        method: TwoFactorMethod<
+            TwoFactorRegistrationRequestData,
+            TwoFactorRegistrationConfirmData,
+            TwoFactorRegistrationRequestResult,
+            unknown
+        >,
         data: TwoFactorRegistrationRequestData
     ) => Promise<TwoFactorRegistrationRequestResult>,
     /**

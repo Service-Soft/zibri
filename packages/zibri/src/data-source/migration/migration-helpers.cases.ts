@@ -149,6 +149,27 @@ export function describeMigrationHelpers(dataSourceName: string, targetOf: () =>
             expect(await storedGadgets()).toStrictEqual([['a', 1], ['b', 2]]);
         });
 
+        it('retypes a property a search reads into a number, and back', async () => {
+            const { gadgets } = targetOf();
+            await gadgets.deleteAll({});
+            await gadgets.createAll([{ label: '1', count: 1 }, { label: '2', count: 2 }]);
+
+            await migrate((dataSource, transaction) => dataSource.changePropertyOfEntity({
+                entity: Gadget,
+                currentProperty: { name: 'label', type: 'string', required: false },
+                property: { name: 'label', type: 'number', required: false },
+                transaction
+            }));
+            await migrate((dataSource, transaction) => dataSource.changePropertyOfEntity({
+                entity: Gadget,
+                currentProperty: { name: 'label', type: 'number', required: false },
+                property: { name: 'label', type: 'string', required: false },
+                transaction
+            }));
+
+            expect(await storedGadgets()).toStrictEqual([['1', 1], ['2', 2]]);
+        });
+
         it('writes a number as the text javascript writes it, and reads that text back as the same number', async () => {
             const counts: number[] = [0.1, -2.5, 1e21, 1.5e-7, 1e15, 1.234_567_890_123_456_8e20];
             await targetOf().gadgets.createAll(counts.map(count => ({ count })));
@@ -425,6 +446,57 @@ export function describeMigrationHelpers(dataSourceName: string, targetOf: () =>
             // the old value is free again, and the new one is taken
             await badges.create({ code: 'a' });
             await expect(badges.create({ code: 'first' })).rejects.toThrow();
+        });
+
+        // part of evaluation round 2, 02 §S14: a migration named an entity by its class alone, which a
+        // generated one cannot - the class changes after it, and may be gone when the migration runs
+        it('changes, removes and adds a property of an entity named by its table, keeping its index in step', async () => {
+            await migrate(async (dataSource, transaction) => {
+                await dataSource.changePropertyOfEntity({
+                    entity: { tableName: 'gadget' },
+                    currentProperty: { name: 'label', type: 'string', required: false },
+                    property: { name: 'label', type: 'string', required: false },
+                    convert: { values: [{ from: 'a', to: 'first' }], default: ValueConversion.CAST },
+                    transaction
+                });
+                await dataSource.addPropertyToEntity({
+                    entity: { tableName: 'gadget' },
+                    property: { name: 'note', type: 'string', required: false },
+                    transaction
+                });
+                await dataSource.removePropertyFromEntity({ entity: { tableName: 'gadget' }, propertyKey: 'note', transaction });
+            });
+
+            expect(await storedGadgets()).toStrictEqual([['first', 1], ['b', 2]]);
+            expect(await countsLabelled('first')).toStrictEqual([1]);
+            expect(await countsLabelled('a')).toStrictEqual([]);
+        });
+
+        it('renames an entity named by its tables onto a table no entity declares, and back', async () => {
+            await migrate((dataSource, transaction) => dataSource.renameEntity({
+                entity: { tableName: 'gadget_of_another_version' },
+                currentTableName: 'gadget',
+                transaction
+            }));
+            await migrate((dataSource, transaction) => dataSource.renameEntity({
+                entity: { tableName: 'gadget' },
+                currentTableName: 'gadget_of_another_version',
+                transaction
+            }));
+
+            expect(await storedGadgets()).toStrictEqual([['a', 1], ['b', 2]]);
+            expect(await countsLabelled('a')).toStrictEqual([1]);
+        });
+
+        // after every case reading through the gadgets' index, which the stores that build indexes while
+        // starting build again only at the next start
+        it('removes an entity named by its table with what it stores, and creates it again empty', async () => {
+            await migrate(async (dataSource, transaction) => {
+                await dataSource.removeEntity({ entity: { tableName: 'gadget' }, transaction });
+                await dataSource.createEntity({ entity: Gadget, properties: 'resolveFromEntity', transaction });
+            });
+
+            expect(await storedGadgets()).toStrictEqual([]);
         });
 
         // last, because the stores that build uniques while starting enforce the badges' only once the

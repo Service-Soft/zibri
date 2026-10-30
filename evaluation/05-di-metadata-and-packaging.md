@@ -1160,7 +1160,10 @@ validation unambiguous and maps to OpenAPI's `discriminator`), how a parse failu
 alternatives is reported, and how a union property is stored (a json column on postgres, like an object
 property today).
 
-### M6. `exactOptionalPropertyTypes` is off — MINOR, **open**
+### M6. `exactOptionalPropertyTypes` is off — ~~MINOR, open~~ **DECIDED AGAINST**
+
+> **Decided against, 2026-10-30 (the user's call).** The flag stays off, and no modelling pass is
+> owed for it.
 
 *Filed on 2026-10-15, from what §M2 declined to do as part of a strictness round.*
 

@@ -108,7 +108,7 @@ describe('MultithreadingService, when recording the start of a job is slow', () 
         const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
         const res: ThreadJobEntity<{ filePath: FsPath }, unknown> = await multithreadingService.runThreadJob({
             workerData: { filePath, amount: 45 },
-            timeoutInMs:1
+            timeoutInMs: 1
         });
 
         expect(res.status).toBe(ThreadJobStatus.FAILED);
@@ -121,7 +121,7 @@ describe('MultithreadingService, when recording the start of a job is slow', () 
         const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.endless.test.worker.js');
         // longer than the start write is held back, so a job handed over after all is still running
         // when its timeout writes to the row
-        const id: string = await multithreadingService.queueThreadJob({ workerData: { filePath }, timeoutInMs:600 });
+        const id: string = await multithreadingService.queueThreadJob({ workerData: { filePath }, timeoutInMs: 600 });
 
         // the class rather than the token, which types it without the hook. One instance either way
         const shuttingDown: MultithreadingService = inject(MultithreadingService);

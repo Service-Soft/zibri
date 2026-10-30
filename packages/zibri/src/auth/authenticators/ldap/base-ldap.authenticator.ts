@@ -1,5 +1,5 @@
-import { randomInt, randomUUID } from 'node:crypto';
-import type { ConnectionOptions } from 'node:tls';
+import { randomUUID } from 'node:crypto';
+import { connect, type ConnectionOptions, type TLSSocket } from 'node:tls';
 
 import type { Client, ClientOptions, Entry, Filter } from 'ldapts';
 
@@ -19,6 +19,7 @@ import { inject } from '../../../di/inject.function';
 import { AccountDeactivatedError } from '../../../error-handling/errors/account-deactivated.error';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
 import { InternalError } from '../../../error-handling/internal-error.model';
+import { OnAppShutdown } from '../../../global/on-app-shutdown.interface';
 import { type LeaseServiceInterface } from '../../../leases/lease-service.interface';
 import { $ts } from '../../../localization/translate.function';
 import { type LoggerInterface } from '../../../logging/logger.interface';
@@ -40,11 +41,6 @@ import { RefreshResolvingAuthenticatorInterface } from '../refresh-resolving-aut
 const FIRST_LOGIN_LEASE_IN_MS: number = 30 * Ms.SECOND;
 
 /**
- * How many linked entries one search of the job that looks for disabled entries asks for.
- */
-const DISABLED_ENTRY_PAGE_SIZE: number = 100;
-
-/**
  * The value of OpenLDAP's `pwdAccountLockedTime` that locks an account until an administrator unlocks
  * it, rather than for a while after too many wrong passwords.
  */
@@ -57,6 +53,61 @@ const LOCKED_BY_ADMINISTRATOR: string = '000001010000Z';
 const NO_ATTRIBUTES: string[] = ['1.1'];
 
 /**
+ * A connection to a server of the directory, bound as the service account.
+ */
+type ServiceConnection = {
+    /**
+     * The client of the connection.
+     */
+    client: Client,
+    /**
+     * The server it is connected to.
+     */
+    url: string,
+    /**
+     * Whether the connection closed.
+     */
+    isDropped: () => boolean
+};
+
+/**
+ * Whether a value is options of a TLS connection, which every object is: all of them are optional.
+ * @param value - The value.
+ * @returns Whether it is.
+ */
+function isTlsConnectionOptions(value: unknown): value is ConnectionOptions {
+    return typeof value === 'object' && value != undefined;
+}
+
+/**
+ * The entry a typed name belongs to, and the server it was found on.
+ */
+type FoundEntry = {
+    /**
+     * The entry, or undefined when no single entry has the name.
+     */
+    found: Entry | undefined,
+    /**
+     * The server.
+     */
+    url: string
+};
+
+/**
+ * What a refresh found out about the entries of a user.
+ */
+type RefreshedEntries = {
+    /**
+     * The links whose entries were disabled or deleted.
+     */
+    disabled: LdapIdentity[],
+    /**
+     * The entries of the other links, with their groups, in the order of the links.
+     */
+    entries: LdapEntry[]
+};
+
+/**
  * Authenticates a user by the password of their entry in a directory, such as OpenLDAP, 389 Directory
  * Server or Active Directory.
  *
@@ -66,16 +117,17 @@ const NO_ATTRIBUTES: string[] = ['1.1'];
  *
  * An entry is linked to a user by the id the directory gave it. The first login as an entry hands
  * it to `resolveFirstLogin`, which answers the user it logs in as; every later one hands it to
- * `resolveLogin` with that user, and so does every refresh of a login of that user.
+ * `resolveLogin` with that user, and so does a refresh of a login of that user once
+ * `refreshCheckIntervalInMs` passed.
  *
- * A user whose entry is disabled or deleted loses their logins and api keys: at the next refresh, or
+ * A user whose entry is disabled or deleted loses their logins and api keys: at such a refresh, or
  * when `DisabledLdapEntriesCronJob` finds it, every 15 minutes by default.
  */
 export abstract class BaseLdapAuthenticator<
     RoleType extends string,
     UserType extends BaseUser<RoleType> = BaseUser<RoleType>
 > implements AuthControllerAuthenticatorInterface<RoleType, UserType, LdapCredentials>,
-    RefreshResolvingAuthenticatorInterface<RoleType, UserType> {
+    RefreshResolvingAuthenticatorInterface<RoleType, UserType>, OnAppShutdown {
     /**
      * The name of the authenticator, which the links of the directory's entries to users are kept under.
      */
@@ -86,7 +138,7 @@ export abstract class BaseLdapAuthenticator<
 
     /**
      * The servers of the directory: `ldaps://host:636`, or `ldap://host:389`, which is upgraded with
-     * StartTLS. A login starts at a random one, and moves on to the next when one cannot be reached.
+     * StartTLS. A new connection is opened to all of them at once, and the first that answers is used.
      */
     abstract readonly urls: string[];
 
@@ -154,6 +206,34 @@ export abstract class BaseLdapAuthenticator<
      * How long the directory may take to answer, for the connection and for every request on it.
      */
     readonly timeoutInMs: number = 10 * Ms.SECOND;
+
+    /**
+     * How many linked entries `DisabledLdapEntriesCronJob` asks the directory about at a time. 100 by
+     * default.
+     */
+    readonly disabledEntryPageSize: number = 100;
+
+    /**
+     * How many connections bound as the service account are kept open between searches. 5 by default.
+     */
+    readonly connectionPoolSize: number = 5;
+
+    /**
+     * How long after the directory was last asked about the entries of a user a refresh of their login
+     * goes on without asking it again: an entry disabled meanwhile keeps its logins that long, and the
+     * user keeps the roles `resolveLogin` gave them. 0 asks on every refresh.
+     */
+    abstract readonly refreshCheckIntervalInMs: number;
+
+    /**
+     * Connections bound as the service account that no search uses right now.
+     */
+    private readonly idleConnections: ServiceConnection[] = [];
+
+    /**
+     * Whether the application shut down, after which a connection is closed rather than kept.
+     */
+    private closed: boolean = false;
 
     private get userService(): UserServiceInterface {
         return inject(ZIBRI_DI_TOKENS.USER_SERVICE);
@@ -253,7 +333,8 @@ export abstract class BaseLdapAuthenticator<
     /**
      * Answers the user a refresh continues the login of, from the entries linked to them: refused with
      * an AccountDeactivatedError when one of them is disabled or deleted, and handed to `resolveLogin`
-     * otherwise. A user linked to no entry of this directory is answered as they are.
+     * otherwise. A user linked to no entry of this directory, or whose entries the directory was asked
+     * about less than `refreshCheckIntervalInMs` ago, is answered as they are.
      * @param user - The user of the login.
      * @param transaction - The transaction of the refresh, if any.
      * @returns The user.
@@ -265,37 +346,45 @@ export abstract class BaseLdapAuthenticator<
             where: { directory: this.name, userId: user.id },
             transaction
         });
-        if (!links.length) {
+        if (!links.length || links.every(link => this.isCheckedRecently(link))) {
             return user;
         }
-        const client: Client = await this.resolveServiceConnection();
-        try {
-            const entries: Map<string, LdapEntry> = await this.findEntriesById(client, links.map(link => link.entryId));
+        const refreshed: RefreshedEntries = await this.withServiceConnection(async ({ client }) => {
+            const entries: Map<string, LdapEntry> = await this.findEntriesById(client, links.map(link => link.entryId), this.attributes);
             const disabled: LdapIdentity[] = links.filter(link => !this.isLinkActive(link, entries));
             if (disabled.length) {
-                // once the transaction is finished, which the refusal rolls back
-                const mark: () => Promise<void> = async () => await this.markDisabled(disabled);
-                if (transaction == undefined) {
-                    await mark();
-                }
-                else {
-                    transaction.afterFinish(mark);
-                }
-                throw new AccountDeactivatedError();
+                return { disabled, entries: [] };
             }
-            let res: UserType = user;
-            // one after the other, since each is handed what the one before answered
-            for (const link of links) {
-                const entry: LdapEntry | undefined = entries.get(link.entryId);
-                if (entry != undefined) {
-                    res = await this.resolveLogin(await this.resolveWithGroups(client, entry), res, transaction);
-                }
+            const found: LdapEntry[] = links.map(link => entries.get(link.entryId)).filter(entry => entry != undefined);
+            // one after the other, so a refresh holds one connection for as long as it asks
+            const withGroups: LdapEntry[] = [];
+            for (const entry of found) {
+                withGroups.push(await this.resolveWithGroups(client, entry));
             }
-            return res;
+            return { disabled: [], entries: withGroups };
+        });
+        if (refreshed.disabled.length) {
+            // once the transaction is finished, which the refusal rolls back
+            const mark: () => Promise<void> = async () => await this.markDisabled(refreshed.disabled);
+            if (transaction == undefined) {
+                await mark();
+            }
+            else {
+                transaction.afterFinish(mark);
+            }
+            throw new AccountDeactivatedError();
         }
-        finally {
-            await client.unbind();
+        let res: UserType = user;
+        // one after the other, since each is handed what the one before answered
+        for (const entry of refreshed.entries) {
+            res = await this.resolveLogin(entry, res, transaction);
         }
+        // nothing reads it when every refresh asks
+        if (this.refreshCheckIntervalInMs > 0) {
+            await this.identityRepository
+                .updateAll({ id: { oneOf: links.map(link => link.id) } }, { checkedAt: new Date() }, { transaction });
+        }
+        return res;
     }
 
     /**
@@ -303,34 +392,36 @@ export abstract class BaseLdapAuthenticator<
      * links, so the next run leaves them be. `DisabledLdapEntriesCronJob` calls it.
      */
     async endAccessOfDisabledEntries(): Promise<void> {
-        // connected once there is something to ask, so a directory nobody logged in at is never asked
-        let client: Client | undefined;
-        try {
-            let cursor: string | undefined;
-            do {
-                const page: KeysetPage<LdapIdentity> = await this.identityRepository.findAllAfter(
-                    cursor,
-                    DISABLED_ENTRY_PAGE_SIZE,
-                    // eslint-disable-next-line unicorn/no-null
-                    { where: { directory: this.name, disabledAt: null } }
+        let cursor: string | undefined;
+        do {
+            const page: KeysetPage<LdapIdentity> = await this.identityRepository.findAllAfter(
+                cursor,
+                this.disabledEntryPageSize,
+                // eslint-disable-next-line unicorn/no-null
+                { where: { directory: this.name, disabledAt: null } }
+            );
+            // connected once there is something to ask, so a directory nobody logged in at is never asked
+            if (page.items.length) {
+                // only what tells the entries apart and whether they are active: nothing here reads more
+                const entries: Map<string, LdapEntry> = await this.withServiceConnection(
+                    async ({ client }) => await this.findEntriesById(client, page.items.map(link => link.entryId), [])
                 );
-                if (page.items.length) {
-                    client ??= await this.resolveServiceConnection();
-                    const entries: Map<string, LdapEntry> = await this.findEntriesById(client, page.items.map(link => link.entryId));
-                    const disabled: LdapIdentity[] = page.items.filter(link => !this.isLinkActive(link, entries));
-                    if (disabled.length) {
-                        await this.markDisabled(disabled);
-                        const userIds: string[] = [...new Set(disabled.map(link => link.userId))];
-                        await Promise.all(userIds.map(async userId => await this.authService.endAccess(userId, undefined)));
-                    }
+                const disabled: LdapIdentity[] = page.items.filter(link => !this.isLinkActive(link, entries));
+                if (disabled.length) {
+                    await this.markDisabled(disabled);
+                    const userIds: string[] = [...new Set(disabled.map(link => link.userId))];
+                    await Promise.all(userIds.map(async userId => await this.authService.endAccess(userId, undefined)));
                 }
-                cursor = page.nextCursor;
             }
-            while (cursor != undefined);
+            cursor = page.nextCursor;
         }
-        finally {
-            await client?.unbind();
-        }
+        while (cursor != undefined);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async onAppShutdown(): Promise<void> {
+        this.closed = true;
+        await Promise.all(this.idleConnections.splice(0).map(async connection => await this.closeConnection(connection)));
     }
 
     /**
@@ -433,28 +524,24 @@ export abstract class BaseLdapAuthenticator<
      * @throws UnauthorizedError when no single entry has the name, or the password is not the entry's.
      */
     private async resolveEntry(credentials: LdapCredentials): Promise<LdapEntry> {
-        const client: Client = await this.resolveServiceConnection();
-        try {
-            const found: Entry | undefined = await this.findEntry(client, credentials.username);
-            if (found == undefined) {
-                // a bind all the same, so that an unknown name takes as long as a wrong password
-                await this.bindAsEntry(client, `cn=${randomUUID()},${this.searchBase}`, credentials.password);
-                throw new UnauthorizedError($ts`Invalid username or password.`);
-            }
-            if (!await this.bindAsEntry(client, found.dn, credentials.password)) {
-                throw new UnauthorizedError($ts`Invalid username or password.`);
-            }
-            if (this.groupSearchBase == undefined) {
-                return this.toEntry(found, []);
-            }
-            // the groups are read as the service account rather than as the user, who may not be allowed
-            // to, and only after the password is checked, so a wrong one takes no longer for a known name
-            await client.bind(this.serviceAccount.dn, this.serviceAccount.password);
-            return this.toEntry(found, await this.resolveGroups(client, found.dn, this.groupSearchBase));
+        const { found, url }: FoundEntry = await this.withServiceConnection(
+            async connection => ({ found: await this.findEntry(connection.client, credentials.username), url: connection.url })
+        );
+        // a bind all the same for an unknown name, so that it takes as long as a wrong password
+        const taken: boolean = await this.bindAsEntry(url, found?.dn ?? `cn=${randomUUID()},${this.searchBase}`, credentials.password);
+        if (found == undefined || !taken) {
+            throw new UnauthorizedError($ts`Invalid username or password.`);
         }
-        finally {
-            await client.unbind();
+        const groupSearchBase: string | undefined = this.groupSearchBase;
+        if (groupSearchBase == undefined) {
+            return this.toEntry(found, []);
         }
+        // the groups are read as the service account rather than as the user, who may not be allowed
+        // to, and only after the password is checked, so a wrong one takes no longer for a known name
+        const groups: string[] = await this.withServiceConnection(
+            async ({ client }) => await this.resolveGroups(client, found.dn, groupSearchBase)
+        );
+        return this.toEntry(found, groups);
     }
 
     /**
@@ -488,10 +575,11 @@ export abstract class BaseLdapAuthenticator<
      * Finds the entries with the given ids, in one search, with the attributes `isEntryActive` reads.
      * @param client - The connection, bound as the service account.
      * @param entryIds - The ids the entries are linked by.
+     * @param attributes - What else to read of them.
      * @returns The entries found, by their ids, without their groups. An entry missing here was deleted,
      * or no longer matches `entryFilter`.
      */
-    private async findEntriesById(client: Client, entryIds: string[]): Promise<Map<string, LdapEntry>> {
+    private async findEntriesById(client: Client, entryIds: string[], attributes: string[]): Promise<Map<string, LdapEntry>> {
         const ldapts: Ldapts = this.resolveLdapts();
         const { searchEntries } = await client.search(this.searchBase, {
             scope: 'sub',
@@ -506,10 +594,20 @@ export abstract class BaseLdapAuthenticator<
                     })
                 ]
             }),
-            attributes: [...this.attributes, this.idAttribute, ...this.entryStateAttributes]
+            attributes: [...attributes, this.idAttribute, ...this.entryStateAttributes]
         });
         const entries: LdapEntry[] = searchEntries.map(found => this.toEntry(found, []));
         return new Map(entries.map(entry => [entry.id, entry]));
+    }
+
+    /**
+     * Whether the directory was asked about the entry of a link less than `refreshCheckIntervalInMs`
+     * ago.
+     * @param link - The link.
+     * @returns Whether it was.
+     */
+    private isCheckedRecently(link: LdapIdentity): boolean {
+        return link.checkedAt != undefined && Date.now() - new Date(link.checkedAt).getTime() < this.refreshCheckIntervalInMs;
     }
 
     /**
@@ -545,51 +643,188 @@ export abstract class BaseLdapAuthenticator<
     }
 
     /**
-     * Opens an encrypted connection to a server of the directory and binds it as the service account,
-     * starting at a random server and moving on to the next while one cannot be reached.
-     * @returns The client, bound as the service account.
+     * Runs work on a connection bound as the service account: one kept from before, or a new one, which
+     * is kept afterwards while fewer than `connectionPoolSize` are.
+     * @param work - What runs on the connection. It may run twice, on a second connection, when the
+     * directory closed a kept one meanwhile.
+     * @returns What the work answers.
      * @throws InternalError when no server can be reached, or one refuses the service account.
      */
-    private async resolveServiceConnection(): Promise<Client> {
-        const ldapts: Ldapts = this.resolveLdapts();
-        const start: number = randomInt(this.urls.length);
-        const failures: unknown[] = [];
-        for (const url of [...this.urls.slice(start), ...this.urls.slice(0, start)]) {
-            const client: Client = this.createClient(url);
-            try {
-                // one at a time on purpose: the next server is only asked once this one failed
-                await this.startTls(client, url);
-                await client.bind(this.serviceAccount.dn, this.serviceAccount.password);
-                return client;
-            }
-            catch (error) {
-                await client.unbind();
-                // an answer of the directory comes from a server that was reached, and the next one
-                // answers the same
-                if (error instanceof ldapts.ResultCodeError) {
-                    throw new InternalError(
-                        `The service account of ${this.constructor.name} could not bind to the directory.`,
-                        { cause: error }
-                    );
-                }
-                this.logger.warn(`${this.constructor.name}: the server ${url} could not be reached.`);
-                failures.push(error);
-            }
+    private async withServiceConnection<T>(work: (connection: ServiceConnection) => Promise<T>): Promise<T> {
+        const kept: ServiceConnection | undefined = await this.takeIdleConnection();
+        const connection: ServiceConnection = kept ?? await this.resolveServiceConnection();
+        let result: T;
+        try {
+            result = await work(connection);
         }
-        throw new InternalError(
-            `No server of the directory of ${this.constructor.name} could be reached.`,
-            { cause: new AggregateError(failures, 'Every server failed to connect.') }
-        );
+        catch (error) {
+            await this.closeConnection(connection);
+            // a kept connection the directory dropped fails without an answer from the directory. A
+            // new one is not kept from before, so its failure is the directory's answer
+            if (kept != undefined && !(error instanceof this.resolveLdapts().ResultCodeError)) {
+                this.logger.warn(
+                    `${this.constructor.name}: a kept connection to ${connection.url} failed, and the work runs again on a new one.`,
+                    { error }
+                );
+                return await this.withServiceConnection(work);
+            }
+            throw error;
+        }
+        await this.releaseConnection(connection);
+        return result;
+    }
+
+    /**
+     * Takes a kept connection that is still bound as the service account, and closes the ones that are
+     * not: ldapts connects again on its own once the directory closed a connection, and the new one is
+     * bound as nobody.
+     * @returns The connection, or undefined when none is kept.
+     */
+    private async takeIdleConnection(): Promise<ServiceConnection | undefined> {
+        let connection: ServiceConnection | undefined = this.idleConnections.pop();
+        while (connection != undefined && (connection.isDropped() || !connection.client.isBound)) {
+            await this.closeConnection(connection);
+            connection = this.idleConnections.pop();
+        }
+        return connection;
+    }
+
+    /**
+     * Closes a connection. One that dropped is let go as it is: ldapts may not know a connection
+     * upgraded with StartTLS closed, and would wait timeoutInMs for an answer to the unbind.
+     * @param connection - The connection.
+     */
+    private async closeConnection(connection: ServiceConnection): Promise<void> {
+        if (!connection.isDropped()) {
+            await connection.client.unbind();
+        }
+    }
+
+    /**
+     * Keeps a connection for the next search, or closes it when enough are kept or the application shut
+     * down.
+     * @param connection - The connection.
+     */
+    private async releaseConnection(connection: ServiceConnection): Promise<void> {
+        if (this.closed || this.idleConnections.length >= this.connectionPoolSize) {
+            await this.closeConnection(connection);
+            return;
+        }
+        this.idleConnections.push(connection);
+    }
+
+    /**
+     * Opens an encrypted connection to a server of the directory and binds it as the service account,
+     * asking every server at once and taking the first that binds, so a server that cannot be reached
+     * costs no time while another answers. The others are closed.
+     * @returns The connection, bound as the service account.
+     * @throws InternalError when no server can be reached, or one refuses the service account.
+     */
+    private async resolveServiceConnection(): Promise<ServiceConnection> {
+        const failures: unknown[] = [];
+        let settled: boolean = false;
+        return await new Promise<ServiceConnection>((resolve, reject) => {
+            const onBound: (connection: ServiceConnection) => Promise<void> = async connection => {
+                // a server that binds after another did is let go
+                if (settled) {
+                    await this.closeConnection(connection);
+                    return;
+                }
+                settled = true;
+                resolve(connection);
+            };
+            const onFailed: (error: unknown) => void = error => {
+                if (settled) {
+                    return;
+                }
+                // a refusal settles it as much as a connection does, rather than waiting for a
+                // server that cannot be reached to give up
+                if (error instanceof InternalError) {
+                    settled = true;
+                    reject(error);
+                    return;
+                }
+                failures.push(error);
+                if (failures.length === this.urls.length) {
+                    settled = true;
+                    reject(new InternalError(
+                        `No server of the directory of ${this.constructor.name} could be reached.`,
+                        { cause: new AggregateError(failures, 'Every server failed to connect.') }
+                    ));
+                }
+            };
+            for (const url of this.urls) {
+                void this.bindServiceConnection(url).then(onBound, onFailed);
+            }
+        });
+    }
+
+    /**
+     * Opens an encrypted connection to one server of the directory and binds it as the service account.
+     * @param url - The server.
+     * @returns The connection.
+     * @throws InternalError when the server refuses the service account, and what the connection failed
+     * with when it cannot be reached.
+     */
+    private async bindServiceConnection(url: string): Promise<ServiceConnection> {
+        let dropped: boolean = false;
+        const client: Client = this.createClient(url, () => {
+            dropped = true;
+        });
+        try {
+            await this.startTls(client, url);
+            await client.bind(this.serviceAccount.dn, this.serviceAccount.password);
+            return { client, url, isDropped: () => dropped };
+        }
+        catch (error) {
+            // for the reason closeConnection gives
+            if (!dropped) {
+                await client.unbind();
+            }
+            // an answer of the directory comes from a server that was reached, and every other one
+            // answers the same
+            if (error instanceof this.resolveLdapts().ResultCodeError) {
+                throw new InternalError(
+                    `The service account of ${this.constructor.name} could not bind to the directory.`,
+                    { cause: error }
+                );
+            }
+            this.logger.warn(`${this.constructor.name}: the server ${url} could not be reached.`);
+            throw error;
+        }
     }
 
     /**
      * Builds a client for a server, which connects with its first request.
      * @param url - The server.
+     * @param onClose - What runs once the encrypted connection closes, if anything.
      * @returns The client.
      */
-    private createClient(url: string): Client {
+    private createClient(url: string, onClose?: () => void): Client {
         const ldapts: Ldapts = this.resolveLdapts();
-        const options: ClientOptions = { url, timeout: this.timeoutInMs, connectTimeout: this.timeoutInMs };
+        const options: ClientOptions = {
+            url,
+            timeout: this.timeoutInMs,
+            connectTimeout: this.timeoutInMs,
+            // ldapts misses a connection upgraded with StartTLS closing, and would send on it until
+            // timeoutInMs. ldapts makes both kinds of encrypted connection through this
+            ...onClose == undefined
+                ? {}
+                : {
+                    createSecureConnection: (...args: unknown[]): TLSSocket => {
+                        const [first, second, third] = args;
+                        const socket: TLSSocket = typeof first === 'number'
+                            ? connect(
+                                first,
+                                typeof second === 'string' ? second : undefined,
+                                isTlsConnectionOptions(third) ? third : undefined
+                            )
+                            : connect(isTlsConnectionOptions(first) ? first : {});
+                        socket.once('close', onClose);
+                        return socket;
+                    }
+                }
+        };
         // the options of the upgrade go to startTLS rather than to the client, which would otherwise
         // speak TLS from the first byte to a port that expects LDAP
         return new URL(url).protocol === 'ldaps:'
@@ -615,14 +850,17 @@ export abstract class BaseLdapAuthenticator<
     }
 
     /**
-     * Binds as an entry, which checks its password.
-     * @param client - The connection.
+     * Binds as an entry on a connection of its own, which checks its password. The connections bound as
+     * the service account stay bound as it.
+     * @param url - The server, the one the entry was found on.
      * @param dn - The entry.
      * @param password - The password.
      * @returns Whether the directory took the password.
      */
-    private async bindAsEntry(client: Client, dn: string, password: string): Promise<boolean> {
+    private async bindAsEntry(url: string, dn: string, password: string): Promise<boolean> {
+        const client: Client = this.createClient(url);
         try {
+            await this.startTls(client, url);
             await client.bind(dn, password);
             return true;
         }
@@ -640,6 +878,9 @@ export abstract class BaseLdapAuthenticator<
                 return false;
             }
             throw error;
+        }
+        finally {
+            await client.unbind();
         }
     }
 
@@ -683,10 +924,10 @@ export abstract class BaseLdapAuthenticator<
     private async resolveUser(entry: LdapEntry, transaction: Transaction | undefined): Promise<UserType> {
         const linked: LdapIdentity | undefined = await this.findIdentity(entry, transaction);
         if (linked != undefined) {
-            if (linked.disabledAt != undefined) {
-                // the directory took the password, so the entry is enabled again
+            // the directory took the password, so the entry is enabled again; and it was just asked
+            if (linked.disabledAt != undefined || this.refreshCheckIntervalInMs > 0) {
                 // eslint-disable-next-line unicorn/no-null
-                await this.identityRepository.updateById(linked.id, { disabledAt: null }, { transaction });
+                await this.identityRepository.updateById(linked.id, { disabledAt: null, checkedAt: new Date() }, { transaction });
             }
             return await this.resolveLogin(entry, await this.findLinkedUser(linked.userId), transaction);
         }
@@ -706,7 +947,10 @@ export abstract class BaseLdapAuthenticator<
                     return await this.resolveLogin(entry, await this.findLinkedUser(linkedMeanwhile.userId), transaction);
                 }
                 const created: UserType = await this.resolveFirstLogin(entry, transaction);
-                await this.identityRepository.create({ directory: this.name, entryId: entry.id, userId: created.id }, { transaction });
+                await this.identityRepository.create(
+                    { directory: this.name, entryId: entry.id, userId: created.id, checkedAt: new Date() },
+                    { transaction }
+                );
                 return created;
             }
         );

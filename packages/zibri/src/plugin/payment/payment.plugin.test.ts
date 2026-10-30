@@ -14,6 +14,7 @@ import { StartedTestServer, startTestServer } from '../../__testing__/test-serve
 import { defineProvider } from '../../di/models/di-provider.model';
 import { AppState } from '../../global/app-state.enum';
 import { GlobalRegistry } from '../../global/global-registry';
+import { Ms } from '../../utilities/ms';
 
 // eslint-disable-next-line typescript/no-explicit-any
 function createFakeProvider(name: string): AnyPaymentProviderInterface & Record<string, any> {
@@ -34,7 +35,9 @@ function createFakeProvider(name: string): AnyPaymentProviderInterface & Record<
         confirmPayment: jest.fn(),
         collectPaymentFromReservation: jest.fn(),
         cancelPayment: jest.fn(),
-        refundPayment: jest.fn()
+        refundPayment: jest.fn(),
+        approvalWindowInMs: Ms.DAY,
+        reconcilePayment: jest.fn()
     };
 }
 

@@ -321,13 +321,18 @@ export abstract class JwtUtilities {
             const verified: JWTVerifyResult = await jose.jwtVerify(proof, jose.EmbeddedJWK, {
                 typ: 'dpop+jwt',
                 algorithms,
-                requiredClaims: ['jti', 'htm', 'htu', 'iat'],
-                maxTokenAge: Math.floor(maxAgeInMs / Ms.SECOND),
-                clockTolerance: Math.floor(maxAgeInMs / Ms.SECOND)
+                requiredClaims: ['jti', 'htm', 'htu', 'iat']
             });
             const jwk: JWK | undefined = verified.protectedHeader.jwk;
             // a private key in the header would be one the client handed to everybody it sends a proof to
             if (jwk == undefined || 'd' in jwk) {
+                return undefined;
+            }
+            // checked here rather than by maxTokenAge and clockTolerance, which jose adds together: a
+            // proof of twice the age passed, and was remembered as presented for only as long as the
+            // age it was meant to have
+            const ageInMs: number = Date.now() - ((verified.payload.iat ?? 0) * Ms.SECOND);
+            if (ageInMs > maxAgeInMs || ageInMs < -maxAgeInMs) {
                 return undefined;
             }
             return { payload: verified.payload, jwkThumbprint: await jose.calculateJwkThumbprint(jwk, 'sha256') };

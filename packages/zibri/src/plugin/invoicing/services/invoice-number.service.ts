@@ -1,15 +1,21 @@
+import { CompanyInfoServiceInterface } from './company-info-service.interface';
 import { InvoiceNumberServiceInterface } from './invoice-number-service.interface';
 import { Repository } from '../../../data-source/repository/repository';
+import { NoActiveTenantError } from '../../../data-source/tenancy/no-active-tenant.error';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { UniqueConstraintViolationError } from '../../../data-source/unique-constraint-violation.error';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { ConflictError } from '../../../error-handling/errors/conflict.error';
+import { getZonedDate } from '../../../localization/format-date.function';
 import { $ts } from '../../../localization/translate.function';
+import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
+import { CompanyInfo } from '../models/company-info.model';
 import { InvoiceAddress } from '../models/invoice-address.model';
 import { InvoiceRecipientAbbreviation } from '../models/invoice-recipient-abbreviation.model';
 import { Invoice } from '../models/invoice.model';
@@ -40,6 +46,12 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
         return inject(repositoryTokenFor(InvoiceRecipientAbbreviation));
     }
 
+    // read when used for the reason the repositories are: an application without one is told so by
+    // ZibriInvoicingPlugin.validate rather than by a failed build of this
+    private get companyInfoService(): CompanyInfoServiceInterface {
+        return inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.COMPANY_INFO_SERVICE);
+    }
+
     constructor(
         @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS)
         protected readonly options: InvoicingOptions
@@ -52,7 +64,7 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
         transaction: Transaction | undefined,
         nameAbbreviation?: string
     ): Promise<string> {
-        const currentYear: string = `${new Date().getFullYear()}`;
+        const currentYear: number = await this.resolveCurrentYear();
         // before the counter is touched, so a refused abbreviation draws no number - with a
         // transaction or without one, where a drawn number would stay drawn
         const customerNameAbbreviation: string = await this.resolveNameAbbreviation(
@@ -61,7 +73,7 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
             nameAbbreviation,
             transaction
         );
-        const consecutiveNumber: string = await this.getConsecutiveNumber(recipientId, transaction);
+        const consecutiveNumber: string = await this.resolveConsecutiveNumber(recipientId, currentYear, transaction);
         // eslint-disable-next-line stylistic/max-len
         const result: string = `${currentYear}${this.options.separator}${customerNameAbbreviation}${this.options.separator}${consecutiveNumber}`;
         await this.validateInvoiceNumber(result);
@@ -70,7 +82,7 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async generateTemporaryInvoiceNumber(recipientId: string, invoiceAddress: InvoiceAddress, nameAbbreviation?: string): Promise<string> {
-        const currentYear: string = `${new Date().getFullYear()}`;
+        const currentYear: number = await this.resolveCurrentYear();
         // read rather than claimed: a temporary number draws nothing, and the number it is replaced
         // with claims the abbreviation then
         const held: InvoiceRecipientAbbreviation | undefined = await this.recipientAbbreviationRepository.findOne(
@@ -79,7 +91,7 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
         const customerNameAbbreviation: string = nameAbbreviation
             ?? held?.nameAbbreviation
             ?? this.getSuggestedNameAbbreviation(invoiceAddress);
-        const consecutiveNumber: string = await this.getTemporaryConsecutiveNumber(recipientId);
+        const consecutiveNumber: string = await this.resolveTemporaryConsecutiveNumber(recipientId, currentYear);
 
         // eslint-disable-next-line stylistic/max-len
         const result: string = `TEMP${this.options.separator}${currentYear}${this.options.separator}${customerNameAbbreviation}${this.options.separator}${consecutiveNumber}`;
@@ -98,13 +110,28 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
     }
 
     /**
-     * Gets the temporary consecutive number of the invoices in this year and for the provided recipientId.
+     * Resolves the year an invoice issued now is numbered in: the calendar year in the time zone of
+     * the company issuing it.
+     * @returns The year.
+     * @throws A NoActiveTenantError outside a tenant, where no company issues it.
+     */
+    protected async resolveCurrentYear(): Promise<number> {
+        const tenantId: string | undefined = inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE).getActiveTenantId();
+        if (tenantId == undefined) {
+            throw new NoActiveTenantError(NumberInvoices);
+        }
+        const company: CompanyInfo = await this.companyInfoService.resolveCompanyInfo(tenantId);
+        return getZonedDate(new Date(), company.timezone).year;
+    }
+
+    /**
+     * Gets the temporary consecutive number of the invoices in the given year and for the provided recipientId.
      * Prefixes it with zeroes until the result has the same length as this.options.numberOfDigits.
      * @param recipientId - The id of the recipient of the invoice.
+     * @param currentYear - The year the invoice is numbered in.
      * @returns The number of invoices over a year filled up with zeroes to match this.options.numberOfDigits.
      */
-    protected async getTemporaryConsecutiveNumber(recipientId: string): Promise<string> {
-        const currentYear: number = new Date(Date.now()).getFullYear();
+    protected async resolveTemporaryConsecutiveNumber(recipientId: string, currentYear: number): Promise<string> {
         let numberOfInvoices: NumberInvoices | undefined = await this.numberInvoicesRepository.findOne(
             { where: { year: currentYear, recipientId }, required: false }
         );
@@ -119,15 +146,18 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
     }
 
     /**
-     * Gets the consecutive number of the invoices in this year.
+     * Gets the consecutive number of the invoices in the given year.
      * Prefixes it with zeroes until the result has the same length as this.options.numberOfDigits.
      * @param recipientId - The id of the recipient of the invoice.
+     * @param currentYear - The year the invoice is numbered in.
      * @param transaction - An optional transaction from outside to make sure any changes only apply when the transaction is committed.
      * @returns The number of invoices over a year filled up with zeroes to match this.options.numberOfDigits.
      */
-    protected async getConsecutiveNumber(recipientId: string, transaction: Transaction | undefined): Promise<string> {
-        const currentYear: number = new Date(Date.now()).getFullYear();
-
+    protected async resolveConsecutiveNumber(
+        recipientId: string,
+        currentYear: number,
+        transaction: Transaction | undefined
+    ): Promise<string> {
         // One upsert, because nothing weaker holds. Reading the counter and writing it back is a
         // race whether or not it runs under a lock: the lock only covers the window it is held for,
         // and with a transaction the write lands on commit - after that window has closed. Two

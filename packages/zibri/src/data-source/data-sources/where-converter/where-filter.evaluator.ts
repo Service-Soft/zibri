@@ -64,9 +64,15 @@ export class WhereFilterEvaluator {
 
     /**
      * The lists of `oneOf` and `notOneOf` already read into a set, or undefined for a list holding a
-     * value a set cannot compare. Keyed by the list itself, which one filter hands over for every row.
+     * value a set cannot compare. Keyed by the list itself, which one filter hands over for every row,
+     * and forgotten once the rows checked together are checked.
      */
-    private readonly listedSets: WeakMap<unknown[], Set<unknown> | undefined> = new WeakMap();
+    private listedSets: WeakMap<unknown[], Set<unknown> | undefined> = new WeakMap();
+
+    /**
+     * Whether the sets are about to be forgotten.
+     */
+    private forgetsListedSets: boolean = false;
 
     private readonly handlers: Record<WhereFilterKeys, EvaluationHandler> = {
         // a row holding no value is not the value named, so it matches - the way `notOneOf` answers,
@@ -185,7 +191,9 @@ export class WhereFilterEvaluator {
         path: string
     ): boolean {
         for (const key of ObjectUtilities.keys(filter)) {
-            const filterProperty: WhereFilterProperty<T[typeof key], T[typeof key], T> | WhereFilterProperty<T[typeof key], T[typeof key], T>[] | undefined = filter[key];
+            const filterProperty: WhereFilterProperty<T[typeof key], T[typeof key], T>
+                | WhereFilterProperty<T[typeof key], T[typeof key], T>[]
+                | undefined = filter[key];
             if (filterProperty === undefined) {
                 continue;
             }
@@ -333,20 +341,23 @@ export class WhereFilterEvaluator {
      * @throws InternalError when the pattern ends with a backslash, which makes nothing literal.
      */
     private likeToRegex(pattern: string, ignoreCase: boolean): RegExp {
+        // by character rather than by UTF-16 unit, as postgres reads it: `_` is one character, an
+        // emoji included
+        const chars: string[] = [...pattern];
         let source: string = '';
-        for (let i: number = 0; i < pattern.length; i++) {
-            const char: string = pattern.charAt(i);
+        for (let i: number = 0; i < chars.length; i++) {
+            const char: string = chars[i] ?? '';
             if (char === '\\') {
                 i++;
-                if (i === pattern.length) {
+                if (i === chars.length) {
                     throw new InternalError(`The like pattern "${pattern}" ends with a backslash, which makes nothing literal.`);
                 }
-                source += this.escapeRegex(pattern.charAt(i));
+                source += this.escapeRegex(chars[i] ?? '');
                 continue;
             }
             source += char === '%' ? '.*' : char === '_' ? '.' : this.escapeRegex(char);
         }
-        return new RegExp(`^${source}$`, ignoreCase ? 'is' : 's');
+        return new RegExp(`^${source}$`, ignoreCase ? 'isu' : 'su');
     }
 
     private escapeRegex(char: string): string {
@@ -514,6 +525,15 @@ export class WhereFilterEvaluator {
             ? new Set(list.filter(v => v !== null))
             : undefined;
         this.listedSets.set(list, res);
+        // kept for the rows a read checks one after another, and no longer: a caller reuses the list
+        // it passed, and one changed in place before the next read was still answered by the old set
+        if (!this.forgetsListedSets) {
+            this.forgetsListedSets = true;
+            queueMicrotask(() => {
+                this.listedSets = new WeakMap();
+                this.forgetsListedSets = false;
+            });
+        }
         return res;
     }
 

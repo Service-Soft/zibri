@@ -30,6 +30,6 @@ export type DeclaringClass<T> = {
  * So a store that serializes is told the shape, and the shape has to be one that survives being
  * stored: a class whose instances are {@link SelfDescribing}, so that what comes back can still be
  * told apart from anything else. `'plain'` is the answer for a value with no shape to read - a
- * number, a string, an object of them - and says so rather than leaving it unanswered.
+ * number, a string, an object of them.
  */
 export type CacheModel = DeclaringClass<SelfDescribing> | 'plain';

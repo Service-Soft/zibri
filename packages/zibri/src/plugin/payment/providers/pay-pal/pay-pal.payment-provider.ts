@@ -6,10 +6,13 @@ import { inject } from '../../../../di/inject.function';
 import { Property } from '../../../../entity/decorators/property.decorator';
 import { BadRequestError } from '../../../../error-handling/errors/bad-request.error';
 import { InternalError } from '../../../../error-handling/internal-error.model';
+import { HttpStatus } from '../../../../http/http-status.enum';
+import { HttpClientError } from '../../../../http-client/http-client.error';
 import { currencyCodeEnum, type CurrencyCode } from '../../../../localization/models/currency-code.model';
 import { $ts } from '../../../../localization/translate.function';
 import { errorToLoggedError } from '../../../../logging/error-to-logged-error.function';
 import { LoggedError } from '../../../../logging/logged-error.model';
+import { Ms } from '../../../../utilities/ms';
 import { BigNumber } from '../../../../utilities/number.utilities';
 import { KnownPaymentMethod } from '../../models/payment-method.model';
 import { PaymentStatus } from '../../models/payment-status.enum';
@@ -181,7 +184,12 @@ export type PayPalPaymentProviderOptions = {
     /**
      * The PayPal environment, either 'sandbox' or 'live'.
      */
-    env: PayPalEnv
+    env: PayPalEnv,
+    /**
+     * How long a buyer has to approve a payment in PayPal's checkout. A payment still `CREATED` after
+     * it is reconciled with PayPal. Defaults to one day.
+     */
+    approvalWindowInMs?: number
 };
 
 /**
@@ -227,11 +235,18 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         return this.options.env === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly approvalWindowInMs: number;
+
     constructor(
         readonly name: string,
         protected readonly options: PayPalPaymentProviderOptions
     ) {
         this.client = new PayPalClient(options, this.apiUrl);
+        // PayPal documents no expiry for an order nobody approved, so this is how long a checkout is
+        // left open: a buyer gone for a day has left it. Reconciling asks PayPal either way, so a
+        // payment that was paid after all is recorded as paid
+        this.approvalWindowInMs = options.approvalWindowInMs ?? Ms.DAY;
     }
 
     /**
@@ -539,6 +554,78 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
             data: { ...payment.data, refundId: resp.id },
             error: errorToLoggedError(new Error(`refund failed, status=${String(resp.status)}`))
         });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async reconcilePayment<M extends SupportedMethods[number]>(
+        payment: Payment<M, ProviderPaymentDataMap[M]> | Payment<M, ProviderReservationPaymentDataMap[M]>
+    ): Promise<void> {
+        const orderId: string | undefined = payment.data?.orderId;
+        if (orderId == undefined) {
+            // the row was written and its order never was: there is nothing at PayPal to pay
+            await this.write(payment, { status: PaymentStatus.CANCELLED, data: payment.data });
+            return;
+        }
+        let order: GetOrderResp;
+        try {
+            order = await this.client.getOrder(orderId);
+        }
+        catch (error) {
+            if (error instanceof HttpClientError && error.responseData?.status === HttpStatus.NOT_FOUND) {
+                // an order PayPal no longer has can no longer be paid
+                await this.write(payment, { status: PaymentStatus.CANCELLED, data: payment.data });
+                return;
+            }
+            throw error;
+        }
+        const changes: PaymentChanges | undefined = this.resolveReconciled(payment, order);
+        if (changes != undefined) {
+            await this.write(payment, changes);
+        }
+    }
+
+    /**
+     * What an order says became of a payment nobody confirmed.
+     * @param payment - The payment.
+     * @param order - Its order.
+     * @returns The changes, or undefined while the money is still moving.
+     */
+    private resolveReconciled<M extends SupportedMethods[number]>(
+        payment: Payment<M, PayPalPaymentProviderPaymentData>,
+        order: GetOrderResp
+    ): PaymentChanges | undefined {
+        const capture: PayPalCapture | undefined = PayPalPaymentProvider.findCapture(order);
+        switch (capture?.status) {
+            case 'COMPLETED': {
+                return { status: PaymentStatus.PAID, data: { ...payment.data, captureId: capture.id } };
+            }
+            case 'PENDING': {
+                return undefined;
+            }
+            case 'DECLINED':
+            case 'FAILED': {
+                return {
+                    status: PaymentStatus.FAILED,
+                    data: { ...payment.data, captureId: capture.id },
+                    error: errorToLoggedError(new Error(`capture failed, status=${capture.status}`))
+                };
+            }
+            // eslint-disable-next-line unicorn/no-null
+            case null:
+            case undefined: {
+                // no capture yet: the authorization tells
+                break;
+            }
+        }
+        const authorization: PayPalAuthorization | undefined = PayPalPaymentProvider.findAuthorization(order);
+        if (authorization?.status === 'CREATED') {
+            return { status: PaymentStatus.RESERVED, data: { ...payment.data, authorizationId: authorization.id } };
+        }
+        if (authorization?.status === 'PENDING') {
+            return undefined;
+        }
+        // nothing captured and nothing held: no money moved, and the window to approve it has passed
+        return { status: PaymentStatus.CANCELLED, data: payment.data };
     }
 
     /**

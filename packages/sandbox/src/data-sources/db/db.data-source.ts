@@ -1,8 +1,9 @@
-import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
+import { BaseEntity, DataSource, Migration, Newable, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
 
 import { entities } from './entities';
+import { migrations } from './migrations';
 import { repositories } from './repositories';
-import { requireBooleanEnv, requireEnv } from '../../env';
+import { requireBooleanEnv, requireEnv, requirePortEnv } from '../../env';
 
 @DataSource()
 export class DbDataSource extends PostgresDataSource {
@@ -17,9 +18,9 @@ export class DbDataSource extends PostgresDataSource {
     // declare it together with where the server itself is. See the data source docs.
     readonly pooler: PostgresPooler = 'none';
 
-    options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+    options: PostgresOptions = {
         host: requireEnv('DB_HOST'),
-        port: Number(requireEnv('DB_PORT')),
+        port: requirePortEnv('DB_PORT'),
         username: requireEnv('DB_USERNAME'),
         password: requireEnv('DB_PASSWORD'),
         database: requireEnv('DB_DATABASE'),
@@ -27,4 +28,5 @@ export class DbDataSource extends PostgresDataSource {
     };
     entities: Newable<BaseEntity>[] = entities;
     repositories: RepositoryClass[] = repositories;
+    override migrations: Newable<Migration>[] = migrations;
 }

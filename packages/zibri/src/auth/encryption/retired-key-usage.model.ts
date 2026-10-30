@@ -63,6 +63,10 @@ export type RetiredMasterUsage = {
      */
     dataKeys: number,
     /**
+     * How many signing keys are encrypted under it.
+     */
+    signingKeys: number,
+    /**
      * How many recorded backups need it to be restored.
      */
     backups: number

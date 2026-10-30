@@ -1,6 +1,7 @@
 import { collectClientPackagesFromFiles, findTemplateFiles } from '../build/templates';
 import { generateVendorBundles } from '../build/vendor';
 import { compile, CompileResult, ModuleFormat } from '../codegen/compile';
+import { SourceMap } from '../codegen/source-map';
 import { resolveCompileError } from '../diagnostics/diagnostic.model';
 
 /**
@@ -16,6 +17,10 @@ export type LoaderContext = {
      * Reports a compilation error for this file.
      */
     emitError: (error: Error) => void,
+    /**
+     * Hands webpack the compiled module, with its source map.
+     */
+    callback: (error: Error | undefined, code: string, map?: SourceMap) => void,
     /**
      * Reads the options the loader was configured with.
      */
@@ -54,7 +59,8 @@ export type CompilerLike = {
 };
 
 /**
- * A webpack loader that compiles a `.tsx` template into a compiled-component module.
+ * A webpack loader that compiles a `.tsx` template into a compiled-component module, handing
+ * webpack the module's source map with it, so a stack frame of a template names the template.
  *
  * Register it for your template files, like this.
  * ```js
@@ -62,16 +68,17 @@ export type CompilerLike = {
  * ```
  * @param this - The webpack loader context.
  * @param source - The template source.
- * @returns The emitted module, or an empty module when compilation failed.
  */
-export default function zibriTsxLoader(this: LoaderContext, source: string): string {
+export default function zibriTsxLoader(this: LoaderContext, source: string): void {
     const format: ModuleFormat = this.getOptions?.().module ?? 'cjs';
-    const result: CompileResult = compile(source, { module: format });
+    const result: CompileResult = compile(source, { module: format, fileName: this.resourcePath });
     if (!result.code) {
         this.emitError(resolveCompileError(result.diagnostics, source, this.resourcePath));
-        return format === 'cjs' ? 'module.exports = undefined;' : 'export default undefined;';
+        // a placeholder keeps the bundler going, so it reports every failing file
+        this.callback(undefined, format === 'cjs' ? 'module.exports = undefined;' : 'export default undefined;');
+        return;
     }
-    return result.code;
+    this.callback(undefined, result.code, result.map);
 }
 
 /**

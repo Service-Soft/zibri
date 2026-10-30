@@ -169,7 +169,7 @@ export abstract class AuthControllerUtilities {
         if (controller == undefined) {
             return;
         }
-        const { strategies, authenticators, twoFactorMethods } = controller.authControllerOptions;
+        const { strategies, authenticators, twoFactorMethods, emailVerification } = controller.authControllerOptions;
         const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         this.validateSameClasses(
             controller,
@@ -184,6 +184,13 @@ export abstract class AuthControllerUtilities {
             authService.authenticators.filter(a => isAuthControllerAuthenticator(inject(a)))
         );
         this.validateSameClasses(controller, 'two factor methods', twoFactorMethods, app.options.twoFactorMethods);
+        if (emailVerification === true && !inject(ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_SERVICE).isEnabled) {
+            throw new InternalError([
+                `${controller.name} defines the routes verifying email addresses,`
+                + ' and ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_OPTIONS is not provided.',
+                'Provide it, or leave emailVerification out of the options of AuthController.'
+            ]);
+        }
         for (const { route, member, isCapable, implement } of ROUTE_CAPABILITIES) {
             if (!(route in controller.prototype)) {
                 continue;

@@ -97,7 +97,7 @@ describe('CronJob — declaring on how many instances it runs', () => {
         // @ts-expect-error -- `distributed: true` read as spread out and meant once
         const flagged: InitialCronConfig = { name: 'flagged', cron: CronExpression.daily().build(), distributed: false };
 
-        expect([everywhere.runsOn, flagged.name]).toEqual(['everyInstance', 'flagged']);
+        expect([everywhere, flagged]).toMatchObject([{ runsOn: 'everyInstance' }, { name: 'flagged' }]);
     });
 });
 

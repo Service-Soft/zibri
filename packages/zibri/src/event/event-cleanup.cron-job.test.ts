@@ -51,13 +51,13 @@ describe('EventCleanupCronJob', () => {
         expect(logger.info).toHaveBeenCalledWith('removed 2 events');
     });
 
-    it('silently swallows errors from the repository instead of throwing', async () => {
+    it('hands an error from the repository to its caller', async () => {
         const repo: Repository<Event<unknown>> & { deleteAll: jest.Mock<(options: unknown) => Promise<number>> } = fakeEventRepository();
         repo.deleteAll.mockRejectedValue(new Error('db is down'));
         const cronJob: EventCleanupCronJob = new EventCleanupCronJob(repo, 'forever');
         (cronJob as unknown as { logger: LoggerInterface }).logger = fakeLogger();
 
-        await expect(cronJob.onTick()).resolves.toBeUndefined();
+        await expect(cronJob.onTick()).rejects.toThrow('db is down');
     });
 
     it('is configured to run daily and not on init', () => {

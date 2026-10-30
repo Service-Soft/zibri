@@ -8,6 +8,7 @@ Multithreading runs work on worker threads, so it does not hold up the requests 
 - a queue that lives in a data source, so a job queued on one instance is run by whichever one has a worker free
 - the status, progress, error and result of every job, stored in a data source
 - functions to report the progress, error or result of a job from inside its worker file
+- checkpoints, which a job taken over or started again after a restart resumes from
 - timeouts per job, and a pool that replaces a worker that crashed
 
 ## Key exports
@@ -23,14 +24,22 @@ Multithreading runs work on worker threads, so it does not hold up the requests 
 | `reportCompletion` | function | Reports a thread job as completed, called from within a worker file |
 | `reportError` | function | Reports a thread job as failed, called from within a worker file |
 | `reportProgress` | function | Reports the progress (0-100) of a running thread job |
+| `reportCheckpoint` | function | Stores a checkpoint of a running thread job, which a later run resumes from |
+| `resolveThreadJobProgress` | function | How far a job has got as a whole percent, from how much of its work is done and how much there is |
+| `getThreadJobCheckpoint`, `ThreadJobCheckpoint` | function, type | The last checkpoint stored for a running thread job: its `progress`, its `state` and its `number` |
+| `getThreadJobIdempotencyKey` | function | A key naming one effect of the work after the last checkpoint, the same when that work runs again |
+| `getThreadJobId` | function | The id of a running thread job, called from within a worker file |
+| `RequeueThreadJobOptions` | type | Whether a requeued job resumes from its last checkpoint. Defaults to starting from the beginning |
 | `getThreadJobTraceContext` | function | The trace a running thread job is recorded under, called from within a worker file |
-| `MultithreadingOptions` | type | Options accepted by the `MULTITHREADING_OPTIONS` DI token |
-| `ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS` | DI token | Overrides worker pool defaults |
+| `getThreadJobTenantId` | function | The [tenant](./glossary.md#tenant) a running thread job was queued in, called from within a worker file |
+| `MultithreadingOptions`, `MultithreadingOptionsInput` | type, type | The options of the worker pool in effect, and the ones your application changes |
+| `ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS_INPUT` | DI token | Overrides worker pool defaults, see [configuration](#configuration) |
 | `ThreadJobEntity` | entity | The queue itself |
 | `RunQueuedThreadJobsCronJob` | cron job | Looks for work this instance could take. Registered for you |
 | `ThreadJobCleanupCronJob` | cron job | Deletes the jobs that are over and older than the retention. Registered for you |
 | `ZIBRI_DI_TOKENS.THREAD_JOB_RETENTION_IN_MS` | DI token | How long a job that is over is kept, counted from when it was queued, or `'forever'`. Required |
 | `ThreadJobAttemptsExhaustedError` | error | What a job is failed with once it was started `maxAttempts` times |
+| `ThreadJobCheckpointNotStoredError` | error | What `reportCheckpoint` rejects with when another run took the job over, or the write failed |
 | `PersistedFunctionJobError` | error | Thrown when a queued job is handed a function, which a job that is stored cannot carry |
 
 ## Queueing and running a thread job
@@ -88,11 +97,52 @@ catch (error) {
 
 A job whose worker file calls neither `reportCompletion` nor `reportError` runs until its timeout.
 
-A worker file may be TypeScript, CommonJS or an ES module, and may use top level `await`. Its top level code is the job. One worker thread runs many jobs and evaluates the file again for each of them, so a value one job leaves in module scope is gone for the next.
+A worker file may be TypeScript, CommonJS or an ES module, and may use top level `await`. Its top level code is the job. One worker thread runs many jobs, of every tenant, and evaluates the file again for each of them, so a value one job leaves in the file's own module scope is gone for the next.
 
-A TypeScript worker file is compiled as it is loaded, which needs `ts-node`. `multithreading.enableTsWorkerFiles` declares whether this application uses such files, and defaults to `true`. While it is `true`, `ts-node` is required.
+The rest of the thread lives on from job to job, the way module state lives on from request to request in the main thread: the modules the worker file imports, values on `globalThis`, changes to `process.env`, and timers a job started and did not clear. Keep what a worker file holds per tenant under the tenant's id, which `getThreadJobTenantId` gives, and clear what a job starts before it reports.
 
-Set it to `false` for a deployment that ships compiled worker files. No TypeScript compiler is loaded then, and neither `ts-node` nor the TypeScript compiler behind it has to be installed. A `.ts` file is refused when it is queued.
+### Shipping the worker file
+A built application names the compiled worker file. Add the file as an entry of the webpack configuration, so it is compiled beside the bundle:
+
+```js
+// webpack.config.js
+const { resolveWebpackConfiguration } = require('zibri/webpack');
+
+const configuration = resolveWebpackConfiguration({ root: __dirname });
+configuration.entry['fibonacci.worker'] = './src/services/fibonacci.worker.ts';
+module.exports = configuration;
+```
+
+The job then names `fibonacci.worker.js` beside the bundle:
+
+```ts
+// src/services/fibonacci-job.service.ts
+import { FsUtilities, MultithreadingServiceInterface } from 'zibri';
+
+export async function queueCompiledFibonacci(multithreadingService: MultithreadingServiceInterface): Promise<string> {
+    return await multithreadingService.queueThreadJob({
+        workerData: {
+            filePath: FsUtilities.getPath(__dirname, 'fibonacci.worker.js'),
+            startValue: 20
+        }
+    });
+}
+```
+
+### Running TypeScript worker files
+A TypeScript worker file is compiled as it is loaded, which needs `ts-node` and `typescript`. `enableTsWorkerFiles` of `ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS_INPUT` declares that this application names such files, and both packages are loaded at startup:
+
+```ts
+// src/providers.ts
+import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
+
+defineProvider({
+    token: ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS_INPUT,
+    useValue: { enableTsWorkerFiles: true }
+})
+```
+
+Without it, no TypeScript compiler is loaded, neither package has to be installed, and a `.ts` file is refused when it is queued.
 
 An error that reaches neither a `try`/`catch` nor `reportError`, such as one thrown from a timer, a callback or a promise nobody awaited, ends the worker. The job is `FAILED` with that error, and a fresh worker takes its place in the pool. The next job starts on a clean thread.
 
@@ -100,7 +150,7 @@ A worker that takes more memory than `multithreading.workerResourceLimits` allow
 
 The job's `error` is a `LoggedError`: `{ name, paragraphs, stackTrace }`, the same shape a log entry carries. `paragraphs` holds the message and the `cause` chain beneath it. `run` rejects with a real `Error` rebuilt from it, and `onError` is handed one too.
 
-`reportProgress(percentNumber)` reports how far a long running job has got. Reporting `100` completes the job, so round a computed value down.
+`reportProgress(percentNumber)` reports how far a long running job has got. Reporting `100` completes the job, so round a computed value down. `resolveThreadJobProgress(done, total)` turns how much of the work is done into a whole percent, rounded down.
 
 ## The queue is shared
 A queued job is a row in the data source. A job queued on the instance handling a request is run by whichever instance has a worker free, including one that has not handled a request all day.
@@ -123,13 +173,76 @@ An instance running a job renews its claim on it. An instance that stopped exist
 An instance that loses its claim stops its worker. When the data source is unreachable for longer than `jobClaimInMs`, every claim lapses, and another instance may take a job over while the first worker is still running it. The first instance notices at its next renewal: it stops that worker and writes nothing more to the row, which belongs to whoever took the job over. A fresh worker takes its place in the pool, and a `runThreadJob` waiting there goes on waiting for the row.
 
 > [!WARNING]
-> Jobs run at least once. An instance can finish a job and be killed before it writes that down, or fail to reach the data source when it tries. A job taken over runs again from the beginning, with `progress` back at zero. Make a job whose side effects must not happen twice safe to repeat.
+> Jobs run at least once. An instance can finish a job and be killed before it writes that down, or fail to reach the data source when it tries. A job taken over runs again from its last [checkpoint](#resuming-from-a-checkpoint), or from the beginning with `progress` back at zero when it stored none. Make a job whose side effects must not happen twice safe to repeat, see [repeating an effect safely](#repeating-an-effect-safely).
 
 `attempts` on the row counts the starts of a job: the first one, and every takeover since. At `multithreading.maxAttempts` starts the job is not started again. It ends `FAILED` with a `ThreadJobAttemptsExhaustedError`, which names the count. This keeps a job that takes its host down, through a native crash or a kill from outside the process, from taking down one instance after another. `requeueThreadJob` starts the count over.
 
 An instance picks up work only once the application has started, so an instance that never becomes ready runs no jobs.
 
 `run` takes no part in any of this. Its job stays in the process that called it and has no row, so a restart ends it along with the caller awaiting it.
+
+## Resuming from a checkpoint
+A job that is taken over, or started again after a restart, runs its worker file from the top. A checkpoint lets it go on from where it got to. `reportCheckpoint(progress, state)` stores `state` on the job's row together with `progress`, and `getThreadJobCheckpoint()` hands the last checkpoint stored to every run that starts after it:
+
+```ts
+// src/services/fibonacci-sum.worker.ts
+import { workerData as nodeWorkerData } from 'node:worker_threads';
+import { BaseThreadJobWorkerData, getThreadJobCheckpoint, reportCheckpoint, reportCompletion, reportError, resolveThreadJobProgress, ThreadJobCheckpoint } from 'zibri';
+
+import { fibonacci } from './fibonacci.function';
+
+type FibonacciSumWorkerData = BaseThreadJobWorkerData & {
+    startValues: number[]
+};
+
+type FibonacciSumState = {
+    next: number,
+    sum: number
+};
+
+const jobData: FibonacciSumWorkerData = nodeWorkerData;
+
+async function sumFibonacci(): Promise<void> {
+    const resumed: ThreadJobCheckpoint<FibonacciSumState> | undefined = getThreadJobCheckpoint<FibonacciSumState>();
+    const state: FibonacciSumState = resumed?.state ?? { next: 0, sum: 0 };
+    while (state.next < jobData.startValues.length) {
+        for (const startValue of jobData.startValues.slice(state.next, state.next + 100)) {
+            state.sum += fibonacci(startValue);
+        }
+        state.next = Math.min(state.next + 100, jobData.startValues.length);
+        await reportCheckpoint(resolveThreadJobProgress(state.next, jobData.startValues.length), state);
+    }
+    reportCompletion(state.sum);
+}
+
+sumFibonacci().catch(reportError);
+```
+
+`reportCheckpoint` resolves once the checkpoint is stored, so await it before the work that follows. A run that resumes starts at the `progress` of its checkpoint. The state is stored as JSON: numbers, strings, booleans, arrays and plain objects come back as they went in, and a `Date` comes back as a string.
+
+A run whose job another instance took over gets a `ThreadJobCheckpointNotStoredError` from `reportCheckpoint`, and its checkpoint is not stored. Let it end the run, as `catch(reportError)` above does. The run that took the job over resumes from the last checkpoint that was stored.
+
+`requeueThreadJob` and `rerunThreadJob` throw the checkpoint away, and the job starts from the beginning. Pass `{ keepCheckpoint: true }` as their third argument to resume from it instead.
+
+### Repeating an effect safely
+The work after the last checkpoint runs again when the job is taken over. `getThreadJobIdempotencyKey(name)` names one effect of that work: the key is the same when the work runs again, and different for the work after the next checkpoint. Hand it to whatever receives the effect, so it can tell a repeat from a new request:
+
+```ts
+// src/services/report-delivery.worker.ts
+import { getThreadJobIdempotencyKey, reportCompletion, reportError } from 'zibri';
+
+async function deliverReport(): Promise<void> {
+    const response: Response = await fetch('https://reports.example.com/deliveries', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': getThreadJobIdempotencyKey('delivery') }
+    });
+    reportCompletion(response.status);
+}
+
+deliverReport().catch(reportError);
+```
+
+The key is the job's id, the `number` of its last checkpoint and the name. `getThreadJobId()` gives the id alone.
 
 ## What happens to a finished job
 A job that is over, `COMPLETED`, `FAILED` or `CANCELLED`, keeps its row with its `result` or its `error` for `ZIBRI_DI_TOKENS.THREAD_JOB_RETENTION_IN_MS`, counted from when it was queued. `ThreadJobCleanupCronJob` deletes it after that, once a day. Provide the token:
@@ -217,39 +330,35 @@ export class FibonacciService {
 ```
 
 ## Configuration
-Every option of the worker pool has a default. Override them through the `MULTITHREADING_OPTIONS` DI token:
+Every option of the worker pool has a default. Override the ones you change through the `MULTITHREADING_OPTIONS_INPUT` DI token:
 
 ```ts
 // src/providers.ts
-import { defineProvider, DiProvider, Ms, MultithreadingOptions, ZIBRI_DI_TOKENS } from 'zibri';
+import { defineProvider, DiProvider, Ms, MultithreadingOptionsInput, ZIBRI_DI_TOKENS } from 'zibri';
 
 export const providers: DiProvider<unknown>[] = [
     //...
-    defineProvider<MultithreadingOptions>({
-        token: ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS,
-        useFactory: () => ({
+    defineProvider<MultithreadingOptionsInput>({
+        token: ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS_INPUT,
+        useValue: {
             maxThreads: 4,
             maxPriorityThreads: 2,
-            defaultTimeoutInMs: Ms.HOUR,
-            defaultPriorityTimeoutInMs: Ms.MINUTE * 5,
-            jobClaimInMs: Ms.SECOND * 30,
-            maxAttempts: 3,
-            workerResourceLimits: { maxOldGenerationSizeMb: 512 },
-            enableTsWorkerFiles: true
-        })
+            defaultTimeoutInMs: Ms.HOUR * 2,
+            workerResourceLimits: { maxOldGenerationSizeMb: 512 }
+        }
     })
 ];
 ```
 
 The options:
-- `maxThreads`: The number of threads for normal (non priority) jobs. Defaults to the available parallelism of the machine, minus the libuv thread pool (`UV_THREADPOOL_SIZE`, 4 by default), the main thread and one priority thread, and at least `1`.
+- `maxThreads`: The number of threads for normal (non priority) jobs. Defaults to the available parallelism of the machine, or the CPU limit of its container when it has one, minus the libuv thread pool (`UV_THREADPOOL_SIZE`, 4 by default), the main thread and one priority thread, and at least `1`.
 - `maxPriorityThreads`: The number of threads reserved for priority jobs, such as those started with `run`. Defaults to `1`, or `0` on a machine with no thread to spare for one.
 - `defaultTimeoutInMs`: The timeout for a normal thread job queued without a `timeoutInMs` of its own. Defaults to 1 hour.
 - `defaultPriorityTimeoutInMs`: The default timeout for a priority thread job. Defaults to 5 minutes.
 - `jobClaimInMs`: How long the claim on a running job lives before another instance may take that job over. It is renewed for as long as the job runs, so it does not limit how long a job takes. It sets how quickly work is taken back from an instance that stopped existing. Defaults to 30 seconds.
 - `maxAttempts`: How many times a job may be started, its first start and every takeover counted, before it is failed instead of taken over again. Defaults to 3.
 - `workerResourceLimits`: The memory a worker thread may take, as node's `Worker` takes its `resourceLimits`. Defaults to a `maxOldGenerationSizeMb` of an even share of the memory the process may use, split between the workers and the main thread. `{}` leaves node's own limits in place.
-- `enableTsWorkerFiles`: Whether a worker file may be TypeScript, see [the worker file](#writing-the-worker-file). Defaults to `true`.
+- `enableTsWorkerFiles`: Whether a worker file may be TypeScript, see [running TypeScript worker files](#running-typescript-worker-files). Defaults to `false`.
 
 `maxThreads + maxPriorityThreads` may be at most the available parallelism of the machine.
 
@@ -259,7 +368,8 @@ A worker that crashes is replaced with a fresh worker of the same priority class
 | Package | Used for |
 |---|---|
 | `rxjs` | Waiting for a worker to be ready and for a job to end |
-| `ts-node` | Running worker files written in TypeScript. You install it |
+| `ts-node` | Running worker files written in TypeScript, with `enableTsWorkerFiles`. You install it |
+| `typescript` | Running worker files written in TypeScript, with `enableTsWorkerFiles`. You install it |
 
 Your data source declares these entities:
 
@@ -270,5 +380,5 @@ Your data source declares these entities:
 How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
 
 ## See also
-- [Application lifecycle](./application-lifecycle.md) — hooks like `OnAppInit` for setting up providers such as `MULTITHREADING_OPTIONS` at startup
+- [Application lifecycle](./application-lifecycle.md) — hooks like `OnAppInit` for setting up providers such as `MULTITHREADING_OPTIONS_INPUT` at startup
 - [Background work](./background-work.md) — choosing between thread jobs, events, cron jobs and the other tools

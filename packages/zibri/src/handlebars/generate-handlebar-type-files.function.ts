@@ -91,12 +91,14 @@ function generateInterfaceLines(
         const comma: string = isLast ? '' : ','; // no comma for last
 
         const childKeys: string[] = ObjectUtilities.keys(subtree);
+        // a key handlebars reads, such as `first-name`, is not always a name typescript can write bare
+        const name: string = /^[$A-Z_a-z][\w$]*$/.test(key) ? key : `'${key.replaceAll('\\', '\\\\').replaceAll('\'', '\\\'')}'`;
 
         if (childKeys.length === 0) {
-            lines.push(`${indent}${key}: string${suffix}${comma}`);
+            lines.push(`${indent}${name}: string${suffix}${comma}`);
         }
         else {
-            lines.push(`${indent}${key}: {`);
+            lines.push(`${indent}${name}: {`);
             lines.push(...generateInterfaceLines(subtree, arrayKeys, indent + '    ', fullPath));
             lines.push(`${indent}}${suffix}${comma}`);
         }

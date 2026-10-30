@@ -1,13 +1,6 @@
-import { BaseEntity } from '../entity/base-entity.model';
-import { Property, RelationMetadata } from '../entity/decorators/property.decorator';
-import { BelongsToOnePropertyMetadata } from '../entity/models/belongs-to-one-property-metadata.model';
+import { Property } from '../entity/decorators/property.decorator';
 import { FileSize } from '../entity/models/file-property-metadata.model';
-import { HasOnePropertyMetadata } from '../entity/models/has-one-property-metadata.model';
-import { ManyToManyPropertyMetadata } from '../entity/models/many-to-many-property-metadata.model';
-import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property-metadata.model';
 import { type OneOfShapeMetadata } from '../entity/models/one-of-property-metadata.model';
-import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model';
-import { Relation } from '../entity/models/relation.enum';
 import { ValidationProblemCode } from '../error-handling/validation-problem-code.enum';
 import { MimeType } from '../http/mime-type.enum';
 import type { TranslatedString } from '../localization/models/translated-string.model';
@@ -156,49 +149,9 @@ export class RelationsNotAllowedValidationProblem implements ValidationProblem {
     readonly code: string = ValidationProblemCode.RELATION;
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly message: TranslatedString;
-    constructor(readonly key: string, metadata: RelationMetadata<BaseEntity>, relationKey: string) {
-        this.message = [
-            $ts`relations are not allowed as part of create or update data.`,
-            $ts`If you don\'t want to omit the relation, you probably want to do something like:`,
-            this.getExample(metadata, relationKey)
-        ].join('\n') as TranslatedString;
-    }
-
-    private getExample(metadata: RelationMetadata<BaseEntity>, relationKey: string): string {
-        switch (metadata.type) {
-            case Relation.MANY_TO_ONE:
-            case Relation.HAS_ONE:
-            case Relation.BELONGS_TO_ONE: {
-                return this.getObjectExample(metadata, relationKey);
-            }
-            case Relation.ONE_TO_MANY:
-            case Relation.MANY_TO_MANY: {
-                return this.getArrayExample(metadata, relationKey);
-            }
-        }
-    }
-
-    private getArrayExample(
-        metadata: ManyToManyPropertyMetadata<BaseEntity> | OneToManyPropertyMetadata<BaseEntity>,
-        relationKey: string
-    ): string {
-        return [
-            `class MyEntityCreateDto extends OmitType<MyEntity, '${relationKey}'> {`,
-            `    @Property.array({ items: { type: 'object', cls: ${metadata.target().name}CreateDto} })`,
-            `    ${relationKey}: ${metadata.target().name}CreateDto[]`,
-            '}'
-        ].join('\n');
-    }
-
-    private getObjectExample(
-        metadata: BelongsToOnePropertyMetadata<BaseEntity> | HasOnePropertyMetadata<BaseEntity> | ManyToOnePropertyMetadata<BaseEntity>,
-        relationKey: string
-    ): string {
-        return [
-            `class MyEntityCreateDto extends OmitType<MyEntity, '${relationKey}'> {`,
-            `    @Property.object({ cls: ${metadata.target().name}CreateDto })`,
-            `    ${relationKey}: ${metadata.target().name}CreateDto`,
-            '}'
-        ].join('\n');
+    // the caller is told what is wrong with what it sent and nothing more: how to write a model that
+    // takes a relation is for whoever writes the application, and is in models.md (03 §H7)
+    constructor(readonly key: string) {
+        this.message = $ts`relations are not allowed as part of create or update data.`;
     }
 }

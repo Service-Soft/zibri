@@ -11,7 +11,7 @@ import { ProviderAuthentication } from '../../models/provider-authentication.mod
  *
  * Spent once, by the browser the login was started in or by the frontend holding the PKCE verifier.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate' })
 export class FederatedHandoverCode extends BaseEntity {
     /**
      * The code.

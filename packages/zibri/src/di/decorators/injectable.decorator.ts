@@ -48,15 +48,16 @@ export function Injectable<T>(options: InjectableOptions<T> = {}): ClassDecorato
                     `The class "${target.name}" has been marked with decorators for both immediate and onUse injection registration`
                 );
             }
-            existing.variants = Array.from(new Set([...existing.variants ?? [], ...variants]));
-            if (token && (existing.token as Function) !== target && existing.token !== token) {
+            const provider: DiProvider<T> = existing.provider;
+            provider.variants = Array.from(new Set([...provider.variants ?? [], ...variants]));
+            if (token && (provider.token as Function) !== target && provider.token !== token) {
                 throw new InternalError(
                     `Conflicting DI tokens for "${target.name}": `
-                    + `"${String(existing.token)}" vs "${String(token)}".`
+                    + `"${String(provider.token)}" vs "${String(token)}".`
                 );
             }
             if (token) {
-                existing.token = token;
+                provider.token = token;
             }
             return;
         }
@@ -75,20 +76,30 @@ export function Injectable<T>(options: InjectableOptions<T> = {}): ClassDecorato
     };
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
-type FoundProvider<T> = DiProvider<T> & Required<Pick<InjectableOptions<T>, 'register'>>;
+/**
+ * A provider a class was declared with before, and which record it is in.
+ */
+type FoundProvider<T> = {
+    /**
+     * The provider, as the record holds it.
+     */
+    provider: DiProvider<T>,
+    /**
+     * When it is registered, which is the record it was found in.
+     */
+    register: NonNullable<InjectableOptions<T>['register']>
+};
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 function findExistingProvider<T>(target: Newable<T>): FoundProvider<T> | undefined {
+    // the records hold providers of every class; the one whose class is the target is a provider of it
     const found: DiProvider<unknown> | undefined = GlobalRegistry.injectables.find(p => p.useClass === target);
     if (found) {
-        (found as FoundProvider<T>).register = 'immediately';
-        return found as FoundProvider<T>;
+        return { provider: found as DiProvider<T>, register: 'immediately' };
     }
     const foundLazy: DiProvider<unknown> | undefined = GlobalRegistry.lazyInjectables.find(p => p.useClass === target);
     if (foundLazy) {
-        (foundLazy as FoundProvider<T>).register = 'onUse';
-        return foundLazy as FoundProvider<T>;
+        return { provider: foundLazy as DiProvider<T>, register: 'onUse' };
     }
     return undefined;
 }

@@ -5,6 +5,7 @@ import { AlsUtilities } from '../../context/als.utilities';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { AggregateRow } from '../models/aggregate.model';
+import { FindAllOptions } from '../models/options/find-all-options.model';
 import { PaginationResult } from '../models/pagination-result.model';
 import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
@@ -53,6 +54,16 @@ export class DeadlineAwareRepositoryDriver<T extends BaseEntity> extends Forward
         return await super.find(options);
     }
 
+    override async resolveRelations(
+        entities: T[],
+        relations: FindAllOptions<T>['relations'],
+        related: RelatedNarrowing | undefined,
+        transaction: Transaction | undefined
+    ): Promise<T[]> {
+        this.validateStillWanted();
+        return await super.resolveRelations(entities, relations, related, transaction);
+    }
+
     override async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
         this.validateStillWanted();
         return await super.findOne(options);
@@ -76,6 +87,15 @@ export class DeadlineAwareRepositoryDriver<T extends BaseEntity> extends Forward
     override async remove(ids: string[], reach: RemovalReach<T> | undefined, transaction: Transaction | undefined): Promise<string[]> {
         this.validateStillWanted();
         return await super.remove(ids, reach, transaction);
+    }
+
+    override async removeMatching(
+        where: Where<T> | undefined,
+        related: RelatedNarrowing | undefined,
+        transaction: Transaction | undefined
+    ): Promise<string[]> {
+        this.validateStillWanted();
+        return await super.removeMatching(where, related, transaction);
     }
 
     override async findIds(options: DriverFindOptions<T>): Promise<string[]> {

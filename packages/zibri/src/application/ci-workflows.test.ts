@@ -337,6 +337,32 @@ describe('the ci workflows', () => {
         expect(workflow('dependency-review.yml')).toContain('.github/license-policy.json');
     });
 
+    // 07 §T12: a major tag moves with every release of the action, so what runs with the repository's
+    // token is whatever the action's owner pushed last. A commit does not move, and the comment says
+    // which release it is
+    it('pins every action it uses to a commit, with the release the commit is', () => {
+        const unpinned: string[] = readdirSync(workflowsDir)
+            .flatMap(name => [...workflow(name).matchAll(/uses: *(\S+)(.*)$/gm)].map(m => `${name}: ${m[1]}${m[2]}`))
+            .filter(line => !/@[\da-f]{40} # v\d+\.\d+\.\d+$/.test(line));
+
+        expect(unpinned).toStrictEqual([]);
+    });
+
+    it('installs npm at a version in the job that signs the release', () => {
+        const installs: string[] = [...workflow('cd.yml').matchAll(/npm install -g npm@\S*/g)].map(m => m[0]);
+
+        expect(installs.length).toBeGreaterThan(0);
+        for (const install of installs) {
+            expect(install).toMatch(/npm@\d+\.\d+\.\d+$/);
+        }
+    });
+
+    it('runs on pull requests, not only on pushes', () => {
+        const trigger: string = workflow('ci.yml').slice(0, workflow('ci.yml').indexOf('permissions:'));
+
+        expect(trigger).toContain('pull_request:');
+    });
+
     it('runs every test file of the framework', () => {
         const patterns: (RegExp | undefined)[] = [...workflow('ci.yml').matchAll(/npm run (\S+) -w zibri$/gm)]
             .flatMap(m => m[1] == undefined ? [] : resolveJestPatternsRunBy(m[1]));

@@ -8,9 +8,14 @@ import { InMemoryCacheStore } from '../../../caching/store/in-memory.cache-store
 import { InternalError } from '../../../error-handling/internal-error.model';
 import type { TraceSpanContext } from '../../../tracing/trace-span-context.model';
 import type { BaseThreadJobWorkerData, BaseFunctionThreadJobWorkerData } from '../../models/base-thread-job-worker-data.model';
+import type { ThreadJobCheckpointAnswer } from '../../models/thread-job-checkpoint-answer.model';
+import { THREAD_JOB_CHECKPOINT_KEY } from '../../models/thread-job-checkpoint-key.model';
+import type { ThreadJobCheckpoint } from '../../models/thread-job-checkpoint.model';
 import type { ThreadJobFunction } from '../../models/thread-job-function.model';
+import { THREAD_JOB_ID_KEY } from '../../models/thread-job-id-key.model';
 import type { ThreadJobMessage } from '../../models/thread-job-message.model';
 import type { ThreadJobStartMessage } from '../../models/thread-job-start-message.model';
+import { THREAD_JOB_TENANT_ID_KEY } from '../../models/thread-job-tenant-id-key.model';
 import { THREAD_JOB_TRACE_CONTEXT_KEY } from '../../models/thread-job-trace-context-key.model';
 
 if (!parentPort) {
@@ -50,8 +55,13 @@ const message: ThreadJobMessage = { type: 'initialization' };
 
 parentPort.postMessage(message);
 
-parentPort.on('message', ({ workerData: wData, traceContext }: ThreadJobStartMessage) => {
-    updateWorkerData(wData, traceContext);
+parentPort.on('message', (received: ThreadJobStartMessage | ThreadJobCheckpointAnswer) => {
+    // the answer to a checkpoint goes to the `reportCheckpoint` waiting for it, which listens itself
+    if ('type' in received) {
+        return;
+    }
+    const { workerData: wData, traceContext, tenantId, jobId, checkpoint }: ThreadJobStartMessage = received;
+    updateWorkerData(wData, traceContext, tenantId, jobId, checkpoint);
 
     if (isFunctionWorkerData(wData)) {
         void callFunction(wData);
@@ -103,12 +113,22 @@ async function callFunction(wData: BaseFunctionThreadJobWorkerData<unknown>): Pr
  * every job after the first would read the first one's data. What the snapshot copies is a
  * reference, so what is inside the object is not a snapshot at all.
  *
- * The trace context goes under a symbol beside the data rather than into it, where
- * `getThreadJobTraceContext` reads it: a property the job never queued would show up in its keys.
+ * The trace context, the tenant, the job's id and its checkpoint go under symbols beside the data
+ * rather than into it, where the helpers read them: a property the job never queued would show up in
+ * its keys.
  * @param wData - The data of the job that is about to run.
  * @param traceContext - The span the run of the job is recorded as.
+ * @param tenantId - The tenant the job was queued in, if any.
+ * @param jobId - The id of the job.
+ * @param checkpoint - The last checkpoint the job stored, if any.
  */
-function updateWorkerData(wData: BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, traceContext: TraceSpanContext): void {
+function updateWorkerData(
+    wData: BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>,
+    traceContext: TraceSpanContext,
+    tenantId: string | undefined,
+    jobId: string,
+    checkpoint: ThreadJobCheckpoint<unknown> | undefined
+): void {
     const current: Record<string, unknown> = workerData as Record<string, unknown>;
     for (const key of Object.keys(current)) {
         // eslint-disable-next-line typescript/no-dynamic-delete
@@ -116,6 +136,11 @@ function updateWorkerData(wData: BaseThreadJobWorkerData | BaseFunctionThreadJob
     }
     Object.assign(current, wData);
     Object.defineProperty(current, THREAD_JOB_TRACE_CONTEXT_KEY, { value: traceContext, configurable: true, enumerable: false });
+    // set for every job, a job of no tenant included, so none reads the tenant of the one before it
+    Object.defineProperty(current, THREAD_JOB_TENANT_ID_KEY, { value: tenantId, configurable: true, enumerable: false });
+    Object.defineProperty(current, THREAD_JOB_ID_KEY, { value: jobId, configurable: true, enumerable: false });
+    // writable, since every checkpoint the job stores while it runs replaces it
+    Object.defineProperty(current, THREAD_JOB_CHECKPOINT_KEY, { value: checkpoint, configurable: true, enumerable: false, writable: true });
 }
 
 async function importWorkerFile(workerData: BaseThreadJobWorkerData): Promise<void> {

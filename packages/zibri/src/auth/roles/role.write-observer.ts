@@ -14,7 +14,9 @@ import { EntityWrite, EntityWriteObserver, ObservedWrite, WrittenRows } from '..
  * tenant as well as join one.
  */
 export class RoleWriteObserver implements EntityWriteObserver {
-    // what names a role and where it is held, of a write to every role a filter matches
+    /**
+     * What names a role and where it is held, of a write to every role a filter matches.
+     */
     readonly properties: string[] = ['id', 'name', 'level', 'tenantId'];
 
     constructor(private readonly roleService: RoleServiceInterface) {}

@@ -14,6 +14,7 @@ The version of your application is the one in its `package.json`. It decides whi
 | `StoredRoute`, `StoredRouteVersions` | class, type | A route as a version file holds it, and the versions it supports: `'all'`, or matchers |
 | `VersioningServiceInterface` | interface | Resolves the correct version/endpoint for an incoming request |
 | `VersioningService` | class | Default implementation of `VersioningServiceInterface`. Replaceable through ZIBRI_DI_TOKENS.VERSIONING_SERVICE |
+| `VersionOverlapError` | error | What startup fails with when a route, a base route or a websocket event is declared twice for versions that overlap |
 
 ## Defining supported versions on endpoints
 Supported versions are written as version ranges, the way your `package.json` writes them:
@@ -49,6 +50,8 @@ The version `'latest'` is the current highest major version. Controllers and rou
 The `versions` folder of your project, which `zi new` creates, holds each version with the routes it served. When you raise the version in `package.json`, the routes of the new version are checked against what the earlier ones recorded.
 
 Commit the folder, and ship it with what you deploy: the next release is checked against what this one recorded. The folder is required, and an empty one lets the application record a first version. [deployment.md](./deployment.md) describes where the folder sits in a deployment.
+
+A version is recorded in development: start the application once after raising the version, and commit the folder. In production the record is only read, and an application whose version it does not hold as the latest refuses to start.
 
 The folder sits beside your `package.json`, whichever directory the application is started from. Point it somewhere else with the `VERSIONS_PATH` token:
 

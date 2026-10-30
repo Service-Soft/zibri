@@ -23,7 +23,7 @@ export class LoggingEmailTransport implements EmailTransportInterface {
     constructor(private readonly logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER)) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    send(email: Email): Promise<EmailSendResult> {
+    async send(email: Email): Promise<EmailSendResult> {
         this.logger.info([
             `Email "${email.subject}" to ${email.recipients.join(', ')}, logged instead of sent:`,
             email.html

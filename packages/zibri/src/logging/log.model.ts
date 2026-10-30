@@ -7,7 +7,7 @@ import { Property } from '../entity/decorators/property.decorator';
 /**
  * The data saved for a log entry.
  */
-@Entity({ allowOrphan: true })
+@Entity({ allowOrphan: true, expiresBy: 'cleanupAt' })
 export class Log extends BaseEntity {
     /**
      * The tenant the entry was logged in, or null for one logged outside every tenant.

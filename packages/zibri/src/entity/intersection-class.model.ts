@@ -1,5 +1,5 @@
 import { Newable } from '../types/newable.type';
-import { copyClassProperties } from './utilities/copy-class-properties.function';
+import { ClassPropertyUtilities } from './utilities/class-property.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type UnionToIntersection<U>
@@ -22,9 +22,9 @@ export function IntersectionClass<Bases extends Newable<unknown>[]>(
 ): Newable<IntersectionInstances<Bases>> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     class CombinedClass {}
-    // merge metadata from each base, in order
+    // merge metadata from each base, in order: a member two bases share is the last one's
     for (const Base of bases) {
-        copyClassProperties(CombinedClass, Base, []);
+        ClassPropertyUtilities.copy(CombinedClass, Base, []);
     }
 
     return CombinedClass as Newable<IntersectionInstances<Bases>>;

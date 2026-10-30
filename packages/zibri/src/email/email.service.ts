@@ -45,6 +45,11 @@ import { type EmailSendResult, type EmailTransportInterface } from './transports
 const prioritiesInSendOrder: EmailPriority[] = [EmailPriority.HIGH, EmailPriority.NORMAL, EmailPriority.LOW];
 
 /**
+ * What a batch of emails is sent out with: the emails, and what sends one of them.
+ */
+type SendManyArgs = [emails: Email[], sendEach: (email: Email) => Promise<void>];
+
+/**
  * Default email service implementation of Zibri.
  */
 @Injectable({ register: 'onUse' })
@@ -79,10 +84,18 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
             );
         }
         this.transport = transport;
+        // a pass asks the rate limiter for its whole batch at once, and a bucket never holds more than
+        // maxEmailsPerHour - so a larger batch would be refused on every pass, for good
+        if (config.sendBatchSize != undefined && config.sendBatchSize > config.maxEmailsPerHour) {
+            throw new InternalError(
+                `The sendBatchSize of ${config.sendBatchSize} is more than the maxEmailsPerHour of ${config.maxEmailsPerHour},`
+                + ' so no batch could ever be sent. Lower sendBatchSize to at most maxEmailsPerHour.'
+            );
+        }
         this.config = {
             ...config,
             sendLeaseInMs: config.sendLeaseInMs ?? Ms.MINUTE,
-            sendBatchSize: config.sendBatchSize ?? 10,
+            sendBatchSize: config.sendBatchSize ?? Math.min(10, config.maxEmailsPerHour),
             maxSendAttempts: config.maxSendAttempts ?? 5,
             retryDelayInMs: config.retryDelayInMs ?? Ms.MINUTE
         };
@@ -243,8 +256,12 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
             // one slot held back for each priority still to come, so a permanent flood of HIGH
             // cannot take the whole pass and leave NORMAL and LOW never sent. The 8 and the 10 - 1
             // this replaces were that same reservation, written as numbers rather than as the rule
-            // they came from - which is why neither could be configured
-            const reservedForLower: number = prioritiesInSendOrder.length - 1 - i;
+            // they came from - which is why neither could be configured. Only in a batch with a slot for
+            // every priority: in a smaller one the reservations took every slot from the higher
+            // priorities, and only LOW was ever sent
+            const reservedForLower: number = this.config.sendBatchSize >= prioritiesInSendOrder.length
+                ? prioritiesInSendOrder.length - 1 - i
+                : 0;
             const amount: number = this.config.sendBatchSize - emails.length - reservedForLower;
             if (amount <= 0) {
                 continue;
@@ -264,7 +281,7 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
     // caller - and a mail sent while handling a request would otherwise be counted against whoever
     // happened to trigger it.
     @RateLimited(ZIBRI_DI_TOKENS.EMAIL_RATE_LIMITER, {
-        countFn: (emails: Email[], _sendEach: (email: Email) => Promise<void>) => emails.length,
+        countFn: (...[emails]: SendManyArgs) => emails.length,
         keyFn: RateLimitKeys.GLOBAL
     })
     protected async sendMany(emails: Email[], sendEach: (email: Email) => Promise<void>): Promise<void> {

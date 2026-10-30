@@ -8,7 +8,7 @@ import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
 /**
  * A login at a provider that has been started and not yet come back.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate' })
 export class FederatedLoginAttempt extends BaseEntity {
     /**
      * What the provider hands back to find this attempt again: the `state` of OAuth, the `RelayState`
@@ -36,7 +36,7 @@ export class FederatedLoginAttempt extends BaseEntity {
     redirectTo!: string;
 
     /**
-     * Whether the provider was asked to have the user log in again, rather than reuse its session.
+     * Whether the provider was asked to have the user log in again, even when it still had a session of theirs.
      */
     @Property.boolean()
     reauthenticate!: boolean;
@@ -56,8 +56,8 @@ export class FederatedLoginAttempt extends BaseEntity {
     strategy: string | undefined | null;
 
     /**
-     * The user the identity is linked to, when the login connects the provider to their account
-     * rather than logging in. Null for a login.
+     * The user the identity is linked to, when the login connects the provider to their account.
+     * Null for a login.
      */
     @Property.string({ format: 'uuid', required: false })
     userId: string | undefined | null;

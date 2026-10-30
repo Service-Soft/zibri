@@ -11,6 +11,7 @@ import { defaultTestServerEntities, defaultTestServerRepositories } from '../../
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
+import { waitUntil } from '../../../__testing__/wait-until.function';
 import { DataSource } from '../../../data-source/decorators/data-source.decorator';
 import { Migration } from '../../../data-source/migration/migration.model';
 import { Repository } from '../../../data-source/repository/repository';
@@ -134,6 +135,8 @@ describe('PasswordAuthenticator — a confirmed reset', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JsonUtilities.stringify({ email })
         });
+        // answered before the link is made: waited for until its row is committed, after the mail
+        await waitUntil(async () => (await inject(repositoryTokenFor(PasswordResetToken)).findAll({ where: { userId: user.id } })).length > 0);
         const emails: Email[] = await inject(repositoryTokenFor(Email)).findAll({ where: { recipients: { includes: [email] } } });
         const resetToken: string | undefined = /confirm-password-reset\/([\da-f]+)/.exec(emails.at(-1)?.html ?? '')?.[1];
         const confirmRes: Response = await fetch(`${baseUrl}/auth/confirm-password-reset`, {

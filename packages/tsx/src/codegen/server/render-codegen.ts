@@ -4,6 +4,7 @@ import { printNode, SSR, StampSites } from './print';
 import { ComponentInfo } from '../../semantics/component';
 import { collectClientPropSites } from '../client/client-props';
 import { collectHandlerSites } from '../client/handlers';
+import { concatLines, emitLines, EmittedLines, resolveOrigin } from '../source-map';
 
 /**
  * The generated server render of a component: a function `(props) => Raw` (the component itself)
@@ -17,7 +18,11 @@ export type ServerRenderCode = {
     /**
      * The generated source (references the `$ssr` runtime namespace). Type syntax is still in it.
      */
-    code: string
+    code: string,
+    /**
+     * The generated source line by line, with where each line comes from in the template.
+     */
+    emitted: EmittedLines
 };
 
 /**
@@ -29,32 +34,38 @@ export type ServerRenderCode = {
  */
 export function compileServerRender(component: ComponentInfo): ServerRenderCode {
     const { fn, name } = component;
+    const file: ts.SourceFile = fn.getSourceFile();
     const componentName: string = name === 'default' ? '__Component' : name;
     const param: string = fn.parameters.length > 0 ? printNode(fn.parameters[0]) : '';
 
     const stamps: StampSites = { handlers: collectHandlerSites(fn).byNode, clientProps: collectClientPropSites(fn).byNode };
-    const body: string = printComponentBody(fn.body, stamps);
 
     // `$ssr` is the first parameter so the emitted module can pass a fresh per-render runtime
     // (rather than closing over a shared one), and nested components receive the same instance.
     const params: string = param.length > 0 ? `${SSR}, ${param}` : SSR;
-    const code: string = `function ${componentName}(${params}) ${body}`;
+    const emitted: EmittedLines = concatLines([
+        emitLines(`function ${componentName}(${params}) {`, resolveOrigin(fn, file)),
+        emitComponentBody(fn.body, stamps, file),
+        emitLines('}', resolveOrigin(fn, file))
+    ]);
 
-    return { componentName, code };
+    return { componentName, code: emitted.lines.join('\n'), emitted };
 }
 
 /**
- * Prints a component's body. A concise arrow expression body becomes a `return`.
+ * Prints a component's body, statement by statement, each with the line it is written on. A concise
+ * arrow expression body becomes a `return`.
  * @param body - The component body (block or concise expression).
  * @param stamps - The sites to stamp.
- * @returns The printed body block source.
+ * @param file - The template.
+ * @returns The printed statements of the body.
  */
-function printComponentBody(body: ts.ConciseBody | undefined, stamps: StampSites): string {
+function emitComponentBody(body: ts.ConciseBody | undefined, stamps: StampSites, file: ts.SourceFile): EmittedLines {
     if (body == undefined) {
-        return '{\n}';
+        return { lines: [], origins: [] };
     }
     if (ts.isBlock(body)) {
-        return `{\n${body.statements.map(statement => printNode(statement, stamps)).join('\n')}\n}`;
+        return concatLines(body.statements.map(statement => emitLines(printNode(statement, stamps), resolveOrigin(statement, file))));
     }
-    return `{\nreturn ${printNode(body, stamps)};\n}`;
+    return emitLines(`return ${printNode(body, stamps)};`, resolveOrigin(body, file));
 }

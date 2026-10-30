@@ -101,7 +101,7 @@ feature at all (`TwoFactorService` reads `twoFactorMethods`), and checks nothing
 **Extend an existing helper rather than adding a sibling.** Search `src/utilities/` and
 `src/__testing__/` for the concept, and read the matching page in `packages/zibri/docs/`, before you
 design anything. Most of what a change needs already exists: `UUIDUtilities.generate()`,
-`TypeOrmUtilities`, `StartedTestServer.reInit()`, `Percentage`.
+`PostgresSqlUtilities`, `StartedTestServer.reInit()`, `Percentage`.
 
 **Do not loop per entry where one call would do.** A method that runs per row, per entity or per
 request is the wrong place for work that can be done once. Where several things genuinely must

@@ -1,5 +1,5 @@
 # Plugin
-A plugin bundles providers, controllers, cron jobs, body parsers and [auth strategies](./glossary.md#auth-strategy), so you can reuse them across projects. Built-in plugins cover invoicing, mailing lists and payments, and you can write your own.
+A plugin bundles what an application is built from, such as providers, controllers, websocket controllers, data sources and [auth strategies](./glossary.md#auth-strategy), so you can reuse them across projects. Built-in plugins cover invoicing, mailing lists and payments, and you can write your own.
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -29,7 +29,7 @@ export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSo
 };
 ```
 
-The providers, controllers, cron jobs, body parsers and auth strategies of a plugin are merged into your application.
+Everything a plugin lists is merged into your application, see [writing a custom plugin](#writing-a-custom-plugin).
 
 Some plugins need configuration or controllers from you. The page of each built-in plugin says which.
 
@@ -68,12 +68,18 @@ export class TaskRemindersPlugin extends ZibriPlugin {
 }
 ```
 
-These properties are merged into your application on startup:
+These properties are merged into your application on startup, each into the application option of the same name:
 - `providers`: The DI providers to register or override.
 - `controllers`: The controllers to register in the app.
+- `websocketControllers`: The websocket controllers to register in the app.
+- `dataSources`: The data sources to register, such as one holding the plugin's own entities.
 - `cronJobs`: The cron jobs to register in the app.
 - `bodyParsers`: The body parsers to register. Without them, the default parsers are used.
 - `authStrategies`: The auth strategies to register. Without them, the default JWT auth strategy is used.
+- `authenticators`: The [authenticators](./glossary.md#authenticator) to register. Without them, the default password authenticator is used.
+- `twoFactorMethods`: The two-factor methods to register. Without them, the default one-time password method is used.
+- `backupTransports`: The backup transports to register.
+- `additionalLifecycleServices`: The services to build at startup for their lifecycle hooks.
 
 `validate` is called once, at the end of application initialization, after every provider, controller and websocket controller is registered and injected. Check there that everything the plugin needs is available, such as that its entities are registered on a data source, or that its required tokens are provided.
 

@@ -162,7 +162,7 @@ export function collectHandlerSites(fn: ComponentFunction): HandlerCollection {
     };
 
     if (fn.body != undefined) {
-        visit(fn.body, []);
+        visitComponentBody(fn.body, visit);
     }
     return { sites, byNode };
 }
@@ -256,5 +256,32 @@ export function scopeFrameFor(node: ts.Node): ScopeFrame | undefined {
     if (ts.isForStatement(node) && node.initializer != undefined && ts.isVariableDeclarationList(node.initializer)) {
         return new Set(node.initializer.declarations.flatMap(declaredSymbols));
     }
+    // a block below the component's own body, such as the body of a `.map` callback or of an `if`:
+    // what it declares exists only while the server renders it, so a handler reading it captures it
+    if (ts.isBlock(node)) {
+        return new Set(node.statements.flatMap(declaredSymbols));
+    }
+    if (ts.isCaseBlock(node)) {
+        return new Set(node.clauses.flatMap(clause => clause.statements.flatMap(declaredSymbols)));
+    }
+    if (ts.isCatchClause(node) && node.variableDeclaration != undefined) {
+        return new Set(declaredSymbols(node.variableDeclaration));
+    }
     return undefined;
+}
+
+/**
+ * Visits what a component's body holds with the scopes it opens, its own top scope left out: what the
+ * body declares at the top is part of the client script rather than captured.
+ * @param body - The component's body.
+ * @param visit - Visits a node within the given enclosing scopes.
+ */
+export function visitComponentBody(body: ts.ConciseBody, visit: (node: ts.Node, frames: ScopeFrame[]) => void): void {
+    if (ts.isBlock(body)) {
+        for (const statement of body.statements) {
+            visit(statement, []);
+        }
+        return;
+    }
+    visit(body, []);
 }

@@ -1,5 +1,9 @@
 import { EncryptionString } from '../encryption.utilities';
 
+// The row is all that is named here, deliberately. Binding to the entity and the property as well
+// would also stop a value being moved between two encrypted columns of the *same* row - but it would
+// make renaming a table or a column destroy every value in it, silently, at the next read. A move
+// that crosses rows already changes the id, and that is the attack worth stopping.
 /**
  * Where an encrypted value belongs, so that it only decrypts there.
  *
@@ -8,10 +12,7 @@ import { EncryptionString } from '../encryption.utilities';
  * to the database can copy one row's encrypted value into another row and have the application
  * decrypt it for the wrong subject. A strategy that authenticates this refuses that value instead.
  *
- * The row is all that is named here, deliberately. Binding to the entity and the property as well
- * would also stop a value being moved between two encrypted columns of the *same* row - but it would
- * make renaming a table or a column destroy every value in it, silently, at the next read. A move
- * that crosses rows already changes the id, and that is the attack worth stopping.
+ * Only the row is named: a value moved between two encrypted columns of the same row still decrypts.
  */
 export type EncryptionBinding = {
     /**
@@ -34,12 +35,11 @@ export type BaseEncryptOptions<TKey> = {
      * The actual key value.
      */
     key: TKey,
+    // part of the base contract rather than one strategy's extra, because binding a value to its
+    // place is a guarantee the framework makes - not something a caller has to remember to ask for
     /**
-     * Where the value belongs, when it is being written to an entity.
-     *
-     * Part of the base contract rather than one strategy's extra, because binding a value to its
-     * place is a guarantee the framework makes and every strategy has to be able to honour or
-     * refuse - not something a caller has to remember to ask for.
+     * Where the value belongs, when it is being written to an entity. Every strategy honors it or
+     * refuses it.
      */
     binding?: EncryptionBinding
 };

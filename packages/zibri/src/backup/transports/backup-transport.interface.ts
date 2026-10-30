@@ -11,13 +11,12 @@ export interface BackupTransportInterface {
      * The name of the transport. Is used to resolve the transport when restoring backups, so this should not change.
      */
     readonly name: string,
+    // documents rather than backups, because what a record means is the framework's to say: a
+    // transport that read one would have to be taught the shape of a backup, and then every change to
+    // that shape would be a change every transport had to make
     /**
-     * Hands back the record of every backup this transport holds, as it was stored.
-     *
-     * Documents rather than backups, because what a record means is the framework's to say: a
-     * transport that read one would have to be taught the shape of a backup, and then every change to
-     * that shape would be a change every transport had to make. Storing and returning it unopened is
-     * what keeps a transport a place to put bytes.
+     * Hands back the record of every backup this transport holds, as it was stored: each one a
+     * document the framework wrote, unopened.
      * @param existingNames - The names of the backups already known about, so a transport can skip fetching them.
      */
     resolveBackups: (existingNames: string[]) => string[] | Promise<string[]>,

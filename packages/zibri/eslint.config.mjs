@@ -4,7 +4,15 @@ import baseConfig from '../../eslint.config.mjs';
 /** @type {import('eslint').Linter.Config} */
 export default [
     ...baseConfig,
-    { ignores: ['docs', 'src/di/default/temp', '**/__testing__/file-output/**'] },
+    {
+        ignores: [
+            'docs',
+            'src/di/default/temp',
+            '**/__testing__/file-output/**',
+            // a recording of the tables typeorm built, kept as it recorded them
+            'src/data-source/data-sources/postgres/postgres-schema.typeorm-tables.json'
+        ]
+    },
     {
         files: ['**/*.ts'],
         languageOptions: {

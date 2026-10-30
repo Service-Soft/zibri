@@ -1,3 +1,4 @@
+import { optionalPeer } from './optional-peer.function';
 import { InternalError } from '../error-handling/internal-error.model';
 
 /**
@@ -41,20 +42,19 @@ export function registerTsNode(reason: string): void {
 }
 
 /**
- * Whether a TypeScript compiler could be loaded, without loading one.
+ * Checks that a TypeScript file could be compiled as it is loaded: that `ts-node` is installed, and
+ * `typescript`, which it compiles with.
  *
- * Resolution only, so this answers the question a startup check asks - is the optional peer
- * dependency there - without paying for the compiler in the process that asked.
- * @returns True if `ts-node` is installed.
+ * Both are loaded, so a startup that asks is a startup that has paid for the compiler, which is
+ * what the application said it wants by asking.
+ * @param neededFor - What wants the compiler, so a missing package is named with why it was asked for.
+ * @throws If `ts-node` or `typescript` is not installed.
  */
-export function isTsNodeInstalled(): boolean {
-    try {
-        require.resolve('ts-node');
-        return true;
-    }
-    catch {
-        return false;
-    }
+export function validateTsNodeInstalled(neededFor: string): void {
+    optionalPeer('ts-node', neededFor);
+    // asked for on its own: ts-node resolves it only once it compiles something, and an image that
+    // pruned its devDependencies has ts-node without it
+    optionalPeer('typescript', neededFor);
 }
 
 /**

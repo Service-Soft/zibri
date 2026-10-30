@@ -10,19 +10,19 @@ import { PollingCronJob } from '../polling/polling-cron-job.model';
 import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
 import { Newable } from '../types/newable.type';
 
+// Deliberately `runsOn: 'everyInstance'`. Every instance polls, so any of them can take over abandoned
+// work; which one actually runs a given subscriber is decided by the claim in EventService, not by
+// electing a single poller. Electing one would make recovery depend on that instance being alive
+// and having the subscriber registered.
+// Keeps no row, for the same reason: every instance runs it for itself, so a row would only say
+// that some instance polled.
 /**
  * Hands unfinished events back to this instance's subscribers.
  *
  * Emitting an event only reaches subscribers in the process that emitted it. This picks up the
  * events whose instance died halfway through, so an event survives a restart and is retried.
  *
- * Deliberately `runsOn: 'everyInstance'`. Every instance polls, so any of them can take over abandoned
- * work; which one actually runs a given subscriber is decided by the claim in EventService, not by
- * electing a single poller. Electing one would make recovery depend on that instance being alive
- * and having the subscriber registered.
- *
- * Keeps no row, for the same reason: every instance runs it for itself, so a row would only say
- * that some instance polled.
+ * Runs on every instance, and keeps no row.
  */
 export class EventDispatchCronJob extends PollingCronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc

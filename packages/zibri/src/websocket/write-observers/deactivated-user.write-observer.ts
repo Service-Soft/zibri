@@ -6,6 +6,7 @@ import { EntityWrite, EntityWriteObserver, WrittenRows } from '../../data-source
  */
 export class DeactivatedUserWriteObserver implements EntityWriteObserver {
     // which users, of a write to every user a filter matches
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly properties: string[] = ['id'];
 
     constructor(private readonly disconnectEndedLogins: (userIds: string[]) => Promise<void>) {}

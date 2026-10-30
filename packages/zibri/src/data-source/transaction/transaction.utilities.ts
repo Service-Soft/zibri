@@ -1,13 +1,30 @@
 import { RunInTransactionOptions } from './run-in-transaction-options.model';
 import { TransactionConflictError } from './transaction-conflict.error';
 import { Transaction } from './transaction.model';
+import { AlsUtilities } from '../../context/als.utilities';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
+import { BaseRepositoryOptions } from '../models/options/base-repository-options.model';
 
 /**
  * Utilities for working with transactions, whichever data source started them.
  */
 export abstract class TransactionUtilities {
+    /**
+     * Resolves the transaction of a **write** and records it when one is running under a lease.
+     *
+     * Only writes go through here. A read inside an open transaction is harmless, while a write is
+     * the thing a grant stops covering once the commit moves outside it.
+     * @param options - The options the write was called with.
+     * @returns The transaction to hand to the driver, if any.
+     */
+    static resolveWriteTransaction(options?: BaseRepositoryOptions): Transaction | undefined {
+        if (options?.transaction != undefined) {
+            AlsUtilities.recordTransactionInLeaseScope(options.transaction);
+        }
+        return options?.transaction;
+    }
+
     /**
      * Runs work in a transaction of its own, and runs it again from the start when a conflict with
      * another transaction ended it.

@@ -26,6 +26,7 @@ A cache keeps what a method returned, so a repeated call is answered without run
 | `CacheStoreInterface`, `CacheStoreConfig`, `RemoveOnOverflowStrategy` | interface, type, type | What a cache store implements, its `maxEntries` and `maxBytes`, and which entry it removes on overflow: the least or most recently used, the least frequently used, or the first in |
 | `CachedValue` | class | An entry of a store: the value, its tags, when it was created and when it expires |
 | `InMemoryCacheStore` | class | In-memory cache store implementation |
+| `InMemoryCacheStoreConfig` | type | What an `InMemoryCacheStore` is built with: the `CacheStoreConfig`, and `perTenant`. Each [tenant](./glossary.md#tenant) has entries of its own by default; `perTenant: false` is for keys that already name the tenant they are for |
 | `Bytes` | class | Sizes in bytes, such as `5 * Bytes.MB`, for a store's `maxBytes` |
 | `DoublyLinkedList`, `LinkedListNode` | class, class | A list that removes any node and moves one to its end at constant cost, the order an in-memory store evicts in |
 | `ValKeyCacheStore` | class | Cache store shared by every instance of an app |
@@ -78,6 +79,10 @@ const sharedStore: ValKeyCacheStore<string, HtmlResponse> = new ValKeyCacheStore
 `model` is required, and says what the store holds. The store reads a value back the way a request
 body is read, so a cached entity comes back with the types it was cached with, a `Date`, a `bigint`
 and an exact decimal included.
+
+A store holds the entries of the one cache it is given to, under that cache's name, so every
+instance of the application reads the same entries for it. Give each cache a store of its own: a
+store given to a second cache is refused when that cache is built.
 
 Pass `'plain'` for a value with no shape to read, such as a number, a string or a plain object of them:
 

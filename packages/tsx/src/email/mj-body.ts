@@ -1,6 +1,7 @@
 import { defineEmailComponent, TsxComponent } from './define-email-component';
 import { EmailLayout, EmailLayoutContext } from './email-layout.context';
 import { documentDefaults, withDefaults } from './with-defaults';
+import { escapeAttribute } from '../runtime/server-runtime';
 
 /**
  * Props for {@link MjBody}.
@@ -30,8 +31,10 @@ export const MjBody: TsxComponent<MjBodyProps> = defineEmailComponent<MjBodyProp
     const parent: EmailLayout = $ssr.useContext(EmailLayoutContext);
     // Document-wide typography from `MjAttributes.all` overrides the inherited defaults, so nested
     // components that read the layout pick it up. `all` values are strings from JSON, hence the one
-    // coercion at this boundary.
-    const all: Record<string, string> = documentDefaults($ssr).all;
+    // coercion at this boundary. They are written into style attributes, so they are escaped here
+    const all: Record<string, string> = Object.fromEntries(
+        Object.entries(documentDefaults($ssr).all).map(([key, value]) => [key, escapeAttribute(value)])
+    );
     $ssr.provideContext(EmailLayoutContext, {
         width: p.width ?? '600px',
         dir: (all['dir'] as EmailLayout['dir']) || parent.dir,

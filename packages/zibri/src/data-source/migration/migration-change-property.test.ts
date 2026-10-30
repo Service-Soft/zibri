@@ -1,11 +1,11 @@
 import { randomBytes } from 'node:crypto';
 
 import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
-import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { Table, TableColumn } from 'typeorm';
-import { POSTGRES_TEST_IMAGE } from 'zibri-testing';
+import { StartedTestContainer } from 'testcontainers';
+import { createPostgresTestContainer } from 'zibri-testing';
 
 import { Migration } from './migration.model';
+import { findStoredColumns, StoredColumn } from '../../__testing__/find-stored-columns.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -18,10 +18,9 @@ import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { GlobalRegistry } from '../../global/global-registry';
 import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
 import { SemVerVersion } from '../../utilities/sem-ver.utilities';
+import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-data-source.model';
 import { PostgresPooler } from '../data-sources/postgres/postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../decorators/data-source.decorator';
 import { SchemaManagement } from '../models/schema-management.model';
 import { Repository } from '../repository/repository';
@@ -42,7 +41,7 @@ class LegacyMeasurement {
 
 @DataSource()
 class LegacyDbDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -109,7 +108,7 @@ class WidenAmountMigration extends Migration {
 
 @DataSource()
 class DbDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -127,16 +126,12 @@ class DbDataSource extends PostgresDataSource {
 }
 
 describe('changePropertyOfEntity', () => {
-    let container: StartedPostgreSqlContainer;
+    let container: StartedTestContainer;
     let createdId: string;
 
     beforeAll(async () => {
         initDiContainer();
-        container = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
-            .withDatabase('db')
-            .withUsername('postgres')
-            .withPassword('password')
-            .start();
+        container = await createPostgresTestContainer({ username: 'postgres', password: 'password', database: 'db' }).start();
 
         GlobalRegistry['appData'].version = '0.0.1';
         register({
@@ -167,17 +162,15 @@ describe('changePropertyOfEntity', () => {
         };
         await dataSource.init();
 
-        const table: Table | undefined = await dataSource.createQueryRunner().getTable('measurement');
-        const amount: TableColumn | undefined = table?.findColumnByName('amount');
-        const title: TableColumn | undefined = table?.findColumnByName('title');
-        expect(amount?.type).toBe('double precision');
-        expect(title).not.toBeUndefined();
-        expect(table?.findColumnByName('label')).toBeUndefined();
+        const columns: Map<string, StoredColumn> = await findStoredColumns(dataSource, 'measurement');
+        expect(columns.get('amount')?.type).toBe('double precision');
+        expect(columns.get('title')).not.toBeUndefined();
+        expect(columns.get('label')).toBeUndefined();
 
-        // typeorm answers a changed type by dropping the column and adding it again, which a migration
-        // written to *change* a property never asked for - the values went with the old column, and
-        // a required one could not even be added back to a table that had rows. A rename is the case
-        // typeorm already did in place, and it has to stay that way
+        // a changed type answered by dropping the column and adding it again is what a migration
+        // written to *change* a property never asked for - the values went with the old column, and a
+        // required one could not even be added back to a table that had rows. A rename is done in
+        // place as well, and it has to stay that way
         const measurement: Measurement = await dataSource.getRepository(Measurement).findById(createdId);
         expect(measurement.amount).toBe(42);
         expect(measurement.title).toBe('first');

@@ -1,5 +1,5 @@
 import { Newable } from '../types/newable.type';
-import { copyClassProperties } from './utilities/copy-class-properties.function';
+import { ClassPropertyUtilities } from './utilities/class-property.utilities';
 
 // eslint-disable-next-line jsdoc/require-returns
 /**
@@ -13,6 +13,6 @@ export function OmitClass<T, K extends keyof T>(
 ): Newable<Omit<T, K>> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     class OmitClass {}
-    copyClassProperties(OmitClass, Base, keys as K[]);
+    ClassPropertyUtilities.copy(OmitClass, Base, keys as K[]);
     return OmitClass as Newable<Omit<T, K>>;
 }

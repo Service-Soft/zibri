@@ -1,12 +1,11 @@
 import { ConflictError } from '../error-handling/errors/conflict.error';
 import { $ts } from '../localization/translate.function';
 
+// one error for every store on purpose. `unique` is declared on the entity rather than on the data
+// source, so an application that has to react to a duplicate - retrying, reporting it, falling back
+// to a read - must not have to know which store refused the write
 /**
- * An error for a write that a unique declaration refuses.
- *
- * One error for every store on purpose. `unique` is declared on the entity rather than on the data
- * source, so an application that has to react to a duplicate - retrying, reporting it, falling back
- * to a read - must not have to know which store refused the write.
+ * An error for a write that a unique declaration refuses, the same whichever store refused it.
  *
  * Over http it answers 409: a value already taken is the caller's to change.
  */

@@ -4,7 +4,7 @@ import { Newable } from '../../types/newable.type';
 /**
  * Thrown when the rows of a tenant are reached while no tenant is active.
  *
- * Nothing narrows such a call to one tenant, so it is refused rather than answered from all of them.
+ * Nothing narrows such a call to one tenant, so it is refused.
  * Run the work as a tenant, or pass `acrossTenants` when it really serves every tenant at once.
  */
 export class NoActiveTenantError extends InternalError {

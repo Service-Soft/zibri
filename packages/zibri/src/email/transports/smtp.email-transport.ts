@@ -39,11 +39,10 @@ export type SmtpEmailTransportOptions = {
      */
     pool?: boolean,
     /**
-     * Whether the connection is TLS from the first byte rather than upgraded with STARTTLS.
+     * Whether the connection is TLS from the first byte. Otherwise it is upgraded with STARTTLS.
      *
      * Defaults to true on port 465 and false everywhere else, which is what those ports conventionally
-     * mean. Say it explicitly when a server does implicit TLS on some other port - inferring it from
-     * the port number is a good guess and a bad requirement.
+     * mean. Say it explicitly when a server does implicit TLS on some other port.
      */
     secure?: boolean
 };
@@ -70,14 +69,16 @@ export class SmtpEmailTransport implements EmailTransportInterface {
      * Creates a transport that sends through the given SMTP server.
      * @param options - How to reach the server.
      * @throws {InternalError} When the host is empty or the port is no port, so an application
-     * missing its mail server does not start rather than failing every mail it sends.
+     * missing its mail server does not start.
      */
     constructor(options: SmtpEmailTransportOptions) {
         if (options.host.trim() === '') {
             throw new InternalError('The SMTP host of the SmtpEmailTransport is empty.');
         }
         if (!Number.isInteger(options.port) || options.port < 1 || options.port > 65_535) {
-            throw new InternalError(`The SMTP port of the SmtpEmailTransport has to be a whole number from 1 to 65535, got ${options.port}.`);
+            throw new InternalError(
+                `The SMTP port of the SmtpEmailTransport has to be a whole number from 1 to 65535, got ${options.port}.`
+            );
         }
         // eslint-disable-next-line typescript/typedef
         const createTransport = optionalPeer<typeof import('nodemailer')>('nodemailer', 'The smtp email transport').createTransport;

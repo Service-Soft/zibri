@@ -1,13 +1,14 @@
 import assert from 'node:assert';
+import { Script } from 'node:vm';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { type Relation } from 'typeorm';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { Response } from './decorators/response.decorator';
 import { OpenApiDefinition, OpenApiOperation, OpenApiReferenceObject, OpenApiSchemaObject } from './open-api.model';
 import { OpenApiService } from './open-api.service';
 import { TestTimeouts } from '../__testing__/constants';
+import { type Relation } from '../__testing__/relation.type';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerPermissions, defaultTestServerProviders, defaultTestServerRoles, rolesAndPermissionsProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -21,6 +22,7 @@ import { XmlUtilities } from '../document/xml.utilities';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Property } from '../entity/decorators/property.decorator';
 import { type OneOf } from '../entity/models/one-of.model';
+import { PartialClass } from '../entity/partial-class.model';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpMethod } from '../http/http-method.enum';
 import { HttpStatus } from '../http/http-status.enum';
@@ -38,6 +40,7 @@ import { Body } from '../routing/decorators/body.decorator';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
 import { Param } from '../routing/decorators/param.decorator';
+import { Patch } from '../routing/decorators/patch.decorator';
 import { Post } from '../routing/decorators/post.decorator';
 import { type RouterInterface } from '../routing/router.interface';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
@@ -93,6 +96,8 @@ class CreateItemBody {
     @Property.array({ items: { type: 'oneOf', shapes: { At: { type: 'date' }, Note: { type: 'string' } } }, required: false })
     schedule?: OneOf<{ At: Date, Note: string }>[];
 }
+
+class UpdateItemBody extends PartialClass(CreateItemBody) {}
 
 // A bidirectional relation, deliberately not @Entity()-decorated/registered on a data source: the OpenAPI
 // schema builder only reads @Property metadata off the class, same as validation.service.test.ts's approach.
@@ -252,6 +257,19 @@ class ItemController {
     ): Item[] {
         void body;
         return [];
+    }
+
+    @Response.object(Item, { status: HttpStatus.OK })
+    @Patch('/:id')
+    update(
+        @Param.path('id', { type: 'string' })
+        id: string,
+        @Body(UpdateItemBody)
+        body: UpdateItemBody
+    ): Item {
+        void id;
+        void body;
+        return {} as Item;
     }
 
     @Response.file({ status: HttpStatus.OK })
@@ -426,7 +444,7 @@ describe('OpenApiService', () => {
      * @param method - The HTTP method key, eg. 'get' or 'post'.
      * @returns The operation object.
      */
-    function op(path: string, method: 'get' | 'post'): OpenApiOperation {
+    function op(path: string, method: 'get' | 'post' | 'patch'): OpenApiOperation {
         // eslint-disable-next-line typescript/typedef
         const pathItem = spec.paths?.[path];
         assert(pathItem);
@@ -540,7 +558,8 @@ describe('OpenApiService', () => {
         expect(schema.properties?.['category']).toMatchObject({ type: 'string', enum: ['books', 'toys'] });
         expect(schemaOf(schema.properties?.['category']).pattern).toBeTruthy();
         expect(schema.properties?.['price']).toMatchObject({ type: 'number', minimum: 0, maximum: 1000 });
-        expect(schema.properties?.['primaryTag']).toMatchObject({ type: 'object', properties: { label: { type: 'string' } } });
+        // null as well, since it may be left out
+        expect(schema.properties?.['primaryTag']).toMatchObject({ type: ['object', 'null'], properties: { label: { type: 'string' } } });
         expect(schema.properties?.['labels']).toMatchObject({ type: 'array', items: { type: 'string' } });
         // Tag is also described by primaryTag right before, which is no cycle
         expect(schema.properties?.['tags']).toMatchObject({ type: 'array', items: { type: 'object', properties: { label: { type: 'string' } } } });
@@ -610,39 +629,75 @@ describe('OpenApiService', () => {
         assert(operation.requestBody && !('$ref' in operation.requestBody));
         const schema: OpenApiSchemaObject = schemaOf(operation.requestBody.content[MimeType.JSON]?.schema);
 
+        // or null, since it may be left out
         expect(schema.properties?.['secondaryTag']).toEqual({
             description: 'a tag, or none on purpose',
-            discriminator: { propertyName: 'shape' },
-            oneOf: [
+            anyOf: [
                 {
-                    type: 'object',
-                    properties: {
-                        shape: { type: 'string', enum: ['Tag'] },
-                        value: expect.objectContaining({ type: 'object', properties: { label: expect.objectContaining({ type: 'string' }) } })
-                    },
-                    required: ['shape', 'value']
+                    oneOf: [
+                        {
+                            type: 'object',
+                            properties: {
+                                shape: { type: 'string', enum: ['Tag'] },
+                                value: expect.objectContaining({ type: 'object', properties: { label: expect.objectContaining({ type: 'string' }) } })
+                            },
+                            required: ['shape', 'value']
+                        },
+                        {
+                            type: 'object',
+                            properties: {
+                                shape: { type: 'string', enum: ['Untagged'] },
+                                value: expect.objectContaining({ type: 'string', enum: ['untagged'] })
+                            },
+                            required: ['shape', 'value']
+                        }
+                    ]
                 },
-                {
-                    type: 'object',
-                    properties: {
-                        shape: { type: 'string', enum: ['Untagged'] },
-                        value: expect.objectContaining({ type: 'string', enum: ['untagged'] })
-                    },
-                    required: ['shape', 'value']
-                }
+                { type: 'null' }
             ]
         });
         expect(schema.required).not.toContain('secondaryTag');
         expect(schema.properties?.['schedule']).toMatchObject({
-            type: 'array',
+            type: ['array', 'null'],
             items: {
-                discriminator: { propertyName: 'shape' },
                 oneOf: [
                     { properties: { shape: { enum: ['At'] }, value: { type: 'string', format: 'date-time' } } },
                     { properties: { shape: { enum: ['Note'] }, value: { type: 'string' } } }
                 ]
             }
         });
+    });
+
+    // part of evaluation round 2, 03 §H8: validation takes null for a property that may be left out, and
+    // a read answers with it, while the document said the type alone - so a generated client refused it
+    it('says that a property which may be left out may be null as well', () => {
+        const operation: OpenApiOperation = op('/items/', 'post');
+        assert(operation.requestBody && !('$ref' in operation.requestBody));
+        const schema: OpenApiSchemaObject = schemaOf(operation.requestBody.content[MimeType.JSON]?.schema);
+
+        expect(schema.properties?.['quantity']).toMatchObject({ type: ['number', 'null'] });
+        expect(schema.properties?.['name']).toMatchObject({ type: 'string' });
+        // a value of several shapes has no type to add null to, so null is one more thing it may be
+        expect(schema.properties?.['secondaryTag']).toMatchObject({
+            description: 'a tag, or none on purpose',
+            anyOf: [{ oneOf: expect.any(Array) }, { type: 'null' }]
+        });
+    });
+
+    it('says that a property a partial model may leave out may be null only where its base allows null', () => {
+        const operation: OpenApiOperation = op('/items/{id}', 'patch');
+        assert(operation.requestBody && !('$ref' in operation.requestBody));
+        const schema: OpenApiSchemaObject = schemaOf(operation.requestBody.content[MimeType.JSON]?.schema);
+
+        expect(schema.required ?? []).not.toContain('name');
+        expect(schema.properties?.['name']).toMatchObject({ type: 'string' });
+        expect(schema.properties?.['quantity']).toMatchObject({ type: ['number', 'null'] });
+    });
+
+    // part of evaluation round 2, 03 §H8: a discriminator without a mapping is defined for named schemas
+    // only, and generators that read it rejected the inline ones
+    it('names no discriminator, each shape being told apart by the one name it allows', () => {
+        expect(JSON.stringify(spec)).not.toContain('discriminator');
     });
 
     it('describes a response that can be json or xml under both, the xml one naming its root', () => {
@@ -765,26 +820,13 @@ describe('OpenApiService', () => {
         expect(res.status).toBe(404);
     });
 
-    it('serves the explorer HTML page', async () => {
+    it('serves the explorer HTML page, naming the document of the registered version', async () => {
         const res: globalThis.Response = await fetch(`${baseUrl}/explorer`);
         expect(res.status).toBe(200);
         expect(res.headers.get('content-type')).toContain('text/html');
         const html: string = await res.text();
         expect(html).toContain('swagger-ui-init.js');
-    });
-
-    it('serves the generated swagger-ui-init.js referencing the registered version', async () => {
-        const res: globalThis.Response = await fetch(`${baseUrl}/explorer/swagger-ui-init.js`);
-        expect(res.status).toBe(200);
-        const js: string = await res.text();
-        expect(js).toContain('/explorer/spec/1.0.0');
-    });
-
-    it('serves the generated custom.js', async () => {
-        const res: globalThis.Response = await fetch(`${baseUrl}/explorer/custom.js`);
-        expect(res.status).toBe(200);
-        const js: string = await res.text();
-        expect(js).toContain('zibri-openapi-logo');
+        expect(html).toContain('"url":"/explorer/spec/1.0.0"');
     });
 });
 
@@ -803,7 +845,8 @@ describe('OpenApiService extended under a route of its own', () => {
         server = await startTestServer({
             controllers: [ItemController],
             version: '1.0.0',
-            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })],
+            // orphan allowed, since the suite below boots servers of its own while this class exists
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
             providers: [
                 ...itemProviders,
                 defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_SERVICE, useClass: ApiDocsService })
@@ -828,5 +871,91 @@ describe('OpenApiService extended under a route of its own', () => {
         expect(spec.openapi).toBe('3.1.0');
 
         expect((await fetch(`${baseUrl}/explorer`)).status).toBe(404);
+    });
+});
+// part of evaluation round 2, 03 §H16: the explorer and the document answered everyone whatever the
+// application's default said, the permission names of every route included
+describe('OpenApiService in an application that requires a login by default', () => {
+    /**
+     * Starts the application, and answers whether an anonymous caller may read the document.
+     * @param providers - What it runs with besides the item providers.
+     * @returns The status the document is answered with.
+     */
+    async function resolveAnonymousStatus(providers: DiProvider<unknown>[]): Promise<number> {
+        const server: StartedTestServer = await startTestServer({
+            controllers: [ItemController],
+            version: '1.0.0',
+            defaultAuth: 'isLoggedIn',
+            // orphan allowed, since each case declares a class of its own
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
+            providers: [...itemProviders, ...providers]
+        });
+        try {
+            const baseUrl: string = await server.start();
+            return (await fetch(`${baseUrl}/explorer/spec/1.0.0`)).status;
+        }
+        finally {
+            await server.shutdown();
+        }
+    }
+
+    it('keeps the document from an anonymous caller', async () => {
+        await expect(resolveAnonymousStatus([])).resolves.toBe(401);
+    }, TestTimeouts.inMemory.start);
+
+    it('serves it to everyone when OPEN_API_AUTH says so, whatever the default is', async () => {
+        await expect(resolveAnonymousStatus([defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_AUTH, useValue: { skip: true } })])).resolves.toBe(200);
+    }, TestTimeouts.inMemory.start);
+});
+
+// part of round 2's code review 03 §Q3: the explorer's scripts were string arrays in the service, and
+// the name of the application was written into one of them as it was, so a quote in it broke the script
+describe('OpenApiService explorer of an application whose name needs escaping', () => {
+    const name: string = 'Ada\'s "Tasks" </script><b>';
+    // the explorer's files as an application is scaffolded with them
+    const sandboxAssetsPath: FsPath = FsUtilities.getPath(__dirname, '..', '..', '..', 'sandbox', 'assets');
+    let server: StartedTestServer;
+    let baseUrl: string;
+
+    beforeAll(async () => {
+        server = await startTestServer({
+            name,
+            controllers: [ItemController],
+            version: '1.0.0',
+            // orphan allowed, since the suites above boot servers of their own while this class exists
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
+            providers: [...itemProviders, defineProvider({ token: ZIBRI_DI_TOKENS.ASSETS_PATH, useValue: sandboxAssetsPath })]
+        });
+        baseUrl = await server.start();
+    }, TestTimeouts.inMemory.start);
+
+    afterAll(async () => {
+        await server?.shutdown();
+    }, TestTimeouts.inMemory.shutdown);
+
+    it('serves scripts that parse', async () => {
+        for (const file of ['swagger-ui-init.js', 'custom.js']) {
+            const res: globalThis.Response = await fetch(`${baseUrl}/explorer/${file}`);
+            expect(res.status).toBe(200);
+            const js: string = await res.text();
+            expect(() => new Script(js, { filename: file })).not.toThrow();
+        }
+    });
+
+    it('hands the scripts the name as it is, and keeps it out of the markup of the page', async () => {
+        const html: string = await (await fetch(`${baseUrl}/explorer`)).text();
+        const marker: string = '<script id="zibri-explorer-config" type="application/json">';
+        const start: number = html.indexOf(marker);
+        expect(start).toBeGreaterThan(-1);
+        const json: string = html.slice(start + marker.length, html.indexOf('</script>', start));
+        const config: unknown = JSON.parse(json);
+        expect(config).toEqual({
+            appName: name,
+            logoSrc: '/assets/logo.jpg',
+            urls: [{ url: '/explorer/spec/1.0.0', name: '1.0.0 (latest)' }],
+            primaryName: '1.0.0'
+        });
+        expect(html).not.toContain('</script><b>');
+        expect(html).toContain('<title>Ada\'s &quot;Tasks&quot; &lt;/script&gt;&lt;b&gt; | Explorer</title>');
     });
 });

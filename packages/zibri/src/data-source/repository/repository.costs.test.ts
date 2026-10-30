@@ -40,6 +40,12 @@ class CostFolder extends BaseEntity {
     @Property.string()
     name!: string;
 
+    /**
+     * The identity an upsert resolves by.
+     */
+    @Property.string({ unique: true, required: false })
+    code?: string;
+
     @Property.oneToMany({ target: () => CostFile, inverseSide: 'folder' })
     files!: CostFile[];
 }
@@ -112,6 +118,18 @@ describe('what repository writes cost', () => {
             .toEqual(['CostFolder.insert', 'CostFile.insert']);
     });
 
+    it('creates a row and resolves the relations it reads by default on the row it wrote', async () => {
+        expect(await resolveCallsOf(async () => await folders.create({ name: 'resolved on the written row' })))
+            .toEqual(['CostFolder.insert', 'CostFolder.resolveRelations']);
+    });
+
+    it('upserts a row and resolves the relations it reads by default on the row it wrote', async () => {
+        const code: string = UUIDUtilities.generate();
+
+        expect(await resolveCallsOf(async () => await folders.upsert({ code }, { name: 'upserted', code }, { name: { set: 'upserted again' } })))
+            .toEqual(['CostFolder.upsert', 'CostFolder.resolveRelations']);
+    });
+
     it('points a row at a row the same transaction wrote without reading it', async () => {
         const transaction: Transaction = await inject(dataSourceClass).startTransaction();
         try {
@@ -138,13 +156,14 @@ describe('what repository writes cost', () => {
         }))).toEqual([
             'CostFolder.find',
             'CostFolder.updateAll',
-            // the tenant of the rows the folder is given, and the ids of the rows its value leaves out,
-            // which a delete that hands nothing back needs nothing else of
+            // the tenant of the rows the folder is given, and the rows its value leaves out removed in
+            // one call, since a delete that hands nothing back needs nothing of them
             'CostFile.find',
-            'CostFile.findIds',
+            'CostFile.removeMatching',
             'CostFile.updateEach',
-            // the folder handed back with its files, which rows it was not given may still be among
-            'CostFolder.findOne'
+            // the files of the folder handed back, which rows it was not given may still be among,
+            // resolved on the folder the write handed back
+            'CostFolder.resolveRelations'
         ]);
         expect(new Set((await folders.findById(folder.id, { acrossTenants: true })).files.map(f => f.name)))
             .toEqual(new Set(['a renamed', 'b renamed', 'c renamed']));

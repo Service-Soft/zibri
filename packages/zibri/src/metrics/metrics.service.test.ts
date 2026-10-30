@@ -97,7 +97,7 @@ describe('PrometheusMetricsService', () => {
 
     describe('getCounter / getGauge / getHistogram', () => {
         it('reuses the same underlying registration on repeated calls with the same name instead of registering a duplicate', async () => {
-            // prom-client throws when a metric with the same name is registered twice on the same registry,
+            // the prometheus client throws when a metric with the same name is registered twice on the same registry,
             // so this only passes if getCounter is actually caching rather than re-registering every call.
             expect(() => {
                 service.getCounter('test_counter_reuse').increase({}, 3);

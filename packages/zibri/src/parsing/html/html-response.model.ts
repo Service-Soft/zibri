@@ -25,15 +25,14 @@ export type HtmlResponseOptions = {
  */
 export class HtmlResponse implements SelfDescribing {
 
+    // Written down rather than left to the prototype. Whatever decides that a handler returned html
+    // has to keep deciding it after the value has been somewhere that json is the only thing it could
+    // be - a shared cache, most obviously. A class is exactly what does not survive that trip: the
+    // values come back and the prototype does not, so `instanceof` answers no for a response that is
+    // one. This does survive, because it is a value.
     /**
-     * What this is, written down rather than left to the prototype.
-     *
-     * Whatever decides that a handler returned html has to keep deciding it after the value has been
-     * somewhere that json is the only thing it could be - a shared cache, most obviously. A class is
-     * exactly what does not survive that trip: the values come back and the prototype does not, so
-     * `instanceof` answers no for a response that is one. This does survive, because it is a value.
-     *
-     * Excluded, so that it stays wiring: it is not part of what a caller is answered with.
+     * What this is, as a value, so that it is still known after the response has been through json
+     * and back, such as in a shared cache. Not part of what a caller is answered with.
      */
     @Property.string({ exclude: true })
     readonly className: 'HtmlResponse' = 'HtmlResponse';
@@ -78,9 +77,8 @@ export class HtmlResponse implements SelfDescribing {
 /**
  * Whether the given value is a html response.
  *
- * By what it says it is rather than by `instanceof`, so that a response that has been through json
- * and back - a shared cache is the case that does it - is still recognized as one. The prototype
- * does not survive that trip and the value does.
+ * Judged by its `className`, so that a response that has been through json and back - a shared
+ * cache is the case that does it - is still recognized as one.
  * @param value - The value to judge.
  * @returns True when the value is a html response.
  */

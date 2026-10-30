@@ -11,7 +11,6 @@ import { KnownHeader } from '../../http/known-header.enum';
 import { type LeaseServiceInterface } from '../../leases/lease-service.interface';
 import { TranslatedString } from '../../localization/models/translated-string.model';
 import { $ts } from '../../localization/translate.function';
-import { Ms } from '../../utilities/ms';
 import { OAuth2ErrorCode } from '../authorization-server/oauth2-error-code.enum';
 import { OAuth2Error } from '../authorization-server/oauth2.error';
 import { AuthorizationToken } from '../strategies/authorization-token.model';
@@ -24,17 +23,6 @@ import { VerifiedDpopProof } from '../strategies/jwt/verified-dpop-proof.model';
  * What a proof may be signed with.
  */
 const DPOP_ALGORITHMS: JwtAsymmetricAlgorithm[] = ['ES256', 'ES384', 'ES512', 'EdDSA', 'RS256'];
-
-/**
- * How long ago a proof may have been issued, and how far ahead of the clock it may claim to be. A proof
- * is remembered as presented for twice as long, so this bounds how long that is.
- */
-const PROOF_MAX_AGE_IN_MS: number = 5 * Ms.MINUTE;
-
-/**
- * How long a nonce the application issued is taken.
- */
-const NONCE_LIFETIME_IN_MS: number = 5 * Ms.MINUTE;
 
 /**
  * Default implementation of the service checking the DPoP proofs of requests.
@@ -62,7 +50,12 @@ export class DpopService implements DpopServiceInterface {
         @Inject(ZIBRI_DI_TOKENS.JWT_SERVICE)
         private readonly jwtService: JwtServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.LEASE_SERVICE)
-        private readonly leaseService: LeaseServiceInterface
+        private readonly leaseService: LeaseServiceInterface,
+        // a proof is remembered as presented for twice this, so it bounds how long that is
+        @Inject(ZIBRI_DI_TOKENS.DPOP_PROOF_MAX_AGE_IN_MS)
+        private readonly proofMaxAgeInMs: number,
+        @Inject(ZIBRI_DI_TOKENS.DPOP_NONCE_LIFETIME_IN_MS)
+        private readonly nonceLifetimeInMs: number
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -115,7 +108,7 @@ export class DpopService implements DpopServiceInterface {
         // a header sent twice arrives joined by a comma, which no jwt holds
         const proof: VerifiedDpopProof | undefined = header.includes(',')
             ? undefined
-            : await JwtUtilities.verifyDpopProof(header, this.algorithms, PROOF_MAX_AGE_IN_MS);
+            : await JwtUtilities.verifyDpopProof(header, this.algorithms, this.proofMaxAgeInMs);
         const jwtId: unknown = proof?.payload['jti'];
         if (proof == undefined || typeof jwtId !== 'string' || !this.isForRequest(proof, context, accessToken)) {
             throw this.toRefusal(
@@ -130,7 +123,7 @@ export class DpopService implements DpopServiceInterface {
                 OAuth2ErrorCode.USE_DPOP_NONCE,
                 $ts`The DPoP proof carries no nonce the application issued.`,
                 accessToken,
-                await this.jwtService.sign({}, { type: 'dpop-nonce+jwt', expiresInMs: NONCE_LIFETIME_IN_MS, audience: undefined })
+                await this.jwtService.sign({}, { type: 'dpop-nonce+jwt', expiresInMs: this.nonceLifetimeInMs, audience: undefined })
             );
         }
         // kept rather than handed back, for as long as the proof could be presented: it is the record
@@ -139,7 +132,7 @@ export class DpopService implements DpopServiceInterface {
             {
                 key: `dpop-proof:${proof.jwkThumbprint}:${createHash('sha256').update(jwtId)
                     .digest('base64url')}`,
-                leaseInMs: 2 * PROOF_MAX_AGE_IN_MS,
+                leaseInMs: 2 * this.proofMaxAgeInMs,
                 mode: 'skip',
                 onCompletion: 'retain'
             },

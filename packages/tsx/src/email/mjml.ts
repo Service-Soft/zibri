@@ -91,8 +91,8 @@ function mediaQueries(widths: string[]): string {
  * collected while they rendered.
  */
 export const Mjml: TsxComponent<MjmlProps> = defineEmailComponent<MjmlProps>('Mjml', (props, $ssr) => {
-    const lang: string = props.lang ?? 'und';
-    const dir: string = props.dir ?? 'auto';
+    const lang: string = escapeHtml(props.lang ?? 'und');
+    const dir: string = escapeHtml(props.dir ?? 'auto');
     const body: string = $ssr.child(props.children);
     const title: string = $ssr.collected(HeadChannel.title)[0] ?? props.title ?? '';
     const customStyles: string = $ssr.collected(HeadChannel.style)

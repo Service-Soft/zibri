@@ -26,6 +26,17 @@ export class EmailTwoFactorMethod extends CodeTwoFactorMethod<void> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly registrationRequestModel: Newable<void> = NoRegistrationRequestData;
 
+    override async requestRegistration<UserType extends UserAccount>(user: UserType, data: void): Promise<void> {
+        // before anything is changed: a factor sent to an address nobody proved is anybody's who typed it
+        inject(ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_SERVICE).validateEmailVerified(user);
+        await super.requestRegistration(user, data);
+    }
+
+    override async requestSecondFactor<UserType extends UserAccount>(user: UserType): Promise<void> {
+        inject(ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_SERVICE).validateEmailVerified(user);
+        await super.requestSecondFactor(user);
+    }
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     protected async deliver(user: UserAccount, _destination: string | undefined, code: string): Promise<void> {
         const minutes: number = Math.round(this.resolveOptions().expiresInMs / Ms.MINUTE);

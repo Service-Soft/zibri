@@ -6,7 +6,9 @@ import type { Batch, GlideClient, GlideClientConfiguration, GlideReturnType, Gli
 
 import { scanValKeyKeys } from './scan-val-key-keys.function';
 import { ValKeyBackupMode } from './val-key-backup-mode.model';
+import { ValKeyClock } from './val-key-clock.model';
 import { valKeyGlide } from './val-key-glide.function';
+import { ValKeyLockKeyUtilities } from './val-key-lock-key.utilities';
 import { type AuthServiceInterface } from '../../../auth/auth-service.interface';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -16,6 +18,7 @@ import { EntityMetadata } from '../../../entity/decorators/entity.decorator';
 import { PropertyMetadata } from '../../../entity/decorators/property.decorator';
 import { EntityMetadataMissingError } from '../../../entity/entity-metadata-missing.error';
 import { InternalError } from '../../../error-handling/internal-error.model';
+import { GlobalRegistry } from '../../../global/global-registry';
 import { type HeldLease, type KeptGrant } from '../../../leases/held-lease.model';
 import { type LoggerInterface } from '../../../logging/logger.interface';
 import { Newable } from '../../../types/newable.type';
@@ -25,19 +28,11 @@ import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { Ms } from '../../../utilities/ms';
 import { ObjectUtilities } from '../../../utilities/object.utilities';
 import { PromiseUtilities } from '../../../utilities/promise.utilities';
-import { SemVerVersion } from '../../../utilities/sem-ver.utilities';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { ChangeSetRepository } from '../../change-sets/change-set-repository';
-import { ChangeSetEntity } from '../../change-sets/models/change-set-entity.model';
-import { ChangeSet } from '../../change-sets/models/change-set.model';
-import { isChangeSetEntityNewable } from '../../change-sets/models/is-change-set-entity.function';
-import { isSoftDeleteEntityNewable } from '../../change-sets/models/is-soft-delete-entity.function';
-import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
-import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
-import { RepositoryDriverInterface } from '../../driver/repository-driver.interface';
 import { StoredRowChange, ValKeyRepositoryDriver } from '../../driver/val-key.repository-driver';
 import { registerRepositoryProvidersFor } from '../../entity-ownership.function';
 import { MigratedEntityUtilities } from '../../migration/migrated-entity.utilities';
+import { MigrationRevertTarget } from '../../migration/migration-revert-target.model';
 import { Migration } from '../../migration/migration.model';
 import { recordKeyReconciliation, revertMigrationsAfter, runMigrations, runMigrationsAfterRestore } from '../../migration/run-migrations.function';
 import { AddPropertyToEntityInput } from '../../models/add-property-to-entity-input.model';
@@ -46,12 +41,14 @@ import { ConvertedValue } from '../../models/converted-value.model';
 import { MergeEntityInput } from '../../models/merge-entity-input.model';
 import { MigrationPropertyMetadata } from '../../models/migration-property-metadata.model';
 import { RefusedValue } from '../../models/refused-value.model';
+import { RemoveEntityInput } from '../../models/remove-entity-input.model';
 import { RemovePropertyFromEntityInput } from '../../models/remove-property-from-entity-input.model';
+import { RemoveRelationFromEntityInput } from '../../models/remove-relation-from-entity-input.model';
 import { RenameEntityInput } from '../../models/rename-entity-input.model';
 import { ResolvedPropertyConversion } from '../../models/resolved-property-conversion.model';
 import { Repository } from '../../repository/repository';
-import { RepositoryForUtilities } from '../../repository/repository-for.utilities';
 import { RepositoryClass } from '../../repository/repository-class.type';
+import { RepositoryForUtilities } from '../../repository/repository-for.utilities';
 import { RunInTransactionOptions } from '../../transaction/run-in-transaction-options.model';
 import { TransactionDeadlockError } from '../../transaction/transaction-deadlock.error';
 import { Transaction } from '../../transaction/transaction.model';
@@ -59,7 +56,7 @@ import { TransactionUtilities } from '../../transaction/transaction.utilities';
 import { ValKeyTransaction, ValKeyTransactionGrants } from '../../transaction/val-key-transaction.model';
 import { ValueConversionUtilities } from '../../value-conversion.utilities';
 import { DataSourceInitializationError } from '../data-source-initialization.error';
-import { DataSourceInterface, RepositoryTypeForEntity, SCHEMA_LOCK_KEY, StartTransactionOptions } from '../data-source.interface';
+import { DataSourceInterface, DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS, RepositoryTypeForEntity, SCHEMA_LOCK_KEY, StartTransactionOptions } from '../data-source.interface';
 import { DataSourceSubscription, PubSubDataSourceInterface } from '../pub-sub-data-source.interface';
 
 /**
@@ -125,11 +122,6 @@ type UpdateStoredRowsResult = {
 };
 
 /**
- * Namespace for lock keys, so a lock can never collide with a stored entity.
- */
-const LOCK_KEY_PREFIX: string = 'zibri.lock:';
-
-/**
  * Namespace for what a transaction is waiting for, by its token: the lock key it is queueing on.
  */
 const LOCK_WAIT_KEY_PREFIX: string = 'zibri.lock-wait:';
@@ -169,16 +161,8 @@ const LOCK_RETRY_IN_MS: number = 100;
  */
 const LOCKS_PER_SCRIPT: number = 1000;
 
-/**
- * How long a transaction may sit idle before it is rolled back, when it does not say for itself.
- *
- * Valkey has no server side equivalent of postgres' idle_in_transaction_session_timeout, so the
- * bound is kept here. What sets the floor is the longest gap between two writes of one transaction:
- * the save hooks run in that gap and hashing and encryption are the slow part of them, where an
- * ordinary gap is a few hundred milliseconds at most. A transaction that knows it will wait longer
- * between two of its writes says so when it starts.
- */
-const DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS: number = 10000;
+// Valkey has no server side equivalent of postgres' idle_in_transaction_session_timeout, so the
+// transaction keeps DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS itself
 
 /**
  * How long to wait before subscribing again on a new client, once the one subscribed failed.
@@ -451,6 +435,8 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
 
     private readonly builtRepositories: Map<Newable<BaseEntity>, Repository<BaseEntity>> = new Map();
 
+    private clock: ValKeyClock | undefined;
+
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         protected readonly logger: LoggerInterface,
@@ -479,6 +465,17 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         });
         await this.validateServerIsStandalone(client);
         this.client = client;
+        // read once here, so that the first call naming the time of the data source does not pay for it
+        this.clock = new ValKeyClock(async () => {
+            const [seconds, microseconds] = await client.time();
+            return (Number(seconds) * 1000) + Math.floor(Number(microseconds) / 1000);
+        });
+        await this.clock.synchronize();
+
+        // a command works on the schema as it is: one about migrations is what changes it
+        if (GlobalRegistry.getAppData('runsCommand')) {
+            return;
+        }
 
         // migrations rewrite stored values, so several instances running them together is the same
         // race a sql data source has with its schema, minus the ddl
@@ -709,7 +706,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         held: Set<string>,
         endsDeadlocks: boolean
     ): Promise<void> {
-        const lockKeys: string[] = [...new Set(keys)].sort().map(key => `${LOCK_KEY_PREFIX}${key}`);
+        const lockKeys: string[] = [...new Set(keys)].sort().map(key => ValKeyLockKeyUtilities.getLockKey(key));
         const waitKey: string = endsDeadlocks ? `${LOCK_WAIT_KEY_PREFIX}${token}` : '';
         try {
             // one group after the other rather than together: taking them in order is the point, and
@@ -772,7 +769,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             }
             if (Date.now() > deadline) {
                 throw new InternalError(
-                    `Could not acquire the lock "${waiting[0]?.slice(LOCK_KEY_PREFIX.length)}" within ${timeoutInMs}ms`
+                    `Could not acquire the lock "${ValKeyLockKeyUtilities.getLockedKey(waiting[0] ?? '')}" within ${timeoutInMs}ms`
                     + ' - another instance is still holding it'
                 );
             }
@@ -815,7 +812,8 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
      *
      * One lease rather than one per key, because a transaction holds as many keys as it wrote rows.
      * Kept one by one, each would renew on a timer of its own and be released in a call of its own, so
-     * a transaction writing a large batch would put that many requests on the client at once.
+     * a transaction writing a large batch would put that many requests on the client at once. A commit
+     * hands them back in the script that applies its writes, so releasing them costs it no request.
      * @param client - The client to take the locks through.
      * @param holdInMs - How long a lock lives before it lapses. Renewed while it is held.
      * @param timeoutInMs - How long a claim queues before giving up.
@@ -845,11 +843,17 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
                 // from a timer rather than from whoever is writing. What it held went back as it
                 // ended, and what this took arrived after that - so it goes back on its own
                 if (released) {
-                    await this.releaseLocks(client, keys.map(key => `${LOCK_KEY_PREFIX}${key}`), token);
+                    await this.releaseLocks(client, keys.map(key => ValKeyLockKeyUtilities.getLockKey(key)), token);
                 }
             },
-            release: async () => {
+            resolveRelease: () => ({ token, lockKeys: [...held] }),
+            release: async handedBack => {
                 released = true;
+                // gone already, so neither renewed nor released again: the lease's own release then
+                // sends nothing when the commit handed back everything
+                for (const lockKey of handedBack?.lockKeys ?? []) {
+                    held.delete(lockKey);
+                }
                 await kept?.release();
             }
         };
@@ -876,7 +880,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             throw new DataSourceInitializationError();
         }
         const client: GlideClient = this.client;
-        const lockKey: string = `${LOCK_KEY_PREFIX}${key}`;
+        const lockKey: string = ValKeyLockKeyUtilities.getLockKey(key);
 
         // unique to this acquisition, and checked by both the renewal and the release. Without it
         // neither can tell "my lock" from "a lock", and a holder whose key had already lapsed would
@@ -898,9 +902,11 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         // acquired before the hold and not inside it: taking a grant can fail by running out of
         // patience, which is not something a grant that is already held can do. The hold then
         // follows the work rather than the work having to fit the hold - schemaLock takes an
-        // arbitrary function and never says how long it may run for.
+        // arbitrary function and never says how long it may run for. Under the key prefix, since the
+        // schema it guards is the one stored under it: an application with a prefix of its own on the
+        // same server waited for every other one setting its schema up
         const lease: HeldLease = await this.acquireNativeGrant(
-            key,
+            `${this.keyPrefix}:${key}`,
             holdInMs,
             inject(ZIBRI_DI_TOKENS.SCHEMA_LOCK_TIMEOUT_IN_MS)
         );
@@ -912,52 +918,35 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
     async shutDown(): Promise<void> {
         this.client?.close();
         this.client = undefined;
+        this.clock = undefined;
+    }
+
+    /**
+     * The time on the clock of the valkey server, which every instance of the application compares by.
+     * @returns The time.
+     * @throws When the data source has not been initialized yet.
+     */
+    async resolveServerTime(): Promise<Date> {
+        if (!this.clock) {
+            throw new DataSourceInitializationError();
+        }
+        return await this.clock.resolveNow();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     getRepository<T extends BaseEntity>(cls: Newable<T>): RepositoryTypeForEntity<T> {
-        if (!this.client) {
+        const client: GlideClient | undefined = this.client;
+        if (!client) {
             throw new DataSourceInitializationError();
         }
-        if (!this.entities.includes(cls)) {
-            throw new InternalError([
-                `The entity "${cls.name}" is not in this database.`,
-                'Did you forget to include it in the entities array?'
-            ]);
-        }
-
-        // eslint-disable-next-line stylistic/max-len
-        const existingRepository: RepositoryTypeForEntity<T> | undefined = this.builtRepositories.get(cls) as RepositoryTypeForEntity<T> | undefined;
-        if (existingRepository) {
-            return existingRepository;
-        }
-
-        const driver: ValKeyRepositoryDriver<T> = new ValKeyRepositoryDriver(cls, this.client, this.keyPrefix, this);
-
-        const built: RepositoryTypeForEntity<T> = isSoftDeleteEntityNewable(cls)
-            ? new SoftDeleteRepository(
-                cls,
-                driver as unknown as RepositoryDriverInterface<SoftDeleteEntity>,
-                this.logger,
-                this,
-                this.authService,
-                this.getRepository(ChangeSet)
-            ) as RepositoryTypeForEntity<T>
-            : isChangeSetEntityNewable(cls)
-                ? new ChangeSetRepository(
-                    cls,
-                    driver as unknown as RepositoryDriverInterface<ChangeSetEntity>,
-                    this.logger,
-                    this,
-                    this.authService,
-                    this.getRepository(ChangeSet)
-                ) as RepositoryTypeForEntity<T>
-                : new Repository<T>(cls, driver, this.logger, this) as RepositoryTypeForEntity<T>;
-        // the class listed for the entity rather than the repository it is built over, so that what it
-        // overrides holds for every row of the entity, those written through a relation included
-        const res: Repository<BaseEntity> = RepositoryForUtilities.resolveRepository(this, cls, built as Repository<BaseEntity>);
-        this.builtRepositories.set(cls, res);
-        return res as RepositoryTypeForEntity<T>;
+        return RepositoryForUtilities.resolveEntityRepository(
+            this,
+            cls,
+            this.builtRepositories,
+            this.logger,
+            this.authService,
+            () => new ValKeyRepositoryDriver(cls, client, this.keyPrefix, this)
+        );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -994,8 +983,8 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async revertMigrationsAfter(targetVersion: SemVerVersion): Promise<void> {
-        await revertMigrationsAfter(this.constructor as Newable<DataSourceInterface>, this.migrations, this.logger, targetVersion);
+    async revertMigrationsAfter(target: MigrationRevertTarget): Promise<void> {
+        await revertMigrationsAfter(this.constructor as Newable<DataSourceInterface>, this.migrations, this.logger, target);
     }
 
     /**
@@ -1014,7 +1003,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             // eslint-disable-next-line unicorn/no-null
             : null;
 
-        await this.updateStoredRows(input.entity, input.transaction, row => {
+        await this.updateStoredRows(MigratedEntityUtilities.resolveEntityClass(input.entity, this.entities), input.transaction, row => {
             if (name in row) {
                 return undefined;
             }
@@ -1037,7 +1026,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         const renames: boolean = conversion.currentName !== conversion.changedName;
 
         const refused: RefusedValue[] = [];
-        await this.updateStoredRows(input.entity, input.transaction, row => {
+        await this.updateStoredRows(MigratedEntityUtilities.resolveEntityClass(input.entity, this.entities), input.transaction, row => {
             const stored: string | undefined = row[conversion.currentName];
             // a field that is not there is a value that is null, which a change lists and converts alike
             const converted: ConvertedValue | RefusedValue = ValueConversionUtilities.resolveConvertedValue(
@@ -1066,7 +1055,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
     // eslint-disable-next-line jsdoc/require-jsdoc
     async removePropertyFromEntity<T extends BaseEntity>(input: RemovePropertyFromEntityInput<T>): Promise<void> {
         await this.updateStoredRows(
-            input.entity,
+            MigratedEntityUtilities.resolveEntityClass(input.entity, this.entities),
             input.transaction,
             row => String(input.propertyKey) in row ? { remove: [String(input.propertyKey)] } : undefined
         );
@@ -1077,8 +1066,12 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         if (!this.client) {
             throw new DataSourceInitializationError();
         }
-        await new ValKeyRepositoryDriver(input.entity, this.client, this.keyPrefix, this)
-            .moveStoredKeysFrom(input.currentTableName, input.transaction);
+        await new ValKeyRepositoryDriver(
+            MigratedEntityUtilities.resolveMovedEntityClass(input.entity, input.currentTableName, this.entities),
+            this.client,
+            this.keyPrefix,
+            this
+        ).moveStoredKeysFrom(input.currentTableName, input.transaction);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1086,14 +1079,46 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         if (!this.client) {
             throw new DataSourceInitializationError();
         }
-        await new ValKeyRepositoryDriver(input.entity, this.client, this.keyPrefix, this)
-            .mergeStoredKeysFrom(input.currentTableName, input.transaction);
+        await new ValKeyRepositoryDriver(
+            MigratedEntityUtilities.resolveMovedEntityClass(input.entity, input.currentTableName, this.entities),
+            this.client,
+            this.keyPrefix,
+            this
+        ).mergeStoredKeysFrom(input.currentTableName, input.transaction);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async createEntity(): Promise<void> {
         // valkey has no schema: an entity's keys come into being with its first row, and the keys of
         // its indexes and uniques with the reconciliation that follows the migrations
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async removeRelationFromEntity<T extends BaseEntity>(input: RemoveRelationFromEntityInput<T>): Promise<void> {
+        if (!this.client) {
+            throw new DataSourceInitializationError();
+        }
+        // both sides, since each row keeps the related ids of its own side
+        const sides: [Newable<BaseEntity>, string][] = [
+            [MigratedEntityUtilities.resolveEntityClass(input.entity, this.entities), String(input.relation.name)],
+            [MigratedEntityUtilities.resolveEntityClass(input.relation.target, this.entities), input.relation.inverseSide]
+        ];
+        for (const [entity, propertyKey] of sides) {
+            await new ValKeyRepositoryDriver(entity, this.client, this.keyPrefix, this).removeJoinSets(propertyKey, input.transaction);
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async removeEntity<T extends BaseEntity>(input: RemoveEntityInput<T>): Promise<void> {
+        if (!this.client) {
+            throw new DataSourceInitializationError();
+        }
+        await new ValKeyRepositoryDriver(
+            MigratedEntityUtilities.resolveEntityClass(input.entity, this.entities),
+            this.client,
+            this.keyPrefix,
+            this
+        ).removeStoredKeys(input.transaction);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1124,12 +1149,27 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         const entries: AsyncGenerator<ValKeyBackupEntry> = this.backupMode === 'walk'
             ? this.walkBackupEntries(client, pattern)
             : this.snapshotBackupEntries(client, pattern);
+        const isBackedUp: (key: string) => boolean = key => this.isBackedUp(key);
 
         return Readable.from((async function* generateBackupData(): AsyncGenerator<string> {
             for await (const entry of entries) {
-                yield `${JsonUtilities.stringify(entry)}\n`;
+                if (isBackedUp(entry.key)) {
+                    yield `${JsonUtilities.stringify(entry)}\n`;
+                }
             }
         })());
+    }
+
+    /**
+     * Whether a key belongs to what a backup takes and a restore replaces, rather than to an entity
+     * whose rows a restore keeps.
+     * @param key - The key.
+     * @returns False for a key of an entity that is not backed up.
+     */
+    private isBackedUp(key: string): boolean {
+        return !this.entities
+            .map(entity => MetadataUtilities.getEntityMetadata(entity))
+            .some(metadata => metadata?.backedUp === false && key.startsWith(`${this.keyPrefix}:${metadata.tableName}:`));
     }
 
     /**
@@ -1223,9 +1263,10 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         }
 
         const staged: string[] = await this.stageBackup(client, backupData);
-        // staged keys live under this prefix too, so they have to be kept out of what is swept away
+        // staged keys live under this prefix too, so they have to be kept out of what is swept away, and
+        // so do the keys of the entities whose rows the restore keeps
         const existingKeys: string[] = (await scanValKeyKeys(client, `${this.keyPrefix}:*`))
-            .filter(k => !k.startsWith(this.stagingPrefix()));
+            .filter(k => !k.startsWith(this.stagingPrefix()) && this.isBackedUp(k));
 
         if (!existingKeys.length && !staged.length) {
             return;
@@ -1342,6 +1383,10 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             return [];
         }
         const entry: ValKeyBackupEntry = JsonUtilities.parse(line);
+        // a backup taken before the entity was left out still holds its keys
+        if (!this.isBackedUp(entry.key)) {
+            return [];
+        }
         const stagedKey: string = `${this.stagingPrefix()}${entry.key}`;
         await client.restore(stagedKey, entry.ttlMs, Buffer.from(entry.payload, 'base64'), { replace: true });
         return [stagedKey];
@@ -1379,7 +1424,6 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         for (const id of transaction.resolveSetMembers(idsKey, storedIds)) {
             const key: string = `${this.keyPrefix}:${entityMetadata.tableName}:${id}`;
             const stored: Record<string, string> = Object.fromEntries(
-                // eslint-disable-next-line cspell/spellchecker
                 (await this.client.hgetall(key)).map(e => [toStringValue(e.field), toStringValue(e.value)])
             );
             const row: Record<string, string> | undefined = transaction.resolveHash(key, stored);

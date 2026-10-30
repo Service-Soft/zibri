@@ -334,7 +334,7 @@ export function describeRestoreMigrations(dataSourceName: string, restored: Rest
             const restore: Promise<void> = server.restore(backup);
 
             await expect(restore).rejects.toThrow('"FromANewerRelease" (2.0.0)');
-            await expect(restore).rejects.toThrow('Restore it with a build of that version or a newer one.');
+            await expect(restore).rejects.toThrow('Restore it with a build that carries those migrations.');
         }, 60000);
     });
 }

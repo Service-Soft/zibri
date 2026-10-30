@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { AddressInfo, createServer, Server as NetServer, Socket } from 'node:net';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
@@ -37,6 +38,7 @@ import { Param } from '../../../routing/decorators/param.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
 import { JsonUtilities } from '../../../utilities/json.utilities';
+import { Ms } from '../../../utilities/ms';
 import { AuthControllerUtilities } from '../../auth-controller/auth-controller.utilities';
 import { Auth } from '../../decorators/auth.decorator';
 import { ApiKeyAuthStrategy } from '../../strategies/api-key/api-key.auth-strategy';
@@ -116,6 +118,9 @@ abstract class TestDirectory extends BaseLdapAuthenticator<string, JwtUser> {
     readonly usernameAttributes: string[] = ['uid', 'mail'];
 
     readonly groupSearchBase: string | undefined = undefined;
+
+    // asked on every refresh, which the cases about an entry that changes count on
+    readonly refreshCheckIntervalInMs: number = 0;
 
     // read as the authenticator is built, which is once the directory is started
     override readonly trustedCertificates: string[] = [directory.certificate];
@@ -224,7 +229,62 @@ class SwitchableDirectory extends TestDirectory {
     }
 }
 
+/**
+ * Servers that take a connection and never answer, the way one behind a broken network path does.
+ */
+let silentServers: NetServer[] = [];
+
+/**
+ * The connections the silent servers took, closed once the tests are done.
+ */
+const silentSockets: Socket[] = [];
+
+/**
+ * The urls of the servers that never answer.
+ * @returns The urls.
+ */
+function silentUrls(): string[] {
+    return silentServers.map(silent => {
+        const address: AddressInfo | string | null = silent.address();
+        return typeof address === 'object' && address != undefined ? `ldaps://127.0.0.1:${address.port}` : '';
+    });
+}
+
+// four servers that never answer, and one that does
+class RacingDirectory extends TestDirectory {
+    readonly name: string = 'racing';
+
+    override readonly timeoutInMs: number = Ms.SECOND;
+
+    get urls(): string[] {
+        return [...silentUrls(), directory.ldapsUrl];
+    }
+}
+
+class CheckedHourlyDirectory extends TestDirectory {
+    readonly name: string = 'checked-hourly';
+
+    override readonly refreshCheckIntervalInMs: number = Ms.HOUR;
+
+    get urls(): string[] {
+        return [directory.ldapsUrl];
+    }
+}
+
+class PagedDirectory extends TestDirectory {
+    readonly name: string = 'paged';
+
+    override readonly disabledEntryPageSize: number = 1;
+
+    get urls(): string[] {
+        return [directory.ldapsUrl];
+    }
+}
+
 const DIRECTORIES: Record<string, Newable<TestDirectory>> = {
+    paged: PagedDirectory,
+    racing: RacingDirectory,
+    'checked-hourly': CheckedHourlyDirectory,
     company: CompanyDirectory,
     'start-tls': StartTlsDirectory,
     untrusting: UntrustingDirectory,
@@ -454,6 +514,10 @@ beforeAll(async () => {
         person('gone'),
         { ...person('twin'), dn: `uid=twin,ou=sales,${SEARCH_BASE}` },
         { ...person('twin'), dn: `uid=twin,ou=support,${SEARCH_BASE}` },
+        // more than the two a login asks for, which the directory answers as past its size limit
+        { ...person('triple'), dn: `uid=triple,ou=sales,${SEARCH_BASE}` },
+        { ...person('triple'), dn: `uid=triple,ou=support,${SEARCH_BASE}` },
+        { ...person('triple'), dn: `uid=triple,ou=marketing,${SEARCH_BASE}` },
         { ...person('outsider'), dn: 'uid=outsider,ou=elsewhere,dc=zibri,dc=test' },
         person('ivy'),
         person('jack'),
@@ -475,6 +539,11 @@ beforeAll(async () => {
         startFakeLdapDirectory({ entries: [] })
     ]);
     await unreachable.stop();
+    silentServers = await Promise.all(Array.from({ length: 4 }, async () => {
+        const silent: NetServer = createServer(socket => silentSockets.push(socket));
+        await new Promise<void>(resolve => silent.listen(0, '127.0.0.1', resolve));
+        return silent;
+    }));
 });
 
 afterEach(() => {
@@ -484,6 +553,12 @@ afterEach(() => {
 
 afterAll(async () => {
     await Promise.all([directory?.stop(), replica?.stop()]);
+    for (const socket of silentSockets) {
+        socket.destroy();
+    }
+    for (const silent of silentServers) {
+        silent.close();
+    }
 });
 
 // first, for the reason on startAndStopTestServerWithout
@@ -559,6 +634,7 @@ describe('BaseLdapAuthenticator', () => {
         expect(directory.searches.at(-1)).toStrictEqual({
             baseDn: SEARCH_BASE,
             filter: '(&(objectclass=inetorgperson)(|(uid=anna)(mail=anna)))',
+            attributes: ['*', 'entryuuid'],
             boundAs: SERVICE_ACCOUNT.dn
         });
         expect(firstLogins).toStrictEqual([]);
@@ -655,10 +731,7 @@ describe('BaseLdapAuthenticator', () => {
 
         expect((await logIn({ username: 'nobody', password: 'some-password' })).status).toBe(401);
 
-        expect(directory.binds.slice(bindsBefore)).toStrictEqual([
-            expect.objectContaining({ dn: SERVICE_ACCOUNT.dn, succeeded: true }),
-            expect.objectContaining({ withPassword: true, succeeded: false })
-        ]);
+        expect(directory.binds.slice(bindsBefore).filter(bind => bind.dn !== SERVICE_ACCOUNT.dn)).toStrictEqual([expect.objectContaining({ withPassword: true, succeeded: false })]);
     });
 
     it('refuses an empty password before the directory sees it, which would answer with success', async () => {
@@ -773,13 +846,10 @@ describe('BaseLdapAuthenticator', () => {
         expect(directory.searches.slice(searchesBefore)).toHaveLength(1);
 
         expect((await logIn({ username: 'ivy', password: 'ivy-secret' }, 'groups')).status).toBe(200);
-        expect(directory.binds.slice(bindsBefore).map(bind => bind.dn)).toStrictEqual([
-            SERVICE_ACCOUNT.dn,
-            person('ivy').dn,
-            SERVICE_ACCOUNT.dn,
-            person('ivy').dn,
-            SERVICE_ACCOUNT.dn
-        ]);
+        // the user binds on a connection of their own, so the one bound as the service account stays so
+        expect(directory.binds.slice(bindsBefore).filter(bind => bind.dn !== SERVICE_ACCOUNT.dn)
+            .map(bind => bind.dn))
+            .toStrictEqual([person('ivy').dn, person('ivy').dn]);
         const groupSearches: FakeLdapDirectory['searches'] = directory.searches.slice(searchesBefore + 2);
         expect(groupSearches.length).toBeGreaterThan(0);
         expect(groupSearches.every(search => search.baseDn === GROUP_SEARCH_BASE && search.boundAs === SERVICE_ACCOUNT.dn)).toBe(true);
@@ -804,16 +874,58 @@ describe('BaseLdapAuthenticator', () => {
         expect(answers.map(res => res.status)).toStrictEqual(Array.from({ length: 8 }, () => 200));
     });
 
-    it('starts at a random server, so logins are spread across all of them', async () => {
-        const [directoryBefore, replicaBefore] = [directory.binds.length, replica.binds.length];
+    it('connects through whichever server answers first, so servers that do not answer cost nothing', async () => {
+        addPerson('yuki');
+        const started: number = Date.now();
 
-        // that all 16 start at the same one of two servers is a chance of 1 in 32768
-        for (let i: number = 0; i < 16; i++) {
-            expect((await logIn({ username: 'kate', password: 'kate-secret' }, 'replicated')).status).toBe(200);
+        expect((await logIn({ username: 'yuki', password: 'yuki-secret' }, 'racing')).status).toBe(200);
+
+        // one server after the other waits timeoutInMs, a second, for every silent one tried first
+        expect(Date.now() - started).toBeLessThan(Ms.SECOND / 2);
+    });
+
+    it('lets a kept connection go that the directory closed, even one upgraded with StartTLS, without waiting for it', async () => {
+        addPerson('zora');
+        expect((await logIn({ username: 'zora', password: 'zora-secret' }, 'start-tls')).status).toBe(200);
+        // a restart of the directory, say
+        directory.dropConnections();
+        const started: number = Date.now();
+
+        expect((await logIn({ username: 'zora', password: 'zora-secret' }, 'start-tls')).status).toBe(200);
+
+        // waiting for an answer on the closed connection takes timeoutInMs, ten seconds
+        expect(Date.now() - started).toBeLessThan(Ms.SECOND);
+    });
+
+    it('keeps connections bound as the service account open, and searches on them from one refresh to the next', async () => {
+        addPerson('wanda');
+        let tokens: JwtAuthData<string> = await authDataOf(await logIn({ username: 'wanda', password: 'wanda-secret' }));
+        const opened: number = directory.connectionsOpened;
+        const searchesBefore: number = directory.searches.length;
+
+        for (let i: number = 0; i < 20; i++) {
+            tokens = await authDataOf(await refresh(tokens.refreshToken.value));
         }
 
-        expect(countBinds(directory, directoryBefore, SERVICE_ACCOUNT.dn)).toBeGreaterThan(0);
-        expect(countBinds(replica, replicaBefore, SERVICE_ACCOUNT.dn)).toBeGreaterThan(0);
+        expect(directory.searches.length - searchesBefore).toBeGreaterThanOrEqual(20);
+        expect(directory.connectionsOpened - opened).toBeLessThanOrEqual(1);
+    });
+
+    it('refuses a name more entries have than a login asks the directory for', async () => {
+        expect((await logIn({ username: 'triple', password: 'triple-secret' })).status).toBe(401);
+    });
+
+    it('answers a refresh within refreshCheckIntervalInMs without asking the directory, and asks it once the interval passed', async () => {
+        const entry: FakeLdapEntry = addPerson('xena');
+        const tokens: JwtAuthData<string> = await authDataOf(await logIn({ username: 'xena', password: 'xena-secret' }, 'checked-hourly'));
+        entry.attributes['nsAccountLock'] = ['TRUE'];
+        const searchesBefore: number = directory.searches.length;
+
+        const refreshed: JwtAuthData<string> = await authDataOf(await refresh(tokens.refreshToken.value));
+        expect(directory.searches.length).toBe(searchesBefore);
+
+        await identities().updateAll({ directory: 'checked-hourly', userId: tokens.userId }, { checkedAt: new Date(Date.now() - (Ms.HOUR * 2)) });
+        expect((await refresh(refreshed.refreshToken.value)).status).toBe(403);
     });
 
     it('asks no other server once one refused the password', async () => {
@@ -910,7 +1022,9 @@ describe('BaseLdapAuthenticator', () => {
             addPerson('sven');
             const tokens: JwtAuthData<string> = await authDataOf(await logIn({ username: 'sven', password: 'sven-secret' }, 'switchable'));
 
+            // the connections that are open go down with it
             switchableReachable = false;
+            directory.dropConnections();
             try {
                 expect((await refresh(tokens.refreshToken.value)).status).toBe(500);
             }
@@ -944,5 +1058,34 @@ describe('BaseLdapAuthenticator', () => {
             await authDataOf(await logIn({ username: 'tina', password: 'tina-secret' }));
             expect((await findCompanyLink(tokens.userId)).disabledAt ?? undefined).toBeUndefined();
         });
+    });
+});
+
+describe('BaseLdapAuthenticator — the job that looks for disabled entries', () => {
+    beforeAll(async () => {
+        server = await startApp([PagedDirectory]);
+        baseUrl = await server.start();
+    });
+
+    afterAll(async () => {
+        await server?.shutdown();
+    });
+
+    it('asks the directory about disabledEntryPageSize linked entries at a time', async () => {
+        addPerson('uma');
+        addPerson('vera');
+        await authDataOf(await logIn({ username: 'uma', password: 'uma-secret' }, 'paged'));
+        await authDataOf(await logIn({ username: 'vera', password: 'vera-secret' }, 'paged'));
+        const searchesBefore: number = directory.searches.length;
+
+        await runDisabledEntriesJob();
+
+        // one search per page, each naming the entries of the page
+        const byId: FakeLdapDirectory['searches'] = directory.searches.slice(searchesBefore).filter(search => search.filter.includes('entryuuid'));
+        expect(byId).toHaveLength(2);
+        // and reading only what tells an entry apart and whether it is active, not every attribute
+        // eslint-disable-next-line cspell/spellchecker
+        const attributes: string[] = ['entryuuid', 'nsaccountlock', 'pwdaccountlockedtime'];
+        expect(byId.map(search => search.attributes)).toStrictEqual([attributes, attributes]);
     });
 });

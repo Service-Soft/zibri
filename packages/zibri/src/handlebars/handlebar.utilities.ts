@@ -41,11 +41,10 @@ export abstract class HandlebarUtilities {
     /**
      * Initializes the handlebar utilities.
      *
-     * Runs for every application, whether or not it has a single template, so a missing handlebars
-     * is not something this can refuse over - there is simply nothing to register helpers and
-     * partials on. Anything that then goes on to ask for a template says which package is missing.
-     * A consumer who passed their own `H` has said they intend to use templating, so that case is
-     * held to the installed package rather than skipped.
+     * Runs for every application, whether or not it has a single template. Without handlebars
+     * installed there is nothing to register helpers and partials on, and anything that then asks
+     * for a template says which package is missing. With an `H` of your own, they are registered on
+     * that one.
      */
     static async init(): Promise<void> {
         const options: HandlebarOptions = inject(ZIBRI_DI_TOKENS.HANDLEBAR_OPTIONS);

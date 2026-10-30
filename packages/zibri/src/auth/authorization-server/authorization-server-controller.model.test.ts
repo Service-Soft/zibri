@@ -47,12 +47,12 @@ import { CreatedApiKey } from '../strategies/api-key/created-api-key.model';
 import { AuthStrategies } from '../strategies/auth-strategies.model';
 import { AuthorizationHeaderUtilities } from '../strategies/authorization-header.utilities';
 import { AuthorizationToken } from '../strategies/authorization-token.model';
-import { CredentialEntity } from '../strategies/credential-entity.model';
 import { ClientAccessTokenAuthStrategy } from '../strategies/client-access-token/client-access-token.auth-strategy';
 import { ClientAccessTokenGrant } from '../strategies/client-access-token-grant.model';
 import { ClientAccessTokenIssuingAuthStrategyInterface } from '../strategies/client-access-token-issuing-auth-strategy.interface';
 import { BaseClientCertificateAuthStrategy } from '../strategies/client-certificate/base-client-certificate.auth-strategy';
 import { ClientCertificateHeaderFormat } from '../strategies/client-certificate/client-certificate-header-format.type';
+import { CredentialEntity } from '../strategies/credential-entity.model';
 import { CredentialLimits } from '../strategies/credential-limits.model';
 import { IssuedClientAccessToken } from '../strategies/issued-client-access-token.model';
 import { AccessTokenRevocation } from '../strategies/jwt/access-token-revocation.type';
@@ -117,7 +117,8 @@ const { TOKENS_INTROSPECT } = definePlatformPermissions(['tokens.introspect'] as
 const roles: TestServerRole[] = defaultTestServerRoles
     .map(role => role.name === Roles.ADMIN && role.level === 'platform' ? { ...role, permissions: [...role.permissions, TOKENS_INTROSPECT] } : role);
 
-@Controller('/oauth2')
+// orphans allowed: a suite below starts with another authorization server in its place
+@Controller('/oauth2', { allowOrphan: true })
 class TestAuthorizationServerController extends AuthorizationServerController({ introspectionPermission: TOKENS_INTROSPECT, resources: [REPORTS] }) {}
 
 /**
@@ -155,13 +156,15 @@ let baseUrl: string;
  * @param entities - The entities it declares besides the defaults.
  * @param authStrategies - The strategies it reads requests with.
  * @param controllers - Its controllers besides the defaults.
+ * @param authorizationServerController - The controller defining the routes of the authorization server.
  * @returns The server, started.
  */
 async function startApp(
     providers: DiProvider<unknown>[] = [],
     entities: Newable<BaseEntity>[] = [ApiKey],
     authStrategies: AuthStrategies = ALL_STRATEGIES,
-    controllers: Newable<object>[] = []
+    controllers: Newable<object>[] = [],
+    authorizationServerController: Newable<object> = TestAuthorizationServerController
 ): Promise<StartedTestServer> {
     const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
         entities: [...defaultTestServerEntities, ...entities],
@@ -172,7 +175,7 @@ async function startApp(
         dataSources: [dataSourceClass],
         authStrategies,
         controllers: [
-            TestAuthorizationServerController,
+            authorizationServerController,
             MachineController,
             ...authStrategies.some(strategy => strategy === JwtAuthStrategy) ? [JwtTestAuthController] : [],
             ...controllers
@@ -822,7 +825,7 @@ describe('AuthorizationServerController — access tokens that work until they e
         expect((await requestTokenWithAssertion(assertion)).status).toBe(401);
         // for somebody else
         expect((await requestTokenWithAssertion(await signAssertion(privateKey, apiKey.id, 'https://elsewhere.example.com'))).status).toBe(401);
-        // expiring too far ahead to be remembered as spent for that long
+        // expiring too far ahead to be remembered as spent for that long, one hour by default
         expect((await requestTokenWithAssertion(await signAssertion(privateKey, apiKey.id, issuer(), 2 * 60 * 60))).status).toBe(401);
         // signed with another key
         const stranger: KeyObject = generateKeyPairSync('ec', { namedCurve: 'P-256' }).privateKey;
@@ -1201,6 +1204,8 @@ describe('AuthorizationServerController — tokens signed with a key pair', () =
         });
         expect(verified.payload).toMatchObject({ sub: user.id, client_id: key.apiKey.id, scope: TestPlatformPermissions.USER });
         expect(typeof verified.payload.jti).toBe('string');
+        // the user by `sub` alone: their address would be personal data in every service it reaches
+        expect(verified.payload).not.toHaveProperty('email');
     });
 });
 
@@ -1240,5 +1245,39 @@ describe('AuthorizationServerController — keys published at a path of the appl
         const token: string = await issueToken(await createKey(await createUser('keys-elsewhere')));
 
         await expect(jwtVerify(token, createRemoteJWKSet(new URL(`${baseUrl}/keys/jwks.json`)), { issuer: issuer() })).resolves.toBeDefined();
+    });
+});
+
+@Controller('/oauth2', { allowOrphan: true })
+class LongAssertionAuthorizationServerController extends AuthorizationServerController({
+        introspectionPermission: TOKENS_INTROSPECT,
+        resources: [REPORTS],
+        maxClientAssertionLifetimeInMs: Ms.HOUR * 3
+    }) {}
+
+describe('AuthorizationServerController — jwts of clients that expire further ahead', () => {
+    beforeAll(async () => {
+        server = await startApp([], [ApiKey], ALL_STRATEGIES, [], LongAssertionAuthorizationServerController);
+        baseUrl = await server.start();
+    }, TestTimeouts.inMemory.start);
+
+    afterAll(async () => {
+        await server?.shutdown();
+    });
+
+    it('takes a jwt expiring within maxClientAssertionLifetimeInMs, and refuses one beyond it', async () => {
+        const user: JwtUser = await createUser('long-signed');
+        const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+        const apiKey: ApiKey = await authService().createApiKey(user.id, {
+            name: 'long-signer',
+            permissions: [TestPlatformPermissions.USER],
+            expiresAt: undefined,
+            tenantId: undefined,
+            clientAuthentication: { method: ApiKeyAuthenticationMethod.PRIVATE_KEY_JWT, publicKey: publicKey.export({ type: 'spki', format: 'pem' }).toString() },
+            requireDpop: false
+        }, undefined);
+
+        expect((await requestTokenWithAssertion(await signAssertion(privateKey, apiKey.id, issuer(), 2 * 60 * 60))).status).toBe(200);
+        expect((await requestTokenWithAssertion(await signAssertion(privateKey, apiKey.id, issuer(), 4 * 60 * 60))).status).toBe(401);
     });
 });

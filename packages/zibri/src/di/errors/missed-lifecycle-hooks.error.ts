@@ -22,19 +22,18 @@ function getMissedLifecycleHooksMessage(declaredClass: Newable<unknown>): string
     return lines.join('\n');
 }
 
+// Refused rather than run late, because `inject()` is synchronous and a hook may return a promise:
+// running one here would hand back a value whose preparation is still in flight, which is a quieter
+// failure than this one rather than a fix for it. That is the same reasoning `UnresolvedAsyncProviderError`
+// carries for a value that has to be awaited before it exists.
 /**
  * An error to throw when a class that takes part in the lifecycle is first built after its phases.
  *
  * A lifecycle hook is a request to be made ready at a point in the application's life, and the only
- * moment the framework can honour it is that point. A class first reached afterwards - one recorded
+ * moment the framework can honor it is that point. A class first reached afterwards - one recorded
  * on first use, or one whose token an application provided something else for - is built with none
  * of that having happened, and it has no way to tell: its methods work, and whatever the hook was
  * supposed to arrange is simply absent.
- *
- * Refused rather than run late, because `inject()` is synchronous and a hook may return a promise:
- * running one here would hand back a value whose preparation is still in flight, which is a quieter
- * failure than this one rather than a fix for it. That is the same reasoning `UnresolvedAsyncProviderError`
- * carries for a value that has to be awaited before it exists.
  */
 export class MissedLifecycleHooksError extends InternalError {
     constructor(declaredClass: Newable<unknown>, options?: ErrorOptions) {

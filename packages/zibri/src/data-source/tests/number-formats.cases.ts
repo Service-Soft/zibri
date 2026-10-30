@@ -49,9 +49,9 @@ export class Measurement extends BaseEntity {
     sequence!: bigint;
 
     /**
-     * An exact decimal.
+     * An exact decimal, looked up by an index.
      */
-    @Property.number({ format: 'bignumber' })
+    @Property.number({ format: 'bignumber', index: true })
     price!: BigNumber;
 }
 
@@ -145,6 +145,23 @@ export function describeNumberFormats(dataSourceName: string, repositoryOf: () =
             expect(await repository.findAll({ where: { price: { lesserThan: 11n } } })).toHaveLength(1);
         }, 30000);
 
+        // 11 §S6: a store looking an indexed exact decimal up named the entry of the number as it was
+        // written in the filter, which is not the entry of the decimal it equals
+        it('finds an exact decimal by any number that equals it, through its index too', async () => {
+            const repository: Repository<Measurement> = repositoryOf();
+            await repository.deleteAll({});
+            await repository.createAll([
+                { temperature: 1, readings: 1, sequence: 1n, price: new BigNumber(10) },
+                { temperature: 1, readings: 1, sequence: 1n, price: new BigNumber('10.5') }
+            ]);
+
+            expect(await repository.findAll({ where: { price: 10 } })).toHaveLength(1);
+            expect(await repository.findAll({ where: { price: 10n } })).toHaveLength(1);
+            expect(await repository.findAll({ where: { price: 10.5 } })).toHaveLength(1);
+            expect(await repository.findAll({ where: { price: new BigNumber('10.50') } })).toHaveLength(1);
+            expect(await repository.findAll({ where: { price: { oneOf: [10, new BigNumber('10.5')] } } })).toHaveLength(2);
+        }, 30000);
+
         it('compares a bigint against the whole numbers it holds', async () => {
             const repository: Repository<Measurement> = repositoryOf();
             await repository.deleteAll({});
@@ -182,6 +199,21 @@ export function describeNumberFormats(dataSourceName: string, repositoryOf: () =
             while (cursor != undefined);
 
             expect(walked).toEqual(sequences);
+        }, 30000);
+
+        it('orders exact decimals by their value, not by how they are written', async () => {
+            const repository: Repository<Measurement> = repositoryOf();
+            await repository.deleteAll({});
+            await repository.createAll(['9', '10', '-1', '-2', '9.5'].map(price => ({
+                temperature: 1,
+                readings: 1,
+                sequence: 1n,
+                price: new BigNumber(price)
+            })));
+
+            const ordered: Measurement[] = await repository.findAll({ order: { price: 'ASC' } });
+
+            expect(ordered.map(m => m.price.toFixed())).toEqual(['-2', '-1', '9', '9.5', '10']);
         }, 30000);
 
         it('walks an exact decimal order once over every row', async () => {

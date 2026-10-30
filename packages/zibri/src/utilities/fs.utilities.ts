@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { createReadStream, createWriteStream, Dirent, existsSync, readFileSync, ReadStream, Stats, WriteStream } from 'node:fs';
-import { access, writeFile, mkdir, readFile, readdir, rm, rmdir, rename, stat, glob, link } from 'node:fs/promises';
+import { access, writeFile, mkdir, readFile, readdir, rm, rmdir, rename, stat, glob, link, open, FileHandle } from 'node:fs/promises';
 import path from 'node:path';
 
 import { InternalError } from '../error-handling/internal-error.model';
@@ -196,6 +196,20 @@ export abstract class FsUtilities {
     }
 
     /**
+     * Writes what the system still holds of a file to the disk, so that it outlasts the machine going down.
+     * @param p - The file.
+     */
+    static async sync(p: FsPath): Promise<void> {
+        const handle: FileHandle = await open(p, 'r+');
+        try {
+            await handle.sync();
+        }
+        finally {
+            await handle.close();
+        }
+    }
+
+    /**
      * Creates a file at the given path.
      * @param p - The path of the new file to create.
      * @param data - The data to write into the file. Can be a raw data string or an array of lines, which are joined by \n.
@@ -275,6 +289,15 @@ export abstract class FsUtilities {
             && codes.includes(error.code);
     }
 
+    /**
+     * Whether the lines of a file are those of an empty file.
+     * @param lines - The lines.
+     * @returns True for one line holding nothing. A file whose first line is empty can hold more.
+     */
+    private static isEmpty(lines: string[]): boolean {
+        return lines.length <= 1 && !lines[0]?.length;
+    }
+
     private static normalizeData(data: string | string[]): string {
         if (Array.isArray(data)) {
             data = data.join('\n');
@@ -305,15 +328,13 @@ export abstract class FsUtilities {
                 break;
             }
             case 'append': {
-                let currentContent: string[] = await this.readFileLines(path);
-                currentContent = currentContent[0]?.length ? [...currentContent, data] : [data];
-                await writeFile(path, this.normalizeData(currentContent));
+                const currentContent: string[] = await this.readFileLines(path);
+                await writeFile(path, this.normalizeData(this.isEmpty(currentContent) ? [data] : [...currentContent, data]));
                 break;
             }
             case 'prepend': {
-                let currentContent: string[] = await this.readFileLines(path);
-                currentContent = currentContent[0]?.length ? [data, ...currentContent] : [data];
-                await writeFile(path, this.normalizeData(currentContent));
+                const currentContent: string[] = await this.readFileLines(path);
+                await writeFile(path, this.normalizeData(this.isEmpty(currentContent) ? [data] : [data, ...currentContent]));
                 break;
             }
         }

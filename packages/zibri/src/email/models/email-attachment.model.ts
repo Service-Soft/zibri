@@ -4,7 +4,7 @@ import { Property } from '../../entity/decorators/property.decorator';
  * A file attached to an email, carried on the queued email itself.
  *
  * Whichever instance sends the email reads its attachments from the queued row, so the content is
- * part of the attachment rather than a path to it.
+ * part of the attachment.
  */
 export class EmailAttachment {
     /**

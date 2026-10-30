@@ -20,6 +20,10 @@ export type FakeSamlAnswerChanges = {
      */
     notOnOrAfter?: Date,
     /**
+     * How far ahead of now the provider's clock runs, which every time the answer names is shifted by.
+     */
+    issuedAheadByInMs?: number,
+    /**
      * Whether the assertion leaves out when the user logged in.
      */
     omitAuthnStatement?: boolean,

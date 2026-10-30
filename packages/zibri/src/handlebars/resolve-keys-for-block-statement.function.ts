@@ -64,7 +64,11 @@ function getKeyFromArrayParams(params: AstExpression[], parentKey: string | unde
 
     switch (param.type) {
         case 'PathExpression': {
-            return resolveKeyForPathExpression(param, parentKey);
+            const key: string | undefined = resolveKeyForPathExpression(param, parentKey);
+            if (key == undefined) {
+                throw new InternalError(`A block cannot iterate over or rebind to "${param.original}"`);
+            }
+            return key;
         }
         case 'SubExpression': {
             const first: AstExpression | undefined = param.params[0];

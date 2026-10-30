@@ -5,7 +5,7 @@ import { Auth } from '../../auth/decorators/auth.decorator';
 import { HasPermissionMetadata } from '../../auth/models/has-permission-metadata.model';
 import { ApiKeyAuthStrategy } from '../../auth/strategies/api-key/api-key.auth-strategy';
 import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy';
-import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';

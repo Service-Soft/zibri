@@ -1,7 +1,7 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import { describe, expect, it } from '@jest/globals';
-import { type Relation } from 'typeorm';
 
+import { type Relation } from '../../__testing__/relation.type';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';

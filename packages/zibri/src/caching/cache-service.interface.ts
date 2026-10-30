@@ -13,9 +13,8 @@ export interface CacheServiceInterface {
     /**
      * Invalidates the given tags through all caches, on every instance.
      *
-     * Takes effect immediately on this instance and shortly afterwards on the others - they are
-     * told through the data source rather than in the same breath, so treat invalidation as
-     * eventually consistent across a deployment.
+     * Takes effect immediately on this instance and shortly afterwards on the others, which are
+     * told through the data source. Treat invalidation as eventually consistent across a deployment.
      */
     invalidateTags: (tags: string[]) => void | Promise<void>,
     /**

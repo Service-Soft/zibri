@@ -14,6 +14,21 @@ import { Repository } from '../repository/repository';
  */
 
 /**
+ * The case of a limit of 0, which every kind of read refuses.
+ */
+const ZERO_LIMIT: string = 'a limit of 0';
+
+/**
+ * The case of a negative limit, which every kind of read refuses.
+ */
+const NEGATIVE_LIMIT: string = 'a negative limit';
+
+/**
+ * The case of a limit that is a fraction, which every kind of read refuses.
+ */
+const FRACTION_LIMIT: string = 'a limit that is a fraction';
+
+/**
  * A row with a place of its own in the order.
  */
 @Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
@@ -48,9 +63,9 @@ export function describePagingValues(dataSourceName: string, repositoryOf: () =>
             ['a page of 0', 0, 2, 'page', 1],
             ['a negative page', -1, 2, 'page', 1],
             ['a page that is a fraction', 1.5, 2, 'page', 1],
-            ['a limit of 0', 1, 0, 'limit', 1],
-            ['a negative limit', 1, -2, 'limit', 1],
-            ['a limit that is a fraction', 1, 2.5, 'limit', 1],
+            [ZERO_LIMIT, 1, 0, 'limit', 1],
+            [NEGATIVE_LIMIT, 1, -2, 'limit', 1],
+            [FRACTION_LIMIT, 1, 2.5, 'limit', 1],
             ['a limit that is no number', 1, Number.NaN, 'limit', 1]
         ])('refuses %s for a page', async (_, page, limit, name, min) => {
             await expect(repositoryOf().findAllPaginated(page, limit, { order: { position: 'ASC' } }))
@@ -58,18 +73,18 @@ export function describePagingValues(dataSourceName: string, repositoryOf: () =>
         });
 
         it.each([
-            ['a limit of 0', 0],
-            ['a negative limit', -2],
-            ['a limit that is a fraction', 2.5]
+            [ZERO_LIMIT, 0],
+            [NEGATIVE_LIMIT, -2],
+            [FRACTION_LIMIT, 2.5]
         ])('refuses %s for the page after a cursor', async (_, limit) => {
             await expect(repositoryOf().findAllAfter(undefined, limit, { order: { position: 'ASC' } }))
                 .rejects.toThrow('PagedRow: the limit of a read has to be a whole number of at least 1');
         });
 
         it.each([
-            ['a limit of 0', { limit: 0 }, 'limit', 1],
-            ['a negative limit', { limit: -2 }, 'limit', 1],
-            ['a limit that is a fraction', { limit: 2.5 }, 'limit', 1],
+            [ZERO_LIMIT, { limit: 0 }, 'limit', 1],
+            [NEGATIVE_LIMIT, { limit: -2 }, 'limit', 1],
+            [FRACTION_LIMIT, { limit: 2.5 }, 'limit', 1],
             ['a negative offset', { offset: -2 }, 'offset', 0],
             ['an offset that is a fraction', { offset: 1.5 }, 'offset', 0]
         ])('refuses %s for a read of every row', async (_, window, name, min) => {

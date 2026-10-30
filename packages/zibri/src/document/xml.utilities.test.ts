@@ -257,6 +257,19 @@ describe('XmlUtilities.generateFrom', () => {
 });
 
 describe('XmlUtilities.parseFrom', () => {
+    it('reads an attribute named without a prefix, whatever a prefixed one of the same name says', async () => {
+        for (const attributes of ['id="a" xsi:id="b"', 'xsi:id="b" id="a"']) {
+            const xml: string = `<Placeholder xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ${attributes}/>`;
+            expect(await XmlUtilities.parseFrom(Placeholder, xml)).toEqual({ id: 'a' });
+        }
+    });
+
+    it('reads back mixed content of elements alone as it was, indented or not', async () => {
+        const onlyPlaceholders: Letter = { lines: [{ space: 'preserve', parts: [{ shape: 'x', value: { id: 'name' } }, { shape: 'x', value: { id: 'count' } }] }] };
+
+        expect(await XmlUtilities.parseFrom(Letter, await XmlUtilities.generateFrom(Letter, onlyPlaceholders, { indent: true }))).toEqual(onlyPlaceholders);
+    });
+
     it('reads what generateFrom writes back as the same data, mixed content and namespaces included', async () => {
         const letter: Letter = { lines: [greeting] };
 

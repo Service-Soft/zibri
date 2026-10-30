@@ -4,12 +4,17 @@ import { HtmlResponse } from '../../parsing/html/html-response.model';
 import { Route } from '../../routing/controller-route-configuration.model';
 import { FederatedCallbackForm } from '../authenticators/federated/federated-callback-form.model';
 import { LinkedIdentity } from '../authenticators/linked-identity.model';
+import { ChangePasswordDto } from '../authenticators/password/change-password-data.model';
 import { ConfirmPasswordResetDto } from '../authenticators/password/confirm-password-reset-data.model';
 import { PasswordResetTokenInput } from '../authenticators/password/password-reset-token-input.model';
 import { PasswordResetTokenValidity } from '../authenticators/password/password-reset-token-validity.model';
 import { RequestPasswordResetInput } from '../authenticators/password/request-password-reset-input.model';
+import { type CurrentUser } from '../decorators/current-user.decorator';
+import { EmailVerificationTokenInput } from '../email-verification/email-verification-token-input.model';
+import { RequestEmailChangeInput } from '../email-verification/request-email-change-input.model';
 import { BaseUser } from '../models/base-user.model';
 import { LogoutResult } from '../models/logout-result.model';
+import { UserLogin } from '../models/user-login.model';
 import { CsrfToken } from '../strategies/csrf-token.model';
 
 /**
@@ -26,7 +31,41 @@ export type AuthControllerLoginRoutes = {
     // eslint-disable-next-line jsdoc/require-jsdoc
     refreshLogin: (strategy: string | undefined, data: object) => Promise<unknown>,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    logout: (strategy: string | undefined, data: object) => Promise<LogoutResult>
+    logout: (strategy: string | undefined, data: object) => Promise<LogoutResult>,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    logoutEverywhere: (user: CurrentUser) => Promise<void>
+};
+
+/**
+ * The routes of `AuthController` for a strategy that lists the logins of a user.
+ */
+export type AuthControllerLoginListingRoutes = {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    findLogins: (user: CurrentUser) => Promise<UserLogin[]>,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    endLogin: (user: CurrentUser, loginId: string) => Promise<void>
+};
+
+/**
+ * The routes of `AuthController` that verify and change the email address of a user.
+ */
+export type AuthControllerEmailVerificationRoutes = {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    requestEmailVerification: (user: CurrentUser) => Promise<void>,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    confirmEmailVerification: (input: EmailVerificationTokenInput) => Promise<void>,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    requestEmailChange: (user: CurrentUser, input: RequestEmailChangeInput) => Promise<void>,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    confirmEmailChange: (input: EmailVerificationTokenInput) => Promise<void>
+};
+
+/**
+ * The route of `AuthController` for an authenticator that changes passwords.
+ */
+export type AuthControllerPasswordChangeRoutes = {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    changePassword: (user: CurrentUser, data: ChangePasswordDto) => Promise<void>
 };
 
 /**
@@ -54,7 +93,7 @@ export type AuthControllerPasswordResetRoutes = {
  */
 export type AuthControllerLoginOptionsRoutes = {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    loginOptions:(authenticator: string | undefined) => Promise<unknown>
+    loginOptions: (authenticator: string | undefined) => Promise<unknown>
 };
 
 /**

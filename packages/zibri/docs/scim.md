@@ -6,7 +6,7 @@ A tenant's identity provider, such as Entra ID, Okta, Google or Keycloak, makes 
 |---|---|---|
 | `ScimController` | function | Defines the SCIM routes, for a controller of yours to extend |
 | `ScimControllerClass`, `isScimControllerClass` | type, function | A controller class `ScimController` defined, and the function telling one apart |
-| `ScimControllerOptions`, `ScimBulkOptions` | type | Who may provision, and how much one bulk request may do |
+| `ScimControllerOptions`, `ScimBulkOptions` | type | Who may provision, how many resources a list answers, and how much one bulk request may do |
 | `BaseScimProvisioner` | class | Extend it to say what provisioning does to your users |
 | `ScimProvisionerClass` | type | A class extending `BaseScimProvisioner`, as a SCIM request is handled with it |
 | `ScimUserResource` | type | A user as the identity provider provisions it |
@@ -156,7 +156,7 @@ A filter asking for something else, such as `meta.version` or `groups.type`, is 
 
 `sortBy` sorts users by any attribute a filter compares, except `groups`, and groups by the attributes above except `members.value`. An attribute with several values sorts by its primary value, or else its first one. `sortOrder` says `ascending` or `descending`. Resources without a value of the attribute come last when ascending and first when descending. Without `sortBy`, resources come in the order they were provisioned.
 
-A list answers at most 200 resources, from `startIndex` (counting from 1) and as many as `count`. `attributes` names the attributes to answer with and `excludedAttributes` the ones to leave out, such as `members` of a group.
+A list answers at most 200 resources, from `startIndex` (counting from 1) and as many as `count`. Pass `maxResults` in the options of `ScimController` for another limit, which `/ServiceProviderConfig` names as `filter.maxResults`. `attributes` names the attributes to answer with and `excludedAttributes` the ones to leave out, such as `members` of a group.
 
 ## Bulk requests
 `POST /Bulk` applies a list of operations one after the other, each answered as its own request would be:

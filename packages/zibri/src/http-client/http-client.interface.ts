@@ -1,7 +1,9 @@
 import { FetchForLibraryOptions } from './fetch-for-library-options.model';
 import { HttpClientIdempotencyKey } from './http-client-idempotency-key.model';
 import { HttpClientDispatcher } from './http-client-options.model';
-import { HttpClientResponseBodyInput, HttpClientResponseForBody } from './http-client-response.model';
+import { HttpClientRedirect } from './http-client-redirect.model';
+import { HttpClientResponse, HttpClientResponseBodyInput } from './http-client-response.model';
+import { type HttpClientResult } from './http-client-result.type';
 import { XmlString } from '../document/xml-string.type';
 import { HttpMethod } from '../http/http-method.enum';
 import { KnownHeader } from '../http/known-header.enum';
@@ -9,6 +11,7 @@ import { MimeType } from '../http/mime-type.enum';
 import { HeaderParamMetadataInput } from '../routing/decorators/param.decorator';
 import { HeaderMetaObjectToParamsObject, HeaderMetaInputObjectToMetaObject } from '../routing/route-configuration.model';
 import { Newable } from '../types/newable.type';
+import { OmitStrict } from '../types/omit-strict.type';
 
 /**
  * Possible values to send as headers when using the http client.
@@ -65,20 +68,27 @@ export type HttpOptions<
      * The key that lets the server tell a repeated request from a new one.
      *
      * A POST or PATCH with one is attempted again after a failure that may have reached the server,
-     * like a PUT, rather than only after a 429 or 503.
+     * like a PUT. Without one, only after a 429 or 503.
      */
     idempotencyKey: HttpClientIdempotencyKey,
     /**
      * What this one request is sent over, replacing whatever the application configured.
      *
      * For the destination that needs different egress from everything else - a partner reached over
-     * mutual tls, or one endpoint that must bypass the proxy. It *replaces* rather than merges,
-     * because a dispatcher is one connection policy and half of two is not a policy.
+     * mutual tls, or one endpoint that must bypass the proxy. It *replaces* the configured one, and
+     * nothing of the two is merged.
      *
      * Everything sent the same way belongs on `HttpClientOptions.dispatcher` instead, so that a
-     * proxy or a CA bundle is stated once rather than at every call site.
+     * proxy or a CA bundle is stated once.
      */
+    // replaces rather than merges, because a dispatcher is one connection policy and half of two is
+    // not a policy
     dispatcher: HttpClientDispatcher,
+    /**
+     * What this request does when it is answered with a redirect, in place of the application's
+     * `HttpClientOptions.redirect`.
+     */
+    redirect: HttpClientRedirect,
     /**
      * The mime type that the request body should be sent as.
      *
@@ -113,6 +123,18 @@ export type HttpOptionsInput<
 > = Partial<HttpOptions<T, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, IsArray, ResponseBody, RequestBodyType>>;
 
 /**
+ * Input for the options of a request whose response has no body, like a HEAD request.
+ */
+export type HttpOptionsWithoutResponseBodyInput<
+    QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
+    HeaderParamsObject extends Record<string, HttpClientHeaderValue> = Partial<Record<KnownHeader, HttpClientHeaderValue>>,
+    ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput> = Record<string, HeaderParamMetadataInput>
+> = OmitStrict<
+    HttpOptionsInput<object, QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject, false, never>,
+    'responseBody' | 'requestBodyType'
+>;
+
+/**
  * Interface for a http client.
  */
 export interface HttpClientInterface {
@@ -140,22 +162,15 @@ export interface HttpClientInterface {
             ResponseBody,
             RequestBodyType
         > | undefined
-    ) => Promise<
-        HttpClientResponseForBody<
-            T,
-            HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            ResponseBody,
-            IsArray
-        >
-    >,
+    ) => Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>>,
     /**
      * Sends a request the way the global `fetch` does, for handing to a library that takes a fetch
      * function of its own. Use `get`, `post` and the others for your own requests.
      *
      * Goes out with the application's dispatcher, deadline and response size limit, like every other
      * request of the client, unless the options allow a larger response. The body is read before the
-     * response is handed back, and a status that is not ok is a response like any other rather than
-     * an error.
+     * response is handed back, and a status that is not ok is a response like any other, not an
+     * error.
      */
     fetchForLibrary: (url: string, init: RequestInit, options?: FetchForLibraryOptions) => Promise<Response>,
     /**
@@ -181,14 +196,7 @@ export interface HttpClientInterface {
             ResponseBody,
             RequestBodyType
         >
-    ) => Promise<
-        HttpClientResponseForBody<
-            T,
-            HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            ResponseBody,
-            IsArray
-        >
-    >,
+    ) => Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>>,
     /**
      * Sends a http get request.
      */
@@ -209,14 +217,7 @@ export interface HttpClientInterface {
             IsArray,
             ResponseBody
         >
-    ) => Promise<
-        HttpClientResponseForBody<
-            T,
-            HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            ResponseBody,
-            IsArray
-        >
-    >,
+    ) => Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>>,
     /**
      * Sends a http put request.
      */
@@ -240,14 +241,7 @@ export interface HttpClientInterface {
             ResponseBody,
             RequestBodyType
         >
-    ) => Promise<
-        HttpClientResponseForBody<
-            T,
-            HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            ResponseBody,
-            IsArray
-        >
-    >,
+    ) => Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>>,
     /**
      * Sends a http patch request.
      */
@@ -271,14 +265,42 @@ export interface HttpClientInterface {
             ResponseBody,
             RequestBodyType
         >
-    ) => Promise<
-        HttpClientResponseForBody<
+    ) => Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>>,
+    /**
+     * Sends a http head request: the headers a get request would be answered with, without the body.
+     */
+    head: <
+        QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
+        HeaderParamsObject extends Record<string, HttpClientHeaderValue> = Partial<Record<KnownHeader, HttpClientHeaderValue>>,
+        ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput> = Record<string, HeaderParamMetadataInput>
+    >(
+        url: string,
+        options?: HttpOptionsWithoutResponseBodyInput<QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject>
+    ) => Promise<HttpClientResponse<
+        undefined,
+        HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>
+    >>,
+    /**
+     * Sends a http options request.
+     */
+    options: <
+        T extends object,
+        QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
+        HeaderParamsObject extends Record<string, HttpClientHeaderValue> = Partial<Record<KnownHeader, HttpClientHeaderValue>>,
+        ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput> = Record<string, HeaderParamMetadataInput>,
+        IsArray extends boolean = false,
+        ResponseBody extends HttpClientResponseBodyInput<T, IsArray> = never
+    >(
+        url: string,
+        options?: HttpOptionsInput<
             T,
-            HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            ResponseBody,
-            IsArray
+            QueryParamsObject,
+            HeaderParamsObject,
+            ResponseHeaderMetaInputObject,
+            IsArray,
+            ResponseBody
         >
-    >,
+    ) => Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>>,
     /**
      * Sends a http delete request.
      */
@@ -299,12 +321,5 @@ export interface HttpClientInterface {
             IsArray,
             ResponseBody
         >
-    ) => Promise<
-        HttpClientResponseForBody<
-            T,
-            HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            ResponseBody,
-            IsArray
-        >
-    >
+    ) => Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>>
 }

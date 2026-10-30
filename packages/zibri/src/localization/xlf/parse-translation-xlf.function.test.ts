@@ -77,6 +77,15 @@ describe('parseTranslationXlf', () => {
         expect(await parseTranslationXlf(xlf)).toEqual({});
     });
 
+    it('skips trans-units whose target is empty, as a translation tool writes one not yet translated', async () => {
+        const xlf: string = xliffWithUnits([
+            '<trans-unit id="Hello" xml:space="preserve"><source>Hello</source><target state="new"/></trans-unit>',
+            '<trans-unit id="Bye" xml:space="preserve"><source>Bye</source><target></target></trans-unit>'
+        ].join(''));
+
+        expect(await parseTranslationXlf(xlf)).toEqual({});
+    });
+
     it('returns an empty object for a document with no files', async () => {
         const xlf: string = '<?xml version="1.0" encoding="utf-8"?><xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2"></xliff>';
         expect(await parseTranslationXlf(xlf)).toEqual({});

@@ -7,9 +7,8 @@ export type EmailSendResult = {
     /**
      * The addresses the provider refused, or an empty array when it took all of them.
      *
-     * A partial refusal is the common real bounce - one address in a list that no longer exists -
-     * and it is the reason this is a list rather than a boolean. What lands in the row is exactly
-     * this, so a failed mail answers *who* rather than only *that something went wrong*.
+     * A partial refusal is the common real bounce - one address in a list that no longer exists.
+     * What lands in the row is exactly this, so a failed mail answers *who*.
      */
     rejectedRecipients: string[]
 };
@@ -27,7 +26,7 @@ export type EmailSendResult = {
  *
  * - **Throw** when the message did not reach the provider: a refused connection, a timeout, a 5xx,
  * an expired credential. The mail stays `QUEUED` and is attempted again once the claim on it
- * expires, so a provider having a bad minute costs a delay rather than the mail.
+ * expires, so a provider having a bad minute costs a delay, and the mail is not lost.
  * - **Answer with `rejectedRecipients`** when the provider replied and refused an address. That is
  * a verdict, so the mail is recorded `FAILED` and is never attempted again.
  *
@@ -42,8 +41,8 @@ export interface EmailTransportInterface {
     /**
      * Delivers one mail, or throws when it could not be delivered to the provider at all.
      *
-     * The whole row is handed over rather than a message built from it, so a transport can use the
-     * id as an idempotency key with providers that offer one. Its `status` is still `QUEUED` here -
+     * The whole row is handed over, so a transport can use the id as an idempotency key with
+     * providers that offer one. Its `status` is still `QUEUED` here -
      * what becomes of the row is decided by the service from what this answers.
      */
     send: (email: Email) => Promise<EmailSendResult>,

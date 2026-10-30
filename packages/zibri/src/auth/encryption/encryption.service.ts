@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import { EncryptionKeyCreateData, EncryptionKeyStatus, EncryptionKey } from './encryption-key.model';
 import { type EncryptionMasterOptions, EncryptionMasterKey } from './encryption-master-options.model';
 import { EncryptionRotationFailure } from './encryption-rotation-failure.model';
@@ -9,6 +11,7 @@ import { KeysInUse } from './keys-in-use.model';
 import { MasterKeyReference } from './master-key-reference.model';
 import { resolveEncryptedEntities } from './resolve-encrypted-entities.function';
 import { RetiredKeyUsage, RetiredMasterUsage } from './retired-key-usage.model';
+import { SigningKey, SigningKeyCreateData } from './signing-key.model';
 import { EncryptionStrategyEntity, type EncryptionStrategyEntityCreateData, EncryptionStrategyStatus } from './strategies/encryption-strategy-entity.model';
 import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from './strategies/encryption-strategy.interface';
 import { ZibriApplication } from '../../application/application';
@@ -23,6 +26,7 @@ import { KeysetPage } from '../../data-source/models/pagination-result.model';
 import { Where } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository/repository';
 import { Transaction } from '../../data-source/transaction/transaction.model';
+import { UniqueConstraintViolationError } from '../../data-source/unique-constraint-violation.error';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -133,6 +137,16 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         return inject(repositoryTokenFor(EncryptionRotationFailure));
     }
 
+    private get signingKeyRepository(): Repository<SigningKey, SigningKeyCreateData> {
+        return inject(repositoryTokenFor(SigningKey));
+    }
+
+    /**
+     * The signing keys asked for, by name. Kept as the promise, so that the callers asking for one
+     * at the same moment share the read rather than each making a key.
+     */
+    private readonly signingKeys: Map<string, Promise<Buffer>> = new Map();
+
     constructor(
         @Inject(ZIBRI_DI_TOKENS.ENCRYPTION_STRATEGIES)
         private readonly strategyClasses: Newable<EncryptionStrategyInterface<unknown>>[],
@@ -157,7 +171,8 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             EncryptionStrategyEntity,
             EncryptionKey,
             EncryptionRotationProgress,
-            EncryptionRotationFailure
+            EncryptionRotationFailure,
+            SigningKey
         );
         if (!this.strategyClasses.length) {
             throw new InitEncryptionServiceError('Needs to provide at least one encryption strategy.');
@@ -174,12 +189,14 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         this.validateStrategyNamesAndVersions();
 
         const keys: EncryptionKey[] = await this.keyRepository.findAll();
+        const signingKeys: SigningKey[] = await this.signingKeyRepository.findAll({ limit: 'all' });
         this.validateNoDuplicateMasterEncryptionStrategy();
-        this.validateNoMissingMasterEncryptionStrategy(keys);
+        this.validateNoMissingMasterEncryptionStrategy([...keys, ...signingKeys]);
         this.validateMasterStrategyNamesAndVersions();
         this.validateNoDotsInMasterKeyIds();
-        this.validateNoMissingMasterKeyIds(keys);
+        this.validateNoMissingMasterKeyIds([...keys, ...signingKeys]);
         await this.reEncryptKeys(keys);
+        await this.reEncryptSigningKeys(signingKeys);
     }
 
     /**
@@ -248,6 +265,12 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         // "encrypt this" is exactly the one that has to end up bound
         if (!options?.strategy) {
             const strategy: EncryptionStrategyInterface<TKey> = this.findDefaultStrategy<TKey>();
+            // the key a caller names is the key the value is encrypted with, not only the one it is
+            // stamped with: stamped alone, the value names a key that cannot decrypt it
+            if (options?.strategyOptions?.keyId) {
+                const namedKey: TKey = await this.findKey(options.strategyOptions.keyId, undefined);
+                return await strategy.encrypt(value, { key: namedKey, keyId: options.strategyOptions.keyId, ...options.strategyOptions });
+            }
             const strategyClass: Newable<EncryptionStrategyInterface<TKey>> = this.findStrategyClass(
                 strategy.name,
                 strategy.version
@@ -602,11 +625,15 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         // a data key is written under the current master at every start, so one still under an old
         // master was written by an instance that has not been given the new one yet
         const dataKeys: MasterKeyReference[] = keys.map(k => this.toMasterKeyReference(k.value));
+        // rewritten at every start like the data keys, for the same reason
+        const signingKeys: MasterKeyReference[] = (await this.signingKeyRepository.findAll({ limit: 'all' }))
+            .map(k => this.toMasterKeyReference(k.value));
         // what each backup recorded when it was taken, rather than what its archive key says: the key
         // rows in its data are encrypted under the master of that time whether or not the archive is
         const backups: BackupEntity[] = await inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE).resolveRecordedBackups();
         const countUnder: (isUnder: (reference: MasterKeyReference) => boolean) => RetiredMasterUsage = isUnder => ({
             dataKeys: dataKeys.filter(isUnder).length,
+            signingKeys: signingKeys.filter(isUnder).length,
             backups: backups.filter(b => b.masterKeys.some(isUnder)).length
         });
 
@@ -636,7 +663,8 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             strategyVersion: this.options.currentMasterStrategy.version
         };
         const keys: EncryptionKey[] = await this.keyRepository.findAll({ limit: 'all' });
-        const references: MasterKeyReference[] = [current, ...keys.map(k => this.toMasterKeyReference(k.value))];
+        const signingKeys: SigningKey[] = await this.signingKeyRepository.findAll({ limit: 'all' });
+        const references: MasterKeyReference[] = [current, ...[...keys, ...signingKeys].map(k => this.toMasterKeyReference(k.value))];
         return {
             currentMasterKey: current,
             masterKeys: references.filter((r, i) => references.findIndex(
@@ -842,6 +870,59 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveSigningKey(name: string): Promise<Buffer> {
+        let key: Promise<Buffer> | undefined = this.signingKeys.get(name);
+        if (key == undefined) {
+            key = this.loadSigningKey(name);
+            this.signingKeys.set(name, key);
+            void this.forgetFailedSigningKey(name, key);
+        }
+        return await key;
+    }
+
+    /**
+     * Forgets the signing key of the given name once reading it fails.
+     * @param name - The name of the key.
+     * @param key - The read of the key.
+     */
+    private async forgetFailedSigningKey(name: string, key: Promise<Buffer>): Promise<void> {
+        try {
+            await key;
+        }
+        catch {
+            // a read that failed is not remembered, so the next caller asks the data source again
+            this.signingKeys.delete(name);
+        }
+    }
+
+    /**
+     * Reads the signing key of the given name, making it when there is none yet.
+     * @param name - The name of the key.
+     * @returns The key.
+     */
+    private async loadSigningKey(name: string): Promise<Buffer> {
+        const stored: SigningKey | undefined = await this.signingKeyRepository.findOne({ where: { name }, required: false });
+        if (stored != undefined) {
+            return Buffer.from(await this.masterDecrypt(stored.value), 'base64');
+        }
+        try {
+            const made: SigningKey = await this.signingKeyRepository.create({
+                name,
+                value: await this.masterEncrypt(randomBytes(32).toString('base64'))
+            });
+            return Buffer.from(await this.masterDecrypt(made.value), 'base64');
+        }
+        catch (error) {
+            // another instance made it first, and what it made is the key everything is signed with
+            if (error instanceof UniqueConstraintViolationError) {
+                const made: SigningKey = await this.signingKeyRepository.findOne({ where: { name } });
+                return Buffer.from(await this.masterDecrypt(made.value), 'base64');
+            }
+            throw error;
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async masterDecrypt(encrypted: EncryptionString): Promise<string> {
         const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(encrypted);
         const masterKey: EncryptionMasterKey<unknown> | undefined = [
@@ -942,7 +1023,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         ]);
     }
 
-    private validateNoMissingMasterKeyIds(keys: EncryptionKey[]): void {
+    private validateNoMissingMasterKeyIds(keys: Pick<EncryptionKey, 'value'>[]): void {
         const allMasterKeys: EncryptionMasterKey<unknown>[] = [
             this.options.currentMasterKey,
             ...this.options.oldMasterKeys ?? []
@@ -962,7 +1043,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         ]);
     }
 
-    private validateNoMissingMasterEncryptionStrategy(keys: EncryptionKey[]): void {
+    private validateNoMissingMasterEncryptionStrategy(keys: Pick<EncryptionKey, 'value'>[]): void {
         const allMasterStrategies: EncryptionStrategyInterface<unknown>[] = [
             this.options.currentMasterStrategy,
             ...this.options.oldMasterStrategies ?? []
@@ -1026,5 +1107,14 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         const newEncrypted: string = await this.masterEncrypt(decrypted);
 
         await this.updateKeyEntityById(key.id, { value: newEncrypted }, undefined);
+    }
+
+    private async reEncryptSigningKeys(keys: SigningKey[]): Promise<void> {
+        await PromiseUtilities.allChunked(keys, async key => {
+            if (!this.needsMasterReEncryption(key.value)) {
+                return;
+            }
+            await this.signingKeyRepository.updateById(key.id, { value: await this.masterEncrypt(await this.masterDecrypt(key.value)) });
+        });
     }
 }

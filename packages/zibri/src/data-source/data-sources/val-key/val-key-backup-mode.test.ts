@@ -9,6 +9,7 @@ import { TestMembership } from '../../../__testing__/mocks/entities/test-members
 import { TestRole } from '../../../__testing__/mocks/entities/test-role.entity';
 import { defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
+import { AuditCheckpoint } from '../../../audit/audit-checkpoint.model';
 import { AuditEntry } from '../../../audit/audit-entry.model';
 import { OtpCredentials } from '../../../auth/2fa/methods/otp/otp-credentials.model';
 import { TwoFactorFailureStreak } from '../../../auth/2fa/two-factor-failure-streak.model';
@@ -16,6 +17,7 @@ import { PasswordCredentials } from '../../../auth/authenticators/password/passw
 import { EncryptionKey } from '../../../auth/encryption/encryption-key.model';
 import { EncryptionRotationFailure } from '../../../auth/encryption/encryption-rotation-failure.model';
 import { EncryptionRotationProgress } from '../../../auth/encryption/encryption-rotation-progress.model';
+import { SigningKey } from '../../../auth/encryption/signing-key.model';
 import { EncryptionStrategyEntity } from '../../../auth/encryption/strategies/encryption-strategy-entity.model';
 import { HashStrategyEntity } from '../../../auth/hash/strategies/hash-strategy-entity.model';
 import { PasswordResetToken } from '../../../auth/models/password-reset-token.model';
@@ -33,6 +35,7 @@ import { Lease } from '../../../leases/lease.model';
 import { Log } from '../../../logging/log.model';
 import { Newable } from '../../../types/newable.type';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
+import { ChainAnchor } from '../../chain/chain-anchor.model';
 import { DataSource } from '../../decorators/data-source.decorator';
 import { MigrationEntity } from '../../migration/migration-entity.model';
 import { Repository } from '../../repository/repository';
@@ -69,6 +72,7 @@ class BackedUpValKeyDataSource extends ValKeyDataSource {
         TestRole,
         Log,
         AuditEntry,
+        AuditCheckpoint,
         PasswordCredentials,
         PasswordResetToken,
         JwtRefreshToken,
@@ -84,7 +88,9 @@ class BackedUpValKeyDataSource extends ValKeyDataSource {
         EncryptionStrategyEntity,
         EncryptionKey,
         EncryptionRotationProgress,
-        EncryptionRotationFailure
+        EncryptionRotationFailure,
+        SigningKey,
+        ChainAnchor
     ];
 
     readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
@@ -181,7 +187,6 @@ describe('a valkey backup', () => {
             // what a walk can see when a commit lands between two of its reads: a row whose id is not
             // listed yet, and a unique entry whose row is not there
             const prefix: string = `${dataSource.keyPrefix}:stocked_item`;
-            // eslint-disable-next-line cspell/spellchecker
             await dataSource.connection.srem(`${prefix}:ids`, [unlisted.id]);
             await dataSource.connection.del([`${prefix}:${gone.id}`]);
             const backup: unknown[] = await readBackup(dataSource.createBackupData());

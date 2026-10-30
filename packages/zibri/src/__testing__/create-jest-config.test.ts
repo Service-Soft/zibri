@@ -60,6 +60,13 @@ describe('createJestConfig', () => {
         expect(config.moduleNameMapper).toEqual({ '^(.+)\\?client$': '$1', '^@app/(.*)$': '<rootDir>/$1' });
     });
 
+    // a worker that has booted an application holds about a gigabyte and grows with every test file
+    // that boots one, so a long run with a worker per core ended in the OOM killer
+    it('restarts a worker that holds more than a gigabyte, unless the application sets its own limit', () => {
+        expect(createJestConfig().workerIdleMemoryLimit).toBe('1GB');
+        expect(createJestConfig({ workerIdleMemoryLimit: '2GB' }).workerIdleMemoryLimit).toBe('2GB');
+    });
+
     it('is the preset when it is given nothing', () => {
         expect(createJestConfig()).toEqual(jestPreset);
     });

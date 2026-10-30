@@ -6,9 +6,10 @@ import { text } from 'node:stream/consumers';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { PostgresBackupScope } from './postgres-backup-scope.model';
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
 import { PostgresPooler } from './postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from './postgres-typeorm-data-source.model';
 import { testFileFolder } from '../../../__testing__/constants';
+import { queryPostgres } from '../../../__testing__/query-postgres.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { BackupEntity } from '../../../backup/backup-entity.model';
@@ -23,7 +24,6 @@ import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { Newable } from '../../../types/newable.type';
-import { OmitStrict } from '../../../types/omit-strict.type';
 import { FsPath, FsUtilities } from '../../../utilities/fs.utilities';
 import { DataSource } from '../../decorators/data-source.decorator';
 import { SchemaManagement } from '../../models/schema-management.model';
@@ -53,7 +53,7 @@ class ScopedDataSource extends PostgresDataSource {
     // not readonly, so that one case can take it back
     override backupScope: PostgresBackupScope | undefined = 'entity-tables';
 
-    override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -80,8 +80,8 @@ let backupRepository: Repository<BackupEntity>;
  * @param sql - The statement.
  * @returns The rows it returned.
  */
-async function runSql<T>(sql: string): Promise<T[]> {
-    return await inject(ScopedDataSource).query(ScopedItem).connection.query(sql);
+async function runSql(sql: string): Promise<Record<string, unknown>[]> {
+    return await queryPostgres(inject(ScopedDataSource), sql);
 }
 
 /**

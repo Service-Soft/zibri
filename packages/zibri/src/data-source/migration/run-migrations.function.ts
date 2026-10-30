@@ -1,4 +1,5 @@
 import { MigrationEntity } from './migration-entity.model';
+import { MigrationRevertTarget } from './migration-revert-target.model';
 import { Migration } from './migration.model';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
@@ -45,7 +46,7 @@ export async function runMigrations(
     // this app that has nothing to do with which migrations it happens to carry
     const applied: MigrationEntity[] = await appliedMigrations(dataSourceClass);
 
-    validateDatabaseIsNotAhead(applied, appVersion);
+    validateDatabaseIsNotAhead(applied, migrations, appVersion);
 
     await runUpMissing(applied, migrations, logger, appVersion);
 }
@@ -71,13 +72,13 @@ export async function runMigrationsAfterRestore(
 
     // a refusal of its own rather than the one booting gives: nothing about this is a newer instance
     // still serving, and reverting is no way out - what has to change is which build restores it
-    const ahead: MigrationEntity[] = findAhead(applied, appVersion);
+    const ahead: MigrationEntity[] = findAhead(applied, migrations, appVersion);
     if (ahead.length) {
         throw new InternalError([
             `This app is version ${appVersion}, but the backup restored into "${dataSourceClass.name}" holds`,
-            `what a newer version stored: ${namesOf(ahead)}.`,
+            `what a newer build stored: ${namesOf(ahead)}.`,
             'A build runs on no schema newer than its own, so the backup is refused.',
-            'Restore it with a build of that version or a newer one.'
+            'Restore it with a build that carries those migrations.'
         ]);
     }
 
@@ -126,7 +127,7 @@ async function runUpMissing(
 }
 
 /**
- * Reverts every applied migration belonging to a version newer than the given one, newest first.
+ * Reverts every migration applied after the given version or migration, newest first.
  *
  * Deliberate and operator driven, which is the whole point of it being separate from booting. Rolling
  * an application back past a migration means taking the schema back too, and that is a destructive
@@ -135,35 +136,74 @@ async function runUpMissing(
  * @param dataSourceClass - The data source that the migrations belong to.
  * @param migrations - The migration classes of the data source.
  * @param logger - The logger to report the progress with.
- * @param targetVersion - The version to bring the database back to. Everything above it is reverted.
- * @throws When the database holds a migration this build does not carry, so there is no `down` to run.
+ * @param target - Where reverting stops: everything of a newer version, or everything applied after
+ * the named migration, is reverted.
+ * @throws When the database holds a migration this build does not carry, so there is no `down` to run,
+ * or the target names a migration the database has not recorded.
  */
 export async function revertMigrationsAfter(
     dataSourceClass: Newable<DataSourceInterface>,
     migrations: Newable<Migration>[],
     logger: LoggerInterface,
-    targetVersion: SemVerVersion
+    target: MigrationRevertTarget
 ): Promise<void> {
     const applied: MigrationEntity[] = await appliedMigrations(dataSourceClass);
-    const recorded: MigrationEntity[] = applied.filter(m => m.name !== KEY_RECONCILIATION_NAME
-        && SemVerUtilities.compare(m.version, targetVersion) === 'bigger');
-    const reconciliation: MigrationEntity | undefined = applied.find(m => m.name === KEY_RECONCILIATION_NAME
-        && SemVerUtilities.compare(m.version, targetVersion) === 'bigger');
+    const isAfterTarget: (migration: MigrationEntity) => boolean = resolveIsAfterTarget(applied, target);
+    const recorded: MigrationEntity[] = applied.filter(m => m.name !== KEY_RECONCILIATION_NAME && isAfterTarget(m));
+    const reconciliation: MigrationEntity | undefined = applied.find(m => m.name === KEY_RECONCILIATION_NAME && isAfterTarget(m));
+    const targetName: string = describeTarget(target);
 
     if (!recorded.length && reconciliation == undefined) {
-        logger.info(`No migration is newer than ${targetVersion}, so there is nothing to revert.`);
+        const since: string = 'all' in target ? '' : ` after ${targetName}`;
+        logger.info(`No migration was applied${since}, so there is nothing to revert.`);
         return;
     }
 
-    await revertRecorded(recorded, migrations, logger, targetVersion);
+    await revertRecorded(recorded, migrations, logger, targetName);
 
     // forgotten rather than reverted, and only once the migrations are: there is no down to run and
     // none is needed - the build returned to brings the indexes and uniques back to what its own
     // entities declare when it boots, which this record would otherwise refuse to let it do
     if (reconciliation != undefined) {
-        await inject(repositoryTokenFor(MigrationEntity, dataSourceClass)).deleteById(reconciliation.id);
+        await resolveMigrationRepository(dataSourceClass).deleteById(reconciliation.id);
         logger.info(`    > leaves the indexes and uniques of ${reconciliation.version} to the build reverted to`);
     }
+}
+
+/**
+ * Resolves which recorded migrations were applied after the given target.
+ * @param applied - Every migration the database has recorded.
+ * @param target - Where reverting stops.
+ * @returns Whether a recorded migration was applied after it.
+ * @throws When the target names a migration the database has not recorded.
+ */
+function resolveIsAfterTarget(applied: MigrationEntity[], target: MigrationRevertTarget): (migration: MigrationEntity) => boolean {
+    if ('all' in target) {
+        return () => true;
+    }
+    if ('version' in target) {
+        return m => SemVerUtilities.compare(m.version, target.version) === 'bigger';
+    }
+    const named: MigrationEntity | undefined = applied.find(m => m.name === target.migrationName);
+    if (named == undefined) {
+        throw new InternalError(`Cannot revert to "${target.migrationName}": the database has recorded no migration of that name.`);
+    }
+    // by when they ran, which is the order they were applied in rather than the order this build lists
+    // them in: going back to an earlier commit means undoing what ran after its newest migration,
+    // including one a merged branch put further up the list
+    return m => m.ranAt.getTime() > named.ranAt.getTime();
+}
+
+/**
+ * Names where reverting stops, for messages.
+ * @param target - Where reverting stops.
+ * @returns The version, the quoted migration name, or the start for every migration.
+ */
+function describeTarget(target: MigrationRevertTarget): string {
+    if ('all' in target) {
+        return 'before the first migration';
+    }
+    return 'version' in target ? target.version : `"${target.migrationName}"`;
 }
 
 /**
@@ -171,14 +211,14 @@ export async function revertMigrationsAfter(
  * @param recorded - The recorded migrations to revert.
  * @param migrations - The migration classes of the data source.
  * @param logger - The logger to report the progress with.
- * @param targetVersion - The version the database is being brought back to.
+ * @param targetName - The version or migration the database is being brought back to, for messages.
  * @throws When one of them is not carried by this build, so there is no `down` to run.
  */
 async function revertRecorded(
     recorded: MigrationEntity[],
     migrations: Newable<Migration>[],
     logger: LoggerInterface,
-    targetVersion: SemVerVersion
+    targetName: string
 ): Promise<void> {
     const declared: MigrationWithName[] = migrations.map(m => ({ migration: inject(m), name: m.name }));
     const declaredNames: Set<string> = new Set(declared.map(m => m.name));
@@ -186,7 +226,7 @@ async function revertRecorded(
     const missing: MigrationEntity[] = recorded.filter(m => !declaredNames.has(m.name));
     if (missing.length) {
         throw new InternalError([
-            `Cannot revert to ${targetVersion}:`,
+            `Cannot revert to ${targetName}:`,
             `the database recorded ${namesOf(missing)},`,
             'which this build does not carry, so there is no down migration to run.',
             'Revert from a build that contains them.'
@@ -217,7 +257,7 @@ async function revertRecorded(
  */
 export async function recordKeyReconciliation(dataSourceClass: Newable<DataSourceInterface>): Promise<void> {
     const version: SemVerVersion = resolveAppVersion();
-    const migrationsRepository: Repository<MigrationEntity> = inject(repositoryTokenFor(MigrationEntity, dataSourceClass));
+    const migrationsRepository: Repository<MigrationEntity> = resolveMigrationRepository(dataSourceClass);
     const recorded: MigrationEntity | undefined = (await migrationsRepository.findAll({ where: { name: KEY_RECONCILIATION_NAME } })).at(0);
     if (recorded == undefined) {
         await migrationsRepository.create({ name: KEY_RECONCILIATION_NAME, version, ranAt: new Date() });
@@ -236,32 +276,64 @@ export async function recordKeyReconciliation(dataSourceClass: Newable<DataSourc
  * the healthy instances still serving on it, and a `down` that drops a column takes the data too.
  * Refusing costs this one instance; reverting costs the cluster.
  * @param applied - Every migration the database has recorded.
+ * @param migrations - The migration classes this build carries.
  * @param appVersion - The version of the running app.
- * @throws When any applied migration belongs to a newer version than the app.
+ * @throws When any applied migration belongs to a newer version than the app, or to a newer build.
  */
-function validateDatabaseIsNotAhead(applied: MigrationEntity[], appVersion: SemVerVersion): void {
-    const ahead: MigrationEntity[] = findAhead(applied, appVersion);
+function validateDatabaseIsNotAhead(applied: MigrationEntity[], migrations: Newable<Migration>[], appVersion: SemVerVersion): void {
+    const ahead: MigrationEntity[] = findAhead(applied, migrations, appVersion);
     if (!ahead.length) {
         return;
     }
 
+    // what the newer build is told to go back to: the newest migration of this one, or all of them
+    // when this build applied none - every recorded migration is then ahead of it (see findAhead)
+    const target: string = findNewestCarried(applied, migrations)?.name ?? '--all';
     throw new InternalError([
-        `This app is version ${appVersion}, but its database has already been migrated to`,
+        `This app is version ${appVersion}, but its database has already been migrated by a newer build:`,
         `${namesOf(ahead)}.`,
         'Running an older instance against a newer schema is not supported, so it refuses to start',
         'rather than reverting the schema that the newer instances are using.',
-        'To go back deliberately: stop the newer instances, revert the migrations, then deploy this build.'
+        `To go back to this build: stop the newer instances, run "migrate down ${target}" with the newer build, then start this one.`
     ]);
 }
 
 /**
- * Finds the recorded migrations that belong to a newer version than the app.
+ * Finds the recorded migrations that a newer build of the app applied.
+ *
+ * Those of a newer version, and those this build does not carry that ran after the newest of its own
+ * that ran. The version alone cannot tell an earlier commit of the same release from the one that
+ * added a migration, and every commit of a release shares it. A migration this build does not carry
+ * and that ran before its own is one taken out of the code base once it ran everywhere.
  * @param applied - Every migration the database has recorded.
+ * @param migrations - The migration classes this build carries.
  * @param appVersion - The version of the running app.
- * @returns The ones of a newer version.
+ * @returns The ones a newer build applied.
  */
-function findAhead(applied: MigrationEntity[], appVersion: SemVerVersion): MigrationEntity[] {
-    return applied.filter(m => SemVerUtilities.compare(m.version, appVersion) === 'bigger');
+function findAhead(applied: MigrationEntity[], migrations: Newable<Migration>[], appVersion: SemVerVersion): MigrationEntity[] {
+    const carried: Set<string> = new Set(migrations.map(m => m.name));
+    const newestCarried: MigrationEntity | undefined = findNewestCarried(applied, migrations);
+    return applied.filter(m => SemVerUtilities.compare(m.version, appVersion) === 'bigger'
+        || (
+            m.name !== KEY_RECONCILIATION_NAME
+            && !carried.has(m.name)
+            && (newestCarried == undefined || m.ranAt.getTime() > newestCarried.ranAt.getTime())
+        ));
+}
+
+/**
+ * Finds the recorded migration this build carries that ran last.
+ * @param applied - Every migration the database has recorded.
+ * @param migrations - The migration classes this build carries.
+ * @returns The one that ran last, if this build carries any that ran.
+ */
+function findNewestCarried(applied: MigrationEntity[], migrations: Newable<Migration>[]): MigrationEntity | undefined {
+    const carried: Set<string> = new Set(migrations.map(m => m.name));
+    // by when they ran rather than by a version, which is the order they were applied in: each is
+    // recorded after every one before it, whatever the clock of the instance that ran it says
+    return applied
+        .filter(m => carried.has(m.name))
+        .reduce<MigrationEntity | undefined>((newest, m) => newest == undefined || m.ranAt > newest.ranAt ? m : newest, undefined);
 }
 
 /**
@@ -279,10 +351,29 @@ function namesOf(entities: MigrationEntity[]): string {
  * @returns Every recorded migration.
  */
 async function appliedMigrations(dataSourceClass: Newable<DataSourceInterface>): Promise<MigrationEntity[]> {
-    // injected here rather than taken as a parameter, because the repositories do not exist yet while
-    // the data source is being constructed
-    const migrationsRepository: Repository<MigrationEntity> = inject(repositoryTokenFor(MigrationEntity, dataSourceClass));
-    return await migrationsRepository.findAll();
+    return await resolveMigrationRepository(dataSourceClass).findAll();
+}
+
+/**
+ * Resolves the repository a data source keeps its migrations in.
+ *
+ * Injected here rather than taken as a parameter, because the repositories do not exist yet while the
+ * data source is being constructed.
+ * @param dataSourceClass - The data source.
+ * @returns The repository.
+ * @throws When the data source does not declare MigrationEntity.
+ */
+export function resolveMigrationRepository(dataSourceClass: Newable<DataSourceInterface>): Repository<MigrationEntity> {
+    // asked here, where every reader of the records goes through: without it the boot failed on a
+    // repository provider that is missing, naming neither the entity nor what to do (03 §H13)
+    if (!inject(dataSourceClass).entities.includes(MigrationEntity)) {
+        throw new InternalError([
+            `The data source "${dataSourceClass.name}" keeps the migrations it applied,`,
+            'and does not declare MigrationEntity to keep them in.',
+            'Add MigrationEntity to its entities.'
+        ]);
+    }
+    return inject(repositoryTokenFor(MigrationEntity, dataSourceClass));
 }
 
 /**

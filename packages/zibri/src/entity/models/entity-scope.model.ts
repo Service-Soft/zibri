@@ -34,9 +34,8 @@ export type EntityScopeContext = {
      * The requesting user, if there is one, with the permissions the request may use.
      *
      * Undefined for an anonymous request and for anything running outside a request at all - a cron
-     * job, a migration, a startup task. The scope decides what that means rather than the framework,
-     * which is the point of writing one: rows that are public to everybody and rows that belong to
-     * somebody are the same question asked of different entities.
+     * job, a migration, a startup task. The scope decides what that means: rows that are public to
+     * everybody and rows that belong to somebody are the same question asked of different entities.
      */
     currentUser: CurrentUser | undefined,
     /**
@@ -90,7 +89,7 @@ declare const declaredScope: unique symbol;
  * A scope that has been typed against its entity.
  *
  * What `restrictedTo` holds, and unreachable without {@link scopeFor} - a bare function is not one
- * of these, so forgetting to name the entity is a compile error rather than a filter nothing checked.
+ * of these, so forgetting to name the entity is a compile error.
  */
 export type DeclaredScope = RestrictedToScope & {
     /**
@@ -130,8 +129,7 @@ export type EntityScopes = {
 /**
  * The name of a scope an entity can declare.
  *
- * A closed union rather than a free string, which is what lets `unscoped` name one scope and still be
- * checked by the compiler.
+ * A closed union, so a scope `unscoped` names is checked by the compiler.
  */
 export type EntityScopeName = keyof EntityScopes;
 

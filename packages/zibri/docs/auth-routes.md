@@ -10,7 +10,7 @@
 | `AuthControllerRoutes` | type | The routes `AuthController` defines for the given strategies, authenticators and two factor methods |
 | `isAuthControllerClass` | function | Tells a class `AuthController` defined apart |
 | `AuthControllerStrategyClass`, `AuthControllerAuthenticatorClass` | type | A class of a strategy and of an authenticator the routes log in with |
-| `AuthControllerLoginRoutes`, `AuthControllerCsrfTokenRoutes`, `AuthControllerPasswordResetRoutes`, `AuthControllerLoginOptionsRoutes`, `AuthControllerRegistrationRoutes`, `AuthControllerFederatedRoutes`, `AuthControllerLinkIdentityRoutes`, `AuthControllerLinkIdentityConfirmingRoutes`, `AuthControllerIdentityRoutes`, `AuthControllerTwoFactorRoutes` | type | The methods of the routes, by the classes that call for them |
+| `AuthControllerLoginRoutes`, `AuthControllerLoginListingRoutes`, `AuthControllerEmailVerificationRoutes`, `AuthControllerCsrfTokenRoutes`, `AuthControllerPasswordResetRoutes`, `AuthControllerPasswordChangeRoutes`, `AuthControllerLoginOptionsRoutes`, `AuthControllerRegistrationRoutes`, `AuthControllerFederatedRoutes`, `AuthControllerLinkIdentityRoutes`, `AuthControllerLinkIdentityConfirmingRoutes`, `AuthControllerIdentityRoutes`, `AuthControllerTwoFactorRoutes` | type | The methods of the routes, by the classes that call for them |
 | `FEDERATED_ROUTE` | constant | Where the routes of a login at a provider are, below the path of the controller: `/federated` |
 | `AuthControllerUtilities` | class | What the routes share: finding the class a request names, checking a body against one model, running in a transaction of a strategy |
 | `AuthControllerStrategyInterface`, `isAuthControllerStrategy` | interface, function | What a strategy the routes log in with implements |
@@ -22,6 +22,11 @@
 | `LinkIdentityConfirmingAuthenticatorInterface`, `isLinkIdentityConfirmingAuthenticator` | interface, function | What an authenticator confirming a link with an answer of the client implements |
 | `CsrfToken` | class | What `GET csrf-token` answers with |
 | `RequestPasswordResetInput`, `PasswordResetTokenInput`, `PasswordResetTokenValidity`, `ConfirmPasswordResetDto` | class | What the password reset routes take and answer with |
+| `ChangePasswordDto`, `ChangePasswordData` | class | What `POST /change-password` takes, and what `changePassword` of `AuthServiceInterface` takes besides it: the transaction |
+| `UserLogin` | class | A login of a user as `GET /logins` lists it: the strategy, when the user logged in, when and from which client it was last used, and when it expires |
+| `LoginListingAuthStrategyInterface`, `isLoginListingAuthStrategy` | interface, function | What a strategy listing the logins of a user implements |
+| `ListedLogin` | type | A login as a strategy lists it, without its strategy and whether it is the current one |
+| `LoginDevice`, `resolveLoginDevice`, `LOGIN_USER_AGENT_MAX_LENGTH` | type, function, constant | The client of the current request, as a strategy of your own keeps it beside a login, and the longest `User-Agent` kept |
 
 ## Setting it up
 Extend the class `AuthController` defines with a `@Controller` of your own, and register it:
@@ -45,6 +50,7 @@ export class AppAuthController extends AuthController({
 | `strategies` | The auth strategies that log in. At least one |
 | `authenticators` | The authenticators a login is proven with. At least one |
 | `twoFactorMethods` | The two factor methods a user enrolls. None for no 2FA routes |
+| `emailVerification` | `true` for the routes [verifying and changing email addresses](./email-verification.md). Not by default |
 
 Name exactly what your application registers: its auth strategies that log in, its authenticators, and its two factor methods, including the ones it registers when you configure none, `JwtAuthStrategy`, `PasswordAuthenticator` and `OtpTwoFactorMethod`. An application has one controller `AuthController` defines.
 
@@ -55,11 +61,16 @@ Every route is below the path of your controller. A route is there when one of t
 |---|---|---|---|
 | `POST /login` | always | the credentials of the authenticator, such as `{ "email", "password" }` | anyone |
 | `POST /refresh-login` | always | what the strategy refreshes with, such as `{ "refreshToken" }` | anyone |
-| `POST /logout` | always | what the strategy logs out with, such as `{ "refreshToken" }`, or `{ "clearCookies" }` for the login of the cookies the request carries. Answers where to log out at the provider the login was started at, if any | anyone |
+| `POST /logout` | always | what the strategy logs out with, such as `{ "refreshToken" }`, or `{ "clearCookies" }` for the login of the cookies the request carries. Answers where to log out at the provider the login was started at, if any. An access token already issued works until it expires, unless [`ACCESS_TOKEN_REVOCATION`](./auth.md#what-a-credential-is-worth) is `'immediately'` | anyone |
+| `POST /logout-everywhere` | always | nothing. Ends every login of the user, the one asking included | a logged in user |
+| `GET /logins` | a strategy lists the logins of a user, such as `JwtAuthStrategy` and `CookieAuthStrategy` | nothing. Answers the user's live logins, the most recently used first, see [where a user is logged in](./auth.md#where-a-user-is-logged-in) | a logged in user |
+| `DELETE /logins/:loginId` | a strategy lists the logins of a user | nothing. Ends that login of the user | a logged in user |
 | `GET /csrf-token` | a strategy issues CSRF tokens, such as `CookieAuthStrategy` | nothing. Answers the token of the login the request carries | anyone |
 | `POST /request-password-reset` | `PasswordAuthenticator` | `{ "email" }`, see [asking for a password reset](./auth.md#asking-for-a-password-reset) | anyone |
 | `POST /verify-password-reset-token` | `PasswordAuthenticator` | `{ "resetToken" }`. Answers `{ "isValid" }` | anyone |
 | `POST /confirm-password-reset` | `PasswordAuthenticator` | `{ "resetToken", "newPassword" }` | anyone |
+| `POST /request-email-verification`, `POST /confirm-email-verification`, `POST /request-email-change`, `POST /confirm-email-change` | `emailVerification` | see [verifying email addresses](./email-verification.md) | a logged in user to request, anyone with the link to confirm. A change is requested with a second factor or a [recent login](./glossary.md#recent-login) |
+| `POST /change-password` | `PasswordAuthenticator` | `{ "currentPassword", "newPassword" }`. Ends every other login of the user, see [changing a password](./auth.md#changing-a-password) | a logged in user |
 | `POST /login-options` | an authenticator hands out a challenge to log in with, such as `PasskeyAuthenticator` | nothing. Answers the challenge | anyone |
 | `POST /registration/request`, `POST /registration/confirm` | an authenticator registers users by itself, such as `PasskeyAuthenticator` | what the registration starts with, and the client's answer. `registration/confirm` answers the [ticket](./glossary.md#ticket) your own registration route creates the user with | anyone |
 | `GET /federated/login/request` | an authenticator logs users in at a provider | see [logging in at a provider](#logging-in-at-a-provider) | anyone |
@@ -129,6 +140,7 @@ A strategy or an authenticator of your own takes part in the routes by the inter
 |---|---|---|
 | `AuthControllerStrategyInterface` | `authDataModel`, `refreshLoginModel`, `logoutModel`, `logsInWithResponse`, `startTransaction` | logging in, refreshing and logging out with the strategy |
 | `CsrfTokenAuthStrategyInterface` | `resolveCsrfToken` | `GET csrf-token` |
+| `LoginListingAuthStrategyInterface` | `findLogins`, `endLogin`, `resolveLoginId` | `GET logins` and `DELETE logins/:loginId`, and keeping the login asking when a password changes |
 | `AuthControllerAuthenticatorInterface` | `credentialsModel` | `POST login` |
 | `LoginOptionsAuthenticatorInterface` | `loginOptionsModel`, `resolveLoginOptions` | `POST login-options` |
 | `RegistrationAuthenticatorInterface` | `registrationRequestModel`, `registrationOptionsModel`, `registrationAnswerModel`, `ticketModel`, `requestRegistration`, `confirmRegistration` | `POST registration/request` and `POST registration/confirm` |

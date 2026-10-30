@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createRequire } from 'node:module';
 
 import { FsUtilities } from './fs.utilities';
@@ -8,6 +9,17 @@ import { InternalError } from '../error-handling/internal-error.model';
  * The peers already loaded, so asking again costs nothing.
  */
 const loadedPeers: Map<string, unknown> = new Map();
+
+/**
+ * Runs a function in the async context the framework was loaded in, which holds no store of any
+ * call.
+ */
+// a peer is loaded by the first call that needs it, and what the peer starts as it loads - a
+// channel, a timer, a pool - keeps the async context it was started in for as long as it lives, and
+// runs its callbacks in it. Loaded in the caller's, that was the first request's tenant and user for
+// the life of the process; under jest, @prometheus-io/client's channel kept every test file's
+// environment alive that way, and a worker grew by a few dozen megabytes per file
+const runOutsideAnyCall: <R>(fn: () => R) => R = AsyncLocalStorage.snapshot();
 
 /**
  * Resolution done by node, from where the application keeps its packages.
@@ -34,18 +46,16 @@ function applicationRequire(): ReturnType<typeof createRequire> {
     return requireFromApplication;
 }
 
+// `peerDependenciesMeta` calling something optional is a promise that installing a package does not
+// install it, and a top level `import` breaks that promise for everyone: the import is resolved when
+// its module loads, and the module loads because the barrel re-exports it, so a package nobody uses
+// is one every consumer has to have. Reaching for it here instead means the cost is paid by the
+// feature that needs it.
 /**
  * Loads a peer dependency a consumer is allowed not to have.
  *
- * `peerDependenciesMeta` calling something optional is a promise that installing a package does not
- * install it, and a top level `import` breaks that promise for everyone: the import is resolved when
- * its module loads, and the module loads because the barrel re-exports it, so a package nobody uses
- * is one every consumer has to have. Reaching for it here instead means the cost is paid by the
- * feature that needs it.
- *
- * Called where a feature is *set up* rather than where it is used, wherever there is such a place -
- * a data source is constructed at boot, so a missing driver is a boot failure rather than a
- * surprise on the first query.
+ * Call it where a feature is *set up*, wherever there is such a place - a data source is constructed
+ * at boot, so a missing driver is a boot failure, not a surprise on the first query.
  * @param name - The package to load.
  * @param neededFor - The feature that wants it, so the error says why it was asked for.
  * @returns The package's exports.
@@ -59,7 +69,8 @@ export function optionalPeer<T>(name: string, neededFor: string): T {
 
     let loaded: T;
     try {
-        loaded = applicationRequire()(name) as T;
+        // eslint-disable-next-line typescript/no-unsafe-return
+        loaded = runOutsideAnyCall(() => applicationRequire()(name)) as T;
     }
     catch (error) {
         // a peer that resolves is installed, and telling its user to install it again hides the

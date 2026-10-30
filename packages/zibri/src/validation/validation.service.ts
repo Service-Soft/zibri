@@ -24,12 +24,14 @@ import { ValidationError } from '../error-handling/errors/validation.error';
 import { InternalError } from '../error-handling/internal-error.model';
 import { MimeType } from '../http/mime-type.enum';
 import { LocaleCode } from '../localization/models/locale-code.model';
+import { File } from '../parsing/form-data/file.model';
 import { chooseShape, ShapeChoice } from '../parsing/functions/parse-one-of.function';
 import { BodyMetadata, BodyShapeMetadata } from '../routing/decorators/body-metadata.model';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
 import { ExcludeStrict } from '../types/exclude-strict.type';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { BigNumber } from '../utilities/number.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 
@@ -228,6 +230,11 @@ export class ValidationService implements ValidationServiceInterface {
         parentKey: string | undefined,
         allowAdditionalProperties: boolean
     ): Promise<ValidationProblem[]> {
+        // a client sends what it likes: `null` reached Object.keys and became a server error, and a
+        // number or a list has no keys, so it passed as a model naming nothing
+        if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+            return [new TypeMismatchValidationProblem(parentKey ?? 'request', 'object')];
+        }
         const modelProperties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(cls);
 
         const keysOfBody: string[] = ObjectUtilities.keys(body as Record<string, unknown>);
@@ -266,7 +273,7 @@ export class ValidationService implements ValidationServiceInterface {
             || metadata.type === Relation.BELONGS_TO_ONE
             || metadata.type === Relation.MANY_TO_MANY
         ) {
-            return [new RelationsNotAllowedValidationProblem(fullKey, metadata, key)];
+            return [new RelationsNotAllowedValidationProblem(fullKey)];
         }
 
         const validate: PropertyValidationFunction | undefined = this.propertyValidationFunctions[metadata.type];
@@ -426,7 +433,12 @@ export class ValidationService implements ValidationServiceInterface {
         if (property == undefined && !required) {
             return [];
         }
-        if (typeof property !== 'object') {
+        // what choosing a shape counts as an object, so validation never refuses the shape it chose:
+        // a list is an object to typeof, and one without items has no keys to be reported as unknown
+        if (
+            typeof property !== 'object' || Array.isArray(property)
+            || property instanceof Date || property instanceof BigNumber || property instanceof File
+        ) {
             return [new TypeMismatchValidationProblem(fullKey, 'object')];
         }
 

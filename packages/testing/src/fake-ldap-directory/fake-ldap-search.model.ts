@@ -11,6 +11,10 @@ export type FakeLdapSearch = {
      */
     filter: string,
     /**
+     * The attributes it asked for, as it named them.
+     */
+    attributes: string[],
+    /**
      * Who the connection was bound as. Undefined when it was not bound with a password.
      */
     boundAs: string | undefined

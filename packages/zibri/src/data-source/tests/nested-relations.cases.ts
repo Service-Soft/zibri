@@ -241,6 +241,18 @@ export function describeNestedRelations(
             expect(tracks.map(t => t.album)).toEqual([undefined]);
         });
 
+        it('does not hand back a relation only the filter named, from a stream', async () => {
+            const batch: string = await seedCatalog();
+
+            const tracks: Track[] = [];
+            for await (const track of tracksOf().stream({ where: { batch, album: { where: { title: NOCTURNES } } } })) {
+                tracks.push(track);
+            }
+
+            expect(tracks.map(t => t.title)).toEqual([FROM_NOCTURNES]);
+            expect(tracks.map(t => t.album)).toEqual([undefined]);
+        });
+
         it('filters by either of two conditions on a relation, and one two relations down', async () => {
             const batch: string = await seedCatalog();
 

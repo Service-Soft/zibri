@@ -7,7 +7,7 @@ export type FederatedLoginRequest = {
      */
     redirectTo: string,
     /**
-     * Whether the provider should have the user log in again rather than reuse its session.
+     * Whether the provider should have the user log in again, even when it still has a session of theirs.
      */
     reauthenticate: boolean,
     /**

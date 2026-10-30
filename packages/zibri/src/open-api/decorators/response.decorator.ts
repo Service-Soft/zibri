@@ -16,6 +16,7 @@ import { JsonOpenApiResponse, EmptyOpenApiResponse, ErrorOpenApiResponse, FileOp
 // eslint-disable-next-line typescript/no-namespace
 export namespace Response {
 
+    // eslint-disable-next-line jsdoc/require-returns
     /**
      * A single object response, json by default. With `mimeTypes`, it can also be written as xml, picked by the
      * request's `Accept` header. Several of them with the same status are one of their classes.
@@ -43,6 +44,7 @@ export namespace Response {
         };
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
     /**
      * An array json response.
      * @param entityClass - The class that defines the items in the response array.
@@ -67,6 +69,7 @@ export namespace Response {
         };
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
     /**
      * A paginated result response, json by default. With `mimeTypes`, it can also be written as xml, picked by the
      * request's `Accept` header.
@@ -94,6 +97,7 @@ export namespace Response {
         };
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
     /**
      * A response of one page of a keyset read, and the cursor the next page is read with. Json by default; with
      * `mimeTypes`, it can also be written as xml, picked by the request's `Accept` header.
@@ -121,6 +125,7 @@ export namespace Response {
         };
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
     /**
      * An empty response where nothing is returned. It has no body in any format, so it goes with json and xml by
      * default; next to a response written in json alone, say `mimeTypes: [MimeType.JSON]`.
@@ -143,6 +148,7 @@ export namespace Response {
         };
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
     /**
      * A response where a file is returned.
      * @param data - Additional data, like mime type or description.
@@ -161,6 +167,7 @@ export namespace Response {
         };
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
     /**
      * A response that returns html.
      * @param data - Additional data, like status or description.
@@ -180,6 +187,7 @@ export namespace Response {
         };
     }
 
+    // eslint-disable-next-line jsdoc/require-returns
     /**
      * A response that sends the caller on to another url, returned as a `RedirectResponse`.
      * @param data - Additional data, like the status or a description. The status defaults to 303 See Other,

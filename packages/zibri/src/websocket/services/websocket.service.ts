@@ -2,7 +2,7 @@ import assert from 'node:assert';
 
 import type { Namespace, Server, ServerOptions, Socket } from 'socket.io';
 
-import { WebsocketSendData, WebsocketSendDataMessage, WebsocketSendToAllData, WebsocketSendToChannelData, WebsocketServiceInterface } from './websocket-service.interface';
+import { WebsocketSendData, WebsocketSendToAllData, WebsocketSendToChannelData, WebsocketServiceInterface } from './websocket-service.interface';
 import { ZibriApplication } from '../../application/application';
 import { type AuthServiceInterface } from '../../auth/auth-service.interface';
 import { type CurrentUser } from '../../auth/decorators/current-user.decorator';
@@ -30,7 +30,6 @@ import { fileSizeToBytes } from '../../entity/models/file-property-metadata.mode
 import { ErrorUtilities } from '../../error-handling/error.utilities';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { ForbiddenError } from '../../error-handling/errors/forbidden.error';
-import { GlobalError } from '../../error-handling/errors/global.error';
 import { HttpError } from '../../error-handling/errors/http.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
@@ -44,13 +43,12 @@ import { HandlerTimeout } from '../../http/handler-timeout.type';
 import { HttpStatus } from '../../http/http-status.enum';
 import { KnownHeader } from '../../http/known-header.enum';
 import { MimeType } from '../../http/mime-type.enum';
-import { isJsonMimeType } from '../../http/mime-type.helpers';
+import { MimeTypeUtilities } from '../../http/mime-type.utilities';
 import { RequestDeadlineUtilities } from '../../http/request-deadline.utilities';
 import { $ts } from '../../localization/translate.function';
 import { errorToLoggedError } from '../../logging/error-to-logged-error.function';
 import { type LoggerInterface } from '../../logging/logger.interface';
-import { resolveRouteParams } from '../../routing/resolve-route-params.function';
-import { RouteParamMetadata } from '../../routing/route-param-metadata.model';
+import { RouteParamUtilities } from '../../routing/route-param.utilities';
 import { BaseMembership } from '../../tenancy/membership/base-membership.model';
 import { ChangedMembership } from '../../tenancy/membership/changed-membership.model';
 import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
@@ -78,13 +76,13 @@ import { WebsocketAnswer } from '../models/websocket-answer.model';
 import { WebsocketChannel } from '../models/websocket-channel.model';
 import { WebsocketControllerRouteConfiguration } from '../models/websocket-controller-route-configuration.model';
 import { LooseWebsocketEvent, WebsocketEvent } from '../models/websocket-event.enum';
-import { WEBSOCKET_MESSAGE_SEQUENCE_NAME, WebsocketMessageSequence, WebsocketMessageSequenceCreateData } from '../models/websocket-message-sequence.model';
+import { WebsocketMessageSequence } from '../models/websocket-message-sequence.model';
 import { WebsocketMessage, CreateWebsocketMessageData, WebsocketRecipientType } from '../models/websocket-message.model';
 import { type WebsocketOptions, type WebsocketOptionsInput } from '../models/websocket-options.model';
-import { WebsocketReplayIncomplete } from '../models/websocket-replay-incomplete.model';
 import { WebsocketRequest, WebsocketRequestWithConnection } from '../models/websocket-request.model';
 import { WebsocketResponseHandler } from '../models/websocket-response.model';
 import { WebsocketMessageCleanupCronJob } from '../websocket-message-cleanup.cron-job';
+import { WebsocketReplayUtilities } from '../websocket-replay.utilities';
 import { DeactivatedUserWriteObserver } from '../write-observers/deactivated-user.write-observer';
 import { EndedLoginWriteObserver } from '../write-observers/ended-login.write-observer';
 import { TenantRoomWriteObserver } from '../write-observers/tenant-room.write-observer';
@@ -239,6 +237,7 @@ type SocketIOWebsocketHandler = (
  * Uses socket.io under the hood.
  */
 @Injectable({ register: 'onUse' })
+// eslint-disable-next-line stylistic/max-len
 export class WebsocketService implements WebsocketServiceInterface<SocketIOWebsocketConnection>, OnAppInit, AfterAppInit, BeforeAppShutdown {
     /**
      * Absent for an application that declares no websockets, which is the one that never starts a
@@ -308,7 +307,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         return options;
     }
 
-    // the three below are read when used rather than injected, so that an application without the
+    // the two below are read when used rather than injected, so that an application without the
     // entities is told which ones to declare by onAppInit, instead of failing on a repository token
     // while this is built
     private get channelRepository(): Repository<WebsocketChannel> {
@@ -316,9 +315,6 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     }
     private get messageRepository(): Repository<WebsocketMessage, CreateWebsocketMessageData> {
         return inject(repositoryTokenFor(WebsocketMessage));
-    }
-    private get sequenceRepository(): Repository<WebsocketMessageSequence, WebsocketMessageSequenceCreateData> {
-        return inject(repositoryTokenFor(WebsocketMessageSequence));
     }
 
     /**
@@ -401,13 +397,17 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         // only asked for when there is a server - channels and messages are read and written by
         // nothing else, and every send reads the server before either table
         validateEntitiesRegistered(WebsocketService.name, app, WebsocketChannel, WebsocketMessage, WebsocketMessageSequence);
-        await this.initMessageSequence();
+        await WebsocketReplayUtilities.initSequence();
         if (!app.options.cronJobs.includes(WebsocketMessageCleanupCronJob)) {
             app.options.cronJobs.push(WebsocketMessageCleanupCronJob);
         }
 
         this.socketServer = new (optionalPeer<typeof import('socket.io')>('socket.io', 'Websockets').Server)(app.server, {
-            connectionStateRecovery: {},
+            // no connection state recovery: a reconnecting client is sent what it missed from the
+            // stored messages, on any instance and through every check a connection goes through.
+            // socket.io's recovery skipped those checks, worked only on the instance that held the
+            // socket, and its client sent the id of the last message as `offset` - a string the
+            // handshake refuses, which locked out every client it could not recover
             adapter: this.resolveAdapter(options),
             maxHttpBufferSize: fileSizeToBytes('1mb').toNumber(),
             // a message is written once, by the encoder. The service used to turn it into json and
@@ -455,7 +455,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 };
                 const context: WebsocketRequestContext = new WebsocketRequestContext(request, undefined, undefined, undefined);
 
-                const currentUser: CurrentUser | undefined = await this.authService.getCurrentUser(
+                const currentUser: CurrentUser | undefined = await this.authService.resolveCurrentUser(
                     context,
                     this.authService.strategies,
                     false
@@ -644,21 +644,10 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 return;
             }
             catch (error) {
-                // the same record the http error handler writes, for the same reasons - see
-                // handleLogging in error-handler.ts. A wrapper here made every websocket handler
-                // failure arrive as "Global Error" with an empty stack, and a client error arrive as
-                // nothing at all
-                let persist: boolean = false;
-                if (!ErrorUtilities.isError(error)) {
-                    this.logger.critical(new GlobalError(error));
-                    persist = true;
-                }
-                else if (!ErrorUtilities.isHttpError(error) || error.status >= HttpStatus.INTERNAL_SERVER_ERROR) {
-                    this.logger.error(error);
-                    persist = true;
-                }
-                // a client error is neither logged nor persisted here, for the same reason it is not
-                // in the http handler: the security relevant ones are in the audit trail already
+                // the same record the http error handler writes, and a failure is persisted when it
+                // is one: a client error is neither logged nor persisted, since the security relevant
+                // ones are in the audit trail already
+                const persist: boolean = ErrorUtilities.reportToLog(error, this.logger);
 
                 await this.send({
                     connection,
@@ -703,12 +692,6 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     }
 
     private async recoverConnection(connection: SocketIOWebsocketConnection, currentUser: CurrentUser | undefined): Promise<void> {
-        if (connection.recovered) {
-            // socket.io restored the rooms and the buffered packets itself, which it can only do on
-            // the instance that held the socket in the first place
-            return;
-        }
-
         // the tenants whose messages this connection receives: those of no tenant, and those of each
         // tenant its user is a member of. A connection names no tenant of its own, and its messages
         // each name theirs, so this is the one thing that limits what reaches it
@@ -732,125 +715,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
         // in its rooms whatever the offset, and only the replay depends on it: a client that sent none
         // has nothing to catch up on, like one connecting for the first time
-        const offset: number | undefined = connection.offset;
-        if (offset == undefined) {
-            return;
-        }
-        const whereFilters: WhereFilter<WebsocketMessage>[] = [
-            {
-                seq: { greaterThan: offset },
-                recipientType: WebsocketRecipientType.ALL,
-                tenantId: reachable
-            }
-        ];
-        if (currentUser) {
-            whereFilters.push(
-                {
-                    seq: { greaterThan: offset },
-                    recipientType: WebsocketRecipientType.CHANNEL,
-                    recipientId: { oneOf: channelsOfUser.map(c => c.id) },
-                    tenantId: reachable
-                },
-                {
-                    seq: { greaterThan: offset },
-                    recipientType: WebsocketRecipientType.USER,
-                    recipientId: currentUser.id,
-                    tenantId: reachable
-                }
-            );
-        }
-
-        // asked first, because it is one row, and a client that lost messages is sent none of the rest
-        if (await this.hasLostMessagesAfter(offset)) {
-            await this.sendReplayIncomplete(connection);
-            return;
-        }
-        const messages: WebsocketMessage[] = await this.messageRepository.findAll({
-            // one more than is replayed, which is how a client that missed too many is told apart. The
-            // offset is the client's to choose, so this bounds what any connection can make it read
-            limit: this.options.maxReplayedMessages + 1,
-            where: whereFilters,
-            acrossTenants: true
-        });
-        // none of them rather than the first or the last ones: a part of what was missed looks to the
-        // client like all of it, and the one thing it can do about a gap is reload, which it is told
-        if (messages.length > this.options.maxReplayedMessages) {
-            await this.sendReplayIncomplete(connection);
-            return;
-        }
-
-        for (const m of messages) {
-            // without waiting for an answer to each: socket.io keeps the order on a connection and
-            // the client tracks the seq, so an answer adds nothing - and waiting for one let a client
-            // that never answered hold this for timeoutInMs per message, the first timeout ending it
-            await this.send({
-                connection,
-                event: m.event,
-                message: m as WebsocketSendDataMessage,
-                expectResponse: false,
-                responseHandler: undefined,
-                persist: false
-            });
-        }
-    }
-
-    /**
-     * Whether messages after an offset are no longer kept.
-     * @param offset - The seq of the last message the client saw.
-     * @returns True when some of what came after it was deleted.
-     */
-    private async hasLostMessagesAfter(offset: number): Promise<boolean> {
-        // the cleanup deletes from the oldest message on, so what is kept starts right after what was
-        // deleted. Messages the client could not have read count as well: telling a client to reload
-        // when it did not have to costs a reload, the other way round costs what it never receives
-        const [oldest] = await this.messageRepository.findAll({ order: { seq: 'ASC' }, limit: 1, acrossTenants: true });
-        if (oldest != undefined) {
-            return oldest.seq > offset + 1;
-        }
-        return await this.resolveNewestSeq() > offset;
-    }
-
-    /**
-     * Tells a reconnecting client that it is not sent what it missed.
-     * @param connection - The client.
-     */
-    private async sendReplayIncomplete(connection: SocketIOWebsocketConnection): Promise<void> {
-        const data: WebsocketReplayIncomplete = { seq: await this.resolveNewestSeq() };
-        await this.send({
-            connection,
-            event: WebsocketEvent.REPLAY_INCOMPLETE,
-            message: { ok: true, data, senderUserId: undefined, senderConnectionId: undefined },
-            expectResponse: false,
-            responseHandler: undefined,
-            persist: false
-        });
-    }
-
-    /**
-     * Resolves the seq the newest message was given.
-     * @returns The seq, or 0 before the first message.
-     */
-    private async resolveNewestSeq(): Promise<number> {
-        const sequence: WebsocketMessageSequence | undefined = await this.sequenceRepository.findOne({
-            where: { name: WEBSOCKET_MESSAGE_SEQUENCE_NAME },
-            required: false
-        });
-        return sequence?.seq ?? 0;
-    }
-
-    /**
-     * Creates the sequence messages draw their seq from, unless it exists.
-     */
-    private async initMessageSequence(): Promise<void> {
-        // continuing from the newest message that is kept, for messages stored before there was a
-        // sequence: starting it at 0 would give the next message a seq a client already has. Two
-        // instances starting at once both get here, and the second finds the row the first created
-        const [newest] = await this.messageRepository.findAll({ order: { seq: 'DESC' }, limit: 1, acrossTenants: true });
-        await this.sequenceRepository.upsert(
-            { name: WEBSOCKET_MESSAGE_SEQUENCE_NAME },
-            { name: WEBSOCKET_MESSAGE_SEQUENCE_NAME, seq: newest?.seq ?? 0 },
-            { seq: { increment: 0 } }
-        );
+        await WebsocketReplayUtilities.replay(this, connection, currentUser, channelsOfUser, reachable, this.options.maxReplayedMessages);
     }
 
     private onDisconnect(connection: SocketIOWebsocketConnection): void {
@@ -901,23 +766,13 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 r => r.key === fullEvent && this.versioningService.hasOverlappingVersions(r.versions, versions, currentLatest)
             );
             if (overlappingRoute) {
-                const overlappingVersions: SupportedVersionsOptions = this.versioningService.findOverlappingVersions(
+                this.versioningService.validateNoOverlap(
+                    `The websocket event "${fullEvent}"`,
                     overlappingRoute.versions,
                     versions,
-                    currentLatest
-                );
-                if (overlappingVersions === 'all') {
-                    throw new Error([
-                        `The websocket event "${fullEvent}"`,
-                        'has been defined more than once.',
-                        '(versions: \'all\' has been used)'
-                    ].join(' '), { cause: controllerClass });
-                }
-                throw new Error([
-                    `The websocket event "${fullEvent}"`,
-                    `for the ${overlappingVersions.length > 1 ? 'versions' : 'version'} "${overlappingVersions.join(', ')}"`,
+                    currentLatest,
                     'has been defined more than once.'
-                ].join(' '), { cause: controllerClass });
+                );
             }
 
             this.allEventRoutes.push({ key: fullEvent, versions });
@@ -1344,7 +1199,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
      */
     private async closeIfLoginEnded(connection: SocketIOWebsocketConnection): Promise<void> {
         const context: WebsocketRequestContext = new WebsocketRequestContext(connection.handshakeRequest, undefined, undefined, undefined);
-        const user: CurrentUser | undefined = await this.authService.getCurrentUser(context, this.authService.strategies, false);
+        const user: CurrentUser | undefined = await this.authService.resolveCurrentUser(context, this.authService.strategies, false);
         if (user != undefined && user.id === connection.userId) {
             await this.scheduleExpiryCheck(connection);
             return;
@@ -1478,7 +1333,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
         if (
             routeData.params.body?.type != undefined
-            && !isJsonMimeType(routeData.params.body.type)
+            && !MimeTypeUtilities.isJson(routeData.params.body.type)
             && routeData.params.body.type !== MimeType.XML
         ) {
             throw new InternalError([
@@ -1518,7 +1373,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                         const handle: () => Promise<void> = async () => {
                             await this.authService.checkAccess(controllerClass, route.controllerMethod, context);
                             const controller: unknown = inject(controllerClass);
-                            const params: unknown[] = await this.resolveRouteParams(
+                            const params: unknown[] = await RouteParamUtilities.resolveValues(
                                 routeData.params,
                                 // eslint-disable-next-line typescript/no-unsafe-member-access, typescript/no-explicit-any
                                 ((controller as any)[route.controllerMethod] as Function).length,
@@ -1576,18 +1431,10 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                             },
                             responseHandler: ack,
                             expectResponse: true,
-                            persist: !ErrorUtilities.isHttpError(error) || error.status >= 500
+                            persist: ErrorUtilities.reportToLog(error, this.logger)
                         });
                         if (err.status === HttpStatus.UNAUTHORIZED) {
                             this.disconnect(connection, true);
-                        }
-                        // the error itself rather than a wrapper, for the reason handleLogging in
-                        // error-handler.ts gives
-                        if (!ErrorUtilities.isError(error)) {
-                            this.logger.critical(new GlobalError(error));
-                        }
-                        else if (err.status >= 500) {
-                            this.logger.error(error);
                         }
                     }
                     finally {
@@ -1633,13 +1480,5 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             message.push('Did you forget to add them to your websocketControllers array?');
             throw new Error(message.join('\n'));
         }
-    }
-
-    private async resolveRouteParams(
-        metadata: RouteParamMetadata,
-        totalParamCount: number,
-        context: WebsocketRequestContext
-    ): Promise<unknown[]> {
-        return await resolveRouteParams(metadata, totalParamCount, context);
     }
 }

@@ -1,6 +1,8 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import os from 'node:os';
 
+import { EmailService } from '../../email/email.service';
+import { errorHandler } from '../../error-handling/error-handler';
 import { inject } from '../inject.function';
 import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 import { AssetService } from '../../assets/asset.service';
@@ -12,6 +14,7 @@ import { FidoMetadataService } from '../../auth/authenticators/passkey/fido-meta
 import { PasskeyService } from '../../auth/authenticators/passkey/passkey.service';
 import { AuthorizationServerService } from '../../auth/authorization-server/authorization-server.service';
 import { DpopService } from '../../auth/dpop/dpop.service';
+import { EmailVerificationService } from '../../auth/email-verification/email-verification.service';
 import { EncryptionKeyCache } from '../../auth/encryption/encryption-key.cache';
 import { EncryptionService } from '../../auth/encryption/encryption.service';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
@@ -20,6 +23,7 @@ import { defaultScryptCost, ScryptHashStrategy } from '../../auth/hash/strategie
 import { Sha256HashStrategy } from '../../auth/hash/strategies/sha256.hash-strategy';
 import { RouteAuthConfiguration } from '../../auth/models/route-auth-configuration.model';
 import { RoleService } from '../../auth/roles/role.service';
+import { RouteAuthService } from '../../auth/route-auth.service';
 import { ScimService } from '../../auth/scim/scim.service';
 import { ApiKeyService } from '../../auth/strategies/api-key/api-key.service';
 import { AccessTokenRevocation } from '../../auth/strategies/jwt/access-token-revocation.type';
@@ -30,14 +34,13 @@ import { BackupService } from '../../backup/backup.service';
 import { CacheService } from '../../caching/cache.service';
 import { AlsUtilities } from '../../context/als.utilities';
 import { CronService } from '../../cron/cron.service';
+import { ChainService } from '../../data-source/chain/chain.service';
 import { DataSourceService } from '../../data-source/data-source.service';
 import { RepositoryHooks } from '../../data-source/hooks/repository-hooks.model';
 import { EmailRateLimiter } from '../../email/email.rate-limiter';
 import { LoggingEmailTransport } from '../../email/transports/logging.email-transport';
-import { GlobalRegistry } from '../../global/global-registry';
-import { EmailService } from '../../email/email.service';
-import { errorHandler } from '../../error-handling/error-handler';
 import { EventService } from '../../event/event.service';
+import { GlobalRegistry } from '../../global/global-registry';
 import { CompressionOptions } from '../../http/compression.middleware';
 import { HttpServerLimits } from '../../http/http-server-limits.model';
 import { KnownHeader } from '../../http/known-header.enum';
@@ -113,6 +116,8 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     AUDIT_SERVICE: { useClass: AuditService },
     AUDIT_RETENTION_IN_MS: { useFactory: () => undefined },
     AUDIT_MAX_REFUSALS_PER_MINUTE: { useFactory: () => 1000 },
+    AUDIT_INTEGRITY: { useFactory: () => 'checkpoints' },
+    CHAIN_SERVICE: { useClass: ChainService },
     LOGGER_CLEANUP_AFTER_IN_MS: {
         useFactory: () => ({
             [LogLevel.DEBUG]: Ms.WEEK * 2,
@@ -128,13 +133,12 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     GLOBAL_ERROR_HANDLER: { useFactory: () => errorHandler },
     ERROR_PAGE_TEMPLATE: { useFactory: () => undefined },
     OPEN_API_SERVICE: { useClass: OpenApiService },
-    // the explorer, its scripts and the spec, public rather than behind `defaultAuth`. A browser
-    // reaches the explorer by navigating to it, and a navigation carries no Authorization header, so
-    // inheriting a login requirement would leave a bearer token application with an explorer nobody
-    // can open rather than one only its callers can. An api whose endpoint map is not for everyone
-    // says so here - `{}` puts it behind the application's default, and any other route auth
-    // configuration behind exactly what it names.
-    OPEN_API_AUTH: { useFactory: (): RouteAuthConfiguration => ({ skip: true }) },
+    // the explorer, its scripts and the spec, behind `defaultAuth` like every route that says nothing
+    // of its own: the document is every route, model and permission name, which an application
+    // requiring a login by default does not hand to everyone (03 §H16, which reversed 02 §M13's
+    // `{ skip: true }`). A browser navigating to the explorer carries no Authorization header, so an
+    // application that wants it open says so here, `{ skip: true }`, independent of its default
+    OPEN_API_AUTH: { useFactory: (): RouteAuthConfiguration => ({}) },
     PARSER: { useClass: Parser },
     VALIDATION_SERVICE: { useClass: ValidationService },
     DATA_SOURCE_SERVICE: { useClass: DataSourceService },
@@ -165,7 +169,10 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
         useFactory: (): HttpServerLimits => ({
             requestTimeoutInMs: Ms.SECOND * 60,
             headersTimeoutInMs: Ms.SECOND * 15,
-            keepAliveTimeoutInMs: Ms.SECOND * 5,
+            // nginx's own idle timeout towards an upstream, which is the longest of the common ones
+            // short of GCP's ten minutes: a proxy keeping a connection longer than the server reuses
+            // one the server just closed, and answers 502 (03 §H17)
+            keepAliveTimeoutInMs: Ms.SECOND * 75,
             handlerTimeoutInMs: Ms.SECOND * 30,
             maxHeaderCount: 100,
             maxHeaderSizeInBytes: 16 * 1024
@@ -178,8 +185,18 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // how long a shutting down instance waits for work it holds a lease on before taking the lease
     // away. Comfortably inside the shutdown timeout, or the hook is cut off before it can release.
     LEASE_DRAIN_TIMEOUT_IN_MS: { useFactory: () => Ms.SECOND * 10 },
+    // a container's hostname is its pod's name, which is what an operator looks for. The pid tells
+    // apart the processes of one host
+    INSTANCE_ID: { useFactory: () => `${os.hostname()}:${process.pid}` },
     AUTH_SERVICE: { useClass: AuthService },
+    ROUTE_AUTH_SERVICE: { useClass: RouteAuthService },
     REVALIDATE_USER_ON_AUTH_CHECK: { useFactory: () => true },
+    // none: how many devices a user may stay logged in on is the application's to say
+    MAX_LOGINS_PER_USER: { useFactory: () => undefined },
+    // off: which addresses an application trusts unverified is its own to say, and turning this on
+    // asks for templates and a page of the application's own
+    EMAIL_VERIFICATION_OPTIONS: { useFactory: () => undefined },
+    EMAIL_VERIFICATION_SERVICE: { useClass: EmailVerificationService },
     // undefined for an application that provides none, which is the one whose roles carry nothing
     PERMISSIONS: { useFactory: () => undefined },
     ROLE_SERVICE: { useClass: RoleService },
@@ -214,6 +231,9 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     EMAIL_CODE_HEADER: { useFactory: () => 'x-authorization-email-code' },
     SMS_CODE_HEADER: { useFactory: () => 'x-authorization-sms-code' },
     LOGIN_TICKET_HEADER: { useFactory: () => 'x-login-ticket' },
+    // long enough to wait for a code and type it, short enough that a password alone is never worth
+    // much for long
+    LOGIN_TICKET_EXPIRES_IN_MS: { useFactory: () => Ms.MINUTE * 5 },
     SMS_CODE_LIMITS: { useFactory: () => undefined },
     RECOVERY_CODE_HEADER: { useFactory: () => 'x-authorization-recovery-code' },
     API_KEY_HEADER: { useFactory: () => 'x-api-key' },
@@ -221,12 +241,18 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     API_KEY_OPTIONS: { useFactory: () => ({}) },
     SCIM_SERVICE: { useClass: ScimService },
     TWO_FACTOR_CODE_OPTIONS: { useFactory: () => ({}) },
+    RECOVERY_CODE_OPTIONS: { useFactory: () => ({}) },
+    // what authenticator apps show a code for, and the only period most of them generate
+    OTP_PERIOD_IN_SECONDS: { useFactory: () => 30 },
     USER_SERVICE: { useClass: UserService },
     PASSWORD_RESET_EMAIL_TEMPLATE: { useFactory: () => undefined },
     JWT_AUTH_OPTIONS_INPUT: { useFactory: () => ({}) },
     JWT_SERVICE: { useClass: JwtService },
     DPOP_SERVICE: { useClass: DpopService },
     DPOP_NONCES: { useFactory: () => false },
+    // a proof is remembered as presented for twice this, so it bounds that as well
+    DPOP_PROOF_MAX_AGE_IN_MS: { useFactory: () => Ms.MINUTE * 5 },
+    DPOP_NONCE_LIFETIME_IN_MS: { useFactory: () => Ms.MINUTE * 5 },
     JWT_AUTH_OPTIONS: {
         useFactory: () => {
             const input: JwtAuthOptionsInput = inject(ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS_INPUT);
@@ -278,6 +304,7 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // over a few minutes outlast most of those without holding a backup open for an outage
     BACKUP_MAX_ATTEMPTS: { useValue: 3 },
     BACKUP_RETRY_DELAY_IN_MS: { useFactory: () => Ms.MINUTE },
+    BACKUP_RETENTION: { useValue: undefined },
     // the route history belongs to the deployment, so it is resolved from the application's root:
     // an installed copy of the framework is the one place it must not land, and that is where
     // resolving it from this file put it for an application that does not bundle.
@@ -300,6 +327,7 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     PASSKEY_OPTIONS: { useFactory: () => undefined },
     PASSKEY_SERVICE: { useClass: PasskeyService },
     FIDO_METADATA_SERVICE: { useClass: FidoMetadataService },
+    MULTITHREADING_OPTIONS_INPUT: { useFactory: () => ({}) },
     MULTITHREADING_OPTIONS: {
         useFactory: () => ({
             maxThreads,
@@ -309,7 +337,10 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
             jobClaimInMs: Ms.SECOND * 30,
             maxAttempts: 3,
             workerResourceLimits: { maxOldGenerationSizeMb: workerHeapShareInMb },
-            enableTsWorkerFiles: true
+            // off, so an application that says nothing installs no compiler: a deployment that
+            // ships compiled worker files has no use for one, and a bundle names no .ts file
+            enableTsWorkerFiles: false,
+            ...inject(ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS_INPUT)
         })
     },
     // none, for the reason the event retention has none: how long a finished job's row is kept is
@@ -352,6 +383,7 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
                 // on by default: an application that never thought about it is the one whose every
                 // request would otherwise wait out a timeout against a dependency that is down
                 circuitBreaker: { failuresToOpen: 5, openForInMs: Ms.SECOND * 30 },
+                redirect: 'follow',
                 ...input
             };
         }
@@ -400,6 +432,7 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // for the reason the jwt strategy's refreshTokenReuseGraceInMs gives: a request that was on the
     // wire with the old cookies when another one rotated them must not end the login
     COOKIE_AUTH_REFRESH_SESSION_REUSE_GRACE_IN_MS: { useValue: Ms.SECOND * 30 },
+    COOKIE_AUTH_ROW_GRACE_IN_MS: { useValue: Ms.MINUTE * 5 },
     HASH_SERVICE: { useClass: HashService },
     // scrypt first, and it is the one an unqualified hash uses. Sha256HashStrategy is here so that a
     // property can ask for it by name - it is deterministic, so the service refuses it as the

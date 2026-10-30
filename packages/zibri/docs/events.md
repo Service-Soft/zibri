@@ -159,6 +159,30 @@ export async function subscribeOnce(
 ## Keeping `subscriberId` stable
 A `subscriberId` is unique, and stays the same across restarts. `EventDispatchCronJob` offers every event that is still owed to this instance's subscribers again, so pending work continues after a restart. An event knows its subscribers by `subscriberId`. A subscriber that comes back under a different id is a new subscriber, and the runs recorded under its old id are not its own.
 
+## Handling events out of order
+Hooks run in no fixed order. Two events of one type run on whichever instances pick them up, at the same time or one after the other. A subscriber runs independently of the other subscribers of the same event. A hook that fails is [retried](#retry-and-timeout-semantics) after events that were emitted later.
+
+A hook that depends on order reads the current state of what the event is about, such as the task row, rather than trusting the payload to be the latest. Or the payload carries a version of that state, and the hook ignores a payload older than what it already handled.
+
+## Changing what an event carries
+A hook can receive an event that an older or a newer deploy of your application emitted. During a rolling deploy both versions run at once, and [`replayFailed`](#replaying-failed-runs) runs events again that failed days ago.
+
+A change that a hook of the other version can still read needs nothing extra, such as a new optional property. A change it cannot read goes under a new event type:
+
+```ts
+// src/events/app-events.ts
+declare module 'zibri' {
+    interface ZibriEventMap {
+        taskAssigned: { taskId: string, userId: string },
+        taskAssignedV2: { taskId: string, assigneeIds: string[] }
+    }
+}
+
+export {};
+```
+
+Emit both types and subscribe to the new one. Once no `taskAssigned` event is left unfinished or [failed](#when-an-event-cannot-be-handled), stop emitting it and remove it.
+
 ## Running more than one instance
 
 A `subscriberId` names a subscriber, not a process. Every replica of your image registers the same subscriber under the same id, and the deployment runs it once per event. A `send-welcome-mail` subscriber sends one mail, not one per pod.

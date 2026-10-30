@@ -2,7 +2,7 @@ import { describeRestoreMigrations, RestoredWidget } from './restore-migrations.
 import { createTestDataSource } from '../../__testing__/test-server/create-test-data-source.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
-import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { Migration } from '../migration/migration.model';
 

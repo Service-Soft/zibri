@@ -78,6 +78,16 @@ describe('collectClientPropSites', () => {
         expect(sites[0].captureVars).toEqual(['row']);
     });
 
+    it('ignores a value computed on the server with a callback', () => {
+        expect(sitesOf('const A = ({ users }) => <List names={users.map(u => u.name)} label={users.filter(u => u.active).length}/>;')).toEqual([]);
+        expect(sitesOf('const A = ({ users }) => { const format = u => u.name; return <List names={users.map(format)} first={format(users[0])}/>; };')).toEqual([]);
+    });
+
+    it('collects a function a call is handed inside an object', () => {
+        const sites: ClientPropSite[] = sitesOf('const A = ({ columns }) => <Table columns={columns.concat([{ render: r => r.id }])}/>;');
+        expect(sites).toHaveLength(1);
+    });
+
     it('ignores an object prop with no function in it', () => {
         expect(sitesOf('const A = ({ color }) => <Chart config={{ type: \'bar\', data: { color } }}/>;')).toEqual([]);
     });

@@ -7,7 +7,7 @@ import { Cache } from '../../caching/decorators/cache.decorator';
 import { CachedValue } from '../../caching/store/cached-value.model';
 import { InMemoryCacheStore } from '../../caching/store/in-memory.cache-store';
 import { ValKeyCacheStore } from '../../caching/store/val-key.cache-store';
-import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { ValKeyDataSource } from '../../data-source/data-sources/val-key/val-key-data-source.model';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';

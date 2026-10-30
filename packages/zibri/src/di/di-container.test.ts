@@ -12,6 +12,7 @@ import { UnresolvedAsyncProviderError } from './errors/unresolved-async-provider
 import { initDiContainer } from './init-di-container.function';
 import { inject } from './inject.function';
 import { defineProvider } from './models/di-provider.model';
+import { DiToken } from './models/di-token.model';
 import { InjectionToken } from './models/injection-token.model';
 import { AlsUtilities } from '../context/als.utilities';
 import { HttpRequestContext } from '../context/request/http-request.context';
@@ -58,6 +59,32 @@ describe('DiContainer', () => {
             scope: 'request',
             useFactory: () => ({ id: ++built })
         }));
+    });
+
+    describe('the registered tokens', () => {
+        // 07 §T17: the identity of a value provider was its value, so two tokens worth 0 were one entry
+        it('lists two value providers that happen to share a primitive value', () => {
+            const waitInMs: InjectionToken<number> = new InjectionToken<number>('wait-in-ms');
+            const retries: InjectionToken<number> = new InjectionToken<number>('retries');
+            DiContainer.getInstance().register(defineProvider({ token: waitInMs, useValue: 0 }));
+            DiContainer.getInstance().register(defineProvider({ token: retries, useValue: 0 }));
+
+            const tokens: DiToken<unknown>[] = DiContainer.getInstance().getAllRegisteredTokens();
+
+            expect(tokens).toContain(waitInMs);
+            expect(tokens).toContain(retries);
+        });
+
+        it('lists a class registered under two tokens once', () => {
+            @Injectable()
+            class Shared {}
+            const alias: InjectionToken<Shared> = new InjectionToken<Shared>('shared-alias');
+            DiContainer.getInstance().register(defineProvider({ token: alias, useClass: Shared }));
+
+            const tokens: DiToken<unknown>[] = DiContainer.getInstance().getAllRegisteredTokens();
+
+            expect(tokens.filter(token => token === alias || token === Shared)).toHaveLength(1);
+        });
     });
 
     describe('request scope', () => {

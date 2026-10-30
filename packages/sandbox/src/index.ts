@@ -3,19 +3,23 @@ import { inject, LoggerInterface, ZIBRI_DI_TOKENS, ZibriApplication } from 'zibr
 import { applicationOptions } from './application-options';
 import { createDefaultData } from './create-default-data.function';
 import { DbDataSource } from './data-sources';
-import { requireEnv } from './env';
+import { requirePortEnv } from './env';
 
 export let logger: LoggerInterface;
 
 async function start(): Promise<void> {
     const app: ZibriApplication = new ZibriApplication(applicationOptions);
+    // "migrate list" and "migrate down <version | migration name>" run in place of starting
+    if (await app.runCommand(process.argv.slice(2))) {
+        return;
+    }
     await app.init();
 
     logger = inject(ZIBRI_DI_TOKENS.LOGGER);
 
     await createDefaultData(DbDataSource);
 
-    await app.start(Number(requireEnv('PORT')));
+    await app.start(requirePortEnv('PORT'));
 }
 
 // eslint-disable-next-line promise/prefer-await-to-callbacks

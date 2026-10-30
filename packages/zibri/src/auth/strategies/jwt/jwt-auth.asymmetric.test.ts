@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import { createPublicKey, createSecretKey, generateKeyPairSync, JsonWebKeyInput, KeyObject } from 'node:crypto';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { decodeProtectedHeader, jwtVerify, ProtectedHeaderParameters, SignJWT } from 'jose';
+import { decodeJwt, decodeProtectedHeader, JWTPayload, jwtVerify, ProtectedHeaderParameters, SignJWT } from 'jose';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
 import { JwksController } from './jwks.controller';
@@ -206,6 +206,16 @@ describe('JwtAuthStrategy — access tokens signed with a key pair', () => {
         expect(decodeHeader(accessToken.value)).toEqual(expect.objectContaining({ alg: 'ES256', kid: expect.any(String) }));
         expect(await verifiesWith(accessToken.value, current.publicKey, 'ES256')).toBe(true);
         expect(await callMeWith(baseUrl, accessToken.value)).toBe(200);
+    });
+
+    it('carries who the user is by id, and not their email', async () => {
+        const { accessToken } = await login(baseUrl);
+
+        // a token travels through browser storage, proxy logs and other services, and an address in
+        // it is personal data in every one of those
+        const payload: JWTPayload = decodeJwt(accessToken.value);
+        expect(payload).toMatchObject({ id: userId, roles: [Roles.USER] });
+        expect(payload).not.toHaveProperty('email');
     });
 
     it('publishes the public key, and nothing else of it, for a verifier to find by kid', async () => {

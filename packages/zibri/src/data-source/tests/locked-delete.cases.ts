@@ -85,7 +85,8 @@ export function describeLockedDelete(dataSourceName: string, reposOf: () => Lock
         });
 
         it('answers a row that is not there as missing, whatever the condition', async () => {
-            await expect(reposOf().companies.deleteById(UUIDUtilities.generate(), { where: { name: 'Acme' } })).rejects.toThrow(NotFoundError);
+            await expect(reposOf().companies.deleteById(UUIDUtilities.generate(), { where: { name: 'Acme' } }))
+                .rejects.toThrow(NotFoundError);
         });
 
         it('refuses a delete that does not say what the locked property was, and deletes regardless when told to', async () => {
@@ -106,7 +107,8 @@ export function describeLockedDelete(dataSourceName: string, reposOf: () => Lock
                 offices: [{ city: 'Berlin' }, { city: 'Paris' }]
             });
 
-            const deleted: LockedCompany = await reposOf().companies.deleteById(company.id, { where: { name: undefined }, relations: ['offices'] });
+            const deleted: LockedCompany = await reposOf().companies
+                .deleteById(company.id, { where: { name: undefined }, relations: ['offices'] });
 
             expect(deleted.offices.map(o => o.city).sort()).toEqual(['Berlin', 'Paris']);
         });

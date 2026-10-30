@@ -43,9 +43,8 @@ export class Email extends QueuedWorkEntity {
     /**
      * The addresses the mail server refused, or undefined if it refused none.
      *
-     * What makes a failed row a trail rather than a tombstone: a mail server routinely accepts some
-     * recipients of one message and rejects others, so "this failed" is not an answer on its own -
-     * the useful part is which address it failed for.
+     * A mail server routinely accepts some recipients of one message and rejects others, and this
+     * says which address a failed mail failed for.
      */
     @Property.array({ items: { type: 'string', format: 'email' }, required: false })
     rejectedRecipients?: string[] | null;

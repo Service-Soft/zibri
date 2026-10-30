@@ -2,8 +2,10 @@ import { describe, expect, it } from '@jest/globals';
 
 import { CachedValue } from './cached-value.model';
 import { InMemoryCacheStore } from './in-memory.cache-store';
+import { AlsUtilities } from '../../context/als.utilities';
 import { Bytes } from '../../utilities/bytes';
 import { JsonUtilities } from '../../utilities/json.utilities';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
 
 function createCachedValue<V>(value: V, tags: string[]): CachedValue<V> {
     return {
@@ -42,6 +44,32 @@ describe('InMemoryCacheStore', () => {
 
         expect(store.get('missing')).toBeUndefined();
         expect(store.has('missing')).toBe(false);
+    });
+
+    // part of round 2's code review 04 §Q5: a store keyed by something other than the active tenant had
+    // to be reached with the tenant switched around every access
+    describe('per tenant', () => {
+        const tenantA: string = UUIDUtilities.generate();
+        const tenantB: string = UUIDUtilities.generate();
+
+        it('keeps each tenant apart by default', () => {
+            const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore();
+            AlsUtilities.runInTenant(tenantA, () => store.set('roles', createCachedValue(1, [])));
+
+            expect(store.config.perTenant).toBe(true);
+            expect(AlsUtilities.runInTenant(tenantB, () => store.get('roles'))).toBeUndefined();
+            expect(store.get('roles')).toBeUndefined();
+        });
+
+        it('takes the key as it is, whichever tenant is active, when it is not per tenant', () => {
+            const store: InMemoryCacheStore<string, number> = new InMemoryCacheStore({ perTenant: false });
+            AlsUtilities.runInTenant(tenantA, () => store.set(tenantA, createCachedValue(1, [])));
+
+            expect(AlsUtilities.runInTenant(tenantB, () => store.get(tenantA))?.value).toBe(1);
+            expect(store.get(tenantA)?.value).toBe(1);
+            store.delete(tenantA);
+            expect(AlsUtilities.runInTenant(tenantA, () => store.has(tenantA))).toBe(false);
+        });
     });
 
     describe('object keys', () => {
@@ -301,6 +329,24 @@ describe('InMemoryCacheStore', () => {
 
             expect(store.has('a')).toBe(false);
             expect(store.has('b')).toBe(true);
+        });
+
+        it('holds a value written again to maxBytes, as it holds a new one', () => {
+            const singleEntryByteSize: number = Buffer.byteLength(JsonUtilities.stringify({ key: 'a', value: createCachedValue('a-value', []) }), 'utf8');
+            const store: InMemoryCacheStore<string, string> = new InMemoryCacheStore({
+                maxEntries: 500,
+                maxBytes: singleEntryByteSize * 3,
+                removeOnOverflow: 'leastRecentlyUsed'
+            });
+            store.set('a', createCachedValue('a-value', []));
+            store.set('b', createCachedValue('b-value', []));
+
+            store.set('a', createCachedValue('a'.repeat(singleEntryByteSize * 2), []));
+            expect(store.has('a')).toBe(true);
+            expect(store.has('b')).toBe(false);
+
+            store.set('a', createCachedValue('a'.repeat(singleEntryByteSize * 4), []));
+            expect(store.has('a')).toBe(false);
         });
 
         it('skips caching a single entry that alone exceeds the store capacity', () => {

@@ -29,7 +29,8 @@ export class TranslationToken {
             if (match === '}}') {
                 return '}';
             }
-            return name != undefined && name in this.params ? String(this.params[name]) : match;
+            // own keys only: `in` also found what every object inherits, such as `constructor`
+            return name != undefined && Object.hasOwn(this.params, name) ? String(this.params[name]) : match;
         }) as TranslatedString;
     }
 }
@@ -59,13 +60,14 @@ export function $t(
                 ? ObjectUtilities.entries(value)[0]
                 : undefined;
             if (entry != undefined) {
-                // Transform ran — use the named key
+                // an object with one key names the placeholder. Extraction reads the same name off an
+                // inline object only, so a variable holding such an object is named here and numbered
+                // in source.xlf (round-2 11 §L7, documented in localization.md)
                 const [name, val] = entry;
                 key = name;
                 params[key] = val;
             }
             else {
-                // Transform did not run (e.g. Jest) — fall back to positional
                 key = `$${i + 1}`;
                 params[key] = value;
             }

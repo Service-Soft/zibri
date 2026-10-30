@@ -526,15 +526,16 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
         this.metrics.activeReservations.decrease({ limiter: this.config.name }, count);
     }
 
+    // asks the store for the two things it needs rather than walking every key, which is what makes
+    // running this every ten seconds affordable against a store that is not in this process. The
+    // updates that are left run chunked rather than all at once, because against such a store each
+    // one takes a lock
     /**
      * Drops what expired and gives back the capacity that abandoned reservations are still holding.
      *
-     * Asks the store for the two things it needs rather than walking every key: everything expired
-     * goes in one operation, and only the keys actually holding an expired reservation are updated.
-     * On a healthy limiter that second list is empty, so a run costs two store operations instead of
-     * three per key - which is what makes running this every ten seconds affordable against a store
-     * that is not in this process. The updates that are left run chunked rather than all at once,
-     * because against such a store each one takes a lock.
+     * Everything expired goes in one operation, and only the keys actually holding an expired
+     * reservation are updated. On a healthy limiter that second list is empty, so a run costs two
+     * store operations.
      */
     async cleanup(): Promise<void> {
         await this.measureStoreOperation('cleanup', async () => {
@@ -606,7 +607,7 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
         if (typeof options?.keyFn === 'function') {
             return await options.keyFn(...args);
         }
-        return options?.keyFn ?? RateLimitKeys.perConnection();
+        return options?.keyFn ?? RateLimitKeys.resolveConnectionKey();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

@@ -14,6 +14,7 @@ import { OAuthClientAuthentication } from '../../auth/authenticators/oauth/oauth
 import { OAuthProviderTokens } from '../../auth/authenticators/oauth/oauth-provider-tokens.model';
 import { BaseOidcAuthenticator } from '../../auth/authenticators/oidc/base-oidc.authenticator';
 import { OidcAuthenticationTime } from '../../auth/authenticators/oidc/oidc-authentication-time.type';
+import { OidcDiscoveryAtBoot } from '../../auth/authenticators/oidc/oidc-discovery-at-boot.type';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
 import { PasswordAuthenticator } from '../../auth/authenticators/password/password.authenticator';
 import { Auth } from '../../auth/decorators/auth.decorator';
@@ -56,6 +57,8 @@ class ProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
 
     readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
+
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
 
     override readonly apiScopes: string[] = [CALENDAR_SCOPE];
 

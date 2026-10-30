@@ -72,6 +72,7 @@ export abstract class PromiseUtilities {
      * @returns The chunks, every one full except possibly the last.
      */
     static resolveChunks<T>(items: T[], chunkSize: number): T[][] {
+        PromiseUtilities.validateChunkSize(chunkSize);
         const res: T[][] = [];
         for (let i: number = 0; i < items.length; i += chunkSize) {
             res.push(items.slice(i, i + chunkSize));
@@ -92,6 +93,7 @@ export abstract class PromiseUtilities {
         options?: ChunkingOptions
     ): Promise<boolean> {
         const chunkSize: number = options?.chunkSize ?? this.defaultChunkSize;
+        PromiseUtilities.validateChunkSize(chunkSize);
 
         for (let i: number = 0; i < items.length; i += chunkSize) {
             const res: boolean = await Promise.any(
@@ -184,6 +186,17 @@ export abstract class PromiseUtilities {
         }
         finally {
             signal.removeEventListener('abort', listener.onAbort);
+        }
+    }
+
+    /**
+     * Refuses a chunk size that holds no item: 0 never moved past the first chunk, and NaN ran none.
+     * @param chunkSize - The chunk size.
+     * @throws When it is not a whole number of at least 1.
+     */
+    private static validateChunkSize(chunkSize: number): void {
+        if (!Number.isInteger(chunkSize) || chunkSize < 1) {
+            throw new InternalError(`The chunkSize has to be a whole number of at least 1, got ${chunkSize}.`);
         }
     }
 }

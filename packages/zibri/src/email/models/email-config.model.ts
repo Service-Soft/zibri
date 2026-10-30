@@ -4,8 +4,7 @@ import { type RetentionInMs } from '../../types/retention-in-ms.type';
 /**
  * Configuration for emails.
  *
- * What the mail *subsystem* does, rather than how a mail reaches its provider. How to reach the
- * provider belongs to the transport registered under `ZIBRI_DI_TOKENS.EMAIL_TRANSPORT` - see
+ * What the mail *subsystem* does. How a mail reaches its provider belongs to the transport registered under `ZIBRI_DI_TOKENS.EMAIL_TRANSPORT` - see
  * `SmtpEmailTransportOptions` for the one Zibri ships.
  */
 export type EmailConfig = {
@@ -36,8 +35,11 @@ export type EmailConfig = {
      *
      * Priorities cannot starve each other regardless of what it is set to. Each priority may take at
      * most this many slots less one per priority below it, so a permanent flood of HIGH still leaves
-     * a slot for NORMAL and one for LOW every pass.
-     * Defaults to 10.
+     * a slot for NORMAL and one for LOW every pass. A batch of fewer than three takes the most urgent
+     * mails first.
+     *
+     * At most `maxEmailsPerHour`, since a pass asks for its whole batch at once. Defaults to 10, or
+     * `maxEmailsPerHour` when that is lower.
      */
     sendBatchSize: number,
     /**

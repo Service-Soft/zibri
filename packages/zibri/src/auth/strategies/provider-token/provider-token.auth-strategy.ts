@@ -5,6 +5,7 @@ import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
+import { type AuthServiceInterface } from '../../auth-service.interface';
 import { isProviderTokenAuthenticator, ProviderTokenAuthenticatorInterface } from '../../authenticators/provider-token-authenticator.interface';
 import { ProviderToken } from '../../authenticators/provider-token.model';
 import { type DpopServiceInterface } from '../../dpop/dpop-service.interface';
@@ -14,8 +15,8 @@ import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthStrategyInterface } from '../auth-strategy.interface';
 import { AuthorizationHeaderUtilities } from '../authorization-header.utilities';
 import { AuthorizationToken } from '../authorization-token.model';
-import { CredentialEntity } from '../credential-entity.model';
 import { ClientCertificateUtilities } from '../client-certificate/client-certificate.utilities';
+import { CredentialEntity } from '../credential-entity.model';
 
 /**
  * Provider token auth strategy implementation of Zibri.
@@ -44,6 +45,13 @@ export class ProviderTokenAuthStrategy<
         description: 'An access token or ID token an identity provider issued, in the format `Bearer <token>`'
     };
 
+    /**
+     * The authenticators taking their provider's tokens, by the issuer as a url: every request with a
+     * provider's token looks its authenticator up here.
+     */
+    private readonly authenticatorsByIssuer: Map<string, ProviderTokenAuthenticatorInterface<string, BaseUser<string>, unknown>>
+        = new Map();
+
     constructor(
         @Inject(ZIBRI_DI_TOKENS.USER_SERVICE)
         private readonly userService: UserServiceInterface,
@@ -53,24 +61,33 @@ export class ProviderTokenAuthStrategy<
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     init(): void {
-        const authenticators: ProviderTokenAuthenticatorInterface<string, BaseUser<string>, unknown>[] = this.findAuthenticators();
+        const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
+        const authenticators: ProviderTokenAuthenticatorInterface<string, BaseUser<string>, unknown>[] = authService.authenticators
+            .map(authenticator => inject(authenticator))
+            .filter(authenticator => isProviderTokenAuthenticator(authenticator))
+            .filter(authenticator => authenticator.acceptsProviderTokens);
         if (!authenticators.length) {
             throw new InternalError(
                 // eslint-disable-next-line stylistic/max-len
                 `${ProviderTokenAuthStrategy.name} reads the tokens of identity providers, and no authenticator of the application takes its provider's tokens: register one that does, such as one extending BaseOidcAuthenticator with bearerTokens.`
             );
         }
-        // a token goes to the one authenticator its issuer names, so a second one would never be asked
         for (const authenticator of authenticators) {
-            const taking: ProviderTokenAuthenticatorInterface<string, BaseUser<string>, unknown> | undefined = this.findAuthenticator(
-                authenticator.issuer
-            );
-            if (taking != undefined && taking !== authenticator) {
+            // an issuer that is no url names no token, as a token's issuer is compared as one
+            const href: string | undefined = this.toIssuerHref(authenticator.issuer);
+            if (href == undefined) {
+                continue;
+            }
+            // a token goes to the one authenticator its issuer names, so a second one would never be asked
+            const taking: ProviderTokenAuthenticatorInterface<string, BaseUser<string>, unknown> | undefined = this.authenticatorsByIssuer
+                .get(href);
+            if (taking != undefined) {
                 throw new InternalError(
                     // eslint-disable-next-line stylistic/max-len
                     `${ProviderTokenAuthStrategy.name} reads the tokens of ${authenticator.issuer}, which ${taking.constructor.name} and ${authenticator.constructor.name} both take: have one of them take its provider's tokens.`
                 );
             }
+            this.authenticatorsByIssuer.set(href, authenticator);
         }
     }
 
@@ -136,19 +153,13 @@ export class ProviderTokenAuthStrategy<
      * @returns The authenticator, or undefined when none takes its tokens.
      */
     private findAuthenticator(issuer: string): ProviderTokenAuthenticatorInterface<string, BaseUser<string>, unknown> | undefined {
-        // compared as urls, as the issuer of a linked identity is: the issuer an authenticator is
-        // configured with may differ from the one its provider publishes by a trailing slash
-        const href: string | undefined = URL.canParse(issuer) ? new URL(issuer).href : undefined;
-        return href == undefined
-            ? undefined
-            : this.findAuthenticators().find(authenticator => URL.canParse(authenticator.issuer)
-                && new URL(authenticator.issuer).href === href);
+        const href: string | undefined = this.toIssuerHref(issuer);
+        return href == undefined ? undefined : this.authenticatorsByIssuer.get(href);
     }
 
-    private findAuthenticators(): ProviderTokenAuthenticatorInterface<string, BaseUser<string>, unknown>[] {
-        return inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).authenticators
-            .map(authenticator => inject(authenticator))
-            .filter(authenticator => isProviderTokenAuthenticator(authenticator))
-            .filter(authenticator => authenticator.acceptsProviderTokens);
+    // compared as urls, as the issuer of a linked identity is: the issuer an authenticator is
+    // configured with may differ from the one its provider publishes by a trailing slash
+    private toIssuerHref(issuer: string): string | undefined {
+        return URL.canParse(issuer) ? new URL(issuer).href : undefined;
     }
 }

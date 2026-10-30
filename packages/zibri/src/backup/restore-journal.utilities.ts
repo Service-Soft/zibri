@@ -50,6 +50,9 @@ export abstract class RestoreJournalUtilities {
         // while writing leaves the journal as it was before or after, never half of one
         const writing: FsPath = FsUtilities.getPath(`${p}.writing`);
         await FsUtilities.upsertFile(writing, JsonUtilities.stringify(journal));
+        // on the disk before it takes the journal's place, so that a machine going down right after
+        // the rename finds the journal written rather than an empty file under its name
+        await FsUtilities.sync(writing);
         await FsUtilities.rename(writing, p);
     }
 }

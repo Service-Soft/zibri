@@ -1,9 +1,13 @@
+import { BaseEntity } from '../entity/base-entity.model';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { ArrayPropertyItemMetadata } from '../entity/models/array-property-metadata.model';
 import { Relation } from '../entity/models/relation.enum';
+import { InternalError } from '../error-handling/internal-error.model';
 import { isNamedValue } from '../parsing/functions/parse-one-of.function';
+import { DeepPartial } from '../types/deep-partial.type';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { UUIDUtilities } from '../utilities/uuid.utilities';
 
 /**
  * The data a write works on, as it is taken from its caller and as it lands on a stored row.
@@ -36,6 +40,44 @@ export abstract class WriteDataUtilities {
             }
         }
         return res;
+    }
+
+    /**
+     * Gives the data being created an id, unless it already brought one.
+     * @param data - The data about to be created.
+     * @param cls - The class of the entity being written.
+     * @throws When the data brings an id that the id property says it cannot hold.
+     */
+    static assignId(data: DeepPartial<BaseEntity>, cls: Newable<unknown>): void {
+        // generated here rather than by the driver, so that the id exists while the save hooks run:
+        // encryption binds a value to the id of its row, and a hook that references the row it is
+        // preparing needs it as well. It also makes the id come from the same place whichever data
+        // source is behind the repository
+        // a declared format is what every read narrows by, so a value outside it would make the row
+        // impossible to find through its own id. Refused at the write instead, where the caller that
+        // chose the value is still there to be told
+        if (
+            data.id != undefined
+            && UUIDUtilities.declaresUuidFormat(MetadataUtilities.getModelProperties(cls)['id'])
+            && !UUIDUtilities.isUuid(data.id)
+        ) {
+            throw new InternalError(
+                `"${cls.name}.id" declares the uuid format, so "${data.id}" cannot be stored as one. `
+                + 'A chosen id has to be a uuid too. A key that is no uuid belongs in a property of its own, declared unique.'
+            );
+        }
+        data.id ??= UUIDUtilities.generate();
+    }
+
+    /**
+     * Writes every uuid the data holds in lower case, the form every data source stores it in -
+     * including those of the related rows it names.
+     * @param data - The data about to be written, changed in place. A related row that changes is
+     * replaced by a copy.
+     * @param cls - The class of the entity being written.
+     */
+    static writeUuidsInLowerCase(data: object, cls: Newable<BaseEntity>): void {
+        Object.assign(data, UUIDUtilities.resolveCanonicalChanges(data, cls));
     }
 
     /**
@@ -85,8 +127,8 @@ export abstract class WriteDataUtilities {
     }
 
     /**
-     * Resolves an update that writes every object it gives as it is given, rather than merged into
-     * the stored one: each property the stored object holds and the given one leaves out is given as
+     * Resolves an update that writes every object it gives as it is given, not merged into the
+     * stored one: each property the stored object holds and the given one leaves out is given as
      * null, as deep as the objects go.
      * @param data - The data of the update.
      * @param stored - The row as it is stored.

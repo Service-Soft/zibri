@@ -21,6 +21,7 @@ import { defaultTestServerEntities, defaultTestServerRepositories } from '../../
 import { defaultTestServerProviders } from '../../../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../../../__testing__/test-server/start-test-server.function';
+import { AuditEntry } from '../../../../audit/audit-entry.model';
 import { Repository } from '../../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
@@ -32,6 +33,7 @@ import { BadRequestError } from '../../../../error-handling/errors/bad-request.e
 import { TooManyRequestsError } from '../../../../error-handling/errors/too-many-requests.error';
 import { KnownHeader } from '../../../../http/known-header.enum';
 import { MimeType } from '../../../../http/mime-type.enum';
+import { AuditAction, AuditOutcome, AuditReason } from '../../../../logging/audit-event.model';
 import { RateLimitStateEntity } from '../../../../rate-limiting/stores/rate-limit-state-entity.model';
 import { Controller } from '../../../../routing/decorators/controller.decorator';
 import { Post } from '../../../../routing/decorators/post.decorator';
@@ -377,6 +379,29 @@ describe('Two factor codes — by email and text message', () => {
         const code: string = await mailedCode();
         expect(await updatePaymentDetails(loggedIn, { [EMAIL_HEADER]: code })).toBe(200);
         expect(await updatePaymentDetails(loggedIn, { [EMAIL_HEADER]: code })).toBe(401);
+    });
+
+    it('records enrolling a second factor, a refused confirmation and removing it', async () => {
+        const { user } = await createLoggedInUser();
+        await twoFactorService.requestTwoFactorRegistration(user, emailMethod, undefined);
+        const code: string = await mailedCode();
+
+        await expect(twoFactorService.confirmTwoFactorRegistration(user, emailMethod, { code: otherThan(code) })).rejects.toThrow();
+        await twoFactorService.confirmTwoFactorRegistration(user, emailMethod, { code });
+        await twoFactorService.removeTwoFactorRegistration(user, emailMethod);
+
+        // adding a factor of one's own to a taken over account, and removing the owner's, are how a
+        // takeover is kept and the owner locked out
+        await inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).flush();
+        const entries: AuditEntry[] = await inject(repositoryTokenFor(AuditEntry)).findAll({
+            where: { userId: user.id, action: { oneOf: [AuditAction.TWO_FACTOR_ENROLLED, AuditAction.TWO_FACTOR_REMOVED] } },
+            acrossTenants: true
+        });
+        expect(entries.map(e => [e.action, e.outcome, e.reason ?? undefined])).toEqual([
+            [AuditAction.TWO_FACTOR_ENROLLED, AuditOutcome.FAILURE, AuditReason.REFUSED],
+            [AuditAction.TWO_FACTOR_ENROLLED, AuditOutcome.SUCCESS, undefined],
+            [AuditAction.TWO_FACTOR_REMOVED, AuditOutcome.SUCCESS, undefined]
+        ]);
     });
 
     it('keeps the code encrypted', async () => {

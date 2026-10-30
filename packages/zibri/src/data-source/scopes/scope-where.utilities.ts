@@ -1,5 +1,6 @@
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
+import { denyAll, type DenyAll } from '../../entity/models/entity-scope.model';
 import { Relation } from '../../entity/models/relation.enum';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
@@ -164,6 +165,19 @@ export abstract class ScopeWhereUtilities {
             return { matchesNothing: true, where: undefined };
         }
         return { matchesNothing: false, where: scoped.length === 1 ? scoped[0] : scoped };
+    }
+
+    /**
+     * Whether any branch of a scope has a condition on the given property.
+     * @param scope - The scope the caller is restricted to.
+     * @param key - The property.
+     * @returns True when the scope reads it.
+     */
+    static isReadByScope<T extends BaseEntity>(scope: Where<T> | DenyAll | undefined, key: Extract<keyof T, string>): boolean {
+        if (scope == undefined || scope === denyAll) {
+            return false;
+        }
+        return this.branchesOf(scope).some(branch => key in branch);
     }
 
     /**
@@ -606,7 +620,11 @@ export abstract class ScopeWhereUtilities {
         }
         // the same other property of the row is the same bound. Any other pair involving one has no
         // order known before the row is, and is refused below like any bounds that cannot be compared
-        if (PropertyReferenceUtilities.isReference(left) && PropertyReferenceUtilities.isReference(right) && left.property === right.property) {
+        if (
+            PropertyReferenceUtilities.isReference(left)
+            && PropertyReferenceUtilities.isReference(right)
+            && left.property === right.property
+        ) {
             return left;
         }
         // text included: the application orders text, and the data source is held to that order, so

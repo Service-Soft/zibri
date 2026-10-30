@@ -12,6 +12,7 @@
         "./README.md",
         "./LICENSE",
         "./assets",
+        "./project",
         "./templates"
     ],
     "engines": {

@@ -3,10 +3,25 @@ import { EntityMetadata } from '../../entity/decorators/entity.decorator';
 import { createArrayPropertyMetadata, createOneOfPropertyMetadata, PropertyMetadata, Property } from '../../entity/decorators/property.decorator';
 import { EntityMetadataMissingError } from '../../entity/entity-metadata-missing.error';
 import { InternalError } from '../../error-handling/internal-error.model';
-import { Newable } from '../../types/newable.type';
+import { isNewable, Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { MigrationPropertyMetadata } from '../models/migration-property-metadata.model';
+import { MigrationTableReference } from '../models/migration-table-reference.model';
+
+/**
+ * An entity a migration renames or merges, and the table it is moved to.
+ */
+export type MovedEntity = {
+    /**
+     * The class declaring what the entity holds.
+     */
+    entityClass: Newable<BaseEntity>,
+    /**
+     * The table its rows are moved to.
+     */
+    tableName: string
+};
 
 /**
  * Turns what a migration says about an entity into the declarations an entity class carries.
@@ -42,6 +57,9 @@ export abstract class MigratedEntityUtilities {
             tableName,
             allowOrphan: true,
             allowDuplicate: true,
+            backedUp: true,
+            appendOnly: false,
+            chained: false,
             uniques: [],
             indexes: [],
             // a migration describes columns, and the keys the tenant leads are kept as the entity
@@ -72,16 +90,112 @@ export abstract class MigratedEntityUtilities {
 
     /**
      * Resolves the table an entity is stored in.
-     * @param entity - The entity.
+     * @param entity - The entity, or the table it is stored in.
      * @returns The name of its table.
      * @throws When the class is not an entity.
      */
-    static resolveTableName<T extends BaseEntity>(entity: Newable<T>): string {
+    static resolveTableName<T extends BaseEntity>(entity: Newable<T> | MigrationTableReference): string {
+        if (!isNewable(entity)) {
+            return entity.tableName;
+        }
         const metadata: EntityMetadata<T> | undefined = MetadataUtilities.getEntityMetadata(entity);
         if (metadata == undefined) {
             throw new EntityMetadataMissingError(entity);
         }
         return metadata.tableName;
+    }
+
+    /**
+     * Resolves the class of an entity a migration names.
+     * @param entity - The entity, or the table it is stored in.
+     * @param entities - The entities of the data source the migration runs on.
+     * @returns The class given; for a table, the entity of the data source stored in it, or one declaring
+     * only its primary key when the data source declares none there.
+     */
+    static resolveEntityClass<T extends BaseEntity>(
+        entity: Newable<T> | MigrationTableReference,
+        entities: Newable<BaseEntity>[]
+    ): Newable<BaseEntity> {
+        if (isNewable(entity)) {
+            return entity;
+        }
+        // the entity declared now, so that what is kept about its rows - its indexes, its relations -
+        // is kept for the rows a migration rewrites as for every other row
+        return this.findEntityStoredIn(entity.tableName, entities) ?? this.defineEntity(entity.tableName, {});
+    }
+
+    /**
+     * Resolves the entity a migration renames or merges, and the table it is moved to.
+     * @param entity - The entity, or the table it is moved to.
+     * @param currentTableName - The table it is stored in now.
+     * @param entities - The entities of the data source the migration runs on.
+     * @returns The class given, or the entity of the data source stored in the table it is moved to, or
+     * else the one stored in the table it is moved from, or else one declaring only its primary key.
+     */
+    static resolveMovedEntity<T extends BaseEntity>(
+        entity: Newable<T> | MigrationTableReference,
+        currentTableName: string,
+        entities: Newable<BaseEntity>[]
+    ): MovedEntity {
+        const tableName: string = this.resolveTableName(entity);
+        if (isNewable(entity)) {
+            return { entityClass: entity, tableName };
+        }
+        // the entity stored where the rows come from when none is declared where they go: what reverts
+        // renaming an entity names the table it had, which no entity declares any more - and the
+        // relations its rows hold are the ones that entity declares
+        const entityClass: Newable<BaseEntity> = this.findEntityStoredIn(tableName, entities)
+            ?? this.findEntityStoredIn(currentTableName, entities)
+            ?? this.defineEntity(tableName, {});
+        return { entityClass, tableName };
+    }
+
+    /**
+     * Resolves the class a store moves the rows of an entity a migration renames or merges with.
+     * @param entity - The entity, or the table it is moved to.
+     * @param currentTableName - The table it is stored in now.
+     * @param entities - The entities of the data source the migration runs on.
+     * @returns A class stored in the table the rows are moved to, declaring what the entity resolved
+     * by {@link resolveMovedEntity} declares.
+     */
+    static resolveMovedEntityClass<T extends BaseEntity>(
+        entity: Newable<T> | MigrationTableReference,
+        currentTableName: string,
+        entities: Newable<BaseEntity>[]
+    ): Newable<BaseEntity> {
+        const { entityClass, tableName }: MovedEntity = this.resolveMovedEntity(entity, currentTableName, entities);
+        return this.resolveTableName(entityClass) === tableName ? entityClass : this.defineEntityStoredIn(entityClass, tableName);
+    }
+
+    /**
+     * Builds a class declaring what an entity declares, stored in another table.
+     * @param entity - The entity.
+     * @param tableName - The table.
+     * @returns The class.
+     * @throws When the class is not an entity.
+     */
+    private static defineEntityStoredIn(entity: Newable<BaseEntity>, tableName: string): Newable<BaseEntity> {
+        const metadata: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(entity);
+        if (metadata == undefined) {
+            throw new EntityMetadataMissingError(entity);
+        }
+        /**
+         * The entity, stored in another table. Its properties are the entity's, which a class extending
+         * it inherits.
+         */
+        class StoredElsewhere extends entity {}
+        MetadataUtilities.setEntityMetadata(StoredElsewhere, { ...metadata, tableName });
+        return StoredElsewhere;
+    }
+
+    /**
+     * Finds the entity of a data source stored in a table.
+     * @param tableName - The table.
+     * @param entities - The entities of the data source.
+     * @returns The entity, if one is stored there.
+     */
+    private static findEntityStoredIn(tableName: string, entities: Newable<BaseEntity>[]): Newable<BaseEntity> | undefined {
+        return entities.find(e => MetadataUtilities.getEntityMetadata(e)?.tableName === tableName);
     }
 
     /**
@@ -114,6 +228,9 @@ export abstract class MigratedEntityUtilities {
             }
             case 'unknown': {
                 return Property.unknown(metadata);
+            }
+            case 'file': {
+                return Property.file(metadata);
             }
             case 'oneOf': {
                 // stored directly rather than through Property.oneOf, whose decorator checks the class

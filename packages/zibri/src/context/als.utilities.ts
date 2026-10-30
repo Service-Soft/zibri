@@ -34,7 +34,8 @@ export abstract class AlsUtilities {
     private static readonly migration: AsyncLocalStorage<string> = new AsyncLocalStorage<string>();
     private static readonly span: AsyncLocalStorage<TraceSpanInterface> = new AsyncLocalStorage<TraceSpanInterface>();
     private static readonly traceContext: AsyncLocalStorage<TraceSpanContext> = new AsyncLocalStorage<TraceSpanContext>();
-    private static readonly tenant: AsyncLocalStorage<string> = new AsyncLocalStorage<string>();
+    // undefined while running outside every tenant, which `exit` would do as well, though node marks it experimental
+    private static readonly tenant: AsyncLocalStorage<string | undefined> = new AsyncLocalStorage<string | undefined>();
     private static readonly operationLimit: AsyncLocalStorage<OperationLimit> = new AsyncLocalStorage<OperationLimit>();
 
     /**
@@ -129,13 +130,13 @@ export abstract class AlsUtilities {
         return store;
     }
 
+    // async local storage rather than a flag, because a factory awaits: everything after the first
+    // `await` is still inside it, and a flag set around the call would have been cleared by then
     /**
      * Runs the given factory marked as belonging to the asynchronous provider for the given token.
      *
      * The mark is what tells `inject()` that it is being called somewhere its answer would depend on
-     * what happens to have been built already. Async local storage rather than a flag, because a
-     * factory awaits: everything after the first `await` is still inside it, and a flag set around
-     * the call would have been cleared by then.
+     * what happens to have been built already.
      * @param token - The name of the token whose factory is being run.
      * @param fn - The factory to run.
      * @returns What the factory resolved to.
@@ -279,7 +280,7 @@ export abstract class AlsUtilities {
      * @returns The result of the function.
      */
     static runOutsideTenant<T>(fn: () => T): T {
-        return this.tenant.exit(fn);
+        return this.tenant.run(undefined, fn);
     }
 
     /**

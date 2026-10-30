@@ -1,24 +1,41 @@
-import { QueryFailedError as TOQueryFailedError } from 'typeorm';
-
 import { InternalError } from '../error-handling/internal-error.model';
+
+/**
+ * What a failed statement is described by.
+ */
+export type FailedStatement = {
+    /**
+     * What the database answered.
+     */
+    message: string,
+    /**
+     * What it added to its answer, when it added anything.
+     */
+    detail: string | undefined,
+    /**
+     * The statement.
+     */
+    query: string,
+    /**
+     * The values it bound.
+     */
+    parameters: unknown[]
+};
 
 /**
  * An error for a failed sql query.
  */
 export class QueryFailedError extends InternalError {
-    constructor(error: TOQueryFailedError<Error>, options?: ErrorOptions) {
-        super(buildErrorMessage(error), options);
-        // this.stack = error.stack;
+    constructor(failed: FailedStatement, options?: ErrorOptions) {
+        super(buildErrorMessage(failed), options);
         this.name = 'QueryFailedError';
     }
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-function buildErrorMessage(error: TOQueryFailedError): string {
-    let query: string = error.query;
-    for (let i: number = 0; i < (error.parameters ?? []).length; i++) {
-        // eslint-disable-next-line typescript/no-non-null-assertion
-        const parameter: unknown = error.parameters![i];
+function buildErrorMessage(failed: FailedStatement): string {
+    let query: string = failed.query;
+    for (const [i, parameter] of failed.parameters.entries()) {
         query = query.replace(`$${i + 1}`, String(parameter));
     }
 
@@ -27,13 +44,10 @@ function buildErrorMessage(error: TOQueryFailedError): string {
         query = `${parts[0]}\nVALUES ${parts[1]}`;
     }
 
-    let message: string = error.message;
-    if (
-        message.includes('duplicate key value violates unique constraint')
-        && 'detail' in error.driverError
-        && typeof error.driverError.detail === 'string'
-    ) {
-        const key: string = error.driverError.detail.split('Key (').at(1)
+    let message: string = failed.message;
+    const detail: string | undefined = failed.detail;
+    if (message.includes('duplicate key value violates unique constraint') && detail != undefined) {
+        const key: string = detail.split('Key (').at(1)
             ?.split(')=')
             .at(0) ?? '';
         message = message.replace(
@@ -41,12 +55,7 @@ function buildErrorMessage(error: TOQueryFailedError): string {
             `duplicate value for property "${key}" violates unique constraint`
         );
     }
-    if (
-        message.includes('violates foreign key constraint')
-        && 'detail' in error.driverError
-        && typeof error.driverError.detail === 'string'
-    ) {
-        const detail: string = error.driverError.detail;
+    if (message.includes('violates foreign key constraint') && detail != undefined) {
         // Example: "Key (id)=(a1b2c3d4-...) is still referenced from table "user_groups_group"."
         const keyMatch: RegExpMatchArray | null = detail.match(/Key \((.+?)\)=\((.+?)\)/);
         const tableMatch: RegExpMatchArray | null = detail.match(/table "(.+?)"/);

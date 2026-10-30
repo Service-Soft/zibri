@@ -13,12 +13,14 @@ import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { BigNumber } from '../../utilities/number.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { WhereFilterEvaluator } from '../data-sources/where-converter/where-filter.evaluator';
 import { ArrayWhereFilter, ObjectArrayWhereFilter } from '../models/where/array-where-filter.model';
 import { BooleanWhereFilter } from '../models/where/boolean-where-filter.model';
 import { DateWhereFilter } from '../models/where/date-where-filter.model';
 import { NumberWhereFilter } from '../models/where/number-where-filter.model';
+import { ObjectWhereFilter } from '../models/where/object-where-filter.model';
 import { propertyOf } from '../models/where/property-of.function';
 import { StringWhereFilter } from '../models/where/string-where-filter.model';
 import { Where, WhereFilter } from '../models/where/where-filter.model';
@@ -58,23 +60,6 @@ type ProbeExtraShapes = {
 };
 
 /**
- * What a probe carries beside its own columns, stored as one json value.
- */
-export class ProbeDetails {
-    /**
-     * A text, when there is one.
-     */
-    @Property.string({ required: false })
-    color?: string;
-
-    /**
-     * A number, when there is one.
-     */
-    @Property.number({ required: false })
-    score?: number;
-}
-
-/**
  * An item of the list of objects a probe carries.
  */
 export class ProbePart {
@@ -89,6 +74,59 @@ export class ProbePart {
      */
     @Property.number()
     size!: number;
+
+    /**
+     * A remark, which some parts carry: a part without one is a different value than the same part with one.
+     */
+    @Property.string({ required: false })
+    note?: string;
+}
+
+/**
+ * What a probe carries beside its own columns, stored as one json value.
+ */
+export class ProbeDetails {
+    /**
+     * A text, when there is one.
+     */
+    @Property.string({ required: false })
+    color?: string;
+
+    /**
+     * A number, when there is one.
+     */
+    @Property.number({ required: false })
+    score?: number;
+
+    /**
+     * A list of texts inside the json value, when there is one.
+     */
+    @Property.array({ items: { type: 'string' }, required: false })
+    labels?: string[];
+
+    /**
+     * An object inside the json value, when there is one.
+     */
+    @Property.object({ cls: () => ProbePart, required: false })
+    part?: ProbePart;
+
+    /**
+     * A list of objects inside the json value, when there is one.
+     */
+    @Property.array({ items: { type: 'object', cls: () => ProbePart }, required: false })
+    parts?: ProbePart[];
+
+    /**
+     * A number past what a double holds exactly, inside the json value, when there is one.
+     */
+    @Property.number({ format: 'bigint', required: false })
+    weight?: bigint;
+
+    /**
+     * An exact decimal inside the json value, when there is one.
+     */
+    @Property.number({ format: 'bignumber', required: false })
+    price?: BigNumber;
 }
 
 /**
@@ -337,8 +375,12 @@ const TAGS: readonly string[][] = [[], ['a'], ['a', 'b'], ['b', 'c'], ['A'], ['b
 const PARTS: readonly ProbePart[][] = [
     [],
     [{ name: 'x', size: 1 }],
-    [{ name: 'x', size: 2 }, { name: 'y', size: 1 }]
+    [{ name: 'x', size: 2 }, { name: 'y', size: 1 }],
+    // the first part with a remark, which a filter naming the part without one does not find
+    [{ name: 'x', size: 1, note: 'spare' }]
 ];
+const PART_VALUES: readonly ProbePart[] = [{ name: 'x', size: 1 }, { name: 'y', size: 1 }, { name: 'x', size: 1, note: 'spare' }];
+const PRICES: readonly BigNumber[] = [new BigNumber(0), new BigNumber('1.5'), new BigNumber(9), new BigNumber(10)];
 const EXTRAS: readonly OneOf<ProbeExtraShapes>[] = [
     { shape: 'Note', value: 'a' },
     { shape: 'Note', value: 'b' },
@@ -362,6 +404,8 @@ function generateRows(): ProbeData[] {
     const picker: Picker = new Picker(0x9e3779b9);
     // a picker of its own, so the second moment leaves every other value as it was generated before
     const untilPicker: Picker = new Picker(0x85ebca6b);
+    // and one for what the json value holds beyond a text and a number, for the same reason
+    const nestedPicker: Picker = new Picker(0xc2b2ae35);
     return Array.from({ length: ROWS }, () => ({
         text: picker.maybe(TEXTS),
         owner: picker.maybe(OWNERS),
@@ -372,7 +416,15 @@ function generateRows(): ProbeData[] {
         until: untilPicker.maybe(DATES),
         flag: picker.maybe(FLAGS),
         tags: picker.maybe(TAGS)?.slice(),
-        details: { color: picker.maybe(TEXTS), score: picker.maybe(AMOUNTS) },
+        details: {
+            color: picker.maybe(TEXTS),
+            score: picker.maybe(AMOUNTS),
+            labels: nestedPicker.maybe(TAGS)?.slice(),
+            part: [nestedPicker.maybe(PART_VALUES)].map(part => part == undefined ? undefined : { ...part })[0],
+            parts: nestedPicker.maybe(PARTS)?.map(part => ({ ...part })),
+            weight: nestedPicker.maybe(LARGE_NUMBERS),
+            price: nestedPicker.maybe(PRICES)
+        },
         parts: picker.maybe(PARTS)?.map(part => ({ ...part })),
         extra: picker.maybe(EXTRAS)
     }));
@@ -581,10 +633,14 @@ const PART_CONDITIONS: readonly ObjectArrayWhereFilter<ProbePart>[] = [
     { not: null },
     { not: [] },
     { not: [{ name: 'x', size: 1 }] },
+    [{ name: 'x', size: 1, note: 'spare' }],
+    { not: [{ name: 'x', size: 1, note: 'spare' }] },
     { includes: [{ name: 'x', size: 1 }] },
     { includes: [{ name: 'y', size: 1 }] },
+    { includes: [{ name: 'x', size: 1, note: 'spare' }] },
     { isIncludedIn: [{ name: 'x', size: 1 }, { name: 'y', size: 1 }] },
     { isIncludedIn: [{ name: 'x', size: 2 }, { name: 'y', size: 1 }] },
+    { isIncludedIn: [{ name: 'x', size: 1, note: 'spare' }, { name: 'y', size: 1 }] },
     { length: 0 },
     { length: 1 },
     { lengthGreaterThan: 0 },
@@ -596,6 +652,33 @@ const PART_CONDITIONS: readonly ObjectArrayWhereFilter<ProbePart>[] = [
     { where: { size: 1, name: 'x' } },
     { where: [{ name: 'y' }, { size: 2 }] },
     { where: { name: 'x' }, length: 2 }
+];
+
+/**
+ * The filters on an object, compared as a whole.
+ */
+const PART_VALUE_CONDITIONS: readonly ObjectWhereFilter<ProbePart>[] = [
+    { is: null },
+    { not: null },
+    ...PART_VALUES.flatMap((part): ObjectWhereFilter<ProbePart>[] => [{ is: part }, { not: part }]),
+    { oneOf: [{ name: 'x', size: 1 }, { name: 'y', size: 1 }] },
+    { oneOf: [{ name: 'x', size: 1 }, null] },
+    { notOneOf: [{ name: 'x', size: 1 }] },
+    { notOneOf: [{ name: 'y', size: 1 }, null] },
+    { where: { name: 'x' } },
+    { where: { note: null } }
+];
+
+/**
+ * The filters on an exact decimal, with and without a value.
+ */
+const PRICE_CONDITIONS: readonly NumberWhereFilter<BigNumber>[] = [
+    ...[...PRICES, new BigNumber(2), null].flatMap((v): NumberWhereFilter<BigNumber>[] => [v, { not: v }]),
+    { oneOf: [new BigNumber('1.5'), new BigNumber(10)] },
+    { oneOf: [new BigNumber(9), null] },
+    { notOneOf: [new BigNumber(0), null] },
+    { greaterThan: new BigNumber(9) },
+    { lesserThanEquals: new BigNumber('1.5') }
 ];
 
 /**
@@ -785,6 +868,18 @@ export function describeWhereConformance(dataSourceName: string, repositoriesOf:
             expect(await mismatchesOf(OWNER_CONDITIONS.map(owner => ({ owner })))).toStrictEqual([]);
         });
 
+        // a store typing the column refuses to match a uuid as text, so every store refuses
+        it.each<StringWhereFilter>([
+            { like: '0b2d%' },
+            { notLike: '0b2d%' },
+            { iLike: '0B2D%' },
+            { fuzzyLike: { value: '0b2d' } },
+            { after: 'a' },
+            { before: 'nope' }
+        ])('refuses %j on a uuid, as no uuid is text', async owner => {
+            await expect(repositoriesOf().probes.findAll({ where: { owner } })).rejects.toThrow('uuid');
+        });
+
         it('reads a number the same way', async () => {
             expect(await mismatchesOf(NUMBER_CONDITIONS.map(amount => ({ amount })))).toStrictEqual([]);
         });
@@ -860,6 +955,18 @@ export function describeWhereConformance(dataSourceName: string, repositoriesOf:
 
         it('reads a list of objects the same way', async () => {
             expect(await mismatchesOf(PART_CONDITIONS.map(parts => ({ parts })))).toStrictEqual([]);
+        });
+
+        // 11 §S5: inside a json value, a store matched part of an object or a list where the
+        // evaluator compares the whole, and refused the values the evaluator answers
+        it('reads a list, an object and the large numbers inside a json value the same way', async () => {
+            expect(await mismatchesOf([
+                ...TAG_CONDITIONS.map((labels): Where<Probe> => ({ details: { where: { labels } } })),
+                ...PART_VALUE_CONDITIONS.map((part): Where<Probe> => ({ details: { where: { part } } })),
+                ...PART_CONDITIONS.map((parts): Where<Probe> => ({ details: { where: { parts } } })),
+                ...BIGINT_CONDITIONS.map((weight): Where<Probe> => ({ details: { where: { weight } } })),
+                ...PRICE_CONDITIONS.map((price): Where<Probe> => ({ details: { where: { price } } }))
+            ])).toStrictEqual([]);
         });
 
         it('reads a value of several shapes the same way', async () => {

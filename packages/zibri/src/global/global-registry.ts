@@ -36,7 +36,12 @@ export type AppData = {
     /**
      * Where the app runs.
      */
-    environment?: ZibriEnvironment
+    environment?: ZibriEnvironment,
+    /**
+     * Whether the app is initialized to run a command. Its data sources then connect without setting
+     * their schema up.
+     */
+    runsCommand: boolean
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -60,7 +65,8 @@ class AppNotYetMarkedAsError extends InternalError {
  */
 export abstract class GlobalRegistry {
     private static readonly appData: AppData = {
-        state: AppState.OFFLINE
+        state: AppState.OFFLINE,
+        runsCommand: false
     };
     /**
      * All injectables registered eg. Via \@Injectable.
@@ -221,14 +227,14 @@ export abstract class GlobalRegistry {
         this.changeAppState(AppState.SHUTTING_DOWN);
     }
 
+    // without this the state machine has no way back to where it started, so a process that has run
+    // one application can never run another - and the error a second one gets is about a state rather
+    // than about anything it did
     /**
-     * Marks the app as offline, which is the end of its lifecycle.
+     * Marks the app as offline, which is the end of its lifecycle. A process can run another
+     * application afterwards.
      *
-     * Without this the state machine has no way back to where it started, so a process that has run
-     * one application can never run another - and the error a second one gets is about a state rather
-     * than about anything it did.
-     *
-     * What is deliberately *not* cleared is everything the decorators registered. `@Entity`,
+     * What is *not* cleared is everything the decorators registered. `@Entity`,
      * `@Injectable` and `@DataSource` run when their module is first loaded and never again, so
      * dropping those arrays would leave the next application with nothing to build from.
      */
@@ -238,7 +244,15 @@ export abstract class GlobalRegistry {
         this.appData.version = undefined;
         this.appData.baseUrl = undefined;
         this.appData.environment = undefined;
+        this.appData.runsCommand = false;
         this.finishedLifecyclePhases.clear();
+    }
+
+    /**
+     * Marks the app as initialized to run a command.
+     */
+    static markAppAsRunningCommand(): void {
+        this.appData.runsCommand = true;
     }
 
     /**

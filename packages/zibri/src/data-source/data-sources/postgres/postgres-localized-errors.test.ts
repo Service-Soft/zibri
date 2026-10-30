@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
 import { PostgresPooler } from './postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from './postgres-typeorm-data-source.model';
+import { queryPostgres } from '../../../__testing__/query-postgres.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../../di/inject.function';
@@ -9,7 +10,6 @@ import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { Newable } from '../../../types/newable.type';
-import { OmitStrict } from '../../../types/omit-strict.type';
 import { DataSource } from '../../decorators/data-source.decorator';
 import { SchemaManagement } from '../../models/schema-management.model';
 import { Repository } from '../../repository/repository';
@@ -34,7 +34,7 @@ class LocalizedAccount extends BaseEntity {
 
 @DataSource()
 class LocalizedDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -61,8 +61,8 @@ let gauges: Repository<Gauge>;
  * @param parameters - Its parameters.
  * @returns The rows it returned.
  */
-async function runSql<T>(sql: string, parameters: unknown[] = []): Promise<T[]> {
-    return await inject(LocalizedDataSource).query(Gauge).connection.query(sql, parameters);
+async function runSql(sql: string, parameters: unknown[] = []): Promise<Record<string, unknown>[]> {
+    return await queryPostgres(inject(LocalizedDataSource), sql, parameters);
 }
 
 beforeAll(async () => {

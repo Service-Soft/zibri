@@ -1,6 +1,6 @@
+import { UserEventWriteObserver } from './user-event.write-observer';
 import { isUserRepository, UserRepositoryInterface } from './user-repository.interface';
 import { FindUserOptions, UserServiceInterface } from './user-service.interface';
-import { UserEventWriteObserver } from './user-event.write-observer';
 import { UserWriteObserver } from './user.write-observer';
 import { Repository } from '../../data-source/repository/repository';
 import { Transaction } from '../../data-source/transaction/transaction.model';
@@ -84,7 +84,8 @@ export class UserService implements UserServiceInterface, OnAppInit {
             }
             this.userRepositories.push(repo);
             this.userEntityRepositories.push(repo);
-            inject(EntityWriteObserverRegistry).register(repo.entityClass, new UserWriteObserver());
+            // given the role service here rather than resolving it per write (01 §Q3)
+            inject(EntityWriteObserverRegistry).register(repo.entityClass, new UserWriteObserver(inject(ZIBRI_DI_TOKENS.ROLE_SERVICE)));
             // only when the application named one, since each costs the writes of its kind an event
             if (names.userDeleted != undefined || names.userDeactivated != undefined || names.userReactivated != undefined) {
                 inject(EntityWriteObserverRegistry).register(repo.entityClass, new UserEventWriteObserver(names));
@@ -113,7 +114,8 @@ export class UserService implements UserServiceInterface, OnAppInit {
         options?: FindUserOptions<B>
     ): Promise<B extends false ? T | undefined : T> {
         const found: BaseUser<string> | undefined = await this.resolveFromAnyRepository(
-            this.userRepositories.map(r => r.findById(id))
+            // in the transaction, for the reason updateDeactivatedAt gives
+            this.userRepositories.map(r => r.findById(id, { transaction: options?.transaction }))
         );
         if (found != undefined) {
             return found as unknown as T;
@@ -130,7 +132,7 @@ export class UserService implements UserServiceInterface, OnAppInit {
         options?: FindUserOptions<B>
     ): Promise<B extends false ? T | undefined : T> {
         const found: BaseUser<string> | undefined = await this.resolveFromAnyRepository(
-            this.userRepositories.map(r => r.findByEmail(mail))
+            this.userRepositories.map(r => r.findByEmail(mail, { transaction: options?.transaction }))
         );
         if (found != undefined) {
             return found as unknown as T;
@@ -163,6 +165,20 @@ export class UserService implements UserServiceInterface, OnAppInit {
         const written: true | undefined = await this.resolveFromAnyRepository(
             this.userRepositories.map(async r => {
                 await r.updateRoles(id, roles, transaction);
+                return true as const;
+            })
+        );
+        if (written == undefined) {
+            throw new NotFoundError($ts`Could not find user with id "${id}".`);
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async updateEmail(id: string, email: string, emailVerifiedAt: Date | null, transaction: Transaction | undefined): Promise<void> {
+        // asked of every repository, for the reason updateDeactivatedAt gives
+        const written: true | undefined = await this.resolveFromAnyRepository(
+            this.userRepositories.map(async r => {
+                await r.updateEmail(id, email, emailVerifiedAt, transaction);
                 return true as const;
             })
         );

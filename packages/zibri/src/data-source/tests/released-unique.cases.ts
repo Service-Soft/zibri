@@ -74,6 +74,24 @@ export function describeReleasedUnique(dataSourceName: string, handlesOf: () => 
             expect((await taking).name).toBe(held.name);
         });
 
+        // an upsert found the row by the value while it was not holding it yet, and changed it once it
+        // was - after the row had given the value up, so the write landed on a row of another identity
+        it('is taken by an upsert once the transaction that changed it commits, which creates a row for it', async () => {
+            const held: Handle = await createHandle();
+            const renamed: string = `handle-${UUIDUtilities.generate()}`;
+            const transaction: Transaction = await handlesOf().dataSource.startTransaction();
+            await handlesOf().updateById(held.id, { name: renamed }, { transaction });
+
+            const taking: Promise<Handle> = handlesOf().upsert({ name: held.name }, { name: held.name }, { name: { set: held.name } });
+            await sleep(HELD_FOR_IN_MS);
+            await transaction.commit();
+
+            const taken: Handle = await taking;
+            expect(taken.id).not.toBe(held.id);
+            expect(taken.name).toBe(held.name);
+            expect((await handlesOf().findById(held.id)).name).toBe(renamed);
+        });
+
         it('stays with its row when the transaction that changed it rolls back', async () => {
             const held: Handle = await createHandle();
             const transaction: Transaction = await handlesOf().dataSource.startTransaction();

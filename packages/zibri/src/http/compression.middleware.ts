@@ -7,7 +7,7 @@ import { HttpMethod } from './http-method.enum';
 import { HttpResponse } from './http-response.model';
 import { HttpStatus } from './http-status.enum';
 import { KnownHeader } from './known-header.enum';
-import { isCompressibleMimeType } from './mime-type.helpers';
+import { MimeTypeUtilities } from './mime-type.utilities';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 
@@ -26,9 +26,8 @@ export type CompressionOptions = {
     /**
      * Whether to compress at all.
      *
-     * Turn it off where something in front of the application already does it - the work then happens
-     * on a machine that has nothing else to do, rather than on the thread pool this process also
-     * hashes passwords with.
+     * Turn it off where something in front of the application already does it, which keeps the work
+     * off the thread pool this process also hashes passwords with.
      */
     enabled: boolean,
     /**
@@ -93,7 +92,7 @@ function isWorthCompressing(res: HttpResponse, thresholdInBytes: number): boolea
     if (NO_TRANSFORM.test(String(res.getHeader(KnownHeader.CACHE_CONTROL) ?? ''))) {
         return false;
     }
-    if (!isCompressibleMimeType(String(res.getHeader(KnownHeader.CONTENT_TYPE) ?? ''))) {
+    if (!MimeTypeUtilities.isCompressible(String(res.getHeader(KnownHeader.CONTENT_TYPE) ?? ''))) {
         return false;
     }
     const length: number = Number(res.getHeader(KnownHeader.CONTENT_LENGTH) ?? Number.NaN);

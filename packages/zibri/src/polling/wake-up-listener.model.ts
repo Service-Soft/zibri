@@ -10,7 +10,7 @@ export type WakeUpListener = {
      * cannot miss the one sent in between.
      * @param timeoutInMs - How long to wait at most.
      * @param signal - Ends the wait early.
-     * @returns Whether a wake up arrived, rather than the time passing or the signal firing.
+     * @returns True when a wake up arrived, false when the time passed or the signal fired.
      */
     next: (timeoutInMs: number, signal?: AbortSignal) => Promise<boolean>,
     /**

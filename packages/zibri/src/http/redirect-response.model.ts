@@ -9,9 +9,10 @@ import { SelfDescribing } from '../types/self-describing.type';
 export class RedirectResponse implements SelfDescribing {
 
     /**
-     * What this is, written down rather than left to the prototype - for the reason `HtmlResponse`
-     * gives.
+     * What this is, as a value, so that it is still known after the response has been through json
+     * and back. Not part of what a caller is answered with.
      */
+    // written down rather than left to the prototype - for the reason `HtmlResponse` gives
     @Property.string({ exclude: true })
     readonly className: 'RedirectResponse' = 'RedirectResponse';
 
@@ -35,7 +36,8 @@ export class RedirectResponse implements SelfDescribing {
 /**
  * Whether the given value is a redirect response.
  *
- * By what it says it is rather than by `instanceof`, for the reason `isHtmlResponse` gives.
+ * Judged by its `className`, so that a response that has been through json and back is still
+ * recognized as one.
  * @param value - The value to judge.
  * @returns True when the value is a redirect response.
  */

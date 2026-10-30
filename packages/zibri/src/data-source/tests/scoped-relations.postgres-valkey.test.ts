@@ -10,7 +10,7 @@ import { Newable } from '../../types/newable.type';
 import { ChangeSet } from '../change-sets/models/change-set.model';
 import { Change } from '../change-sets/models/change.model';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
-import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
 import { MigrationEntity } from '../migration/migration-entity.model';
 

@@ -50,6 +50,11 @@ const DEFAULT_MAX_BULK_OPERATIONS: number = 1000;
 const DEFAULT_MAX_BULK_PAYLOAD_SIZE: FileSize = '1mb';
 
 /**
+ * The most resources a list answers, unless the options say otherwise.
+ */
+const DEFAULT_MAX_RESULTS: number = 200;
+
+/**
  * The parameters of a route listing resources.
  */
 const LIST_QUERY_OPTIONS: QueryParamMetadataInput = { type: 'string', required: false };
@@ -100,7 +105,8 @@ export function ScimController(
                 provisioner,
                 url: `${baseUrl.replace(/\/+$/, '')}${path}`,
                 maxBulkOperations: options.bulk?.maxOperations ?? DEFAULT_MAX_BULK_OPERATIONS,
-                maxBulkPayloadSize: fileSizeToBytes(maxBulkPayloadSize).toNumber()
+                maxBulkPayloadSize: fileSizeToBytes(maxBulkPayloadSize).toNumber(),
+                maxResults: options.maxResults ?? DEFAULT_MAX_RESULTS
             };
         }
 

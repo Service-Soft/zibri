@@ -1,14 +1,12 @@
-import type { Batch, GlideClient } from '@valkey/valkey-glide';
+import type { GlideClient } from '@valkey/valkey-glide';
 
 import { applyGuardedValKeyWrites } from './apply-guarded-val-key-writes.function';
 import { KeyDeclarationsChangedError } from './key-declarations-changed.error';
-import { queueValKeyWrite } from './queue-val-key-write.function';
 import { TransactionAlreadyFinishedError } from './transaction-already-finished.error';
 import { TransactionDeadlockError } from './transaction-deadlock.error';
 import { Transaction } from './transaction.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { LoggerInterface } from '../../logging/logger.interface';
-import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function';
 
 /**
  * A write that has been buffered inside a valkey transaction.
@@ -81,6 +79,20 @@ export type ValKeyBufferedWrite = {
 };
 
 /**
+ * Grants as a write hands them back: each key is deleted only while it still holds the token.
+ */
+export type ValKeyGrantRelease = {
+    /**
+     * The token the grants were taken with.
+     */
+    token: string,
+    /**
+     * The keys the grants live under.
+     */
+    lockKeys: string[]
+};
+
+/**
  * The grants of one transaction, kept alive and handed back together.
  *
  * Supplied by the data source rather than built here, so the transaction does not have to know how a
@@ -96,16 +108,21 @@ export type ValKeyTransactionGrants = {
      */
     claim: (keys: string[]) => Promise<void>,
     /**
-     * Hands every grant back. Safe to call more than once.
+     * The grants taken so far, as the write applying the transaction hands them back.
      */
-    release: () => Promise<void>
+    resolveRelease: () => ValKeyGrantRelease,
+    /**
+     * Hands every grant back. Safe to call more than once.
+     * @param handedBack - The grants a write already handed back, which are not sent again.
+     */
+    release: (handedBack?: ValKeyGrantRelease) => Promise<void>
 };
 
 /**
  * A transaction of a valkey data source.
  *
  * Valkey has no interactive transactions: commands can only be queued and then applied in one atomic
- * batch (MULTI / EXEC). This transaction therefore buffers every write until it is committed and keeps
+ * step, a script. This transaction therefore buffers every write until it is committed and keeps
  * an overlay of the buffered state so that reads inside the transaction already see its own writes.
  *
  * That gives atomicity - either all buffered commands are applied or none of them are - and read your
@@ -438,15 +455,16 @@ export class ValKeyTransaction implements Transaction {
      * Runs however the transaction ended. A grant kept past the end of the transaction that took it
      * is the failure this whole area exists to prevent - and here it would be worse than usual,
      * because nothing would ever come back for it until it lapsed.
+     * @param handedBack - The grants the commit already handed back along with its writes.
      */
-    private async releaseGrants(): Promise<void> {
+    private async releaseGrants(handedBack?: ValKeyGrantRelease): Promise<void> {
         // nothing left to give up on once the grants are going back
         clearTimeout(this.idleTimer);
         this.idleTimer = undefined;
         this.claims.clear();
         // together rather than one by one, because a transaction holds as many grants as it wrote
         // rows - and without waiting for claims still queueing, which hand their key back on their own
-        await this.grants.release();
+        await this.grants.release(handedBack);
     }
 
     /**
@@ -520,15 +538,16 @@ export class ValKeyTransaction implements Transaction {
         this.finished = true;
 
         let committed: boolean = false;
+        let handedBack: ValKeyGrantRelease | undefined;
         try {
-            await this.applyWrites();
+            handedBack = await this.applyWrites();
             committed = true;
         }
         finally {
-            // after the batch, never before: the grants are what stopped anyone else writing these
+            // after the writes, never before: the grants are what stopped anyone else writing these
             // keys, and letting go while the writes were still unapplied would be the same as never
             // having taken them
-            await this.releaseGrants();
+            await this.releaseGrants(handedBack);
             await this.runFinishedWork(committed);
         }
         for (const work of this.committedWork.splice(0)) {
@@ -561,30 +580,25 @@ export class ValKeyTransaction implements Transaction {
     }
 
     /**
-     * Applies everything this transaction buffered, in one atomic batch.
+     * Applies everything this transaction buffered, in one atomic step.
+     * @returns The grants handed back along with the writes, if any were.
      * @throws KeyDeclarationsChangedError when a guarded key changed, in which case nothing was applied.
-     * @throws When the batch could not be applied.
+     * @throws When the writes could not be applied.
      */
-    private async applyWrites(): Promise<void> {
+    private async applyWrites(): Promise<ValKeyGrantRelease | undefined> {
         if (!this.writes.length) {
-            return;
+            return undefined;
         }
-        if (this.guards.size) {
-            if (!await applyGuardedValKeyWrites(this.client, { values: this.guards, hashes: new Map() }, this.writes)) {
-                throw new KeyDeclarationsChangedError();
-            }
-            return;
+        // the grants go back in the step that applies the writes, which is after them all the same
+        // and saves the request handing them back would take
+        const release: ValKeyGrantRelease = this.grants.resolveRelease();
+        // through the guard script with nothing guarded too, rather than as an atomic batch: one path
+        // for every commit, and measured at half the time of the batch from a thousand rows up
+        // (apply-guarded-val-key-writes.benchmark.test.ts, round 2's code review 02 §Q6)
+        if (!await applyGuardedValKeyWrites(this.client, { values: this.guards, hashes: new Map() }, this.writes, release)) {
+            throw new KeyDeclarationsChangedError();
         }
-
-        const batch: Batch = new (valKeyGlide().Batch)(true);
-        for (const write of this.writes) {
-            queueValKeyWrite(batch, write);
-        }
-
-        const res: unknown[] | null = await this.client.exec(batch, true);
-        if (res == undefined) {
-            throw new InternalError('The transaction could not be committed.');
-        }
+        return release;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

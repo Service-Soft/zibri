@@ -10,10 +10,9 @@ import { Injectable } from '../../di/decorators/injectable.decorator';
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
 import { SemVerVersion } from '../../utilities/sem-ver.utilities';
+import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-data-source.model';
 import { PostgresPooler } from '../data-sources/postgres/postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../decorators/data-source.decorator';
 import { SchemaManagement } from '../models/schema-management.model';
 import { Repository } from '../repository/repository';
@@ -43,7 +42,7 @@ const journal: string[] = [];
 // finished evaluating
 @DataSource()
 class MigrationIdentityDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -147,7 +146,7 @@ describe('two migrations shipping in one release', () => {
     it('reverts a release in the reverse of the order it was applied in', async () => {
         const before: number = journal.length;
 
-        await inject(MigrationIdentityDataSource).revertMigrationsAfter('0.0.9');
+        await inject(MigrationIdentityDataSource).revertMigrationsAfter({ version: '0.0.9' });
 
         // a later change of a release may build on an earlier one, so undoing them in the order they
         // were applied takes the ground out from under its own next step. Sorting by version cannot

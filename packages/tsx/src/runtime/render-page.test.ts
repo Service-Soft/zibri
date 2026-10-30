@@ -282,6 +282,55 @@ describe('renderPage', () => {
         expect(chosen).toBe('ok');
     });
 
+    it.each([
+        ['the props whole', 'const Home = (props) => <button onClick={() => chose(props.label)}>x</button>;'],
+        ['a renamed prop', 'const Home = ({ label: text }) => <button onClick={() => chose(text)}>x</button>;'],
+        ['a prop destructured further', 'const Home = ({ item: { label } }) => <button onClick={() => chose(label)}>x</button>;']
+    ])('hands the client a prop it reads through %s', (_how, page) => {
+        const out: string = renderPage(compilePage(page), { label: 'ok', item: { label: 'ok', secret: 'SECRET-NEVER-IN-PAGE' } });
+        const elements: FakeElement[] = elementsFrom(out);
+        let chosen: string | undefined;
+        runScript(scriptBodyOf(out), elements, {
+            chose: (v: string) => {
+                chosen = v;
+            }
+        });
+        elements[0].fire('click');
+
+        expect(chosen).toBe('ok');
+        expect(out).not.toContain('SECRET-NEVER-IN-PAGE');
+    });
+
+    it('hands the client every prop when it uses the props whole', () => {
+        const out: string = renderPage(
+            compilePage('const Home = (props) => <button onClick={() => chose(JSON.stringify(props))}>x</button>;'),
+            { label: 'ok', count: 2 }
+        );
+        const elements: FakeElement[] = elementsFrom(out);
+        let chosen: string | undefined;
+        runScript(scriptBodyOf(out), elements, {
+            chose: (v: string) => {
+                chosen = v;
+            }
+        });
+        elements[0].fire('click');
+
+        expect(chosen).toBe('{"label":"ok","count":2}');
+    });
+
+    it('hands a nested component a prop it reads under another name', () => {
+        const button: string = 'const Button = ({ label: text, user: { id } }) => <button onClick={() => picked(text, id)}>x</button>;';
+        const out: string = renderPage(compilePage('const Page = () => <Button label="a" user={{ id: \'u1\', secret: \'SECRET-NEVER-IN-PAGE\' }}/>;', { Button: button }));
+        const picked: string[] = [];
+        const elements: FakeElement[] = elementsFrom(out);
+
+        runScript(scriptBodyOf(out), elements, { picked: (...values: string[]) => picked.push(...values) });
+        elements[0].fire('click');
+
+        expect(picked).toEqual(['a', 'u1']);
+        expect(out).not.toContain('SECRET-NEVER-IN-PAGE');
+    });
+
     it('attaches a handler once per element when a component is rendered several times', () => {
         // Every instance runs the same setup, and each run sees the whole document — so an instance
         // must only wire up the elements that belong to it.

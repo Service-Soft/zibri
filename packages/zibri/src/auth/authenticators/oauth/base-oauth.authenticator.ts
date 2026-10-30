@@ -20,6 +20,7 @@ import { type HttpClientInterface } from '../../../http-client/http-client.inter
 import { type LeaseServiceInterface } from '../../../leases/lease-service.interface';
 import { AuditAction, AuditOutcome } from '../../../logging/audit-event.model';
 import { type LoggerInterface } from '../../../logging/logger.interface';
+import { Ms } from '../../../utilities/ms';
 import { optionalPeer } from '../../../utilities/optional-peer.function';
 import { UrlUtilities } from '../../../utilities/url.utilities';
 import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
@@ -27,21 +28,43 @@ import { BaseUser } from '../../models/base-user.model';
 import { BaseFederatedAuthenticator } from '../federated/base-federated.authenticator';
 import { FederatedAnswerContext } from '../federated/federated-answer-context.model';
 import { FederatedIdentity } from '../federated/federated-identity.model';
-import { FederatedReauthentication } from '../federated/federated-reauthentication.model';
 import { FederatedLoginFailure } from '../federated/federated-login-failure.enum';
 import { FederatedLoginStart } from '../federated/federated-login-start.model';
 import { FederatedLoginError } from '../federated/federated-login.error';
 import { FederatedLogin } from '../federated/federated-login.model';
+import { FederatedReauthentication } from '../federated/federated-reauthentication.model';
 import { ProviderTokenGrant } from '../federated/provider-token-grant.model';
 import { ProviderAccessAuthenticatorInterface } from '../provider-access-authenticator.interface';
 import { ProviderAccessFailure } from '../provider-access-failure.enum';
 import { ProviderAccessError } from '../provider-access.error';
 
 /**
- * How long before it expires an access token is replaced, so it does not expire on its way to the
- * provider's api.
+ * The codes `openid-client` refuses an answer of the provider with because checking it found it wrong.
+ * Its other codes say the provider did not answer as an OAuth provider, such as with a gateway's page.
  */
-const ACCESS_TOKEN_REFRESH_MARGIN_IN_MS: number = 60000;
+const ANSWER_REFUSED_CODES: ReadonlySet<string> = new Set([
+    'OAUTH_JWT_CLAIM_COMPARISON_FAILED',
+    'OAUTH_JSON_ATTRIBUTE_COMPARISON_FAILED',
+    'OAUTH_JWT_TIMESTAMP_CHECK_FAILED',
+    'OAUTH_INVALID_RESPONSE',
+    'OAUTH_PARSE_ERROR',
+    'OAUTH_KEY_SELECTION_FAILED',
+    'OAUTH_UNSUPPORTED_OPERATION'
+]);
+
+/**
+ * How the provider is talked to, and when that was set up.
+ */
+type ReadConfiguration = {
+    /**
+     * The configuration, being set up or set up.
+     */
+    configuration: Promise<Configuration>,
+    /**
+     * When setting it up started, in milliseconds since the epoch.
+     */
+    readAtMs: number
+};
 
 /**
  * Authenticates a user by a login at an OAuth provider: the browser is sent there, and comes back with
@@ -75,7 +98,7 @@ export abstract class BaseOAuthAuthenticator<
     readonly responseMode: OAuthResponseMode = 'query';
 
     /**
-     * The `prompt` that has the provider ask the user to log in again, rather than reuse its session.
+     * The `prompt` that has the provider ask the user to log in again, even when it still has a session of theirs.
      */
     readonly reauthenticationPrompt: string = 'login';
 
@@ -86,13 +109,24 @@ export abstract class BaseOAuthAuthenticator<
     readonly offlineAccess: OAuthOfflineAccess = { scopes: [], prompts: [], parameters: {} };
 
     /**
-     * How the provider is talked to, set up once and kept.
+     * How long before it expires a provider's access token is replaced, so it does not expire on its
+     * way to the provider's api. One minute by default.
+     */
+    readonly accessTokenRefreshMarginInMs: number = Ms.MINUTE;
+
+    /**
+     * How long the provider's metadata is kept before it is read again. One day by default.
+     */
+    readonly metadataMaxAgeInMs: number = Ms.DAY;
+
+    /**
+     * How the provider is talked to, set up when first needed and again once `metadataMaxAgeInMs` passed.
      *
      * The promise rather than the value, so two logins starting together set it up once. Dropped when
-     * setting it up failed, so the next login tries again rather than failing for as long as the
-     * process lives.
+     * setting it up failed and there is none from before, so the next login tries again rather than
+     * failing for as long as the process lives.
      */
-    private configuration: Promise<Configuration> | undefined;
+    private configuration: ReadConfiguration | undefined;
 
     private get tokensRepository(): Repository<OAuthProviderTokens, OAuthProviderTokensCreateData> {
         return inject(repositoryTokenFor(OAuthProviderTokens));
@@ -345,22 +379,73 @@ export abstract class BaseOAuthAuthenticator<
             );
         }
         catch (error) {
-            throw new FederatedLoginError(FederatedLoginFailure.INVALID, { cause: error, action: exchange.action });
+            const failure: FederatedLoginFailure = this.resolveExchangeFailure(client, error);
+            if (failure === FederatedLoginFailure.PROVIDER_ERROR) {
+                // the provider not answering is a fault of somebody's to look at, and refusing it as a
+                // forged answer showed an outage to the trail as a run of failed logins
+                this.logger.warn(`${this.constructor.name} could not exchange the code at the provider.`, { error });
+            }
+            throw new FederatedLoginError(failure, { cause: error, action: exchange.action });
         }
     }
 
     /**
-     * How the provider is talked to, set up when it is first needed.
+     * Resolves whether a failed exchange is an answer that is not good, or a provider that did not answer
+     * as one.
+     * @param client - The `openid-client` module.
+     * @param error - What the exchange threw.
+     * @returns `INVALID` for an answer refused as wrong, `PROVIDER_ERROR` for everything else.
+     */
+    private resolveExchangeFailure(client: OpenIdClient, error: unknown): FederatedLoginFailure {
+        // the provider's own refusal, such as a code it already took or a verifier that does not match
+        if (error instanceof client.ResponseBodyError) {
+            return error.status < 500 ? FederatedLoginFailure.INVALID : FederatedLoginFailure.PROVIDER_ERROR;
+        }
+        if (error instanceof client.AuthorizationResponseError) {
+            return FederatedLoginFailure.INVALID;
+        }
+        // what checking the answer found wrong with it: a claim, a signature, a state that is not the one
+        // sent. What is left of the library's codes is a provider not answering in OAuth at all
+        if (error instanceof client.ClientError && error.code != undefined && ANSWER_REFUSED_CODES.has(error.code)) {
+            return FederatedLoginFailure.INVALID;
+        }
+        return FederatedLoginFailure.PROVIDER_ERROR;
+    }
+
+    /**
+     * How the provider is talked to, set up when it is first needed and again once `metadataMaxAgeInMs`
+     * passed. When setting it up again fails, the one from before is used until it can be.
      * @returns The configuration.
-     * @throws When the provider cannot be reached to set it up.
+     * @throws When the provider cannot be reached to set it up, and it was never set up before.
      */
     protected async resolveConfiguration(): Promise<Configuration> {
-        // eslint-disable-next-line promise/prefer-await-to-then, promise/prefer-await-to-callbacks
-        this.configuration ??= this.setUpConfiguration().catch((error: unknown) => {
-            this.configuration = undefined;
-            throw error;
-        });
-        return await this.configuration;
+        const previous: ReadConfiguration | undefined = this.configuration;
+        if (previous != undefined && Date.now() - previous.readAtMs < this.metadataMaxAgeInMs) {
+            return await previous.configuration;
+        }
+        // one reading for every login that needs it meanwhile
+        const reading: ReadConfiguration = { configuration: this.setUpConfiguration(), readAtMs: Date.now() };
+        this.configuration = reading;
+        try {
+            return await reading.configuration;
+        }
+        catch (error) {
+            if (previous == undefined) {
+                // only the reading that failed, not one a later login started meanwhile
+                if (this.configuration === reading) {
+                    this.configuration = undefined;
+                }
+                throw error;
+            }
+            this.logger.warn(
+                `${this.constructor.name} could not read the metadata of the provider again, and uses what it read before.`,
+                { error }
+            );
+            if (this.configuration === reading) {
+                this.configuration = previous;
+            }
+            return await previous.configuration;
+        }
     }
 
     /**
@@ -525,12 +610,6 @@ export abstract class BaseOAuthAuthenticator<
     }
 
     /**
-     * Stops keeping the tokens of an identity, and records that its apis can no longer be called.
-     * @param identity - The identity.
-     * @param transaction - The transaction to write in, if any.
-     * @returns The tokens that were kept, to hand back to the provider. None when none were.
-     */
-    /**
      * Unlinks an identity left linked for nothing: neither logging in nor any api.
      * @param identity - The identity.
      * @param transaction - The transaction to unlink it in, if any.
@@ -541,6 +620,12 @@ export abstract class BaseOAuthAuthenticator<
         this.auditService.record({ action: AuditAction.IDENTITY_UNLINKED, outcome: AuditOutcome.SUCCESS, userId: identity.userId });
     }
 
+    /**
+     * Stops keeping the tokens of an identity, and records that its apis can no longer be called.
+     * @param identity - The identity.
+     * @param transaction - The transaction to write in, if any.
+     * @returns The tokens that were kept, to hand back to the provider. None when none were.
+     */
     private async removeTokens(
         identity: FederatedIdentity,
         transaction: Transaction | undefined
@@ -606,7 +691,7 @@ export abstract class BaseOAuthAuthenticator<
 
     private isFresh(tokens: OAuthProviderTokens): boolean {
         return tokens.accessTokenExpirationDate == undefined
-            || new Date(tokens.accessTokenExpirationDate).getTime() - ACCESS_TOKEN_REFRESH_MARGIN_IN_MS > Date.now();
+            || new Date(tokens.accessTokenExpirationDate).getTime() - this.accessTokenRefreshMarginInMs > Date.now();
     }
 
     /**

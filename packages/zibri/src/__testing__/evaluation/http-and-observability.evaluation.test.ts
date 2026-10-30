@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { RequestHandler } from 'express';
 
 import { ZibriApplication } from '../../application/application';
-import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { ZIBRI_DI_PROVIDERS } from '../../di/default/zibri-di-providers.default';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';

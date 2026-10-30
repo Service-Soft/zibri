@@ -1,7 +1,7 @@
 import { projectValue } from './access-shape';
 import { toScriptJson } from './script-json';
 import { ClientInstanceEntry, CompiledComponent, createServerRuntime, isClientPropMarker, renderChild,
-    RenderServerRuntime } from './server-runtime';
+    RenderServerRuntime, resolveReferencedKeys } from './server-runtime';
 import { CLIENT_HOOK_SOURCES, HookData, substituteHookPlaceholders } from '../codegen/client/hooks';
 import { vendorFileName } from '../vendor-file-name';
 
@@ -197,7 +197,7 @@ function pageEntry(page: CompiledPage, props: Record<string, unknown>): ClientIn
         return [];
     }
     const selected: Record<string, unknown> = {};
-    for (const name of referencedProps) {
+    for (const name of resolveReferencedKeys(props, referencedProps)) {
         if (name in props && typeof props[name] !== 'function') {
             // only what the client reads from the prop reaches the page
             selected[name] = projectValue(props[name], propShapes?.[name] ?? 'whole');

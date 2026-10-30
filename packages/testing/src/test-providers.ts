@@ -9,13 +9,12 @@ const noOp: () => void = () => {};
 
 const noOpAsync: () => Promise<void> = async () => {};
 
+// The same 32 bytes in every process, which randomBytes was not: it runs once per module load, so
+// each forked replica got its own key under the same id. Replicas share a database, so a value one
+// of them encrypted was then unreadable to the others - and has2fa swallows the failure, which made
+// it look like a wrong code rather than a key nobody could use.
 /**
- * The master key every test server runs with.
- *
- * The same 32 bytes in every process, which randomBytes was not: it runs once per module load, so
- * each forked replica got its own key under the same id. Replicas share a database, so a value one
- * of them encrypted was then unreadable to the others - and has2fa swallows the failure, which made
- * it look like a wrong code rather than a key nobody could use.
+ * The master key every test server runs with, the same in every process.
  *
  * Exported because a test that swaps the master strategy has to hand this back in as an old key, or
  * the key rows already in the table stop being readable.
@@ -29,9 +28,8 @@ export const testMasterKey: EncryptionMasterKey<Buffer> = {
 /**
  * What a test server runs with unless the test says otherwise.
  *
- * Every entry is here because the shipped default is wrong *for a test* rather than wrong: work
- * factors sized for an attacker, a scheduler that fires on its own, a rate limit written for real
- * callers. Nothing here changes what the application does - a test that is about one of these
+ * Every entry is here because the shipped default is wrong *for a test*: work factors sized for an
+ * attacker, a scheduler that fires on its own, a rate limit written for real callers. Nothing here changes what the application does - a test that is about one of these
  * registers its own provider for that token and gets the shipped behavior back.
  */
 export const defaultTestProviders: DiProvider<unknown>[] = [

@@ -9,6 +9,9 @@ import { PollingCronJob } from '../polling/polling-cron-job.model';
 import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
 import { Newable } from '../types/newable.type';
 
+// Deliberately `runsOn: 'everyInstance'`. Every instance has its own caches to clear, so every instance
+// has to run this; electing one would clear one instance's caches and leave the rest stale, which
+// is the very thing being fixed. Keeps no row for the same reason.
 /**
  * Applies the cache invalidations other instances have published.
  *
@@ -18,9 +21,7 @@ import { Newable } from '../types/newable.type';
  * them removes them for everybody - but not for the local tier of a multi tier cache, which is
  * local by definition. That tier is what this exists for.
  *
- * Deliberately `runsOn: 'everyInstance'`. Every instance has its own caches to clear, so every instance
- * has to run this; electing one would clear one instance's caches and leave the rest stale, which
- * is the very thing being fixed. Keeps no row for the same reason.
+ * Runs on every instance, and keeps no row.
  */
 export class CacheInvalidationCronJob extends PollingCronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc

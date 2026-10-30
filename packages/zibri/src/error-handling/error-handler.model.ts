@@ -1,7 +1,7 @@
 import { NextFunction } from 'express';
 
-import { HttpRequest } from '../http/http-request.model';
-import { HttpResponse } from '../http/http-response.model';
+import { type HttpRequest } from '../http/http-request.model';
+import { type HttpResponse } from '../http/http-response.model';
 import { TsxComponent } from '../tsx/tsx-component.model';
 import { HttpError } from './errors/http.error';
 

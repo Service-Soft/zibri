@@ -5,7 +5,6 @@ import { JwtAuthData } from './jwt-auth-data.model';
 import { type JwtAuthOptions } from './jwt-auth-options.model';
 import { JwtKey } from './jwt-key.model';
 import { JwtRefreshLoginData, JwtRefreshLoginDto } from './jwt-refresh-login-data.model';
-import { JwtRefreshTokenCleanupCronJob } from './jwt-refresh-token-cleanup.cron-job';
 import { isJwtRefreshTokenPayload, JwtRefreshTokenPayload } from './jwt-refresh-token-payload.model';
 import { JwtRefreshToken, JwtRefreshTokenCreateDto } from './jwt-refresh-token.model';
 import { type JwtServiceInterface } from './jwt-service.interface';
@@ -28,6 +27,8 @@ import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.e
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { $ts } from '../../../localization/translate.function';
 import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
+import { BaseMembership } from '../../../tenancy/membership/base-membership.model';
+import { type MembershipServiceInterface } from '../../../tenancy/membership/membership-service.interface';
 import { Newable } from '../../../types/newable.type';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { Ms } from '../../../utilities/ms';
@@ -44,13 +45,17 @@ import { type HashServiceInterface } from '../../hash/hash-service.interface';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
 import { Authentication } from '../../models/authentication.model';
 import { BaseUser } from '../../models/base-user.model';
+import { ClaimedUser } from '../../models/claimed-user.model';
 import { EndedLogin } from '../../models/ended-login.model';
+import { ListedLogin } from '../../models/listed-login.model';
 import { ProviderAuthentication } from '../../models/provider-authentication.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthControllerStrategyInterface } from '../auth-controller-strategy.interface';
 import { AuthorizationHeaderUtilities } from '../authorization-header.utilities';
 import { AuthorizationToken } from '../authorization-token.model';
 import { CredentialEntity } from '../credential-entity.model';
+import { LoginListingAuthStrategyInterface } from '../login-listing-auth-strategy.interface';
+import { resolveLoginDevice } from '../resolve-login-device.function';
 import { TokenIntrospectingAuthStrategyInterface } from '../token-introspecting-auth-strategy.interface';
 
 /**
@@ -102,7 +107,13 @@ implements AuthControllerStrategyInterface<
     JwtAuthData<RoleType>,
     JwtRefreshLoginData,
     OmitStrict<JwtRefreshLoginData, 'transaction'>
->, TokenIntrospectingAuthStrategyInterface<RoleType, UserType> {
+>, TokenIntrospectingAuthStrategyInterface<RoleType, UserType>, LoginListingAuthStrategyInterface<
+    RoleType,
+    UserType,
+    JwtAuthData<RoleType>,
+    JwtRefreshLoginData,
+    OmitStrict<JwtRefreshLoginData, 'transaction'>
+> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly name: string = 'jwt';
 
@@ -147,6 +158,9 @@ implements AuthControllerStrategyInterface<
         return inject(repositoryTokenFor(JwtRefreshToken));
     }
 
+    private get membershipService(): MembershipServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.MEMBERSHIP_SERVICE);
+    }
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS)
@@ -215,11 +229,7 @@ implements AuthControllerStrategyInterface<
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     init(app: ZibriApplication): void {
-        // first, since the cleanup job below needs it as well
         validateEntitiesRegistered(JwtAuthStrategy.name, app, JwtRefreshToken);
-        if (!app.options.cronJobs.includes(JwtRefreshTokenCleanupCronJob)) {
-            app.options.cronJobs.push(JwtRefreshTokenCleanupCronJob);
-        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -254,6 +264,7 @@ implements AuthControllerStrategyInterface<
             user,
             refreshTokenValue,
             familyId,
+            authTime,
             FederatedSessionUtilities.toColumns(federatedSession),
             dpopKeyThumbprint,
             providerAuthentication,
@@ -308,6 +319,7 @@ implements AuthControllerStrategyInterface<
         foundUser: UserType,
         refreshTokenValue: string,
         familyId: string,
+        authTime: number,
         federatedSession: FederatedSessionColumns,
         dpopKeyThumbprint: string | undefined,
         providerAuthentication: ProviderAuthentication | undefined,
@@ -319,11 +331,55 @@ implements AuthControllerStrategyInterface<
             familyId,
             blacklisted: false,
             expirationDate: new Date(Date.now() + this.refreshTokenExpiresInMs),
+            authenticatedAt: new Date(authTime * Ms.SECOND),
+            issuedAt: new Date(),
+            // the client of each refresh rather than of the login's start, so a login lists where it
+            // was last used from
+            ...resolveLoginDevice(),
             dpopKeyThumbprint,
             providerAuthentication,
             ...federatedSession
         };
         return await this.refreshTokenRepository.create(data, { transaction });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findLogins(userId: string, transaction: Transaction | undefined): Promise<ListedLogin[]> {
+        const live: JwtRefreshToken[] = await this.refreshTokenRepository.findAll({
+            where: { userId, blacklisted: false, expirationDate: { after: new Date() } },
+            limit: 'all',
+            transaction
+        });
+        // one token of a login is live, except for a moment after two tabs refreshed with the same one
+        // within the grace, each into a token of its own: the newer stands for the login
+        const byLogin: Map<string, JwtRefreshToken> = new Map();
+        for (const token of live) {
+            const kept: JwtRefreshToken | undefined = byLogin.get(token.familyId);
+            if (kept == undefined || new Date(token.issuedAt ?? 0).getTime() > new Date(kept.issuedAt ?? 0).getTime()) {
+                byLogin.set(token.familyId, token);
+            }
+        }
+        return [...byLogin.values()].map(token => ({
+            id: token.familyId,
+            authenticatedAt: token.authenticatedAt ?? undefined,
+            lastUsedAt: token.issuedAt ?? undefined,
+            expiresAt: token.expirationDate,
+            userAgent: token.userAgent ?? undefined,
+            ipAddress: token.ipAddress ?? undefined
+        }));
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async endLogin(userId: string, loginId: string, transaction: Transaction | undefined): Promise<boolean> {
+        // the refresh tokens only, as with endLogins. By the user as well, so a login of somebody else is
+        // none of theirs
+        return await this.refreshTokenRepository.deleteAll({ userId, familyId: loginId }, { transaction }) > 0;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveLoginId(context: HttpRequestContext | WebsocketRequestContext): Promise<string | undefined> {
+        // the family its refresh tokens share, which the access token names as the login
+        return (await this.findRequestLoginToken(context))?.payload.sid;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -395,7 +451,8 @@ implements AuthControllerStrategyInterface<
         await this.validateRefreshProof(refreshToken);
         // before it is spent as well, so a refresh an authenticator refuses - a directory that cannot be
         // reached, say - leaves the token working
-        const found: UserType | undefined = await this.userService.findById<RoleType, UserType, false>(refreshToken.userId, { required: false });
+        const found: UserType | undefined = await this.userService
+            .findById<RoleType, UserType, false>(refreshToken.userId, { required: false });
         if (found == undefined) {
             throw new UnauthorizedError($ts`Invalid refresh token.`);
         }
@@ -437,6 +494,7 @@ implements AuthControllerStrategyInterface<
                 user,
                 refreshTokenValue,
                 refreshToken.familyId,
+                authTime,
                 // the session at a provider stays with the login, like its time, its key and how the
                 // user proved who they are there
                 FederatedSessionUtilities.toColumns(FederatedSessionUtilities.fromColumns(refreshToken)),
@@ -507,15 +565,15 @@ implements AuthControllerStrategyInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async resolveClaimedUser(context: HttpRequestContext | WebsocketRequestContext): Promise<BaseUser<RoleType> | undefined> {
+    async resolveClaimedUser(context: HttpRequestContext | WebsocketRequestContext): Promise<ClaimedUser<RoleType> | undefined> {
         const token: LoginAccessToken<RoleType> | undefined = await this.findRequestLoginToken(context);
         if (token == undefined) {
             return undefined;
         }
-        // everything a check needs is already in the payload - an id, an email and roles is a base
-        // user. What it cannot carry is the rest of the application's own user entity, which is why
+        // everything a check needs is already in the payload - an id, roles, and the roles in each
+        // tenant. What it cannot carry is the rest of the application's own user entity, which is why
         // this is not the type resolveUser returns and why the current user never comes from here.
-        return { id: token.payload.id, email: token.payload.email, roles: token.payload.roles };
+        return { id: token.payload.id, roles: token.payload.roles, tenantRoles: token.payload.tenant_roles };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -707,10 +765,16 @@ implements AuthControllerStrategyInterface<
         dpopKeyThumbprint: string | undefined,
         providerAuthentication: ProviderAuthentication | undefined
     ): Promise<string> {
+        // only while checks trust the credential: a check in a tenant reads these in place of the
+        // membership then, and otherwise they would only make every token longer. As stale as the
+        // roles beside them, until the next refresh
+        const tenantRoles: Record<string, string[]> | undefined = inject(ZIBRI_DI_TOKENS.REVALIDATE_USER_ON_AUTH_CHECK)
+            ? undefined
+            : await this.resolveTenantRoles(user.id);
         const payload: JwtAccessTokenPayload<RoleType, UserType> = {
             id: user.id,
             roles: user.roles,
-            email: user.email,
+            ...tenantRoles == undefined ? {} : { tenant_roles: tenantRoles },
             auth_time: authTime,
             sid: familyId,
             ...dpopKeyThumbprint == undefined ? {} : { cnf: { jkt: dpopKeyThumbprint } },
@@ -728,6 +792,16 @@ implements AuthControllerStrategyInterface<
         catch (error) {
             throw new UnauthorizedError($ts`Error generating token`, { cause: error });
         }
+    }
+
+    /**
+     * Resolves the roles of a user's active memberships, by tenant.
+     * @param userId - The user.
+     * @returns The roles of each tenant the user is an active member of.
+     */
+    private async resolveTenantRoles(userId: string): Promise<Record<string, string[]>> {
+        const memberships: BaseMembership<string>[] = await this.membershipService.findActiveMemberships(userId);
+        return Object.fromEntries(memberships.map(membership => [membership.tenantId, membership.roles]));
     }
 
     private async generateRefreshToken(user: UserType, authTime: number): Promise<string> {

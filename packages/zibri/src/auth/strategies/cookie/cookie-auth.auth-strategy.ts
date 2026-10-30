@@ -4,7 +4,6 @@ import { CookieAuthData } from './cookie-auth-data.model';
 import { CookieAuthLogoutData, CookieAuthLogoutDto } from './cookie-auth-logout-data.model';
 import { CookieAuthRefreshLoginData, CookieAuthRefreshLoginDto } from './cookie-auth-refresh-login-data.model';
 import { CookieAuthRefreshSession, CookieAuthRefreshSessionCreateData } from './cookie-auth-refresh-session.model';
-import { CookieAuthSessionCleanupCronJob } from './cookie-auth-session-cleanup.cron-job';
 import { CookieAuthSession, CookieAuthSessionCreateData } from './cookie-auth-session.model';
 import { ZibriApplication } from '../../../application/application';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
@@ -18,6 +17,7 @@ import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { NoProviderError } from '../../../di/errors/no-provider.error';
 import { inject } from '../../../di/inject.function';
 import { CredentialReusedError } from '../../../error-handling/errors/credential-reused.error';
+import { CsrfTokenRefusedError } from '../../../error-handling/errors/csrf-token-refused.error';
 import { NotFoundError } from '../../../error-handling/errors/not-found.error';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
 import { type CookieOptions } from '../../../http/cookie-options.model';
@@ -27,7 +27,6 @@ import { $ts } from '../../../localization/translate.function';
 import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
 import { Newable } from '../../../types/newable.type';
 import { type OmitStrict } from '../../../types/omit-strict.type';
-import { Ms } from '../../../utilities/ms';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
 import { FederatedSessionColumns } from '../../authenticators/federated/federated-session-columns.model';
@@ -39,11 +38,14 @@ import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
 import { Authentication } from '../../models/authentication.model';
 import { BaseUser } from '../../models/base-user.model';
 import { EndedLogin } from '../../models/ended-login.model';
+import { ListedLogin } from '../../models/listed-login.model';
 import { ProviderAuthentication } from '../../models/provider-authentication.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthControllerStrategyInterface } from '../auth-controller-strategy.interface';
 import { CredentialEntity } from '../credential-entity.model';
 import { CsrfTokenAuthStrategyInterface } from '../csrf-token-auth-strategy.interface';
+import { LoginListingAuthStrategyInterface } from '../login-listing-auth-strategy.interface';
+import { resolveLoginDevice } from '../resolve-login-device.function';
 
 /**
  * Options input for any cookie session.
@@ -106,7 +108,13 @@ export class CookieAuthStrategy<
     CookieAuthData<RoleType>,
     CookieAuthRefreshLoginData,
     CookieAuthLogoutData
->, CsrfTokenAuthStrategyInterface<RoleType, UserType> {
+>, CsrfTokenAuthStrategyInterface<RoleType, UserType>, LoginListingAuthStrategyInterface<
+    RoleType,
+    UserType,
+    CookieAuthData<RoleType>,
+    CookieAuthRefreshLoginData,
+    CookieAuthLogoutData
+> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly name: string = 'cookie';
     // the session a request's cookie is checked against, rather than the refresh session beside it
@@ -139,6 +147,12 @@ export class CookieAuthStrategy<
 
     private get refreshSessionRepository(): Repository<CookieAuthRefreshSession, CookieAuthRefreshSessionCreateData> {
         return inject(repositoryTokenFor(CookieAuthRefreshSession));
+    }
+
+    // read when used rather than injected, so that a strategy of an application's own extending this
+    // one keeps the constructor it has
+    private get rowGraceInMs(): number {
+        return inject(ZIBRI_DI_TOKENS.COOKIE_AUTH_ROW_GRACE_IN_MS);
     }
 
     constructor(
@@ -198,11 +212,7 @@ export class CookieAuthStrategy<
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     init(app: ZibriApplication): void {
-        // first, since the cleanup job below needs them as well
         validateEntitiesRegistered(CookieAuthStrategy.name, app, CookieAuthSession, CookieAuthRefreshSession);
-        if (!app.options.cronJobs.includes(CookieAuthSessionCleanupCronJob)) {
-            app.options.cronJobs.push(CookieAuthSessionCleanupCronJob);
-        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -322,6 +332,46 @@ export class CookieAuthStrategy<
         // into a fresh session on its next refresh, so whoever held the cookies stayed logged in
         // through a password reset that was meant to end their access
         await this.refreshSessionRepository.deleteAll({ userId }, { transaction });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findLogins(userId: string, transaction: Transaction | undefined): Promise<ListedLogin[]> {
+        const live: CookieAuthRefreshSession[] = await this.refreshSessionRepository.findAll({
+            where: { userId, blacklisted: false, expirationDate: { after: new Date() } },
+            limit: 'all',
+            transaction
+        });
+        // one refresh session of a login is live, except for a moment after two tabs rotated the same
+        // one within the grace, each into a session of its own: the newer stands for the login
+        const byLogin: Map<string, CookieAuthRefreshSession> = new Map();
+        for (const session of live) {
+            const kept: CookieAuthRefreshSession | undefined = byLogin.get(session.familyId);
+            if (kept == undefined || new Date(session.issuedAt ?? 0).getTime() > new Date(kept.issuedAt ?? 0).getTime()) {
+                byLogin.set(session.familyId, session);
+            }
+        }
+        return [...byLogin.values()].map(session => ({
+            id: session.familyId,
+            authenticatedAt: session.authenticatedAt,
+            lastUsedAt: session.issuedAt ?? undefined,
+            expiresAt: session.expirationDate,
+            userAgent: session.userAgent ?? undefined,
+            ipAddress: session.ipAddress ?? undefined
+        }));
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async endLogin(userId: string, loginId: string, transaction: Transaction | undefined): Promise<boolean> {
+        // the sessions as well as the refresh sessions, for the reason endLogins gives. By the user as
+        // well, so a login of somebody else is none of theirs
+        await this.sessionRepository.deleteAll({ userId, familyId: loginId }, { transaction });
+        return await this.refreshSessionRepository.deleteAll({ userId, familyId: loginId }, { transaction }) > 0;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveLoginId(context: HttpRequestContext | WebsocketRequestContext): Promise<string | undefined> {
+        // read without validating, for the reason resolveAuthenticatedAt gives
+        return (await this.resolveRefreshSession(context, undefined))?.refreshSession.familyId;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -585,12 +635,19 @@ export class CookieAuthStrategy<
             return undefined;
         }
         if (!this.isCsrfTokenValid(presented.token, context)) {
+            // a valid session sent without its token: a front end that lost it, or a page of another
+            // site sending the cookies along. Read as no login, it answered "log in" to the first and
+            // recorded the second as an anonymous call. A websocket carries no token, and has no
+            // login by cookie
+            if (context instanceof HttpRequestContext) {
+                throw new CsrfTokenRefusedError($ts`This request carries a session, but not its csrf token.`);
+            }
             return undefined;
         }
 
         const session: CookieAuthSession | undefined = await this.resolveSession(context, transaction);
-        // the session cookie's maxAge is the session's lifetime and the row outlives it by five
-        // minutes, so a browser has dropped the cookie by the time the session lapses: the refresh
+        // the session cookie's maxAge is the session's lifetime and the row outlives it by
+        // COOKIE_AUTH_ROW_GRACE_IN_MS, so a browser has dropped the cookie by the time the session lapses: the refresh
         // cookie arriving alone is how a lapsed session shows. A cookie naming no row is neither,
         // and is refused below
         const lapsed: boolean = session == undefined
@@ -714,7 +771,7 @@ export class CookieAuthStrategy<
             token,
             userId: refreshSession.userId,
             familyId: refreshSession.familyId,
-            expirationDate: new Date(Date.now() + this.sessionExpiresInMs + (Ms.MINUTE * 5))
+            expirationDate: new Date(Date.now() + this.sessionExpiresInMs + this.rowGraceInMs)
         };
         return await this.sessionRepository.create(sessionCreateData, { transaction });
     }
@@ -733,8 +790,12 @@ export class CookieAuthStrategy<
             userId,
             blacklisted: false,
             familyId,
-            expirationDate: new Date(Date.now() + this.refreshSessionExpiresInMs + (Ms.MINUTE * 5)),
+            expirationDate: new Date(Date.now() + this.refreshSessionExpiresInMs + this.rowGraceInMs),
             authenticatedAt,
+            issuedAt: new Date(),
+            // the client of each rotation rather than of the login's start, so a login lists where it
+            // was last used from
+            ...resolveLoginDevice(),
             providerAuthentication,
             ...federatedSession
         }, { transaction });

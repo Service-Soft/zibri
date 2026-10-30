@@ -5,13 +5,10 @@ import { BigNumber } from '../../../utilities/number.utilities';
 /**
  * Every shape a number takes, for a property that holds all of them.
  *
- * A filter compares rather than stores, so what it may name is decided by what the property's own
- * shape holds exactly rather than by what the property is declared as. An exact decimal holds every
- * javascript number and every bigint, so a bound on one may be written as any of the three - which
- * is what keeps `{ greaterThanEquals: 0 }` from having to be `new BigNumber(0)` every time. It does
- * not go the other way: a bigint and an exact decimal both hold values a double does not, so a
- * filter naming one of those against a plain number property would be asking a question the column
- * cannot answer.
+ * What a filter may name is decided by what the property's own shape holds exactly. An exact decimal
+ * holds every javascript number and every bigint, so a bound on one may be written as any of the
+ * three, such as `{ greaterThanEquals: 0 }`. It does not go the other way: a bigint and an exact
+ * decimal both hold values a double does not, so neither is a bound on a plain number property.
  */
 export type AnyNumber = number | bigint | BigNumber;
 

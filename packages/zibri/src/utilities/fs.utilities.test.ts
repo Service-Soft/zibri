@@ -47,6 +47,21 @@ describe('FsUtilities', () => {
         });
     });
 
+    describe('updateFile', () => {
+        it('keeps what a file holds after an empty first line when appending or prepending', async () => {
+            const appended: FsPath = FsUtilities.getPath(workDir, 'append-after-blank.txt');
+            const prepended: FsPath = FsUtilities.getPath(workDir, 'prepend-after-blank.txt');
+            await FsUtilities.createFile(appended, '\nkeep');
+            await FsUtilities.createFile(prepended, '\nkeep');
+
+            await FsUtilities.updateFile(appended, 'x', 'append');
+            await FsUtilities.updateFile(prepended, 'x', 'prepend');
+
+            expect(await FsUtilities.readFile(appended)).toBe('\nkeep\nx');
+            expect(await FsUtilities.readFile(prepended)).toBe('x\n\nkeep');
+        });
+    });
+
     describe('createFile / exists / readFile', () => {
         it('creates a new file with the given string content', async () => {
             const file: FsPath = FsUtilities.getPath(workDir, 'created.txt');

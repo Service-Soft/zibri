@@ -62,14 +62,18 @@ export type MultithreadingOptions = {
     /**
      * Whether a worker file may be TypeScript.
      *
-     * Compiling one as it is loaded needs the optional peer dependency **ts-node**, so this is also
-     * the declaration that it has to be installed: startup fails when this is true and it is not
-     * there, rather than the first job to name a `.ts` file failing whenever that happens to be.
+     * Compiling one as it is loaded needs the optional peer dependencies **ts-node** and
+     * **typescript**, so this is also the declaration that they have to be installed: startup
+     * loads both when this is true, and fails naming the one that is missing.
      *
-     * Set it to false for a deployment that ships compiled worker files. Nothing then loads a
-     * TypeScript compiler, a `.ts` file is refused the moment it is queued, and neither **ts-node**
-     * nor the TypeScript compiler behind it has to be installed at all.
-     * @default true
+     * While it is false, nothing loads a TypeScript compiler, a `.ts` file is refused the moment
+     * it is queued, and neither package has to be installed.
+     * @default false
      */
     enableTsWorkerFiles: boolean
 };
+
+/**
+ * What an application changes about the multithreading options; the rest keeps its default.
+ */
+export type MultithreadingOptionsInput = Partial<MultithreadingOptions>;

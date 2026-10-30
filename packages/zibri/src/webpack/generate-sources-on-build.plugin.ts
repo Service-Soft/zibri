@@ -41,15 +41,10 @@ export class GenerateSourcesOnBuildPlugin {
         compiler.hooks.beforeCompile.tapPromise('GenerateSourcesOnBuildPlugin', async () => {
             await generateHandlebarTypeFiles();
             await generateEntityFiles();
-            await generateSourceXlf([
-                {
-                    origin: 'zibri',
-                    originLocale: 'en-US',
-                    patterns: {
-                        include: `${FsUtilities.getPath(resolveZibriRoot(), 'src')}/**/*.{ts,tsx}`,
-                        exclude: '**/*.test.{ts,tsx}'
-                    }
-                },
+            await generateSourceXlf(FsUtilities.getPath(this.root), [
+                // the framework's strings were extracted by its own build and ship with it, so a
+                // build of the application scans only the application
+                { sourceXlf: FsUtilities.getPath(resolveZibriRoot(), 'translations', 'source.xlf') },
                 {
                     origin: 'project',
                     originLocale: 'en-US',

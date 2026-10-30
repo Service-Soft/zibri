@@ -9,8 +9,8 @@ import { Backup } from '../../backup/decorators/backup-resource.decorator';
 import { BackupTransport } from '../../backup/decorators/backup-transport.decorator';
 import { BaseFsBackupTransport } from '../../backup/transports/fs.backup-transport';
 import { PostgresBackupScope } from '../../data-source/data-sources/postgres/postgres-backup-scope.model';
+import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
 import { Repository } from '../../data-source/repository/repository';
@@ -21,9 +21,9 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
 import { testFileFolder } from '../constants';
+import { queryPostgres } from '../query-postgres.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
@@ -61,7 +61,7 @@ class EvalBackupRoleTransport extends BaseFsBackupTransport {
 @Backup({ transports: [EvalBackupRoleTransport], encrypt: false })
 class EvalBackupRoleDataSource extends PostgresDataSource {
     override backupScope: PostgresBackupScope = 'schema';
-    override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -115,8 +115,7 @@ describe('evaluation/01-data-layer M55 - a restore by a separate backup role giv
         await inject(BackupService).restore(backup);
 
         // restored as the backup role, every table it recreated was the backup role's
-        const runSql: (sql: string) => Promise<unknown[]> = async sql => await inject(EvalBackupRoleDataSource)
-            .query(EvalBackupRoleItem).connection.query(sql);
+        const runSql: (sql: string) => Promise<unknown[]> = async sql => await queryPostgres(inject(EvalBackupRoleDataSource), sql);
         // eslint-disable-next-line cspell/spellchecker
         expect(await runSql('SELECT tableowner FROM pg_tables WHERE tablename = \'eval_backup_role_item\''))
             // eslint-disable-next-line cspell/spellchecker

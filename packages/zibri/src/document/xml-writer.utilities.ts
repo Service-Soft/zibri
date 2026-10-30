@@ -183,6 +183,7 @@ export abstract class XmlWriterUtilities {
                 }
                 case 'mixed': {
                     if (mixed != undefined) {
+                        element.mixed = true;
                         element.content.push(
                             ...XmlWriterUtilities.resolveMixedContent(propertyValue, mixed.shapes, childNamespace, documentNamespace)
                         );
@@ -333,9 +334,11 @@ export abstract class XmlWriterUtilities {
             return `${res}/>`;
         }
         // only between elements: whitespace next to text becomes part of the text, and a reader cannot
-        // tell it from whitespace the text had. Nothing inside text is indented either, however deep
+        // tell it from whitespace the text had. Nothing inside text is indented either, however deep -
+        // nor inside mixed content, where what is written between its elements is read back as text,
+        // even when it holds no text of its own
         const elementsOnly: boolean = element.content.every(item => typeof item !== 'string');
-        if (depth != undefined && elementsOnly) {
+        if (depth != undefined && elementsOnly && element.mixed !== true) {
             const indentation: string = INDENTATION.repeat(depth + 1);
             const children: string = element.content
                 .map(child => `\n${indentation}${XmlWriterUtilities.stringifyContent(child, namespaces, depth + 1)}`)

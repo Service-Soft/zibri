@@ -47,7 +47,7 @@ export type KeysetOrderKey = {
 };
 
 /**
- * Reads a direction out of what typeorm accepts as one.
+ * Reads a direction out of the ways an order can write one.
  * @param value - The direction as the caller wrote it.
  * @returns The direction, or undefined when it is not one this can continue through.
  */

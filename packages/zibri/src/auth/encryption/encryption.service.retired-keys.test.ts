@@ -159,12 +159,12 @@ describe('EncryptionService — what is still under a retired key', () => {
         const keyRepository: Repository<EncryptionKey, EncryptionKeyCreateData> = inject(repositoryTokenFor(EncryptionKey));
 
         // every key there was is re-wrapped while the application starts
-        expect((await getEncryptionService().resolveRetiredKeyUsage()).masterKeys).toEqual([{ keyId: testMasterKey.id, dataKeys: 0, backups: 0 }]);
+        expect((await getEncryptionService().resolveRetiredKeyUsage()).masterKeys).toEqual([{ keyId: testMasterKey.id, dataKeys: 0, signingKeys: 0, backups: 0 }]);
 
         const [anyKey]: EncryptionKey[] = await keyRepository.findAll({ relations: ['strategy'] });
         assert(anyKey, 'there is no key to copy the strategy of');
         await keyRepository.create({ value: underOldMaster, strategy: anyKey.strategy, status: EncryptionKeyStatus.ACTIVE });
 
-        expect((await getEncryptionService().resolveRetiredKeyUsage()).masterKeys).toEqual([{ keyId: testMasterKey.id, dataKeys: 1, backups: 0 }]);
+        expect((await getEncryptionService().resolveRetiredKeyUsage()).masterKeys).toEqual([{ keyId: testMasterKey.id, dataKeys: 1, signingKeys: 0, backups: 0 }]);
     }, 30000);
 });

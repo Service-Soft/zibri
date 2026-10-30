@@ -3,7 +3,7 @@ import { Readable } from 'node:stream';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
 import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
-import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { ValKeyDataSource } from '../../data-source/data-sources/val-key/val-key-data-source.model';
 import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
 import { Repository } from '../../data-source/repository/repository';

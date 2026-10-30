@@ -57,6 +57,14 @@ describe('PromiseUtilities', () => {
         });
     });
 
+    describe('a chunk size that holds no item', () => {
+        it.each([0, -1, Number.NaN, 1.5])('is refused for %s', async chunkSize => {
+            await expect(PromiseUtilities.allChunked([1, 2], n => n, { chunkSize })).rejects.toThrow('chunkSize');
+            await expect(PromiseUtilities.anyValueTrue([1, 2], () => false, { chunkSize })).rejects.toThrow('chunkSize');
+            expect(() => PromiseUtilities.resolveChunks([1, 2], chunkSize)).toThrow('chunkSize');
+        });
+    });
+
     describe('resolveChunks', () => {
         it('splits the items in order, with only the last chunk short', () => {
             expect(PromiseUtilities.resolveChunks([1, 2, 3, 4, 5, 6, 7], 3)).toEqual([[1, 2, 3], [4, 5, 6], [7]]);

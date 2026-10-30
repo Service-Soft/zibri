@@ -1,32 +1,32 @@
-import { Readable } from 'node:stream';
-import { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { setTimeout as wait } from 'node:timers/promises';
 
 import { CircuitBreaker } from './circuit-breaker.model';
 import { CircuitOpenError } from './circuit-open.error';
 import { FetchForLibraryOptions } from './fetch-for-library-options.model';
+import { HttpClientBodyUtilities } from './http-client-body.utilities';
 import { HttpClientIdempotencyKey } from './http-client-idempotency-key.model';
 import { type HttpClientDispatcher, type HttpClientOptions } from './http-client-options.model';
-import { HttpClientResponse, HttpClientResponseBodyInput, HttpClientResponseForBody } from './http-client-response.model';
-import { HttpClientError, HttpClientErrorOptions } from './http-client.error';
-import { HttpClientHeaderValue, HttpClientInterface, HttpOptionsInput, HttpClientRequestBody, HttpClientRequestBodyMimeType } from './http-client.interface';
+import { HttpClientRedirect } from './http-client-redirect.model';
+import { HttpClientResponse, HttpClientResponseBodyInput } from './http-client-response.model';
+import { HttpClientResult } from './http-client-result.type';
+import { HttpClientError } from './http-client.error';
+import { HttpClientHeaderValue, HttpClientInterface, HttpOptionsInput, HttpClientRequestBody, HttpClientRequestBodyMimeType, HttpOptionsWithoutResponseBodyInput } from './http-client.interface';
 import { AlsUtilities } from '../context/als.utilities';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { fileSizeToBytes } from '../entity/models/file-property-metadata.model';
-import { ContentTooLargeError } from '../error-handling/errors/content-too-large.error';
 import { InternalError } from '../error-handling/internal-error.model';
 import { HttpMethod } from '../http/http-method.enum';
 import { HttpStatus } from '../http/http-status.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
-import { warn } from '../logging/logger.helpers';
+import { ConsoleUtilities } from '../logging/console.utilities';
 import { type ParserInterface } from '../parsing/parser.interface';
 import { BodyMetadata } from '../routing/decorators/body-metadata.model';
 import { resolveMaxBodySize } from '../routing/decorators/body.decorator';
 import { HeaderParamMetadata, HeaderParamMetadataInput } from '../routing/decorators/param.decorator';
-import { createHeaderParamMetadata } from '../routing/param-metdata.helpers';
+import { ParamMetadataUtilities } from '../routing/param-metadata.utilities';
 import { resolveBodyMetadata } from '../routing/resolve-body-metadata.function';
 import { HeaderMetaObjectToParamsObject, HeaderMetaInputObjectToMetaObject } from '../routing/route-configuration.model';
 import { TraceContextUtilities } from '../tracing/trace-context.utilities';
@@ -37,13 +37,11 @@ import { TracingUtilities } from '../tracing/tracing.utilities';
 import { isNewable } from '../types/newable.type';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { Ms } from '../utilities/ms';
-import { BigNumber, NumberUtilities } from '../utilities/number.utilities';
+import { BigNumber } from '../utilities/number.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
+import { UrlUtilities } from '../utilities/url.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
 import { type ValidationServiceInterface } from '../validation/validation-service.interface';
-
-// eslint-disable-next-line jsdoc/require-jsdoc
-type ResponseType = 'json' | 'xml' | 'text' | 'stream';
 
 /**
  * A request that is on its way, and the means to end the deadline it was sent under.
@@ -58,6 +56,22 @@ type SentRequest = {
      */
     release: () => void
 };
+
+/**
+ * A request that is on its way, after the redirects it was answered with were followed.
+ */
+type FollowedRequest = SentRequest & {
+    /**
+     * How many redirects were followed to get the response.
+     */
+    redirects: number
+};
+
+/**
+ * What a call does with a redirect: what the application or the request asked for, or `'manual'` for
+ * a library that asked `fetch` for the redirect itself.
+ */
+type RedirectMode = HttpClientRedirect | 'manual';
 
 /**
  * What `fetch` is actually called with.
@@ -121,6 +135,32 @@ const originFailureStatuses: number[] = [
 ];
 
 /**
+ * Statuses that send the request on to their `Location`.
+ */
+const redirectStatuses: number[] = [
+    HttpStatus.MOVED_PERMANENTLY,
+    HttpStatus.FOUND,
+    HttpStatus.SEE_OTHER,
+    HttpStatus.TEMPORARY_REDIRECT,
+    HttpStatus.PERMANENT_REDIRECT
+];
+
+/**
+ * The most redirects followed in a row, the limit of the fetch standard.
+ */
+const maxRedirects: number = 20;
+
+/**
+ * The headers that describe a body, dropped with it when a redirect turns the request into a GET.
+ */
+const requestBodyHeaders: string[] = [KnownHeader.CONTENT_TYPE, KnownHeader.CONTENT_ENCODING, 'content-language', 'content-location'];
+
+/**
+ * The headers that carry credentials for one origin, dropped when a redirect leaves it.
+ */
+const originCredentialHeaders: string[] = [KnownHeader.AUTHORIZATION, 'proxy-authorization', KnownHeader.COOKIE];
+
+/**
  * How long the first wait between attempts is, before doubling.
  */
 const baseRetryDelayMs: number = 250;
@@ -129,28 +169,6 @@ const baseRetryDelayMs: number = 250;
  * The longest this will wait between two attempts, however many have failed.
  */
 const maxRetryDelayMs: number = 10 * Ms.SECOND;
-
-const responseTypeForMimeType: Record<BodyMetadata['type'], ResponseType> = {
-    [MimeType.JSON]: 'json',
-    [MimeType.JSON_LD]: 'json',
-    [MimeType.JSON_SCIM]: 'json',
-    [MimeType.XML]: 'xml',
-    // [MimeType.HTML]: 'text',
-    // [MimeType.TXT]: 'text',
-    [MimeType.FORM_DATA]: 'stream',
-    [MimeType.FORM_URL_ENCODED]: 'text',
-    [MimeType.OCTET_STREAM]: 'stream'
-    // [MimeType.PNG]: 'stream',
-    // [MimeType.JPEG]: 'stream',
-    // [MimeType.ZIP]: 'stream',
-    // [MimeType.SVG]: 'stream',
-    // [MimeType.CSS]: 'stream',
-    // [MimeType.TTF]: 'stream',
-    // [MimeType.PDF]: 'stream',
-    // [MimeType.CSV]: 'stream',
-    // [MimeType.XLSX]: 'stream',
-    // [MimeType.DOCX]: 'stream'
-};
 
 /**
  * Checks whether the given value is a mime type that HttpClient knows how to build a request body for.
@@ -219,14 +237,7 @@ export class HttpClient implements HttpClientInterface {
             ResponseBody,
             RequestBodyType
         >
-    ): Promise<
-        HttpClientResponseForBody<
-            T,
-            HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            ResponseBody,
-            IsArray
-        >
-    > {
+    ): Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>> {
         return await this.request(HttpMethod.POST, url, body, options);
     }
 
@@ -248,14 +259,7 @@ export class HttpClient implements HttpClientInterface {
             IsArray,
             ResponseBody
         >
-    ): Promise<
-        HttpClientResponseForBody<
-            T,
-            HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            ResponseBody,
-            IsArray
-        >
-    > {
+    ): Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>> {
         return await this.request(HttpMethod.GET, url, undefined, options);
     }
 
@@ -280,14 +284,7 @@ export class HttpClient implements HttpClientInterface {
             ResponseBody,
             RequestBodyType
         >
-    ): Promise<
-        HttpClientResponseForBody<
-            T,
-            HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            ResponseBody,
-            IsArray
-        >
-    > {
+    ): Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>> {
         return await this.request(HttpMethod.PUT, url, body, options);
     }
 
@@ -312,15 +309,45 @@ export class HttpClient implements HttpClientInterface {
             ResponseBody,
             RequestBodyType
         >
-    ): Promise<
-        HttpClientResponseForBody<
-            T,
-            HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            ResponseBody,
-            IsArray
-        >
-    > {
+    ): Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>> {
         return await this.request(HttpMethod.PATCH, url, body, options);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async head<
+        QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
+        HeaderParamsObject extends Record<string, HttpClientHeaderValue> = Partial<Record<KnownHeader, HttpClientHeaderValue>>,
+        ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput> = Record<string, HeaderParamMetadataInput>
+    >(
+        url: string,
+        options?: HttpOptionsWithoutResponseBodyInput<QueryParamsObject, HeaderParamsObject, ResponseHeaderMetaInputObject>
+    ): Promise<HttpClientResponse<
+        undefined,
+        HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>
+    >> {
+        return await this.request(HttpMethod.HEAD, url, undefined, options);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async options<
+        T extends object,
+        QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
+        HeaderParamsObject extends Record<string, HttpClientHeaderValue> = Partial<Record<KnownHeader, HttpClientHeaderValue>>,
+        ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput> = Record<string, HeaderParamMetadataInput>,
+        IsArray extends boolean = false,
+        ResponseBody extends HttpClientResponseBodyInput<T, IsArray> = never
+    >(
+        url: string,
+        options?: HttpOptionsInput<
+            T,
+            QueryParamsObject,
+            HeaderParamsObject,
+            ResponseHeaderMetaInputObject,
+            IsArray,
+            ResponseBody
+        >
+    ): Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>> {
+        return await this.request(HttpMethod.OPTIONS, url, undefined, options);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -341,14 +368,7 @@ export class HttpClient implements HttpClientInterface {
             IsArray,
             ResponseBody
         >
-    ): Promise<
-        HttpClientResponseForBody<
-            T,
-            HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            ResponseBody,
-            IsArray
-        >
-    > {
+    ): Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>> {
         return await this.request(HttpMethod.DELETE, url, undefined, options);
     }
 
@@ -372,16 +392,10 @@ export class HttpClient implements HttpClientInterface {
             IsArray,
             ResponseBody
         > | undefined
-    ): Promise<
-        HttpClientResponseForBody<
-            T,
-            HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            ResponseBody,
-            IsArray
-        >
-    > {
-        if ([HttpMethod.HEAD, HttpMethod.OPTIONS, HttpMethod.TRACE].includes(method)) {
-            throw new InternalError('Not implemented yet.');
+    ): Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>> {
+        // a forbidden method of the fetch standard, which node's fetch refuses with a bare TypeError
+        if (method === HttpMethod.TRACE) {
+            throw new InternalError('The http client cannot send a TRACE request: fetch refuses the method.');
         }
 
         // around the whole call rather than around the fetch: the headers a request goes out with
@@ -426,22 +440,37 @@ export class HttpClient implements HttpClientInterface {
                 // the library's own signal as well as the request's: a library passing one expects it to
                 // end the call, and the deadline of the request this runs inside still applies
                 const signals: AbortSignal[] = [init.signal, requestSignal].filter(s => s != undefined);
-                const sent: SentRequest = await this.sendRequest(
+                // a library asking for the redirect itself, or for none, gets what fetch would give it;
+                // one leaving it to fetch follows them the way the application says
+                const redirect: RedirectMode = init.redirect === 'manual' || init.redirect === 'error'
+                    ? init.redirect
+                    : this.clientOptions.redirect;
+                const sent: FollowedRequest = await this.sendFollowingRedirects(
                     method,
                     url,
                     { ...init, headers },
+                    redirect,
                     this.clientOptions.defaultTimeoutInMs,
                     this.clientOptions.dispatcher,
-                    signals.length ? AbortSignal.any(signals) : undefined
+                    signals.length ? AbortSignal.any(signals) : undefined,
+                    init.body,
+                    Object.fromEntries(headers.entries())
                 );
                 try {
                     // read here rather than handed over as a stream, so the deadline and the size limit
                     // cover the body the same way they do for every other call
-                    const body: Uint8Array<ArrayBuffer> = await this.readBytesWithin(
+                    const body: Uint8Array<ArrayBuffer> = await HttpClientBodyUtilities.readBytesWithin(
                         sent.response,
                         fileSizeToBytes(options?.maxResponseSize ?? this.clientOptions.defaultMaxResponseSize)
                     ).catch((error: unknown) => {
-                        throw this.buildReadError(sent.response, method, url, init.body, Object.fromEntries(headers.entries()), error);
+                        throw HttpClientBodyUtilities.buildReadError(
+                            sent.response,
+                            method,
+                            url,
+                            init.body,
+                            Object.fromEntries(headers.entries()),
+                            error
+                        );
                     });
                     span.recordAttributes({ 'http.response.status_code': sent.response.status });
                     return new Response(body.byteLength ? body : undefined, {
@@ -487,14 +516,7 @@ export class HttpClient implements HttpClientInterface {
             ResponseBody
         > | undefined,
         span: TraceSpanInterface
-    ): Promise<
-        HttpClientResponseForBody<
-            T,
-            HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            ResponseBody,
-            IsArray
-        >
-    > {
+    ): Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>> {
         // a list is one value per item, the form a zibri route and a client built from its document read
         const queryString: string | undefined = options?.query
             ? new URLSearchParams(
@@ -517,7 +539,6 @@ export class HttpClient implements HttpClientInterface {
         const responseBodyMetadata: BodyMetadata | undefined = options?.responseBody
             ? resolveBodyMetadata(isNewable(options.responseBody) ? { modelClass: options.responseBody } : options.responseBody, 0)
             : undefined;
-        const bodyReader: ResponseType = responseTypeForMimeType[responseBodyMetadata?.type ?? MimeType.JSON];
         // a declared response body is the size of the thing that was asked for, the same way a route's body
         // is. Without one there is nothing to derive a size from, so the deployment's ceiling applies
         const maxBodySize: BigNumber = this.resolveMaxResponseSize(responseBodyMetadata);
@@ -531,6 +552,7 @@ export class HttpClient implements HttpClientInterface {
         // asking every call site to thread it down is asking for the ones that forget
         const requestSignal: AbortSignal | undefined = AlsUtilities.findCurrentRequestSignal();
 
+        const redirect: HttpClientRedirect = options?.redirect ?? this.clientOptions.redirect;
         const attempts: number = options?.attempts ?? 1;
         let resendCount: number = 0;
         for (let attempt: number = 1; attempt <= attempts; attempt++) {
@@ -545,25 +567,41 @@ export class HttpClient implements HttpClientInterface {
             // whose body never finishes is exactly the case a timeout exists to end
             let release: (() => void) | undefined;
             try {
-                const sent: SentRequest = await this.sendRequest(
+                const sent: FollowedRequest = await this.sendFollowingRedirects(
                     method,
                     urlWithParams,
                     init,
+                    redirect,
                     options?.timeoutInMs ?? this.clientOptions.defaultTimeoutInMs,
                     // the request's own replaces the application's rather than merging with it: a
                     // dispatcher is one connection policy, and half of two is not a policy
                     options?.dispatcher ?? this.clientOptions.dispatcher,
-                    requestSignal
+                    requestSignal,
+                    requestBody,
+                    options?.headers
                 );
                 release = sent.release;
+                // the convention counts a redirect as a resend, like another attempt
+                resendCount += sent.redirects;
                 if (!sent.response.ok) {
-                    throw await this.buildResponseError(sent.response, method, url, requestBody, options?.headers);
+                    throw await HttpClientBodyUtilities.buildResponseError(
+                        sent.response,
+                        fileSizeToBytes(this.clientOptions.defaultMaxResponseSize),
+                        method,
+                        url,
+                        requestBody,
+                        options?.headers
+                    );
                 }
-                // a streamed body belongs to whoever consumes it, so the deadline cannot cover it -
-                // it is read after this call has already returned
-                rawBody = bodyReader === 'stream'
-                    ? await this.readBody(sent.response, bodyReader, maxBodySize)
-                    : await this.readBodyWithin(sent.response, bodyReader, maxBodySize, method, url, requestBody, options?.headers);
+                rawBody = await HttpClientBodyUtilities.readResponseBody(
+                    sent.response,
+                    responseBodyMetadata,
+                    maxBodySize,
+                    method,
+                    url,
+                    requestBody,
+                    options?.headers
+                );
                 fetchResponse = sent.response;
                 break;
             }
@@ -615,60 +653,50 @@ export class HttpClient implements HttpClientInterface {
 
         const responseHeaders: Record<string, string> = Object.fromEntries(fetchResponse.headers.entries());
 
-        const res: HttpClientResponseForBody<
-            T,
-            HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            ResponseBody,
-            IsArray
-        > = {
+        const res: HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray> = {
             rawBody,
             body: undefined as unknown as T,
             status: fetchResponse.status,
             statusText: fetchResponse.statusText,
             headers: responseHeaders
-        } as HttpClientResponseForBody<
-            T,
-            HeaderMetaObjectToParamsObject<HeaderMetaInputObjectToMetaObject<ResponseHeaderMetaInputObject>>,
-            ResponseBody,
-            IsArray
-        >;
-
-        if (!responseBodyMetadata || !options?.responseBody) {
-            return res;
-        }
+        } as HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>;
 
         let responseBody: unknown;
-        try {
-            responseBody = await this.parser.parseBody(res as unknown as HttpClientResponse, responseBodyMetadata);
-        }
-        catch (error) {
-            throw new HttpClientError(
-                'Could not parse response body',
-                {
-                    responseData: { body: res.rawBody, status: res.status, statusText: res.statusText, headers: responseHeaders },
-                    requestData: { method, url, body: requestBody, headers: options?.headers as Record<string, unknown> ?? {} }
-                },
-                { cause: error }
-            );
+        if (responseBodyMetadata != undefined) {
+            try {
+                responseBody = await this.parser.parseBody(res as unknown as HttpClientResponse, responseBodyMetadata);
+            }
+            catch (error) {
+                throw new HttpClientError(
+                    'Could not parse response body',
+                    {
+                        responseData: { body: res.rawBody, status: res.status, statusText: res.statusText, headers: responseHeaders },
+                        requestData: { method, url, body: requestBody, headers: options?.headers as Record<string, unknown> ?? {} }
+                    },
+                    { cause: error }
+                );
+            }
+
+            try {
+                await this.validationService.validateBody(responseBody, responseBodyMetadata);
+            }
+            catch (error) {
+                throw new HttpClientError(
+                    'Could not validate response body',
+                    {
+                        responseData: { body: res.rawBody, status: res.status, statusText: res.statusText, headers: responseHeaders },
+                        requestData: { method, url, body: requestBody, headers: options?.headers as Record<string, unknown> ?? {} }
+                    },
+                    { cause: error }
+                );
+            }
         }
 
-        try {
-            await this.validationService.validateBody(responseBody, responseBodyMetadata);
-        }
-        catch (error) {
-            throw new HttpClientError(
-                'Could not validate response body',
-                {
-                    responseData: { body: res.rawBody, status: res.status, statusText: res.statusText, headers: responseHeaders },
-                    requestData: { method, url, body: requestBody, headers: options?.headers as Record<string, unknown> ?? {} }
-                },
-                { cause: error }
-            );
-        }
-
+        // whether or not a body was declared: the headers are a declaration of their own, and the
+        // only one a HEAD request can make
         await Promise.all(
-            ObjectUtilities.entries(options.responseHeaders ?? {}).map(async ([key, header]) => {
-                const headerMetadata: HeaderParamMetadata = createHeaderParamMetadata(key, header);
+            ObjectUtilities.entries(options?.responseHeaders ?? {}).map(async ([key, header]) => {
+                const headerMetadata: HeaderParamMetadata = ParamMetadataUtilities.createHeaderParam(key, header);
                 try {
                     (res.headers[key] as unknown) = this.parser.parseHeaderParam(
                         res as unknown as HttpClientResponse,
@@ -705,18 +733,6 @@ export class HttpClient implements HttpClientInterface {
         return { ...res, body: responseBody };
     }
 
-    /**
-     * Passes the trace the caller is in on to the request being made.
-     *
-     * What makes a trace worth having: without it a call fanning out to three services produces four
-     * sets of logs that nothing joins, which is exactly the moment somebody needs them joined. A
-     * caller that set the header itself is left alone - it knows something this does not.
-     *
-     * A call made where no trace was established - a script, a test reaching for the client directly
-     * - sends none, so the service on the other end starts one.
-     * @param headers - The headers the caller asked for, if any.
-     * @returns The headers to send.
-     */
     /**
      * The most a response body may weigh.
      * @param metadata - The response body the call declared, if any.
@@ -778,6 +794,17 @@ export class HttpClient implements HttpClientInterface {
         return [key.header ?? KnownHeader.IDEMPOTENCY_KEY, key.value ?? UUIDUtilities.generate()];
     }
 
+    /**
+     * Passes the trace the caller is in on to the request being made.
+     *
+     * A caller that set the header itself is left alone. A call made where no trace was established,
+     * such as a script or a test reaching for the client directly, sends none, so the service on the
+     * other end starts one.
+     * @param headers - The headers the caller asked for, if any.
+     * @returns The headers to send.
+     */
+    // what makes a trace worth having: without it a call fanning out to three services produces four
+    // sets of logs that nothing joins, which is exactly the moment somebody needs them joined
     private withTraceContext(headers: Record<string, HttpClientHeaderValue> | undefined): Record<string, string> | undefined {
         const context: TraceSpanContext | undefined = TracingUtilities.getCurrentTraceContext();
 
@@ -860,7 +887,7 @@ export class HttpClient implements HttpClientInterface {
         if (headerValue != undefined) {
             const mimeType: string = headerValue.toString();
             if (!isRequestBodyMimeType(mimeType)) {
-                warn(`Unsupported request body mime type "${mimeType}", defaults to MimeType.JSON`);
+                ConsoleUtilities.warn(`Unsupported request body mime type "${mimeType}", defaults to MimeType.JSON`);
                 return MimeType.JSON;
             }
             return mimeType;
@@ -950,6 +977,142 @@ export class HttpClient implements HttpClientInterface {
             return undefined;
         }
         return Math.max(0, date - Date.now());
+    }
+
+    /**
+     * Sends the request, and each redirect it is answered with as a request of its own.
+     *
+     * Followed here rather than by `fetch`, so every hop goes through the circuit of the origin it is
+     * sent to, and a redirect is refused before anything is sent on. The deadline covers all hops.
+     * @param method - The method the call is sent with, for the errors.
+     * @param url - The url to request.
+     * @param init - The request to send.
+     * @param redirect - What to do with a redirect.
+     * @param timeoutInMs - How long the whole answer may take, every hop included.
+     * @param dispatcher - What to send it over, or undefined for node's own.
+     * @param requestSignal - The deadline of the request this is being sent for, if there is one.
+     * @param requestBody - The body that was sent, for the error.
+     * @param requestHeaders - The headers that were sent, for the error.
+     * @returns The response that is no redirect to follow, the release for its deadline, and how many redirects led to it.
+     * @throws An HttpClientError carrying the redirect, when one is refused.
+     */
+    private async sendFollowingRedirects(
+        method: HttpMethod,
+        url: string,
+        init: RequestInit,
+        redirect: RedirectMode,
+        timeoutInMs: number,
+        dispatcher: HttpClientDispatcher | undefined,
+        requestSignal: AbortSignal | undefined,
+        requestBody: unknown,
+        requestHeaders: Record<string, HttpClientHeaderValue> | undefined
+    ): Promise<FollowedRequest> {
+        const startedAt: number = Date.now();
+        let hopUrl: string = url;
+        let hopInit: RequestInit = { ...init, redirect: 'manual' };
+        for (let redirects: number = 0; ; redirects++) {
+            const sent: SentRequest = await this.sendRequest(
+                method,
+                hopUrl,
+                hopInit,
+                Math.max(0, timeoutInMs - (Date.now() - startedAt)),
+                dispatcher,
+                requestSignal
+            );
+            const location: string | undefined = redirectStatuses.includes(sent.response.status)
+                ? sent.response.headers.get(KnownHeader.LOCATION) ?? undefined
+                : undefined;
+            // a 3xx without a location is an answer like any other, which is how fetch reads it too
+            if (location == undefined || redirect === 'manual') {
+                return { ...sent, redirects };
+            }
+            const from: URL = new URL(hopUrl);
+            const to: URL = new URL(location, from);
+            const refusal: string | undefined = this.findRedirectRefusal(redirect, from, to, redirects);
+            if (refusal != undefined) {
+                try {
+                    throw await HttpClientBodyUtilities.buildResponseError(
+                        sent.response,
+                        fileSizeToBytes(this.clientOptions.defaultMaxResponseSize),
+                        method,
+                        url,
+                        requestBody,
+                        requestHeaders,
+                        `Request ${method} ${UrlUtilities.withoutQuery(url)} was redirected to ${UrlUtilities.withoutQuery(to.href)},`
+                        + ` which is not followed: ${refusal}`
+                    );
+                }
+                finally {
+                    sent.release();
+                }
+            }
+            // read to nothing rather than left open, so the connection is free for the next hop
+            await sent.response.body?.cancel();
+            sent.release();
+            hopInit = this.resolveRedirectedInit(hopInit, sent.response.status, from, to);
+            hopUrl = to.href;
+        }
+    }
+
+    /**
+     * Why a redirect is not followed.
+     * @param redirect - What the call does with a redirect.
+     * @param from - Where the redirect came from.
+     * @param to - Where it leads.
+     * @param redirects - How many redirects were followed before this one.
+     * @returns The reason, or undefined when it is followed.
+     */
+    private findRedirectRefusal(redirect: HttpClientRedirect, from: URL, to: URL, redirects: number): string | undefined {
+        if (redirect === 'error') {
+            return 'the request follows no redirects';
+        }
+        if (to.protocol !== 'http:' && to.protocol !== 'https:') {
+            return `it leads to ${to.protocol}`;
+        }
+        if (redirects >= maxRedirects) {
+            return `it is one more than the ${maxRedirects} followed in a row`;
+        }
+        if (redirect === 'same-origin' && to.origin !== from.origin) {
+            return 'it leaves the origin';
+        }
+        // what was sent encrypted is not sent on in the clear, where anyone on the way can read it
+        // and change the answer
+        if (from.protocol === 'https:' && to.protocol === 'http:') {
+            return 'it leads from https to http';
+        }
+        return undefined;
+    }
+
+    /**
+     * The request a redirect is followed with, by the rules of the fetch standard.
+     * @param init - The request that was answered with the redirect.
+     * @param status - The status of the redirect.
+     * @param from - Where the redirect came from.
+     * @param to - Where it leads.
+     * @returns The request to send to where it leads.
+     */
+    private resolveRedirectedInit(init: RequestInit, status: number, from: URL, to: URL): RequestInit {
+        const headers: Headers = new Headers(init.headers);
+        const method: string = init.method ?? 'GET';
+        // a 303 asks for a GET of the result, and a 301 or 302 after a POST is followed with a GET
+        // by every browser, which is what servers answering with one expect
+        const becomesGet: boolean = (status === HttpStatus.SEE_OTHER && method !== 'GET' && method !== 'HEAD')
+            || ((status === HttpStatus.MOVED_PERMANENTLY || status === HttpStatus.FOUND) && method === 'POST');
+        if (becomesGet) {
+            for (const name of requestBodyHeaders) {
+                headers.delete(name);
+            }
+        }
+        // the credentials of one origin are not handed to another, which may be anyone the first
+        // one was persuaded to name
+        if (to.origin !== from.origin) {
+            for (const name of originCredentialHeaders) {
+                headers.delete(name);
+            }
+        }
+        return becomesGet
+            ? { ...init, method: 'GET', body: undefined, headers }
+            : { ...init, headers };
     }
 
     /**
@@ -1048,210 +1211,4 @@ export class HttpClient implements HttpClientInterface {
         }
     }
 
-    /**
-     * Reads a response body, reporting anything that goes wrong as a client error.
-     * @param response - The response to read.
-     * @param reader - How to read it.
-     * @param maxSize - The most this may buffer.
-     * @param method - The method the request was sent with, for the error.
-     * @param url - The url that was requested, for the error.
-     * @param requestBody - The body that was sent, for the error.
-     * @param requestHeaders - The headers that were sent, for the error.
-     * @returns The body.
-     * @throws When the body could not be read, or was larger than allowed.
-     */
-    private async readBodyWithin(
-        response: Response,
-        reader: ResponseType,
-        maxSize: BigNumber,
-        method: HttpMethod,
-        url: string,
-        requestBody: unknown,
-        requestHeaders?: Record<string, HttpClientHeaderValue>
-    ): Promise<unknown> {
-        try {
-            return await this.readBody(response, reader, maxSize);
-        }
-        catch (error) {
-            throw this.buildReadError(response, method, url, requestBody, requestHeaders, error);
-        }
-    }
-
-    /**
-     * Builds the error for a response body that could not be read.
-     * @param response - The response whose body could not be read.
-     * @param method - The method the request was sent with.
-     * @param url - The url that was requested.
-     * @param requestBody - The body that was sent.
-     * @param requestHeaders - The headers that were sent.
-     * @param cause - Why the body could not be read.
-     * @returns The error.
-     */
-    private buildReadError(
-        response: Response,
-        method: HttpMethod,
-        url: string,
-        requestBody: unknown,
-        requestHeaders: Record<string, HttpClientHeaderValue> | undefined,
-        cause: unknown
-    ): HttpClientError {
-        return new HttpClientError(
-            'Could not read the response body',
-            {
-                responseData: {
-                    body: undefined,
-                    status: response.status,
-                    statusText: response.statusText,
-                    headers: Object.fromEntries(response.headers.entries())
-                },
-                requestData: { method, url, body: requestBody, headers: requestHeaders as Record<string, unknown> ?? {} }
-            },
-            { cause }
-        );
-    }
-
-    private async readBody(response: Response, reader: ResponseType, maxSize: BigNumber): Promise<unknown> {
-        switch (reader) {
-            case 'json': {
-                // A successful response can still have an empty body (eg. 204 No Content), which
-                // response.json() cannot parse — treat that as "no body" instead of throwing.
-                const text: string = await this.readTextWithin(response, maxSize);
-                return text.length ? JsonUtilities.parse(text) : undefined;
-            }
-            case 'xml':
-            case 'text': {
-                // kept as text: xml and a form only become data against the model they are read
-                // into, which is the body parser's job
-                const text: string = await this.readTextWithin(response, maxSize);
-                return text.length ? text : undefined;
-            }
-            case 'stream': {
-                if (!response.body) {
-                    throw new InternalError('Response has no body stream');
-                }
-                return Readable.fromWeb(response.body as NodeReadableStream);
-            }
-        }
-    }
-
-    /**
-     * Reads a response body as text, giving up as soon as it is longer than allowed.
-     *
-     * Counted while it arrives rather than afterwards, which is the whole point: `response.text()`
-     * commits the memory first, leaving the limit to be enforced on a string already in the heap - a
-     * five gigabyte answer would be downloaded in full only to be refused for being too large. Reading
-     * it chunk by chunk means the transfer is stopped at the limit instead of at the end, and peak
-     * memory is bounded by what was asked for rather than by what the upstream chose to send.
-     *
-     * The same shape the server side uses for an incoming request body.
-     * @param response - The response to read.
-     * @param maxSize - The most this may buffer.
-     * @returns The body as text.
-     * @throws ContentTooLargeError when the body is larger than allowed.
-     */
-    private async readTextWithin(response: Response, maxSize: BigNumber): Promise<string> {
-        return new TextDecoder().decode(await this.readBytesWithin(response, maxSize));
-    }
-
-    /**
-     * Reads a response body, giving up as soon as it is longer than allowed - for the reason
-     * `readTextWithin` gives.
-     * @param response - The response to read.
-     * @param maxSize - The most this may buffer.
-     * @returns The body.
-     * @throws ContentTooLargeError when the body is larger than allowed.
-     */
-    private async readBytesWithin(response: Response, maxSize: BigNumber): Promise<Uint8Array<ArrayBuffer>> {
-        const contentLength: string | null = response.headers.get(KnownHeader.CONTENT_LENGTH);
-        // an upstream that declares a length over the limit is refused before a byte of body is read.
-        // It is free to lie or to say nothing, which is why the count below still happens
-        if (contentLength != undefined && NumberUtilities.new(Number(contentLength)).isGreaterThan(maxSize)) {
-            throw new ContentTooLargeError();
-        }
-        if (!response.body) {
-            return new Uint8Array();
-        }
-
-        let received: BigNumber = NumberUtilities.new(0);
-        const chunks: Uint8Array[] = [];
-
-        for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
-            received = NumberUtilities.add(received, chunk.byteLength);
-            if (received.isGreaterThan(maxSize)) {
-                // leaving the loop cancels the underlying source, so the rest of the answer is never
-                // transferred. Not cancelled by hand: the loop holds the stream locked, and a cancel
-                // on a locked stream is refused
-                throw new ContentTooLargeError();
-            }
-            chunks.push(chunk);
-        }
-
-        return Buffer.concat(chunks);
-    }
-
-    private async buildResponseError(
-        response: Response,
-        method: HttpMethod,
-        url: string,
-        requestBody: unknown,
-        requestHeaders?: Record<string, HttpClientHeaderValue>
-    ): Promise<HttpClientError> {
-        // Read the body once as text: response.json() consumes the body stream even when parsing
-        // fails, which would make a subsequent response.text() throw "Body has already been read".
-        // Counted against the deployment's ceiling rather than the limit the call's declared body
-        // allows: a failure's body is whatever the upstream or a proxy in front of it chose to send,
-        // and the ceiling is the memory the deployment is willing to spend on one answer
-        let responseBody: unknown;
-        try {
-            const rawText: string = await this.readTextWithin(response, fileSizeToBytes(this.clientOptions.defaultMaxResponseSize));
-            try {
-                responseBody = JsonUtilities.parse(rawText);
-            }
-            catch {
-                responseBody = rawText;
-            }
-        }
-        catch (error) {
-            if (!(error instanceof ContentTooLargeError)) {
-                throw error;
-            }
-            // the status is what a caller, a retry and the circuit breaker act on; a body past the
-            // ceiling is left out rather than turning a 502 into a size error
-            responseBody = undefined;
-        }
-
-        const options: HttpClientErrorOptions = {
-            responseData: {
-                body: responseBody,
-                headers: Object.fromEntries(response.headers.entries()),
-                status: response.status,
-                statusText: response.statusText
-            },
-            requestData: {
-                method,
-                url,
-                body: requestBody,
-                headers: requestHeaders as Record<string, unknown> ?? {}
-            }
-        };
-
-        return new HttpClientError(this.getErrorMessage(response.statusText, options), options);
-    }
-
-    private getErrorMessage(message: string, data: HttpClientErrorOptions): string {
-        if (!data.responseData) {
-            if (data.requestData) {
-                return `No response received for ${data.requestData.method.toUpperCase()} ${data.requestData.url}:\n${message}`;
-            }
-            return `Could not send the request:\n${message}`;
-        }
-
-        if (!data.requestData) {
-            return `Could not send the request:\n${message}`;
-        }
-
-        const fullUrl: string = `${data.requestData.method.toUpperCase()} ${data.requestData.url}`;
-
-        return `Request ${fullUrl} failed with ${data.responseData.status} ${data.responseData.statusText}`;
-    }
 }

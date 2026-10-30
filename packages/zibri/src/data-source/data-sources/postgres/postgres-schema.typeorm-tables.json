@@ -1,0 +1,4715 @@
+{
+    "a plugin's many to many relation": [
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "mailing_list",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_47204fc6c993c9f2b5933391127"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "email",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "secret",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "mailing_list_subscriber",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_b506e2140ea5b281962d6003ee2"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "mailingListId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "mailingListSubscriberId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": ["mailingListId"],
+                    "name": "FK_ecae0f2c2cb36a493b49a302a4d",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "mailing_list"
+                },
+                {
+                    "columns": ["mailingListSubscriberId"],
+                    "name": "FK_f5f0fbbf87ccc75844136a99e74",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "NO ACTION",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "mailing_list_subscriber"
+                }
+            ],
+            "indexes": [
+                {
+                    "columns": ["mailingListId"],
+                    "name": "IDX_ecae0f2c2cb36a493b49a302a4"
+                },
+                {
+                    "columns": ["mailingListSubscriberId"],
+                    "name": "IDX_f5f0fbbf87ccc75844136a99e7"
+                }
+            ],
+            "name": "mailing_list_subscribers_mailing_list_subscriber",
+            "primaryKey": {
+                "columns": [
+                    "mailingListId",
+                    "mailingListSubscriberId"
+                ],
+                "name": "PK_b16e174c650dc27921882be0e7e"
+            },
+            "uniques": []
+        }
+    ],
+    "backups": [
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "createdAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "isArray": true,
+                    "name": "dataKeyIds",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "formatVersion",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "masterKeys",
+                    "nullable": false,
+                    "type": "jsonb"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "default": "'COMPLETED'",
+                    "isArray": false,
+                    "name": "status",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "zibriVersion",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "backup_entity",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_b3e1df52d917c68905bcc771bb2"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "default": "'0'",
+                    "isArray": false,
+                    "name": "attempts",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": false,
+                    "name": "backupId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "checksum",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "default": "false",
+                    "isArray": false,
+                    "name": "completed",
+                    "nullable": false,
+                    "type": "boolean"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "encryptedKey",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "error",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "nextAttemptAt",
+                    "nullable": true,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "isArray": false,
+                    "name": "size",
+                    "nullable": true,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": true,
+                    "name": "transportNames",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": ["backupId"],
+                    "name": "FK_402e0920ab2c6facff32686ae94",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "backup_entity"
+                }
+            ],
+            "indexes": [],
+            "name": "backup_resource_entity",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_23dcf7582e453bf80ecdf5acec5"
+            },
+            "uniques": [
+                {
+                    "columns": ["backupId"],
+                    "name": "REL_402e0920ab2c6facff32686ae9"
+                }
+            ]
+        }
+    ],
+    "entities a migration moves": [
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "gizmo",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_99608f7c2f222e3b3eaab8fb0af"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "gizmo_part",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_6b4343468d67798a8c7c92bface"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "gizmo_part",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_6b4343468d67798a8c7c92bface"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "gizmoId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "gizmoPartId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": ["gizmoId"],
+                    "name": "FK_0f6fc5630ca8b229bb6a8f0868a",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "gizmo"
+                },
+                {
+                    "columns": ["gizmoPartId"],
+                    "name": "FK_d498e5a6e6e8f6c78e6c90de037",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "NO ACTION",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "gizmo_part"
+                }
+            ],
+            "indexes": [
+                {
+                    "columns": ["gizmoId"],
+                    "name": "IDX_0f6fc5630ca8b229bb6a8f0868"
+                },
+                {
+                    "columns": ["gizmoPartId"],
+                    "name": "IDX_d498e5a6e6e8f6c78e6c90de03"
+                }
+            ],
+            "name": "gizmo_parts_gizmo_part",
+            "primaryKey": {
+                "columns": [
+                    "gizmoId",
+                    "gizmoPartId"
+                ],
+                "name": "PK_f08e5248356a5ca4e2caef0c02a"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "gizmo_tag",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_db8715ab97b775d51be373f4f6a"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "gizmo_tag",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_db8715ab97b775d51be373f4f6a"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "gizmoId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "gizmoTagId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": ["gizmoId"],
+                    "name": "FK_65c26331a118cb196ebc10f9d44",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "NO ACTION",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "gizmo"
+                },
+                {
+                    "columns": ["gizmoTagId"],
+                    "name": "FK_d2d0fc32bedf51a2fa6639259d7",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "gizmo_tag"
+                }
+            ],
+            "indexes": [
+                {
+                    "columns": ["gizmoId"],
+                    "name": "IDX_65c26331a118cb196ebc10f9d4"
+                },
+                {
+                    "columns": ["gizmoTagId"],
+                    "name": "IDX_d2d0fc32bedf51a2fa6639259d"
+                }
+            ],
+            "name": "gizmo_tag_gizmos_gizmo",
+            "primaryKey": {
+                "columns": [
+                    "gizmoId",
+                    "gizmoTagId"
+                ],
+                "name": "PK_34f7c2c43301513bba700571ff8"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "gizmoTagId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "oldGizmoId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": ["oldGizmoId"],
+                    "name": "FK_3383e31611feee7f3b87c5f9c42",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "NO ACTION",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "old_gizmo"
+                },
+                {
+                    "columns": ["gizmoTagId"],
+                    "name": "FK_6adbc26f23a9332a11646173da9",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "gizmo_tag"
+                }
+            ],
+            "indexes": [
+                {
+                    "columns": ["oldGizmoId"],
+                    "name": "IDX_3383e31611feee7f3b87c5f9c4"
+                },
+                {
+                    "columns": ["gizmoTagId"],
+                    "name": "IDX_6adbc26f23a9332a11646173da"
+                }
+            ],
+            "name": "gizmo_tag_gizmos_old_gizmo",
+            "primaryKey": {
+                "columns": [
+                    "gizmoTagId",
+                    "oldGizmoId"
+                ],
+                "name": "PK_5df324685331fe1087ed961417b"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "old_gizmo",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_8834d80754daf45b89020f36d22"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "gizmoPartId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "oldGizmoId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": ["gizmoPartId"],
+                    "name": "FK_5464b3c403f960ce42eeec2706b",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "NO ACTION",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "gizmo_part"
+                },
+                {
+                    "columns": ["oldGizmoId"],
+                    "name": "FK_8a46cb52b38b0bccf5605e2dec8",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "old_gizmo"
+                }
+            ],
+            "indexes": [
+                {
+                    "columns": ["gizmoPartId"],
+                    "name": "IDX_5464b3c403f960ce42eeec2706"
+                },
+                {
+                    "columns": ["oldGizmoId"],
+                    "name": "IDX_8a46cb52b38b0bccf5605e2dec"
+                }
+            ],
+            "name": "old_gizmo_parts_gizmo_part",
+            "primaryKey": {
+                "columns": [
+                    "gizmoPartId",
+                    "oldGizmoId"
+                ],
+                "name": "PK_72a3361d0acaa034bba1589fe49"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "spare_gizmo",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_81179e35aee0e7a97948655f2d3"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "gizmoPartId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "spareGizmoId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": ["spareGizmoId"],
+                    "name": "FK_0dd2eb050697bed096183ada810",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "spare_gizmo"
+                },
+                {
+                    "columns": ["gizmoPartId"],
+                    "name": "FK_ac89cb0cec576ff43a0161f870e",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "NO ACTION",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "gizmo_part"
+                }
+            ],
+            "indexes": [
+                {
+                    "columns": ["spareGizmoId"],
+                    "name": "IDX_0dd2eb050697bed096183ada81"
+                },
+                {
+                    "columns": ["gizmoPartId"],
+                    "name": "IDX_ac89cb0cec576ff43a0161f870"
+                }
+            ],
+            "name": "spare_gizmo_parts_gizmo_part",
+            "primaryKey": {
+                "columns": [
+                    "gizmoPartId",
+                    "spareGizmoId"
+                ],
+                "name": "PK_0e2e2a69ad21d0c2cfaf77565d7"
+            },
+            "uniques": []
+        }
+    ],
+    "entities relating to each other every way": [
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "ownerId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": ["ownerId"],
+                    "name": "FK_ee87438803acb531639e8284be0",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "user"
+                }
+            ],
+            "indexes": [],
+            "name": "company",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_056f7854a7afdba7cbd6d45fc20"
+            },
+            "uniques": [
+                {
+                    "columns": ["ownerId"],
+                    "name": "REL_ee87438803acb531639e8284be"
+                }
+            ]
+        },
+        {
+            "columns": [
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "bio",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "userId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": ["userId"],
+                    "name": "FK_a24972ebd73b106250713dcddd9",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "user"
+                }
+            ],
+            "indexes": [],
+            "name": "profile",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_3dd8bfc97e4a77c70971591bdcb"
+            },
+            "uniques": [
+                {
+                    "columns": ["userId"],
+                    "name": "REL_a24972ebd73b106250713dcddd"
+                }
+            ]
+        },
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "role",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_b36bcfe02fc8de3c57a8b2391c2"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "active",
+                    "nullable": false,
+                    "type": "boolean"
+                },
+                {
+                    "isArray": false,
+                    "name": "address",
+                    "nullable": false,
+                    "type": "jsonb"
+                },
+                {
+                    "isArray": false,
+                    "name": "age",
+                    "nullable": false,
+                    "type": "double precision"
+                },
+                {
+                    "isArray": false,
+                    "name": "created",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": true,
+                    "name": "tags",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "user",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_cace4a159ff9f2512dd42373760"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "roleId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "userId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": ["roleId"],
+                    "name": "FK_4be2f7adf862634f5f803d246b8",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "NO ACTION",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "role"
+                },
+                {
+                    "columns": ["userId"],
+                    "name": "FK_5f9286e6c25594c6b88c108db77",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "user"
+                }
+            ],
+            "indexes": [
+                {
+                    "columns": ["roleId"],
+                    "name": "IDX_4be2f7adf862634f5f803d246b"
+                },
+                {
+                    "columns": ["userId"],
+                    "name": "IDX_5f9286e6c25594c6b88c108db7"
+                }
+            ],
+            "name": "user_roles_role",
+            "primaryKey": {
+                "columns": [
+                    "roleId",
+                    "userId"
+                ],
+                "name": "PK_b47cd6c84ee205ac5a713718292"
+            },
+            "uniques": []
+        }
+    ],
+    "every kind of number": [
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "price",
+                    "nullable": false,
+                    "type": "numeric"
+                },
+                {
+                    "isArray": false,
+                    "name": "readings",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": false,
+                    "name": "sequence",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": false,
+                    "name": "temperature",
+                    "nullable": false,
+                    "type": "double precision"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "measurement",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_742ff3cc0dcbbd34533a9071dfd"
+            },
+            "uniques": []
+        }
+    ],
+    "objects inside rows": [
+        {
+            "columns": [
+                {
+                    "type": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "generated": "uuid"
+                },
+                {
+                    "type": "character varying",
+                    "isArray": false,
+                    "name": "text",
+                    "nullable": false,
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [],
+            "uniques": [],
+            "indexes": [],
+            "name": "label",
+            "primaryKey": {
+                "name": "PK_5692ac5348861d3776eb5843672",
+                "columns": [
+                    "id"
+                ]
+            }
+        },
+        {
+            "columns": [
+                {
+                    "type": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "generated": "uuid"
+                },
+                {
+                    "type": "character varying",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [],
+            "uniques": [],
+            "indexes": [],
+            "name": "organizer",
+            "primaryKey": {
+                "name": "PK_b59551a131f312443b992f90434",
+                "columns": [
+                    "id"
+                ]
+            }
+        },
+        {
+            "columns": [
+                {
+                    "type": "character varying",
+                    "isArray": false,
+                    "name": "batch",
+                    "nullable": false,
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "type": "character varying",
+                    "isArray": false,
+                    "name": "doorCode",
+                    "nullable": true,
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "type": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "generated": "uuid"
+                },
+                {
+                    "type": "jsonb",
+                    "isArray": false,
+                    "name": "location",
+                    "nullable": true
+                },
+                {
+                    "type": "character varying",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "type": "uuid",
+                    "isArray": false,
+                    "name": "organizerId",
+                    "nullable": true
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "name": "FK_4a9d0eb63f77ff16eb559714463",
+                    "columns": [
+                        "organizerId"
+                    ],
+                    "referencedTable": "organizer",
+                    "referencedColumns": [
+                        "id"
+                    ],
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE"
+                }
+            ],
+            "uniques": [],
+            "indexes": [],
+            "name": "venue",
+            "primaryKey": {
+                "name": "PK_c53deb6d1bcb088f9d459e7dbc0",
+                "columns": [
+                    "id"
+                ]
+            }
+        },
+        {
+            "columns": [
+                {
+                    "type": "uuid",
+                    "isArray": false,
+                    "name": "labelId",
+                    "nullable": false
+                },
+                {
+                    "type": "uuid",
+                    "isArray": false,
+                    "name": "venueId",
+                    "nullable": false
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "name": "FK_56b9b3cc2f06ce8af074514d6a3",
+                    "columns": [
+                        "labelId"
+                    ],
+                    "referencedTable": "label",
+                    "referencedColumns": [
+                        "id"
+                    ],
+                    "onDelete": "CASCADE",
+                    "onUpdate": "NO ACTION"
+                },
+                {
+                    "name": "FK_fe04c21d36ae39cbaa5fa34f2f9",
+                    "columns": [
+                        "venueId"
+                    ],
+                    "referencedTable": "venue",
+                    "referencedColumns": [
+                        "id"
+                    ],
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE"
+                }
+            ],
+            "uniques": [],
+            "indexes": [
+                {
+                    "name": "IDX_56b9b3cc2f06ce8af074514d6a",
+                    "columns": [
+                        "labelId"
+                    ]
+                },
+                {
+                    "name": "IDX_fe04c21d36ae39cbaa5fa34f2f",
+                    "columns": [
+                        "venueId"
+                    ]
+                }
+            ],
+            "name": "venue_labels_label",
+            "primaryKey": {
+                "name": "PK_fbaf61b0a5e813ba9d32d26c53e",
+                "columns": [
+                    "labelId",
+                    "venueId"
+                ]
+            }
+        }
+    ],
+    "relations allowed to some callers": [
+        {
+            "columns": [
+                {
+                    "type": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "generated": "uuid"
+                },
+                {
+                    "type": "character varying",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [],
+            "uniques": [],
+            "indexes": [],
+            "name": "genre",
+            "primaryKey": {
+                "name": "PK_0285d4f1655d080cfcf7d1ab141",
+                "columns": [
+                    "id"
+                ]
+            }
+        },
+        {
+            "columns": [
+                {
+                    "type": "character varying",
+                    "isArray": false,
+                    "name": "batch",
+                    "nullable": false,
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "type": "jsonb",
+                    "isArray": false,
+                    "name": "credits",
+                    "nullable": true
+                },
+                {
+                    "type": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "generated": "uuid"
+                },
+                {
+                    "type": "character varying",
+                    "isArray": true,
+                    "name": "moods",
+                    "nullable": true
+                },
+                {
+                    "type": "character varying",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [],
+            "uniques": [],
+            "indexes": [],
+            "name": "playlist",
+            "primaryKey": {
+                "name": "PK_538c2893e2024fabc7ae65ad142",
+                "columns": [
+                    "id"
+                ]
+            }
+        },
+        {
+            "columns": [
+                {
+                    "type": "uuid",
+                    "isArray": false,
+                    "name": "genreId",
+                    "nullable": false
+                },
+                {
+                    "type": "uuid",
+                    "isArray": false,
+                    "name": "playlistId",
+                    "nullable": false
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "name": "FK_1ed2a8aeec959146930be8bba9e",
+                    "columns": [
+                        "playlistId"
+                    ],
+                    "referencedTable": "playlist",
+                    "referencedColumns": [
+                        "id"
+                    ],
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE"
+                },
+                {
+                    "name": "FK_5375929974dd55a0c818a4cbf58",
+                    "columns": [
+                        "genreId"
+                    ],
+                    "referencedTable": "genre",
+                    "referencedColumns": [
+                        "id"
+                    ],
+                    "onDelete": "CASCADE",
+                    "onUpdate": "NO ACTION"
+                }
+            ],
+            "uniques": [],
+            "indexes": [
+                {
+                    "name": "IDX_1ed2a8aeec959146930be8bba9",
+                    "columns": [
+                        "playlistId"
+                    ]
+                },
+                {
+                    "name": "IDX_5375929974dd55a0c818a4cbf5",
+                    "columns": [
+                        "genreId"
+                    ]
+                }
+            ],
+            "name": "playlist_genres_genre",
+            "primaryKey": {
+                "name": "PK_27756d2d447c6300b0f5d740ea6",
+                "columns": [
+                    "genreId",
+                    "playlistId"
+                ]
+            }
+        },
+        {
+            "columns": [
+                {
+                    "type": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "generated": "uuid"
+                },
+                {
+                    "type": "uuid",
+                    "isArray": false,
+                    "name": "playlistId",
+                    "nullable": true
+                },
+                {
+                    "type": "character varying",
+                    "isArray": false,
+                    "name": "title",
+                    "nullable": false,
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "name": "FK_cd57e08e2edf7fd0078a493ffe5",
+                    "columns": [
+                        "playlistId"
+                    ],
+                    "referencedTable": "playlist",
+                    "referencedColumns": [
+                        "id"
+                    ],
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE"
+                }
+            ],
+            "uniques": [],
+            "indexes": [],
+            "name": "track",
+            "primaryKey": {
+                "name": "PK_0631b9bcf521f8fab3a15f2c37e",
+                "columns": [
+                    "id"
+                ]
+            }
+        }
+    ],
+    "relations of relations": [
+        {
+            "columns": [
+                {
+                    "type": "uuid",
+                    "isArray": false,
+                    "name": "artistId",
+                    "nullable": true
+                },
+                {
+                    "type": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "generated": "uuid"
+                },
+                {
+                    "type": "character varying",
+                    "isArray": false,
+                    "name": "title",
+                    "nullable": false,
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "name": "FK_3d06f25148a4a880b429e3bc839",
+                    "columns": [
+                        "artistId"
+                    ],
+                    "referencedTable": "artist",
+                    "referencedColumns": [
+                        "id"
+                    ],
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE"
+                }
+            ],
+            "uniques": [],
+            "indexes": [],
+            "name": "album",
+            "primaryKey": {
+                "name": "PK_58e0b4b8a31bb897e6959fe3206",
+                "columns": [
+                    "id"
+                ]
+            }
+        },
+        {
+            "columns": [
+                {
+                    "type": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "generated": "uuid"
+                },
+                {
+                    "type": "character varying",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [],
+            "uniques": [],
+            "indexes": [],
+            "name": "artist",
+            "primaryKey": {
+                "name": "PK_55b76e71568b5db4d01d3e394ed",
+                "columns": [
+                    "id"
+                ]
+            }
+        },
+        {
+            "columns": [
+                {
+                    "type": "uuid",
+                    "isArray": false,
+                    "name": "albumId",
+                    "nullable": true
+                },
+                {
+                    "type": "character varying",
+                    "isArray": false,
+                    "name": "batch",
+                    "nullable": false,
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "type": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "generated": "uuid"
+                },
+                {
+                    "type": "character varying",
+                    "isArray": false,
+                    "name": "title",
+                    "nullable": false,
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "name": "FK_b105d945c4c185395daca91606a",
+                    "columns": [
+                        "albumId"
+                    ],
+                    "referencedTable": "album",
+                    "referencedColumns": [
+                        "id"
+                    ],
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE"
+                }
+            ],
+            "uniques": [],
+            "indexes": [],
+            "name": "track",
+            "primaryKey": {
+                "name": "PK_0631b9bcf521f8fab3a15f2c37e",
+                "columns": [
+                    "id"
+                ]
+            }
+        }
+    ],
+    "relations under a scope": [
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "isArray": false,
+                    "name": "ownerId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "account",
+            "primaryKey": {
+                "name": "PK_54115ee388cdb6d86bb4bf5b2ea",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "accountId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "tagId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": [
+                        "tagId"
+                    ],
+                    "name": "FK_10ba3ec73e9095c72d9a474401f",
+                    "referencedTable": "tag",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "NO ACTION",
+                    "referencedColumns": [
+                        "id"
+                    ]
+                },
+                {
+                    "columns": [
+                        "accountId"
+                    ],
+                    "name": "FK_662b1118af354dbdb0c1fc460a4",
+                    "referencedTable": "account",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": [
+                        "id"
+                    ]
+                }
+            ],
+            "indexes": [
+                {
+                    "name": "IDX_10ba3ec73e9095c72d9a474401",
+                    "columns": [
+                        "tagId"
+                    ]
+                },
+                {
+                    "name": "IDX_662b1118af354dbdb0c1fc460a",
+                    "columns": [
+                        "accountId"
+                    ]
+                }
+            ],
+            "name": "account_tags_tag",
+            "primaryKey": {
+                "name": "PK_1c584de5e24b677357b5dd15663",
+                "columns": [
+                    "accountId",
+                    "tagId"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "changeSetId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "key",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "isArray": false,
+                    "name": "newValue",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "isArray": false,
+                    "name": "previousValue",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": true,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": [
+                        "changeSetId"
+                    ],
+                    "name": "FK_d6002005979514387bd60a8ff8c",
+                    "referencedTable": "change_set",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": [
+                        "id"
+                    ]
+                }
+            ],
+            "indexes": [],
+            "name": "change",
+            "primaryKey": {
+                "name": "PK_38168d337b66a2d98e059fe5820",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "changeSetEntityId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "createdAt",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": false,
+                    "name": "createdBy",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "type",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "change_set",
+            "primaryKey": {
+                "name": "PK_d5a247956d947b633a6303a7a61",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "accountId",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "amount",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "ownerId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": [
+                        "accountId"
+                    ],
+                    "name": "FK_89cf170c6771515b780b428338b",
+                    "referencedTable": "account",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": [
+                        "id"
+                    ]
+                }
+            ],
+            "indexes": [],
+            "name": "invoice",
+            "primaryKey": {
+                "name": "PK_15d25c200d9bcd8a33f698daf18",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "deleted",
+                    "nullable": false,
+                    "type": "boolean",
+                    "default": "false"
+                },
+                {
+                    "isArray": false,
+                    "name": "deletedWith",
+                    "nullable": true,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "project",
+            "primaryKey": {
+                "name": "PK_4d68b1358bb5b766d3e78f32f57",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "label",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "isArray": false,
+                    "name": "ownerId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "tag",
+            "primaryKey": {
+                "name": "PK_8e4052373c579afc1471f526760",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "deleted",
+                    "nullable": false,
+                    "type": "boolean",
+                    "default": "false"
+                },
+                {
+                    "isArray": false,
+                    "name": "deletedWith",
+                    "nullable": true,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "projectId",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "title",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": [
+                        "projectId"
+                    ],
+                    "name": "FK_3797a20ef5553ae87af126bc2fe",
+                    "referencedTable": "project",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": [
+                        "id"
+                    ]
+                }
+            ],
+            "indexes": [],
+            "name": "task",
+            "primaryKey": {
+                "name": "PK_fb213f79ee45060ba925ecd576e",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        }
+    ],
+    "rows a relation owns": [
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "changeSetId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "key",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "isArray": false,
+                    "name": "newValue",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "isArray": false,
+                    "name": "previousValue",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": true,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": [
+                        "changeSetId"
+                    ],
+                    "name": "FK_d6002005979514387bd60a8ff8c",
+                    "referencedTable": "change_set",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": [
+                        "id"
+                    ]
+                }
+            ],
+            "indexes": [],
+            "name": "change",
+            "primaryKey": {
+                "name": "PK_38168d337b66a2d98e059fe5820",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "changeSetEntityId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "createdAt",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": false,
+                    "name": "createdBy",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "type",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "change_set",
+            "primaryKey": {
+                "name": "PK_d5a247956d947b633a6303a7a61",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "residentId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "title",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": [
+                        "residentId"
+                    ],
+                    "name": "FK_9d9009a2abf5d354728b124aeed",
+                    "referencedTable": "resident",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": [
+                        "id"
+                    ]
+                }
+            ],
+            "indexes": [],
+            "name": "chore",
+            "primaryKey": {
+                "name": "PK_cc3f222c4e799a49ee48ca92b1f",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "householdId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "text",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": [
+                        "householdId"
+                    ],
+                    "name": "FK_5ebcfc11eae54e8f71aacee0cb3",
+                    "referencedTable": "household",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": [
+                        "id"
+                    ]
+                }
+            ],
+            "indexes": [],
+            "name": "doorplate",
+            "primaryKey": {
+                "name": "PK_c793170b568883d78768532f13f",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": [
+                {
+                    "name": "REL_5ebcfc11eae54e8f71aacee0cb",
+                    "columns": [
+                        "householdId"
+                    ]
+                }
+            ]
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "isArray": false,
+                    "name": "parentId",
+                    "nullable": true,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": [
+                        "parentId"
+                    ],
+                    "name": "FK_9ee3bd0f189fb242d488c0dfa39",
+                    "referencedTable": "folder",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": [
+                        "id"
+                    ]
+                }
+            ],
+            "indexes": [],
+            "name": "folder",
+            "primaryKey": {
+                "name": "PK_6278a41a706740c94c02e288df8",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "deleted",
+                    "nullable": false,
+                    "type": "boolean",
+                    "default": "false"
+                },
+                {
+                    "isArray": false,
+                    "name": "deletedWith",
+                    "nullable": true,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "isArray": false,
+                    "name": "householdId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": [
+                        "householdId"
+                    ],
+                    "name": "FK_84e94418e85c2b74392f8423b2a",
+                    "referencedTable": "household",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": [
+                        "id"
+                    ]
+                }
+            ],
+            "indexes": [],
+            "name": "guest",
+            "primaryKey": {
+                "name": "PK_57689d19445de01737dbc458857",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "household",
+            "primaryKey": {
+                "name": "PK_26e9111eab2b8908fefe3c645f5",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "deleted",
+                    "nullable": false,
+                    "type": "boolean",
+                    "default": "false"
+                },
+                {
+                    "isArray": false,
+                    "name": "deletedWith",
+                    "nullable": true,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "isArray": false,
+                    "name": "householdId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": [
+                        "householdId"
+                    ],
+                    "name": "FK_c8f2970095e763e285db5e7482a",
+                    "referencedTable": "household",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": [
+                        "id"
+                    ]
+                }
+            ],
+            "indexes": [],
+            "name": "lodger",
+            "primaryKey": {
+                "name": "PK_9247c67ab8b83bdbb01066435b3",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "householdId",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "keeper",
+                    "nullable": true,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": [
+                        "householdId"
+                    ],
+                    "name": "FK_8372c62922160f14d074cc10359",
+                    "referencedTable": "household",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "NO ACTION",
+                    "referencedColumns": [
+                        "id"
+                    ]
+                }
+            ],
+            "indexes": [],
+            "name": "pet",
+            "primaryKey": {
+                "name": "PK_b1ac2e88e89b9480e0c5b53fa60",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "householdId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "isArray": false,
+                    "name": "nickname",
+                    "nullable": true,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": [
+                        "householdId"
+                    ],
+                    "name": "FK_267b313e6f40133b55f998659e2",
+                    "referencedTable": "household",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": [
+                        "id"
+                    ]
+                }
+            ],
+            "indexes": [],
+            "name": "resident",
+            "primaryKey": {
+                "name": "PK_f1a321823d6f69d0e348535fd37",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "deleted",
+                    "nullable": false,
+                    "type": "boolean",
+                    "default": "false"
+                },
+                {
+                    "isArray": false,
+                    "name": "deletedWith",
+                    "nullable": true,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "isArray": false,
+                    "name": "tripId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": [
+                        "tripId"
+                    ],
+                    "name": "FK_5687c39dc7c1835d5ae4d42c180",
+                    "referencedTable": "trip",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": [
+                        "id"
+                    ]
+                }
+            ],
+            "indexes": [],
+            "name": "stop",
+            "primaryKey": {
+                "name": "PK_df01674281c44fc10ddd0465d28",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "deleted",
+                    "nullable": false,
+                    "type": "boolean",
+                    "default": "false"
+                },
+                {
+                    "isArray": false,
+                    "name": "deletedWith",
+                    "nullable": true,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "seat",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "isArray": false,
+                    "name": "stopId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": [
+                        "stopId"
+                    ],
+                    "name": "FK_7b46456c47eddb0686172dde9cc",
+                    "referencedTable": "stop",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": [
+                        "id"
+                    ]
+                }
+            ],
+            "indexes": [],
+            "name": "ticket",
+            "primaryKey": {
+                "name": "PK_d9a0835407701eb86f874474b7c",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "deleted",
+                    "nullable": false,
+                    "type": "boolean",
+                    "default": "false"
+                },
+                {
+                    "isArray": false,
+                    "name": "deletedWith",
+                    "nullable": true,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                },
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "trip",
+            "primaryKey": {
+                "name": "PK_714c23d558208081dbccb9d9268",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        }
+    ],
+    "rows created through a relation": [
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "shelfId",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "title",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": [
+                        "shelfId"
+                    ],
+                    "name": "FK_19960a8c47f3c99239e0b0e0cc0",
+                    "referencedTable": "shelf",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": [
+                        "id"
+                    ]
+                }
+            ],
+            "indexes": [],
+            "name": "book",
+            "primaryKey": {
+                "name": "PK_a3afef72ec8f80e6e5c310b28a4",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "shelfId",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "text",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": [
+                        "shelfId"
+                    ],
+                    "name": "FK_2e6765a38ddb5b90f4c84895fb5",
+                    "referencedTable": "shelf",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": [
+                        "id"
+                    ]
+                }
+            ],
+            "indexes": [],
+            "name": "plaque",
+            "primaryKey": {
+                "name": "PK_87bbc00a7c97df0b7006895969e",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": [
+                {
+                    "name": "REL_2e6765a38ddb5b90f4c84895fb",
+                    "columns": [
+                        "shelfId"
+                    ]
+                }
+            ]
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid",
+                    "generated": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "label",
+                    "nullable": false,
+                    "type": "character varying",
+                    "collation": "en-US-x-icu"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "shelf",
+            "primaryKey": {
+                "name": "PK_da2ce57e38dfc635d50d0e5fc8f",
+                "columns": [
+                    "id"
+                ]
+            },
+            "uniques": []
+        }
+    ],
+    "the framework's own entities": [
+        {
+            "columns": [
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "action",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "clientIp",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "collapsed",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "count",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "lastOccurredAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "isArray": false,
+                    "name": "occurredAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "outcome",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "reason",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "role",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": true,
+                    "name": "scopes",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "subject",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "traceId",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "userId",
+                    "nullable": true,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "audit_entry",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_58a130a4b9da189f46ba2a01801"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "at",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": true,
+                    "name": "tags",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "cache_invalidation",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_20f44a6e00472e0a330a5fcb727"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "changeSetId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "key",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "newValue",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "isArray": false,
+                    "name": "previousValue",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": true,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": ["changeSetId"],
+                    "name": "FK_d6002005979514387bd60a8ff8c",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "change_set"
+                }
+            ],
+            "indexes": [],
+            "name": "change",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_38168d337b66a2d98e059fe5820"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "changeSetEntityId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "createdAt",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": false,
+                    "name": "createdBy",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "type",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "change_set",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_d5a247956d947b633a6303a7a61"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "backedOffUntil",
+                    "nullable": true,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "isArray": false,
+                    "name": "catchUpWithinInMs",
+                    "nullable": true,
+                    "type": "double precision"
+                },
+                {
+                    "isArray": false,
+                    "name": "consecutiveFailures",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "cron",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "declaredActive",
+                    "nullable": true,
+                    "type": "boolean"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "declaredCron",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "errorMessage",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "lastRun",
+                    "nullable": true,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "previousState",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "runOnInit",
+                    "nullable": false,
+                    "type": "boolean"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "source",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "state",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "timezone",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "cron_job_entity",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_bbc82bf9d8ee3c56bdb5a8c03d4"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "attachments",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "default": "'0'",
+                    "isArray": false,
+                    "name": "attempts",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": true,
+                    "name": "bcc",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": true,
+                    "name": "cc",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "createdAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "isArray": false,
+                    "name": "error",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "html",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "listUnsubscribeUrl",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "nextAttemptAt",
+                    "nullable": true,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "isArray": false,
+                    "name": "persist",
+                    "nullable": false,
+                    "type": "boolean"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "priority",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": true,
+                    "name": "recipients",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": true,
+                    "name": "rejectedRecipients",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "sender",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "status",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "subject",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "userId",
+                    "nullable": true,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "email",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_1e7ed8734ee054ef18002e29b1c"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "status",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "strategyId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "value",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": ["strategyId"],
+                    "name": "FK_82302ad37bc0db4b84c5a8f9242",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "encryption_strategy_entity"
+                }
+            ],
+            "indexes": [],
+            "name": "encryption_key",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_994c83c0787872610bdb25275c2"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "attempts",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "entityName",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "error",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "failedAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": true,
+                    "name": "keyIds",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "retryAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "rowId",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "encryption_rotation_failure",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_51cf28c4fa68b87c0a70534bb9e"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "cursor",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "entityName",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": true,
+                    "name": "passRetiredKeyIds",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": true,
+                    "name": "sweptRetiredKeyIds",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "encryption_rotation_progress",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_ec550e2283aaf10b2749dc8e970"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "status",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "version",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "encryption_strategy_entity",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_e97ec583a43f749fe3f825bb146"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "cleanupAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "isArray": false,
+                    "name": "createdAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "isArray": false,
+                    "name": "data",
+                    "nullable": false,
+                    "type": "jsonb"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "nextDispatchAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "default": "'CREATED'",
+                    "isArray": false,
+                    "name": "status",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": true,
+                    "name": "subscriberIds",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "type",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "event",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_30c2f3bbaf6d34a55f8ae6e4614"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "eventType",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "expiresAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "runsOn",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "subscriberId",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "event_subscriber_registration",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_beedea991a8675d53526c51b5cc"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "default": "'0'",
+                    "isArray": false,
+                    "name": "attempts",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": false,
+                    "name": "createdAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "isArray": false,
+                    "name": "error",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "isArray": false,
+                    "name": "eventId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "finishedAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "nextAttemptAt",
+                    "nullable": true,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "status",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "subscriberId",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": true,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": ["eventId"],
+                    "name": "FK_a18feb9ca002a1d8d401c424482",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "event"
+                }
+            ],
+            "indexes": [],
+            "name": "event_subscriber_run",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_05e48176e8e0fd3eaa76f6fc1bf"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "status",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "version",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "hash_strategy_entity",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_56ad862d8a157e3ddc4bc6637bb"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "blacklisted",
+                    "nullable": false,
+                    "type": "boolean"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "dpopKeyThumbprint",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "expirationDate",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "isArray": false,
+                    "name": "familyId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "federatedLogout",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "federatedProvider",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "federatedSessionKey",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "federatedSubjectKey",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "providerAuthentication",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "isArray": false,
+                    "name": "replacedAt",
+                    "nullable": true,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "isArray": false,
+                    "name": "userId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "value",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "jwt_refresh_token",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_35f83b4dd71582d1fb1d3dfcebf"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "deactivatedAt",
+                    "nullable": true,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "email",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": true,
+                    "name": "roles",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "jwt_user",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_faf42129af4f77fcd42ab2ac675"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "expiresAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "heldBy",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "key",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "lease",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_954811694773f24986695203663"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "cleanupAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "isArray": false,
+                    "name": "context",
+                    "nullable": false,
+                    "type": "jsonb"
+                },
+                {
+                    "isArray": false,
+                    "name": "createdAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "level",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "message",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": true,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "log",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_350604cbdf991d5930d9e618fbd"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "authenticatedAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "isArray": false,
+                    "name": "expirationDate",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "federatedLogout",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "federatedProvider",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "federatedSessionKey",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "federatedSubjectKey",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "spent",
+                    "nullable": false,
+                    "type": "boolean"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "subject",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "userId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "value",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "login_ticket",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_9e86a2cbdd60adf29eedd00946b"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "ranAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "version",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "migration_entity",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_b1339584ad1d08a467a286367cd"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "default": "false",
+                    "isArray": false,
+                    "name": "confirmed",
+                    "nullable": false,
+                    "type": "boolean"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "secret",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "userId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "otp_credentials",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_3d70979133a9ea84f163b8a22ab"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "password",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "userId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "password_credentials",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_c7302926c19b0b92389e3d3b27a"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "expirationDate",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "userId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "value",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "password_reset_token",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_838af121380dfe3a6330e04f5bb"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "deactivatedAt",
+                    "nullable": true,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": true,
+                    "name": "roles",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "userId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "test_membership",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_ba8e8f3026cbd29ae34ff74cd69"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "description",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "level",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": true,
+                    "name": "permissions",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": true,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "test_role",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_d676996470ee3a6ee1b17623730"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "default": "'0'",
+                    "isArray": false,
+                    "name": "attempts",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": false,
+                    "name": "error",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "nextAttemptAt",
+                    "nullable": true,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "isArray": false,
+                    "name": "priority",
+                    "nullable": false,
+                    "type": "boolean"
+                },
+                {
+                    "isArray": false,
+                    "name": "progress",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": false,
+                    "name": "queuedAtMs",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": false,
+                    "name": "result",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "isArray": false,
+                    "name": "startedAtMs",
+                    "nullable": true,
+                    "type": "bigint"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "status",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "stoppedAtMs",
+                    "nullable": true,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "threadId",
+                    "nullable": true,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": false,
+                    "name": "timeoutInMs",
+                    "nullable": false,
+                    "type": "double precision"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "traceparent",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "tracestate",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "workerData",
+                    "nullable": false,
+                    "type": "jsonb"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "thread_job_entity",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_9211bc0e8722b4561b6fdb9d5b2"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "count",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "lockedAt",
+                    "nullable": true,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "isArray": false,
+                    "name": "retryAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "isArray": false,
+                    "name": "userId",
+                    "nullable": false,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "two_factor_failure_streak",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_ccf861e6ff0818a0841c3ffa822"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": true,
+                    "name": "userIds",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "websocket_channel",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_a1641d8d96763bb10b50d5746c7"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "isArray": false,
+                    "name": "createdAt",
+                    "nullable": false,
+                    "type": "timestamp with time zone"
+                },
+                {
+                    "isArray": false,
+                    "name": "data",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "isArray": false,
+                    "name": "error",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "event",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "ok",
+                    "nullable": false,
+                    "type": "boolean"
+                },
+                {
+                    "isArray": false,
+                    "name": "recipientId",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "recipientType",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "senderConnectionId",
+                    "nullable": true,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "senderUserId",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "isArray": false,
+                    "name": "seq",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": false,
+                    "name": "status",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": false,
+                    "name": "tenantId",
+                    "nullable": true,
+                    "type": "uuid"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "websocket_message",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_9d67429a8cc4ddb2c328a18f319"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "seq",
+                    "nullable": false,
+                    "type": "bigint"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "websocket_message_sequence",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_57ba6f3855592412a9a0d183553"
+            },
+            "uniques": []
+        }
+    ],
+    "the measured costs": [
+        {
+            "columns": [
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "label",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "cost_group",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_bafad03990e64d7eac7542cfc11"
+            },
+            "uniques": []
+        },
+        {
+            "columns": [
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "batch",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "count",
+                    "nullable": false,
+                    "type": "bigint"
+                },
+                {
+                    "isArray": false,
+                    "name": "groupId",
+                    "nullable": true,
+                    "type": "uuid"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "columns": ["groupId"],
+                    "name": "FK_20ae971d711b33660a47ec5910b",
+                    "onDelete": "CASCADE",
+                    "onUpdate": "CASCADE",
+                    "referencedColumns": ["id"],
+                    "referencedTable": "cost_group"
+                }
+            ],
+            "indexes": [],
+            "name": "cost_item",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_b142403afde4c8224d82ae013aa"
+            },
+            "uniques": []
+        }
+    ],
+    "values of several shapes": [
+        {
+            "columns": [
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "batch",
+                    "nullable": false,
+                    "type": "character varying"
+                },
+                {
+                    "isArray": false,
+                    "name": "contact",
+                    "nullable": false,
+                    "type": "jsonb"
+                },
+                {
+                    "isArray": false,
+                    "name": "details",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "isArray": false,
+                    "name": "followUp",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "isArray": false,
+                    "name": "history",
+                    "nullable": true,
+                    "type": "jsonb"
+                },
+                {
+                    "generated": "uuid",
+                    "isArray": false,
+                    "name": "id",
+                    "nullable": false,
+                    "type": "uuid"
+                },
+                {
+                    "collation": "en-US-x-icu",
+                    "isArray": false,
+                    "name": "name",
+                    "nullable": false,
+                    "type": "character varying"
+                }
+            ],
+            "foreignKeys": [],
+            "indexes": [],
+            "name": "lead",
+            "primaryKey": {
+                "columns": ["id"],
+                "name": "PK_ca96c1888f7dcfccab72b72fffa"
+            },
+            "uniques": []
+        }
+    ]
+}

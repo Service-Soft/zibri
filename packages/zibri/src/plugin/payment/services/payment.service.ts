@@ -12,13 +12,20 @@ import { InternalError } from '../../../error-handling/internal-error.model';
 import { type LeaseServiceInterface } from '../../../leases/lease-service.interface';
 import { $ts } from '../../../localization/translate.function';
 import { type LoggerInterface } from '../../../logging/logger.interface';
+import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
 import { Ms } from '../../../utilities/ms';
+import { ObjectUtilities } from '../../../utilities/object.utilities';
 import { PaymentMethod } from '../models/payment-method.model';
 import { type PaymentPluginOptions } from '../models/payment-plugin-options.model';
 import { PaymentStatus } from '../models/payment-status.enum';
 import { Payment } from '../models/payment.model';
 import { ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from '../payment.tokens';
 import { AnyPaymentProviderInterface } from '../providers/payment-provider.interface';
+
+/**
+ * How many abandoned payments of a provider one pass of the reconciliation asks about at most.
+ */
+const RECONCILED_PER_PASS: number = 100;
 
 /**
  * Default payment service implementation of zibri.
@@ -50,6 +57,10 @@ export class PaymentService<
 
     private get leaseService(): LeaseServiceInterface {
         return inject(ZIBRI_DI_TOKENS.LEASE_SERVICE);
+    }
+
+    private get tenantService(): TenantServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
     }
 
     private findPaymentProviderForMethod<M extends Methods[number]>(method: M): P[number] {
@@ -211,5 +222,45 @@ export class PaymentService<
             }
             await this.findPaymentProviderForMethod(stored.paymentMethod).refundPayment(stored);
         });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async reconcileAbandonedPayments(): Promise<number> {
+        const failures: unknown[] = [];
+        let reconciled: number = 0;
+        for (const provider of this.options.paymentProviders) {
+            const methods: string[] = ObjectUtilities.entries(this.options.providerNameForMethod)
+                .filter(([, name]) => name === provider.name)
+                .map(([method]) => method);
+            // a page per pass: the job runs every hour, and a provider that cannot be asked would
+            // otherwise have every pass walk the whole backlog to fail on each of them
+            const stale: Payment<string, AnyObject>[] = await this.paymentRepository.findAll({
+                where: {
+                    status: PaymentStatus.CREATED,
+                    paymentMethod: { oneOf: methods },
+                    createdAt: { before: new Date(Date.now() - provider.approvalWindowInMs) }
+                },
+                acrossTenants: true,
+                limit: RECONCILED_PER_PASS
+            });
+            for (const payment of stale) {
+                try {
+                    await this.tenantService.runAs(payment.tenantId, async () => await this.transition(payment, async stored => {
+                        // confirmed or cancelled since it was read
+                        if (stored.status === PaymentStatus.CREATED) {
+                            await provider.reconcilePayment(stored);
+                        }
+                    }));
+                    reconciled++;
+                }
+                catch (error) {
+                    failures.push(error);
+                }
+            }
+        }
+        if (failures.length) {
+            throw new InternalError(`Could not reconcile ${failures.length} abandoned payments.`, { cause: failures[0] });
+        }
+        return reconciled;
     }
 }

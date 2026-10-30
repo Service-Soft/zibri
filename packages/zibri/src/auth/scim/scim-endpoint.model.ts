@@ -20,5 +20,9 @@ export type ScimEndpoint = {
     /**
      * The most bytes a bulk request may weigh.
      */
-    maxBulkPayloadSize: number
+    maxBulkPayloadSize: number,
+    /**
+     * The most resources a list answers.
+     */
+    maxResults: number
 };

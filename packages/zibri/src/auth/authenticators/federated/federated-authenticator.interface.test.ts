@@ -7,16 +7,16 @@ import type { FederatedAuthenticatorInterface } from './federated-authenticator.
 import { FederatedCredentials, FederatedHandoverCredentials } from './federated-credentials.model';
 import { FederatedIdentity } from './federated-identity.model';
 import { FederatedLinkIdentityStart } from './federated-link-identity-start.model';
+import { FederatedLoginFailure } from './federated-login-failure.enum';
+import { FederatedLoginRequest } from './federated-login-request.model';
+import { FederatedLoginResult } from './federated-login-result.model';
+import { FederatedLoginError } from './federated-login.error';
 import { FederatedMetadata } from './federated-metadata.model';
 import { FederatedProviderLogout } from './federated-provider-logout.model';
 import { FederatedRegistration } from './federated-registration.model';
 import type { FederatedRouteEndpoint } from './federated-route-endpoint.model';
 import type { FederatedRoute } from './federated-route.type';
 import { FederatedSessionMatch } from './federated-session-match.model';
-import { FederatedLoginFailure } from './federated-login-failure.enum';
-import { FederatedLoginRequest } from './federated-login-request.model';
-import { FederatedLoginResult } from './federated-login-result.model';
-import { FederatedLoginError } from './federated-login.error';
 import { FederatedSoapLogout } from './federated-soap-logout.model';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
@@ -176,34 +176,46 @@ class RedirectedSoapLogoutDirectAuthenticator extends DirectAuthenticator {
 }
 
 /**
- * The auth routes of an application logging in through the given provider. The provider connects
- * nothing to an account, so the route requesting a link is left out.
- * @param authenticator - The provider's authenticator.
+ * A second provider of the application's own under the name the first one has.
+ */
+class SecondDirectAuthenticator extends DirectAuthenticator {}
+
+/**
+ * A provider whose name cannot be part of the urls of its routes.
+ */
+class CapitalizedDirectAuthenticator extends DirectAuthenticator {
+    override readonly name: string = 'Direct';
+}
+
+/**
+ * The auth routes of an application logging in through the given providers. They connect nothing to
+ * an account, so the route requesting a link is left out.
+ * @param authenticators - The providers' authenticators.
  * @returns The controller.
  */
-function defineAuthController(authenticator: Newable<DirectAuthenticator>): Newable<unknown> {
+function defineAuthController(authenticators: Newable<DirectAuthenticator>[]): Newable<unknown> {
     // an orphan for every case that boots with another one
     @Controller('/auth', { allowOrphan: true, versions: 'all' })
     class DirectAuthController extends OmitClass(
-            AuthController({ strategies: [JwtAuthStrategy], authenticators: [authenticator], twoFactorMethods: [OtpTwoFactorMethod] }),
+            AuthController({ strategies: [JwtAuthStrategy], authenticators, twoFactorMethods: [OtpTwoFactorMethod] }),
             ['requestLinkIdentity']
         ) {}
     return DirectAuthController;
 }
 
 /**
- * Starts an application logging in through the given provider, at the routes of the auth controller.
- * @param authenticator - The provider's authenticator.
+ * Starts an application logging in through the given providers, at the routes of the auth controller.
+ * @param authenticators - The providers' authenticators.
  * @returns The server and the url it listens at.
  */
-async function startApp(authenticator: Newable<DirectAuthenticator>): Promise<[StartedTestServer, string]> {
+async function startApp(...authenticators: Newable<DirectAuthenticator>[]): Promise<[StartedTestServer, string]> {
     const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true });
     const server: StartedTestServer = await startTestServer({
         baseUrl: PUBLIC_URL,
         dataSources: [dataSourceClass],
         authStrategies: [JwtAuthStrategy],
-        authenticators: [authenticator],
-        controllers: [defineAuthController(authenticator)],
+        authenticators,
+        controllers: [defineAuthController(authenticators)],
         providers: [
             ...defaultTestServerProviders,
             defineProvider({ token: ZIBRI_DI_TOKENS.COOKIE_SIGN_SECRET, useFactory: () => 'test-cookie-secret' }),
@@ -231,10 +243,10 @@ async function startApp(authenticator: Newable<DirectAuthenticator>): Promise<[S
 /**
  * Starts an application a case expects to be refused, and ends it again when it starts anyway, so the
  * case fails rather than leaving it running.
- * @param authenticator - The provider's authenticator.
+ * @param authenticators - The providers' authenticators.
  */
-async function startThenShutDown(authenticator: Newable<DirectAuthenticator>): Promise<void> {
-    const [server] = await startApp(authenticator);
+async function startThenShutDown(...authenticators: Newable<DirectAuthenticator>[]): Promise<void> {
+    const [server] = await startApp(...authenticators);
     await server.shutdown();
 }
 
@@ -284,5 +296,15 @@ describe('FederatedAuthenticatorInterface — starting', () => {
     it('refuses to start when the route answering a url an authenticator of the application\'s own gives out takes another method', async () => {
         await expect(startThenShutDown(RedirectedSoapLogoutDirectAuthenticator))
             .rejects.toThrow(/RedirectedSoapLogoutDirectAuthenticator[\S\s]*http:\/\/zibri\.test\/auth\/federated\/direct\/logout\/soap[\S\s]*GET[\S\s]*POST/);
+    }, TestTimeouts.inMemory.start);
+
+    it('refuses to start when two authenticators of the application\'s own share a name', async () => {
+        await expect(startThenShutDown(DirectAuthenticator, SecondDirectAuthenticator))
+            .rejects.toThrow('DirectAuthenticator, SecondDirectAuthenticator share the name "direct".');
+    }, TestTimeouts.inMemory.start);
+
+    it('refuses to start when the name of an authenticator of the application\'s own cannot be part of a url', async () => {
+        await expect(startThenShutDown(CapitalizedDirectAuthenticator))
+            .rejects.toThrow('The name "Direct" of CapitalizedDirectAuthenticator can only have lowercase letters, digits and dashes.');
     }, TestTimeouts.inMemory.start);
 });

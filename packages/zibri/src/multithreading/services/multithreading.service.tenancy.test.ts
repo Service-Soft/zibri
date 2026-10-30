@@ -116,6 +116,25 @@ describe('MultithreadingService across tenants', () => {
         expect(completedIn).toBe(tenantA);
     });
 
+    it('tells the worker file the tenant of the job it runs, on a thread the jobs of every tenant share', async () => {
+        const tenantIdWorkerFile: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.tenant-id.test.worker.ts');
+
+        const ofA: ThreadJobEntity<{ filePath: FsPath }, unknown> = await tenants.runAs(
+            tenantA,
+            async () => await multithreadingService.runThreadJob({ workerData: { filePath: tenantIdWorkerFile } })
+        );
+        const ofB: ThreadJobEntity<{ filePath: FsPath }, unknown> = await tenants.runAs(
+            tenantB,
+            async () => await multithreadingService.runThreadJob({ workerData: { filePath: tenantIdWorkerFile } })
+        );
+        const ofNone: ThreadJobEntity<{ filePath: FsPath }, unknown> = await multithreadingService.runThreadJob({
+            workerData: { filePath: tenantIdWorkerFile }
+        });
+
+        // one worker ran all three, the pool having one
+        expect([ofA.result, ofB.result, ofNone.result]).toEqual([tenantA, tenantB, 'no tenant']);
+    }, 20000);
+
     it('runs the queued jobs of every tenant from outside all of them', async () => {
         // what another instance queued and never got to: stored, and waiting for any worker
         const workerData: AmountWorkerData = { filePath: workerFile, amount: 12 };

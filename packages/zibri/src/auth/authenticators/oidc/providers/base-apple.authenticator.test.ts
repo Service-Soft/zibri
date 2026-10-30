@@ -35,6 +35,7 @@ import { FederatedIdentity, FederatedIdentityCreateData } from '../../federated/
 import { FederatedLoginAttempt } from '../../federated/federated-login-attempt.model';
 import { FederatedRegistrationTicket } from '../../federated/federated-registration-ticket.model';
 import { FederatedRegistration } from '../../federated/federated-registration.model';
+import { OidcDiscoveryAtBoot } from '../oidc-discovery-at-boot.type';
 
 const PUBLIC_URL: string = 'http://zibri.test';
 const SERVICES_ID: string = 'com.example.app.login';
@@ -53,6 +54,8 @@ const clientSecrets: boolean[] = [];
 
 class AppleAuthenticator extends BaseAppleAuthenticator<string, JwtUser> {
     readonly clientId: string = SERVICES_ID;
+
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
 
     readonly teamId: string = TEAM_ID;
 

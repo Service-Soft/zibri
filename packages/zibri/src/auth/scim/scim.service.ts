@@ -1,5 +1,6 @@
 import { BaseScimProvisioner } from './base-scim-provisioner';
 import { ScimBody } from './scim-body.model';
+import { ScimBulkUtilities } from './scim-bulk.utilities';
 import { isScimControllerClass } from './scim-controller.model';
 import { ScimEndpoint } from './scim-endpoint.model';
 import { ScimErrorType } from './scim-error-type.enum';
@@ -12,6 +13,7 @@ import { ScimGroup } from './scim-group.model';
 import { ScimIndexedFilter } from './scim-indexed-filter.model';
 import { ScimListQuery } from './scim-list-query.model';
 import { ScimMemberType } from './scim-member-type.enum';
+import { ScimPagingUtilities } from './scim-paging.utilities';
 import { ScimPatchOperation } from './scim-patch-operation.model';
 import { ScimPatchUtilities } from './scim-patch.utilities';
 import { ScimProvisionerClass } from './scim-provisioner-class.type';
@@ -19,6 +21,7 @@ import { ScimResourceResponse } from './scim-resource-response.model';
 import { ScimSchema } from './scim-schema.enum';
 import { ScimSchemaUtilities } from './scim-schema.utilities';
 import { ScimServiceInterface } from './scim-service.interface';
+import { ScimUserPages } from './scim-user-pages.model';
 import { ScimUserResource } from './scim-user-resource.model';
 import { ScimUserValue } from './scim-user-value.model';
 import { ScimUserValueUtilities } from './scim-user-value.utilities';
@@ -30,7 +33,6 @@ import { ZibriApplication } from '../../application/application';
 import { type AuditServiceInterface } from '../../audit/audit-service.interface';
 import { Where, WhereFilter } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository/repository';
-import { ScopedWhere, ScopeWhereUtilities } from '../../data-source/scopes/scope-where.utilities';
 import { Transaction } from '../../data-source/transaction/transaction.model';
 import { UniqueConstraintViolationError } from '../../data-source/unique-constraint-violation.error';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -40,19 +42,17 @@ import { inject } from '../../di/inject.function';
 import { register } from '../../di/register.function';
 import { EntityOrder } from '../../entity/models/entity-order.model';
 import { ConflictError } from '../../error-handling/errors/conflict.error';
-import { HttpError } from '../../error-handling/errors/http.error';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { HttpStatus } from '../../http/http-status.enum';
 import { $ts } from '../../localization/translate.function';
 import { AuditAction, AuditOutcome } from '../../logging/audit-event.model';
-import { auditReasonFor } from '../../logging/audit-reason-for.function';
+import { AuditUtilities } from '../../logging/audit.utilities';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { BaseMembership } from '../../tenancy/membership/base-membership.model';
 import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { OmitStrict } from '../../types/omit-strict.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { PromiseUtilities } from '../../utilities/promise.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
@@ -60,11 +60,6 @@ import { type AuthServiceInterface } from '../auth-service.interface';
 import { BaseUser } from '../models/base-user.model';
 import { ApiKeyAuthStrategy } from '../strategies/api-key/api-key.auth-strategy';
 import { type UserServiceInterface } from '../user/user-service.interface';
-
-/**
- * The most resources a list answers with.
- */
-const MAX_RESULTS: number = 200;
 
 /**
  * How an identity provider authenticates, as the ServiceProviderConfig says it.
@@ -86,16 +81,6 @@ const RESERVED_USER_ATTRIBUTES: string[] = ['id', 'meta', 'schemas', 'username',
  * What a request for a whole resource asks for: every attribute.
  */
 const EVERY_ATTRIBUTE: Pick<ScimListQuery, 'attributes' | 'excludedAttributes'> = { attributes: undefined, excludedAttributes: undefined };
-
-/**
- * The methods an operation of a bulk request may have.
- */
-const BULK_METHODS: string[] = ['POST', 'PUT', 'PATCH', 'DELETE'];
-
-/**
- * What a reference to a resource another operation of the same bulk request creates starts with.
- */
-const BULK_ID_PREFIX: string = 'bulkId:';
 
 /**
  * A user as a request provisions it, before it has an id.
@@ -120,54 +105,6 @@ type ScimMember = {
     id: string,
     // eslint-disable-next-line jsdoc/require-jsdoc
     type: ScimMemberType
-};
-
-/**
- * An operation of a bulk request (RFC 7644, 3.7), read.
- */
-type ScimBulkOperation = {
-    /**
-     * Its position in the request.
-     */
-    index: number,
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    method: string,
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    bulkId: string | undefined,
-    /**
-     * The etag the resource has to have, if the operation names one.
-     */
-    version: string | undefined,
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    path: string,
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    data: unknown
-};
-
-/**
- * A bulk request as it is applied.
- */
-type ScimBulkRun = {
-    /**
-     * The routes the request came through.
-     */
-    endpoint: ScimEndpoint,
-    /**
-     * After how many failed operations it stops, if it stops at all.
-     */
-    failOnErrors: number | undefined,
-    /**
-     * The id of every resource an operation created, by the bulkId it named.
-     */
-    created: Map<string, string>,
-    /**
-     * The result of every operation applied, by its position in the request.
-     */
-    results: Map<number, ScimBody>,
-    /**
-     * How many operations failed so far.
-     */
-    errors: number
 };
 
 /**
@@ -260,7 +197,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
             schemas: [ScimSchema.SERVICE_PROVIDER_CONFIG],
             patch: { supported: true },
             bulk: { supported: true, maxOperations: endpoint.maxBulkOperations, maxPayloadSize: endpoint.maxBulkPayloadSize },
-            filter: { supported: true, maxResults: MAX_RESULTS },
+            filter: { supported: true, maxResults: endpoint.maxResults },
             changePassword: { supported: false },
             sort: { supported: true },
             etag: { supported: true },
@@ -272,7 +209,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     getResourceTypes(endpoint: ScimEndpoint): ScimBody {
         const resources: ScimBody[] = this.resolveResourceTypes(endpoint);
-        return this.toListBody(resources, resources.length, 1);
+        return ScimPagingUtilities.toListBody(resources, resources.length, 1);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -287,7 +224,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     getSchemas(endpoint: ScimEndpoint): ScimBody {
         const schemas: ScimBody[] = ScimSchemaUtilities.getSchemas(endpoint.url);
-        return this.toListBody(schemas, schemas.length, 1);
+        return ScimPagingUtilities.toListBody(schemas, schemas.length, 1);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -362,14 +299,15 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         const order: EntityOrder<ScimUser> | ScimValueSort = query.sortBy == undefined
             ? { createdAt: 'ASC', id: 'ASC' }
             : ScimWhereUtilities.resolveUserOrder(query.sortBy, query.sortOrder);
-        const startIndex: number = this.resolveStartIndex(query);
+        const startIndex: number = ScimPagingUtilities.resolveStartIndex(query);
         if (where?.length === 0) {
-            return this.toListBody([], 0, startIndex);
+            return ScimPagingUtilities.toListBody([], 0, startIndex);
         }
         if ('paths' in order) {
-            return await this.resolveValueSortedPage(endpoint, query, where, order);
+            return await ScimPagingUtilities
+                .resolveValueSortedPage(this.toUserPages(endpoint, query), query, endpoint.maxResults, where, order);
         }
-        return await this.resolveUserPage(endpoint, query, where, order);
+        return await ScimPagingUtilities.resolveUserPage(this.toUserPages(endpoint, query), query, endpoint.maxResults, where, order);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -469,17 +407,17 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         const order: EntityOrder<ScimGroup> = query.sortBy == undefined
             ? { createdAt: 'ASC', id: 'ASC' }
             : ScimWhereUtilities.resolveGroupOrder(query.sortBy, query.sortOrder);
-        const startIndex: number = this.resolveStartIndex(query);
+        const startIndex: number = ScimPagingUtilities.resolveStartIndex(query);
         if (where?.length === 0) {
-            return this.toListBody([], 0, startIndex);
+            return ScimPagingUtilities.toListBody([], 0, startIndex);
         }
-        const count: number = this.resolveCount(query);
+        const count: number = ScimPagingUtilities.resolveCount(query, endpoint.maxResults);
         const totalResults: number = await this.groups.count({ where });
         const found: ScimGroup[] = count === 0 ? [] : await this.groups.findAll({ where, order, offset: startIndex - 1, limit: count });
         const resources: ScimBody[] = await Promise.all(
             found.map(async group => (await this.toGroupResponse(endpoint, group, query, undefined)).body)
         );
-        return this.toListBody(resources, totalResults, startIndex);
+        return ScimPagingUtilities.toListBody(resources, totalResults, startIndex);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -531,136 +469,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async bulk(endpoint: ScimEndpoint, body: unknown): Promise<ScimBody> {
-        const run: ScimBulkRun = {
-            endpoint,
-            failOnErrors: this.resolveFailOnErrors(body),
-            created: new Map(),
-            results: new Map(),
-            errors: 0
-        };
-        let pending: ScimBulkOperation[] = this.resolveBulkOperations(endpoint, body);
-        // operations creating a resource without what refers to the others of a circle, and its id
-        const unfinished: [ScimBulkOperation, string][] = [];
-        while (pending.length && !this.isBulkStopped(run)) {
-            const deferred: ScimBulkOperation[] = await this.resolveBulkPass(run, pending);
-            if (deferred.length < pending.length) {
-                pending = deferred;
-                continue;
-            }
-            // operations that only wait for each other refer to each other in a circle, which creating
-            // one of them without its references first breaks
-            const breaker: ScimBulkOperation | undefined = this.findBulkCircleBreaker(deferred);
-            if (breaker == undefined) {
-                for (const operation of deferred) {
-                    run.results.set(operation.index, this.toBulkError(operation, new ScimError(
-                        HttpStatus.CONFLICT,
-                        $ts`The operation refers in a circle to resources the request creates.`
-                    )));
-                }
-                break;
-            }
-            const id: string | undefined = await this.resolveBulkCircleBreak(run, breaker);
-            if (id != undefined) {
-                unfinished.push([breaker, id]);
-            }
-            pending = deferred.filter(operation => operation !== breaker);
-        }
-        // in order, each the rest of an operation already applied, and so even after a stop
-        for (const [operation, id] of unfinished) {
-            run.results.set(operation.index, await this.resolveBulkCompletion(run, operation, id));
-        }
-        return {
-            schemas: [ScimSchema.BULK_RESPONSE],
-            Operations: [...run.results.entries()].sort(([a], [b]) => a - b).map(([, result]) => result)
-        };
-    }
-
-    /**
-     * Applies the operations of a bulk request whose references can be resolved, in order.
-     * @param run - The bulk request being applied.
-     * @param pending - The operations not applied yet.
-     * @returns The operations that wait for a resource one of the others creates.
-     */
-    private async resolveBulkPass(run: ScimBulkRun, pending: ScimBulkOperation[]): Promise<ScimBulkOperation[]> {
-        const waiting: Set<string> = new Set(pending.map(operation => operation.bulkId).filter(bulkId => bulkId != undefined));
-        const deferred: ScimBulkOperation[] = [];
-        for (const operation of pending) {
-            if (this.isBulkStopped(run)) {
-                break;
-            }
-            const unresolved: string[] = this.findBulkReferences(operation).filter(bulkId => !run.created.has(bulkId));
-            // one created by an operation further on: this one waits for it
-            if (unresolved.some(bulkId => waiting.has(bulkId) && bulkId !== operation.bulkId)) {
-                deferred.push(operation);
-                continue;
-            }
-            const result: ScimBody = unresolved.length
-                ? this.toBulkError(operation, new ScimError(
-                    HttpStatus.CONFLICT,
-                    $ts`The operation refers to bulkId ${unresolved.join(', ')}, which no operation of the request created.`
-                ))
-                : await this.resolveBulkResult(run.endpoint, operation, run.created);
-            run.errors += this.isBulkError(result) ? 1 : 0;
-            run.results.set(operation.index, result);
-        }
-        return deferred;
-    }
-
-    /**
-     * The operation of a circle to break: one creating a resource another of the circle refers to.
-     * @param deferred - The operations of the circle, and those waiting for them.
-     * @returns The operation, or undefined when none creates what the others wait for.
-     */
-    private findBulkCircleBreaker(deferred: ScimBulkOperation[]): ScimBulkOperation | undefined {
-        const referenced: Set<string> = new Set(deferred.flatMap(operation => this.findBulkReferences(operation)));
-        return deferred.find(operation => operation.method === 'POST' && operation.bulkId != undefined && referenced.has(operation.bulkId));
-    }
-
-    /**
-     * Creates the resource of an operation of a circle without what refers to the resources the
-     * others create, so that they can be applied.
-     * @param run - The bulk request being applied.
-     * @param operation - The operation.
-     * @returns The id of the resource, or undefined when it could not be created.
-     */
-    private async resolveBulkCircleBreak(run: ScimBulkRun, operation: ScimBulkOperation): Promise<string | undefined> {
-        const unresolved: Set<string> = new Set(this.findBulkReferences(operation).filter(bulkId => !run.created.has(bulkId)));
-        const result: ScimBody = await this.resolveBulkResult(
-            run.endpoint,
-            { ...operation, data: this.withoutBulkReferences(operation.data, unresolved) },
-            run.created
-        );
-        run.errors += this.isBulkError(result) ? 1 : 0;
-        run.results.set(operation.index, result);
-        return operation.bulkId == undefined ? undefined : run.created.get(operation.bulkId);
-    }
-
-    /**
-     * Replaces the resource an operation of a circle created with the whole of its data, now that the
-     * resources it refers to exist.
-     * @param run - The bulk request being applied.
-     * @param operation - The operation.
-     * @param id - The id of the resource it created.
-     * @returns The result of the operation.
-     */
-    private async resolveBulkCompletion(run: ScimBulkRun, operation: ScimBulkOperation, id: string): Promise<ScimBody> {
-        const users: boolean = operation.path === '/Users';
-        const unresolved: string[] = this.findBulkReferences(operation).filter(bulkId => !run.created.has(bulkId));
-        try {
-            if (unresolved.length) {
-                throw new ScimError(
-                    HttpStatus.CONFLICT,
-                    $ts`The operation refers to bulkId ${unresolved.join(', ')}, which no operation of the request created.`
-                );
-            }
-            const data: unknown = this.replaceBulkIds(operation.data, run.created);
-            const response: ScimResourceResponse = await this.resolveBulkChange(run.endpoint, 'PUT', users, id, data, undefined);
-            return this.toBulkResult(operation, response.location, response.version, HttpStatus.CREATED);
-        }
-        catch (error) {
-            // the resource exists, without what referred to the others
-            return { ...this.toBulkError(operation, error), location: `${run.endpoint.url}${operation.path}/${id}` };
-        }
+        return await ScimBulkUtilities.apply(this, this.logger, endpoint, body);
     }
 
     /**
@@ -796,125 +605,20 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
     }
 
     /**
-     * Reads users for a list sorted by an attribute without a column of its own: those with a value
-     * of it in its order, and those without one by id, last when ascending and first when descending
-     * as a column without a value reads.
+     * What reading a page of users for a list needs from this service.
      * @param endpoint - The routes the list is answered for.
      * @param query - What the list asks for.
-     * @param where - The alternatives of its filter.
-     * @param sort - The attribute it sorts by.
-     * @returns The list response.
+     * @returns The repositories and steps.
      */
-    private async resolveValueSortedPage(
-        endpoint: ScimEndpoint,
-        query: ScimListQuery,
-        where: WhereFilter<ScimUser>[] | undefined,
-        sort: ScimValueSort
-    ): Promise<ScimBody> {
-        const startIndex: number = this.resolveStartIndex(query);
-        const count: number = this.resolveCount(query);
-        const totalResults: number = await this.users.count({ where });
-        // the values are narrowed to the users the filter finds, which reads every one of them: a
-        // sort by a value with a filter is rare enough to pay that rather than keep the two together
-        const filteredIds: string[] | undefined = where == undefined
-            ? undefined
-            : (await this.users.findAll({ where, limit: 'all' })).map(user => user.id);
-        const valueWhere: WhereFilter<ScimUserValue> = {
-            path: { oneOf: sort.paths },
-            sortValue: true,
-            ...filteredIds == undefined ? {} : { scimUserId: { oneOf: filteredIds } }
+    private toUserPages(endpoint: ScimEndpoint, query: ScimListQuery): ScimUserPages {
+        return {
+            users: this.users,
+            values: this.values,
+            findValueHolders: async where => await this.findValueHolders(where),
+            findOrphans: async scimUsers => await this.findOrphans(scimUsers),
+            removeOrphans: async orphans => await this.removeOrphans(orphans),
+            resolveBodies: async scimUsers => await this.resolveUserBodies(endpoint, scimUsers, query)
         };
-        const withValue: number = await this.values.count({ where: valueWhere });
-        const withoutFirst: boolean = sort.direction === 'DESC';
-        const firstSize: number = withoutFirst ? totalResults - withValue : withValue;
-        const offset: number = startIndex - 1;
-        const firstLimit: number = Math.max(0, Math.min(count, firstSize - offset));
-        const first: [number, number] = [Math.min(offset, firstSize), firstLimit];
-        const second: [number, number] = [Math.max(0, offset - firstSize), count - firstLimit];
-        const found: ScimUser[] = withoutFirst
-            ? [
-                ...await this.findUsersWithoutValue(where, valueWhere, ...first),
-                ...await this.findUsersWithValue(valueWhere, sort, ...second)
-            ]
-            : [
-                ...await this.findUsersWithValue(valueWhere, sort, ...first),
-                ...await this.findUsersWithoutValue(where, valueWhere, ...second)
-            ];
-        const orphans: ScimUser[] = await this.findOrphans(found);
-        if (orphans.length) {
-            await this.removeOrphans(orphans);
-            return await this.resolveValueSortedPage(endpoint, query, where, sort);
-        }
-        return this.toListBody(await this.resolveUserBodies(endpoint, found, query), totalResults, startIndex);
-    }
-
-    private async findUsersWithValue(
-        valueWhere: WhereFilter<ScimUserValue>,
-        sort: ScimValueSort,
-        offset: number,
-        limit: number
-    ): Promise<ScimUser[]> {
-        if (limit <= 0) {
-            return [];
-        }
-        const values: ScimUserValue[] = await this.values.findAll({
-            where: valueWhere,
-            order: { text: sort.direction, number: sort.direction, boolean: sort.direction, scimUserId: 'ASC' },
-            offset,
-            limit
-        });
-        const ids: string[] = values.map(value => value.scimUserId);
-        const users: ScimUser[] = await this.users.findAll({ where: { id: { oneOf: ids } }, limit: 'all' });
-        const byId: Map<string, ScimUser> = new Map(users.map(user => [user.id, user]));
-        return values.map(value => byId.get(value.scimUserId)).filter(user => user != undefined);
-    }
-
-    private async findUsersWithoutValue(
-        where: WhereFilter<ScimUser>[] | undefined,
-        valueWhere: WhereFilter<ScimUserValue>,
-        offset: number,
-        limit: number
-    ): Promise<ScimUser[]> {
-        if (limit <= 0) {
-            return [];
-        }
-        const holders: string[] = await this.findValueHolders(valueWhere);
-        const without: ScopedWhere<ScimUser> = ScopeWhereUtilities.applyToWhere(
-            where,
-            holders.length ? { id: { notOneOf: holders } } : undefined,
-            MetadataUtilities.getModelProperties(ScimUser)
-        );
-        if (without.matchesNothing) {
-            return [];
-        }
-        return await this.users.findAll({ where: without.where, order: { id: 'ASC' }, offset, limit });
-    }
-
-    /**
-     * Reads users for a list, removing a resource whose user is gone as it is found and reading the
-     * page again without it.
-     * @param endpoint - The routes the list is answered for.
-     * @param query - What the list asks for.
-     * @param where - The alternatives of its filter.
-     * @param order - The order it reads in.
-     * @returns The list response.
-     */
-    private async resolveUserPage(
-        endpoint: ScimEndpoint,
-        query: ScimListQuery,
-        where: WhereFilter<ScimUser>[] | undefined,
-        order: EntityOrder<ScimUser>
-    ): Promise<ScimBody> {
-        const startIndex: number = this.resolveStartIndex(query);
-        const count: number = this.resolveCount(query);
-        const totalResults: number = await this.users.count({ where });
-        const found: ScimUser[] = count === 0 ? [] : await this.users.findAll({ where, order, offset: startIndex - 1, limit: count });
-        const orphans: ScimUser[] = await this.findOrphans(found);
-        if (orphans.length) {
-            await this.removeOrphans(orphans);
-            return await this.resolveUserPage(endpoint, query, where, order);
-        }
-        return this.toListBody(await this.resolveUserBodies(endpoint, found, query), totalResults, startIndex);
     }
 
     /**
@@ -1513,14 +1217,6 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         return groupsOfMember;
     }
 
-    private resolveStartIndex(query: ScimListQuery): number {
-        return Math.max(1, Math.trunc(query.startIndex ?? 1));
-    }
-
-    private resolveCount(query: ScimListQuery): number {
-        return Math.min(MAX_RESULTS, Math.max(0, Math.trunc(query.count ?? MAX_RESULTS)));
-    }
-
     private resolveResourceTypes(endpoint: ScimEndpoint): ScimBody[] {
         return [
             {
@@ -1665,10 +1361,6 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         return `W/"${version}"`;
     }
 
-    private toListBody(resources: ScimBody[], totalResults: number, startIndex: number): ScimBody {
-        return { schemas: [ScimSchema.LIST_RESPONSE], totalResults, startIndex, itemsPerPage: resources.length, Resources: resources };
-    }
-
     /**
      * Narrows a resource to the attributes a request asks for. `id` and `schemas` are always answered.
      * @param resource - The resource.
@@ -1689,254 +1381,6 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
             return attributes.includes(attribute.toLowerCase());
         }
         return !names(query.excludedAttributes).includes(attribute.toLowerCase());
-    }
-
-    /**
-     * Reads the operations of a bulk request.
-     * @param endpoint - The routes the request came through.
-     * @param body - The request.
-     * @returns The operations, in order.
-     * @throws A ScimError when the request is no bulk request, or holds more operations than allowed.
-     */
-    private resolveBulkOperations(endpoint: ScimEndpoint, body: unknown): ScimBulkOperation[] {
-        const invalid: (detail: string) => ScimError = detail => new ScimError(
-            HttpStatus.BAD_REQUEST,
-            $ts`${detail}`,
-            ScimErrorType.INVALID_SYNTAX
-        );
-        const operations: unknown = ScimFilterUtilities.isRecord(body) ? this.findAttribute(body, 'Operations') : undefined;
-        if (!Array.isArray(operations)) {
-            throw invalid('A bulk request lists its Operations.');
-        }
-        if (operations.length > endpoint.maxBulkOperations) {
-            throw new ScimError(
-                HttpStatus.CONTENT_TOO_LARGE,
-                $ts`A bulk request holds at most ${endpoint.maxBulkOperations} operations, this one ${operations.length}.`
-            );
-        }
-        const bulkIds: Set<string> = new Set();
-        return operations.map((operation: unknown, index): ScimBulkOperation => {
-            if (!ScimFilterUtilities.isRecord(operation)) {
-                throw invalid('An operation of a bulk request is a json object.');
-            }
-            const method: unknown = this.findAttribute(operation, 'method');
-            const path: unknown = this.findAttribute(operation, 'path');
-            const bulkId: unknown = this.findAttribute(operation, 'bulkId');
-            const version: unknown = this.findAttribute(operation, 'version');
-            if (typeof method !== 'string' || !BULK_METHODS.includes(method.toUpperCase()) || typeof path !== 'string') {
-                throw invalid('An operation of a bulk request has a method, POST, PUT, PATCH or DELETE, and a path.');
-            }
-            if ((bulkId != undefined && typeof bulkId !== 'string') || (version != undefined && typeof version !== 'string')) {
-                throw invalid('The bulkId and the version of an operation are strings.');
-            }
-            if (typeof bulkId === 'string') {
-                if (bulkIds.has(bulkId)) {
-                    throw invalid('Every bulkId of a bulk request is its own.');
-                }
-                bulkIds.add(bulkId);
-            }
-            return {
-                index,
-                method: method.toUpperCase(),
-                bulkId: bulkId ?? undefined,
-                version: version ?? undefined,
-                path,
-                data: this.findAttribute(operation, 'data')
-            };
-        });
-    }
-
-    /**
-     * Reads after how many failed operations a bulk request stops.
-     * @param body - The request.
-     * @returns The number, or undefined to apply every operation whatever fails.
-     * @throws A ScimError (invalidValue) when it is no whole number above 0.
-     */
-    private resolveFailOnErrors(body: unknown): number | undefined {
-        const failOnErrors: unknown = ScimFilterUtilities.isRecord(body) ? this.findAttribute(body, 'failOnErrors') : undefined;
-        if (failOnErrors == undefined) {
-            return undefined;
-        }
-        if (typeof failOnErrors !== 'number' || !Number.isInteger(failOnErrors) || failOnErrors < 1) {
-            throw new ScimError(HttpStatus.BAD_REQUEST, $ts`failOnErrors is a whole number above 0.`, ScimErrorType.INVALID_VALUE);
-        }
-        return failOnErrors;
-    }
-
-    private isBulkStopped(run: ScimBulkRun): boolean {
-        return run.failOnErrors != undefined && run.errors >= run.failOnErrors;
-    }
-
-    private isBulkError(result: ScimBody): boolean {
-        return typeof result['status'] === 'string' && Number(result['status']) >= 400;
-    }
-
-    /**
-     * Applies one operation of a bulk request, answering what it did or why it failed.
-     * @param endpoint - The routes the request came through.
-     * @param operation - The operation.
-     * @param created - The ids of the resources earlier operations created, by their bulkId. An
-     * operation creating one adds it.
-     * @returns The result of the operation.
-     */
-    private async resolveBulkResult(endpoint: ScimEndpoint, operation: ScimBulkOperation, created: Map<string, string>): Promise<ScimBody> {
-        try {
-            const path: unknown = this.replaceBulkIds(operation.path, created);
-            const data: unknown = this.replaceBulkIds(operation.data, created);
-            const match: RegExpExecArray | undefined = typeof path === 'string'
-                ? /^\/(Users|Groups)(?:\/([^/]+))?$/.exec(path) ?? undefined
-                : undefined;
-            const resource: string | undefined = match?.[1];
-            const id: string | undefined = match?.[2];
-            if (resource == undefined || (operation.method === 'POST') !== (id == undefined)) {
-                throw new ScimError(
-                    HttpStatus.BAD_REQUEST,
-                    $ts`A POST names /Users or /Groups, every other operation a resource, eg. /Users/{id}.`,
-                    ScimErrorType.INVALID_PATH
-                );
-            }
-            const users: boolean = resource === 'Users';
-            if (id == undefined) {
-                const response: ScimResourceResponse = users
-                    ? await this.createUser(endpoint, data)
-                    : await this.createGroup(endpoint, data);
-                if (operation.bulkId != undefined) {
-                    created.set(operation.bulkId, response.id);
-                }
-                return this.toBulkResult(operation, response.location, response.version, HttpStatus.CREATED);
-            }
-            if (operation.method === 'DELETE') {
-                await (users ? this.deleteUser(endpoint, id, operation.version) : this.deleteGroup(endpoint, id, operation.version));
-                return this.toBulkResult(operation, `${endpoint.url}/${resource}/${id}`, undefined, HttpStatus.NO_CONTENT);
-            }
-            const response: ScimResourceResponse = await this.resolveBulkChange(
-                endpoint,
-                operation.method,
-                users,
-                id,
-                data,
-                operation.version
-            );
-            return this.toBulkResult(operation, response.location, response.version, HttpStatus.OK);
-        }
-        catch (error) {
-            return this.toBulkError(operation, error);
-        }
-    }
-
-    private async resolveBulkChange(
-        endpoint: ScimEndpoint,
-        method: string,
-        users: boolean,
-        id: string,
-        data: unknown,
-        version: string | undefined
-    ): Promise<ScimResourceResponse> {
-        if (method === 'PUT') {
-            return users ? await this.replaceUser(endpoint, id, data, version) : await this.replaceGroup(endpoint, id, data, version);
-        }
-        return users ? await this.patchUser(endpoint, id, data, version) : await this.patchGroup(endpoint, id, data, version);
-    }
-
-    private toBulkResult(operation: ScimBulkOperation, location: string, version: string | undefined, status: HttpStatus): ScimBody {
-        return {
-            method: operation.method,
-            ...operation.bulkId == undefined ? {} : { bulkId: operation.bulkId },
-            location,
-            ...version == undefined ? {} : { version },
-            status: `${status}`
-        };
-    }
-
-    /**
-     * The result of an operation of a bulk request that failed: its status, and the error a request
-     * of its own would have answered with.
-     * @param operation - The operation.
-     * @param error - Why it failed.
-     * @returns The result.
-     */
-    private toBulkError(operation: ScimBulkOperation, error: unknown): ScimBody {
-        let status: HttpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
-        let response: unknown;
-        if (error instanceof ScimError) {
-            status = error.status;
-            response = error.body;
-        }
-        else if (error instanceof HttpError) {
-            status = error.status;
-            response = { schemas: [ScimSchema.ERROR], status: `${error.status}`, detail: error.message };
-        }
-        else {
-            this.logger.error(new Error(`The operation ${operation.index} of a SCIM bulk request failed.`, { cause: error }));
-            response = { schemas: [ScimSchema.ERROR], status: `${status}`, detail: 'Internal Server Error' };
-        }
-        return {
-            method: operation.method,
-            ...operation.bulkId == undefined ? {} : { bulkId: operation.bulkId },
-            // a failed POST created nothing to point at
-            ...operation.method === 'POST' ? {} : { location: operation.path },
-            status: `${status}`,
-            response
-        };
-    }
-
-    /**
-     * The bulkIds an operation refers to, as `bulkId:…` anywhere in its path or data.
-     * @param operation - The operation.
-     * @returns The bulkIds.
-     */
-    private findBulkReferences(operation: ScimBulkOperation): string[] {
-        const inPath: string[] = operation.path.split('/').flatMap(segment => this.findBulkReferencesIn(segment));
-        return [...this.findBulkReferencesIn(operation.data), ...inPath];
-    }
-
-    private findBulkReferencesIn(value: unknown): string[] {
-        if (typeof value === 'string') {
-            return value.startsWith(BULK_ID_PREFIX) ? [value.slice(BULK_ID_PREFIX.length)] : [];
-        }
-        const items: unknown[] = Array.isArray(value) ? value : ScimFilterUtilities.isRecord(value) ? Object.values(value) : [];
-        return items.flatMap(item => this.findBulkReferencesIn(item));
-    }
-
-    /**
-     * Leaves out of the data of an operation what refers to the given bulkIds: every item of a list
-     * that does, say a member, and every attribute that is such a reference.
-     * @param value - The data.
-     * @param bulkIds - The bulkIds.
-     * @returns The data, without them.
-     */
-    private withoutBulkReferences(value: unknown, bulkIds: Set<string>): unknown {
-        const refers: (item: unknown) => boolean = item => this.findBulkReferencesIn(item).some(bulkId => bulkIds.has(bulkId));
-        if (Array.isArray(value)) {
-            return value.filter(item => !refers(item)).map(item => this.withoutBulkReferences(item, bulkIds));
-        }
-        if (ScimFilterUtilities.isRecord(value)) {
-            return Object.fromEntries(Object.entries(value)
-                .filter(([, item]) => !(typeof item === 'string' && refers(item)))
-                .map(([key, item]) => [key, this.withoutBulkReferences(item, bulkIds)]));
-        }
-        return value;
-    }
-
-    /**
-     * Replaces every `bulkId:…` the given value holds with the id of the resource created under it.
-     * @param value - A path, or the data of an operation.
-     * @param created - The ids of the created resources, by their bulkId.
-     * @returns The value, with the ids in.
-     */
-    private replaceBulkIds(value: unknown, created: Map<string, string>): unknown {
-        if (typeof value === 'string') {
-            return value.split('/')
-                .map(segment => segment.startsWith(BULK_ID_PREFIX) ? created.get(segment.slice(BULK_ID_PREFIX.length)) ?? segment : segment)
-                .join('/');
-        }
-        if (Array.isArray(value)) {
-            return value.map(item => this.replaceBulkIds(item, created));
-        }
-        if (ScimFilterUtilities.isRecord(value)) {
-            return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, this.replaceBulkIds(item, created)]));
-        }
-        return value;
     }
 
     /**
@@ -1975,7 +1419,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
             return result;
         }
         catch (error) {
-            this.auditService.record({ action, outcome: AuditOutcome.FAILURE, reason: auditReasonFor(error) });
+            this.auditService.record({ action, outcome: AuditOutcome.FAILURE, reason: AuditUtilities.resolveReason(error) });
             throw error;
         }
     }

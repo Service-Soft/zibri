@@ -1,5 +1,5 @@
+import { ExtractedTranslationString } from './models/extracted-translation-string.model';
 import { XliffDocument } from './models/xliff-document.model';
-import { ExtractedTranslationString } from './transform-source-translation-tokens.function';
 import { XmlUtilities } from '../../document/xml.utilities';
 
 /**

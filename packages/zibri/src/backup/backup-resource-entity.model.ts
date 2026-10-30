@@ -10,7 +10,8 @@ import { OmitStrict } from '../types/omit-strict.type';
  * `attempts` count the stores that failed, `nextAttemptAt` says when the next is due, and `error`
  * holds what the last one failed with.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+// not backed up, for the reason BackupEntity gives
+@Entity({ tenant: 'shared', allowOrphan: true, backedUp: false })
 export class BackupResourceEntity extends QueuedWorkEntity {
     /**
      * The name of the resource.

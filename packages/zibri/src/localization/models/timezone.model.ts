@@ -440,6 +440,6 @@ export type Timezone = (typeof timezones)[number];
  * The same names as an enum shaped object.
  *
  * `@Property.string({ enum })` validates against the *values* of an object, which an array is not,
- * so a property that has to accept only real time zones needs this rather than `timezones`.
+ * so a property that has to accept only real time zones names this one.
  */
 export const timezoneEnum: AnyEnum<string> = Object.fromEntries(timezones.map(t => [t, t]));

@@ -169,7 +169,7 @@ describe('Where filters – deeply nested (object → array → object)', () => 
 
     // ===== Array of objects (Addresses) exact match =====
     it('exact array match (shorthand)', async () => {
-        // Works due to recent fix: plain array = exact match via @> & <@
+        // a plain array is matched exactly: the same items, in the same order
         const res: Customer[] = await customerRepo.findAll({
             where: {
                 personalData: {
@@ -185,9 +185,20 @@ describe('Where filters – deeply nested (object → array → object)', () => 
         expect(res.map(c => c.id)).toEqual([alice.id]);
     });
 
-    // ===== Array of objects: includes (contains) – requires feature, skip for now =====
-    it('array includes (contains all specified objects)', async () => {
-        const res: Customer[] = await customerRepo.findAll({
+    // ===== Array of objects: includes (contains) =====
+    // round-2 11 §S5: an object listed is one value, found only where an item equals it as a whole.
+    // This case used to find Alice by part of her address
+    it('array includes (contains all specified objects, each as a whole)', async () => {
+        const whole: Customer[] = await customerRepo.findAll({
+            where: {
+                personalData: {
+                    where: {
+                        addresses: { includes: [{ street: '123 Main St', city: 'Springfield', type: 'home' }] }
+                    }
+                }
+            }
+        });
+        const part: Customer[] = await customerRepo.findAll({
             where: {
                 personalData: {
                     where: {
@@ -196,7 +207,8 @@ describe('Where filters – deeply nested (object → array → object)', () => 
                 }
             }
         });
-        expect(res.map(c => c.id)).toEqual([alice.id]);
+        expect(whole.map(c => c.id)).toEqual([alice.id]);
+        expect(part).toEqual([]);
     });
 
     // ===== Array of objects: nested where on items (if supported) =====

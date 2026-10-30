@@ -8,10 +8,13 @@ import { MjDivider } from './mj-divider';
 import { MjGroup } from './mj-group';
 import { MjHead } from './mj-head';
 import { MjImage } from './mj-image';
+import { MjPreview } from './mj-preview';
 import { MjRaw } from './mj-raw';
 import { MjSection } from './mj-section';
 import { MjSpacer } from './mj-spacer';
+import { MjStyle } from './mj-style';
 import { MjText } from './mj-text';
+import { MjTitle } from './mj-title';
 import { MjWrapper } from './mj-wrapper';
 import { Mjml } from './mjml';
 import { renderEmail, Mount } from '../__testing__/email-render.helper';
@@ -134,6 +137,48 @@ describe('email content components', () => {
     });
 });
 
+describe('values written into attributes', () => {
+    it('escapes the props of an image', () => {
+        const html: string = inColumn((mount: Mount) => mount(MjImage, { src: 'a.png?x="1"', alt: 'Bob" onerror="alert(1)' }));
+        expect(html).toContain('alt="Bob&quot; onerror=&quot;alert(1)" src="a.png?x=&quot;1&quot;"');
+    });
+
+    it('escapes the class of a button and of text', () => {
+        const html: string = inColumn((mount: Mount) => [
+            mount(MjButton, { href: '#', cssClass: 'a" onclick="x' }, () => 'Go'),
+            mount(MjText, { cssClass: 'b"><script>' }, () => 'x')
+        ]);
+        expect(html).toContain('class="a&quot; onclick=&quot;x"');
+        expect(html).toContain('class="b&quot;&gt;&lt;script&gt;"');
+    });
+
+    it('escapes a style value', () => {
+        const html: string = inColumn((mount: Mount) => mount(MjText, { color: 'red;" onmouseover="x' }, () => 'x'));
+        expect(html).toContain('color:red;&quot; onmouseover=&quot;x;');
+    });
+
+    it('escapes a declared default and the typography of the body', () => {
+        const html: string = renderEmail((mount: Mount) => mount(Mjml, {}, () => [
+            mount(MjHead, {}, () => mount(MjAttributes, { all: { fontFamily: 'A"><b>' }, defaults: { MjText: { color: 'x"y' } } })),
+            mount(MjBody, {}, () => mount(MjSection, {}, () => mount(MjColumn, {}, () => mount(MjText, {}, () => 'x'))))
+        ]));
+        expect(html).toContain('font-family:A&quot;&gt;&lt;b&gt;;');
+        expect(html).toContain('color:x&quot;y;');
+    });
+
+    it('escapes the language and direction of the document', () => {
+        const html: string = renderEmail((mount: Mount) => mount(Mjml, { lang: 'en" x="y' }, () => ''));
+        expect(html).toContain('<html lang="en&quot; x=&quot;y"');
+    });
+
+    it('leaves out a link that runs script', () => {
+        const button: string = inColumn((mount: Mount) => mount(MjButton, { href: ' JavaScript:alert(1)' }, () => 'Go'));
+        const image: string = inColumn((mount: Mount) => mount(MjImage, { src: 'javascript:alert(1)' }));
+        expect(button).not.toContain('alert(1)');
+        expect(image).not.toContain('alert(1)');
+    });
+});
+
 describe('email container components', () => {
     it('lays a group out as a non-stacking inline block', () => {
         const html: string = renderEmail((mount: Mount) => mount(MjBody, {}, () => mount(MjSection, {}, () => mount(MjGroup, {}, () => mount(MjColumn, { width: '50%' }, () => mount(MjText, {}, () => 'a'))))));
@@ -181,6 +226,20 @@ describe('email head two-pass', () => {
     it('escapes the document title', () => {
         const html: string = renderEmail((mount: Mount) => mount(Mjml, { title: 'A & B' }, () => ''));
         expect(html).toContain('<title>A &amp; B</title>');
+    });
+
+    it('escapes a title of text and values once', () => {
+        const html: string = renderEmail((mount: Mount) => mount(Mjml, {}, () => mount(MjHead, {}, () => [
+            mount(MjTitle, {}, () => ['Order for ', 'Smith & Sons']),
+            mount(MjPreview, {}, () => ['Hi ', 'A & B'])
+        ])));
+        expect(html).toContain('<title>Order for Smith &amp; Sons</title>');
+        expect(html).toContain('>Hi A &amp; B</div>');
+    });
+
+    it('keeps the css of a style made of several parts', () => {
+        const html: string = renderEmail((mount: Mount) => mount(Mjml, {}, () => mount(MjHead, {}, () => mount(MjStyle, {}, () => ['.a > b{}', '.c{}']))));
+        expect(html).toContain('.a > b{}.c{}');
     });
 });
 

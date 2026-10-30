@@ -5,6 +5,8 @@ A client binds its tokens to a key pair it holds: it signs a proof with the priv
 | Export | Kind | Purpose |
 |---|---|---|
 | `ZIBRI_DI_TOKENS.DPOP_NONCES` | DI token | Whether a proof carries a nonce your application issued. Defaults to `false` |
+| `ZIBRI_DI_TOKENS.DPOP_PROOF_MAX_AGE_IN_MS` | DI token | How long ago a proof may have been signed, and how far ahead of the clock it may claim to be. Defaults to five minutes |
+| `ZIBRI_DI_TOKENS.DPOP_NONCE_LIFETIME_IN_MS` | DI token | How long a nonce your application issued works. Defaults to five minutes |
 | `ZIBRI_DI_TOKENS.DPOP_SERVICE` | DI token | The service checking proofs, replaceable |
 | `DpopServiceInterface` | interface | What a service of your own implements |
 | `DpopService` | class | Checks the [DPoP](./glossary.md#dpop) proofs of requests. Replaceable through `ZIBRI_DI_TOKENS.DPOP_SERVICE` |
@@ -37,6 +39,8 @@ export const dpopProviders = [
 |---|---|
 | `DPOP_NONCES` | `true` and every proof carries a nonce your application issued, see [nonces](#nonces). `false`, the default, and a proof carries none |
 | `requireDpop` of the JWT options | `true` and every login is bound to a key: a login, a refresh and an access token without a proof are refused. `false`, the default, and a login is bound when it is started with a proof |
+| `DPOP_PROOF_MAX_AGE_IN_MS` | How far the time a proof was signed may be from now, either way. Five minutes by default. Raise it for clients whose clocks run off by more |
+| `DPOP_NONCE_LIFETIME_IN_MS` | How long a nonce works. Five minutes by default |
 
 ## Logins
 A client binds a login by sending a proof with the request that starts it, such as `POST /auth/login`. The access token names the key's thumbprint as `cnf.jkt`, and so does every access token the login is refreshed into. A refresh sends a proof of the same key; one without it is refused with `400` and spends nothing.
@@ -76,12 +80,12 @@ A proof is a JWT the client signs with its private key, and carries the public k
 | `jti` | An id the proof is taken once by |
 | `htm` | The method of the request |
 | `htu` | The URL of the request below your `baseUrl`, without its query |
-| `iat` | When it was signed, within five minutes of now |
+| `iat` | When it was signed, within `DPOP_PROOF_MAX_AGE_IN_MS` of now, five minutes by default |
 | `ath` | The SHA-256 of the access token, base64url encoded, on a request sending one |
 | `nonce` | The nonce your application issued, while `DPOP_NONCES` is `true` |
 
 ## Nonces
-While `DPOP_NONCES` is `true`, a proof carries a nonce your application issued. A proof without one, or with one that expired, is answered with a new one in the `DPoP-Nonce` header: `400` with `use_dpop_nonce` from a route that issues tokens, and `401` challenging with `DPoP error="use_dpop_nonce"` from any other. The client signs the proof again with the nonce, and keeps sending it until it is answered a new one. A nonce works for five minutes, on every replica of your application.
+While `DPOP_NONCES` is `true`, a proof carries a nonce your application issued. A proof without one, or with one that expired, is answered with a new one in the `DPoP-Nonce` header: `400` with `use_dpop_nonce` from a route that issues tokens, and `401` challenging with `DPoP error="use_dpop_nonce"` from any other. The client signs the proof again with the nonce, and keeps sending it until it is answered a new one. A nonce works for `DPOP_NONCE_LIFETIME_IN_MS`, five minutes by default, on every replica of your application.
 
 ## Errors
 | `error` | Status | When |

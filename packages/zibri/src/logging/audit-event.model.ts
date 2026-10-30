@@ -34,6 +34,30 @@ export enum AuditAction {
      */
     PASSWORD_LOCKED = 'auth.password.locked',
     /**
+     * Changing a password by presenting the current one.
+     */
+    PASSWORD_CHANGED = 'auth.password.changed',
+    /**
+     * A user ending one of their logins, such as one on a device they lost.
+     */
+    LOGIN_ENDED = 'auth.login.ended',
+    /**
+     * A user ending every one of their logins.
+     */
+    LOGINS_ENDED = 'auth.logins.ended',
+    /**
+     * Verifying the email address of a user, by a link mailed to it.
+     */
+    EMAIL_VERIFIED = 'auth.email.verified',
+    /**
+     * Asking to change the email address of a user, which mails a link to the new one.
+     */
+    EMAIL_CHANGE_REQUESTED = 'auth.email.change-requested',
+    /**
+     * Changing the email address of a user, by a link mailed to the new one.
+     */
+    EMAIL_CHANGED = 'auth.email.changed',
+    /**
      * Presenting a second factor.
      */
     TWO_FACTOR = 'auth.2fa',
@@ -46,6 +70,14 @@ export enum AuditAction {
      * locked ones, or by a reset, which removes all of them.
      */
     TWO_FACTOR_RESET = 'auth.2fa.reset',
+    /**
+     * Confirming a second factor a user enrolls, which they present from then on.
+     */
+    TWO_FACTOR_ENROLLED = 'auth.2fa.enrolled',
+    /**
+     * Removing one second factor of a user.
+     */
+    TWO_FACTOR_REMOVED = 'auth.2fa.removed',
     /**
      * Linking an identity at a provider to a user who already exists, which it logs in as from then on.
      */
@@ -97,6 +129,19 @@ export enum AuditAction {
      * Taking a role from a user, of their own or from their membership in a tenant.
      */
     ROLE_UNASSIGNED = 'auth.role.unassigned',
+    /**
+     * Deactivating a user's membership in a tenant, which takes the tenant and their roles in it away
+     * until it is reactivated. Recorded in that tenant.
+     */
+    MEMBERSHIP_DEACTIVATED = 'auth.membership.deactivated',
+    /**
+     * Reactivating a deactivated membership. Recorded in its tenant.
+     */
+    MEMBERSHIP_REACTIVATED = 'auth.membership.reactivated',
+    /**
+     * Deleting a user's membership in a tenant, and their roles in it with it. Recorded in that tenant.
+     */
+    MEMBERSHIP_DELETED = 'auth.membership.deleted',
     /**
      * A client asking the authorization server for an access token with its api key.
      */
@@ -168,23 +213,22 @@ export enum AuditOutcome {
 /**
  * Why an attempt did not succeed.
  *
- * A closed set rather than a message, because this is the field a detection rule reads. Messages
- * are localized and are allowed to change wording; these values are not.
+ * This is the field a detection rule reads. Messages are localized and are allowed to change
+ * wording; these values are not.
  */
 export enum AuditReason {
+    // deliberately one value rather than several. Which half of a login was wrong is exactly what the
+    // endpoint refuses to tell the caller, and recording it would put the distinction in a table
+    // instead
     /**
-     * What was presented - credentials, a token, a second factor - was not accepted.
-     *
-     * Deliberately one value rather than several. Which half of a login was wrong is exactly what
-     * the endpoint refuses to tell the caller, and recording it would put the distinction in a table
-     * instead.
+     * What was presented - credentials, a token, a second factor - was not accepted. Which part of it
+     * was wrong is not recorded.
      */
     REFUSED = 'refused',
     /**
      * A refresh credential that had already been exchanged was presented again.
      *
-     * The one entry here that means something specific happened rather than something merely failed:
-     * either a credential was stolen, or a client is replaying. Both are worth waking someone.
+     * Either a credential was stolen, or a client is replaying. Both are worth waking someone.
      */
     TOKEN_REUSED = 'token-reused',
     /**
@@ -208,10 +252,9 @@ export enum AuditReason {
     /**
      * The account the attempt named does not exist.
      *
-     * Recorded where the api deliberately answers as though it did - a password reset for an unknown
-     * address is the case in point. The caller cannot tell the difference, which is the whole design;
-     * this is the only place the difference survives, and a run of these is what probing for accounts
-     * looks like.
+     * Recorded where the api answers as though it did - a password reset for an unknown address is
+     * the case in point. The caller cannot tell the difference; this is the only place it survives,
+     * and a run of these is what probing for accounts looks like.
      */
     NO_SUCH_SUBJECT = 'no-such-subject',
     /**
@@ -249,11 +292,19 @@ export enum AuditReason {
      */
     CROSS_ORIGIN = 'cross-origin',
     /**
-     * Something broke rather than refused.
-     *
-     * Kept apart from `REFUSED` on purpose: a user store that is down answers every request exactly
-     * like a wrong password, and a log that cannot tell them apart turns an outage into what looks
-     * like a credential stuffing run.
+     * A request changing something carried a valid cookie session, and not the csrf token that goes
+     * with it.
+     */
+    CSRF = 'csrf',
+    /**
+     * What was asked for needs a verified email address, and the user's is not.
+     */
+    EMAIL_NOT_VERIFIED = 'email-not-verified',
+    // kept apart from `REFUSED` on purpose: a user store that is down answers every request exactly
+    // like a wrong password, and a log that cannot tell them apart turns an outage into what looks
+    // like a credential stuffing run
+    /**
+     * Something broke: the attempt was not refused, it could not be answered.
      */
     ERROR = 'error'
 }

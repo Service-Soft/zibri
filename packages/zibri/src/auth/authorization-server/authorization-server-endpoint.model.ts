@@ -19,5 +19,9 @@ export type AuthorizationServerEndpoint = {
     /**
      * The services besides the application that a client may ask for a token for.
      */
-    resources: string[]
+    resources: string[],
+    /**
+     * How far ahead a jwt a client signs to authenticate itself may expire.
+     */
+    maxClientAssertionLifetimeInMs: number
 };

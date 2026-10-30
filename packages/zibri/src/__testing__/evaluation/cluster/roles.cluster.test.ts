@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { ClusterInstance, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
 import { FsUtilities } from '../../../utilities/fs.utilities';
+import { TestTimeouts } from '../../constants';
 
 /**
  * Executable form of evaluation/03-auth-and-security.md A8, across instances.
@@ -20,12 +21,12 @@ beforeAll(async () => {
         instanceOptions: FsUtilities.getPath(__dirname, 'roles.instance-options.ts'),
         instances: 2
     });
-}, 15000);
+}, TestTimeouts.postgres.start * 2);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await cluster?.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown * 2);
 
 /**
  * Asks an instance for what the role carries.

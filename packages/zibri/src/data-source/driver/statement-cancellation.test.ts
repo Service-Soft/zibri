@@ -45,6 +45,8 @@ function readStatement(): StatementRecord | undefined {
  */
 const HOLD_MS: number = 6000;
 
+const dataSourceClass: ReturnType<typeof createTestDataSource> = createTestDataSource();
+
 @Controller('/cancel')
 class CancelController {
     @Get('/blocked-write', { timeoutInMs: 300 })
@@ -69,7 +71,10 @@ class CancelController {
         const startedAt: number = Date.now();
         try {
             // a statement the repository did not write, which takes a known, long time on its own
-            await inject(dataSourceClass).query(JwtUser).select('pg_sleep(3)', 'slept').limit(1).getRawOne();
+            await inject(dataSourceClass).query(JwtUser)
+                .select('pg_sleep(3)', 'slept')
+                .limit(1)
+                .getRawOne();
             statement = { tookMs: Date.now() - startedAt, ended: true };
             return { ok: true };
         }
@@ -79,8 +84,6 @@ class CancelController {
         }
     }
 }
-
-const dataSourceClass: ReturnType<typeof createTestDataSource> = createTestDataSource();
 
 let server: StartedTestServer | undefined;
 let baseUrl: string = '';
@@ -172,7 +175,11 @@ describe('a query built by hand', () => {
         try {
             const created: JwtUser = await users.create({ email: 'uncommitted@example.com', roles: [] }, { transaction });
 
-            const found: JwtUser | null = await inject(dataSourceClass).query(JwtUser, { transaction }).select().where({ id: created.id }).getOne();
+            const found: Pick<JwtUser, 'email'> | undefined = await inject(dataSourceClass)
+                .query(JwtUser, { alias: 'user', transaction })
+                .select('user.email', 'email')
+                .where('user.id = :id', { id: created.id })
+                .getRawOne<Pick<JwtUser, 'email'>>();
 
             expect(found?.email).toBe('uncommitted@example.com');
         }

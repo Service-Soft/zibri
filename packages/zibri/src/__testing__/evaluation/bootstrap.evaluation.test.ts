@@ -5,8 +5,8 @@ import { describe, expect, it } from '@jest/globals';
 import { CronExpression } from '../../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../../cron/cron-job.model';
 import { CronService } from '../../cron/cron.service';
+import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
 import { RepositoryClass } from '../../data-source/repository/repository-class.type';
@@ -22,7 +22,6 @@ import { LogLevel } from '../../logging/log-level.enum';
 import { Log } from '../../logging/log.model';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
@@ -275,7 +274,7 @@ describe('evaluation - application bootstrap', () => {
             @DataSource({ allowOrphan: true })
             class EvalUnusedDataSource extends PostgresDataSource {
 
-                override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+                override options: PostgresOptions = {
                     host: 'localhost',
                     username: 'postgres',
                     password: 'password',
@@ -305,7 +304,7 @@ describe('evaluation - application bootstrap', () => {
             @DataSource()
             class EvalForgottenDataSource extends PostgresDataSource {
 
-                override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+                override options: PostgresOptions = {
                     host: 'localhost',
                     username: 'postgres',
                     password: 'password',

@@ -2,6 +2,8 @@ import { FederatedCredentials, FederatedTicketCredentials } from './federated-cr
 import { FederatedIdentity } from './federated-identity.model';
 import { FederatedLinkIdentityRequest } from './federated-link-identity-request.model';
 import { FederatedLinkIdentityStart } from './federated-link-identity-start.model';
+import { FederatedLoginRequest } from './federated-login-request.model';
+import { FederatedLoginResult } from './federated-login-result.model';
 import { FederatedMetadata } from './federated-metadata.model';
 import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model';
 import { FederatedProviderLogout } from './federated-provider-logout.model';
@@ -10,8 +12,6 @@ import { FederatedRouteEndpoint } from './federated-route-endpoint.model';
 import { FederatedRoute } from './federated-route.type';
 import { FederatedSessionMatch } from './federated-session-match.model';
 import { FederatedSession } from './federated-session.model';
-import { FederatedLoginRequest } from './federated-login-request.model';
-import { FederatedLoginResult } from './federated-login-result.model';
 import { FederatedSoapLogout } from './federated-soap-logout.model';
 import { BaseUser } from '../../models/base-user.model';
 import { IdentityLinkingAuthenticatorInterface, isIdentityLinkingAuthenticator } from '../identity-linking-authenticator.interface';

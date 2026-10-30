@@ -3,8 +3,8 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { OperationLimitUtilities } from '../../context/operation-limit.utilities';
+import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
 import { Repository } from '../../data-source/repository/repository';
@@ -16,7 +16,6 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
@@ -48,14 +47,14 @@ class WaitingRow extends BaseEntity {
  */
 @DataSource()
 class SingleConnectionDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
         database: 'db',
         ssl: false,
         poolSize: 1,
-        connectTimeoutMS: 1000
+        connectTimeoutInMs: 1000
     };
 
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, WaitingRow];
@@ -115,7 +114,7 @@ describe('evaluation/01-data-layer M63 - waiting for a connection', () => {
         await expect(answerWithin(rows.findAll({}), 2000)).resolves.toBe('answered');
     });
 
-    it('gives up a call without a limit of its own once the pool has kept it waiting for connectTimeoutMS', async () => {
+    it('gives up a call without a limit of its own once the pool has kept it waiting for connectTimeoutInMs', async () => {
         const holder: Transaction = await inject(SingleConnectionDataSource).startTransaction();
         try {
             // eslint-disable-next-line promise/prefer-await-to-then

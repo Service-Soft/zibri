@@ -228,12 +228,12 @@ describe('VersioningService integration', () => {
         });
 
         it('lists the deprecated version with its dates in the explorer', async () => {
-            const res: globalThis.Response = await fetch(`${baseUrl}/explorer/swagger-ui-init.js`);
-            const js: string = await res.text();
+            const res: globalThis.Response = await fetch(`${baseUrl}/explorer`);
+            const html: string = await res.text();
 
             expect(res.status).toBe(200);
-            expect(js).toContain('/explorer/spec/1.0.0');
-            expect(js).toMatch(/"name":"1\.0\.0 \(.+ - .+\)"/);
+            expect(html).toContain('/explorer/spec/1.0.0');
+            expect(html).toMatch(/"name":"1\.0\.0 \(.+ - .+\)"/);
         });
     });
 
@@ -433,6 +433,12 @@ describe('VersioningService integration', () => {
                 headers: { 'x-version': '9.9.9' }
             });
             expect(res.status).toBe(400);
+        });
+
+        it('returns 400 for a version the query names twice', async () => {
+            const res: Response = await fetch(`${baseUrl}/version-test/resolve?version=1.0.0&version=2.0.0`);
+            expect(res.status).toBe(400);
+            expect(((await res.json()) as { message: string }).message).toBe('The version is named more than once.');
         });
 
         it('returns 400 for date with no active version', async () => {

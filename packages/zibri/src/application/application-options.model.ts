@@ -1,3 +1,4 @@
+import { ZibriEnvironment } from './zibri-environment.type';
 import { TwoFactorAtLogin } from '../auth/2fa/two-factor-at-login.type';
 import { TwoFactorFailureLimit } from '../auth/2fa/two-factor-failure-limit.model';
 import { TwoFactorMethods } from '../auth/2fa/two-factor-methods.model';
@@ -16,7 +17,6 @@ import { DeepPartial } from '../types/deep-partial.type';
 import { Newable } from '../types/newable.type';
 import { OmitStrict } from '../types/omit-strict.type';
 import { SemVerVersion } from '../utilities/sem-ver.utilities';
-import { ZibriEnvironment } from './zibri-environment.type';
 
 /**
  * Configuration options for strict transport security / hsts.
@@ -25,7 +25,7 @@ export type HstsOptions = {
     /**
      * The maximum age for which strict transport should be enabled. Defaults to 2 years.
      */
-    maxAgeSeconds: number,
+    maxAgeInSeconds: number,
     /**
      * Whether or not subdomains should be included. Defaults to true.
      */
@@ -36,18 +36,18 @@ export type HstsOptions = {
     preload: boolean
 };
 
+// With 'isLoggedIn', forgetting a decorator costs a 401 in development rather than a world writable
+// endpoint in production.
+// Deliberately only these two. Every other check - a role, ownership, a second factor - resolves a
+// user first, so `'isLoggedIn'` is implied by all of them: whether a route's own decorators
+// replace the default or combine with it is a question that cannot be answered wrong. An
+// application wide role would make that question real, and every answer to it is defensible, which
+// is the reliable sign the next reader will assume the other one.
 /**
  * What a route that carries no `@Auth` decorator of its own requires.
  *
  * `'public'` lets it through unauthenticated, which is what an api that is open by design wants.
- * `'isLoggedIn'` refuses it to anyone who is not logged in, so forgetting a decorator costs a 401
- * in development rather than a world writable endpoint in production.
- *
- * Deliberately only these two. Every other check - a role, ownership, a second factor - resolves a
- * user first, so `'isLoggedIn'` is implied by all of them: whether a route's own decorators
- * replace the default or combine with it is a question that cannot be answered wrong. An
- * application wide role would make that question real, and every answer to it is defensible, which
- * is the reliable sign the next reader will assume the other one.
+ * `'isLoggedIn'` refuses it to anyone who is not logged in.
  */
 export type DefaultAuth = 'public' | 'isLoggedIn';
 
@@ -87,12 +87,13 @@ export type ZibriApplicationSecurityOptions = {
     trustProxy: boolean | number | string | string[]
 };
 
+// `cors` is given whole because `origins` is the whole decision, and there is no half of it that
+// means anything
 /**
  * The security options as an application states them.
  *
- * Every header has a default, so naming one of them is a change to that one rather than a
- * declaration of all of them - `cors` is the exception, because `origins` is the whole decision and
- * there is no half of it that means anything.
+ * Every header has a default, and naming one of them changes only that one. `cors` is the
+ * exception: it is given whole.
  */
 export type ZibriApplicationSecurityOptionsInput = DeepPartial<OmitStrict<ZibriApplicationSecurityOptions, 'cors'>> & {
     /**
@@ -138,7 +139,7 @@ export type ZibriApplicationOptions = {
      * list. What belongs here is a class that declares a hook and that nothing provides: one marked
      * `@Injectable({ register: 'onUse' })`, or one a package ships for its callers to reach
      * dynamically. Listing it is how the application says it means to run it, and startup refuses a
-     * class whose hooks could never run rather than leaving that to be found later.
+     * class whose hooks could never run.
      */
     additionalLifecycleServices?: Newable<unknown>[],
     /**

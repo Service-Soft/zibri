@@ -51,7 +51,12 @@ export class TestBrowser {
          * The application's `baseUrl`, when it differs from where the server listens, and which this
          * browser resolves to the server - the shape of a deployment behind a reverse proxy.
          */
-        private readonly publicUrl: string | undefined
+        private readonly publicUrl: string | undefined,
+        /**
+         * Other sites by the url they are reached at, each resolved to where it listens, such as a fake
+         * provider started with a `publicUrl`.
+         */
+        private readonly otherSites: Record<string, string> = {}
     ) {}
 
     /**
@@ -62,9 +67,12 @@ export class TestBrowser {
      */
     async open(url: string, request: TestBrowserRequest = {}): Promise<Response> {
         const { crossSiteFrom, ...init } = request;
-        const resolved: string = this.publicUrl != undefined && url.startsWith(this.publicUrl)
-            ? `${this.appUrl}${url.slice(this.publicUrl.length)}`
-            : url;
+        const sites: [string, string][] = [
+            ...this.publicUrl == undefined ? [] : [[this.publicUrl, this.appUrl] satisfies [string, string]],
+            ...Object.entries(this.otherSites)
+        ];
+        const site: [string, string] | undefined = sites.find(([reachedAt]) => url.startsWith(reachedAt));
+        const resolved: string = site == undefined ? url : `${site[1]}${url.slice(site[0].length)}`;
         const origin: string = new URL(resolved).origin;
         const jar: Map<string, StoredCookie> = this.cookies.get(origin) ?? new Map<string, StoredCookie>();
         this.cookies.set(origin, jar);

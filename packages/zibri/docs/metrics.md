@@ -137,7 +137,7 @@ export class OrderMetrics implements OnAppInit {
             name: 'open orders',
             minIntervalInMs: DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS,
             collect: async () => {
-                metricsService.getGauge('open_orders').set({}, await this.orders.count({ where: { open: true } }));
+                metricsService.getGauge('open_orders').set({}, await this.orders.count({ where: { status: 'open' } }));
             }
         });
     }
@@ -145,6 +145,30 @@ export class OrderMetrics implements OnAppInit {
 ```
 
 A collector that throws is logged, and its gauges keep what its last run set.
+
+## Choosing labels
+Every combination of label values a metric is given is a series of its own. The application keeps
+each one for as long as it runs, and Prometheus stores each one it scrapes. A metric costs what its
+number of series costs, and the traffic does not change that number as long as every label takes its
+values from a short list your code knows:
+
+```ts
+// src/services/payment-metrics.service.ts
+import { inject, ZIBRI_DI_TOKENS } from 'zibri';
+
+export function countPayment(provider: 'stripe' | 'paypal', outcome: 'paid' | 'declined'): void {
+    inject(ZIBRI_DI_TOKENS.METRICS_SERVICE).getCounter('payments_total', ['provider', 'outcome']).increase({ provider, outcome });
+}
+```
+
+A label never holds what a request brings: an id, an email address, a URL or its query, a search term,
+or the id of one [tenant](./glossary.md#tenant) among many. Each new value adds a series, so a caller sending new values
+grows the memory of the application without end. Write such values into a [log entry](./logging.md)
+instead, where a collector searches them, and count in the metric what they have in common.
+
+The labels the framework writes take their values from your code: the route template, the name of
+each cache, rate limiter and cron job, and a status out of a fixed list. A request that matched no
+route is counted as `<unmatched>`, so a scan for unknown paths adds no series.
 
 ## Exposing a basic dashboard
 A project made with `zi new` and the [`metricsDashboard` feature](./project-layout.md#choosing-the-features) contains a `metrics.tsx` page that shows the data of the metrics service. Serve it from a controller:
@@ -197,7 +221,7 @@ The dashboard is at `http://localhost:3000/metrics/dashboard`.
 ## Requirements
 | Package | Used for |
 |---|---|
-| `prom-client` | Counters, gauges and histograms, the Node.js process metrics, and the text format Prometheus scrapes. You install it |
+| `@prometheus-io/client` | Counters, gauges and histograms, the Node.js process metrics, and the text format Prometheus scrapes. You install it |
 | `systeminformation` | The network counters of the machine. You install it |
 
 ## See also

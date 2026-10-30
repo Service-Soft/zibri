@@ -4,10 +4,9 @@ import { EmailTransportInterface, InternalError } from 'zibri';
  * The mail transport every test server gets unless it names one.
  *
  * EmailService is constructed by anything that can send a mail - both auth strategies do - so nearly
- * every suite needs *a* transport whether or not it sends anything. This one refuses to send, which
- * is the honest default: it matches the `maxEmailsPerHour: 0` beside it, and a suite that starts
- * sending mail without saying where fails naming what to do about it rather than passing over a
- * transport that quietly swallowed the message.
+ * every suite needs *a* transport whether or not it sends anything. This one refuses to send, like
+ * the `maxEmailsPerHour: 0` beside it: a suite that starts sending mail without saying where fails
+ * naming what to do about it.
  */
 export class UnconfiguredEmailTransport implements EmailTransportInterface {
 

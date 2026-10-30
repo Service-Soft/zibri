@@ -1,6 +1,6 @@
 import * as ts from 'typescript';
 
-import { attributeExpression, attributesOf, CapturedVariable, capturedVariables, isEventHandlerName, isPropPassThrough, JsxElementLike, PropScope, propScope, ScopeFrame, scopeFrameFor } from './handlers';
+import { attributeExpression, attributesOf, CapturedVariable, capturedVariables, isEventHandlerName, isPropPassThrough, JsxElementLike, PropScope, propScope, ScopeFrame, scopeFrameFor, visitComponentBody } from './handlers';
 import { SETUP_RUNTIME_PARAM } from './reattach';
 import { AccessShape } from '../../runtime/access-shape';
 import { ComponentFunction } from '../../semantics/component';
@@ -152,7 +152,8 @@ function addFunctionName(statement: ts.Statement, names: Set<string>): void {
  * keeps it intact.
  *
  * JSX is not looked into: markup is rendered on the server, and a handler inside it is a handler site of
- * its own.
+ * its own. Neither is a function handed to a call as it is, such as the callback of `users.map(u =>
+ * u.name)`: the call runs on the server, and its result is the value.
  * @param value - The prop value expression.
  * @param locals - The component's locally declared function names.
  * @returns True when the value carries a function.
@@ -166,12 +167,29 @@ function isClientFunction(value: ts.Expression, locals: Set<string>): boolean {
         if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node)) {
             return false;
         }
-        if (ts.isArrowFunction(node) || ts.isFunctionExpression(node) || ts.isMethodDeclaration(node)) {
+        if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+            // a function inside an argument, such as an object holding a `render`, can end up in the
+            // result, so the callee and every argument that is not itself a function, written in place
+            // or named, are looked into
+            found = [node.expression, ...node.arguments ?? []]
+                .some(part => !isFunctionExpression(part) && !ts.isIdentifier(part) && isClientFunction(part, locals));
+            return false;
+        }
+        if (isFunctionExpression(node) || ts.isMethodDeclaration(node)) {
             found = true;
         }
         return !found;
     });
     return found;
+}
+
+/**
+ * Whether an expression is a function written in place.
+ * @param node - The expression.
+ * @returns True for an arrow function or a function expression.
+ */
+function isFunctionExpression(node: ts.Node): boolean {
+    return ts.isArrowFunction(node) || ts.isFunctionExpression(node);
 }
 
 /**
@@ -199,7 +217,7 @@ export function collectClientPropSites(fn: ComponentFunction): ClientPropCollect
     };
 
     if (fn.body != undefined) {
-        visit(fn.body, []);
+        visitComponentBody(fn.body, visit);
     }
     return { sites, byNode };
 }

@@ -2,8 +2,13 @@ import { AnyObject } from '../../../entity/any-object.model';
 import { PaymentMethod } from '../models/payment-method.model';
 import { Payment } from '../models/payment.model';
 
+// the steps are method signatures rather than function properties: TypeScript compares the
+// parameters of a method both ways, so a provider whose steps take only its own methods and data -
+// or no method at all, for a step it supports for none - is one of these, which a function property
+// taking `unknown` (or even `any`, against a step that takes `never`) would refuse
+/* eslint-disable typescript/method-signature-style */
 /**
- * A payment provider interface with loose typing for use in DI.
+ * A payment provider, whichever methods it takes, as the plugin's tokens hold it.
  */
 export interface AnyPaymentProviderInterface {
     /**
@@ -12,62 +17,63 @@ export interface AnyPaymentProviderInterface {
     readonly name: string,
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly __supportedMethods: readonly PaymentMethod[],
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
-    readonly __paymentDataMap: Record<string, any>,
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
-    readonly __validatedDataMap: Record<string, any>,
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
-    readonly __providerPaymentDataMap: Record<string, any>,
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
-    readonly __providerReservationPaymentDataMap: Record<string, any>,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly __cancellationSupportMap: Record<string, boolean>,
+    readonly __paymentDataMap: object,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly __refundSupportMap: Record<string, boolean>,
+    readonly __validatedDataMap: object,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly __reservationSupportMap: Record<string, boolean>,
+    readonly __providerPaymentDataMap: object,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly __providerReservationPaymentDataMap: object,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly __cancellationSupportMap: object,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly __refundSupportMap: object,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly __reservationSupportMap: object,
+    /**
+     * How long a buyer has to approve a payment. A payment still `CREATED` after it is reconciled.
+     */
+    readonly approvalWindowInMs: number,
     /**
      * Validates the given payment data for the given method.
      */
-    // eslint-disable-next-line typescript/no-explicit-any
-    validatePaymentData: (method: any, data: any) => any,
+    validatePaymentData(method: unknown, data: unknown): unknown,
     /**
      * Requests a new payment with the given method and data, which `confirmPayment` finishes.
      */
-    // eslint-disable-next-line typescript/no-explicit-any
-    requestPayment: (method: any, data: any) => any,
+    requestPayment(method: unknown, data: unknown): unknown,
     /**
      * Requests a new payment reservation with the given method and data, which
      * `confirmPaymentReservation` finishes.
      */
-    // eslint-disable-next-line typescript/no-explicit-any
-    requestPaymentReservation: (method: any, data: any) => any,
+    requestPaymentReservation(method: unknown, data: unknown): unknown,
     /**
      * Confirms The given payment reservation. This does NOT move any money yet, it just reserves the funds.
      */
-    // eslint-disable-next-line typescript/no-explicit-any
-    confirmPaymentReservation: (payment: any) => any,
+    confirmPaymentReservation(payment: unknown): unknown,
     /**
      * Confirms and finishes a payment.
      */
-    // eslint-disable-next-line typescript/no-explicit-any
-    confirmPayment: (payment: any) => any,
+    confirmPayment(payment: unknown): unknown,
     /**
      * Collects payment from the given payment reservation.
      */
-    // eslint-disable-next-line typescript/no-explicit-any
-    collectPaymentFromReservation: (payment: any) => any,
+    collectPaymentFromReservation(payment: unknown): unknown,
     /**
      * Cancels the given payment.
      */
-    // eslint-disable-next-line typescript/no-explicit-any
-    cancelPayment: (payment: any) => any,
+    cancelPayment(payment: unknown): unknown,
     /**
      * Refunds the given payment.
      */
-    // eslint-disable-next-line typescript/no-explicit-any
-    refundPayment: (payment: any) => any
+    refundPayment(payment: unknown): unknown,
+    /**
+     * Asks the provider what became of a payment nobody confirmed within `approvalWindowInMs`.
+     */
+    reconcilePayment(payment: unknown): unknown
 }
+/* eslint-enable typescript/method-signature-style */
 
 /**
  * Interface for a payment provider.
@@ -154,5 +160,14 @@ export interface PaymentProviderInterface<
         M extends {
             [K in SupportedMethods[number]]: RefundSupport[K] extends true ? K : never
         }[SupportedMethods[number]]
-    >(payment: Payment<M, ProviderPaymentDataForMethod[M]>) => void | Promise<void>
+    >(payment: Payment<M, ProviderPaymentDataForMethod[M]>) => void | Promise<void>,
+    /**
+     * Asks the provider what became of a payment nobody confirmed within `approvalWindowInMs`, and
+     * writes it: paid or reserved when the money moved, cancelled when it did not and no longer can.
+     * Leaves the payment as it is when the provider says the money is still moving.
+     * @throws When the provider cannot be asked, leaving the payment as it is.
+     */
+    reconcilePayment: <M extends SupportedMethods[number]>(
+        payment: Payment<M, ProviderPaymentDataForMethod[M]> | Payment<M, ProviderReservationPaymentDataForMethod[M]>
+    ) => void | Promise<void>
 }

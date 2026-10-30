@@ -1,14 +1,18 @@
 import { ForwardingRepositoryDriver } from './forwarding.repository-driver';
 import { RemovalReach } from './removal-reach.model';
 import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { TraceSpanAttributeName } from '../../tracing/trace-span-attributes.model';
 import { TraceSpanKind } from '../../tracing/trace-span-kind.enum';
 import { TraceSpanInterface } from '../../tracing/trace-span.interface';
+import { type TracerInterface } from '../../tracing/tracer.interface';
 import { TracingUtilities } from '../../tracing/tracing.utilities';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
 import { AggregateRow } from '../models/aggregate.model';
+import { FindAllOptions } from '../models/options/find-all-options.model';
 import { PaginationResult } from '../models/pagination-result.model';
 import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
@@ -45,6 +49,11 @@ type StoreOperationAttributes = {
  * Every method forwards. What is added is the span around it.
  */
 export class TracedRepositoryDriver<T extends BaseEntity> extends ForwardingRepositoryDriver<T> {
+    /**
+     * The tracer the spans are started with, once resolved.
+     */
+    private tracer: TracerInterface | undefined;
+
     constructor(
         inner: RepositoryDriverInterface<T>,
         private readonly entityClass: Newable<T>
@@ -89,6 +98,19 @@ export class TracedRepositoryDriver<T extends BaseEntity> extends ForwardingRepo
         });
     }
 
+    override async resolveRelations(
+        entities: T[],
+        relations: FindAllOptions<T>['relations'],
+        related: RelatedNarrowing | undefined,
+        transaction: Transaction | undefined
+    ): Promise<T[]> {
+        return await this.traced('resolveRelations', async span => {
+            const res: T[] = await super.resolveRelations(entities, relations, related, transaction);
+            span.recordAttribute(returnedRows, res.length);
+            return res;
+        });
+    }
+
     override async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
         return await this.traced('findOne', async span => {
             const res: T | undefined = await super.findOne(options);
@@ -120,6 +142,18 @@ export class TracedRepositoryDriver<T extends BaseEntity> extends ForwardingRepo
     override async remove(ids: string[], reach: RemovalReach<T> | undefined, transaction: Transaction | undefined): Promise<string[]> {
         return await this.traced('remove', async span => {
             const removed: string[] = await super.remove(ids, reach, transaction);
+            span.recordAttribute(returnedRows, removed.length);
+            return removed;
+        });
+    }
+
+    override async removeMatching(
+        where: Where<T> | undefined,
+        related: RelatedNarrowing | undefined,
+        transaction: Transaction | undefined
+    ): Promise<string[]> {
+        return await this.traced('removeMatching', async span => {
+            const removed: string[] = await super.removeMatching(where, related, transaction);
             span.recordAttribute(returnedRows, removed.length);
             return removed;
         });
@@ -160,7 +194,8 @@ export class TracedRepositoryDriver<T extends BaseEntity> extends ForwardingRepo
     override async* stream(options: DriverStreamOptions<T>): AsyncIterable<T> {
         const span: TraceSpanInterface = TracingUtilities.startSpan(this.spanName('stream'), {
             kind: TraceSpanKind.CLIENT,
-            attributes: this.attributesOf('stream')
+            attributes: this.attributesOf('stream'),
+            tracer: this.resolveTracer()
         });
         let rows: number = 0;
         try {
@@ -184,9 +219,20 @@ export class TracedRepositoryDriver<T extends BaseEntity> extends ForwardingRepo
     private async traced<R>(operation: string, fn: (span: TraceSpanInterface) => Promise<R>): Promise<R> {
         return await TracingUtilities.trace(
             this.spanName(operation),
-            { kind: TraceSpanKind.CLIENT, attributes: this.attributesOf(operation) },
+            { kind: TraceSpanKind.CLIENT, attributes: this.attributesOf(operation), tracer: this.resolveTracer() },
             fn
         );
+    }
+
+    /**
+     * Resolves the tracer, once.
+     * @returns The tracer.
+     */
+    private resolveTracer(): TracerInterface {
+        // on the first span rather than when the driver is built (01 §Q3): a repository is built
+        // while its data source initializes, before every provider is there to resolve
+        this.tracer ??= inject(ZIBRI_DI_TOKENS.TRACER);
+        return this.tracer;
     }
 
     /**

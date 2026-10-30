@@ -7,6 +7,7 @@ import { WebsocketRequestContext } from '../../context/request/websocket-request
 import { Transaction } from '../../data-source/transaction/transaction.model';
 import { OpenApiSecuritySchemeObject } from '../../open-api/open-api.model';
 import { BaseUser } from '../models/base-user.model';
+import { ClaimedUser } from '../models/claimed-user.model';
 import { ProviderAuthentication } from '../models/provider-authentication.model';
 
 /**
@@ -21,6 +22,8 @@ export interface AuthStrategyInterface<RoleType extends string, UserType extends
      * Initializes the auth strategy.
      */
     init?: (app: ZibriApplication) => void | Promise<void>,
+    // a request addressing several is refused instead of quietly authorizing as one identity while
+    // acting as another
     /**
      * Whether the request carries this strategy's kind of credential at all.
      *
@@ -28,9 +31,8 @@ export interface AuthStrategyInterface<RoleType extends string, UserType extends
      * a cookie being set. Never whether the credential is any good: this is what decides *who is
      * being asked*, not whether they get in.
      *
-     * Two things come out of it. A request is resolved by the one strategy it addresses rather than
-     * by all of them at once, and a request addressing several is refused instead of quietly
-     * authorizing as one identity while acting as another.
+     * A request is resolved by the one strategy it addresses, and a request addressing several is
+     * refused.
      */
     hasCredential: (context: HttpRequestContext | WebsocketRequestContext) => boolean,
     /**
@@ -45,14 +47,14 @@ export interface AuthStrategyInterface<RoleType extends string, UserType extends
      * Resolves who the credential claims to be, without reading anything.
      *
      * Optional, and only used when the DI token `REVALIDATE_USER_ON_AUTH_CHECK` is turned off - a
-     * deployment trading immediate revocation for checks that touch no data source. Only the base
-     * user is claimed, never the full entity, because a credential carries an identity rather than
-     * a row.
+     * deployment trading immediate revocation for checks that touch no data source. Only the id and
+     * the roles are claimed, never the full entity, because a credential carries an identity rather
+     * than a row.
      *
      * Leave it out unless the strategy really can name its caller from the request alone. A strategy
      * that has to read something to know who is calling gains nothing here and stays authoritative.
      */
-    resolveClaimedUser?: (context: HttpRequestContext | WebsocketRequestContext) => Promise<BaseUser<RoleType> | undefined>,
+    resolveClaimedUser?: (context: HttpRequestContext | WebsocketRequestContext) => Promise<ClaimedUser<RoleType> | undefined>,
     /**
      * Resolves when the caller last logged in.
      *

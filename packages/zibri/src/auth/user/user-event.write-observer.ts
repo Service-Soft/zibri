@@ -9,7 +9,9 @@ import { type UserEventData } from '../../event/user-event-data.model';
  * named for them.
  */
 export class UserEventWriteObserver implements EntityWriteObserver {
-    // which users, and whether they were deactivated, of a write to every user a filter matches
+    /**
+     * Which users, and whether they were deactivated, of a write to every user a filter matches.
+     */
     readonly properties: string[] = ['id', 'deactivatedAt'];
 
     constructor(private readonly names: FrameworkEventNames) {}
@@ -32,12 +34,7 @@ export class UserEventWriteObserver implements EntityWriteObserver {
      */
     async handleWritten(written: WrittenRows): Promise<void> {
         if (written.operation === 'remove') {
-            const deleted: EventTypeFor<UserEventData> | undefined = this.names.userDeleted;
-            if (deleted != undefined) {
-                for (const userId of this.findIds(written.before)) {
-                    await FrameworkEventUtilities.emit(deleted, { userId }, null);
-                }
-            }
+            await this.emitDeleted(written.before);
             return;
         }
         if (written.operation === 'insert' || !this.isWritingDeactivation(written)) {
@@ -58,8 +55,24 @@ export class UserEventWriteObserver implements EntityWriteObserver {
             }
             const type: EventTypeFor<UserEventData> | undefined = isDeactivated ? this.names.userDeactivated : this.names.userReactivated;
             if (type != undefined) {
+                // eslint-disable-next-line unicorn/no-null
                 await FrameworkEventUtilities.emit(type, { userId }, null);
             }
+        }
+    }
+
+    /**
+     * Emits the users a removal deleted, when the application named an event for it.
+     * @param before - The users as they were.
+     */
+    private async emitDeleted(before: object[]): Promise<void> {
+        const deleted: EventTypeFor<UserEventData> | undefined = this.names.userDeleted;
+        if (deleted == undefined) {
+            return;
+        }
+        for (const userId of this.findIds(before)) {
+            // eslint-disable-next-line unicorn/no-null
+            await FrameworkEventUtilities.emit(deleted, { userId }, null);
         }
     }
 

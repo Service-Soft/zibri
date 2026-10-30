@@ -256,6 +256,25 @@ describe('ApiKeyAuthStrategy — starting', () => {
             .rejects.toThrow('API_KEY_OPTIONS.deleteExpiredAfterInMs must be a whole number of milliseconds, got 1.5.');
     }, TestTimeouts.inMemory.start);
 
+    // part of evaluation round 2, 03 §H19 and 05 §I11: node hands every header name over lowercased, so
+    // a header provided as it is usually written never matched
+    it('reads the key from a header provided in any spelling', async () => {
+        const started: StartedTestServer = await startApp(
+            [JwtAuthStrategy, ApiKeyAuthStrategy],
+            [defineProvider({ token: ZIBRI_DI_TOKENS.API_KEY_HEADER, useValue: 'X-Api-Key' })]
+        );
+        try {
+            const url: string = await started.start();
+            const user: JwtUser = await createUser('spelled', [Roles.USER]);
+            const { key }: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+
+            expect((await fetch(`${url}/machine/me`, { headers: { 'X-Api-Key': key } })).status).toBe(200);
+        }
+        finally {
+            await started.shutdown();
+        }
+    }, TestTimeouts.inMemory.start);
+
     it('schedules deleting expired keys', async () => {
         // the test server's cron service schedules nothing, so the real one shows what is scheduled
         const started: StartedTestServer = await startApp(
@@ -307,6 +326,8 @@ describe('ApiKeyAuthStrategy', () => {
 
         expect(res.status).toBe(200);
         expect(await res.json()).toEqual({ id: user.id, platformPermissions: [TestPlatformPermissions.USER] });
+        // 05 §I11: the scheme is case-insensitive (RFC 9110 §11.1), as a client or a proxy may spell it
+        expect((await fetch(`${baseUrl}/machine/me`, { headers: { authorization: `bearer ${key}` } })).status).toBe(200);
         // a key in both places is still one credential of one strategy, and a jwt beside it two
         expect((await fetch(`${baseUrl}/machine/me`, { headers: { authorization: 'Bearer zibri_unknown' } })).status).toBe(401);
         expect((await fetch(`${baseUrl}/machine/me`, { headers: { authorization: 'Bearer a.b.c', 'x-api-key': key } })).status).toBe(401);
@@ -607,5 +628,26 @@ describe('ApiKeyAuthStrategy — with API_KEY_OPTIONS', () => {
         await new ApiKeyCleanupCronJob(inject(ZIBRI_DI_TOKENS.API_KEY_SERVICE)).onTick();
 
         expect((await authService().findApiKeys(user.id, undefined)).map(k => k.id)).toEqual([expiredRecently.apiKey.id]);
+    });
+});
+
+// 04 §A15: a deployment scanning its repositories for leaked secrets looks for a prefix of its own
+describe('ApiKeyAuthStrategy — keys with a prefix of the application\'s own', () => {
+    beforeAll(async () => {
+        server = await startApp([JwtAuthStrategy, ApiKeyAuthStrategy], [apiKeyOptions({ prefix: 'acme_' })]);
+        baseUrl = await server.start();
+    });
+
+    afterAll(async () => {
+        await server?.shutdown();
+    });
+
+    it('issues keys with the prefix, and takes them', async () => {
+        const user: JwtUser = await createUser('pia', [Roles.USER]);
+        const { key }: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+
+        expect(key.startsWith('acme_')).toBe(true);
+        expect((await callWithKey('/me', key)).status).toBe(200);
+        expect((await callWithKey('/me', `zibri_${key.slice('acme_'.length)}`)).status).toBe(401);
     });
 });

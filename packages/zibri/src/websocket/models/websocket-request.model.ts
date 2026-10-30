@@ -23,7 +23,7 @@ class HeadersObject implements Partial<Record<KnownHeader, unknown>> {
 export class WebsocketRequest<
     T = unknown,
     PathParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
-    QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
+    QueryParamsObject extends Record<string, unknown> = Record<string, string | string[] | undefined>,
     HeaderParamsObject extends Record<string, unknown> = Partial<Record<Header, string | undefined>>
 > implements Partial<Pick<
     HttpRequest<T, PathParamsObject, QueryParamsObject, HeaderParamsObject>,

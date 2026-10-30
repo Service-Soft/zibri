@@ -67,7 +67,6 @@ Install these only for what needs them. Anything else in the harness works witho
 | Package | Needed by |
 |---|---|
 | `testcontainers` | A Postgres or ValKey data source, which the harness starts a container for |
-| `@testcontainers/postgresql` | A Postgres data source |
 | `ts-node` | `startTestCluster` |
 | `ts-jest` | The jest configuration |
 | `@peculiar/x509` | `createFakeKeyPair`, `startFakeSamlProvider`, `startFakeLdapDirectory` and `startFakeFidoMetadataService` |
@@ -108,6 +107,11 @@ it('serves the home page', async () => {
 Starting the application runs its migrations and starts every provider, which takes longer than the
 five seconds jest gives a hook, so both hooks are given 30 seconds.
 
+A test file boots the application on the modules it imports. `jest.resetModules()` and
+`jest.isolateModules()` load a [second copy of `zibri`](./di.md#one-copy-per-process), and the
+next boot raises a `DuplicateFrameworkCopyError`. A test that resets the module registry goes in a
+file of its own: jest gives every file a registry of its own.
+
 `testApplicationOptions` is your application as a test starts it. A test and a deployment share the
 application's options, so they live in modules of their own, not inline in `index.ts`. `zi new` writes
 three: the base, with everything the application is, the options a deployment starts, which add where
@@ -115,11 +119,15 @@ it keeps its data, and the same application as a test starts it:
 
 ```ts
 // src/application-options.base.ts
-import { MailingListController, OmitStrict, ZibriApplicationOptions, ZibriMailingListPlugin } from 'zibri';
+import { MailingListController, OmitStrict, SemVerUtilities, ZibriApplicationOptions, ZibriMailingListPlugin } from 'zibri';
 
 import { AppAuthController, PageController } from './controllers';
 import { version } from '../package.json';
 import { providers } from './providers';
+
+if (!SemVerUtilities.isSemVerVersion(version)) {
+    throw new Error('The version of the package.json is not valid.');
+}
 
 export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSources'> = {
     name: 'Task Tracker',
@@ -186,7 +194,9 @@ export default createJestConfig({ rootDir: 'src' });
 
 `createJestConfig` compiles your code with `ts-jest` and your templates with `zibri-tsx/jest`, so a
 test renders the same templates the build does. A package imported with `?client` is the package
-itself in a test, as it is in the server build. Every jest option you pass is kept.
+itself in a test, as it is in the server build. A test worker is restarted once it holds more than
+1 GB, which keeps a long run within the memory of the machine. Every jest option you pass is kept,
+`workerIdleMemoryLimit` included.
 
 Jest cannot load a package that ships as ES modules only. Name such a package of yours in
 `esmPackages`, and it is compiled like your code:
@@ -365,7 +375,8 @@ const seededVersions: StartTestServerOptions = {
 ```
 
 The paths a test server redirects this way are `VERSIONS_PATH`, `TRANSLATIONS_PATH`,
-`FILE_UPLOAD_TEMP_FOLDER` and `BACKUP_TEMP_FOLDER`. A test that serves its own fixtures names the folder they are in the same
+`FILE_UPLOAD_TEMP_FOLDER` and `BACKUP_TEMP_FOLDER`. The translations folder holds a `source.xlf`
+with nothing to translate, so the application starts the way a deployment does. A test that serves its own fixtures names the folder they are in the same
 way, with the [`ASSETS_PATH`](./assets.md) token.
 
 ## Changing how the application is configured
@@ -466,6 +477,9 @@ goes there to the test server, so the callback URL your provider knows works in 
 |---|---|
 | `identity`, `authenticatedAt` | Who logs in next, and when they logged in at the provider. `identity.claims` puts claims on top into every token for them, such as `groups` or `oid` |
 | `denyNext(error)` | Answers the next login with an error, such as `access_denied` |
+| `failNextTokenRequest(status)` | Answers the next request to the token endpoint with that status and a page, the way a gateway in front of a provider that is down does |
+| `failNextDiscovery(status)` | Answers the next request for the metadata with that status and a page: 500 or more for a provider that is down, less for a URL with no provider |
+| `metadataReads` | How often your application read the metadata |
 | `addToNextAnswer(fields)` | Sends the next answer with more fields next to the code, the way Apple sends the user's name |
 | `rewriteNextIdToken(rewrite)` | Changes the claims of the next ID token before it is signed |
 | `authorizationRequests` | What your application asked the provider for |
@@ -483,6 +497,14 @@ goes there to the test server, so the callback URL your provider knows works in 
 | `supportedPrompts` | An option: the `prompt` values it takes. A login asking for another one gets an error page, the way Google answers `prompt=login` |
 | `accessTokenExpiresInSeconds` | An option: how long an access token it issues is valid. 300 by default |
 | `rotatesRefreshTokens` | An option: a refresh gives out a new refresh token and refuses the old one from then on |
+| `publicUrl` | An option: the URL the provider is reached at from the outside, which every URL it names starts with, such as `https://login.microsoftonline.com/organizations/v2.0` |
+| `issuer` | An option: the issuer its metadata names. A `{tenantid}` in it is filled in for every token from the `tid` claim of `identity`, like Microsoft Entra ID's `organizations` and `common` endpoints. The public URL by default |
+| `listeningUrl` | Where the provider listens, which its `publicUrl` resolves to |
+
+A provider with a `publicUrl` is reached through it by your application and by the browser. Hand the
+browser the URL it resolves to as the third argument, `{ [publicUrl]: provider.listeningUrl }`, and
+send your application's requests to it through an [HTTP client](./http-client.md) of your own under
+`ZIBRI_DI_TOKENS.HTTP_CLIENT` that does the same.
 
 For a provider that speaks plain OAuth2, point the authenticator's endpoints and API at it too:
 
@@ -707,9 +729,11 @@ A bind in the clear is refused, a bind with a name and no password succeeds with
 | Member | What it does |
 |---|---|
 | `entries` | The entries of the directory, which the test may change |
-| `binds`, `searches` | The binds and searches it was asked for, with whether the connection was encrypted and who it was bound as |
+| `binds`, `searches` | The binds and searches it was asked for, with whether the connection was encrypted, who it was bound as and the attributes a search asked for |
+| `connectionsOpened` | How many connections were opened to it |
 | `ldapsUrl`, `ldapUrl` | Where it takes connections encrypted from the first byte, and ones upgraded with StartTLS |
 | `certificate` | The certificate it proves who it is with |
+| `dropConnections()` | Closes every open connection and goes on listening, the way an outage or a restart does to the connections your application keeps |
 | `stop()` | Stops the directory |
 | `password` | An option of an entry: the password a bind as it takes |
 | `lockedWith` | An option of an entry: refuses every bind as it, with `invalidCredentials`, `unwillingToPerform` or `constraintViolation` |

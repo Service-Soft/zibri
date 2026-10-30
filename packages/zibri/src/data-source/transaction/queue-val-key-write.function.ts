@@ -15,7 +15,6 @@ export function queueValKeyWrite(batch: Batch, write: ValKeyBufferedWrite): void
             return;
         }
         case 'hashDelete': {
-            // eslint-disable-next-line cspell/spellchecker
             batch.hdel(write.key, write.fields);
             return;
         }
@@ -29,7 +28,6 @@ export function queueValKeyWrite(batch: Batch, write: ValKeyBufferedWrite): void
             return;
         }
         case 'setRemove': {
-            // eslint-disable-next-line cspell/spellchecker
             batch.srem(write.key, write.members);
             return;
         }

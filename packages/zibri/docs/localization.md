@@ -1,7 +1,7 @@
 # Localization
 Translations are XLIFF files, the XML format translation tools read and write. Before every build,
 each string your code marks for translation, tsx templates included, is written to
-`src/translations/source.xlf`, which you commit. You provide a file for each other locale, such as
+`translations/source.xlf`, which you commit. You provide a file for each other locale, such as
 `de.xlf`, in the same folder.
 
 The localize service [formats](#formatting) dates, prices and percentages for a locale, and orders
@@ -14,7 +14,8 @@ text.
 | `$ts` | function | Marks a string for translation and resolves it immediately using the automatically resolved locale |
 | `TranslationToken` | class | Represents a marked string; use `.getValue(locale)` to translate it |
 | `TranslatedString` | type | A string that is translated already, as `$ts` and `getValue` return it |
-| `generateSourceXlf`, `SourceTranslationOrigin` | function, type | Writes `source.xlf` from the strings marked for translation in the origins you name, such as your project and Zibri |
+| `generateSourceXlf`, `SourceTranslationOrigin` | function, type | Writes `translations/source.xlf` from the strings marked for translation in the origins you name. The build calls it for your project and Zibri |
+| `ScannedTranslationOrigin`, `ShippedTranslationOrigin` | type, type | An origin as files to scan, and an origin as the `source.xlf` a library ships |
 | `defineDateFormat` | function | Defines a date/time/date-time format for a supported locale |
 | `dateFormatTokens`, `DateFormatToken` | constant, type | The tokens a date format is built from, such as `DD` and `YYYY` |
 | `DateFormatString`, `DefinedDateFormatString` | type, type | A format string checked against the tokens, and the format `defineDateFormat` returns |
@@ -56,7 +57,7 @@ const taskCreatedForThisRequest: string = $ts`Task created`;
 
 ## Adding parameters to a string
 
-Template parameters are supported and automatically named from the expression they contain:
+An expression in the template is a placeholder, numbered by its position:
 
 ```ts
 // src/services/greeting.service.ts
@@ -65,29 +66,32 @@ import { $t, TranslationToken } from 'zibri';
 import { user } from './user';
 
 const greeting: TranslationToken = $t`Hello ${user.firstName} ${user.lastName}`;
-// source → 'Hello {user.firstName} {user.lastName}'
+// source → 'Hello {$1} {$2}'
 ```
 
-For complex expressions, the full expression text is used as the placeholder name:
+Name a placeholder by handing `$t` an object with one key:
 
 ```ts
-// src/services/order-summary.service.ts
+// src/services/named-greeting.service.ts
 import { $t, TranslationToken } from 'zibri';
 
-import { formatPrice } from './format-price';
-import { order } from './order';
+import { user } from './user';
 
-const total: TranslationToken = $t`Total: ${formatPrice(order.total)} for ${order.items.length} items`;
-// source → 'Total: {formatPrice(order.total)} for {order.items.length} items'
+const namedGreeting: TranslationToken = $t`Hello ${{ firstName: user.firstName }} ${{ lastName: user.lastName }}`;
+// source → 'Hello {firstName} {lastName}'
 ```
+
+Write the object inline, as above. Building `source.xlf` reads the code without running it, so it
+finds the name in an object written there and numbers every other placeholder. A variable holding an
+object with one key is named when the code runs, and its translation is then never found.
 
 In your translation files, placeholders can be freely reordered to suit the target language:
 
 ```xml
 <!-- de.xlf -->
-<trans-unit id="Hello {user.firstName} {user.lastName}" xml:space="preserve">
-    <source>Hello <x id="user.firstName" equiv-text="{user.firstName}"/> <x id="user.lastName" equiv-text="{user.lastName}"/></source>
-    <target>Hallo {user.lastName} {user.firstName}</target>
+<trans-unit id="Hello {firstName} {lastName}" xml:space="preserve">
+    <source>Hello <x id="firstName" equiv-text="{firstName}"/> <x id="lastName" equiv-text="{lastName}"/></source>
+    <target>Hallo {lastName} {firstName}</target>
 </trans-unit>
 ```
 
@@ -138,17 +142,22 @@ Add a `target-language` attribute to the `<file>` element and fill in `<target>`
                 <source>Monday</source>
                 <target>Montag</target>
             </trans-unit>
-            <trans-unit id="Hello {user.firstName} {user.lastName}" xml:space="preserve">
-                <source>Hello <x id="user.firstName" equiv-text="{user.firstName}"/> <x id="user.lastName" equiv-text="{user.lastName}"/></source>
-                <target>Hallo {user.lastName} {user.firstName}</target>
+            <trans-unit id="Hello {firstName} {lastName}" xml:space="preserve">
+                <source>Hello <x id="firstName" equiv-text="{firstName}"/> <x id="lastName" equiv-text="{lastName}"/></source>
+                <target>Hallo {lastName} {firstName}</target>
             </trans-unit>
         </body>
     </file>
 </xliff>
 ```
 
-A translation file is `src/translations/<locale>.xlf`. On startup, a warning names every
-`<trans-unit>` of `source.xlf` that has no `<target>` in a locale's file.
+A placeholder in a `<target>` is written as `{name}`, or kept as the `<x/>` of the `<source>`. Braces
+around any other name are text, and `{{` and `}}` are a single brace, so `{{firstName}}` is the text
+`{firstName}`.
+
+A translation file is `translations/<locale>.xlf`. On startup, a warning names every
+`<trans-unit>` of `source.xlf` that has no `<target>` in a locale's file, and every `<target>` that
+leaves out a placeholder of its `<source>`.
 
 The `<source>` element and `<note>` are informational. Only the `<target>` is read at runtime.
 Standard XLIFF editors open these files directly.
@@ -207,8 +216,8 @@ class ReportService {
 
         // Format a percentage
         this.localizeService.formatPercent(0.856, { locale });
-        // en-US → '85.6%'
-        // de    → '85,6 %'
+        // en-US → '86%'
+        // de    → '86 %'
 
         // Format a date using the locale's default date format
         this.localizeService.formatDate(new Date(), 'date', { locale });
@@ -217,13 +226,13 @@ class ReportService {
 
         // Format a date using the locale's default time format
         this.localizeService.formatDate(new Date(), 'time', { locale });
-        // en-US → '3:45 AM'
-        // de    → '15:45 Uhr'
+        // en-US → '3:45 PM'
+        // de    → '15:45'
 
         // Format a date using the locale's default date-time format
         this.localizeService.formatDate(new Date(), 'date-time', { locale });
-        // en-US → '06/13/2026 3:45 AM'
-        // de    → '13.06.2026 15:45 Uhr'
+        // en-US → '06/13/2026 3:45 PM'
+        // de    → '13.06.2026 15:45'
 
         // Or with a specific format, overriding the locale default
         this.localizeService.formatDate(new Date(), 'YYYY', { locale });
@@ -260,8 +269,8 @@ import { customer } from './customer';
 import { order } from './order';
 
 export function formatPaidAt(localizeService: LocalizeServiceInterface, locale: LocaleCode): void {
-    localizeService.formatDate(order.paidAt, 'date-time', { locale });
-    localizeService.formatDate(order.paidAt, 'date-time', { locale, timezone: customer.timezone });
+    localizeService.formatDate(order.placedAt, 'date-time', { locale });
+    localizeService.formatDate(order.placedAt, 'date-time', { locale, timezone: customer.timezone });
 }
 ```
 

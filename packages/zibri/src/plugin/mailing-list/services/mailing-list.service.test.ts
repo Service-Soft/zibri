@@ -8,6 +8,8 @@ import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepos
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
+import { CronJobEntity, CreateCronJobEntityData } from '../../../cron/cron-job-entity.model';
+import { ExpiredRowsCleanupCronJob } from '../../../cron/expired-rows-cleanup.cron-job';
 import { Repository } from '../../../data-source/repository/repository';
 import { NoActiveTenantError } from '../../../data-source/tenancy/no-active-tenant.error';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
@@ -18,7 +20,6 @@ import { Email } from '../../../email/models/email.model';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
 import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { MailingListConfirmationTokenCleanupCronJob } from '../mailing-list-confirmation-token-cleanup.cron-job';
 import { ZibriMailingListPlugin } from '../mailing-list.plugin';
 import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from '../mailing-list.tokens';
 import { MailingListBaseEmailTemplate } from '../models/mailing-list-base-email-template.model';
@@ -376,7 +377,7 @@ describe('MailingListService', () => {
         }));
     });
 
-    describe('MailingListConfirmationTokenCleanupCronJob', () => {
+    describe('ExpiredRowsCleanupCronJob, for the confirmation tokens', () => {
         it('deletes the tokens that expired in every tenant, and keeps the others', async () => {
             const otherTenant: string = UUIDUtilities.generate();
             const expiredHere: MailingListSubscriptionConfirmationToken = await inTenant(async () => await confirmationTokenRepository.create(
@@ -392,7 +393,11 @@ describe('MailingListService', () => {
                 { email: 'cleanup-c@example.com', value: 'cleanup-c', expirationDate: new Date(Date.now() + 60_000), listId: UUIDUtilities.generate(), spent: false }
             ));
 
-            await new MailingListConfirmationTokenCleanupCronJob().onTick();
+            // built by hand, because the test server runs no cron jobs
+            const cleanup: ExpiredRowsCleanupCronJob = new ExpiredRowsCleanupCronJob(inject(ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE));
+            const cronJobRepo: Repository<CronJobEntity, CreateCronJobEntityData> = inject(repositoryTokenFor(CronJobEntity));
+            await cleanup.init(inject(ZIBRI_DI_TOKENS.LOGGER), cronJobRepo, async () => await Promise.resolve(true));
+            await cleanup.onTick();
 
             const left: MailingListSubscriptionConfirmationToken[] = await confirmationTokenRepository.findAll({
                 where: { id: { oneOf: [expiredHere.id, expiredThere.id, live.id] } },

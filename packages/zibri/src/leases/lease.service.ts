@@ -1,6 +1,5 @@
 import { HeldLease, KeptGrant } from './held-lease.model';
 import { LeaseAcquisitionTimeoutError } from './lease-acquisition-timeout.error';
-import { LeaseCleanupCronJob } from './lease-cleanup.cron-job';
 import { LeaseLostError } from './lease-lost.error';
 import { LeaseAcquisitionMode, LeaseOptions, LeaseSetOptions } from './lease-options.model';
 import { LeaseServiceInterface } from './lease-service.interface';
@@ -8,6 +7,7 @@ import { CreateLeaseData, Lease } from './lease.model';
 import { ZibriApplication } from '../application/application';
 import { AlsUtilities } from '../context/als.utilities';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
+import { dataSourceNow } from '../data-source/models/data-source-now.function';
 import { Repository } from '../data-source/repository/repository';
 import { runInLeaseScope } from '../data-source/run-in-lease-scope.function';
 import { Transaction } from '../data-source/transaction/transaction.model';
@@ -56,14 +56,14 @@ const RENEWALS_PER_LEASE: number = 3;
  */
 type LeaseWorkOutcome = 'unfinished' | 'completed' | 'threw';
 
+// Without renewal, "the work must be faster than the lease" is an unwritten precondition that
+// nothing enforces, which is the whole of evaluation/10-leases-and-claims.md.
 /**
  * Holds the grants that let one replica do a piece of work the others must not.
  *
- * Every lease in the framework needs the same two things, and neither can be left to the caller.
- * Renewal, because a grant is handed out for a fixed time while the work it protects may
- * legitimately take longer - without it, "the work must be faster than the lease" is an unwritten
- * precondition that nothing enforces, which is the whole of evaluation/10-leases-and-claims.md. And
- * a shutdown that drains, because a replica going away gracefully still holds grants, and whoever
+ * Every lease gets two things the caller does not have to arrange. Renewal, because a grant is
+ * handed out for a fixed time while the work it protects may legitimately take longer. And a
+ * shutdown that drains, because a replica going away gracefully still holds grants, and whoever
  * takes over otherwise waits out a full lease for work that stopped a second ago.
  *
  * What a grant *is* stays with whoever took it - a valkey key for a named lock, a row for a claim on
@@ -76,13 +76,15 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
     /**
      * Recorded on every grant so it is possible to tell which instance holds one.
      */
-    private appName: string = '';
+    private holder: string = '';
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         private readonly logger: LoggerInterface,
         @Inject(ZIBRI_DI_TOKENS.LEASE_DRAIN_TIMEOUT_IN_MS)
-        private readonly drainTimeoutInMs: number
+        private readonly drainTimeoutInMs: number,
+        @Inject(ZIBRI_DI_TOKENS.INSTANCE_ID)
+        private readonly instanceId: string
     ) {}
 
     // read when used rather than injected, so that an application without the entity is told to
@@ -105,14 +107,8 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
      */
     onAppInit(app: ZibriApplication): void {
         validateEntitiesRegistered(LeaseService.name, app, Lease);
-        this.appName = app.options.name;
-
-        // acquiring only clears the lapsed grant for the key it is asking for, so nothing else ever
-        // removes a retained one. Registered here rather than left to the user because a table that
-        // grows by one row per scheduled tick is not something anyone opts into knowingly.
-        if (!app.options.cronJobs.includes(LeaseCleanupCronJob)) {
-            app.options.cronJobs.push(LeaseCleanupCronJob);
-        }
+        // the name as well, since applications of different names can share the table
+        this.holder = `${app.options.name}@${this.instanceId}`;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -281,13 +277,16 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
     private async tryAcquire(options: LeaseOptions): Promise<Lease | undefined> {
         // an instance that died holding this never handed it back. Clearing the lapsed one first is
         // what makes a crashed replica recoverable rather than permanently blocking.
-        await this.leaseRepository.deleteAll({ key: options.key, expiresAt: { before: new Date() } });
+        // Expiry is written and judged by the clock of the data source, which every instance shares.
+        // Judged by each instance's own, an instance whose clock ran ahead by more than a lease took
+        // over work that was still running.
+        await this.leaseRepository.deleteAll({ key: options.key, expiresAt: { before: dataSourceNow() } });
 
         try {
             return await this.leaseRepository.create({
                 key: options.key,
-                expiresAt: new Date(Date.now() + options.leaseInMs),
-                heldBy: this.appName
+                expiresAt: dataSourceNow(options.leaseInMs),
+                heldBy: this.holder
             });
         }
         catch {
@@ -363,7 +362,7 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
             renew: async () => {
                 const renewed: number = await this.leaseRepository.updateAll(
                     { id: { oneOf: ids } },
-                    { expiresAt: new Date(Date.now() + options.leaseInMs) }
+                    { expiresAt: dataSourceNow(options.leaseInMs) }
                 );
                 // a row that is gone is one this instance no longer holds. Throwing is what makes
                 // that reach a log line and the work at all - see evaluation/10-leases-and-claims.md

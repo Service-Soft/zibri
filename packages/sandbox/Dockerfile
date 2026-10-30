@@ -27,15 +27,15 @@ COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/node_modules ./node_modules
 
 # the bundle carries everything read from inside it: the assets, the compiled templates and
-# the translations. "versions" is the one thing read from beside it, because the application
-# writes to it and the next release is checked against what this one recorded. An image
-# without it does not start, which is the point: an application that quietly treated the
+# the translations. "versions" is the one thing read from beside it: development records each
+# release there, and the next release is checked against it. An image whose record lacks the
+# version it runs does not start, which is the point: an application that quietly treated the
 # version it is on as the first one that ever existed would drop every guarantee it gives.
 COPY --from=build /app/dist ./dist
-COPY --chown=node:node versions ./versions
+COPY versions ./versions
 
-# the two paths written while the application runs, owned by the user that runs it. Nothing
-# else under /app is, so the rest of the image stays read only to the process using it.
+# what is written while the application runs, owned by the user that runs it. Nothing else
+# under /app is, so the rest of the image stays read only to the process using it.
 RUN mkdir -p /app/.zibri && chown -R node:node /app/.zibri
 
 USER node

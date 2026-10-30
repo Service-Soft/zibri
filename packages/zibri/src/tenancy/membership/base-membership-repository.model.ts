@@ -57,8 +57,9 @@ export function BaseMembershipRepository<T extends BaseMembership<string>>(
         // entity that is still a type parameter, though every membership entity has these columns
 
         // eslint-disable-next-line jsdoc/require-jsdoc
-        async findMembership(userId: string): Promise<T | undefined> {
-            return await this.findOne({ where: { userId } as Where<T>, required: false });
+        async findMembership(userId: string, tenantId: string, transaction?: Transaction): Promise<T | undefined> {
+            // the tenant is the active one, which the repository narrows to by itself
+            return await this.findOne({ where: { userId } as Where<T>, transaction, required: false });
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
@@ -96,7 +97,9 @@ export function BaseMembershipRepository<T extends BaseMembership<string>>(
         async deleteMemberships(userIds: string[], transaction: Transaction): Promise<void> {
             // whatever a locked property holds: the user they belong to is being deleted
             await this.deleteAll(
-                ModelRegistry.get(this.entityClass).optimisticLockDescriptor.resolveRegardlessWhere({ userId: { oneOf: userIds } } as Where<T>),
+                ModelRegistry.get(this.entityClass)
+                    .optimisticLockDescriptor
+                    .resolveRegardlessWhere({ userId: { oneOf: userIds } } as Where<T>),
                 { transaction, acrossTenants: true }
             );
         }

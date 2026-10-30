@@ -1,10 +1,10 @@
 import { isDeepStrictEqual } from 'node:util';
 
-import { type AuthServiceInterface } from '../../auth/auth-service.interface';
 import { ChangeSetEntity } from './models/change-set-entity.model';
 import { ChangeSetType } from './models/change-set-type.enum';
 import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
 import { NewChange } from './models/change.model';
+import { type AuthServiceInterface } from '../../auth/auth-service.interface';
 import { type CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { AlsUtilities } from '../../context/als.utilities';
 import { HttpRequestContext } from '../../context/request/http-request.context';
@@ -26,16 +26,23 @@ import { PromiseUtilities } from '../../utilities/promise.utilities';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { RemovalReach } from '../driver/removal-reach.model';
 import { RepositoryDriverInterface } from '../driver/repository-driver.interface';
+import { AtomicUpdate } from '../models/atomic-update.model';
+import { WithDataSourceTimes } from '../models/data-source-time.model';
 import { BaseRepositoryOptions } from '../models/options/base-repository-options.model';
 import { CreateAllOptions } from '../models/options/create-all-options.model';
 import { CreateOptions } from '../models/options/create-options.model';
 import { UpdateAllOptions } from '../models/options/update-all-options.model';
 import { UpdateByIdOptions } from '../models/options/update-by-id-options.model';
+import { UpsertAllOptions } from '../models/options/upsert-all-options.model';
+import { UpsertOptions } from '../models/options/upsert-options.model';
 import { UpdateAllData } from '../models/update-all-data.model';
-import { Where } from '../models/where/where-filter.model';
+import { UpsertRow } from '../models/upsert-row.model';
+import { Where, WhereFilter } from '../models/where/where-filter.model';
 import { Repository, WrittenUpdate } from '../repository/repository';
 import { ScopedWhere } from '../scopes/scope-where.utilities';
 import { TenantUtilities } from '../tenancy/tenant.utilities';
+import { Transaction } from '../transaction/transaction.model';
+import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
 import { WriteDataUtilities } from '../write-data.utilities';
 
 /**
@@ -137,7 +144,7 @@ export class ChangeSetRepository<
         return [authService, changeSetRepository];
     }
 
-    override async create(data: CreateData, options?: CreateOptions<T>): Promise<T> {
+    override async create(data: WithDataSourceTimes<CreateData>, options?: CreateOptions<T>): Promise<T> {
         // one transaction over the write and the change set describing it, for the reason `updateAll`
         // takes one: written apart, a failure in between leaves either a mutation nothing recorded or
         // a record of a mutation that was rolled back. A trail with a hole in it is worse than no
@@ -150,13 +157,74 @@ export class ChangeSetRepository<
         }));
     }
 
-    override async createAll(data: CreateData[], options?: CreateAllOptions<T>): Promise<T[]> {
+    override async createAll(data: WithDataSourceTimes<CreateData>[], options?: CreateAllOptions<T>): Promise<T[]> {
         return await this.withinTimeout(options, 'createAll', async () => await this.inTransaction(options, async transaction => {
             const inTransaction: CreateAllOptions<T> = { ...options, transaction };
             const res: T[] = await super.createAll(data, inTransaction);
             await this.createAllChangeSets(res, res, ChangeSetType.CREATE, inTransaction);
             return res;
         }));
+    }
+
+    override async upsert(
+        identity: DeepPartial<T>,
+        create: CreateData,
+        onConflict: AtomicUpdate<T>,
+        options?: UpsertOptions<T>
+    ): Promise<T> {
+        // one transaction over the read of the row the identity names, the write and the change set,
+        // for the reason `create` takes one. The read is the before state, and whether there was one
+        // says which of the two the upsert was
+        return await this.withinTimeout(options, 'upsert', async () => await this.inTransaction(options, async transaction => {
+            const inTransaction: UpsertOptions<T> = { ...options, transaction };
+            const [original] = await this.findOriginals(Object.keys(identity), [identity], transaction);
+            const res: T = await super.upsert(identity, create, onConflict, inTransaction);
+            const type: ChangeSetType = original == undefined ? ChangeSetType.CREATE : ChangeSetType.UPDATE;
+            await this.createChangeSet(original ?? res, res, type, inTransaction);
+            return res;
+        }));
+    }
+
+    override async upsertAll(
+        identity: Extract<keyof T, string>[],
+        rows: UpsertRow<T, CreateData>[],
+        options?: UpsertAllOptions<T>
+    ): Promise<T[]> {
+        return await this.withinTimeout(options, 'upsertAll', async () => await this.inTransaction(options, async transaction => {
+            const inTransaction: UpsertAllOptions<T> = { ...options, transaction };
+            const originals: (T | undefined)[] = await this.findOriginals(identity, rows.map(row => row.create), transaction);
+            const res: T[] = await super.upsertAll(identity, rows, inTransaction);
+            for (const type of [ChangeSetType.CREATE, ChangeSetType.UPDATE]) {
+                const indexes: number[] = res
+                    .map((_, index) => index)
+                    .filter(index => (originals[index] == undefined) === (type === ChangeSetType.CREATE));
+                await this.createAllChangeSets(
+                    indexes.map(index => originals[index] ?? res[index] as T),
+                    indexes.map(index => res[index] as T),
+                    type,
+                    inTransaction
+                );
+            }
+            return res;
+        }));
+    }
+
+    /**
+     * Reads the rows the identities of an upsert name, before it writes.
+     * @param keys - The properties identifying each row.
+     * @param identities - What each row holds for them.
+     * @param transaction - The transaction of the upsert.
+     * @returns For each identity, the row holding it, or undefined when none does yet.
+     */
+    private async findOriginals(keys: string[], identities: object[], transaction: Transaction): Promise<(T | undefined)[]> {
+        const resolveValues: (row: object) => string = row => UpsertIdentityUtilities.resolveValues(keys, row);
+        const where: WhereFilter<T>[] = identities.map(identity => Object.fromEntries(
+            keys.map(key => [key, Reflect.get(identity, key)])
+        ) as WhereFilter<T>);
+        const found: Map<string, T> = new Map(
+            (await this.findAll({ where, transaction, limit: 'all' })).map(row => [resolveValues(row), row])
+        );
+        return identities.map(identity => found.get(resolveValues(identity)));
     }
 
     override async updateById(id: T['id'], data: UpdateData, options?: UpdateByIdOptions<T>): Promise<T> {
@@ -244,7 +312,11 @@ export class ChangeSetRepository<
         });
     }
 
-    protected override async removeRows(ids: string[], options: BaseRepositoryOptions | undefined, reach?: RemovalReach<T>): Promise<number> {
+    protected override async removeRows(
+        ids: string[],
+        options: BaseRepositoryOptions | undefined,
+        reach?: RemovalReach<T>
+    ): Promise<number> {
         if (!ids.length) {
             return 0;
         }
@@ -253,7 +325,11 @@ export class ChangeSetRepository<
         // through allowId has to be one no other change set entity uses (decided in 01-data-layer M42).
         // So the rows are removed wholly: change sets of a row left out would be deleted all the same
         return await this.inTransaction(options, async transaction => {
-            const removed: number = await super.removeRows(ids, { ...options, transaction }, reach == undefined ? undefined : { ...reach, wholly: true });
+            const removed: number = await super.removeRows(
+                ids,
+                { ...options, transaction },
+                reach == undefined ? undefined : { ...reach, wholly: true }
+            );
             await this.changeSetRepository.deleteAll(
                 { changeSetEntityId: { oneOf: ids } },
                 { transaction, unscoped: true, acrossTenants: true }
@@ -573,7 +649,7 @@ export class ChangeSetRepository<
     ): Promise<void> {
         restoreExcludeProperties(entityPriorChanges, this.entityClass);
         restoreExcludeProperties(data, this.entityClass);
-        const changes: NewChange[] = this.getChangesFromData(entityPriorChanges, data, type);
+        const changes: NewChange[] = this.resolveChangesFromData(entityPriorChanges, data, type);
         await Promise.all([
             removeExcludeProperties(entityPriorChanges, this.entityClass),
             removeExcludeProperties(data, this.entityClass)
@@ -588,7 +664,7 @@ export class ChangeSetRepository<
             changeSetEntityId: entityPriorChanges.id,
             type: type,
             createdAt: nowInNs(),
-            createdBy: await this.getCreatedBy(),
+            createdBy: await this.resolveCreatedBy(),
             changes
         };
         await this.changeSetRepository.create(changeSetData, { transaction: options?.transaction, acrossTenants: true });
@@ -624,7 +700,7 @@ export class ChangeSetRepository<
         options?: BaseRepositoryOptions,
         force: boolean = false
     ): Promise<void> {
-        const userId: string | undefined = await this.getCreatedBy();
+        const userId: string | undefined = await this.resolveCreatedBy();
 
         // the return type is stated so that the literal below is checked against it. Inferred, an
         // extra key is not an error - which is how `createdByUserId` came to be written here for a
@@ -638,7 +714,7 @@ export class ChangeSetRepository<
                 }
                 restoreExcludeProperties(e, this.entityClass);
                 restoreExcludeProperties(entityData, this.entityClass);
-                const changes: NewChange[] = this.getChangesFromData(e, entityData, type);
+                const changes: NewChange[] = this.resolveChangesFromData(e, entityData, type);
                 await Promise.all([
                     removeExcludeProperties(e, this.entityClass),
                     removeExcludeProperties(entityData, this.entityClass)
@@ -671,7 +747,11 @@ export class ChangeSetRepository<
      * @returns An array of changes for the change set.
      * Filtered by values that have actually changed and aren't in the "keysToExcludeFromChangeSets" array.
      */
-    protected getChangesFromData(entityPriorChanges: T, data: CreateData | UpdateData | DeepPartial<T>, type: ChangeSetType): NewChange[] {
+    protected resolveChangesFromData(
+        entityPriorChanges: T,
+        data: CreateData | UpdateData | DeepPartial<T>,
+        type: ChangeSetType
+    ): NewChange[] {
         const res: NewChange[] = [];
         // an object an update gives is merged into the stored one, so what the property holds now is
         // the merged object rather than the part of it the update named
@@ -695,12 +775,12 @@ export class ChangeSetRepository<
      * Tries to get a currently logged in user.
      * @returns The id of the currently logged in user or undefined if that didn't work.
      */
-    protected async getCreatedBy(): Promise<string | undefined> {
+    protected async resolveCreatedBy(): Promise<string | undefined> {
         const context: HttpRequestContext | WebsocketRequestContext | undefined = AlsUtilities.getCurrentRequestContext();
         if (!context) {
             return undefined;
         }
-        const user: CurrentUser | undefined = await this.authService.getCurrentUser(
+        const user: CurrentUser | undefined = await this.authService.resolveCurrentUser(
             context,
             this.authService.strategies,
             false

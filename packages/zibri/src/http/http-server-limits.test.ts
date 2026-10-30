@@ -1,4 +1,5 @@
 import { once } from 'node:events';
+import { Server } from 'node:http';
 import { connect, Socket } from 'node:net';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
@@ -90,6 +91,14 @@ describe('the headers a request may carry, by default', () => {
 
     it('refuses a request with more than a hundred headers with 431, rather than dropping the rest', async () => {
         expect(await resolveStatus(baseUrl, headersOf(101))).toBe(HttpStatus.REQUEST_HEADER_FIELDS_TOO_LARGE);
+    });
+
+    // part of evaluation round 2, 03 §H17: five seconds, below the idle timeout of every proxy in
+    // front of an application, which then reused a connection the server had just closed
+    it('keeps an idle connection open longer than nginx keeps one to it', () => {
+        const httpServer: Server | undefined = server?.['app'].server;
+
+        expect(httpServer?.keepAliveTimeout).toBe(75_000);
     });
 });
 

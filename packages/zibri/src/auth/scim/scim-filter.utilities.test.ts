@@ -83,4 +83,10 @@ describe('ScimFilterUtilities', () => {
             expect(() => ScimFilterUtilities.parse(text)).toThrow(expect.objectContaining({ body: expect.objectContaining({ scimType: ScimErrorType.INVALID_FILTER }) }));
         }
     });
+
+    it('refuses a filter nested deeper than any identity provider nests one, as an invalid filter', () => {
+        const nested: string = `${'('.repeat(20_000)}userName pr${')'.repeat(20_000)}`;
+        expect(() => ScimFilterUtilities.parse(nested)).toThrow(expect.objectContaining({ body: expect.objectContaining({ scimType: ScimErrorType.INVALID_FILTER }) }));
+        expect(ScimFilterUtilities.parse(`${'('.repeat(10)}userName pr${')'.repeat(10)}`)).toEqual({ type: 'present', path: expect.anything() });
+    });
 });

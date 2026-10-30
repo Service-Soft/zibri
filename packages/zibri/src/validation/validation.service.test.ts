@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { type Relation } from 'typeorm';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { ValidateCustom } from './decorators/validate-custom.decorator';
 import { ValidationService } from './validation.service';
 import { TestTimeouts } from '../__testing__/constants';
+import { type Relation } from '../__testing__/relation.type';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { propertyOf } from '../data-source/models/where/property-of.function';
@@ -20,9 +20,10 @@ import { MimeType } from '../http/mime-type.enum';
 import { $t, $ts } from '../localization/translate.function';
 import { BodyMetadata, FormDataBodyMetadataInput, JsonBodyMetadataInput } from '../routing/decorators/body-metadata.model';
 import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing/decorators/param.decorator';
-import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from '../routing/param-metdata.helpers';
+import { ParamMetadataUtilities } from '../routing/param-metadata.utilities';
 import { resolveBodyMetadata } from '../routing/resolve-body-metadata.function';
 import { Newable } from '../types/newable.type';
+import { BigNumber } from '../utilities/number.utilities';
 
 class Nested {
     @Property.string()
@@ -73,6 +74,7 @@ class Booking {
         },
         whereFor<CheckedChore>({ estimate: { greaterThanEquals: 1 } }),
         {
+            // eslint-disable-next-line unicorn/no-null
             where: whereFor<CheckedChore>([{ endsAt: null }, { endsAt: { after: propertyOf('startsAt') } }]),
             code: 'endsBeforeStart',
             message: $t`a chore ends after it starts`
@@ -171,6 +173,26 @@ class WithNested {
     nested: Nested | undefined;
 }
 
+class Settings {
+    @Property.string({ required: false })
+    theme?: string;
+}
+
+class Payment {
+    @Property.number({ format: 'bignumber', min: 0, max: 10 })
+    amount!: BigNumber;
+}
+
+class Nickname {
+    @Property.string({ minLength: 2, maxLength: 3 })
+    nickname!: string;
+}
+
+class WithSettings {
+    @Property.object({ cls: () => Settings })
+    settings!: Settings;
+}
+
 // a json body names no type, a form data body has to
 type BodyMetaOverrides = (JsonBodyMetadataInput & { modelClass?: Newable<unknown> }) | FormDataBodyMetadataInput;
 
@@ -194,32 +216,32 @@ describe('ValidationService', () => {
 
     describe('validatePathParam / validateQueryParam / validateHeaderParam', () => {
         it('resolves without throwing for valid path params', async () => {
-            const meta: PathParamMetadata = createPathParamMetadata('id', { type: 'string' });
+            const meta: PathParamMetadata = ParamMetadataUtilities.createPathParam('id', { type: 'string' });
             await expect(validationService.validatePathParam('abc', meta)).resolves.toBeUndefined();
         });
 
         it('throws a ValidationError for an invalid path param', async () => {
-            const meta: PathParamMetadata = createPathParamMetadata('id', { type: 'number' });
+            const meta: PathParamMetadata = ParamMetadataUtilities.createPathParam('id', { type: 'number' });
             await expect(validationService.validatePathParam('not-a-number', meta)).rejects.toThrow(ValidationError);
         });
 
         it('resolves without throwing for valid query params', async () => {
-            const meta: QueryParamMetadata = createQueryParamMetadata('limit', { type: 'number' });
+            const meta: QueryParamMetadata = ParamMetadataUtilities.createQueryParam('limit', { type: 'number' });
             await expect(validationService.validateQueryParam(10, meta)).resolves.toBeUndefined();
         });
 
         it('throws a ValidationError for an invalid query param', async () => {
-            const meta: QueryParamMetadata = createQueryParamMetadata('limit', { type: 'number', required: true });
+            const meta: QueryParamMetadata = ParamMetadataUtilities.createQueryParam('limit', { type: 'number', required: true });
             await expect(validationService.validateQueryParam(undefined, meta)).rejects.toThrow(ValidationError);
         });
 
         it('resolves without throwing for a valid header param', async () => {
-            const meta: HeaderParamMetadata = createHeaderParamMetadata('x-request-id', { type: 'string' });
+            const meta: HeaderParamMetadata = ParamMetadataUtilities.createHeaderParam('x-request-id', { type: 'string' });
             await expect(validationService.validateHeaderParam('abc-123', meta)).resolves.toBeUndefined();
         });
 
         it('throws a ValidationError for an invalid header param', async () => {
-            const meta: HeaderParamMetadata = createHeaderParamMetadata('x-request-id', { type: 'string' });
+            const meta: HeaderParamMetadata = ParamMetadataUtilities.createHeaderParam('x-request-id', { type: 'string' });
             await expect(validationService.validateHeaderParam(42, meta)).rejects.toThrow(ValidationError);
         });
     });
@@ -278,6 +300,36 @@ describe('ValidationService', () => {
                     bodyMeta({ modelClass: WithNested })
                 )
             ).resolves.toBeUndefined();
+        });
+
+        // an array is an object to typeof, and one has no keys: it passed for an object every property
+        // of which is optional
+        it('rejects a list where an object is declared, the body itself included', async () => {
+            await expect(validationService.validateBody({ settings: [] }, bodyMeta({ modelClass: WithSettings }))).rejects.toThrow(
+                expect.objectContaining({ problems: [expect.objectContaining({ key: 'settings', code: 'type' })] })
+            );
+            await expect(validationService.validateBody([], bodyMeta({ modelClass: Settings }))).rejects.toThrow(
+                expect.objectContaining({ problems: [expect.objectContaining({ key: 'body', code: 'type' })] })
+            );
+        });
+
+        // an exact decimal was compared with its bounds as a double, which rounds a value just past one onto it
+        it('holds an exact decimal to its bounds exactly', async () => {
+            await expect(validationService.validateBody({ amount: new BigNumber('10') }, bodyMeta({ modelClass: Payment }))).resolves.toBeUndefined();
+            await expect(validationService.validateBody({ amount: new BigNumber('10.0000000000000000001') }, bodyMeta({ modelClass: Payment })))
+                .rejects.toThrow(expect.objectContaining({ problems: [expect.objectContaining({ key: 'amount', code: 'max' })] }));
+            await expect(validationService.validateBody({ amount: new BigNumber('-0.0000000000000000001') }, bodyMeta({ modelClass: Payment })))
+                .rejects.toThrow(expect.objectContaining({ problems: [expect.objectContaining({ key: 'amount', code: 'min' })] }));
+        });
+
+        // a length was counted in utf-16 units, where the OpenAPI schema counts characters: an emoji is
+        // one character and two units
+        it('counts the length of a string in characters', async () => {
+            await expect(validationService.validateBody({ nickname: '😀😀😀' }, bodyMeta({ modelClass: Nickname }))).resolves.toBeUndefined();
+            await expect(validationService.validateBody({ nickname: '😀' }, bodyMeta({ modelClass: Nickname })))
+                .rejects.toThrow(expect.objectContaining({ problems: [expect.objectContaining({ key: 'nickname', code: 'minLength' })] }));
+            await expect(validationService.validateBody({ nickname: '😀😀😀😀' }, bodyMeta({ modelClass: Nickname })))
+                .rejects.toThrow(expect.objectContaining({ problems: [expect.objectContaining({ key: 'nickname', code: 'maxLength' })] }));
         });
 
         it('hands a required function the object the property is on, not the whole body', async () => {

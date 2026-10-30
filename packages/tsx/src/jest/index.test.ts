@@ -12,6 +12,16 @@ describe('zibri-tsx jest transformer', () => {
         expect(code).toContain('function __render$Home($ssr, { title })');
     });
 
+    // 07 §T11: jest reads the map a transformer returns, so a failing assertion inside a rendered
+    // template points at the template
+    it('returns the source map of the module, naming the template', () => {
+        const { map } = zibriTsxTransformer.process(TEMPLATE, '/app/src/templates/home.tsx');
+
+        expect(map.sources).toEqual(['/app/src/templates/home.tsx']);
+        expect(map.sourcesContent).toEqual([TEMPLATE]);
+        expect(map.mappings.length).toBeGreaterThan(0);
+    });
+
     it('throws for a template that does not compile, naming the file, line and code', () => {
         expect(() => zibriTsxTransformer.process('\nexport const Bad = async () => <div/>;', '/app/src/templates/bad.tsx'))
             .toThrow(/\/app\/src\/templates\/bad\.tsx:2:\d+ ZTSX002/);

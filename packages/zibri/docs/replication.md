@@ -15,6 +15,7 @@ cache that missed an invalidation.
 | `ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS` | DI token | Sets `maxThreads`. Defaults to a full machine's worth per instance |
 | `ZIBRI_DI_TOKENS.HTTP_DRAIN_TIMEOUT_IN_MS` | DI token | How long open requests may take to finish on shutdown. Defaults to ten seconds |
 | `ZIBRI_DI_TOKENS.LEASE_DRAIN_TIMEOUT_IN_MS` | DI token | How long work holding a [lease](./glossary.md#lease) may take to finish on shutdown. Defaults to ten seconds |
+| `ZIBRI_DI_TOKENS.INSTANCE_ID` | DI token | Names the instance on the leases it holds and the thread jobs it runs. Defaults to the host name and the process id, such as `api-7f9c:1` |
 | `EventSubscriberRun` | entity | The claim of one subscriber on one event |
 | `CacheInvalidation` | entity | A tag invalidation every instance applies to its local cache tier |
 | `TransactionDeadlockError` | error | Thrown at one of two transactions that wait for each other |
@@ -142,9 +143,9 @@ multiplies it, and nothing warns about it:
 
 | Setting | Default | With N replicas |
 |---|---|---|
-| `MULTITHREADING_OPTIONS.maxThreads` | derived from `os.availableParallelism()` | each instance reserves a full machine's worth of threads |
+| `MULTITHREADING_OPTIONS.maxThreads` | derived from `os.availableParallelism()`, which follows the CPU limit of a container | each instance without a CPU limit reserves a full machine's worth of threads |
 
-Set it explicitly when you scale out.
+Give each replica a CPU limit, or set it explicitly when you scale out.
 
 The `poolSize` of a `PostgresDataSource` is per process, so the database sees the pool times the
 number of replicas. It defaults to twenty. For more concurrency than the database has cores, put a

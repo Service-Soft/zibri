@@ -1,7 +1,7 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import { afterEach, describe, expect, it } from '@jest/globals';
-import { type Relation } from 'typeorm';
 
+import { type Relation } from '../../__testing__/relation.type';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
@@ -515,7 +515,8 @@ export function describeOwnedRelations(dataSourceName: string, repositoriesOf: (
         });
 
         it('restores a soft deleted row given by its id when the write says so, with the rows deleted along with it', async () => {
-            const trip: Trip = await repositoriesOf().trips.create({ name: 'restoring', stops: [{ name: 'Paris', tickets: [{ seat: '2B' }] }] });
+            const trip: Trip = await repositoriesOf().trips
+                .create({ name: 'restoring', stops: [{ name: 'Paris', tickets: [{ seat: '2B' }] }] });
             const [paris] = trip.stops;
             await repositoriesOf().stops.deleteById(paris?.id ?? '');
 
@@ -526,6 +527,7 @@ export function describeOwnedRelations(dataSourceName: string, repositoriesOf: (
             );
 
             const stops: Stop[] = await repositoriesOf().stops.findAll({ where: { tripId: trip.id } });
+            // eslint-disable-next-line unicorn/no-null
             expect(stops.map(s => [s.name, s.deleted, s.deletedWith])).toEqual([['Paris again', false, null]]);
             expect(await repositoriesOf().tickets.count({ where: { stopId: paris?.id } })).toBe(1);
         });

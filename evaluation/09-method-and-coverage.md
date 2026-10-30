@@ -87,6 +87,9 @@ They are gaps in the report, not clean bills of health.
 > `lazyInjectables` promotion under concurrent first resolution, source maps of the compiled templates,
 > the webpack plugin and the MJML parity layer, the upgrade path of an already generated project,
 > and `src/document`, `src/localization`, `src/assets` and `src/validation`.
+>
+> **Read since (2026-10-29 and 2026-10-30)**: every item above, by the review in
+> [round-2/11](./round-2/11-unread-code-review.md), where its findings and their fixes are.
 
 ### DI internals
 

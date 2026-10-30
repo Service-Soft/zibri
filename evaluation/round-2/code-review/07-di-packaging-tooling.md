@@ -33,6 +33,12 @@ reader of that list; the identity of a value provider should be its token. Besid
 `isRegistered`'s JSDoc says "True when injecting it would find something" (`:123-134`) while it reads
 only `providers`, not the global record `resolveProvider` falls back to (`:256-279`).
 
+> **Closed 2026-10-29.** The identity of a provider is its class, its factory, or its token: a value
+> never. `isRegistered`'s JSDoc says what it reads, a registered provider, and that a globally
+> declared injectable not registered yet is not counted although `inject` finds it. Tests, red first,
+> in `di-container.test.ts`: two value providers worth `0` are both listed (one was), and a class
+> under two tokens is listed once.
+
 ### T18. The `@Injectable` decorator writes a `register` property onto stored provider objects as a side channel — MINOR
 *Filed 2026-10-21.*
 
@@ -42,6 +48,11 @@ part of `DiProvider`, lives on the object the container later registers, and exi
 two arrays are the record of which one a provider is in. CODE_STYLE's "`as SomeType` means the model
 is wrong" applies: the provider should carry its registration mode, or the lookup should return
 which array it came from.
+
+> **Closed 2026-10-29.** `findExistingProvider` answers `{ provider, register }`, the record it was
+> found in, and writes nothing onto the stored provider. One cast stays, narrowing a provider of the
+> record to the class it was found by, and says so. `di-container.test.ts` and the decorator's
+> conflict cases hold the behavior.
 
 ### T19. `new.command.ts` generates a project out of string arrays, which is why three suites exist to parse, compare and run what it writes — MINOR
 *Filed 2026-10-21.*
@@ -56,6 +67,27 @@ generated file to a template with placeholders makes the files readable, lintabl
 repository, and shrinks the command to the questions and the installs. This is also the precondition
 for T5's `zi upgrade`.
 
+> **Closed 2026-10-29 (user's decision: template files).** Every file `zi new` wrote from string
+> arrays is a template in `packages/cli/project/`. That folder is a copy of a generated project, with
+> each file ending in `.tpl`, so the compiler, the test runner, the linter and npm leave it alone.
+> `assets/` was not the place, since it is copied whole into every project's `assets/`.
+> `ProjectTemplateUtilities` renders them:
+> - `{{name}}` takes a value;
+> - `{{#flag}}…{{/flag}}` and `{{^flag}}…{{/flag}}` are sections, by feature and by `defaultAuth`;
+> - `{{! … }}` holds the reasons that were `//` comments beside the arrays;
+> - a name or flag the command does not pass fails the generation instead of being written.
+>
+> `new.command.ts` keeps the questions, the installs and which files a project gets, and goes from
+> 1457 to 226 lines. `.env` is rendered from the same template as `.env.example`, so the variable list
+> has one source, and the workflow reads its secrets from it. `zi upgrade` regenerates through the same
+> `generateFiles`, so it reads the same templates. The test helper's hand-kept list of 48 files is now
+> a listing of the template folder.
+>
+> No output changed. The 163 in-memory scaffold tests stay green, and the sandbox parity suite holds
+> byte for byte, `recorded-sandbox-diffs.json` unchanged. The other answer combinations are held by
+> `new.command.test.ts`'s behavior cases. `project-template.utilities.test.ts` (new, 5) covers the
+> sections, the comments and both refusals. The heavy and docker suites are the user's to run.
+
 ### T20. The sandbox is the scaffold plus demonstrations, not a reference application — MINOR
 *Filed 2026-10-21.*
 
@@ -67,3 +99,10 @@ that. What an adopter looking for "what a real Zibri app looks like" does not fi
 a domain, migrations in use, service layering, a tenant-aware entity and a test per layer — the
 things `docs/` describe one at a time. Worth saying in the sandbox's README so it is not read as the
 reference it is not.
+
+> **Closed 2026-10-29 (user's decision: say so in its README).** `packages/sandbox/README.md` (new)
+> says what the sandbox is: the files `zi new` writes, held to them by the parity suite, and a place
+> to click through features. It says what it is not: no migrations, `defaultAuth: 'public'`,
+> demonstrations side by side rather than a domain in layers. It points to `getting-started.md`, and
+> the root README's line says the same. `package.json`'s empty description stays: the parity suite
+> compares it with what `zi new` writes.

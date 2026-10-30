@@ -5,6 +5,16 @@ import { BaseDecryptOptions, BaseEncryptOptions, EncryptionBinding, EncryptionSt
 import { InternalError } from '../../../error-handling/internal-error.model';
 
 /**
+ * The length in bytes of the authentication tag a value is written with, node's default for gcm.
+ */
+const AUTH_TAG_LENGTH: number = 16;
+
+/**
+ * The message of the error a value that cannot be decrypted is refused with.
+ */
+const INVALID_VALUE_MESSAGE: string = 'Invalid encrypted value';
+
+/**
  * A stored aes-gcm value, split into its parts.
  */
 type ParsedAesGcmValue = {
@@ -68,6 +78,10 @@ enum AesGcmValueBinding {
     HEADER = 'u'
 }
 
+// The version is deliberately *not* what carries the marker. A strategy is looked up by name and
+// version and its keys hang off that pair, so bumping it would partition the keys and need every
+// stored value migrated before the app could read them. Describing the value in the value is what
+// lets old and new ones live in the same column.
 /**
  * Default aes-256-gcm encryption strategy implementation of Zibri.
  *
@@ -75,11 +89,6 @@ enum AesGcmValueBinding {
  * `aes-256-gcm.v1.<keyId>.<marker>.<iv>.<tag>.<ciphertext>`, where the marker says how much of its
  * place the value was bound to. Values written before binding existed have no marker and carry three
  * segments instead of four; they still decrypt, with nothing authenticated but the ciphertext.
- *
- * The version is deliberately *not* what carries this. A strategy is looked up by name and version
- * and its keys hang off that pair, so bumping it would partition the keys and need every stored value
- * migrated before the app could read them. Describing the value in the value is what lets old and new
- * ones live in the same column.
  */
 export class AesGcmEncryptionStrategy implements EncryptionStrategyInterface<
     Buffer,
@@ -133,10 +142,17 @@ export class AesGcmEncryptionStrategy implements EncryptionStrategyInterface<
         const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(value);
         const { marker, ivB64, tagB64, contentB64 }: ParsedAesGcmValue = this.parse(content.encryptedValue);
 
+        // the whole tag this strategy writes, or nothing: node checks as many bytes as it is given, so
+        // a tag cut short in the database is one an attacker guesses in a few billion tries
+        const tag: Buffer = Buffer.from(tagB64, 'base64');
+        if (tag.length !== AUTH_TAG_LENGTH) {
+            throw new InternalError(INVALID_VALUE_MESSAGE);
+        }
         const decipher: DecipherGCM = createDecipheriv(
             this.name,
             options.key,
-            Buffer.from(ivB64, 'base64')
+            Buffer.from(ivB64, 'base64'),
+            { authTagLength: AUTH_TAG_LENGTH }
         );
 
         const aad: string | undefined = this.aadFor(marker, options);
@@ -144,7 +160,7 @@ export class AesGcmEncryptionStrategy implements EncryptionStrategyInterface<
             decipher.setAAD(Buffer.from(aad, 'utf8'));
         }
 
-        decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
+        decipher.setAuthTag(tag);
 
         const decrypted: Buffer = Buffer.concat([
             decipher.update(Buffer.from(contentB64, 'base64')),
@@ -220,14 +236,14 @@ export class AesGcmEncryptionStrategy implements EncryptionStrategyInterface<
         if (marker === undefined) {
             const contentB64: string = [third, ...rest].join('.');
             if (!first || !second || !contentB64) {
-                throw new InternalError('Invalid encrypted value');
+                throw new InternalError(INVALID_VALUE_MESSAGE);
             }
             return { marker, ivB64: first, tagB64: second, contentB64 };
         }
 
         const contentB64: string = rest.join('.');
         if (!second || !third || !contentB64) {
-            throw new InternalError('Invalid encrypted value');
+            throw new InternalError(INVALID_VALUE_MESSAGE);
         }
         return { marker, ivB64: second, tagB64: third, contentB64 };
     }

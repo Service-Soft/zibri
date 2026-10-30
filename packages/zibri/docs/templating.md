@@ -306,13 +306,18 @@ async function loadSnapshots(): Promise<void> {
 //...
 ```
 
-The `?client` suffix makes a package available in the browser. The build writes it to
-`assets/public/vendor/chart.js.js`, and the rendered html loads it with a script tag. The browser runs
-the same version of the package as the server.
+The `?client` suffix makes a package available in the browser. The build writes the package's
+browser script to `assets/public/vendor/chart-js.js`, and the rendered html loads it with a script
+tag. The browser runs the same version of the package as the server.
+
+> [!NOTE]
+> The build takes a classic script that sets a global, such as a UMD build, from what the package
+> names as its browser distribution. A package that ships its browser distribution as ES modules only
+> fails the build, which names it.
 
 To use a package in the browser, also add an entry for it to `tsx.d.ts`.
 
-The component the page renders. An event handler such as `onReloadChange` runs in the browser:
+The component the page renders. An event handler such as the `onChange` of the checkbox runs in the browser:
 
 ```tsx
 // src/templates/pages/metrics.tsx
@@ -320,6 +325,7 @@ import { TsxComponent } from 'zibri';
 
 import { BasePage } from '../components/base-page';
 import { NetworkChart, RequestDurationChart, RequestsPerSecondChart, ResourceUsageChart } from '../components/charts';
+import { Checkbox } from '../components/checkbox';
 import { Heading } from '../components/heading';
 import { MetricsStatus } from '../components/metrics-status';
 
@@ -336,16 +342,11 @@ export const MetricsPage: TsxComponent<MetricsPageProps> = ({ version, primary, 
     className="flex flex-col gap-4 py-8"
 >
     <Heading className="text-center">Metrics</Heading>
+    <Checkbox label="Automatic reload" onChange={() => automaticReload = !automaticReload} checked={automaticReload} />
     <div className="w-full px-10 flex flex-col gap-5">
         <div className="grid grid-cols-5 gap-5">
             <div className="col-span-2 flex flex-col gap-5">
-                <MetricsStatus
-                    automaticReloadChecked={automaticReload}
-                    onReloadChange={() => automaticReload = !automaticReload}
-                    version={version}
-                    className="flex-1"
-                >
-                </MetricsStatus>
+                <MetricsStatus id="overview" version={version} className="flex-1" />
                 <RequestDurationChart className="flex-1" secondary={secondary}></RequestDurationChart>
             </div>
             <RequestsPerSecondChart secondary={secondary} className="col-span-3"></RequestsPerSecondChart>

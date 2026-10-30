@@ -1,11 +1,12 @@
 import { randomBytes } from 'node:crypto';
+import { setTimeout as wait } from 'node:timers/promises';
 
+import { ChangePasswordData } from './change-password-data.model';
 import { ConfirmPasswordResetData } from './confirm-password-reset-data.model';
 import { PasswordCredentials, PasswordCredentialsCreateData, PasswordCredentialsDto } from './password-credentials.model';
 import { PasswordFailureLimit } from './password-failure-limit.model';
 import { PasswordFailureStreak, PasswordFailureStreakCreateData } from './password-failure-streak.model';
 import { PasswordResetEmailTemplate } from './password-reset-email-template.model';
-import { PasswordResetTokenCleanupCronJob } from './password-reset-token-cleanup.cron-job';
 import { RequestPasswordResetData } from './request-password-reset-data.model';
 import { ZibriApplication } from '../../../application/application';
 import { Repository } from '../../../data-source/repository/repository';
@@ -17,6 +18,8 @@ import { NoProviderError } from '../../../di/errors/no-provider.error';
 import { inject } from '../../../di/inject.function';
 import { type EmailServiceInterface } from '../../../email/email-service.interface';
 import { EmailPriority } from '../../../email/models/email-priority.enum';
+import { EmailNotVerifiedError } from '../../../error-handling/errors/email-not-verified.error';
+import { ForbiddenError } from '../../../error-handling/errors/forbidden.error';
 import { HttpError } from '../../../error-handling/errors/http.error';
 import { PasswordLockedError } from '../../../error-handling/errors/password-locked.error';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
@@ -26,6 +29,7 @@ import { AuditAction, AuditOutcome } from '../../../logging/audit-event.model';
 import { TsxUtilities } from '../../../tsx/tsx.utilities';
 import { Newable } from '../../../types/newable.type';
 import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
+import { type EmailVerificationServiceInterface } from '../../email-verification/email-verification-service.interface';
 import { type HashServiceInterface } from '../../hash/hash-service.interface';
 import type { HashString } from '../../hash/hash.utilities';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
@@ -51,6 +55,7 @@ export class PasswordAuthenticator<
     private readonly confirmPasswordResetUrl: string;
     private readonly PasswordResetEmail: PasswordResetEmailTemplate<RoleType, UserType>;
     private dummyPasswordHashPromise: Promise<HashString> | undefined;
+    private standInDurationInMsPromise: Promise<number> | undefined;
     private failureLimit: PasswordFailureLimit = false;
 
     // read when used rather than injected, so that an application without the entities is told which
@@ -94,10 +99,6 @@ export class PasswordAuthenticator<
     // eslint-disable-next-line jsdoc/require-jsdoc
     init(app: ZibriApplication): void {
         validateEntitiesRegistered(PasswordAuthenticator.name, app, PasswordCredentials, PasswordResetToken);
-        // a reset token nobody used is otherwise kept until its user asks for the next one
-        if (!app.options.cronJobs.includes(PasswordResetTokenCleanupCronJob)) {
-            app.options.cronJobs.push(PasswordResetTokenCleanupCronJob);
-        }
         this.failureLimit = app.options.passwordFailureLimit;
         if (this.failureLimit !== false) {
             validateEntitiesRegistered(PasswordAuthenticator.name, app, PasswordFailureStreak);
@@ -130,10 +131,13 @@ export class PasswordAuthenticator<
             // against. An unknown address used to answer before any key derivation ran while a known
             // one waited for a full scrypt, which made the response time an account existence oracle
             // - readable from anywhere, and unaffected by the messages being identical.
-            const passwordMatched: boolean = await this.hashService.equal(
-                credentials.password,
-                storedPassword ?? await this.resolveDummyPasswordHash()
-            );
+            const standIn: HashString = await this.resolveDummyPasswordHash();
+            const started: number = performance.now();
+            const passwordMatched: boolean = await this.hashService.equal(credentials.password, storedPassword ?? standIn);
+            // and never quicker than the stand-in: a hash keeps the cost it was made at, so a user who
+            // has not logged in since the cost was raised holds one that answers sooner than an
+            // address nobody has
+            await this.waitForStandInDuration(performance.now() - started);
             if (foundUser == undefined || storedPassword == undefined || !passwordMatched) {
                 if (foundUser != undefined) {
                     await this.recordWrongPassword(foundUser.id);
@@ -149,11 +153,19 @@ export class PasswordAuthenticator<
                 await this.failureStreakRepository.deleteById(streak.id);
             }
             await this.upgradeStoredPassword(foundUser, credentials.password, storedPassword);
+            const verification: EmailVerificationServiceInterface = inject(ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_SERVICE);
+            if (verification.isRequiredForLogin && foundUser.emailVerifiedAt == undefined) {
+                // after the password, like the lock, so it says nothing to whoever does not know it. With a
+                // link to verify the address, outside the login's transaction, which the refusal rolls back
+                await verification.requestEmailVerification(foundUser.id, undefined);
+                throw new EmailNotVerifiedError();
+            }
             return { user: foundUser, authenticatedAt: new Date() };
         }
         catch (error) {
-            // the one refusal that says more than "wrong" - to the trail only, its message is the same
-            if (error instanceof PasswordLockedError) {
+            // the refusals that say more than "wrong", once the password matched: a lock to the trail
+            // only, its message is the same, and an address to verify to the user, who has to act on it
+            if (error instanceof PasswordLockedError || error instanceof EmailNotVerifiedError) {
                 throw error;
             }
             // every way of being refused answers the same, or the difference says whether the address
@@ -174,6 +186,8 @@ export class PasswordAuthenticator<
      * @param data - The user, and overrides for the email.
      */
     async requestPasswordReset(data: RequestPasswordResetData<RoleType, UserType>): Promise<void> {
+        // a link to whatever address somebody typed in would hand the account to its holder
+        inject(ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_SERVICE).validateEmailVerified(data.user);
         if (await this.activePasswordResetTokenAlreadyExists(data.user, data.transaction)) {
             // silently, because answering differently here told an unauthenticated caller that the
             // address exists *and* that somebody recently asked to reset it. One live token at a
@@ -287,6 +301,37 @@ export class PasswordAuthenticator<
     }
 
     /**
+     * Sets a new password for a user who knows the one they have.
+     *
+     * Ending the user's other logins is not part of this, for the reason `confirmPasswordReset` gives:
+     * `AuthService.changePassword` ends them.
+     * @param user - The user, as the request asking is logged in as.
+     * @param data - The current password, the new one, and the transaction.
+     * @throws A ForbiddenError when the current password is wrong, and PasswordLockedError while the
+     * account is locked.
+     */
+    async changePassword(user: UserType, data: ChangePasswordData): Promise<void> {
+        try {
+            // the way a login checks it, so a wrong one counts against the streak and a locked account
+            // stays locked: a stolen session would otherwise be a place to guess passwords at no cost
+            await this.authenticate({ email: user.email, password: data.currentPassword }, data.transaction);
+        }
+        catch (error) {
+            if (error instanceof PasswordLockedError || !(error instanceof UnauthorizedError)) {
+                throw error;
+            }
+            // not the 401 of a login: the caller is logged in, and a 401 sends a client to refresh and
+            // ask again
+            throw new ForbiddenError($ts`The current password is wrong.`, { cause: error });
+        }
+        // read rather than updated blindly, for the reason confirmPasswordReset gives
+        const credentials: PasswordCredentials = await this.credentialsRepository.findOne(
+            { where: { userId: user.id }, transaction: data.transaction }
+        );
+        await this.credentialsRepository.updateById(credentials.id, { password: data.newPassword }, { transaction: data.transaction });
+    }
+
+    /**
      * Counts a wrong password against the user, and locks the account once the streak reaches the
      * application's limit.
      *
@@ -397,6 +442,29 @@ export class PasswordAuthenticator<
     private async resolveDummyPasswordHash(): Promise<HashString> {
         this.dummyPasswordHashPromise ??= Promise.resolve(this.hashService.hash(randomBytes(32).toString('hex')));
         return await this.dummyPasswordHashPromise;
+    }
+
+    /**
+     * Waits until a comparison has taken as long as one against the stand-in takes.
+     * @param elapsedInMs - How long the comparison took.
+     */
+    private async waitForStandInDuration(elapsedInMs: number): Promise<void> {
+        this.standInDurationInMsPromise ??= this.resolveStandInDurationInMs();
+        const remainingInMs: number = await this.standInDurationInMsPromise - elapsedInMs;
+        if (remainingInMs > 0) {
+            await wait(remainingInMs);
+        }
+    }
+
+    /**
+     * Measures how long a comparison against the stand-in takes, once.
+     * @returns The duration in milliseconds.
+     */
+    private async resolveStandInDurationInMs(): Promise<number> {
+        const standIn: HashString = await this.resolveDummyPasswordHash();
+        const started: number = performance.now();
+        await this.hashService.equal(randomBytes(32).toString('hex'), standIn);
+        return performance.now() - started;
     }
 
     private async activePasswordResetTokenAlreadyExists(user: BaseUser<RoleType>, transaction: Transaction): Promise<boolean> {

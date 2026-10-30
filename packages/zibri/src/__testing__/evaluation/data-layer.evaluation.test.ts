@@ -1,13 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
-import { QueryRunner, Table, TableColumn, Logger as TypeOrmLogger } from 'typeorm';
 
 import { ChangeSetType } from '../../data-source/change-sets/models/change-set-type.enum';
 import { ChangeSet } from '../../data-source/change-sets/models/change-set.model';
 import { SoftDeleteEntity } from '../../data-source/change-sets/models/soft-delete-entity.model';
 import { SoftDeleteRepository } from '../../data-source/change-sets/soft-delete-repository';
 import { IsolationLevel } from '../../data-source/data-sources/data-source.interface';
+import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { PaginationResult } from '../../data-source/models/pagination-result.model';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
@@ -28,9 +27,8 @@ import { ConflictError } from '../../error-handling/errors/conflict.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { TypeOrmUtilities } from '../../utilities/typeorm.utilities';
+import { queryPostgres } from '../query-postgres.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
@@ -150,31 +148,14 @@ let statementCount: number = 0;
  */
 let readCount: number = 0;
 
-const statementCountingLogger: TypeOrmLogger = {
-    logQuery: (query: string) => {
-        statementCount++;
-        if (query.trimStart().toUpperCase()
-            .startsWith('SELECT')) {
-            readCount++;
-        }
-    },
-    logQueryError: () => {},
-    logQuerySlow: () => {},
-    logSchemaBuild: () => {},
-    logMigration: () => {},
-    log: () => {}
-};
-
 @DataSource()
 class EvalDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
         database: 'db',
-        ssl: false,
-        logging: true,
-        logger: statementCountingLogger
+        ssl: false
     };
 
     entities: Newable<BaseEntity>[] = [
@@ -191,6 +172,14 @@ class EvalDataSource extends PostgresDataSource {
     schemaManagement: SchemaManagement = 'synchronize';
 
     readonly pooler: PostgresPooler = 'none';
+
+    protected override onStatementSent(statement: string): void {
+        statementCount++;
+        if (statement.trimStart().toUpperCase()
+            .startsWith('SELECT')) {
+            readCount++;
+        }
+    }
 }
 
 const dataSourceClass: Newable<PostgresDataSource> = EvalDataSource;
@@ -207,16 +196,30 @@ afterAll(async () => {
     await server?.shutdown();
 }, 30000);
 
+/**
+ * Reads what a column of the orders table defaults to, as the live schema holds it.
+ * @param column - The column.
+ * @returns The default, or undefined when it has none.
+ */
+async function findColumnDefault(column: string): Promise<string | undefined> {
+    const [row] = await queryPostgres(
+        inject(dataSourceClass),
+        'SELECT column_default FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1 AND column_name = $2',
+        ['eval_order', column]
+    );
+    const columnDefault: unknown = row?.['column_default'];
+    return typeof columnDefault === 'string' ? columnDefault : undefined;
+}
+
 beforeEach(async () => {
     // one statement per table rather than deleteAll, which M3 is about: it reads every matching row
     // and deletes them one at a time, and the M4 test leaves ten thousand of them behind. A fixture
     // that resets through the operation the file is asserting is broken pays for it in every test
     const dataSource: PostgresDataSource = inject(dataSourceClass);
     const transaction: Transaction = await dataSource.startTransaction();
-    const queryRunner: QueryRunner = TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner;
-    await queryRunner.query(`DELETE FROM ${MetadataUtilities.getEntityMetadata(EvalOrder)?.tableName}`);
-    await queryRunner.query(`DELETE FROM ${MetadataUtilities.getEntityMetadata(EvalNote)?.tableName}`);
-    await queryRunner.query(`DELETE FROM ${MetadataUtilities.getEntityMetadata(EvalScopedOrder)?.tableName}`);
+    await queryPostgres(dataSource, `DELETE FROM ${MetadataUtilities.getEntityMetadata(EvalOrder)?.tableName}`, [], transaction);
+    await queryPostgres(dataSource, `DELETE FROM ${MetadataUtilities.getEntityMetadata(EvalNote)?.tableName}`, [], transaction);
+    await queryPostgres(dataSource, `DELETE FROM ${MetadataUtilities.getEntityMetadata(EvalScopedOrder)?.tableName}`, [], transaction);
     await transaction.commit();
 });
 
@@ -351,7 +354,7 @@ describe('evaluation/01-data-layer', () => {
             );
 
             statementCount = 0;
-            await orderRepo.deleteAll({ status: 'new' });
+            await orderRepo.deleteAll({ status: 'new', owner: undefined });
             const statementsForDelete: number = statementCount;
 
             // the rows themselves are read, because the delete hook runs per row and the caller is
@@ -452,7 +455,7 @@ describe('evaluation/01-data-layer', () => {
             const churn: Promise<void> = (async () => {
                 while (churning) {
                     const extra: EvalOrder = await orderRepo.create({ reference: 'churn' });
-                    await orderRepo.deleteById(extra.id);
+                    await orderRepo.deleteById(extra.id, { where: { owner: undefined } });
                 }
             })();
 
@@ -505,7 +508,7 @@ describe('evaluation/01-data-layer', () => {
 
             // the effective value the data source will hand to the driver, defaults merged in -
             // this test data source never sets poolSize, so this is the framework default
-            const poolSize: number | undefined = dataSource['fullOptions'].poolSize;
+            const poolSize: number = Number(dataSource['resolveConnectionConfig'](dataSource.options, true)['max']);
 
             // 100 per process x 20 pods is 2000 connections against a stock max_connections of 100,
             // so the first scale-out event takes the database down
@@ -519,20 +522,9 @@ describe('evaluation/01-data-layer', () => {
         // whether the column carries it. Read rather than written, because what is being checked is
         // the schema the framework built, not a way around the repository.
         it('declares a constant default on the column, for the writes the application never runs', async () => {
-            const dataSource: PostgresDataSource = inject(dataSourceClass);
-            const transaction: Transaction = await dataSource.startTransaction();
-            try {
-                const runner: QueryRunner = TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner;
-                const table: Table | undefined = await runner.getTable('eval_order');
-                const status: TableColumn | undefined = table?.columns.find(c => c.name === 'status');
-
-                // a data migration, a dba, another service against the same database - none of them
-                // run the entity's default, and the column is what answers for all of them
-                expect(status?.default).toContain('NEW');
-            }
-            finally {
-                await transaction.rollback();
-            }
+            // a data migration, a dba, another service against the same database - none of them run
+            // the entity's default, and the column is what answers for all of them
+            expect(await findColumnDefault('status')).toContain('NEW');
         });
 
         it('leaves a default the column cannot hold to the application', async () => {
@@ -540,18 +532,7 @@ describe('evaluation/01-data-layer', () => {
             // run. Declaring nothing is the right answer there - the alternative is a column whose
             // default is the moment the class was evaluated, which is a wrong answer that looks
             // like a right one.
-            const dataSource: PostgresDataSource = inject(dataSourceClass);
-            const transaction: Transaction = await dataSource.startTransaction();
-            try {
-                const runner: QueryRunner = TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner;
-                const table: Table | undefined = await runner.getTable('eval_order');
-                const queuedAt: TableColumn | undefined = table?.columns.find(c => c.name === 'queuedAt');
-
-                expect(queuedAt?.default).toBeUndefined();
-            }
-            finally {
-                await transaction.rollback();
-            }
+            expect(await findColumnDefault('queuedAt')).toBeUndefined();
         });
     });
 
@@ -707,7 +688,7 @@ describe('evaluation/01-data-layer', () => {
 
             // measured against the operation a soft delete *is* rather than against a number, so
             // that what this asserts is the one read the fix removed. An absolute count would also
-            // be counting the transaction, typeorm's own read to decide insert from update, and the
+            // be counting the transaction, the driver's own reads, and the
             // change set's relation - none of which this finding is about, and any of which moving
             // would break the test without anything having regressed
             const toUpdate: EvalAccount = await accountRepo.create({ email: 'baseline@example.com' });
@@ -796,7 +777,7 @@ describe('evaluation/01-data-layer', () => {
                 Array.from({ length: 20 }, (_, i) => ({ email: `actor-${i}@example.com` }))
             );
 
-            // `getCreatedBy` asks the auth service for the current user on every change set it
+            // `resolveCreatedBy` asks the auth service for the current user on every change set it
             // writes. Memoized per request context, so twenty writes ask once - and outside a
             // request there is no context to ask about at all
             expect(statementCount).toBeLessThan(10);
@@ -829,7 +810,7 @@ describe('evaluation/01-data-layer', () => {
             expect(await orderRepo.exists({ where: { reference: 'not-here' } })).toBe(false);
             // an empty table is the case a caller uses this for - seeding a database on first boot,
             // refusing a migration that has already run
-            await orderRepo.deleteAll({});
+            await orderRepo.deleteAll({ owner: undefined });
             expect(await orderRepo.exists()).toBe(false);
         });
 
@@ -853,7 +834,7 @@ describe('evaluation/01-data-layer', () => {
                 { length: UNBOUNDED_FIND_ALL_LIMIT + 1 },
                 (_, i) => `streamed-${i}`
             );
-            await orderRepo.deleteAll({});
+            await orderRepo.deleteAll({ owner: undefined });
             await orderRepo.createAll(references.map(reference => ({ reference })));
 
             // the control: this is what a caller hits today, and what the stream is the way past
@@ -867,7 +848,7 @@ describe('evaluation/01-data-layer', () => {
         }, 60000);
 
         it('stops reading when the caller stops', async () => {
-            await orderRepo.deleteAll({});
+            await orderRepo.deleteAll({ owner: undefined });
             await orderRepo.createAll(Array.from({ length: 50 }, (_, i) => ({ reference: `early-${i}` })));
 
             let read: number = 0;
@@ -884,7 +865,7 @@ describe('evaluation/01-data-layer', () => {
         });
 
         it('narrows a stream by the entity scope, like every other read', async () => {
-            await scopedOrderRepo.deleteAll({}, { unscoped: true });
+            await scopedOrderRepo.deleteAll({ owner: undefined }, { unscoped: true });
             await scopedOrderRepo.createAll([{ archived: false }, { archived: false }]);
             await scopedOrderRepo.createAll([{ archived: true }], { unscoped: true });
 
@@ -920,7 +901,7 @@ describe('evaluation/01-data-layer', () => {
 
         it('carries through to updateById and deleteById', async () => {
             await expect(orderRepo.updateById('not-a-uuid', { status: 'shipped' })).rejects.toThrow(NotFoundError);
-            await expect(orderRepo.deleteById('not-a-uuid')).rejects.toThrow(NotFoundError);
+            await expect(orderRepo.deleteById('not-a-uuid', { where: { owner: undefined } })).rejects.toThrow(NotFoundError);
         });
 
         it('answers a filter naming an impossible value with no rows rather than failing', async () => {
@@ -960,7 +941,7 @@ describe('evaluation/01-data-layer', () => {
     describe('updateById on a row that is gone', () => {
         it('reports that the row is missing rather than failing on a column constraint', async () => {
             const created: EvalOrder = await orderRepo.create({ reference: 'deleted-under-us' });
-            await orderRepo.deleteById(created.id);
+            await orderRepo.deleteById(created.id, { where: { owner: undefined } });
 
             // updateById sets data.id and hands it to the driver's save, which is an upsert - so a
             // missing id is not an error, it is an INSERT with every column the caller did not name

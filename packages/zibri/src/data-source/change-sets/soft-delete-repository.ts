@@ -21,22 +21,33 @@ import { SoftDeleteWhere, SoftDeleteWhereFilter } from './models/soft-delete-whe
 import { SoftDeletedRows } from './models/soft-deleted-rows.type';
 import { type AuthServiceInterface } from '../../auth/auth-service.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
+import { UniqueGroup } from '../../entity/models/unique-declaration.model';
 import { ConflictError } from '../../error-handling/errors/conflict.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { InternalError } from '../../error-handling/internal-error.model';
+import { ModelRegistry } from '../../global/model-registry/model.registry';
 import { $ts } from '../../localization/translate.function';
 import { LoggerInterface } from '../../logging/logger.interface';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
+import { WhereFilterEvaluator } from '../data-sources/where-converter/where-filter.evaluator';
 import { RepositoryDriverInterface } from '../driver/repository-driver.interface';
+import { AtomicUpdate } from '../models/atomic-update.model';
 import { BaseRepositoryOptions } from '../models/options/base-repository-options.model';
 import { DeleteAllOptions } from '../models/options/delete-all-options.model';
 import { DeleteByIdOptions } from '../models/options/delete-by-id-options.model';
+import { UpsertAllOptions } from '../models/options/upsert-all-options.model';
+import { UpsertOptions } from '../models/options/upsert-options.model';
 import { UpdateAllData } from '../models/update-all-data.model';
+import { UpsertRow } from '../models/upsert-row.model';
 import { Where, WhereFilter } from '../models/where/where-filter.model';
 import { OwnedRelationUtilities } from '../owned-relation.utilities';
-import { validateWriteIsNotBlind } from '../validate-write-is-not-blind.function';
 import { Repository, WrittenUpdate } from '../repository/repository';
+import { ScopedWhere, ScopeWhereUtilities } from '../scopes/scope-where.utilities';
+import { TenantUtilities } from '../tenancy/tenant.utilities';
 import { Transaction } from '../transaction/transaction.model';
+import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
+import { validateWriteIsNotBlind } from '../validate-write-is-not-blind.function';
 
 /**
  * The value each choice of soft deleted rows gives `deleted` in a filter. Undefined is a filter with
@@ -53,7 +64,7 @@ const DELETED_FILTER_VALUES: Record<SoftDeletedRows, boolean | undefined> = {
  */
 export type SoftDeleteByIdOptions<T extends BaseEntity = BaseEntity> = DeleteByIdOptions<T> & {
     /**
-     * Whether or not to "actual" delete entities, rather than marking them as deleted.
+     * Whether to remove the rows for good. By default they are marked as deleted.
      */
     hardDelete?: boolean
 };
@@ -63,7 +74,7 @@ export type SoftDeleteByIdOptions<T extends BaseEntity = BaseEntity> = DeleteByI
  */
 export type SoftDeleteAllOptions<T extends SoftDeleteEntity, R extends boolean = false> = DeleteAllOptions<T, R> & {
     /**
-     * Whether or not to "actual" delete entities, rather than marking them as deleted.
+     * Whether to remove the rows for good. By default they are marked as deleted.
      */
     hardDelete?: boolean
 };
@@ -78,6 +89,11 @@ export class SoftDeleteRepository<
     UpdateData extends DeepPartial<T> = DeepPartial<T>
 >
     extends ChangeSetRepository<T, CreateData, UpdateData> {
+
+    /**
+     * Judges whether a soft deleted row is among the rows a unique covers.
+     */
+    private readonly uniqueEvaluator: WhereFilterEvaluator = new WhereFilterEvaluator();
 
     /**
      * Builds a repository of your own on the one the data source built for the entity: it reads and
@@ -224,6 +240,61 @@ export class SoftDeleteRepository<
         });
     }
 
+    override async upsert(
+        identity: DeepPartial<T>,
+        create: CreateData,
+        onConflict: AtomicUpdate<T>,
+        options?: UpsertOptions<T>
+    ): Promise<T> {
+        await this.validateNotHeldBySoftDeleted(Object.keys(identity), [identity], options);
+        return await super.upsert(identity, create, onConflict, options);
+    }
+
+    override async upsertAll(
+        identity: Extract<keyof T, string>[],
+        rows: UpsertRow<T, CreateData>[],
+        options?: UpsertAllOptions<T>
+    ): Promise<T[]> {
+        await this.validateNotHeldBySoftDeleted(identity, rows.map(row => row.create), options);
+        return await super.upsertAll(identity, rows, options);
+    }
+
+    /**
+     * Refuses an upsert whose identity a soft deleted row holds under a unique that still covers it,
+     * as a create of the same values is refused.
+     *
+     * A unique covering only the live rows lets the upsert insert beside the deleted one, so only the
+     * uniques that cover the deleted row refuse it: left to the store, the upsert changed the deleted
+     * row and handed it back.
+     * @param keys - The properties identifying each row.
+     * @param identities - What each row holds for them.
+     * @param options - The options of the upsert, for its transaction.
+     * @throws UniqueConstraintViolationError when a soft deleted row holds one of the identities.
+     */
+    private async validateNotHeldBySoftDeleted(
+        keys: string[],
+        identities: object[],
+        options: BaseRepositoryOptions | undefined
+    ): Promise<void> {
+        const tenantProperty: string | undefined = TenantUtilities.resolveOwnership(this.entityClass, this.entityMetadata)?.property;
+        // the store finds the row by the identity, led by the tenant where the entity has one
+        const covering: UniqueGroup[] = ModelRegistry.get(this.entityClass).keyDescriptor.uniques
+            .filter(group => keys.every(key => group.properties.includes(key))
+                && group.properties.every(property => keys.includes(property) || property === tenantProperty));
+        if (!covering.length || !identities.length) {
+            return;
+        }
+        const where: WhereFilter<T>[] = identities.map(identity => Object.fromEntries(
+            keys.map(key => [key, Reflect.get(identity, key)])
+        ) as WhereFilter<T>);
+        const deleted: T[] = await this.findAll({ where, deleted: 'only', transaction: options?.transaction, limit: 'all' });
+        const held: boolean = deleted.some(row => covering.some(group => group.where == undefined
+            || this.uniqueEvaluator.matches(row, group.where as Where<T>, this.entityClass)));
+        if (held) {
+            throw new UniqueConstraintViolationError(this.entityClass.name, keys);
+        }
+    }
+
     override async updateAll<R extends boolean = false>(
         where: SoftDeleteWhere<T>,
         data: UpdateAllData<T, UpdateData>,
@@ -318,7 +389,11 @@ export class SoftDeleteRepository<
      * @throws A ConflictError for a soft deleted row the update did not reach, and what the base
      * throws otherwise.
      */
-    protected override async validateUpdateWasWritten(updated: number, id: T['id'], findOptions: SoftDeleteFindByIdOptions<T>): Promise<void> {
+    protected override async validateUpdateWasWritten(
+        updated: number,
+        id: T['id'],
+        findOptions: SoftDeleteFindByIdOptions<T>
+    ): Promise<void> {
         // 01 §D12: a row given by its id to a relation of another row is written through updateEach,
         // which leaves soft deleted rows out, and a 404 gave the caller no reason. Read only once the
         // update missed, and under the caller's scope, so it tells them nothing they could not read
@@ -341,7 +416,8 @@ export class SoftDeleteRepository<
             if (options?.hardDelete === true) {
                 // every row, the way a hard deleteAll reaches every row: removing a soft deleted one
                 // is how it goes for good, and the guard answered that it was not there
-                const everyRow: SoftDeleteByIdOptions<T> & Pick<SoftDeleteFindByIdOptions<T>, 'deleted'> = { ...options, deleted: 'include' };
+                const everyRow: SoftDeleteByIdOptions<T> & Pick<SoftDeleteFindByIdOptions<T>, 'deleted'>
+                    = { ...options, deleted: 'include' };
                 return await super.deleteById(id, everyRow);
             }
             // a soft delete is a delete to the caller, so a locked property is named as for any other
@@ -350,18 +426,21 @@ export class SoftDeleteRepository<
             // recording it. A hard delete takes none: it writes no change set, so there is nothing
             // for the write to be atomic with
             return await this.inTransaction(options, async transaction => {
-                const inTransaction: SoftDeleteByIdOptions<T> = { ...options, transaction };
-                const entity: T = await this.resolveRowToDelete(id, inTransaction);
-                if (entity.deleted) {
-                    throw new NotFoundError($ts`Could not find ${this.entityClass.name} with id "${id}".`);
+                // read first, as the base reads the row of a hard delete: that read is what tells a
+                // row that is not there for the caller from one that no longer meets the condition,
+                // and from one that is not theirs to change
+                await this.resolveRowToDelete(id, { ...options, transaction });
+                // then marked the way a bulk delete marks its rows (01 §Q7), the condition judged
+                // again as the row is written. The change set is written from the row as marked
+                // rather than as read: it records the delete and no change, so the two are the same
+                const { where, ...rest }: SoftDeleteByIdOptions<T> = options ?? {};
+                const [marked]: T[] = await this.markDeleted(this.resolveWhereOfRow(id, where), { ...rest, transaction });
+                if (marked == undefined) {
+                    throw new ConflictError(
+                        $ts`The ${this.entityClass.name} with id "${id}" changed since it was read, so it was not deleted.`
+                    );
                 }
-                // through saveUpdate rather than through updateById, which would read the row a
-                // second time for a change set's before state - this already holds that row, and the
-                // change set it would write is the one `deleted` is excluded from anyway
-                const { entity: res }: WrittenUpdate<T> = await this.saveUpdate(id, { deleted: true } as UpdateData, inTransaction);
-                await this.createChangeSet(entity, { deleted: true } as UpdateData, ChangeSetType.DELETE, inTransaction, true);
-                await this.softDeleteOwnedRows([id], transaction);
-                return res;
+                return marked;
             });
         });
     }
@@ -413,6 +492,28 @@ export class SoftDeleteRepository<
         );
         await this.softDeleteOwnedRows(res.map(r => r.id), options.transaction);
         return res;
+    }
+
+    /**
+     * The filter naming one row under the condition the caller gave: the id, put on every branch
+     * of the condition.
+     * @param id - The id of the row.
+     * @param where - The condition, if the caller gave one.
+     * @returns The filter.
+     * @throws A NotFoundError when the condition contradicts the id, which no row meets.
+     */
+    private resolveWhereOfRow(id: T['id'], where: Where<T> | undefined): Where<T> {
+        // composed rather than spread, as an update by id composes them: the condition may be an OR
+        // of several filters, and the id has to hold for every branch of it
+        const withId: ScopedWhere<T> = ScopeWhereUtilities.applyToWhere(
+            where,
+            [{ id } as WhereFilter<T>],
+            MetadataUtilities.getModelProperties(this.entityClass)
+        );
+        if (withId.matchesNothing || withId.where == undefined) {
+            throw new NotFoundError($ts`Could not find ${this.entityClass.name} with id "${id}".`);
+        }
+        return withId.where;
     }
 
     /**
@@ -509,6 +610,67 @@ export class SoftDeleteRepository<
             return where.map(f => this.withDeletedCondition(f, deleted));
         }
         return this.withDeletedCondition(where, deleted);
+    }
+
+    protected override async createChangeSet(
+        entityPriorChanges: T,
+        data: CreateData | UpdateData | DeepPartial<T>,
+        type: ChangeSetType,
+        options?: BaseRepositoryOptions,
+        force: boolean = false
+    ): Promise<void> {
+        if (this.isRestore(entityPriorChanges, data, type)) {
+            await super.createChangeSet(entityPriorChanges, data, ChangeSetType.RESTORE, options, true);
+            return;
+        }
+        await super.createChangeSet(entityPriorChanges, data, type, options, force);
+    }
+
+    protected override async createAllChangeSets(
+        entitiesPriorChanges: T[],
+        data: (CreateData | UpdateData | DeepPartial<T>)[],
+        type: ChangeSetType,
+        options?: BaseRepositoryOptions,
+        force: boolean = false
+    ): Promise<void> {
+        const restored: number[] = entitiesPriorChanges.map((_, index) => index)
+            .filter(index => this.isRestore(entitiesPriorChanges[index], data[index], type));
+        if (!restored.length) {
+            await super.createAllChangeSets(entitiesPriorChanges, data, type, options, force);
+            return;
+        }
+        const others: number[] = entitiesPriorChanges.map((_, index) => index).filter(index => !restored.includes(index));
+        await super.createAllChangeSets(
+            others.map(index => entitiesPriorChanges[index] as T),
+            others.map(index => data[index] as CreateData | UpdateData | DeepPartial<T>),
+            type,
+            options,
+            force
+        );
+        await super.createAllChangeSets(
+            restored.map(index => entitiesPriorChanges[index] as T),
+            restored.map(index => data[index] as CreateData | UpdateData | DeepPartial<T>),
+            ChangeSetType.RESTORE,
+            options,
+            true
+        );
+    }
+
+    /**
+     * Whether an update brings back a row that was soft deleted. Recorded as a restore of its own, as
+     * its delete is: `deleted` is left out of every change set, so the update alone recorded nothing
+     * and the history of a live row ended at its delete.
+     * @param entityPriorChanges - The row before the update.
+     * @param data - What the update writes.
+     * @param type - What the change set would record.
+     * @returns True for an update taking a deleted row back.
+     */
+    private isRestore(
+        entityPriorChanges: T | undefined,
+        data: CreateData | UpdateData | DeepPartial<T> | undefined,
+        type: ChangeSetType
+    ): boolean {
+        return type === ChangeSetType.UPDATE && entityPriorChanges?.deleted === true && data?.deleted === false;
     }
 
     /**

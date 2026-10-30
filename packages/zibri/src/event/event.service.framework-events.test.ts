@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Event } from './event.model';
 import { type EventServiceInterface } from './event-service.interface';
+import { Event } from './event.model';
 import { FrameworkEventNames } from './framework-event-names.model';
 import { MembershipEventData } from './membership-event-data.model';
 import { RolesChangedEventData } from './roles-changed-event-data.model';
@@ -28,7 +28,7 @@ import { type TenantServiceInterface } from '../tenancy/tenant-service.interface
 import { UUIDUtilities } from '../utilities/uuid.utilities';
 
 declare module './event-service.interface' {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     interface ZibriEventMap {
         'framework-events.user-left': UserEventData,
         'framework-events.user-paused': UserEventData,
@@ -81,6 +81,7 @@ beforeAll(async () => {
     tenants = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
     await inject<EventServiceInterface>(ZIBRI_DI_TOKENS.EVENT_SERVICE).subscribeAll(
         (event: Event<object>) => {
+            // eslint-disable-next-line unicorn/no-null
             received.push({ type: event.type, data: event.data, tenantId: event.tenantId ?? null });
         },
         { subscriberId: 'framework-events' }
@@ -142,9 +143,8 @@ describe('the writes of the framework, as the events an application names', () =
 
         await tenants.runAs(tenantId, async () => await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).deleteById(user.id));
 
-        expect(await receivedAbout(1, user.id)).toEqual([
-            { type: 'framework-events.user-left', data: { userId: user.id }, tenantId: null }
-        ]);
+        // eslint-disable-next-line unicorn/no-null
+        expect(await receivedAbout(1, user.id)).toEqual([{ type: 'framework-events.user-left', data: { userId: user.id }, tenantId: null }]);
     });
 
     it('emits a user deactivated and reactivated, once for each change and not for one that changes nothing', async () => {
@@ -196,9 +196,7 @@ describe('the writes of the framework, as the events an application names', () =
             'framework-events.member-joined',
             'framework-events.member-left'
         ]);
-        expect((await receivedAbout(2, to.id)).map(event => event.type)).toEqual([
-            'framework-events.member-joined'
-        ]);
+        expect((await receivedAbout(2, to.id)).map(event => event.type)).toEqual(['framework-events.member-joined']);
     });
 
     it('emits the roles every tenant shares and those of one tenant changing, each where they are held', async () => {
@@ -212,9 +210,8 @@ describe('the writes of the framework, as the events an application names', () =
         );
         await tenants.runAs(tenantId, async () => await roles.create({ name: `own-${UUIDUtilities.generate()}`, level: 'tenant', permissions: [], tenantId }));
 
-        expect(await receivedAbout(1, tenantId)).toEqual([
-            { type: 'framework-events.roles-edited', data: { tenantId }, tenantId }
-        ]);
+        expect(await receivedAbout(1, tenantId)).toEqual([{ type: 'framework-events.roles-edited', data: { tenantId }, tenantId }]);
+        // eslint-disable-next-line unicorn/no-null
         expect(received).toContainEqual({ type: 'framework-events.roles-edited', data: { tenantId: null }, tenantId: null });
     });
 

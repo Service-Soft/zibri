@@ -1,13 +1,17 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { ErrorUtilities } from './error.utilities';
+import { GlobalError } from './errors/global.error';
 import { HttpError } from './errors/http.error';
 import { InternalServerError } from './errors/internal-server.error';
 import { NotFoundError } from './errors/not-found.error';
 import { InternalError } from './internal-error.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
 import { $ts } from '../localization/translate.function';
+import { LoggerInterface } from '../logging/logger.interface';
 
 describe('ErrorUtilities', () => {
     let server: StartedTestServer;
@@ -92,6 +96,50 @@ describe('ErrorUtilities', () => {
 
         it('json-stringifies a primitive value', () => {
             expect(ErrorUtilities.unknownToErrorString('just a string')).toBe('"just a string"');
+        });
+    });
+
+    // 03 §Q8: the http handler and the websocket service each decided this on their own, so a fix
+    // to one of them had to be found again in the other
+    describe('reportToLog', () => {
+        let logger: LoggerInterface;
+        let critical: jest.SpiedFunction<LoggerInterface['critical']>;
+        let error: jest.SpiedFunction<LoggerInterface['error']>;
+
+        beforeEach(() => {
+            logger = inject(ZIBRI_DI_TOKENS.LOGGER);
+            critical = jest.spyOn(logger, 'critical').mockImplementation(() => {});
+            error = jest.spyOn(logger, 'error').mockImplementation(() => {});
+        });
+
+        afterEach(() => {
+            critical.mockRestore();
+            error.mockRestore();
+        });
+
+        it('logs a value that is not an error as a critical GlobalError, and reports it as a defect', () => {
+            expect(ErrorUtilities.reportToLog('thrown string', logger)).toBe(true);
+
+            expect(critical).toHaveBeenCalledTimes(1);
+            expect(critical.mock.calls[0]?.[0]).toBeInstanceOf(GlobalError);
+            expect(error).not.toHaveBeenCalled();
+        });
+
+        it('logs a server error as it is, never wrapped', () => {
+            const thrown: InternalServerError = new InternalServerError($ts`broken`);
+
+            expect(ErrorUtilities.reportToLog(thrown, logger)).toBe(true);
+            expect(ErrorUtilities.reportToLog(new Error('plain'), logger)).toBe(true);
+
+            expect(error.mock.calls.map(call => call[0])).toEqual([thrown, expect.any(Error)]);
+            expect(critical).not.toHaveBeenCalled();
+        });
+
+        it('leaves a client error out of the log, and reports it as no defect', () => {
+            expect(ErrorUtilities.reportToLog(new NotFoundError($ts`nothing here`), logger)).toBe(false);
+
+            expect(error).not.toHaveBeenCalled();
+            expect(critical).not.toHaveBeenCalled();
         });
     });
 });

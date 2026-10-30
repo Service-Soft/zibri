@@ -227,9 +227,8 @@ export abstract class JsonUtilities {
      * Measures how many bytes {@link stringify} would write for a value, without writing them.
      *
      * The size is the one the string would have had, down to the byte - escapes, multi byte
-     * characters and the properties json leaves out are all counted the way json counts them. For a
-     * value of any size that costs a walk over it rather than a copy of it, which is the difference
-     * between measuring a large value and materializing one.
+     * characters and the properties json leaves out are all counted the way json counts them. It
+     * walks the value once and copies nothing, whatever its size.
      *
      * A value json writes nothing at all for - undefined, a function, a symbol - measures zero.
      * @param value - The value to measure.

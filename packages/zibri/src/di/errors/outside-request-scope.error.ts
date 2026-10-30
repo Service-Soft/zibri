@@ -1,12 +1,11 @@
 import { InternalError } from '../../error-handling/internal-error.model';
 import { DiToken, tokenName } from '../models/di-token.model';
 
+// refused rather than answered with a value of its own, because the alternative is the bug it
+// exists to prevent: a request scoped value handed out where nothing bounds its life is one that
+// lives forever, holding whichever caller happened to create it
 /**
  * An error to throw when a request scoped value is asked for while no request is being handled.
- *
- * Refused rather than answered with a value of its own, because the alternative is the bug it
- * exists to prevent: a request scoped value handed out where nothing bounds its life is one that
- * lives forever, holding whichever caller happened to create it.
  */
 export class OutsideRequestScopeError extends InternalError {
     constructor(token: DiToken<unknown>, options?: ErrorOptions) {

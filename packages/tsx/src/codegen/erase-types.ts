@@ -27,20 +27,47 @@ export function eraseTypes(code: string): string {
 }
 
 /**
+ * A JavaScript module TypeScript emitted, with its map back to the TypeScript it was emitted from.
+ */
+export type EmittedModule = {
+    /**
+     * The JavaScript module.
+     */
+    code: string,
+    /**
+     * The mappings of the module's source map, VLQ encoded, leading to the TypeScript module.
+     */
+    mappings: string
+};
+
+/**
+ * The part of a source map TypeScript emitted that is handed over.
+ */
+type EmittedSourceMap = {
+    /**
+     * The mappings, VLQ encoded.
+     */
+    mappings: string
+};
+
+/**
  * Turns a generated TypeScript module into a JavaScript module of the given kind with TypeScript's own
  * transpiler: types are erased, and for commonjs every import and export is converted by the compiler
  * that defines both module systems, and a default import of a commonjs dependency receives its exports.
  * @param code - The generated TypeScript module, written with `import` and `export`.
  * @param module - The module system to emit.
- * @returns The JavaScript module.
+ * @returns The JavaScript module, with its map back to the given one.
  */
-export function emitModuleCode(code: string, module: ts.ModuleKind.ESNext | ts.ModuleKind.CommonJS): string {
-    return ts.transpileModule(code, {
+export function emitModuleCode(code: string, module: ts.ModuleKind.ESNext | ts.ModuleKind.CommonJS): EmittedModule {
+    const output: ts.TranspileOutput = ts.transpileModule(code, {
         // not verbatim here: a binding a template only uses as a type - `TsxComponent` beside `$ts` in
         // one import - is still a named import of the module, and an es module importing a name that
         // its dependency does not export refuses to load. Elided as tsc elides it for the application
-        compilerOptions: { ...TRANSPILE_OPTIONS, module, esModuleInterop: true, verbatimModuleSyntax: false }
-    }).outputText.trimEnd();
+        compilerOptions: { ...TRANSPILE_OPTIONS, module, esModuleInterop: true, verbatimModuleSyntax: false, sourceMap: true }
+    });
+    const { mappings } = JSON.parse(output.sourceMapText ?? '{"mappings":""}') as EmittedSourceMap;
+    // the map is handed over beside the code, so the comment pointing at a file of it goes
+    return { code: output.outputText.replace(/\n\/\/# sourceMappingURL=\S*\s*$/, '').trimEnd(), mappings };
 }
 
 /**

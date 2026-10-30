@@ -16,7 +16,10 @@ import { zibriVersion } from '../versioning/zibri-version.function';
 /**
  * The entity of a single backup.
  */
-@Entity({ tenant: 'shared', allowOrphan: true, defaultRelations: { resources: true } })
+// not backed up: the record of which backups exist belongs to the deployment taking them. Restored,
+// it forgot every backup taken since, and brought back one still running when the data was read,
+// which the queue then stored again over the archive of the backup that had completed
+@Entity({ tenant: 'shared', allowOrphan: true, backedUp: false, defaultRelations: { resources: true } })
 export class BackupEntity extends BaseEntity {
     /**
      * The name of the backup. Should be unique.
@@ -41,15 +44,11 @@ export class BackupEntity extends BaseEntity {
     // exists to refuse
     @Property.number({ format: 'integer', default: () => BACKUP_FORMAT_VERSION })
     formatVersion!: number;
+    // written by a function rather than declared as a column default, so the version a row carries is
+    // the one that wrote the row and not the one that created the table
     /**
-     * The version of the framework that took this backup.
-     *
-     * A backup outlives the releases either side of it, so what wrote one is part of what it is: it is
-     * what lets a later version decide whether it can read an archive at all, rather than finding out
-     * while restoring it.
-     *
-     * Written by a function rather than declared as a column default, so the version a row carries is
-     * the one that wrote the row and not the one that created the table.
+     * The version of the framework that took this backup, which a later version reads to decide
+     * whether it can restore the archive at all.
      */
     @Property.string({ default: zibriVersion })
     zibriVersion!: SemVerVersion;

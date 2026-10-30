@@ -2,6 +2,7 @@ import type PdfPrinter from 'pdfmake';
 import type { TDocumentDefinitions, Column, Content, Size, ImageDefinition, BufferOptions } from 'pdfmake/interfaces';
 
 import { InternalError } from '../error-handling/internal-error.model';
+import { FsPath } from '../utilities/fs.utilities';
 import { optionalPeer } from '../utilities/optional-peer.function';
 
 /**
@@ -18,9 +19,9 @@ export type PdfDocumentDefinition = TDocumentDefinitions & {
  */
 export type PdfAttachmentDefinition = {
     /**
-     * The file content of the attachment. A string value is interpreted as a file path.
+     * The file content of the attachment, or the path of the file it is read from.
      */
-    src: string | ArrayBuffer | Buffer<ArrayBufferLike>,
+    src: FsPath | ArrayBuffer | Buffer<ArrayBufferLike>,
     /**
      * Metadata about the attachment.
      */

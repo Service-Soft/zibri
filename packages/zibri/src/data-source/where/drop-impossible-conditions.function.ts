@@ -1,12 +1,13 @@
+import { PropertyReferenceUtilities } from './property-reference.utilities';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator';
 import { isRelationMetadata } from '../../entity/models/is-relation-metadata.function';
 import { Relation } from '../../entity/models/relation.enum';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { $ts } from '../../localization/translate.function';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { PropertyReferenceUtilities } from './property-reference.utilities';
 import { WhereFilter } from '../models/where/where-filter.model';
 import { ScopeWhereUtilities } from '../scopes/scope-where.utilities';
 
@@ -413,8 +414,22 @@ function narrowCondition(condition: unknown, path: string, format: DeclaredForma
  * The given condition with every uuid it compares against in lower case, the form it is stored in.
  * @param condition - A condition object on a uuid property.
  * @returns A copy of the condition.
+ * @throws When the condition matches a pattern against the uuid, or bounds it by something that is no uuid.
  */
 function canonicalUuidConditionObject(condition: Record<string, unknown>): Record<string, unknown> {
+    // refused on every store, as the one that types the column refuses it: answered in memory, a
+    // test passed on a filter that failed once it ran against postgres
+    for (const key of ['like', 'notLike', 'iLike', 'notILike', 'fuzzyLike']) {
+        if (key in condition) {
+            throw new InternalError(`A uuid is no text, so "${key}" cannot match one.`);
+        }
+    }
+    for (const key of ['after', 'before']) {
+        const bound: unknown = condition[key];
+        if (typeof bound === 'string' && !UUIDUtilities.isUuid(bound)) {
+            throw new InternalError(`"${key}" on a uuid takes a uuid, got "${bound}".`);
+        }
+    }
     const res: Record<string, unknown> = { ...condition };
     // the keys comparing against a value. A pattern is left as it was written, since a uuid is no
     // text to match against on a store that types it

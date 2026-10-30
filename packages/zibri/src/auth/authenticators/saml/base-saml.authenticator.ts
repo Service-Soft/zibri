@@ -30,6 +30,10 @@ import { BaseUser } from '../../models/base-user.model';
 import { ProviderAuthentication } from '../../models/provider-authentication.model';
 import { BaseFederatedAuthenticator } from '../federated/base-federated.authenticator';
 import { FederatedAnswerContext } from '../federated/federated-answer-context.model';
+import { FederatedLoginFailure } from '../federated/federated-login-failure.enum';
+import { FederatedLoginStart } from '../federated/federated-login-start.model';
+import { FederatedLoginError } from '../federated/federated-login.error';
+import { FederatedLogin } from '../federated/federated-login.model';
 import { FederatedLogoutAnswer } from '../federated/federated-logout-answer.model';
 import { FederatedMetadata } from '../federated/federated-metadata.model';
 import { FederatedProfile } from '../federated/federated-profile.model';
@@ -38,10 +42,6 @@ import { FederatedProviderLogout } from '../federated/federated-provider-logout.
 import { FederatedReauthentication } from '../federated/federated-reauthentication.model';
 import { FederatedRouteEndpoint } from '../federated/federated-route-endpoint.model';
 import { FederatedSession } from '../federated/federated-session.model';
-import { FederatedLoginFailure } from '../federated/federated-login-failure.enum';
-import { FederatedLoginStart } from '../federated/federated-login-start.model';
-import { FederatedLoginError } from '../federated/federated-login.error';
-import { FederatedLogin } from '../federated/federated-login.model';
 import { FederatedSoapLogout } from '../federated/federated-soap-logout.model';
 
 /**
@@ -79,17 +79,6 @@ const TRANSIENT_NAME_ID_FORMAT: string = 'urn:oasis:names:tc:SAML:2.0:nameid-for
  * The second level status an identity provider answers with when the user refused or was refused.
  */
 const REQUEST_DENIED_STATUS: string = 'urn:oasis:names:tc:SAML:2.0:status:RequestDenied';
-
-/**
- * How far the clocks of the identity provider and the application may be apart, for the validity
- * window of an assertion.
- */
-const ACCEPTED_CLOCK_SKEW_IN_MS: number = Ms.MINUTE;
-
-/**
- * How long the metadata of an identity provider is used before it is read again.
- */
-const METADATA_MAX_AGE_IN_MS: number = Ms.DAY;
 
 /**
  * The attributes the email of a user is commonly sent in, by the names different identity providers give it.
@@ -191,6 +180,18 @@ export abstract class BaseSamlAuthenticator<
      * None by default, which leaves how the user logs in to the identity provider.
      */
     readonly requestedAuthnContext: string[] = [];
+
+    /**
+     * How far the clocks of the identity provider and the application may be apart, for the validity
+     * window of an assertion. A minute by default.
+     */
+    readonly acceptedClockSkewInMs: number = Ms.MINUTE;
+
+    /**
+     * How long the metadata of the identity provider is used before it is read again, when it is read
+     * from `metadataUrl`. A day by default.
+     */
+    readonly metadataMaxAgeInMs: number = Ms.DAY;
 
     /**
      * The key requests to the identity provider are signed with, for a provider that asks for signed
@@ -811,7 +812,7 @@ export abstract class BaseSamlAuthenticator<
             requestIdExpirationPeriodMs: Number.MAX_SAFE_INTEGER,
             cacheProvider: this.createRequestCache(requestId),
             generateUniqueId: () => requestId,
-            acceptedClockSkewMs: ACCEPTED_CLOCK_SKEW_IN_MS,
+            acceptedClockSkewMs: this.acceptedClockSkewInMs,
             ...this.signingKey == undefined ? {} : { privateKey: this.signingKey.privateKey, signatureAlgorithm: 'sha256' },
             ...this.decryptionKey == undefined ? {} : { decryptionPvk: this.decryptionKey.privateKey }
         });
@@ -855,7 +856,7 @@ export abstract class BaseSamlAuthenticator<
             };
         }
         const previous: ReadSettings | undefined = this.readSettings;
-        if (previous != undefined && Date.now() - previous.readAt < METADATA_MAX_AGE_IN_MS) {
+        if (previous != undefined && Date.now() - previous.readAt < this.metadataMaxAgeInMs) {
             return await previous.settings;
         }
         // one reading for every login that needs it meanwhile

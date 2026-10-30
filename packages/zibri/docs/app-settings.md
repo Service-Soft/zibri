@@ -128,6 +128,8 @@ const corsWithMethods: CorsOptions = { origins: ['https://app.example.com'], met
 
 Browsers send a preflight before a request with a custom header, or with a method other than `GET`, `HEAD` and `POST`, see [MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests). A preflight is an `OPTIONS` request carrying `access-control-request-method`, and it is answered before your routes run.
 
+A browser keeps the answer for `preflightMaxAgeInMs`, two hours by default, and sends no preflight for the same request in that time. Chromium keeps one for two hours at most, Firefox for a day.
+
 An `OPTIONS` request without that header asks what an endpoint supports. It is routed like any other request, and answered with an `Allow` header listing the methods that exist.
 
 ## Security headers
@@ -136,6 +138,8 @@ Set on every response, with nothing to configure:
 
 - `x-content-type-options: nosniff`
 - `referrer-policy: strict-origin-when-cross-origin`
+
+An answer that depends on who asked, because the route's checks or the handler found out which user sent the request, also carries `cache-control: no-store`. No cache keeps it, so a cache in front of a cookie login never hands one user's answer to another. A route that sets `cache-control` itself, such as through the headers of a [`JsonResponse`](./creating-endpoints.md#answering-with-headers), keeps its own. A file is answered without a cache directive of its own.
 
 ### HSTS
 
@@ -147,7 +151,7 @@ import { KnownHeader, ZibriApplicationSecurityOptionsInput } from 'zibri';
 
 const withHsts: ZibriApplicationSecurityOptionsInput = {
     headers: {
-        [KnownHeader.STRICT_TRANSPORT_SECURITY]: { maxAgeSeconds: 15552000, includeSubDomains: true, preload: false }
+        [KnownHeader.STRICT_TRANSPORT_SECURITY]: { maxAgeInSeconds: 15552000, includeSubDomains: true, preload: false }
     }
 };
 ```

@@ -1,7 +1,7 @@
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { InternalError } from '../../error-handling/internal-error.model';
-import { WhereFilterKeys } from '../models/where/where-filter-keys.model';
 import { PropertyReference } from '../models/where/property-reference.model';
+import { WhereFilterKeys } from '../models/where/where-filter-keys.model';
 
 /**
  * The keys whose value can be a reference to another property: the comparisons of a date and of a
@@ -126,17 +126,28 @@ export class PropertyReferenceUtilities {
             if (!declared) {
                 throw new InternalError(`${name}: The filter compares with "${value.property}", which the entity does not declare.`);
             }
-            if (properties instanceof Set) {
+            if (this.isNamesOnly(properties)) {
                 continue;
             }
-            const referenced: PropertyMetadata | undefined = Reflect.get(properties, value.property);
+            const referenced: PropertyMetadata | undefined = properties[value.property];
             const kind: string | undefined = this.resolveComparableKind(metadata);
             if (kind == undefined || kind !== this.resolveComparableKind(referenced)) {
                 throw new InternalError(
-                    `${name}: "${key}" compares a ${kind ?? metadata?.type ?? 'value'} with "${value.property}", which holds a ${referenced?.type ?? 'value'}.`
+                    `${name}: "${key}" compares a ${kind ?? metadata?.type ?? 'value'} with "${value.property}",`
+                    + ` which holds a ${referenced?.type ?? 'value'}.`
                 );
             }
         }
+    }
+
+    /**
+     * Whether the properties of an entity are given by their names alone, where nothing more is known
+     * of them.
+     * @param properties - The properties of the entity, or their names alone.
+     * @returns True for the names alone.
+     */
+    static isNamesOnly(properties: Record<string, PropertyMetadata> | ReadonlySet<string>): properties is ReadonlySet<string> {
+        return properties instanceof Set;
     }
 
     /**

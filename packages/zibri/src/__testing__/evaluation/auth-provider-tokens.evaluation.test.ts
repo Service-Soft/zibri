@@ -12,6 +12,7 @@ import { OAuthClientAuthentication } from '../../auth/authenticators/oauth/oauth
 import { BaseOidcAuthenticator } from '../../auth/authenticators/oidc/base-oidc.authenticator';
 import { OidcAuthenticationTime } from '../../auth/authenticators/oidc/oidc-authentication-time.type';
 import { OidcBearerTokens } from '../../auth/authenticators/oidc/oidc-bearer-tokens.model';
+import { OidcDiscoveryAtBoot } from '../../auth/authenticators/oidc/oidc-discovery-at-boot.type';
 import { Auth } from '../../auth/decorators/auth.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy';
@@ -46,6 +47,8 @@ class CompanyProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
 
     readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
+
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
 
     override readonly bearerTokens: OidcBearerTokens = { accessTokenAudiences: [API_AUDIENCE], accessTokenType: 'at+jwt', idTokenAudiences: [] };
 

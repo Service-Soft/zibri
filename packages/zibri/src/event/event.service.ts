@@ -453,11 +453,10 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         );
     }
 
+    // driven by the dispatch poll rather than by its own job, because both answer the same question -
+    // what is still out there - and a second timer would only add a way for the two to disagree
     /**
      * Pushes the expiry of every subscriber this instance hosts forward, and clears lapsed ones.
-     *
-     * Driven by the dispatch poll rather than by its own job, because both answer the same question -
-     * what is still out there - and a second timer would only add a way for the two to disagree.
      *
      * A registration lapses only when no instance hosting that subscriber is left to refresh it, at
      * which point it stops holding events open. Until then a subscriber whose replicas are briefly
@@ -656,7 +655,8 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         // claimed before anything runs. The same subscriber runs on every replica, and all of them
         // reach this point for the same event - without a claim a welcome mail goes out once per
         // pod. Losing the race is the normal outcome everywhere but one, not an error.
-        const previous: EventSubscriberRun<unknown> | undefined = event.eventSubscriberRuns.find(r => r.subscriberId === options.subscriberId);
+        const previous: EventSubscriberRun<unknown> | undefined = event.eventSubscriberRuns
+            .find(r => r.subscriberId === options.subscriberId);
         await QueueUtilities.runClaimed(this.resolveRunQueue(hook, options), { event, attempts: previous?.attempts ?? 0 });
     }
 
@@ -922,7 +922,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
      *
      * Emitting only reaches subscribers in the emitting process, so without this an event whose
      * instance died is never picked up by anyone. Every instance polls, and the claim decides who
-     * actually runs - which is why the cron job driving this deliberately runs on every instance.
+     * actually runs.
      * @returns Whether any event was due.
      */
     async dispatchPending(): Promise<boolean> {

@@ -13,5 +13,9 @@ export enum Command {
     ADD = 'add',
     A = 'a',
     REMOVE = 'remove',
-    R = 'r'
+    R = 'r',
+    MIGRATE = 'migrate',
+    M = 'm',
+    GENERATE = 'generate',
+    G = 'g'
 }

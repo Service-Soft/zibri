@@ -1,15 +1,13 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
 import { PostgresPooler } from './postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from './postgres-typeorm-data-source.model';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Newable } from '../../../types/newable.type';
-import { OmitStrict } from '../../../types/omit-strict.type';
 import { DataSource } from '../../decorators/data-source.decorator';
-import { ResolvedDataSourceOptions } from '../../models/data-source-options.model';
 import { SchemaManagement } from '../../models/schema-management.model';
 import { RepositoryClass } from '../../repository/repository-class.type';
 
@@ -19,7 +17,7 @@ import { RepositoryClass } from '../../repository/repository-class.type';
  */
 @DataSource()
 class DroppedSettingsDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -35,9 +33,8 @@ class DroppedSettingsDataSource extends PostgresDataSource {
 
     readonly pooler: PostgresPooler = 'session';
 
-    protected override get fullOptions(): ResolvedDataSourceOptions<OmitStrict<PostgresOptions, 'type' | 'entities'>> {
-        const options: ResolvedDataSourceOptions<OmitStrict<PostgresOptions, 'type' | 'entities'>> = super.fullOptions;
-        return { ...options, extra: { ...options.extra, options: undefined } };
+    protected override resolveConnectionConfig(options: PostgresOptions, pooled: boolean): Record<string, unknown> {
+        return { ...super.resolveConnectionConfig(options, pooled), options: undefined };
     }
 }
 

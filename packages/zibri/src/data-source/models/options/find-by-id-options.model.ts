@@ -5,8 +5,8 @@ import { EntitySelection } from '../../../entity/models/entity-selection.model';
 /**
  * Options for finding a single entity by its id.
  *
- * A `where` here is an **additional** condition rather than a replacement: it is combined with the
- * id, so it narrows whether that row counts instead of naming a different one.
+ * A `where` here is an **additional** condition: it is combined with the id, so it narrows whether
+ * that row counts.
  */
 export type FindByIdOptions<
     T extends BaseEntity,

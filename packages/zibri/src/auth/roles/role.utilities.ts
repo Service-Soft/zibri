@@ -1,4 +1,5 @@
 import { BaseRole } from './base-role.model';
+import { PermissionWildcard } from './permission-wildcard.type';
 import { RoleIndex } from './role-index.model';
 import { RoleLevel } from './role-level.type';
 import { TenantRoleIndex } from './tenant-role-index.model';
@@ -9,27 +10,74 @@ import { ArrayWhereFilter } from '../../data-source/models/where/array-where-fil
  */
 export abstract class RoleUtilities {
     /**
-     * Indexes the roles every tenant shares for the questions a check asks.
+     * Indexes the roles every tenant shares for the questions a check asks, each wildcard expanded
+     * into the permissions it matches.
      * @param roles - Every role every tenant shares.
+     * @param declared - The permissions declared in code, by level.
      * @returns The roles, indexed.
      */
-    static resolveRoleIndex(roles: BaseRole[]): RoleIndex {
+    static resolveRoleIndex(roles: BaseRole[], declared: Readonly<Record<RoleLevel, ReadonlySet<string>>>): RoleIndex {
         const levels: Map<string, RoleLevel> = new Map();
         const permissionsByRole: Record<RoleLevel, Map<string, string[]>> = { tenant: new Map(), platform: new Map() };
         for (const role of roles) {
             levels.set(role.name, role.level);
-            permissionsByRole[role.level].set(role.name, [...new Set<string>(role.permissions)]);
+            permissionsByRole[role.level].set(role.name, this.expandPermissions(role.permissions, declared[role.level]));
         }
         return { levels, permissionsByRole };
     }
 
     /**
-     * Indexes the roles of one tenant's own.
+     * Indexes the roles of one tenant's own, each wildcard expanded into the permissions it matches.
      * @param roles - Every role of the tenant's own.
+     * @param declared - The tenant permissions declared in code.
      * @returns The roles, indexed.
      */
-    static resolveTenantRoleIndex(roles: BaseRole[]): TenantRoleIndex {
-        return Object.fromEntries(roles.map(role => [role.name, [...new Set<string>(role.permissions)]]));
+    static resolveTenantRoleIndex(roles: BaseRole[], declared: ReadonlySet<string>): TenantRoleIndex {
+        return Object.fromEntries(roles.map(role => [role.name, this.expandPermissions(role.permissions, declared)]));
+    }
+
+    /**
+     * Whether a permission a role carries is a wildcard.
+     * @param permission - The permission.
+     * @returns Whether it is `'*'` or ends in `'.*'`.
+     */
+    static isWildcard(permission: string): permission is PermissionWildcard {
+        return permission === '*' || permission.endsWith('.*');
+    }
+
+    /**
+     * Expands the wildcards among the permissions of a role into the declared permissions they match,
+     * each permission once.
+     * @param permissions - What the role carries.
+     * @param declared - The permissions declared at the level of the role.
+     * @returns The permissions. A wildcard matching nothing stays as it is.
+     */
+    static expandPermissions(permissions: readonly string[], declared: ReadonlySet<string>): string[] {
+        const expanded: Set<string> = new Set();
+        for (const permission of permissions) {
+            const matched: string[] = this.isWildcard(permission) ? this.findMatching(permission, declared) : [permission];
+            // kept rather than dropped: no check passes on it, and what checks the stored roles names it
+            // like a permission the code stopped declaring
+            for (const match of matched.length ? matched : [permission]) {
+                expanded.add(match);
+            }
+        }
+        return [...expanded];
+    }
+
+    /**
+     * Finds the declared permissions a wildcard matches.
+     * @param wildcard - The wildcard.
+     * @param declared - The permissions declared at its level.
+     * @returns The permissions it matches.
+     */
+    private static findMatching(wildcard: PermissionWildcard, declared: ReadonlySet<string>): string[] {
+        if (wildcard === '*') {
+            return [...declared];
+        }
+        // with the dot, so that 'invoices.*' matches below 'invoices' and nothing named 'invoices-old'
+        const prefix: string = wildcard.slice(0, -1);
+        return [...declared].filter(permission => permission.startsWith(prefix));
     }
 
     /**

@@ -335,7 +335,7 @@ export class PayPalClient {
         this.http = inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
     }
 
-    private async getAccessToken(): Promise<string> {
+    private async resolveAccessToken(): Promise<string> {
         const nowInMs: number = Date.now();
         if (this.token && this.token.expiresAt > nowInMs + 5000) {
             return this.token.accessToken;
@@ -367,7 +367,7 @@ export class PayPalClient {
      * @returns The created order.
      */
     async createOrder(body: CreateOrderBody): Promise<CreateOrderResp> {
-        const token: string = await this.getAccessToken();
+        const token: string = await this.resolveAccessToken();
         const url: string = `${this.baseUrl}/v2/checkout/orders`;
 
         return (await this.http.post(
@@ -389,7 +389,7 @@ export class PayPalClient {
      * @returns The captured order.
      */
     async captureOrder(orderId: string, requestId: string): Promise<CaptureOrderResp> {
-        const token: string = await this.getAccessToken();
+        const token: string = await this.resolveAccessToken();
         const url: string = `${this.baseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`;
 
         const resp: CaptureOrderResp = (await this.http.post(
@@ -413,7 +413,7 @@ export class PayPalClient {
      * @returns The found order.
      */
     async getOrder(orderId: string): Promise<GetOrderResp> {
-        const token: string = await this.getAccessToken();
+        const token: string = await this.resolveAccessToken();
         const url: string = `${this.baseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}`;
         return (await this.http.get(url, {
             responseBody: { modelClass: GetOrderResp, type: MimeType.JSON, allowAdditionalProperties: true },
@@ -431,7 +431,7 @@ export class PayPalClient {
      * @returns The captured authorization.
      */
     async captureAuthorization(authorizationId: string, amount: PaymentAmount, requestId: string): Promise<AuthorizationCaptureResp> {
-        const token: string = await this.getAccessToken();
+        const token: string = await this.resolveAccessToken();
         const url: string = `${this.baseUrl}/v2/payments/authorizations/${encodeURIComponent(authorizationId)}/capture`;
 
         return (await this.http.post(url, { amount }, {
@@ -451,7 +451,7 @@ export class PayPalClient {
      * @returns The authorized order, including purchase_units[].payments.authorizations.
      */
     async authorizeOrder(orderId: string, requestId: string): Promise<GetOrderResp> {
-        const token: string = await this.getAccessToken();
+        const token: string = await this.resolveAccessToken();
         const url: string = `${this.baseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}/authorize`;
 
         return (await this.http.post(url, {}, {
@@ -469,7 +469,7 @@ export class PayPalClient {
      * @param requestId - The idempotency key: a repeated call with it is answered like the first.
      */
     async voidAuthorization(authorizationId: string, requestId: string): Promise<void> {
-        const token: string = await this.getAccessToken();
+        const token: string = await this.resolveAccessToken();
         const url: string = `${this.baseUrl}/v2/payments/authorizations/${encodeURIComponent(authorizationId)}/void`;
 
         await this.http.post(url, {}, {
@@ -488,7 +488,7 @@ export class PayPalClient {
      * @returns The refund result.
      */
     async refundCapture(captureId: string, amount: PaymentAmount, requestId: string): Promise<RefundCaptureResp> {
-        const token: string = await this.getAccessToken();
+        const token: string = await this.resolveAccessToken();
         const url: string = `${this.baseUrl}/v2/payments/captures/${encodeURIComponent(captureId)}/refund`;
 
         return (await this.http.post(url, { amount }, {

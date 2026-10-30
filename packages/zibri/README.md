@@ -81,7 +81,7 @@ Instead of having multiple decorators for open-api, ORM and validation (like Nes
 ### 🧱 Strong foundation
 With Zibri you can rely on a strong foundation of battle tested libraries that have all been configured to be as fast and robust as possible:
 - express as the server
-- typeorm for handling everything database related
+- pg for talking to Postgres
 - nodemailer for sending emails
 - handlebars and/or tsx for templating
 - @fastify/busboy for file uploads

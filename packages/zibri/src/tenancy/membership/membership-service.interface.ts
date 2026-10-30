@@ -7,9 +7,14 @@ import { Newable } from '../../types/newable.type';
  */
 export interface MembershipServiceInterface {
     /**
-     * Finds the active membership of a user in a tenant. A deactivated membership is none.
+     * Finds the active membership of a user in a tenant, inside the transaction when one is given. A
+     * deactivated membership is none.
      */
-    findActiveMembership: <Role extends string, T extends BaseMembership<Role>>(userId: string, tenantId: string) => Promise<T | undefined>,
+    findActiveMembership: <Role extends string, T extends BaseMembership<Role>>(
+        userId: string,
+        tenantId: string,
+        transaction?: Transaction
+    ) => Promise<T | undefined>,
     /**
      * Finds the active memberships of a user in every tenant, eg. To let them pick the tenant to work
      * in. Deactivated memberships are left out.

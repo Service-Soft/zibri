@@ -136,8 +136,18 @@ export type DriverUpdateAllOptions<T extends BaseEntity, R extends boolean = fal
     /**
      * Whether the updated entities are wanted back, instead of how many there were.
      */
-    returnUpdated?: R
+    returnUpdated?: R,
+    /**
+     * How many entities may be handed back at most. When more match, nothing is written and
+     * UnboundedReturnError is thrown.
+     */
+    returnAtMost?: number
 };
+
+/**
+ * How many rows a driver's `stream` reads into entities at once: the bound on what a stream holds.
+ */
+export const STREAM_BATCH_SIZE: number = 500;
 
 /**
  * The storage specific part of a repository.
@@ -197,6 +207,24 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
     find: (options: DriverFindOptions<T>) => Promise<T[]>,
 
     /**
+     * Resolves relations on entities the caller already holds, as a find asking for them would.
+     *
+     * For rows a write just handed back: reading them again to reach their relations would read
+     * what the caller holds already.
+     * @param entities - The entities, as a write or a find handed them back.
+     * @param relations - The relations to resolve on them.
+     * @param related - What the rows of each related entity are narrowed to, as a read's `related`.
+     * @param transaction - The transaction to read through.
+     * @returns The entities with the relations resolved, in the order they were given.
+     */
+    resolveRelations: (
+        entities: T[],
+        relations: FindAllOptions<T>['relations'],
+        related: RelatedNarrowing | undefined,
+        transaction: Transaction | undefined
+    ) => Promise<T[]>,
+
+    /**
      * Finds the first entity that matches the given options.
      * @param options - The resolved find options.
      * @returns The found entity or undefined when nothing matched.
@@ -232,20 +260,19 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      *
      * How the two are read as of one moment is the store's business. A driver that can offer a
      * consistent read takes one; one that cannot reads as closely together as it can, and says so
-     * here rather than leaving the repository above it to believe otherwise.
+     * here.
      * @param options - The resolved find options. `offset` and `limit` window the page; the total
      * counts everything the filter matches, whatever the window is.
      * @returns The window, and the total the filter matches.
      */
     findAndCount: (options: DriverFindAndCountOptions<T>) => Promise<PaginationResult<T>>,
 
+    // on the interface rather than optional, for the reason `schemaLock` is: a `findAll` is bounded
+    // so that a read which outgrows the heap says so instead of dying, and this is the way past that
+    // bound. A data source that cannot offer one would leave its callers with no way to walk a large
+    // table at all, which is not a gap the repository above it can fill
     /**
      * Reads everything that matches the given options without holding it all at once.
-     *
-     * On the interface rather than optional, for the reason `schemaLock` is: a `findAll` is bounded
-     * so that a read which outgrows the heap says so instead of dying, and this is the way past that
-     * bound. A data source that cannot offer one would leave its callers with no way to walk a large
-     * table at all, which is not a gap the repository above it can fill.
      *
      * How is the store's own business and a caller cannot tell which ran - a server side cursor
      * where there is one, a page at a time where there is not. What every implementation owes is
@@ -275,6 +302,23 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
     remove: (ids: string[], reach: RemovalReach<T> | undefined, transaction: Transaction | undefined) => Promise<string[]>,
 
     /**
+     * Removes every row a filter matches, judged on each row in the same window as its removal.
+     *
+     * What finding the ids and then removing them within the filter as their reach comes to, for a
+     * caller that has nothing to do with the rows in between.
+     * @param where - The filter, or undefined for every row.
+     * @param related - What the rows of each entity the filter reaches through a relation are
+     * narrowed to, as a read's `related`.
+     * @param transaction - The transaction to run the operation in.
+     * @returns The ids of the rows it removed.
+     */
+    removeMatching: (
+        where: Where<T> | undefined,
+        related: RelatedNarrowing | undefined,
+        transaction: Transaction | undefined
+    ) => Promise<string[]>,
+
+    /**
      * Finds the ids of the matching entities, without handing back the entities.
      *
      * For a caller that needs to know which rows match and nothing about them, so that a large match
@@ -294,7 +338,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      *
      * **Phantoms are not covered.** A row that begins matching the filter while this runs was never
      * matched, because it did not match when the filter was evaluated. Only a serializable isolation
-     * level covers that, and it is a documented limit rather than a defect.
+     * level covers that.
      *
      * The transaction follows the same rule as `upsert`: a driver that needs one to be atomic takes
      * its own when it was given none. Whether it needs one at all depends on the store and on what
@@ -322,9 +366,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * Each row's identity is the values its `create` holds for them, and no two rows carry the same
      * one. An `onConflict` leaves the identity as it is.
      *
-     * **Required rather than optional.** How the window is closed is the driver's business and
-     * differs per store, but a caller cannot branch on which store it happens to be talking to, so
-     * every driver has to answer.
+     * Every driver implements it, closing the window in whatever way its store allows.
      * @param identity - The properties identifying each row. Also the conflict target.
      * @param rows - What to insert, and what to change when the identity is already held. A row's
      * `where` is judged like `reachable`, for that row alone: a row holding the identity that does not
@@ -348,5 +390,16 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
         transaction: Transaction | undefined,
         reachable: Where<T> | undefined,
         related?: RelatedNarrowing
-    ) => Promise<T[]>
+    ) => Promise<T[]>,
+
+    /**
+     * Reads the clock of the store, for a driver that cannot compare with it inside a statement.
+     *
+     * With it, the repository resolves every `dataSourceNow()` a filter or a write names against this
+     * clock before the call reaches the driver, asking it once per call. Without it, the driver is
+     * handed the times, under a date comparison and as the value of a date property, and compares
+     * and writes them by its store's clock itself.
+     * @returns The time on the clock of the store.
+     */
+    resolveDataSourceTime?: () => Promise<Date>
 }

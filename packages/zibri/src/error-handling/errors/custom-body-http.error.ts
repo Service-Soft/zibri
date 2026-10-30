@@ -1,7 +1,7 @@
 import { HttpError } from './http.error';
 import { HttpStatus } from '../../http/http-status.enum';
-import { JsonMimeType } from '../../http/json-mime-type.type';
-import { KnownHeader } from '../../http/known-header.enum';
+import { type JsonMimeType } from '../../http/json-mime-type.type';
+import { type KnownHeader } from '../../http/known-header.enum';
 import { TranslatedString } from '../../localization/models/translated-string.model';
 
 /**

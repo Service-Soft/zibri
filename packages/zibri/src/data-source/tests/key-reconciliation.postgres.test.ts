@@ -1,4 +1,5 @@
 import { describeKeyReconciliation, PlainWidget } from './key-reconciliation.cases';
+import { queryPostgres } from '../../__testing__/query-postgres.function';
 import { createTestDataSource } from '../../__testing__/test-server/create-test-data-source.function';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { inject } from '../../di/inject.function';
@@ -6,7 +7,7 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
 import { SemVerVersion } from '../../utilities/sem-ver.utilities';
-import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { Migration } from '../migration/migration.model';
 import { Transaction } from '../transaction/transaction.model';
@@ -61,5 +62,5 @@ postgresMigrations.push(CreateWidgetTableMigration);
 describeKeyReconciliation('postgres', {
     dataSourceClass: postgresDataSourceClass,
     entities: postgresEntities,
-    runStatement: async sql => await inject(postgresDataSourceClass).query(MigrationEntity).connection.query(sql)
+    runStatement: async sql => await queryPostgres(inject(postgresDataSourceClass), sql)
 });

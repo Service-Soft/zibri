@@ -1,9 +1,8 @@
 /**
  * A value a span attribute can hold.
  *
- * Scalars and arrays of one scalar type, which is what every tracing backend stores. Nested objects
- * are not in the list on purpose: what a backend does with one is flatten it into keys nobody chose,
- * so a span carrying a structure is better off naming the parts it wants indexed.
+ * Scalars and arrays of one scalar type, which is what every tracing backend stores. A span carrying
+ * a structure names the parts it wants indexed as attributes of their own.
  */
 export type TraceSpanAttributeValue = string | number | boolean | string[] | number[] | boolean[];
 
@@ -41,7 +40,7 @@ export type TraceSpanAttributeName
 /**
  * What a span records besides its name and how long it took.
  *
- * An undefined value is left off rather than written as nothing, so a caller can list everything it
- * might know and let the ones it does not simply not appear.
+ * An undefined value is left off, so a caller can list everything it might know and let the ones it
+ * does not simply not appear.
  */
 export type TraceSpanAttributes = Partial<Record<TraceSpanAttributeName, TraceSpanAttributeValue | undefined>>;

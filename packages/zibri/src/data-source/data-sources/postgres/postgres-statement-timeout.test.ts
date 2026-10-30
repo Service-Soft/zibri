@@ -2,8 +2,9 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
 import { PostgresPooler } from './postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from './postgres-typeorm-data-source.model';
+import { queryPostgres } from '../../../__testing__/query-postgres.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
@@ -13,9 +14,7 @@ import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { Newable } from '../../../types/newable.type';
-import { OmitStrict } from '../../../types/omit-strict.type';
 import { SemVerVersion } from '../../../utilities/sem-ver.utilities';
-import { TypeOrmUtilities } from '../../../utilities/typeorm.utilities';
 import { DataSource } from '../../decorators/data-source.decorator';
 import { MigrationEntity } from '../../migration/migration-entity.model';
 import { Migration } from '../../migration/migration.model';
@@ -40,7 +39,7 @@ class TimedRow extends BaseEntity {
  * @param transaction - The transaction of the migration.
  */
 async function sleepPastTheStatementTimeout(transaction: Transaction): Promise<void> {
-    await TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner.query('SELECT pg_sleep(0.5)');
+    await queryPostgres(inject(TimedDataSource), 'SELECT pg_sleep(0.5)', [], transaction);
 }
 
 /**
@@ -92,7 +91,7 @@ class CappedSleepingMigration extends Migration {
  */
 @DataSource()
 class TimedDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -118,7 +117,7 @@ class TimedDataSource extends PostgresDataSource {
  */
 @DataSource()
 class SingleConnectionDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -145,8 +144,8 @@ let rows: Repository<TimedRow>;
  * @param sql - The statement.
  * @returns The rows it returned.
  */
-async function runStatement(dataSourceClass: Newable<PostgresDataSource>, sql: string): Promise<Record<string, string>[]> {
-    return await inject(dataSourceClass).query(MigrationEntity).connection.query<Record<string, string>[]>(sql);
+async function runStatement(dataSourceClass: Newable<PostgresDataSource>, sql: string): Promise<Record<string, unknown>[]> {
+    return await queryPostgres(inject(dataSourceClass), sql);
 }
 
 /**
@@ -209,7 +208,7 @@ describe('the time a statement may take', () => {
             expect((await waiting).value).toBe('waited');
 
             // the call's limit was set for the transaction, and has to be gone again for the rest of it
-            await expect(TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner.query('SELECT pg_sleep(0.5)'))
+            await expect(queryPostgres(inject(TimedDataSource), 'SELECT pg_sleep(0.5)', [], transaction))
                 .rejects.toThrow(STATEMENT_TIMEOUT);
         }
         finally {
@@ -262,8 +261,8 @@ describe('a data source with a single connection', () => {
         // booting at all is the first half: the schema lock used to hold the only connection while
         // the migrations and synchronize waited for one. The second is that what the lock sets on
         // its session never reaches the connection every later statement runs on
-        const lockTimeout: Record<string, string>[] = await runStatement(SingleConnectionDataSource, 'SHOW lock_timeout');
-        const statementTimeout: Record<string, string>[] = await runStatement(SingleConnectionDataSource, 'SHOW statement_timeout');
+        const lockTimeout: Record<string, unknown>[] = await runStatement(SingleConnectionDataSource, 'SHOW lock_timeout');
+        const statementTimeout: Record<string, unknown>[] = await runStatement(SingleConnectionDataSource, 'SHOW statement_timeout');
 
         expect(lockTimeout[0]?.['lock_timeout']).toBe('0');
         expect(statementTimeout[0]?.['statement_timeout']).toBe('30s');

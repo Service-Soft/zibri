@@ -66,6 +66,11 @@ const NON_ATTRIBUTE_PROPS: ReadonlySet<string> = new Set<string>(['children', 'k
 const ATTRIBUTE_NAME: RegExp = /^[:A-Z_a-z][\w.:-]*$/;
 
 /**
+ * The characters an element name is written with: a letter, then letters, digits, `-` and `:`.
+ */
+const TAG_NAME: RegExp = /^[A-Za-z][\d:A-Za-z-]*$/;
+
+/**
  * The attributes whose value a browser follows as a url, lower case.
  */
 const URL_ATTRIBUTES: ReadonlySet<string> = new Set<string>([
@@ -206,7 +211,7 @@ export function attr(name: string, value: unknown): string {
  * @param url - The url.
  * @returns True for a `javascript:` or `vbscript:` url, however it is spelled.
  */
-function isScriptUrl(url: string): boolean {
+export function isScriptUrl(url: string): boolean {
     // a browser drops tabs and line breaks anywhere in a url and control characters and spaces around
     // it, so every one of them is dropped before the scheme is read
     const scheme: string = [...url].filter(character => character > ' ').join('')
@@ -452,12 +457,17 @@ export type HandlerSpec = NewHandlerSpec | MarkerHandlerSpec;
  * @param props - The props the element was given, including its children.
  * @param on - The runtime's handler stamping function.
  * @returns The rendered element.
+ * @throws When the tag is not the name of an element.
  */
 function renderDynamicElement(
     tag: string,
     props: Record<string, unknown>,
     on: (specs: HandlerSpec[]) => string
 ): Raw {
+    // the name is written as it is, so one holding a space would write attributes of its own
+    if (!TAG_NAME.test(tag)) {
+        throw new Error(`"${tag}" is not the name of an element.`);
+    }
     const specs: HandlerSpec[] = [];
     let attributes: string = '';
 
@@ -521,9 +531,10 @@ export type ComponentClientMeta = {
      */
     setupName: string | undefined,
     /**
-     * Prop names the client setup references (only these are serialized into the page).
+     * The keys of the props the client setup references, or `all` when it uses the props whole (only
+     * these are serialized into the page).
      */
-    referencedProps: string[],
+    referencedProps: string[] | 'all',
     /**
      * What the client setup reads from each referenced prop; a prop without an entry is serialized whole.
      */
@@ -640,9 +651,15 @@ export function createContext<T>(defaultValue: T): RenderContext<T> {
  * @param value - The value.
  * @throws When called anywhere but in the body of a compiled tsx component.
  */
-export const provideContext: <T>(context: RenderContext<T>, value: T) => void = () => {
+export function provideContext<T>(context: RenderContext<T>, value: T): void;
+/**
+ * What a call the compiler never saw runs.
+ * @throws Always, as there is no render to provide to.
+ */
+// the overload above is what a template calls; the body takes nothing, as it only refuses the call
+export function provideContext(): void {
     throw new Error('provideContext was called outside a tsx component. Call it in the body of a component in a .tsx template.');
-};
+}
 
 /**
  * Reads the value the nearest component above provided for a context, or the context's default when
@@ -651,9 +668,15 @@ export const provideContext: <T>(context: RenderContext<T>, value: T) => void = 
  * @returns The value.
  * @throws When called anywhere but in the body of a compiled tsx component.
  */
-export const useContext: <T>(context: RenderContext<T>) => T = () => {
+export function useContext<T>(context: RenderContext<T>): T;
+/**
+ * What a call the compiler never saw runs.
+ * @throws Always, as there is no render to read from.
+ */
+// the overload above is what a template calls; the body takes nothing, as it only refuses the call
+export function useContext(): never {
     throw new Error('useContext was called outside a tsx component. Call it in the body of a component in a .tsx template.');
-};
+}
 
 /**
  * One provided context value on the runtime's stack.
@@ -925,13 +948,17 @@ export function createServerRuntime(): RenderServerRuntime {
  * pick up the one the declaring parent's setup builds. Every other value is narrowed to what the client
  * reads from it.
  * @param props - All props passed to the component.
- * @param names - The prop names the client references.
+ * @param names - The keys of the props the client references, or `all`.
  * @param shapes - What the client reads from each prop.
  * @returns The serializable subset.
  */
-function pickSerializable(props: Record<string, unknown>, names: string[], shapes: Record<string, AccessShape>): Record<string, unknown> {
+function pickSerializable(
+    props: Record<string, unknown>,
+    names: string[] | 'all',
+    shapes: Record<string, AccessShape>
+): Record<string, unknown> {
     const selected: Record<string, unknown> = {};
-    for (const name of names) {
+    for (const name of resolveReferencedKeys(props, names)) {
         const value: unknown = props[name];
         if (!(name in props) || typeof value === 'function' || isRaw(value) || isMarker(value)) {
             continue;
@@ -939,6 +966,16 @@ function pickSerializable(props: Record<string, unknown>, names: string[], shape
         selected[name] = isClientPropMarker(value) ? value : projectValue(value, shapes[name] ?? 'whole');
     }
     return selected;
+}
+
+/**
+ * The keys of the props the client references.
+ * @param props - All props passed to the component.
+ * @param names - The keys the client references, or `all` when it uses the props whole.
+ * @returns The keys. `children` is never one of every key, since reading it renders it.
+ */
+export function resolveReferencedKeys(props: Record<string, unknown>, names: string[] | 'all'): string[] {
+    return names === 'all' ? Object.keys(props).filter(name => name !== 'children') : names;
 }
 
 /**

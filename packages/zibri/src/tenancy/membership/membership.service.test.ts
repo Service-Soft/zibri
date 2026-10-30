@@ -9,11 +9,13 @@ import { TestMembership } from '../../__testing__/mocks/entities/test-membership
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { DefaultTestServerMembershipRepository } from '../../__testing__/test-server/membership-repository';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
+import { AuditEntry } from '../../audit/audit-entry.model';
 import { Repository } from '../../data-source/repository/repository';
 import { Transaction } from '../../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
+import { AuditAction, AuditOutcome } from '../../logging/audit-event.model';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { TenantServiceInterface } from '../tenant-service.interface';
 
@@ -116,6 +118,32 @@ describe('MembershipService', () => {
         // eslint-disable-next-line unicorn/no-null
         await memberships().updateDeactivatedAt(user.id, first, null, undefined);
         expect((await memberships().findActiveMembership(user.id, first))?.roles).toEqual([MemberRoles.USER]);
+    });
+
+    it('records deactivating, reactivating and deleting a membership, in the tenant of the membership', async () => {
+        const user: JwtUser = await users().create({ email: 'audited@memberships.test', roles: [Roles.USER] });
+        const first: string = await joinNewTenant(user);
+        const second: string = await joinNewTenant(user);
+
+        await memberships().updateDeactivatedAt(user.id, first, new Date(), undefined);
+        // eslint-disable-next-line unicorn/no-null
+        await memberships().updateDeactivatedAt(user.id, first, null, undefined);
+        await memberships().deleteMembership(user.id, second, undefined);
+
+        // losing a tenant is losing every role in it, which is recorded when it happens one role at a time
+        await inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).flush();
+        const entries: AuditEntry[] = await inject(repositoryTokenFor(AuditEntry)).findAll({
+            where: {
+                userId: user.id,
+                action: { oneOf: [AuditAction.MEMBERSHIP_DEACTIVATED, AuditAction.MEMBERSHIP_REACTIVATED, AuditAction.MEMBERSHIP_DELETED] }
+            },
+            acrossTenants: true
+        });
+        expect(entries.map(e => [e.action, e.outcome, e.tenantId])).toEqual([
+            [AuditAction.MEMBERSHIP_DEACTIVATED, AuditOutcome.SUCCESS, first],
+            [AuditAction.MEMBERSHIP_REACTIVATED, AuditOutcome.SUCCESS, first],
+            [AuditAction.MEMBERSHIP_DELETED, AuditOutcome.SUCCESS, second]
+        ]);
     });
 
     it('deletes the memberships of a user in every tenant with the user, whichever way the user is deleted', async () => {

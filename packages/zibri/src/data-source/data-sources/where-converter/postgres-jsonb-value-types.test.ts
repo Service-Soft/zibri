@@ -2,6 +2,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
 import { TestTimeouts } from '../../../__testing__/constants';
+import { queryPostgres } from '../../../__testing__/query-postgres.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
@@ -12,7 +13,7 @@ import { Property } from '../../../entity/decorators/property.decorator';
 import { Newable } from '../../../types/newable.type';
 import { Repository } from '../../repository/repository';
 import { StoredValueTypeMismatchError } from '../../stored-value-type-mismatch.error';
-import { PostgresDataSource } from '../postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../postgres/postgres-data-source.model';
 
 /**
  * What a filter on a JSON column says about the values inside it.
@@ -61,7 +62,8 @@ describe('a filter on a JSON column', () => {
      * @param json - The json the reading column should hold afterwards.
      */
     async function writeReading(name: string, json: string): Promise<void> {
-        await dataSource.query(Sensor).connection.query(
+        await queryPostgres(
+            dataSource,
             'UPDATE sensor SET reading = $1::jsonb WHERE name = $2',
             [json, name]
         );

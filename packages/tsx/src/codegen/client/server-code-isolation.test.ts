@@ -552,6 +552,20 @@ describe('server code never reaches the client script', () => {
             expect(page).not.toContain('PASSWORD-NEVER-IN-PAGE');
         });
 
+        it('hands a child the value the server computed with a callback, and writes only what client code reads', () => {
+            const page: string = renderPage(
+                compilePage(
+                    'const Page = ({ users }) => <Picker users={users.filter(user => user.active)}/>;',
+                    { Picker: 'const Picker = ({ users }) => { onClient(() => { console.log(users.map(user => user.id)); }); return <ul>{users.map(user => <li>{user.id}</li>)}</ul>; };' }
+                ),
+                { users }
+            );
+
+            expect(page).toContain('<li>user-1</li>');
+            expect(page).not.toContain('user-2');
+            expect(page).not.toContain('HASH-NEVER-IN-PAGE');
+        });
+
         it('writes only the field client code reads from a prop into the page', () => {
             const page: string = renderPage(
                 compilePage('const Page = ({ account }) => { onClient(() => { document.title = account.name; }); return <div/>; };'),

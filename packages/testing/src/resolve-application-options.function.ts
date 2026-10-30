@@ -14,12 +14,10 @@ export type ApplicationOptionsFallback = {
      */
     name: string,
     /**
-     * The data sources to boot on.
-     *
-     * A function rather than a value: building a data source class registers it, and one that is
-     * registered without being deployed is refused at boot - so the fallback is only built when it
-     * is the one being used.
+     * The data sources to boot on, built only when they are the ones being used.
      */
+    // a function rather than a value: building a data source class registers it, and one that is
+    // registered without being deployed is refused at boot
     dataSources: () => Newable<DataSourceInterface>[],
     /**
      * The DI providers to boot with.
@@ -27,13 +25,14 @@ export type ApplicationOptionsFallback = {
     providers: DiProvider<unknown>[]
 };
 
+// The precedence is the whole design: it is what makes a test a test of an application rather than
+// of a server assembled to resemble one.
 /**
  * Builds the options one application is created from, out of what the call named, what the
  * application it is a test of declares, and the harness's own defaults - in that order.
  *
- * The precedence is the whole design: a test names the one key it is about, the application
- * supplies everything else it ships with, and the harness fills in only what is left. That is what
- * makes a test a test of an application rather than of a server assembled to resemble one.
+ * A test names the one key it is about, the application supplies everything else it ships with,
+ * and the harness fills in only what is left.
  * @param options - What the call named, including the application to build on.
  * @param fallback - What to use for whatever neither of them names.
  * @returns The options to hand a `ZibriApplication`.

@@ -9,13 +9,9 @@ import { $ts } from '../../localization/translate.function';
  */
 export class UnmatchedRouteError extends NotFoundError {
     constructor(originalUrl: string, options?: ErrorOptions) {
-        super(
-            [
-                $ts`The route at "${originalUrl}" does not exist.`,
-                $ts`You can take a look at the available Routes via the OpenAPI Explorer linked below.`
-            ],
-            options
-        );
+        // the route alone: the explorer is the application's to point at, and an error page that links
+        // it does so itself (03 §H7)
+        super($ts`The route at "${originalUrl}" does not exist.`, options);
         this.name = 'UnmatchedRouteError';
     }
 }

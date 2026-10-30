@@ -1,4 +1,5 @@
 import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from './base-thread-job-worker-data.model';
+import { ThreadJobCheckpoint } from './thread-job-checkpoint.model';
 import { ThreadJobStatus } from './thread-job-status.enum';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
@@ -72,6 +73,13 @@ export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData | BaseFu
     @Property.number({ format: 'integer', required: false })
     threadId?: number | null;
 
+    /**
+     * The instance running it, as `ZIBRI_DI_TOKENS.INSTANCE_ID` names it. Diagnostic only - nothing
+     * branches on it.
+     */
+    @Property.string({ required: false })
+    instanceId?: string | null;
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.number({ format: 'integer' })
     progress!: Percentage;
@@ -91,4 +99,11 @@ export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData | BaseFu
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.unknown({ required: false })
     result?: ResultType | null;
+
+    /**
+     * The last checkpoint the job stored with `reportCheckpoint`, which a run started after it resumes
+     * from. Null for a job that stored none.
+     */
+    @Property.unknown({ required: false })
+    checkpoint?: ThreadJobCheckpoint<unknown> | null;
 }

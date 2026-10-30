@@ -14,12 +14,10 @@ export function requireClusterEnv(key: string): string {
     return value;
 }
 
+// throws rather than falling back to a placeholder: an instance that cannot say which one it is
+// would let a test group marks by an id that is the same everywhere, and pass while proving nothing
 /**
  * The id of the instance this process is.
- *
- * Throws rather than falling back to a placeholder: an instance that cannot say which one it is
- * would let a test group marks by an id that is the same everywhere, and pass while proving
- * nothing.
  * @returns The instance id.
  * @throws When this process is not a cluster instance.
  */

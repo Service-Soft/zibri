@@ -12,15 +12,15 @@ import { CacheServiceInterface } from '../cache-service.interface';
 import { CacheSingleFlight } from '../cache-single-flight.model';
 import { type CacheTagMatcher } from '../cache-tag-matchers';
 import { ExtractCacheWriteResultAvailable } from '../decorators/decorator-types';
-import { CacheStoreInterface } from '../store/cache-store.interface';
 import { CachedValue } from '../store/cached-value.model';
+import { CacheFill, FillGuardedCacheStore } from '../store/fill-guarded.cache-store';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type TierLike<K, V, CacheTag extends string, N extends string> = {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly name: N,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    store: CacheStoreInterface<K, V>,
+    store: FillGuardedCacheStore<K, V>,
     /**
      * The tags values in this tier might carry. Needed so that the multi tier cache can report the
      * tags of everything it holds, which is how the cache service decides whether to invalidate it.
@@ -182,20 +182,35 @@ export abstract class MultiTierCache<
             // one per caller waiting on it. Everything that fills the tiers belongs inside: a second
             // caller joining has to get the value back, not an empty cache and a second origin call
             return await this.runSingleFlight(key, async () => {
-                const value: V = await fn(...args);
+                // a tier written or invalidated while the origin is read is not filled with what was
+                // read: that is what the write replaced
+                const fills: CacheFill[] = this.tiers.map(tier => tier.store.beginFill(key));
+                try {
+                    const value: V = await fn(...args);
 
-                // populate all tiers using per‑tier options
-                await Promise.all(this.tiers.map(async (tier) => {
-                    const tierOpt: CacheWrapOptions<V, TArgs, CacheTag> | undefined = options?.[tier.name as TierName<Tiers>];
-                    const ttlInMs: number | undefined = typeof tierOpt?.ttlInMs === 'function'
-                        ? await tierOpt.ttlInMs(value, ...args)
-                        : tierOpt?.ttlInMs;
-                    const tags: CacheTag[] | undefined = typeof tierOpt?.tags === 'function'
-                        ? await tierOpt.tags(value, ...args)
-                        : tierOpt?.tags;
-                    await tier.setDirect(key, value, { ttlInMs, tags }).catch(() => {});
-                }));
-                return value;
+                    // populate all tiers using per‑tier options
+                    await Promise.all(this.tiers.map(async (tier, index) => {
+                        const tierOpt: CacheWrapOptions<V, TArgs, CacheTag> | undefined = options?.[tier.name as TierName<Tiers>];
+                        const ttlInMs: number | undefined = typeof tierOpt?.ttlInMs === 'function'
+                            ? await tierOpt.ttlInMs(value, ...args)
+                            : tierOpt?.ttlInMs;
+                        const tags: CacheTag[] | undefined = typeof tierOpt?.tags === 'function'
+                            ? await tierOpt.tags(value, ...args)
+                            : tierOpt?.tags;
+                        if (fills[index]?.stale !== true) {
+                            await tier.setDirect(key, value, { ttlInMs, tags }).catch(() => {});
+                        }
+                    }));
+                    return value;
+                }
+                finally {
+                    for (const [index, tier] of this.tiers.entries()) {
+                        const fill: CacheFill | undefined = fills[index];
+                        if (fill != undefined) {
+                            tier.store.endFill(key, fill);
+                        }
+                    }
+                }
             });
         };
     }
@@ -315,11 +330,10 @@ export abstract class MultiTierCache<
         return this.tiers.flatMap(t => [...t.tags as readonly CacheTagMatcher[]]);
     }
 
+    // goes to the tier stores directly rather than back through the cache service, which is what
+    // safeInvalidateTags does and why that path was a no-op loop
     /**
      * Removes every value carrying one of the given tags, from every tier.
-     *
-     * Goes to the tier stores directly rather than back through the cache service, which is what
-     * safeInvalidateTags does and why that path was a no-op loop.
      * @param tags - The tags to invalidate.
      */
     async invalidateTags(tags: string[]): Promise<void> {

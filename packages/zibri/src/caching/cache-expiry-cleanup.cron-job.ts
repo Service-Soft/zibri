@@ -4,6 +4,10 @@ import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
 import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 
+// Deliberately `runsOn: 'everyInstance'`, for the same reason the invalidation job is: a local cache
+// lives in the memory of the process holding it, so every instance has its own to sweep. A shared
+// store is swept by all of them, which costs a little and is harmless - an entry that is already
+// gone is dropped once, whichever instance gets there first.
 /**
  * Takes the values whose time to live has run out out of the caches.
  *
@@ -12,10 +16,7 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
  * somebody asks for that exact key again - and a key nobody asks for twice is the ordinary case, so
  * a cache would slowly fill up with values it can no longer use and evict live ones to make room.
  *
- * Deliberately `runsOn: 'everyInstance'`, for the same reason the invalidation job is: a local cache
- * lives in the memory of the process holding it, so every instance has its own to sweep. A shared
- * store is swept by all of them, which costs a little and is harmless - an entry that is already
- * gone is dropped once, whichever instance gets there first.
+ * Runs on every instance.
  */
 export class CacheExpiryCleanupCronJob extends CronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc

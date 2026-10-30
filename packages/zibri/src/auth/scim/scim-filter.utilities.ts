@@ -30,8 +30,18 @@ type ParseState = {
     // eslint-disable-next-line jsdoc/require-jsdoc
     tokens: Token[],
     // eslint-disable-next-line jsdoc/require-jsdoc
-    position: number
+    position: number,
+    /**
+     * How many groups and value filters the token being read is inside of.
+     */
+    depth: number
 };
+
+/**
+ * How deep groups and value filters may nest. Read by recursion, a filter nested deeper overflowed
+ * the stack and was answered as a fault rather than as a filter that cannot be read.
+ */
+const MAX_FILTER_DEPTH: number = 64;
 
 const COMPARISON_OPERATORS: ScimComparisonOperator[] = ['eq', 'ne', 'co', 'sw', 'ew', 'gt', 'lt', 'ge', 'le'];
 
@@ -49,7 +59,7 @@ export abstract class ScimFilterUtilities {
      * @throws A ScimError (invalidFilter) when it is not a filter.
      */
     static parse(text: string): ScimFilter {
-        const state: ParseState = { tokens: this.tokenize(text), position: 0 };
+        const state: ParseState = { tokens: this.tokenize(text), position: 0, depth: 0 };
         const filter: ScimFilter = this.parseOr(state);
         if (state.position < state.tokens.length) {
             throw this.invalidFilter(text);
@@ -306,7 +316,7 @@ export abstract class ScimFilterUtilities {
     private static parseAttributeExpression(state: ParseState, path: ScimAttributePath): ScimFilter {
         if (state.tokens[state.position]?.kind === '[') {
             state.position++;
-            const filter: ScimFilter = this.parseOr(state);
+            const filter: ScimFilter = this.parseNested(state);
             this.expect(state, ']');
             return { type: 'valuePath', path, filter };
         }
@@ -323,8 +333,18 @@ export abstract class ScimFilterUtilities {
     }
 
     private static parseGroup(state: ParseState): ScimFilter {
-        const filter: ScimFilter = this.parseOr(state);
+        const filter: ScimFilter = this.parseNested(state);
         this.expect(state, ')');
+        return filter;
+    }
+
+    private static parseNested(state: ParseState): ScimFilter {
+        if (state.depth >= MAX_FILTER_DEPTH) {
+            throw this.invalidFilter(this.describe(state.tokens[state.position - 1]));
+        }
+        state.depth++;
+        const filter: ScimFilter = this.parseOr(state);
+        state.depth--;
         return filter;
     }
 

@@ -12,7 +12,7 @@ import { ProviderAuthentication } from '../../models/provider-authentication.mod
  * Read while the user is created, and spent once by the login that follows - by the browser the
  * login was started in or by the frontend holding the PKCE verifier.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate' })
 export class FederatedRegistrationTicket extends BaseEntity {
     /**
      * The ticket.

@@ -13,11 +13,6 @@ import { WebsocketRequest } from '../websocket-request.model';
 export class SocketIOWebsocketConnection implements BaseWebsocketConnection {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly id: string;
-    /**
-     * Whether the connection state was recovered after a temporary disconnection.
-     * In that case, any missed packets will be transmitted to the client, the data attribute and the rooms will be restored.
-     */
-    readonly recovered: boolean;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     get offset(): number | undefined {
@@ -49,7 +44,6 @@ export class SocketIOWebsocketConnection implements BaseWebsocketConnection {
 
     ) {
         this.id = this.socket.id;
-        this.recovered = this.socket.recovered;
     }
 
     /**

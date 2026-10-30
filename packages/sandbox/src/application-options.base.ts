@@ -2,7 +2,7 @@ import { MailingListController, OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS,
 
 import { AppAuthController, CronController, FileController, HealthController, MetricsController, PageController, TemplateController, TestController, TestCrudController, TestWebsocketController } from './controllers';
 import { StatusCronJob } from './cron';
-import { requireEnv, requireOneOfEnv } from './env';
+import { requireOneOfEnv, requireUrlEnv } from './env';
 import { version } from '../package.json';
 import { providers } from './providers';
 
@@ -20,7 +20,7 @@ if (!SemVerUtilities.isSemVerVersion(version)) {
  */
 export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSources'> = {
     name: 'Zibri Api',
-    baseUrl: requireEnv('BASE_URL'),
+    baseUrl: requireUrlEnv('BASE_URL'),
     plugins: [new ZibriInvoicingPlugin(), new ZibriMailingListPlugin()],
     controllers: [
         HealthController,

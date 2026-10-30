@@ -295,6 +295,16 @@ describe('bodies and parameters that take one of several shapes', () => {
             await expect(many.json()).resolves.toEqual({ kind: 'Signup[]', value: [{ email: 'a@b.c' }, { email: 'd@e.f' }] });
         });
 
+        it('takes a key named __proto__ as a key the shapes do not declare', async () => {
+            const res: Response = await fetch(`${baseUrl}/shapes/account`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{"email":"a@b.c","__proto__":{"code":"x","expiresAt":"2026-03-01T10:00:00.000Z"}}'
+            });
+
+            expect(res.status).toBe(400);
+        });
+
         it('answers 400 with one problem naming every shape when the body fits none', async () => {
             const res: Response = await postJson('/shapes/account', { email: 'not an address' });
 
@@ -310,6 +320,18 @@ describe('bodies and parameters that take one of several shapes', () => {
             const optional: Response = await postJson('/shapes/optional');
             expect(optional.status).toBe(200);
             await expect(optional.json()).resolves.toEqual({ received: false });
+        });
+
+        // part of evaluation round 2, 03 §H5: a request with nothing on the wire names no content type,
+        // which is what `curl -X POST` and most clients send, and it was answered 415
+        it('takes a request carrying no body and no content type as a missing body', async () => {
+            const optional: Response = await fetch(`${baseUrl}/shapes/optional`, { method: 'POST' });
+            expect(optional.status).toBe(200);
+            await expect(optional.json()).resolves.toEqual({ received: false });
+
+            await expect(fetch(`${baseUrl}/shapes/account`, { method: 'POST' }).then(r => r.status)).resolves.toBe(400);
+            // something on the wire that names no type is still refused, since nothing says how to read it
+            await expect(fetch(`${baseUrl}/shapes/optional`, { method: 'POST', body: new Uint8Array([1]) }).then(r => r.status)).resolves.toBe(415);
         });
 
         it('reports a problem inside a list body under the index of the item', async () => {

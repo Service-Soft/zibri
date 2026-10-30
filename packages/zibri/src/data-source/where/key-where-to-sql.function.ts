@@ -114,8 +114,13 @@ export function keyWhereToSql<T extends BaseEntity>(owner: Newable<T> | KeyWhere
  * @returns The condition as sql.
  * @throws When the property is not one the entity stores, or the value is not a literal.
  */
-function conditionToSql(ownerName: string, declared: Record<string, PropertyMetadata> | ReadonlySet<string>, key: string, value: unknown): string {
-    const metadata: PropertyMetadata | undefined = declared instanceof Set ? undefined : Reflect.get(declared, key);
+function conditionToSql(
+    ownerName: string,
+    declared: Record<string, PropertyMetadata> | ReadonlySet<string>,
+    key: string,
+    value: unknown
+): string {
+    const metadata: PropertyMetadata | undefined = PropertyReferenceUtilities.isNamesOnly(declared) ? undefined : declared[key];
     if (declared instanceof Set ? !declared.has(key) : metadata == undefined) {
         throw new InternalError([
             `${ownerName}: The filter of a unique or check declaration names "${key}",`,
@@ -163,8 +168,9 @@ function operatorToSql(name: string, column: string, operator: string, operand: 
         }
         const fits: boolean = numberComparison == undefined ? operand instanceof Date : typeof operand === 'number';
         if (!fits) {
+            const compared: string = numberComparison == undefined ? 'dates' : 'numbers';
             throw new InternalError([
-                `${name}: "${operator}" in the filter of a unique or check declaration compares ${numberComparison == undefined ? 'dates' : 'numbers'} only,`,
+                `${name}: "${operator}" in the filter of a unique or check declaration compares ${compared} only,`,
                 `or another property of the row. Received ${JsonUtilities.stringify(operand)}.`
             ]);
         }

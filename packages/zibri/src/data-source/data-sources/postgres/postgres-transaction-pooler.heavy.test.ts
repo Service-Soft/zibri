@@ -2,11 +2,13 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
 import { PostgresPooler } from './postgres-pooler.model';
-import { PostgresDataSource, PostgresOptions } from './postgres-typeorm-data-source.model';
 import { TestTimeouts } from '../../../__testing__/constants';
+import { queryPostgres } from '../../../__testing__/query-postgres.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
+import { OperationLimitUtilities } from '../../../context/operation-limit.utilities';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { inject } from '../../../di/inject.function';
 import { BaseEntity } from '../../../entity/base-entity.model';
@@ -16,14 +18,13 @@ import { HttpStatus } from '../../../http/http-status.enum';
 import { Controller } from '../../../routing/decorators/controller.decorator';
 import { Get } from '../../../routing/decorators/get.decorator';
 import { Newable } from '../../../types/newable.type';
-import { OmitStrict } from '../../../types/omit-strict.type';
 import { Ms } from '../../../utilities/ms';
 import { DataSource } from '../../decorators/data-source.decorator';
 import { SchemaManagement } from '../../models/schema-management.model';
-import { DataSourceSubscription } from '../pub-sub-data-source.interface';
 import { Repository } from '../../repository/repository';
 import { RepositoryClass } from '../../repository/repository-class.type';
 import { Transaction } from '../../transaction/transaction.model';
+import { DataSourceSubscription } from '../pub-sub-data-source.interface';
 
 /**
  * A data source behind PgBouncer in transaction mode, where each transaction may run on another
@@ -34,9 +35,9 @@ import { Transaction } from '../../transaction/transaction.model';
  */
 
 /**
- * What postgres says when it stops a statement for having run out of time.
+ * What postgres says when it stops a statement, for having run out of time or because it was asked to.
  */
-const STATEMENT_TIMEOUT: string = 'canceling statement due to statement timeout';
+const STATEMENT_STOPPED: RegExp = /canceling statement due to (statement timeout|user request)/;
 
 /**
  * How long the pooler's container takes on top of the server's: it installs PgBouncer as it starts.
@@ -51,7 +52,7 @@ class PooledRow extends BaseEntity {
 
 @DataSource()
 class PooledDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
+    override options: PostgresOptions = {
         host: 'localhost',
         username: 'postgres',
         password: 'password',
@@ -88,7 +89,10 @@ class PooledController {
     async sleep(): Promise<{ ok: boolean }> {
         const startedAt: number = Date.now();
         try {
-            await inject(PooledDataSource).query(PooledRow).select('pg_sleep(3)', 'slept').limit(1).getRawOne();
+            await inject(PooledDataSource).query(PooledRow)
+                .select('pg_sleep(3)', 'slept')
+                .limit(1)
+                .getRawOne();
             return { ok: true };
         }
         finally {
@@ -106,9 +110,22 @@ let rows: Repository<PooledRow>;
  * @returns The setting, as postgres writes it.
  */
 async function showStatementTimeout(): Promise<string | undefined> {
-    const shown: Record<string, string>[] = await inject(PooledDataSource).query(PooledRow).connection
-        .query<Record<string, string>[]>('SHOW statement_timeout');
-    return shown[0]?.['statement_timeout'];
+    const shown: Record<string, unknown>[] = await queryPostgres(inject(PooledDataSource), 'SHOW statement_timeout');
+    const timeout: unknown = shown[0]?.['statement_timeout'];
+    return typeof timeout === 'string' ? timeout : undefined;
+}
+
+/**
+ * Has the server end the connection a channel is listened on, as a restart or an administrator would.
+ * @param channel - The channel.
+ * @returns One row per connection ended.
+ */
+async function terminateListening(channel: string): Promise<Record<string, unknown>[]> {
+    return await queryPostgres(
+        inject(PooledDataSource),
+        'SELECT pg_terminate_backend(pid) AS terminated FROM pg_stat_activity WHERE query LIKE $1 AND pid <> pg_backend_pid()',
+        [`LISTEN %${channel}%`]
+    );
 }
 
 /**
@@ -141,11 +158,19 @@ describe('a data source behind a transaction pooler', () => {
     });
 
     it('gives a call the time it names for its own statement', async () => {
+        const shown: string | undefined = await OperationLimitUtilities.runWithin(12345, 'showing the timeout', showStatementTimeout);
+
+        expect(shown).toBe('12345ms');
+    });
+
+    it('stops a call\'s statement once the time it names is up', async () => {
         const row: PooledRow = await rows.create({ value: 'free' });
         const holder: Transaction = await lockRow(row.id);
         try {
             const startedAt: number = Date.now();
-            await expect(rows.updateById(row.id, { value: 'waited' }, { timeoutInMs: 200 })).rejects.toThrow(STATEMENT_TIMEOUT);
+            // by the statement timeout or by the cancel the call's own clock sends, whichever comes first:
+            // the two are the same length, and the clock started before the statement did
+            await expect(rows.updateById(row.id, { value: 'waited' }, { timeoutInMs: 200 })).rejects.toThrow(STATEMENT_STOPPED);
             // the call's own limit, not the thirty seconds of the role
             expect(Date.now() - startedAt).toBeLessThan(5000);
         }
@@ -193,6 +218,26 @@ describe('a data source behind a transaction pooler', () => {
             }
 
             expect(received).toEqual(['hello']);
+        }
+        finally {
+            await subscription.unsubscribe();
+        }
+    });
+
+    // found while the suite ran, 2026-10-28: the session listened on was kept for good, so listening again
+    // after it failed took the same ended session, and once nobody listened its failure crashed the process
+    it('listens again once the server ended the session it listened on', async () => {
+        const received: string[] = [];
+        const subscription: DataSourceSubscription = await inject(PooledDataSource).subscribe('pooled.dropped', m => received.push(m));
+        try {
+            expect(await terminateListening('pooled.dropped')).toEqual([{ terminated: true }]);
+            // what is published while nothing listens is gone, so until one arrives
+            for (let waited: number = 0; received.length === 0 && waited < 5000; waited += 250) {
+                await inject(PooledDataSource).publish('pooled.dropped', 'still there');
+                await sleep(250);
+            }
+
+            expect(received[0]).toBe('still there');
         }
         finally {
             await subscription.unsubscribe();

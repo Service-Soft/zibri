@@ -4,12 +4,13 @@ import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitClass } from '../../../entity/omit-class.model';
 import type { HashString } from '../../hash/hash.utilities';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
+import { LOGIN_USER_AGENT_MAX_LENGTH } from '../../models/login-device.model';
 import { ProviderAuthentication } from '../../models/provider-authentication.model';
 
 /**
  * A cookie auth refresh session.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate' })
 export class CookieAuthRefreshSession extends BaseEntity {
     /**
      * The token the refresh session cookie carries, which the csrf token of the session is derived
@@ -58,6 +59,22 @@ export class CookieAuthRefreshSession extends BaseEntity {
      */
     @Property.date()
     authenticatedAt!: Date;
+    /**
+     * When the refresh session was issued: when the login started, or was rotated into this session.
+     * Null when not known.
+     */
+    @Property.date({ required: false })
+    issuedAt?: Date | null;
+    /**
+     * The `User-Agent` of the client the refresh session was issued to. Null when it sent none.
+     */
+    @Property.string({ required: false, maxLength: LOGIN_USER_AGENT_MAX_LENGTH })
+    userAgent?: string | null;
+    /**
+     * The address of the client the refresh session was issued to. Null when not known.
+     */
+    @Property.string({ required: false })
+    ipAddress?: string | null;
     /**
      * The name of the provider the login was started at. Null for a login started some other way.
      * Every refresh session of one family carries the same value, like the three below.

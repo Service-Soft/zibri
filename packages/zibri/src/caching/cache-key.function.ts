@@ -27,14 +27,16 @@ const TENANT_KEY_MARK: string = String.fromCodePoint(1);
  * disagree about it.
  *
  * A key holds the tenant active while it is used, so each tenant has its own entries and its own
- * loads in flight.
+ * loads in flight, unless it is not per tenant.
  * @param key - The key as the key provider returned it.
+ * @param perTenant - Whether the key holds the active tenant. False for a key that already says
+ * everything it is for, such as one naming the tenant itself.
  * @returns The key as everything storing it should use it.
  */
-export function cacheKeyOf(key: unknown): string {
+export function cacheKeyOf(key: unknown, perTenant: boolean = true): string {
     // read here rather than handed in, so that no store and no key provider can forget it: the
     // same key read in two tenants would otherwise answer one tenant with what another cached
-    const tenantId: string | undefined = AlsUtilities.getCurrentTenant();
+    const tenantId: string | undefined = perTenant ? AlsUtilities.getCurrentTenant() : undefined;
     const tenant: string = tenantId == undefined ? '' : `${TENANT_KEY_MARK}${tenantId}${TENANT_KEY_MARK}`;
     if (typeof key === 'string') {
         return `${tenant}${key}`;

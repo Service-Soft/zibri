@@ -13,7 +13,7 @@ jobs:
     review:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
             # the policy the audit job checks, so the two cannot drift apart: the allowed licenses, the
             # packages whose license was confirmed by hand because their manifest does not say it, and the
             # packages allowed a license of their own. The action can only exempt a package from the
@@ -23,7 +23,7 @@ jobs:
               run: |
                 echo "allowed=$(node -p "require('./.github/license-policy.json').allowed.join(', ')")" >> "$GITHUB_OUTPUT"
                 echo "exceptions=$(node -p "const policy = require('./.github/license-policy.json'); [...Object.keys(policy.exceptions), ...Object.keys(policy.allowedFor)].map(key => 'pkg:npm/' + key.replace(/^@/, '%40')).join(', ')")" >> "$GITHUB_OUTPUT"
-            - uses: actions/dependency-review-action@v4
+            - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
               with:
                 # the bar the audit job fails at
                 fail-on-severity: high

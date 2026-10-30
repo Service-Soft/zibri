@@ -20,10 +20,22 @@ export abstract class AuthorizationHeaderUtilities {
         }
         const parts: string[] = authorization.split(' ');
         const [scheme, value] = parts;
-        if (parts.length !== 2 || value == undefined) {
+        if (parts.length !== 2 || scheme == undefined || value == undefined) {
             return undefined;
         }
-        return scheme === 'Bearer' || scheme === 'DPoP' ? { scheme, value } : undefined;
+        // in any case, as RFC 9110 §11.1 has it: a client or a proxy writing `bearer` sends a credential
+        // all the same, and refusing it answered a bare 401 nothing explained
+        switch (scheme.toLowerCase()) {
+            case 'bearer': {
+                return { scheme: 'Bearer', value };
+            }
+            case 'dpop': {
+                return { scheme: 'DPoP', value };
+            }
+            default: {
+                return undefined;
+            }
+        }
     }
 
     /**

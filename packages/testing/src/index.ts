@@ -58,6 +58,7 @@ export * from './scratch-directory.function';
 export * from './start-data-source-containers.function';
 export * from './start-test-server-options.model';
 export * from './start-test-server.function';
+export * from './test-command-run.model';
 export * from './test-browser.model';
 export * from './test-providers';
 export * from './recording.email-transport';

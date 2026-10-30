@@ -77,7 +77,7 @@ export class Order {
 - `@XmlText()` makes a property the element's own text. A model has at most one.
 - `@XmlRoot` names the root element and the namespace of the document. Without it, the root element is named after the class and the document has no namespace. A model inside another model's document is named after its property and is in that document's namespace, whatever its own `@XmlRoot` says.
 
-Elements and attributes are matched by their name without a namespace prefix, so `<o:Order xmlns:o="urn:example:orders">` is read as `Order` too.
+Elements and attributes are matched by their name without a namespace prefix, so `<o:Order xmlns:o="urn:example:orders">` is read as `Order` too. An attribute written without a prefix is read over one of the same name that has one, so `type="a" xsi:type="b"` reads `type` as `a`.
 
 ## Using namespaces
 A model whose elements are in another namespace than the document's names it with `@XmlNamespace`, and the root declares the prefix it is written with:

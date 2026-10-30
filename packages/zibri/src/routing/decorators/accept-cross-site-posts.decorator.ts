@@ -6,7 +6,7 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
  * Lets pages on the given origins send the route a request with cookies, which is otherwise refused
  * with `403` for any request that changes something.
  *
- * For a route another site sends the browser to with a form on purpose, like an identity provider
+ * For a route another site is meant to send the browser to with a form, like an identity provider
  * answering a login. Only that route, and only those origins.
  * @param options - The origins.
  * @returns The decorator.

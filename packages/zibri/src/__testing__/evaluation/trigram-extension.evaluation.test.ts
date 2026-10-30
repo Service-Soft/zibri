@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
 import { inject } from '../../di/inject.function';
 import { Logger } from '../../logging/logger';
-import { JwtUser } from '../mocks/entities/jwt-user.entity';
+import { queryPostgres } from '../query-postgres.function';
 import { createTestDataSource } from '../test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
@@ -29,7 +29,7 @@ const COULD_NOT_INSTALL: string = 'Could not install the postgres extension "pg_
  * @param sql - The statement to run.
  */
 async function runStatement(sql: string): Promise<void> {
-    await inject(EvalTrigramDataSource).query(JwtUser).connection.query(sql);
+    await queryPostgres(inject(EvalTrigramDataSource), sql);
 }
 
 /**
@@ -37,7 +37,8 @@ async function runStatement(sql: string): Promise<void> {
  * @returns True if it is.
  */
 async function isTrigramInstalled(): Promise<boolean> {
-    const rows: unknown[] = await inject(EvalTrigramDataSource).query(JwtUser).connection.query(
+    const rows: unknown[] = await queryPostgres(
+        inject(EvalTrigramDataSource),
         'SELECT 1 FROM pg_extension WHERE extname = \'pg_trgm\''
     );
     return rows.length > 0;

@@ -19,8 +19,8 @@ export type HttpServerLimits = {
     /**
      * How long the headers alone may take to arrive.
      *
-     * Shorter than `requestTimeoutInMs` on purpose: a body can legitimately be large and slow, a set of
-     * headers cannot. This is the one that ends a client sending a header every few seconds forever.
+     * Shorter than `requestTimeoutInMs`: a body can legitimately be large and slow, a set of headers
+     * cannot. This is the one that ends a client sending a header every few seconds forever.
      */
     headersTimeoutInMs: number,
     /**

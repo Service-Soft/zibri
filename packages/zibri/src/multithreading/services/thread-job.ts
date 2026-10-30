@@ -3,6 +3,7 @@ import { BehaviorSubject } from 'rxjs';
 import { LoggedError } from '../../logging/logged-error.model';
 import { Percentage } from '../../types/percentage.type';
 import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
+import { ThreadJobCheckpoint } from '../models/thread-job-checkpoint.model';
 import { ThreadJobData, ThreadJobDataFunctions } from '../models/thread-job-data.model';
 import { ThreadJobEntity } from '../models/thread-job-entity.model';
 import { ThreadJobStatus } from '../models/thread-job-status.enum';
@@ -58,6 +59,10 @@ export class ThreadJob<
      */
     threadId?: number | null;
     /**
+     * The instance the job is running on, as `ZIBRI_DI_TOKENS.INSTANCE_ID` names it.
+     */
+    instanceId?: string | null;
+    /**
      * The progress of the job in a percentage.
      */
     progress: Percentage;
@@ -73,6 +78,10 @@ export class ThreadJob<
      * The result that the job finished with.
      */
     result?: ResultType;
+    /**
+     * The last checkpoint the job stored, which a run started after it resumes from.
+     */
+    checkpoint?: ThreadJobCheckpoint<unknown> | null;
     /**
      * A subject that contains whether or not the job was completed.
      */
@@ -118,6 +127,8 @@ export class ThreadJob<
         this.startedAtMs = entity.startedAtMs;
         this.stoppedAtMs = entity.stoppedAtMs;
         this.threadId = entity.threadId;
+        this.instanceId = entity.instanceId;
+        this.checkpoint = entity.checkpoint;
 
     }
 }

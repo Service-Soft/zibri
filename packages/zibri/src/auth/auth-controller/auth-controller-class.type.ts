@@ -1,6 +1,6 @@
 import { AuthControllerAuthenticatorClass } from './auth-controller-authenticator-class.type';
 import { AuthControllerOptions } from './auth-controller-options.model';
-import { AuthControllerCsrfTokenRoutes, AuthControllerFederatedRoutes, AuthControllerIdentityRoutes, AuthControllerLinkIdentityConfirmingRoutes, AuthControllerLinkIdentityRoutes, AuthControllerLoginRoutes, AuthControllerPasswordResetRoutes, AuthControllerLoginOptionsRoutes, AuthControllerRegistrationRoutes, AuthControllerTwoFactorRoutes } from './auth-controller-routes.model';
+import { AuthControllerCsrfTokenRoutes, AuthControllerEmailVerificationRoutes, AuthControllerFederatedRoutes, AuthControllerIdentityRoutes, AuthControllerLinkIdentityConfirmingRoutes, AuthControllerLinkIdentityRoutes, AuthControllerLoginListingRoutes, AuthControllerLoginRoutes, AuthControllerPasswordChangeRoutes, AuthControllerPasswordResetRoutes, AuthControllerLoginOptionsRoutes, AuthControllerRegistrationRoutes, AuthControllerTwoFactorRoutes } from './auth-controller-routes.model';
 import { AuthControllerStrategyClass } from './auth-controller-strategy-class.type';
 import { Newable } from '../../types/newable.type';
 import { TwoFactorMethods } from '../2fa/two-factor-methods.model';
@@ -16,15 +16,20 @@ type AnyHas<Instances, Key extends PropertyKey> = [Extract<Instances, Record<Key
 type RoutesIf<Instances, Key extends PropertyKey, Routes> = AnyHas<Instances, Key> extends true ? Routes : unknown;
 
 /**
- * The routes `AuthController` defines for the given strategies, authenticators and two factor methods.
+ * The routes `AuthController` defines for the given strategies, authenticators and two factor methods,
+ * and whether it verifies email addresses.
  */
 export type AuthControllerRoutes<
     Strategies extends AuthControllerStrategyClass[],
     Authenticators extends AuthControllerAuthenticatorClass[],
-    Methods extends TwoFactorMethods
+    Methods extends TwoFactorMethods,
+    EmailVerification extends boolean = false
 > = AuthControllerLoginRoutes
+    & ([EmailVerification] extends [true] ? AuthControllerEmailVerificationRoutes : unknown)
     & RoutesIf<InstanceType<Strategies[number]>, 'resolveCsrfToken', AuthControllerCsrfTokenRoutes>
+    & RoutesIf<InstanceType<Strategies[number]>, 'findLogins', AuthControllerLoginListingRoutes>
     & RoutesIf<InstanceType<Authenticators[number]>, 'confirmPasswordReset', AuthControllerPasswordResetRoutes>
+    & RoutesIf<InstanceType<Authenticators[number]>, 'changePassword', AuthControllerPasswordChangeRoutes>
     & RoutesIf<InstanceType<Authenticators[number]>, 'resolveLoginOptions', AuthControllerLoginOptionsRoutes>
     & RoutesIf<InstanceType<Authenticators[number]>, 'confirmRegistration', AuthControllerRegistrationRoutes>
     & RoutesIf<InstanceType<Authenticators[number]>, 'confirmProviderLogin', AuthControllerFederatedRoutes>
@@ -39,10 +44,11 @@ export type AuthControllerRoutes<
 export type AuthControllerClass<
     Strategies extends AuthControllerStrategyClass[] = AuthControllerStrategyClass[],
     Authenticators extends AuthControllerAuthenticatorClass[] = AuthControllerAuthenticatorClass[],
-    Methods extends TwoFactorMethods = TwoFactorMethods
-> = Newable<AuthControllerRoutes<Strategies, Authenticators, Methods>> & {
+    Methods extends TwoFactorMethods = TwoFactorMethods,
+    EmailVerification extends boolean = boolean
+> = Newable<AuthControllerRoutes<Strategies, Authenticators, Methods, EmailVerification>> & {
     /**
      * What the routes were built from.
      */
-    readonly authControllerOptions: AuthControllerOptions<Strategies, Authenticators, Methods>
+    readonly authControllerOptions: AuthControllerOptions<Strategies, Authenticators, Methods, EmailVerification>
 };

@@ -12,8 +12,7 @@ export type AuthRateLimitOptions = {
     /**
      * How many attempts a caller may make before being refused.
      *
-     * Spent across all of the guarded endpoints together, which is what makes it a budget for
-     * "trying to get in" rather than for one route.
+     * Spent across all of the guarded endpoints together, as one budget for trying to get in.
      */
     maxAttempts: number,
     /**

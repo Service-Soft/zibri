@@ -10,6 +10,7 @@ import { EntityWrite, EntityWriteObserver, WrittenRows } from '../../data-source
  */
 export class EndedLoginWriteObserver implements EntityWriteObserver {
     // whose the rows are, of a removal
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly properties: string[] = ['userId'];
 
     constructor(

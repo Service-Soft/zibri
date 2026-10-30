@@ -19,7 +19,6 @@ one service, so they behave the same way.
 | `LeaseService` | class | Default implementation. Renews while the work runs and drains on shutdown |
 | `LeaseAcquisitionTimeoutError` | error | Thrown when a `'wait'` acquisition runs out of patience |
 | `LeaseLostError` | error | What the work's signal aborts with once its grant is lost |
-| `LeaseCleanupCronJob` | cron job | Removes lapsed grants. Registered for you |
 | `ZIBRI_DI_TOKENS.LEASE_SERVICE` | DI token | Override to replace the implementation |
 | `ZIBRI_DI_TOKENS.LEASE_DRAIN_TIMEOUT_IN_MS` | DI token | How long a shutting down instance waits for held work. Defaults to ten seconds |
 
@@ -152,6 +151,9 @@ The work may run longer than `leaseInMs`. The grant is renewed three times per `
 work runs, so it lapses only after two renewals in a row fail. `leaseInMs` decides how long another
 instance waits before taking over from one that stopped existing.
 
+A grant lapses by the [clock of the data source](./data-source.md#comparing-with-the-time-of-the-data-source),
+which every instance shares. Instances whose own clocks are apart agree on who holds it.
+
 A failed renewal is logged, and the work goes on. A holder whose grant lapsed and was taken over
 cannot release its successor's grant.
 
@@ -205,10 +207,9 @@ export async function releaseClaim(
 
 ## Cleaning up
 
-Taking a lease clears the lapsed grant of **the key it asks for**, and nothing else.
-`LeaseCleanupCronJob` runs daily and deletes every grant that has expired, `'retain'` grants
-included. It is registered for you when the lease service initializes. Without it, the table grows
-by one row per retained grant.
+Taking a lease clears the lapsed grant of **the key it asks for**, and nothing else. `Lease`
+declares `expiresBy`, so `ExpiredRowsCleanupCronJob` deletes every grant that has expired every hour,
+`'retain'` grants included, see [deleting rows once they expire](./data-source.md#deleting-rows-once-they-expire).
 
 ## Shutdown
 

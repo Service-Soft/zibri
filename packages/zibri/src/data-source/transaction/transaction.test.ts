@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { QueryRunner } from 'typeorm';
 
 import { Transaction } from './transaction.model';
 import { TestTimeouts } from '../../__testing__/constants';
+import { queryPostgres } from '../../__testing__/query-postgres.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -10,9 +10,7 @@ import { inject } from '../../di/inject.function';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
-import { TypeOrmUtilities } from '../../utilities/typeorm.utilities';
-import { DataSourceInterface } from '../data-sources/data-source.interface';
-import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { Repository } from '../repository/repository';
 
 @Entity({ tenant: 'shared' })
@@ -25,7 +23,7 @@ class Item {
 }
 
 let server: StartedTestServer;
-let dataSource: DataSourceInterface;
+let dataSource: PostgresDataSource;
 let repo: Repository<Item>;
 
 describe('transaction', () => {
@@ -87,24 +85,26 @@ describe('transaction', () => {
         // is the statement that fails. Everything else reports itself while the transaction is still
         // open, which leaves the release on the path that already worked
         const setup: Transaction = await dataSource.startTransaction();
-        await TypeOrmUtilities.toTypeOrmTransaction(setup).queryRunner.query(
+        await queryPostgres(
+            dataSource,
             `CREATE TABLE IF NOT EXISTS deferred_check (
                 value int,
                 CONSTRAINT deferred_check_unique UNIQUE (value) DEFERRABLE INITIALLY DEFERRED
-            )`
+            )`,
+            [],
+            setup
         );
         await setup.commit();
 
         const transaction: Transaction = await dataSource.startTransaction();
-        const runner: QueryRunner = TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner;
-        await runner.query('INSERT INTO deferred_check (value) VALUES (1), (1)');
+        await queryPostgres(dataSource, 'INSERT INTO deferred_check (value) VALUES (1), (1)', [], transaction);
 
         await expect(transaction.commit()).rejects.toThrow();
 
-        // the connection goes back to the pool however the commit ended. Releasing only on the way
-        // out of a commit that worked loses one for good every time one does not, and a pool is a
-        // fixed number of them
-        expect(runner.isReleased).toBe(true);
+        // the connection goes back to the pool however the commit ended - a transaction hands it back
+        // as it finishes. Releasing only on the way out of a commit that worked loses one for good every
+        // time one does not, and a pool is a fixed number of them
+        expect(transaction.isFinished).toBe(true);
     });
 
     it('tells the work waiting for its end whether it was committed, once, a failed commit included', async () => {
@@ -121,7 +121,7 @@ describe('transaction', () => {
         // the same deferred constraint as above, which the case before creates
         const failing: Transaction = await dataSource.startTransaction();
         failing.afterFinish(async hasCommitted => await Promise.resolve(void ended.push(`failed: ${hasCommitted}`)));
-        await TypeOrmUtilities.toTypeOrmTransaction(failing).queryRunner.query('INSERT INTO deferred_check (value) VALUES (2), (2)');
+        await queryPostgres(dataSource, 'INSERT INTO deferred_check (value) VALUES (2), (2)', [], failing);
         await expect(failing.commit()).rejects.toThrow();
         // what a caller does on a commit that threw, which finds the transaction ended already
         await Promise.resolve(failing.rollback()).catch(() => undefined);

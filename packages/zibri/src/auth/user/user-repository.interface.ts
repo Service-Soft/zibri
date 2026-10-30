@@ -1,3 +1,4 @@
+import { FindByIdOptions } from '../../data-source/models/options/find-by-id-options.model';
 import { USER_REPOSITORY } from '../../data-source/repository/repository-kind.model';
 import { Transaction } from '../../data-source/transaction/transaction.model';
 import { BaseUser } from '../models/base-user.model';
@@ -15,13 +16,13 @@ export interface UserRepositoryInterface<RoleType extends string, UserType exten
      */
     readonly [USER_REPOSITORY]: true,
     /**
-     * Finds a by the provided id.
+     * Finds a user by the provided id, inside the transaction when one is given.
      */
-    findById(id: UserType['id']): Promise<UserType>,
+    findById(id: UserType['id'], options?: Pick<FindByIdOptions<UserType>, 'transaction'>): Promise<UserType>,
     /**
-     * Finds a user by the provided email.
+     * Finds a user by the provided email, inside the transaction when one is given.
      */
-    findByEmail(mail: UserType['email']): Promise<UserType>,
+    findByEmail(mail: UserType['email'], options?: Pick<FindByIdOptions<UserType>, 'transaction'>): Promise<UserType>,
     /**
      * Stores when a user was deactivated, or null to reactivate them.
      */
@@ -29,7 +30,11 @@ export interface UserRepositoryInterface<RoleType extends string, UserType exten
     /**
      * Stores the roles a user holds of their own.
      */
-    updateRoles(id: UserType['id'], roles: string[], transaction: Transaction | undefined): Promise<void>
+    updateRoles(id: UserType['id'], roles: string[], transaction: Transaction | undefined): Promise<void>,
+    /**
+     * Stores the email of a user, and when it was verified, or null while it is not.
+     */
+    updateEmail(id: UserType['id'], email: string, emailVerifiedAt: Date | null, transaction: Transaction | undefined): Promise<void>
 }
 /* eslint-enable typescript/method-signature-style */
 

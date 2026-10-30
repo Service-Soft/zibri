@@ -20,13 +20,13 @@ Then extend `BaseLdapAuthenticator` for your directory:
 
 ```ts
 // src/auth/company-directory.authenticator.ts
-import { BaseLdapAuthenticator, inject, LdapEntry, LdapServiceAccount, repositoryTokenFor, Transaction } from 'zibri';
+import { BaseLdapAuthenticator, inject, LdapEntry, LdapServiceAccount, Ms, repositoryTokenFor, Transaction } from 'zibri';
 
 import { environment } from '../environment';
 import { Roles } from '../models/roles.enum';
 import { User } from '../models/user.model';
 
-export class CompanyDirectoryAuthenticator extends BaseLdapAuthenticator<Roles, User> {
+export class CompanyDirectoryAuthenticator extends BaseLdapAuthenticator<string, User> {
     readonly name: string = 'company-directory';
     readonly urls: string[] = ['ldaps://ldap.example.com'];
     readonly serviceAccount: LdapServiceAccount = { dn: 'cn=app,ou=services,dc=example,dc=com', password: environment.ldapPassword };
@@ -34,6 +34,7 @@ export class CompanyDirectoryAuthenticator extends BaseLdapAuthenticator<Roles, 
     readonly entryFilter: string = '(objectClass=inetOrgPerson)';
     readonly usernameAttributes: string[] = ['uid', 'mail'];
     readonly groupSearchBase: string | undefined = undefined;
+    readonly refreshCheckIntervalInMs: number = 5 * Ms.MINUTE;
 
     async resolveFirstLogin(entry: LdapEntry, transaction: Transaction | undefined): Promise<User> {
         const [email] = entry.attributes['mail'] ?? [];
@@ -71,7 +72,7 @@ export const authOptions: Pick<ZibriApplicationOptions, 'authenticators' | 'auth
 | Member | What it is |
 |---|---|
 | `name` | The name the links of the directory's entries to users are kept under. Every directory has a name of its own. Required |
-| `urls` | The servers of the directory: `ldaps://host:636`, or `ldap://host:389`, which is upgraded with StartTLS. A login starts at a random one, and moves on to the next when one cannot be reached. Required |
+| `urls` | The servers of the directory: `ldaps://host:636`, or `ldap://host:389`, which is upgraded with StartTLS. A new connection is opened to all of them at once, and the first that answers is used, so a server that cannot be reached adds no wait. Required |
 | `serviceAccount` | The account the entry of a user is searched for with. It needs to read the entries below `searchBase`, and the groups below `groupSearchBase`. Required |
 | `searchBase` | Where in the directory users are searched for. Required |
 | `entryFilter` | What every entry a user logs in as matches. Required |
@@ -86,7 +87,10 @@ export const authOptions: Pick<ZibriApplicationOptions, 'authenticators' | 'auth
 | `isEntryActive` | Whether an entry may go on logging in, see [a disabled entry](#a-disabled-entry) |
 | `entryStateAttributes` | The attributes `isEntryActive` reads. `nsAccountLock` and `pwdAccountLockedTime` by default |
 | `trustedCertificates` | The certificates, PEM encoded, of the authorities the directory's certificate is trusted from. The system's by default |
+| `refreshCheckIntervalInMs` | How long after the directory was last asked about a user's entry a refresh of their login goes on without asking it again, see [a disabled entry](#a-disabled-entry). `0` asks on every refresh. Required |
+| `connectionPoolSize` | How many connections bound as the service account are kept open between searches. A user's password is checked on a connection of its own. 5 by default |
 | `timeoutInMs` | How long the directory may take to answer. 10 seconds by default |
+| `disabledEntryPageSize` | How many linked entries `DisabledLdapEntriesCronJob` asks the directory about in one search, see [a disabled entry](#a-disabled-entry). 100 by default |
 
 ## Logging in
 The user logs in at the login route, with the name and password they typed:
@@ -139,9 +143,9 @@ Two first logins as the same entry at once make one user: the second waits for t
 ## Later logins
 Every later login as an entry finds the user it is linked to, and is refused once that user is deleted. Deleting the user deletes the link, so the entry's next login is a first login again. `resolveLogin` gets the entry and that user, and answers the user it logs in as: updated from the entry, or as it is. Throw an HTTP error to refuse.
 
-Every refresh of a login of a linked user hands the entry to `resolveLogin` too, whichever authenticator started the login, and the refreshed login carries the user it answers.
+A refresh of a login of a linked user hands the entry to `resolveLogin` too, whichever authenticator started the login, and the refreshed login carries the user it answers. Within `refreshCheckIntervalInMs` of the last login or of the last refresh that asked the directory, a refresh asks nothing and keeps the user as they are.
 
-Keep the roles of a user in step with their groups, so that someone taken out of a group in the directory loses its role at their next refresh:
+Keep the roles of a user in step with their groups, so that someone taken out of a group in the directory loses its role at their next refresh that asks the directory:
 
 ```ts
 // src/auth/role-directory.authenticator.ts
@@ -168,7 +172,7 @@ An access token keeps the roles it was issued with until it expires.
 ## A disabled entry
 A user whose entry is disabled or deleted in the directory loses every login and [API key](./glossary.md#api-key):
 
-- at the next refresh of a login of theirs, which answers `403` with an `AccountDeactivatedError`
+- at the first refresh of a login of theirs once `refreshCheckIntervalInMs` passed since the directory was last asked about the entry, which answers `403` with an `AccountDeactivatedError`
 - or when `DisabledLdapEntriesCronJob` finds the entry, every 15 minutes by default
 
 The user stays active, so once the entry is enabled again, they log in as before. The audit trail records `auth.access.ended` with their id.
@@ -200,19 +204,20 @@ With a `groupSearchBase`, every login reads the groups of the entry as the servi
 
 ```ts
 // src/auth/company-domain.authenticator.ts
-import { BaseActiveDirectoryAuthenticator, inject, LdapEntry, LdapServiceAccount, repositoryTokenFor, Transaction } from 'zibri';
+import { BaseActiveDirectoryAuthenticator, inject, LdapEntry, LdapServiceAccount, Ms, repositoryTokenFor, Transaction } from 'zibri';
 
 import { environment } from '../environment';
 import { Roles } from '../models/roles.enum';
 import { User } from '../models/user.model';
 
-export class CompanyDomainAuthenticator extends BaseActiveDirectoryAuthenticator<Roles, User> {
+export class CompanyDomainAuthenticator extends BaseActiveDirectoryAuthenticator<string, User> {
     readonly name: string = 'company-domain';
     readonly netbiosName: string = 'EXAMPLE';
     readonly urls: string[] = ['ldaps://dc1.example.com', 'ldaps://dc2.example.com'];
     readonly serviceAccount: LdapServiceAccount = { dn: 'CN=app,CN=Users,DC=example,DC=com', password: environment.domainPassword };
     readonly searchBase: string = 'CN=Users,DC=example,DC=com';
     readonly groupSearchBase: string = 'DC=example,DC=com';
+    readonly refreshCheckIntervalInMs: number = 5 * Ms.MINUTE;
     override readonly trustedCertificates: string[] = [environment.domainCaCertificate];
 
     async resolveFirstLogin(entry: LdapEntry, transaction: Transaction | undefined): Promise<User> {

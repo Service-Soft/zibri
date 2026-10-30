@@ -1,14 +1,15 @@
-import childProcess, { ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { setTimeout as wait } from 'node:timers/promises';
 
-import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
 import { Configuration, validate } from 'webpack';
 
 import { resolveWebpackConfiguration } from './resolve-webpack-configuration.function';
 import { RestartServerOnBuildPlugin, WebpackStats } from './restart-server-on-build.plugin';
 import { testFileFolder } from '../__testing__/constants';
+import { waitUntil } from '../__testing__/wait-until.function';
 
 /**
  * The build a generated project runs (round-2 07 §T5).
@@ -53,6 +54,36 @@ function compilerFinishing(watchMode: boolean, results: boolean[]): Parameters<R
                         onDone({ hasErrors: () => failed });
                     }
                 }
+            }
+        }
+    };
+}
+
+/**
+ * A compiler in watch mode whose builds the test finishes one at a time.
+ */
+type SteppedCompiler = {
+    /**
+     * The compiler.
+     */
+    compiler: Parameters<RestartServerOnBuildPlugin['apply']>[0],
+    /**
+     * Finishes a build.
+     */
+    finishBuild: (failed: boolean) => void
+};
+
+/**
+ * A compiler in watch mode whose builds the test finishes one at a time.
+ * @returns The compiler, and what finishes a build of it.
+ */
+function steppedCompiler(): SteppedCompiler {
+    const done: ((stats: WebpackStats) => void)[] = [];
+    return {
+        compiler: { watchMode: true, hooks: { done: { tap: (_name, onDone) => done.push(onDone) } } },
+        finishBuild: failed => {
+            for (const onDone of done) {
+                onDone({ hasErrors: () => failed });
             }
         }
     };
@@ -119,51 +150,80 @@ describe('resolveWebpackConfiguration', () => {
 });
 
 describe('RestartServerOnBuildPlugin', () => {
-    let killed: number[];
+    const root: string = path.join(testFileFolder, 'webpack-restart');
+    const log: string = path.join(root, 'log.txt');
 
     /**
-     * Records every process the plugin starts instead of starting it.
-     * @returns The spy, whose calls are the commands it was asked to run.
+     * What the started applications wrote, a line each time one started or stopped.
+     * @returns The lines.
      */
-    function recordingSpawn(): jest.SpiedFunction<typeof childProcess.spawn> {
-        killed = [];
-        return jest.spyOn(childProcess, 'spawn').mockImplementation(() => {
-            const child: ChildProcess = new ChildProcess();
-            const index: number = killed.push(0) - 1;
-            jest.spyOn(child, 'kill').mockImplementation(() => {
-                killed[index] = (killed[index] ?? 0) + 1;
-                return true;
-            });
-            return child;
-        });
+    async function readLog(): Promise<string[]> {
+        return existsSync(log) ? (await readFile(log, 'utf8')).split('\n').filter(line => line.length) : [];
     }
 
-    afterEach(() => {
-        jest.restoreAllMocks();
+    /**
+     * Stops every application the log says is still running.
+     */
+    async function stopTheRest(): Promise<void> {
+        const lines: string[] = await readLog();
+        for (const line of lines.filter(l => l.startsWith('started '))) {
+            const pid: string = line.slice('started '.length);
+            if (!lines.includes(`stopped ${pid}`)) {
+                process.kill(Number(pid), 'SIGKILL');
+            }
+        }
+    }
+
+    beforeAll(async () => {
+        await mkdir(path.join(root, 'dist'), { recursive: true });
+        // an application that takes a while to shut down, as one closing its connections does
+        await writeFile(path.join(root, 'dist', 'bundle.js'), [
+            'const fs = require(\'node:fs\');',
+            `const log = ${JSON.stringify(log)};`,
+            'fs.appendFileSync(log, `started ${process.pid}\\n`);',
+            'process.on(\'SIGTERM\', () => setTimeout(() => {',
+            '    fs.appendFileSync(log, `stopped ${process.pid}\\n`);',
+            '    process.exit(0);',
+            '}, 300));',
+            'setInterval(() => {}, 1000);'
+        ].join('\n'));
     });
 
-    it('starts the built application as a new process after every build, stopping the one before', () => {
-        const spawn: jest.SpiedFunction<typeof childProcess.spawn> = recordingSpawn();
-
-        new RestartServerOnBuildPlugin().apply(compilerFinishing(true, [false, false]));
-
-        // what makes a restart start from empty registries: the rebuilt bundle is imported by a process
-        // of its own, and the one holding the previous generation is stopped, so nothing is ever
-        // imported a second time into the arrays a first import filled
-        expect(spawn.mock.calls.map(([command, args]) => [command, args])).toEqual([
-            ['node', ['--enable-source-maps', 'dist/bundle.js']],
-            ['node', ['--enable-source-maps', 'dist/bundle.js']]
-        ]);
-        expect(killed).toEqual([1, 0]);
+    afterEach(async () => {
+        await stopTheRest();
+        await rm(log, { force: true });
     });
 
-    it('keeps the running application when a build fails, and starts nothing outside watch mode', () => {
-        const spawn: jest.SpiedFunction<typeof childProcess.spawn> = recordingSpawn();
-
-        new RestartServerOnBuildPlugin().apply(compilerFinishing(true, [false, true]));
-        new RestartServerOnBuildPlugin().apply(compilerFinishing(false, [false]));
-
-        expect(spawn).toHaveBeenCalledTimes(1);
-        expect(killed).toEqual([0]);
+    afterAll(async () => {
+        await rm(root, { recursive: true, force: true });
     });
+
+    // what makes a restart start from empty registries: the rebuilt bundle is imported by a process of
+    // its own, and the one holding the previous generation is stopped, so nothing is ever imported a
+    // second time into the arrays a first import filled. Started only once the one before has exited:
+    // a server still closing holds its port. It ran through a shell before, which a kill reached
+    // in place of the server on a shell that does not exec its last command (round-2 11 §W1)
+    it('starts the built application as a new process after every build, once the one before has stopped', async () => {
+        const { compiler, finishBuild }: SteppedCompiler = steppedCompiler();
+        new RestartServerOnBuildPlugin(root).apply(compiler);
+
+        finishBuild(false);
+        await waitUntil(async () => (await readLog()).length === 1);
+        finishBuild(false);
+        await waitUntil(async () => (await readLog()).filter(line => line.startsWith('started ')).length === 2);
+        const [first, stopped, second] = await readLog();
+        expect(stopped).toBe(first?.replace('started', 'stopped'));
+        expect(second).toMatch(/^started \d+$/);
+        expect(second).not.toBe(first);
+    }, 15000);
+
+    it('keeps the running application when a build fails, and starts nothing outside watch mode', async () => {
+        new RestartServerOnBuildPlugin(root).apply(compilerFinishing(true, [false, true]));
+        new RestartServerOnBuildPlugin(root).apply(compilerFinishing(false, [false]));
+
+        await waitUntil(async () => (await readLog()).length > 0);
+        // long enough for a second application to have started, were one started
+        await wait(500);
+        expect(await readLog()).toEqual([expect.stringMatching(/^started \d+$/)]);
+    }, 15000);
 });

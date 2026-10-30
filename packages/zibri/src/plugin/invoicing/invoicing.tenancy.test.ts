@@ -19,6 +19,7 @@ import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
+import { getZonedDate } from '../../localization/format-date.function';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
@@ -37,6 +38,7 @@ function companyNamed(name: string): CompanyInfo {
         fullName: `${name} LLC`,
         email: `info@${name.toLowerCase()}.test`,
         phone: '12345 67890123',
+        timezone: 'Europe/Berlin',
         address: { street: 'Example street', number: '1b', postcode: '12345', city: 'Example city', countryId: 'DE' },
         taxNumber: '123/456/78910',
         ceo: 'James Smith',
@@ -120,7 +122,7 @@ describe('invoicing across tenants', () => {
         const ofGlobex: Invoice = await inTenant(GLOBEX, issueInvoice);
         const secondOfAcme: Invoice = await inTenant(ACME, issueInvoice);
 
-        const year: number = new Date().getFullYear();
+        const year: number = getZonedDate(new Date(), 'Europe/Berlin').year;
         expect([ofAcme.number, ofGlobex.number, secondOfAcme.number])
             .toEqual([`${year}-GREATC-0001`, `${year}-GREATC-0001`, `${year}-GREATC-0002`]);
         expect([ofAcme.tenantId, ofGlobex.tenantId]).toEqual([ACME, GLOBEX]);

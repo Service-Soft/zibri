@@ -13,17 +13,16 @@ import { Transaction } from '../../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
-import { copyClassProperties } from '../../entity/utilities/copy-class-properties.function';
+import { ClassPropertyUtilities } from '../../entity/utilities/class-property.utilities';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
 import { InternalError } from '../../error-handling/internal-error.model';
+import { findHeader } from '../../http/find-header.function';
 import { MimeType } from '../../http/mime-type.enum';
 import { RedirectResponse } from '../../http/redirect-response.model';
 import { $ts } from '../../localization/translate.function';
-import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model';
-import { auditReasonFor } from '../../logging/audit-reason-for.function';
-import { Response } from '../../open-api/decorators/response.decorator';
 import { ResponseDecorator } from '../../open-api/decorators/response-decorator.type';
+import { Response } from '../../open-api/decorators/response.decorator';
 import { FileResponse } from '../../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../../parsing/html/html-response.model';
 import { RateLimited } from '../../rate-limiting/decorators/rate-limited.decorator';
@@ -40,24 +39,31 @@ import { type TwoFactorServiceInterface } from '../2fa/two-factor-service.interf
 import { type AuthServiceInterface } from '../auth-service.interface';
 import { FederatedAuthenticatorInterface, isFederatedAuthenticator } from '../authenticators/federated/federated-authenticator.interface';
 import { FederatedCallbackForm } from '../authenticators/federated/federated-callback-form.model';
+import { FederatedLoginResult } from '../authenticators/federated/federated-login-result.model';
 import { FederatedLogoutTokenForm } from '../authenticators/federated/federated-logout-token-form.model';
 import { FederatedProviderLogoutMessage } from '../authenticators/federated/federated-provider-logout-message.model';
 import { FederatedRouteUtilities } from '../authenticators/federated/federated-route.utilities';
-import { FederatedLoginResult } from '../authenticators/federated/federated-login-result.model';
 import { isLinkIdentityConfirmingAuthenticator, LinkIdentityConfirmingAuthenticatorInterface } from '../authenticators/link-identity-confirming-authenticator.interface';
 import { isLinkIdentityRequestingAuthenticator, LinkIdentityRequestingAuthenticatorInterface } from '../authenticators/link-identity-requesting-authenticator.interface';
 import { LinkedIdentity } from '../authenticators/linked-identity.model';
+import { isLoginOptionsAuthenticator, LoginOptionsAuthenticatorInterface } from '../authenticators/login-options-authenticator.interface';
+import { ChangePasswordDto } from '../authenticators/password/change-password-data.model';
 import { ConfirmPasswordResetDto } from '../authenticators/password/confirm-password-reset-data.model';
+import { PasswordCredentials } from '../authenticators/password/password-credentials.model';
 import { PasswordResetTokenInput } from '../authenticators/password/password-reset-token-input.model';
 import { PasswordResetTokenValidity } from '../authenticators/password/password-reset-token-validity.model';
 import { RequestPasswordResetInput } from '../authenticators/password/request-password-reset-input.model';
-import { isLoginOptionsAuthenticator, LoginOptionsAuthenticatorInterface } from '../authenticators/login-options-authenticator.interface';
 import { isRegistrationAuthenticator, RegistrationAuthenticatorInterface } from '../authenticators/registration-authenticator.interface';
 import { Auth } from '../decorators/auth.decorator';
 import { CurrentUser } from '../decorators/current-user.decorator';
+import { type EmailVerificationServiceInterface } from '../email-verification/email-verification-service.interface';
+import { EmailVerificationTokenInput } from '../email-verification/email-verification-token-input.model';
+import { EmailVerificationToken } from '../email-verification/email-verification-token.model';
+import { RequestEmailChangeInput } from '../email-verification/request-email-change-input.model';
 import { type BaseUser } from '../models/base-user.model';
 import { LogoutResult } from '../models/logout-result.model';
 import { PasswordResetToken } from '../models/password-reset-token.model';
+import { UserLogin } from '../models/user-login.model';
 import { isAuthStrategy } from '../strategies/auth-strategy.interface';
 import { CsrfTokenAuthStrategyInterface, isCsrfTokenAuthStrategy } from '../strategies/csrf-token-auth-strategy.interface';
 import { CsrfToken } from '../strategies/csrf-token.model';
@@ -76,12 +82,21 @@ type OptionalModelResolver = () => Newable<unknown> | undefined;
 /**
  * An authenticator whose identities a user links to their account.
  */
-type LinkIdentityRequestingAuthenticator = LinkIdentityRequestingAuthenticatorInterface<string, BaseUser<string>, unknown, unknown, unknown, {
-    /**
-     * The id of the identity the link links.
-     */
-    id: string
-}, unknown, unknown>;
+type LinkIdentityRequestingAuthenticator = LinkIdentityRequestingAuthenticatorInterface<
+    string,
+    BaseUser<string>,
+    unknown,
+    unknown,
+    unknown,
+    {
+        /**
+         * The id of the identity the link links.
+         */
+        id: string
+    },
+    unknown,
+    unknown
+>;
 
 /**
  * An authenticator that confirms a link with an answer of the client.
@@ -141,8 +156,11 @@ type RouteGroup = {
 export function AuthController<
     Strategies extends AuthControllerStrategyClass[],
     Authenticators extends AuthControllerAuthenticatorClass[],
-    Methods extends TwoFactorMethods
->(options: AuthControllerOptions<Strategies, Authenticators, Methods>): AuthControllerClass<Strategies, Authenticators, Methods> {
+    Methods extends TwoFactorMethods,
+    EmailVerification extends boolean = false
+>(
+    options: AuthControllerOptions<Strategies, Authenticators, Methods, EmailVerification>
+): AuthControllerClass<Strategies, Authenticators, Methods, EmailVerification> {
     const strategies: AuthControllerStrategyClass[] = options.strategies;
     const authenticators: AuthControllerAuthenticatorClass[] = options.authenticators;
     const twoFactorMethods: TwoFactorMethods = options.twoFactorMethods;
@@ -161,13 +179,15 @@ export function AuthController<
     const requestingLinks: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'requestLinkIdentity');
     const confirmingLinks: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'confirmLinkIdentity');
     const linking: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'findIdentities');
+    const changing: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'changePassword');
+    const listing: AuthControllerStrategyClass[] = withMember(strategies, 'findLogins');
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     class Temp {
         /**
          * What the routes were built from, which also marks the class as the auth controller.
          */
-        static readonly authControllerOptions: AuthControllerOptions<Strategies, Authenticators, Methods> = options;
+        static readonly authControllerOptions: AuthControllerOptions<Strategies, Authenticators, Methods, EmailVerification> = options;
 
         private get authService(): AuthServiceInterface {
             return inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
@@ -175,6 +195,26 @@ export function AuthController<
 
         private get twoFactorService(): TwoFactorServiceInterface {
             return inject(ZIBRI_DI_TOKENS.TWO_FACTOR_SERVICE);
+        }
+
+        private get emailVerificationService(): EmailVerificationServiceInterface {
+            return inject(ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_SERVICE);
+        }
+
+        /**
+         * Runs the confirmation of a link in a transaction of the data source of its tokens.
+         * @param work - The confirmation.
+         */
+        private async runInEmailVerificationTransaction(work: (transaction: Transaction) => Promise<void>): Promise<void> {
+            const transaction: Transaction = await inject(repositoryTokenFor(EmailVerificationToken)).dataSource.startTransaction();
+            try {
+                await work(transaction);
+                await transaction.commit();
+            }
+            catch (error) {
+                await transaction.rollback();
+                throw error;
+            }
         }
 
         // read when used rather than injected: only the password reset needs it, and its authenticator
@@ -255,6 +295,121 @@ export function AuthController<
             );
         }
 
+        // every login of the user, the one asking included, such as after a device went missing
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.isLoggedIn()
+        @Response.empty()
+        @Post('/logout-everywhere')
+        async logoutEverywhere(
+            @CurrentUser()
+            user: CurrentUser
+        ): Promise<void> {
+            await this.authService.endOwnLogins(user.id, undefined);
+        }
+
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.isLoggedIn()
+        @Response.array(UserLogin)
+        @Get('/logins')
+        async findLogins(
+            @CurrentUser()
+            user: CurrentUser
+        ): Promise<UserLogin[]> {
+            return await this.authService.findLogins(user.id, inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT), undefined);
+        }
+
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.isLoggedIn()
+        @Response.empty()
+        @Delete('/logins/:loginId')
+        async endLogin(
+            @CurrentUser()
+            user: CurrentUser,
+            @Param.path('loginId')
+            loginId: string
+        ): Promise<void> {
+            await this.authService.endLogin(user.id, loginId, undefined);
+        }
+
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.isLoggedIn()
+        @Response.empty()
+        @Post('/request-email-verification')
+        async requestEmailVerification(
+            @CurrentUser()
+            user: CurrentUser
+        ): Promise<void> {
+            await this.emailVerificationService.requestEmailVerification(user.id, undefined);
+        }
+
+        // by the link alone, which is followed in whatever browser opens the mail
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.skip({ allowRedundant: true })
+        @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
+        @Response.empty()
+        @Post('/confirm-email-verification')
+        async confirmEmailVerification(
+            @Body(EmailVerificationTokenInput)
+            input: EmailVerificationTokenInput
+        ): Promise<void> {
+            await this.runInEmailVerificationTransaction(
+                async transaction => await this.emailVerificationService.confirmEmailVerification(input.token, transaction)
+            );
+        }
+
+        // with a second factor or a recent login, like linking an identity: the address is where a
+        // password reset goes, so changing it is how a session somebody got hold of becomes the account
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.require2fa({ reauth: true })
+        @Response.empty()
+        @Post('/request-email-change')
+        async requestEmailChange(
+            @CurrentUser()
+            user: CurrentUser,
+            @Body(RequestEmailChangeInput)
+            input: RequestEmailChangeInput
+        ): Promise<void> {
+            await this.emailVerificationService.requestEmailChange(user.id, input.newEmail, undefined);
+        }
+
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.skip({ allowRedundant: true })
+        @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
+        @Response.empty()
+        @Post('/confirm-email-change')
+        async confirmEmailChange(
+            @Body(EmailVerificationTokenInput)
+            input: EmailVerificationTokenInput
+        ): Promise<void> {
+            await this.runInEmailVerificationTransaction(
+                async transaction => await this.emailVerificationService.confirmEmailChange(input.token, transaction)
+            );
+        }
+
+        // on the login's budget, and counted against the account like a wrong password at a login: a
+        // session somebody else got hold of is otherwise a place to guess the password at
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.isLoggedIn()
+        @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER, { refundOnSuccess: true })
+        @Response.empty()
+        @Post('/change-password')
+        async changePassword(
+            @CurrentUser()
+            user: CurrentUser,
+            @Body(ChangePasswordDto)
+            data: ChangePasswordDto
+        ): Promise<void> {
+            const transaction: Transaction = await inject(repositoryTokenFor(PasswordCredentials)).dataSource.startTransaction();
+            try {
+                await this.authService.changePassword(user.id, { ...data, transaction }, inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT));
+                await transaction.commit();
+            }
+            catch (error) {
+                await transaction.rollback();
+                throw error;
+            }
+        }
+
         // how a client that holds the cookies but not the token gets it: after a page reload, or after a
         // login that ended in a redirect rather than a response body. A GET, so the csrf check does not
         // apply, and what keeps another origin from reading the answer is CORS - the same thing that
@@ -290,43 +445,10 @@ export function AuthController<
             @Body(RequestPasswordResetInput)
             data: RequestPasswordResetInput
         ): Promise<void> {
-            const transaction: Transaction = await this.passwordResetTokenRepository.dataSource
-                .startTransaction({ isolationLevel: IsolationLevel.READ_COMMITTED });
-            try {
-                // an address nobody has registered gets the same answer as one somebody has. This route
-                // is unauthenticated, so anything that distinguishes the two turns it into a list of who
-                // holds an account here - and the caller is not entitled to that either way.
-                const user: BaseUser<string> | undefined = await inject(ZIBRI_DI_TOKENS.USER_SERVICE)
-                    .findByEmail(data.email, { required: false });
-                if (user) {
-                    await this.authService.requestPasswordReset({ user, transaction });
-                }
-                await transaction.commit();
-
-                // after the commit, so the outcome describes what happened rather than what was about to
-                // be attempted. Recorded here rather than in the service because here is the only place
-                // a request for an address nobody holds is still visible - the authenticator is handed a
-                // resolved user, so by then those have been filtered out. They are the ones worth seeing:
-                // the reply is identical either way, so a run against a list of addresses leaves no other
-                // trace anywhere.
-                inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({
-                    action: AuditAction.PASSWORD_RESET_REQUESTED,
-                    outcome: user ? AuditOutcome.SUCCESS : AuditOutcome.FAILURE,
-                    reason: user ? undefined : AuditReason.NO_SUCH_SUBJECT,
-                    subject: data.email,
-                    userId: user?.id
-                });
-            }
-            catch (error) {
-                await transaction.rollback();
-                inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({
-                    action: AuditAction.PASSWORD_RESET_REQUESTED,
-                    outcome: AuditOutcome.FAILURE,
-                    reason: auditReasonFor(error),
-                    subject: data.email
-                });
-                throw error;
-            }
+            // an address nobody has registered gets the same answer as one somebody has, in what it
+            // says and in how long it takes. This route is unauthenticated, so anything that
+            // distinguishes the two turns it into a list of who holds an account here
+            await this.authService.requestPasswordResetForEmail(data.email);
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
@@ -587,7 +709,10 @@ export function AuthController<
         async requestLinkIdentity(
             @Param.query('authenticator', { type: 'string', required: requestingLinks.length > 1 })
             authenticator: string | undefined,
-            @bodyOf(requestingLinks.map(a => () => resolveModel(a, isLinkIdentityRequestingAuthenticator, l => l.linkIdentityRequestModel)), true)
+            @bodyOf(
+                requestingLinks.map(a => () => resolveModel(a, isLinkIdentityRequestingAuthenticator, l => l.linkIdentityRequestModel)),
+                true
+            )
             request: object
         ): Promise<unknown> {
             const authenticatorClass: Newable<LinkIdentityRequestingAuthenticator> = AuthControllerUtilities
@@ -604,7 +729,10 @@ export function AuthController<
         async confirmLinkIdentity(
             @Param.query('authenticator', { type: 'string', required: confirmingLinks.length > 1 })
             authenticator: string | undefined,
-            @bodyOf(confirmingLinks.map(a => () => resolveModel(a, isLinkIdentityConfirmingAuthenticator, l => l.linkIdentityAnswerModel)), true)
+            @bodyOf(
+                confirmingLinks.map(a => () => resolveModel(a, isLinkIdentityConfirmingAuthenticator, l => l.linkIdentityAnswerModel)),
+                true
+            )
             answer: object
         ): Promise<void> {
             const authenticatorClass: Newable<LinkIdentityConfirmingAuthenticator> = AuthControllerUtilities
@@ -816,7 +944,7 @@ export function AuthController<
         // token so that it can be renamed, and a decorator runs before any token is registered
         private resolveLoginTicket(): string {
             const header: string = inject(ZIBRI_DI_TOKENS.LOGIN_TICKET_HEADER);
-            const ticket: string | undefined = AlsUtilities.getCurrentRequestContext()?.request.headers?.[header];
+            const ticket: string | undefined = findHeader(AlsUtilities.getCurrentRequestContext()?.request.headers, header);
             if (!ticket) {
                 throw new UnauthorizedError($ts`"${header}" header not found`);
             }
@@ -827,6 +955,12 @@ export function AuthController<
     const groups: RouteGroup[] = [
         { routes: ['csrfToken'], present: csrfStrategies.length > 0 },
         { routes: ['requestPasswordReset', 'verifyPasswordResetToken', 'confirmPasswordReset'], present: resetting.length > 0 },
+        { routes: ['changePassword'], present: changing.length > 0 },
+        {
+            routes: ['requestEmailVerification', 'confirmEmailVerification', 'requestEmailChange', 'confirmEmailChange'],
+            present: options.emailVerification === true
+        },
+        { routes: ['findLogins', 'endLogin'], present: listing.length > 0 },
         { routes: ['loginOptions'], present: challenging.length > 0 },
         { routes: ['requestRegistration', 'confirmRegistration'], present: registering.length > 0 },
         {
@@ -867,10 +1001,10 @@ export function AuthController<
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     class AuthControllerRoutes {}
-    copyClassProperties(AuthControllerRoutes, Temp, omitted);
+    ClassPropertyUtilities.copy(AuthControllerRoutes, Temp, omitted);
     // put together at runtime from the groups the classes call for, which the type works out from their
     // types the same way: nothing in between is something the compiler can follow
-    return AuthControllerRoutes as AuthControllerClass<Strategies, Authenticators, Methods>;
+    return AuthControllerRoutes as AuthControllerClass<Strategies, Authenticators, Methods, EmailVerification>;
 }
 
 /**

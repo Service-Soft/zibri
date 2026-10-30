@@ -238,7 +238,7 @@ export type AnyStrategyStringPropertyMetadata = OmitStrict<StoredStringPropertyM
 export type AnyStrategyStringPropertyMetadataInput = Partial<OmitStrict<AnyStrategyStringPropertyMetadata, 'type'>>;
 
 /**
- * Input metadata for a string that comes in with a request or a response, which is read rather than
+ * Input metadata for a string that comes in with a request or a response, which is read and never
  * stored.
  */
 export type IncomingStringPropertyMetadataInput = OmitStrict<

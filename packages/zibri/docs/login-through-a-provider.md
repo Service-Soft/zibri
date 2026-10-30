@@ -37,11 +37,13 @@ Users log in with an account they already have somewhere else: Google, Apple, Mi
 | `OAuthClientSecret` | type | A client secret, or a function resolving it before every exchange |
 | `OAuthResponseMode` | type | How the provider sends its answer back: `query` or `form_post` |
 | `OidcAuthenticationTime` | type | How an OpenID Connect provider says when the user logged in there: `auth_time` or `none` |
+| `OidcDiscoveryAtBoot` | type | What happens when an OpenID Connect provider's metadata cannot be read while the application starts: `required` or `whenReachable` |
 | `FederatedCallbackForm` | class | The answer a provider posts to the callback |
 | `FederationOptions` | type | What every provider shares, via `ZIBRI_DI_TOKENS.FEDERATION_OPTIONS`. Required |
 | `AuthController` | function | Defines the login routes, among the other auth routes. See [the auth routes](./auth-routes.md) |
 | `FederatedRouteUtilities` | class | What the login routes share: finding the provider a route names, reading its answer, and where the browser goes next |
 | `FederatedAuthenticatorClass` | type | A class of a provider's authenticator, as `FederatedRouteUtilities` finds it |
+| `FederatedBindingUtilities` | class | Reads and writes the cookies that tie a login at a provider to the browser that started it |
 | `FederatedTicketCredentials` | class | The [ticket](./glossary.md#ticket) a first login continues with at your registration |
 | `FederatedHandoverCredentials` | class | The one-time code a login is handed over to the frontend with |
 | `FederatedCredentials` | type | What a provider's authenticator logs in with: the one-time code or the ticket |
@@ -51,7 +53,6 @@ Users log in with an account they already have somewhere else: Google, Apple, Mi
 | `FederatedIdentity` | entity | An identity at a provider, linked to a user to log in, to call the provider's APIs, or both |
 | `OAuthProviderTokens` | entity | The tokens kept for an identity, for calling the provider's APIs |
 | `FederatedLoginAttempt`, `FederatedHandoverCode`, `FederatedRegistrationTicket`, `FederatedConnectionCode` | entity | A login on its way |
-| `FederatedCleanupCronJob` | cron job | Deletes the logins, codes and tickets that expired. Registered for you |
 | `FederatedLoginFailure` | enum | Why a login failed, as your error page is told |
 | `FederatedLoginError`, `FederatedLoginErrorOptions` | error, type | Thrown when the answer of a provider cannot be taken, carrying why for your error page |
 | `FederatedLoginAction` | type | What a login through a provider is for, as the audit trail records it: logging in, or connecting a provider |
@@ -74,12 +75,12 @@ Extend the authenticator of your provider with the client you registered there, 
 
 ```ts
 // src/auth/google.authenticator.ts
-import { AuthController, BaseGoogleAuthenticator, Controller, CookieAuthStrategy, OAuthClientAuthentication, OtpTwoFactorMethod, ZibriApplicationOptions } from 'zibri';
+import { AuthController, BaseGoogleAuthenticator, Controller, CookieAuthStrategy, OAuthClientAuthentication, OidcDiscoveryAtBoot, OtpTwoFactorMethod, ZibriApplicationOptions } from 'zibri';
 
-import { Roles } from '../models/roles.enum';
 import { User } from '../models/user.model';
 
-export class GoogleAuthenticator extends BaseGoogleAuthenticator<Roles, User> {
+export class GoogleAuthenticator extends BaseGoogleAuthenticator<string, User> {
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
     readonly clientId: string = process.env['GOOGLE_CLIENT_ID'] ?? '';
     readonly clientAuthentication: OAuthClientAuthentication = {
         method: 'client_secret_basic',
@@ -162,7 +163,7 @@ export class OwnRoutesGoogleAuthenticator extends GoogleAuthenticator {
 }
 ```
 
-Your routes call `requestProviderLogin` and `confirmProviderLogin` of the authenticator, and `AuthServiceInterface.login` with the code the login hands over. `FederatedRouteUtilities` has what the login routes of the auth controller use. An authenticator that extends none of the base classes implements `FederatedAuthenticatorInterface`.
+Your routes call `requestProviderLogin` and `confirmProviderLogin` of the authenticator, and `AuthServiceInterface.login` with the code the login hands over. `FederatedRouteUtilities` has what the login routes of the auth controller use. `FederatedBindingUtilities` reads and writes the cookie that ties a login to the browser that started it. An authenticator that extends none of the base classes implements `FederatedAuthenticatorInterface`.
 
 Every URL an authenticator gives out is below the `baseUrl`, and reaches a route of your application that answers the URL's method.
 
@@ -200,12 +201,14 @@ The browser lands on `errorUrl` with an `error`:
 | `error` | What happened |
 |---|---|
 | `cancelled` | The user did not allow the login at the provider |
-| `provider_error` | The provider answered with an error, or could not be reached |
+| `provider_error` | The provider answered with an error, or could not be reached, also while the code was exchanged. Logged as a warning, and recorded with `reason: error` |
 | `expired` | The login took too long, was completed already, or was started in another browser |
 | `invalid` | The provider's answer could not be verified |
 | `already_linked` | The identity being [connected](#connecting-a-provider-to-an-account) is linked to another user |
 | `not_for_login` | The identity is linked to a user for [the provider's APIs](#calling-a-providers-apis) only |
-| `refused` | The user may not log in: their account is deactivated or locked, or the authenticator refused the login, see [later logins](#later-logins) |
+| `not_linked` | The user the identity is linked to was deleted while they logged in |
+| `refused` | The user may not log in: their account is deactivated or locked, or the authenticator refused the login with a `ForbiddenError`, see [later logins](#later-logins) |
+| `failed` | Any other refusal, such as too many login attempts or a `BadRequestError` from the authenticator. Starting over fails the same way |
 
 ## A first login
 When no user is linked to the identity, the browser lands on `registrationUrl` with a one-time `ticket`. Your registration reads who logged in, creates the user and links the identity, and logs them in with the ticket. Create and link in one transaction, and log in once it is committed:
@@ -253,7 +256,7 @@ A login never finds a user by email. An identity logs in as the user it is linke
 `registration.claims` holds everything the provider proved about who logged in: the claims of the ID token, such as `groups`, `hd` or Entra ID's `oid` and `tid`, or the attributes of a SAML assertion. Read it to admit only the accounts of a domain, to give a new user the roles their groups say, or to find the account a [SCIM](./scim.md) provisioning created for them by its `externalId`.
 
 ## Later logins
-Every later login with an identity finds the user it is linked to, and hands what the provider proved this time to `resolveLoginUser` of the authenticator, with that user. It answers the user the identity logs in as: updated from the claims, or as they are. Throw an HTTP error to refuse the login, which lands the browser on `errorUrl` with `refused`, and answers the error to a login [handed over by code](#handing-the-login-over-by-code).
+Every later login with an identity finds the user it is linked to, and hands what the provider proved this time to `resolveLoginUser` of the authenticator, with that user. It answers the user the identity logs in as: updated from the claims, or as they are. Throw an HTTP error to refuse the login, which answers the error to a login [handed over by code](#handing-the-login-over-by-code). A `ForbiddenError` lands the browser on `errorUrl` with `refused`, and any other HTTP error with `failed`.
 
 Keep the roles of a user in step with their groups at the provider, so that someone taken out of a group loses its role at their next login:
 
@@ -312,12 +315,12 @@ An identity can also let your application call the provider's APIs for the user,
 
 ```ts
 // src/auth/google-calendar.authenticator.ts
-import { BaseGoogleAuthenticator, OAuthClientAuthentication } from 'zibri';
+import { BaseGoogleAuthenticator, OAuthClientAuthentication, OidcDiscoveryAtBoot } from 'zibri';
 
-import { Roles } from '../models/roles.enum';
 import { User } from '../models/user.model';
 
-export class GoogleCalendarAuthenticator extends BaseGoogleAuthenticator<Roles, User> {
+export class GoogleCalendarAuthenticator extends BaseGoogleAuthenticator<string, User> {
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
     readonly clientId: string = process.env['GOOGLE_CLIENT_ID'] ?? '';
     readonly clientAuthentication: OAuthClientAuthentication = {
         method: 'client_secret_basic',
@@ -378,7 +381,7 @@ export class CalendarService {
 }
 ```
 
-A kept access token that has expired, or is about to, is replaced with the refresh token first, one request at a time for an identity. When there is no access token, `resolveProviderAccessToken` throws a `ProviderAccessError`. Connect the provider again with the scopes to get one:
+A kept access token that has expired, or expires within `accessTokenRefreshMarginInMs`, is replaced with the refresh token first, one request at a time for an identity. When there is no access token, `resolveProviderAccessToken` throws a `ProviderAccessError`. Connect the provider again with the scopes to get one:
 
 | `failure` | What happened |
 |---|---|
@@ -440,12 +443,12 @@ Extend `BaseOidcAuthenticator` for any other OpenID Connect provider:
 
 ```ts
 // src/auth/company.authenticator.ts
-import { BaseOidcAuthenticator, OAuthClientAuthentication, OidcAuthenticationTime } from 'zibri';
+import { BaseOidcAuthenticator, OAuthClientAuthentication, OidcAuthenticationTime, OidcDiscoveryAtBoot } from 'zibri';
 
-import { Roles } from '../models/roles.enum';
 import { User } from '../models/user.model';
 
-export class CompanyAuthenticator extends BaseOidcAuthenticator<Roles, User> {
+export class CompanyAuthenticator extends BaseOidcAuthenticator<string, User> {
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
     readonly name: string = 'company';
     readonly issuer: string = 'https://sso.example.com';
     readonly clientId: string = 'task-tracker';
@@ -464,7 +467,10 @@ export class CompanyAuthenticator extends BaseOidcAuthenticator<Roles, User> {
 | `clientId` | Your client at the provider |
 | `clientAuthentication` | `client_secret_basic` or `client_secret_post` with a secret, or `private_key_jwt` with a private key. A secret can be a function, which runs before every exchange |
 | `authenticationTime` | How the provider says when the user logged in there. `auth_time` for a provider that is asked with `max_age` and puts the time into the ID token, `none` for one that does not say, see [logging in again](#logging-in-again) |
+| `discoveryAtBoot` | What happens when the provider's metadata cannot be read while the application starts. `required`: the application does not start. `whenReachable`: while the provider cannot be reached, the application starts with a warning and reads the metadata on the first login. A provider that answers with something other than its metadata, such as for a wrong `issuer`, stops the start either way. Required |
+| `metadataMaxAgeInMs` | How long the provider's metadata is kept before it is read again. While it cannot be read again, the metadata read before is used. One day by default |
 | `subjectClaim` | The claim an identity is known by, in the ID token of a login and in [a token a request sends](./provider-tokens.md). `sub` by default. `oid` for a provider whose `sub` differs from one client to another, such as [Microsoft Entra ID](#microsoft-entra-id) |
+| `logoutTokenMaxAgeInMs` | How long ago a logout token the provider sends may have been issued, which is also how long one is remembered as taken. 10 minutes by default |
 | `acrValues` | The classes of authentication a login asks the provider for, as `acr_values`, such as one that stands for a second factor. None by default, see [accepting the provider's second factor](./two-factor.md#accepting-the-providers-second-factor) |
 | `scopes` | What the provider is asked for. `openid`, `email` and `profile` by default |
 | `allowedAlgorithms` | What the ID token may be signed with. `RS256`, `PS256`, `ES256` and `EdDSA` by default |
@@ -472,6 +478,7 @@ export class CompanyAuthenticator extends BaseOidcAuthenticator<Roles, User> {
 | `reauthenticationPrompt` | The `prompt` that asks the provider to have the user log in again. `login` by default |
 | `apiScopes` | The scopes of the provider's APIs a login or a connection may ask for. None by default |
 | `offlineAccess` | How the provider is asked for a refresh token: the `offline_access` scope and the `consent` prompt by default |
+| `accessTokenRefreshMarginInMs` | How long before it expires a kept access token is replaced, see [calling a provider's APIs](#calling-a-providers-apis). One minute by default |
 | `resolveProfile` | Reads the email and names out of the ID token, and out of what the provider sent next to the code. Override it for a provider that names them differently |
 | `resolveLoginUser` | Answers the user a later login logs in as, from the claims of the ID token, see [later logins](#later-logins) |
 
@@ -484,10 +491,9 @@ Some providers, GitHub among them, speak OAuth2 without OpenID Connect. Extend `
 // src/auth/forge.authenticator.ts
 import { BaseOAuth2Authenticator, OAuthClientAuthentication, FederatedProviderIdentity } from 'zibri';
 
-import { Roles } from '../models/roles.enum';
 import { User } from '../models/user.model';
 
-export class ForgeAuthenticator extends BaseOAuth2Authenticator<Roles, User> {
+export class ForgeAuthenticator extends BaseOAuth2Authenticator<string, User> {
     readonly name: string = 'forge';
     readonly issuer: string = 'https://forge.example.com';
     readonly authorizationEndpoint: string = 'https://forge.example.com/oauth/authorize';
@@ -530,12 +536,12 @@ Some providers send their answer back as a page that posts it to the callback, s
 
 ```ts
 // src/auth/okta.authenticator.ts
-import { BaseOidcAuthenticator, OAuthClientAuthentication, OAuthResponseMode, OidcAuthenticationTime } from 'zibri';
+import { BaseOidcAuthenticator, OAuthClientAuthentication, OAuthResponseMode, OidcAuthenticationTime, OidcDiscoveryAtBoot } from 'zibri';
 
-import { Roles } from '../models/roles.enum';
 import { User } from '../models/user.model';
 
-export class OktaAuthenticator extends BaseOidcAuthenticator<Roles, User> {
+export class OktaAuthenticator extends BaseOidcAuthenticator<string, User> {
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
     readonly name: string = 'okta';
     readonly issuer: string = 'https://example.okta.com';
     readonly clientId: string = 'task-tracker';
@@ -555,12 +561,12 @@ Extend `BaseMicrosoftAuthenticator` with the id of the tenant whose accounts log
 
 ```ts
 // src/auth/microsoft.authenticator.ts
-import { BaseMicrosoftAuthenticator, OAuthClientAuthentication, OidcAuthenticationTime } from 'zibri';
+import { BaseMicrosoftAuthenticator, OAuthClientAuthentication, OidcAuthenticationTime, OidcDiscoveryAtBoot } from 'zibri';
 
-import { Roles } from '../models/roles.enum';
 import { User } from '../models/user.model';
 
-export class MicrosoftAuthenticator extends BaseMicrosoftAuthenticator<Roles, User> {
+export class MicrosoftAuthenticator extends BaseMicrosoftAuthenticator<string, User> {
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
     readonly tenantId: string = process.env['ENTRA_TENANT_ID'] ?? '';
     readonly clientId: string = process.env['ENTRA_CLIENT_ID'] ?? '';
     readonly clientAuthentication: OAuthClientAuthentication = {
@@ -575,6 +581,32 @@ An ID token of Entra ID says when the user logged in only when the app registrat
 
 An identity of the tenant is known by the account's object id, the `oid` claim, which is the same in the ID tokens of every app registration and in the access tokens issued for an API. So a mobile app registered on its own [calls your API with a token](./provider-tokens.md) as the user who logged in through the web client.
 
+For an app registration that takes the accounts of more than one tenant, set `tenantId` to `organizations` for work accounts, or to `common` for work and personal accounts. Then name the tenants whose accounts log in in `allowedTenantIds`, or `'any'` for every tenant:
+
+```ts
+// src/auth/partner-microsoft.authenticator.ts
+import { BaseMicrosoftAuthenticator, OAuthClientAuthentication, OidcAuthenticationTime, OidcDiscoveryAtBoot } from 'zibri';
+
+import { User } from '../models/user.model';
+
+export class PartnerMicrosoftAuthenticator extends BaseMicrosoftAuthenticator<string, User> {
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
+    readonly tenantId: string = 'organizations';
+    override readonly allowedTenantIds: string[] = [
+        '6f0c3c1e-3a4b-4f7e-9c2d-1b2a3c4d5e6f', // your own tenant
+        '0d9e8f7a-6b5c-4d3e-8f2a-1b0c9d8e7f6a' // a partner's tenant
+    ];
+    readonly clientId: string = process.env['ENTRA_CLIENT_ID'] ?? '';
+    readonly clientAuthentication: OAuthClientAuthentication = {
+        method: 'client_secret_post',
+        clientSecret: process.env['ENTRA_CLIENT_SECRET'] ?? ''
+    };
+    readonly authenticationTime: OidcAuthenticationTime = 'none';
+}
+```
+
+An account of a tenant `allowedTenantIds` leaves out lands on `errorUrl` with `refused`, and its tokens are not taken. An identity belongs to the account's own tenant, so the same object id in two tenants is two identities.
+
 ## Apple
 Extend `BaseAppleAuthenticator` with your services id as the client id, your team id, and the id of the key you created for Sign in with Apple and the contents of its `.p8` file:
 
@@ -582,12 +614,12 @@ Extend `BaseAppleAuthenticator` with your services id as the client id, your tea
 // src/auth/apple.authenticator.ts
 import { readFileSync } from 'node:fs';
 
-import { BaseAppleAuthenticator } from 'zibri';
+import { BaseAppleAuthenticator, OidcDiscoveryAtBoot } from 'zibri';
 
-import { Roles } from '../models/roles.enum';
 import { User } from '../models/user.model';
 
-export class AppleAuthenticator extends BaseAppleAuthenticator<Roles, User> {
+export class AppleAuthenticator extends BaseAppleAuthenticator<string, User> {
+    readonly discoveryAtBoot: OidcDiscoveryAtBoot = 'required';
     readonly clientId: string = 'com.example.app.login';
     readonly teamId: string = 'TEAM123456';
     readonly keyId: string = 'KEY1234567';
@@ -604,10 +636,9 @@ Extend `BaseGitHubAuthenticator` with the client id and secret of the OAuth app 
 // src/auth/github.authenticator.ts
 import { BaseGitHubAuthenticator, OAuthClientAuthentication } from 'zibri';
 
-import { Roles } from '../models/roles.enum';
 import { User } from '../models/user.model';
 
-export class GitHubAuthenticator extends BaseGitHubAuthenticator<Roles, User> {
+export class GitHubAuthenticator extends BaseGitHubAuthenticator<string, User> {
     readonly clientId: string = process.env['GITHUB_CLIENT_ID'] ?? '';
     readonly clientAuthentication: OAuthClientAuthentication = {
         method: 'client_secret_post',
@@ -625,10 +656,9 @@ Install `@node-saml/node-saml`, and extend `BaseSamlAuthenticator` for a SAML 2.
 // src/auth/company-saml.authenticator.ts
 import { BaseSamlAuthenticator, SamlIdentityProvider } from 'zibri';
 
-import { Roles } from '../models/roles.enum';
 import { User } from '../models/user.model';
 
-export class CompanySamlAuthenticator extends BaseSamlAuthenticator<Roles, User> {
+export class CompanySamlAuthenticator extends BaseSamlAuthenticator<string, User> {
     readonly name: string = 'company-saml';
     readonly issuer: string = 'https://idp.example.com/saml';
     readonly entityId: string = 'https://app.example.com/saml';
@@ -648,10 +678,12 @@ Register it like any other provider, and add a `loggedOutUrl` to the [options](#
 | `requestedAuthnContext` | The classes of authentication the identity provider is asked for, such as one that stands for a second factor. None by default, which leaves how the user logs in to the provider, see [accepting the provider's second factor](./two-factor.md#accepting-the-providers-second-factor) |
 | `signingKey` | The key requests, and logout answers that are posted or sent in a SOAP envelope, are signed with, for a provider that asks for signed messages. None by default |
 | `decryptionKey` | The key assertions are encrypted to, for a provider that encrypts them. None by default |
+| `acceptedClockSkewInMs` | How far the identity provider's clock may differ from your application's when an answer's times are checked. One minute by default |
+| `metadataMaxAgeInMs` | How long the identity provider's metadata is kept before it is read again. One day by default |
 | `resolveProfile` | Reads the email and names out of the attributes the provider sends. Override it for a provider that names them differently |
 | `resolveLoginUser` | Answers the user a later login logs in as, from the attributes of the assertion and its NameID, see [later logins](#later-logins) |
 
-The metadata is read on the first login and again once a day, so a certificate the provider rotates is picked up. With certificates given by hand, list the next one next to the current one before the provider rotates it. A key is a PEM encoded private key and its certificate:
+The metadata is read on the first login and again once `metadataMaxAgeInMs` passed, so a certificate the provider rotates is picked up. With certificates given by hand, list the next one next to the current one before the provider rotates it. A key is a PEM encoded private key and its certificate:
 
 ```ts
 // src/auth/partner-saml.authenticator.ts
@@ -659,10 +691,9 @@ import { readFileSync } from 'node:fs';
 
 import { BaseSamlAuthenticator, SamlIdentityProvider, SamlKeyPair } from 'zibri';
 
-import { Roles } from '../models/roles.enum';
 import { User } from '../models/user.model';
 
-export class PartnerSamlAuthenticator extends BaseSamlAuthenticator<Roles, User> {
+export class PartnerSamlAuthenticator extends BaseSamlAuthenticator<string, User> {
     readonly name: string = 'partner-saml';
     readonly issuer: string = 'https://sso.partner.example.com';
     readonly entityId: string = 'https://app.example.com/saml';

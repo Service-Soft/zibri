@@ -36,14 +36,14 @@ const neededFor: string = 'Tracing';
  *
  * Sending them somewhere is one provider: whatever `ZIBRI_DI_TOKENS.TRACE_EXPORTER` holds is handed
  * a batch of finished spans as they accumulate. Nothing is sent when it holds nothing, which is the
- * default - a framework that opened a connection to a collector nobody deployed would be spending a
- * request every few seconds on being ignored.
+ * default.
  *
- * Its packages are optional peers rather than dependencies, so that an application registering a
- * tracer of its own does not carry an SDK it never calls. This one needs them and says which by name
- * at startup rather than on the first request, because a missing package is a deployment that is
- * wrong rather than a request that is.
+ * It needs `@opentelemetry/api` and `@opentelemetry/sdk-trace-node`, which you install, and names a
+ * missing one at startup.
  */
+// Its packages are optional peers rather than dependencies, so that an application registering a
+// tracer of its own does not carry an SDK it never calls. Named at startup rather than on the first
+// request, because a missing package is a deployment that is wrong rather than a request that is.
 @Injectable({ register: 'onUse' })
 export class OpenTelemetryTracer implements TracerInterface, OnAppInit, OnAppShutdown {
     private readonly api: OpenTelemetryApi;

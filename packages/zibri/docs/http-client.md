@@ -8,17 +8,20 @@ The HTTP client sends requests to other APIs. It validates the response body and
 | `ZIBRI_DI_TOKENS.HTTP_CLIENT` | DI token | Injects `HttpClientInterface` |
 | `HttpClient` | class | The default `HttpClientInterface`. Replaceable through ZIBRI_DI_TOKENS.HTTP_CLIENT |
 | `UrlUtilities` | class | Checks a URL before calling it: `isLoopback`, `isPrivate` (https or loopback, so nobody can listen in) and `withoutQuery` |
-| `HttpOptions`, `HttpOptionsInput` | type, type | The options of one request: query, headers, timeout, attempts, the request body type and the expected response body and headers |
+| `HttpOptions`, `HttpOptionsInput` | type, type | The options of one request: query, headers, timeout, attempts, redirects, the request body type and the expected response body and headers |
+| `HttpOptionsWithoutResponseBodyInput` | type | The options of a `head` request, which has no response body |
+| `HttpClientRedirect` | type | What a request does when it is answered with a [redirect](#following-redirects) |
 | `HttpClientHeaderValue` | type | A value a request header can be sent with |
 | `HttpClientRequestBodyMimeType`, `HttpClientRequestBody` | type, type | The mime types a request body can be sent as, and the body each one takes, an `XmlString` for XML |
 | `HttpClientResponseBodyInput`, `JsonResponseBodyInput`, `XmlResponseBodyInput`, `FormDataResponseBodyInput`, `FormUrlEncodedResponseBodyInput`, `StreamResponseBodyInput` | type, type, type, type, type, type | The `responseBody` of a request: a model class, or the format with its model or shapes |
 | `HttpClientResponse` | type | Shape of a response, including validated body and headers |
 | `HttpClientResponseForBody` | type | The response a request returns for the `responseBody` it declares |
+| `HttpClientResult` | type | What a request resolves to: the response for the `responseBody` and the `responseHeaders` it declares |
 | `isHttpClientResponse` | function | Checks whether a value is an `HttpClientResponse` |
 | `HttpClientError`, `isHttpClientError` | error, function | Thrown when no response arrives or its body or a header fails to parse or validate, and a check for it |
 | `HttpClientErrorRequestData`, `HttpClientErrorResponseData`, `HttpClientErrorOptions` | type, type, type | The request and the response an `HttpClientError` carries, and what it is created with |
 | `HttpClientDispatcher` | type | What a request is sent over: a proxy, a CA bundle, a client certificate |
-| `ZIBRI_DI_TOKENS.HTTP_CLIENT_OPTIONS_INPUT` | DI token | Deployment-wide timeout, response size limit, dispatcher and circuit breaker |
+| `ZIBRI_DI_TOKENS.HTTP_CLIENT_OPTIONS_INPUT` | DI token | Deployment-wide timeout, response size limit, dispatcher, circuit breaker and redirects |
 | `HttpClientOptions`, `HttpClientOptionsInput` | type, type | The options every request is sent with, and the ones a deployment sets |
 | `HttpClientIdempotencyKey` | type | The [idempotency key](#idempotency-keys) a request is sent with |
 | `HttpClientCircuitBreakerOptions` | type | When requests to an [origin that keeps failing](#when-an-upstream-keeps-failing) stop being sent |
@@ -40,6 +43,8 @@ export async function listProjects(): Promise<HttpClientResponse> {
     return await http.get('https://partner.example.com/projects');
 }
 ```
+
+`post`, `put`, `patch`, `delete`, `head` and `options` send the other methods. A `head` response has headers and no body, so `head` takes `responseHeaders` and no `responseBody`.
 
 ## Setting request body, query and header params
 Pass the request body as the second argument of a method that takes one. `get` takes none. For a `post` to an endpoint that expects no body, pass `undefined`.
@@ -139,6 +144,33 @@ defineProvider({
 })
 ```
 
+## Following redirects
+A request answered with a redirect goes on to where the redirect leads, up to 20 redirects in a row. A redirect from https to http fails the request with an `HttpClientError` that carries the redirect's status and its `Location` header.
+
+Each redirect is sent as a request of its own. It counts toward the [circuit](#when-an-upstream-keeps-failing) of the origin it goes to, and one timeout covers all of them. A request that a redirect sends to another origin goes without its `Authorization`, `Proxy-Authorization` and `Cookie` headers. A `POST` answered with `301`, `302` or `303`, and any other method but `GET` and `HEAD` answered with `303`, goes on as a `GET` without its body.
+
+The `redirect` option sets what a request does:
+
+| Value | A redirect |
+|---|---|
+| `'follow'` | Is followed, unless it leads from https to http. The default |
+| `'same-origin'` | Is followed when it stays on the origin it came from |
+| `'error'` | Fails the request |
+
+Use `'error'` or `'same-origin'` for a URL your users give you, such as the target of a webhook, so the address you checked is the one the request goes to:
+
+```ts
+// src/services/webhook.service.ts
+import { HttpClientInterface, HttpClientResponse, inject, ZIBRI_DI_TOKENS } from 'zibri';
+
+export async function sendWebhook(targetUrl: string, payload: object): Promise<HttpClientResponse> {
+    const http: HttpClientInterface = inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
+    return await http.post(targetUrl, payload, { redirect: 'error' });
+}
+```
+
+`redirect` in `HTTP_CLIENT_OPTIONS_INPUT` sets it for every request, and a request's own `redirect` wins.
+
 ## How large a response may be
 
 A response body is read as it arrives and counted against a limit. An upstream that sends more is stopped at the limit, before the rest is downloaded. A body that declares a `Content-Length` over the limit is turned away before any of it is read.
@@ -233,6 +265,8 @@ export function createSdkFetch(): (url: string, init: RequestInit) => Promise<Re
 ```
 
 `fetchForLibrary` answers like `fetch`: a status that is not ok is a response, not an error, and nothing is validated or retried. Use `get`, `post` and the others for your own requests.
+
+A library's requests [follow redirects](#following-redirects) the way the application's `redirect` says. A library that asks for `redirect: 'manual'` gets the redirect itself as the response, and one that asks for `redirect: 'error'` gets an error for any.
 
 A library downloading something larger than `defaultMaxResponseSize` allows names its own limit for that request, as `FetchForLibraryOptions`:
 

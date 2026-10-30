@@ -1,6 +1,7 @@
 import { AlsUtilities } from '../../../context/als.utilities';
 import { CacheContext } from '../../../context/cache/cache.context';
 import { CachedValue } from '../../store/cached-value.model';
+import { CacheFill } from '../../store/fill-guarded.cache-store';
 import { BaseCache } from '../base-cache.model';
 import { CacheOperation } from '../cache-operation.enum';
 import { CacheKeyProvider, CacheWrapOptions } from '../cache-options.model';
@@ -62,36 +63,63 @@ export abstract class ReadThroughCache<
                     return value;
                 }
 
-                return this.runSingleFlight(key, async () => {
-                    const sourceStart: number = performance.now();
-                    const value: V = await fn(...args);
-                    const sourceDuration: number = performance.now() - sourceStart;
-                    cacheCtx.durationInMs = sourceDuration;
-                    this.metrics.sourceDuration.observe({ cache: this.name, operation: CacheOperation.WRAP }, sourceDuration);
-
+                const filled: K = key;
+                return this.runSingleFlight(filled, async () => {
+                    const fill: CacheFill = this.store.beginFill(filled);
                     try {
-                        const [tags, ttl] = await Promise.all([
-                            this.resolveResultTags(options?.tags, value, args),
-                            this.resolveResultTtl(options?.ttlInMs, value, args)
-                        ]);
-
-                        const storeStart: number = performance.now();
-                        await this.store.set(key, this.createCachedValue(value, tags, ttl));
-                        this.metrics.storeDuration.observe({ cache: this.name, operation: 'SET' }, performance.now() - storeStart);
-
-                        await this.updateSizeGauge();
+                        const sourceStart: number = performance.now();
+                        const value: V = await fn(...args);
+                        const sourceDuration: number = performance.now() - sourceStart;
+                        cacheCtx.durationInMs = sourceDuration;
+                        this.metrics.sourceDuration.observe({ cache: this.name, operation: CacheOperation.WRAP }, sourceDuration);
+                        await this.cacheFilledValue(filled, value, args, options, fill);
+                        return value;
                     }
-                    catch (error) {
-                        this.metrics.errors.increase({ cache: this.name, operation: 'SET' });
-                        this.logger.warn(
-                            'Cache store failed after successful source read, value was returned but not cached',
-                            { error }
-                        );
+                    finally {
+                        this.store.endFill(filled, fill);
                     }
-
-                    return value;
                 });
             });
         };
+    }
+
+    /**
+     * Caches the value a fill read from the source, unless a write overtook the fill: what it read
+     * is then what the write replaced.
+     * @param key - The key it filled.
+     * @param value - The value the source answered.
+     * @param args - The arguments of the call.
+     * @param options - The options of the wrap.
+     * @param fill - The fill.
+     */
+    private async cacheFilledValue<TArgs extends unknown[]>(
+        key: K,
+        value: V,
+        args: TArgs,
+        options: CacheWrapOptions<V, TArgs, CacheTag> | undefined,
+        fill: CacheFill
+    ): Promise<void> {
+        try {
+            const [tags, ttl] = await Promise.all([
+                this.resolveResultTags(options?.tags, value, args),
+                this.resolveResultTtl(options?.ttlInMs, value, args)
+            ]);
+            if (fill.stale) {
+                return;
+            }
+
+            const storeStart: number = performance.now();
+            await this.store.set(key, this.createCachedValue(value, tags, ttl));
+            this.metrics.storeDuration.observe({ cache: this.name, operation: 'SET' }, performance.now() - storeStart);
+
+            await this.updateSizeGauge();
+        }
+        catch (error) {
+            this.metrics.errors.increase({ cache: this.name, operation: 'SET' });
+            this.logger.warn(
+                'Cache store failed after successful source read, value was returned but not cached',
+                { error }
+            );
+        }
     }
 }

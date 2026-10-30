@@ -95,6 +95,12 @@ export interface EncryptionServiceInterface {
      */
     masterDecrypt: (encrypted: EncryptionString) => string | Promise<string>,
     /**
+     * Resolves the signing key of the given name: 32 random bytes, made the first time the name is
+     * asked for and kept as a `SigningKey` under the master key. A new master key keeps it, and
+     * `resolveRetiredKeyUsage` counts it towards the master key it is under.
+     */
+    resolveSigningKey: (name: string) => Promise<Buffer>,
+    /**
      * Retires a key, so that everything encrypted with it is rewritten under the current one.
      *
      * The rewriting is what `EncryptionRotationCronJob` does, in the background, a bounded number of

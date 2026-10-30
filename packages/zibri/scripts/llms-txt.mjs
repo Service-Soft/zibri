@@ -19,7 +19,8 @@ const SUMMARY = 'Zibri is an opinionated TypeScript backend framework based on e
 const FIRST_PAGES = ['getting-started.md', 'architecture.md', 'creating-endpoints.md'];
 
 function resolvePages(docsDir) {
-    const rest = readdirSync(docsDir).filter(name => name.endsWith('.md') && !FIRST_PAGES.includes(name)).sort();
+    const rest = readdirSync(docsDir).filter(name => name.endsWith('.md') && !FIRST_PAGES.includes(name))
+        .sort();
     return [...FIRST_PAGES, ...rest].map(name => ({
         name,
         url: `${PAGES_URL}/${name.replace(/\.md$/, '')}.html`,
@@ -33,13 +34,23 @@ function resolveDescription(content) {
     const lines = content.split('\n').slice(1);
     const start = lines.findIndex(line => line.trim() !== '');
     const end = lines.findIndex((line, index) => index > start && (line.trim() === '' || /^\s*([-|]|```)/.test(line)));
-    const intro = lines.slice(start, end === -1 ? undefined : end).join(' ').replaceAll(/\[([^\]]*)]\([^)]*\)/g, '$1');
+    const intro = lines.slice(start, end === -1 ? undefined : end).join(' ')
+        .replaceAll(/\[([^\]]*)]\([^)]*\)/g, '$1');
     const sentence = /^(.+?\.)(\s|$)/.exec(intro);
     return (sentence?.[1] ?? intro).trim().replace(/:$/, '.');
 }
 
 export function resolveLlmsTxt(docsDir) {
-    const lines = ['# Zibri', '', `> ${SUMMARY}`, '', `Every page below, whole, is in [llms-full.txt](${SITE_URL}/llms-full.txt).`, '', '## Docs', ''];
+    const lines = [
+        '# Zibri',
+        '',
+        `> ${SUMMARY}`,
+        '',
+        `Every page below, whole, is in [llms-full.txt](${SITE_URL}/llms-full.txt).`,
+        '',
+        '## Docs',
+        ''
+    ];
     for (const page of resolvePages(docsDir)) {
         const title = (page.content.split('\n')[0] ?? '').replace(/^# /, '');
         lines.push(`- [${title}](${page.url}): ${resolveDescription(page.content)}`);
@@ -48,7 +59,8 @@ export function resolveLlmsTxt(docsDir) {
 }
 
 export function resolveLlmsFullTxt(docsDir) {
-    return `${resolvePages(docsDir).map(page => `<!-- ${page.url} -->\n\n${page.content}`).join('\n\n---\n\n')}\n`;
+    return `${resolvePages(docsDir).map(page => `<!-- ${page.url} -->\n\n${page.content}`)
+        .join('\n\n---\n\n')}\n`;
 }
 
 function main() {

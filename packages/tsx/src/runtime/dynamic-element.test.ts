@@ -33,6 +33,13 @@ describe('dynamic tag names', () => {
             .toBe('<p>&lt;script&gt;x&lt;/script&gt;</p>');
     });
 
+    it('refuses a tag name that is not one', () => {
+        const source: string = 'const Heading = ({ tag, children }) => { const TagName = tag; '
+            + 'return <TagName>{children}</TagName>; };';
+        expect(() => renderComponent(source, { tag: 'img src=x onerror=alert(1)', children: 'T' }))
+            .toThrow('"img src=x onerror=alert(1)" is not the name of an element.');
+    });
+
     it('drops undefined and false attributes', () => {
         const source: string = 'const El = ({ tag, id, hidden }) => { const TagName = tag; '
             + 'return <TagName id={id} hidden={hidden}></TagName>; };';

@@ -1,4 +1,4 @@
-import { TableColumn } from 'typeorm';
+import { PostgresColumn } from './postgres-table.model';
 
 /**
  * What a column is written as in a statement.
@@ -11,7 +11,7 @@ export type PostgresColumnSql = {
     /**
      * The column as postgres stores it, for what a value is compared with.
      */
-    stored: TableColumn,
+    stored: Pick<PostgresColumn, 'type' | 'isArray' | 'nullable'>,
     /**
      * Its full type, length and array included.
      */

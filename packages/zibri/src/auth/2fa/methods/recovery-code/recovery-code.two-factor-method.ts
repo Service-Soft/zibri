@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
+import { RecoveryCodeOptions } from './recovery-code-options.model';
 import { TwoFactorRecoveryCode, TwoFactorRecoveryCodeCreateData } from './two-factor-recovery-code.model';
 import { ZibriApplication } from '../../../../application/application';
 import { HttpRequestContext } from '../../../../context/request/http-request.context';
@@ -12,6 +13,8 @@ import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default'
 import { inject } from '../../../../di/inject.function';
 import { Property } from '../../../../entity/decorators/property.decorator';
 import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error';
+import { InternalError } from '../../../../error-handling/internal-error.model';
+import { findHeader } from '../../../../http/find-header.function';
 import { $ts } from '../../../../localization/translate.function';
 import { Newable } from '../../../../types/newable.type';
 import { validateEntitiesRegistered } from '../../../../utilities/validate-entities-registered.function';
@@ -25,14 +28,15 @@ import { base32Encode } from '../otp/base32-encode.function';
 import { TwoFactorMethod } from '../two-factor-method.interface';
 
 /**
- * How many codes a set holds.
+ * How many codes a set holds, unless `RECOVERY_CODE_OPTIONS` says.
  */
-const RECOVERY_CODE_COUNT: number = 10;
+const DEFAULT_RECOVERY_CODE_COUNT: number = 10;
 
 /**
- * How many characters a code has, without the dash it is shown with. 50 bits of base32.
+ * How many characters a code has, without the dash it is shown with, unless `RECOVERY_CODE_OPTIONS`
+ * says, and the fewest it may say: 50 bits of base32.
  */
-const RECOVERY_CODE_LENGTH: number = 10;
+const MIN_RECOVERY_CODE_LENGTH: number = 10;
 
 /**
  * The data for confirming the registration of recovery codes: one code of the set, which proves the
@@ -98,6 +102,17 @@ export class RecoveryCodeTwoFactorMethod implements TwoFactorMethod<void, Recove
     // eslint-disable-next-line jsdoc/require-jsdoc
     init(app: ZibriApplication): void {
         validateEntitiesRegistered(RecoveryCodeTwoFactorMethod.name, app, TwoFactorRecoveryCode);
+        const { count, length } = this.resolveOptions();
+        if (!Number.isInteger(count) || count < 1) {
+            throw new InternalError(`ZIBRI_DI_TOKENS.RECOVERY_CODE_OPTIONS.count must be a whole number of at least 1, got ${count}.`);
+        }
+        // fewer characters would make each code a guess worth trying, at a factor that lifts a lock
+        if (!Number.isInteger(length) || length < MIN_RECOVERY_CODE_LENGTH) {
+            throw new InternalError(
+                `ZIBRI_DI_TOKENS.RECOVERY_CODE_OPTIONS.length must be a whole number of at least ${MIN_RECOVERY_CODE_LENGTH},`
+                + ` got ${length}.`
+            );
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -107,9 +122,11 @@ export class RecoveryCodeTwoFactorMethod implements TwoFactorMethod<void, Recove
         // a set that was never confirmed is given up on, while the confirmed one keeps working until
         // the new one is confirmed in its place
         await this.recoveryCodeRepository.deleteAll({ userId: user.id, confirmed: false });
-        const codes: string[] = Array.from({ length: RECOVERY_CODE_COUNT }, () => this.generateCode());
+        const { count, length } = this.resolveOptions();
+        const codes: string[] = Array.from({ length: count }, () => this.generateCode(length));
         await this.recoveryCodeRepository.createAll(codes.map(code => ({ userId: user.id, code })));
-        return { codes: codes.map(c => `${c.slice(0, RECOVERY_CODE_LENGTH / 2)}-${c.slice(RECOVERY_CODE_LENGTH / 2)}`) };
+        const half: number = Math.ceil(length / 2);
+        return { codes: codes.map(c => `${c.slice(0, half)}-${c.slice(half)}`) };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -158,7 +175,7 @@ export class RecoveryCodeTwoFactorMethod implements TwoFactorMethod<void, Recove
         user: UserType,
         context: HttpRequestContext | WebsocketRequestContext
     ): Promise<void> {
-        const presented: string | undefined = context.request.headers?.[this.recoveryCodeHeader];
+        const presented: string | undefined = findHeader(context.request.headers, this.recoveryCodeHeader);
         if (!presented) {
             throw new UnauthorizedError($ts`"${this.recoveryCodeHeader}" header not found`);
         }
@@ -184,7 +201,22 @@ export class RecoveryCodeTwoFactorMethod implements TwoFactorMethod<void, Recove
         return await this.hashService.hash(code.replaceAll(/[\s-]/g, '').toUpperCase(), { strategy: Sha256HashStrategy });
     }
 
-    private generateCode(): string {
-        return base32Encode(randomBytes(8)).slice(0, RECOVERY_CODE_LENGTH);
+    /**
+     * Generates a code.
+     * @param length - How many characters it has.
+     * @returns The code, in base32.
+     */
+    private generateCode(length: number): string {
+        // five bits a character, so as many bytes as hold that many bits
+        return base32Encode(randomBytes(Math.ceil((length * 5) / 8))).slice(0, length);
+    }
+
+    /**
+     * Resolves how many codes a set holds, and how long each is.
+     * @returns The options, the defaults filled in.
+     */
+    private resolveOptions(): Required<RecoveryCodeOptions> {
+        const options: RecoveryCodeOptions = inject(ZIBRI_DI_TOKENS.RECOVERY_CODE_OPTIONS);
+        return { count: options.count ?? DEFAULT_RECOVERY_CODE_COUNT, length: options.length ?? MIN_RECOVERY_CODE_LENGTH };
     }
 }

@@ -42,6 +42,7 @@ describe('BaseFsBackupTransport', () => {
     let server: StartedTestServer;
 
     beforeAll(async () => {
+        await FsUtilities.rm(backupsPath);
         server = await startTestServer({ dataSources: [BackedUpDataSource] });
     }, TestTimeouts.inMemory.start);
 

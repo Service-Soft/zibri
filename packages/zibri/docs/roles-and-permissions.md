@@ -8,6 +8,7 @@ A route asks for a permission, and a role carries permissions. You declare every
 | `DefinedPermissions`, `DefinedPlatformPermissions` | type | What the two functions above answer: every permission, by its name in upper case |
 | `PermissionKey` | type | The name a permission has in that object: upper case, with every `.` and `-` turned into `_`, such as `INVOICES_READ` for `invoices.read` |
 | `Permission`, `PlatformPermission` | type | A tenant and a platform permission, as only the two functions above make them |
+| `PermissionWildcard` | type | Permissions a role carries by a pattern: `'*'` for every permission of its level, `'invoices.*'` for every one below `invoices`, see [roles](#roles) |
 | `PermissionDeclaration` | type | Every permission of your application, as `ZIBRI_DI_TOKENS.PERMISSIONS` takes them |
 | `ZIBRI_DI_TOKENS.PERMISSIONS` | DI token | Provide your declaration |
 | `ZIBRI_PERMISSIONS`, `ZIBRI_PLATFORM_PERMISSIONS` | constant | The permissions Zibri checks itself, for managing roles, to spread into yours |
@@ -45,7 +46,7 @@ export const permissions: PermissionDeclaration = {
 };
 ```
 
-Each permission is named by its value in upper case, with every `.` and `-` turned into `_`: `Permissions.INVOICES_READ` is `'invoices.read'`. A permission is declared at one level, and once.
+Each permission is named by its value in upper case, with every `.` and `-` turned into `_`: `Permissions.INVOICES_READ` is `'invoices.read'`. A permission is declared at one level, and once, and its name holds no `*`.
 
 Provide the declaration to your application:
 
@@ -88,6 +89,8 @@ export class RoleRepository extends BaseRoleRepository<Role>() {}
 
 Declare `Role` in the data source your users live in, next to `CacheInvalidation`. A role repository is required in an application with users, and an application has one. `BaseRoleEntity` and `BaseRoleRepository` mark their classes with `ROLE_ENTITY` and `ROLE_REPOSITORY`, which a role entity or repository of your own declares itself, the way [a user entity](./auth.md#creating-and-registering-user-models) does. A role's `name` is what users and memberships hold, unique across both levels. A tenant role carries tenant permissions, a platform role platform permissions. A role standing above another carries the other's permissions as well.
 
+A role names its permissions one by one, or by a wildcard: `'*'` carries every permission of the role's level, and `'invoices.*'` every one whose name starts with `invoices.`, such as `invoices.read` and `invoices.export`. A wildcard carries what your code declares at the time, so a release declaring `invoices.void` gives it to every role carrying `'invoices.*'` or `'*'` without changing their rows. A wildcard that matches no declared permission is refused like a permission that is not declared.
+
 A role's `tenantId` is the tenant whose own role it is, and `null` for a role every tenant shares, which every platform role is. The role entity holds its tenant like any [entity of a tenant](./tenancy.md#declaring-the-tenant-of-an-entity) whose tenant is optional: outside every tenant its repository reads and writes the roles every tenant shares, inside a tenant it reads those and the tenant's own, and writes the tenant's own.
 
 Users and memberships hold the names of roles, so type their entities without a role type of their own:
@@ -115,16 +118,17 @@ Seed the roles your application starts with through the repository, like the res
 import { inject, RoleCreateData } from 'zibri';
 
 import { MemberRoles } from './models/member-roles.enum';
-import { Permissions, PlatformPermissions } from './models/permissions';
+import { Permissions } from './models/permissions';
 import { Role } from './models/role.model';
 import { Roles } from './models/roles.enum';
 import { RoleRepository } from './repositories/role.repository';
 
 const defaultRoles: RoleCreateData<Role>[] = [
     { name: Roles.USER, level: 'platform', permissions: [], description: 'Everybody with an account' },
-    { name: Roles.ADMIN, level: 'platform', permissions: Object.values(PlatformPermissions), description: 'Administers the application' },
+    { name: Roles.ADMIN, level: 'platform', permissions: ['*'], description: 'Administers the application' },
     { name: MemberRoles.USER, level: 'tenant', permissions: [Permissions.INVOICES_READ], description: 'Everybody in a tenant' },
-    { name: MemberRoles.ADMIN, level: 'tenant', permissions: Object.values(Permissions), description: 'Administers a tenant' }
+    { name: MemberRoles.ACCOUNTANT, level: 'tenant', permissions: ['invoices.*'], description: 'Handles the invoices of a tenant' },
+    { name: MemberRoles.ADMIN, level: 'tenant', permissions: ['*'], description: 'Administers a tenant' }
 ];
 
 export async function createDefaultRoles(): Promise<void> {
@@ -196,7 +200,9 @@ The `RoleService` creates, changes and deletes roles, and gives them to users an
 | `assignRole`, `unassignRole` of a platform role | `auth.assign_platform_role`, `auth.unassign_platform_role`, as a platform permission |
 | `assignRole`, `unassignRole` of a tenant role | `auth.assign_role`, `auth.unassign_role`, as a tenant permission in the tenant the request acts in |
 
-Each of them comes as `.with_any_permission`, for any role, and `.with_own_permissions`, for a role whose every permission the caller holds at its level. `updateRole` checks the role as it is and as it becomes. A caller who may not is answered `403`, recorded as `missing-permission`.
+Each of them comes as `.with_any_permission`, for any role, and `.with_own_permissions`, for a role whose every permission the caller holds at its level. A role carrying a wildcard needs `.with_any_permission`, since it carries what a later release declares as well.
+
+Roles given to and taken from one user at the same time, by several requests or instances, are all kept: each change waits for the one before it, until that one's transaction has ended. Several changes in one transaction each see the one before. `updateRole` checks the role as it is and as it becomes. A caller who may not is answered `403`, recorded as `missing-permission`.
 
 ```ts
 // src/controllers/role.controller.ts

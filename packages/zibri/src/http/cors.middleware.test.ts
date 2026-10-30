@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { createInMemoryDataSource } from 'zibri-testing';
 
 import { CorsOrigin, corsMiddleware } from './cors.middleware';
 import { KnownHeader } from './known-header.enum';
 import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
@@ -35,15 +37,17 @@ let baseUrl: string = '';
 beforeAll(async () => {
     server = await startTestServer({
         controllers: [CorsTestController],
+        // headers alone are asserted, so no store has to be running
+        dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })],
         security: { cors: { origins: [allowedOrigin], credentials: true } }
     });
     baseUrl = await server.start();
-}, TestTimeouts.postgres.start);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await server?.shutdown();
-}, TestTimeouts.postgres.shutdown);
+}, TestTimeouts.inMemory.shutdown);
 
 describe('corsMiddleware', () => {
 
@@ -100,6 +104,19 @@ describe('corsMiddleware', () => {
         });
 
         expect(res.headers.get(KnownHeader.VARY)?.toLowerCase()).toContain('origin');
+    });
+
+    // part of evaluation round 2, 03 §H10: without it a browser keeps a preflight for five seconds, and
+    // every call the framework's clients make needs one
+    it('lets a browser keep the answer to a preflight for two hours', async () => {
+        const res: Response = await fetch(`${baseUrl}/cors-test`, {
+            method: 'OPTIONS',
+            headers: { [KnownHeader.ORIGIN]: allowedOrigin, [KnownHeader.ACCESS_CONTROL_REQUEST_METHOD]: 'GET' }
+        });
+
+        expect(res.headers.get(KnownHeader.ACCESS_CONTROL_MAX_AGE)).toBe('7200');
+        // a response that is no preflight has nothing to keep
+        expect((await fetch(`${baseUrl}/cors-test`, { headers: { [KnownHeader.ORIGIN]: allowedOrigin } })).headers.get(KnownHeader.ACCESS_CONTROL_MAX_AGE)).toBeNull();
     });
 
     it('lets an OPTIONS request that is not a preflight reach the router', async () => {

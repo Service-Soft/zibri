@@ -18,6 +18,7 @@ Every error a request throws reaches one global error handler. It answers with J
 | `UnauthorizedError` | error | 401, the caller didn't say who it is, or the credential it sent isn't good |
 | `ForbiddenError` | error | 403, the caller is known and still isn't allowed to do this |
 | `CredentialReusedError` | error | A 401 that reads as `UnauthorizedError` on the wire, but tells the [audit trail](./audit.md) a spent credential came back |
+| `CsrfTokenRefusedError` | error | A 403 for a request that changes something with a valid cookie session and without its [CSRF token](./auth.md#sending-the-csrf-token), on a route that needs a login |
 | `CredentialClonedError` | error | A 401 that reads as `UnauthorizedError` on the wire, but tells the audit trail a credential came from a copy of its device, such as a [passkey](./glossary.md#passkey) whose signature counter went backwards |
 | `PasswordLockedError` | error | A 401 that reads as a wrong password on the wire, but tells the audit trail the right password came for an account locked after too many wrong ones |
 | `AccountDeactivatedError` | error | 403, a [deactivated user](./auth.md#deactivating-a-user) tried to log in |
@@ -254,7 +255,7 @@ Static helpers for classifying and converting errors:
 | Token | Type | Default |
 |---|---|---|
 | `ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER` | `GlobalErrorHandler` | the built-in handler described above |
-| `ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE` | `ErrorPageTemplate \| undefined` | `undefined` (HTML clients get JSON with a logged warning) |
+| `ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE` | `ErrorPageTemplate \| undefined` | `undefined` (HTML clients get JSON, and the application warns once when it starts) |
 
 Both are overridden the same way as any other injectable, see [dependency injection](./di.md#configuration).
 

@@ -10,6 +10,7 @@ import { Roles } from '../../__testing__/mocks/entities/roles.enum';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
+import { waitUntil } from '../../__testing__/wait-until.function';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { Repository } from '../../data-source/repository/repository';
 import { RepositoryClass } from '../../data-source/repository/repository-class.type';
@@ -104,6 +105,10 @@ describe('AuthController / CookieAuthStrategy — real HTTP flow', () => {
      * @returns The token from the most recently queued password reset email.
      */
     async function resetTokenFromEmail(): Promise<string> {
+        // the request is answered before the link is made, so the mail and the row follow it. The row
+        // too, since it is committed after the mail is queued
+        await waitUntil(async () => (await emailRepo.findAll({ where: { recipients: { includes: [email] } } })).length > 0
+            && (await resetTokenRepo.findAll({})).length > 0);
         const emails: Email[] = await emailRepo.findAll({ where: { recipients: { includes: [email] } } });
         const link: RegExpExecArray | null = /confirm-password-reset\/([\da-f]+)/.exec(emails.at(-1)?.html ?? '');
         if (!link?.[1]) {
@@ -539,13 +544,13 @@ describe('AuthController / CookieAuthStrategy — real HTTP flow', () => {
             });
             expect(requestRes.status).toBe(204);
 
-            const user: JwtUser = await userRepo.findOne({ where: { email } });
-            const tokens: PasswordResetToken[] = await resetTokenRepo.findAll({ where: { userId: user.id } });
-            expect(tokens).toHaveLength(1);
-
             // from the mail rather than from the row: the stored value is a hash, so this is the only
             // place the token exists
             const resetToken: string = await resetTokenFromEmail();
+
+            const user: JwtUser = await userRepo.findOne({ where: { email } });
+            const tokens: PasswordResetToken[] = await resetTokenRepo.findAll({ where: { userId: user.id } });
+            expect(tokens).toHaveLength(1);
 
             const verifyRes: Response = await fetch(`${baseUrl}/auth/verify-password-reset-token`, {
                 method: 'POST',
@@ -641,6 +646,7 @@ describe('AuthController / CookieAuthStrategy — real HTTP flow', () => {
             // this used to answer 429, which named an address that exists and had recently been
             // asked about. One live token is still the rule; refusing is now silent.
             expect(secondRes.status).toBe(204);
+            await resetTokenFromEmail();
             expect(await resetTokenRepo.findAll({})).toHaveLength(1);
         });
 

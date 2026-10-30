@@ -40,10 +40,10 @@ export async function resolveEntityScope<T extends BaseEntity>(
     // shares the single lookup those already did. Undefined outside a request entirely, which the
     // scope is told about rather than being refused on its behalf
     const currentUser: CurrentUser | undefined = context
-        ? await authService.getCurrentUser(context, authService.strategies, false)
+        ? await authService.resolveCurrentUser(context, authService.strategies, false)
         : undefined;
     const currentMembership: CurrentMembership | undefined = context
-        ? await authService.getCurrentMembership(context, authService.strategies, false)
+        ? await authService.resolveCurrentMembership(context, authService.strategies, false)
         : undefined;
     const tenantService: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
 

@@ -11,7 +11,7 @@ import { HashContent, HashString, HashUtilities } from '../hash.utilities';
  *
  * `n` is the work factor and dominates both time and memory: a derivation needs roughly
  * `128 * n * r` bytes, so n=2^17 with r=8 is about 128MB **per concurrent hash**. That is the number
- * to think about when sizing a host, and the reason this is configurable rather than a constant.
+ * to think about when sizing a host.
  */
 export type ScryptCost = {
     /**

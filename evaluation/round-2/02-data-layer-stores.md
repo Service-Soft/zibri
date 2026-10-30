@@ -170,6 +170,16 @@ asked for. Today it warns about the trigram threshold only.
 > `StartedTestServer.runAsSuperuser` injected the data source, which a `reInit` that failed leaves
 > nothing to inject from, so a test could not undo what made it fail; it keeps the data sources it
 > booted with now.
+>
+> **Reopened and fixed 2026-10-28**, from the heavy run after 09 §Q2. The listening session behind a
+> transaction pooler was opened once and kept for good: listening again after it failed took the same ended
+> session, and once nobody listened any more its failure was an `error` event nothing handled, which crashes
+> the process. It is opened per listening connection now and ended with it, and every session of its own
+> (`openSession`) logs such a failure the way the pool does. The timeout case raced the call's own clock,
+> which starts before the statement and cancels it, against the equal `statement_timeout`; it is two cases
+> now: the limit reaches the statement (`SHOW statement_timeout` under the limit), and a waiting statement
+> stops within it whichever fires. Tests: a reconnect case in the pooler suite (red: the run crashed on the
+> unhandled event) and the same case in `postgres-pub-sub.test.ts` for a direct connection (a guard).
 
 ### S4. Unique and mistyped-value detection parse the server's English messages — MAJOR
 *Filed 2026-10-21.*
@@ -473,6 +483,17 @@ prefix. Namespacing the lock under `keyPrefix` is one line.
 **Verify:** two `ValKeyDataSource` classes with different `keyPrefix` against one container, one holding the
 schema lock in a slow migration; the other's boot fails with "another instance is still holding it".
 
+> **Closed 2026-10-27.** Postgres had the same defect: an advisory lock is one per database, so two applications
+> in schemas of their own on one database serialized their boots the same way. The valkey schema lock is now
+> taken under the data source's `keyPrefix`, and the postgres one is keyed by `current_schema()` in the same
+> statement, which is the schema the tables are created in (the data source never creates it, so it does not
+> change during the setup). `data-source.md` already said `keyPrefix` separates applications sharing a server.
+> No mixed-version concern: 2.x took no schema lock, and 3.0 is unreleased. Tests:
+> `val-key-schema-lock.test.ts` (a second data source on the same server with another prefix holds the lock;
+> `reInit` must finish within the restart timeout) and a case in `postgres-schema-lock.test.ts` (the same with
+> another schema of the same database). The existing case there now takes the lock through a data source rather
+> than by its raw key; helper `__testing__/hold-until-let-go.function.ts`. **Not run here (containers).**
+
 ### S13. A migration's transaction idles out after ten seconds, and a migration cannot say otherwise — MINOR
 *Filed 2026-10-21.*
 
@@ -483,6 +504,15 @@ killed with postgres' own "terminating connection due to idle-in-transaction tim
 migration (`:29`) does not reach it. `data-source.md:1450-1453` says migrations "take as long as they need".
 
 **Verify:** `startTestServer` on postgres with a migration that awaits a 12 s timer between two writes; boot fails.
+
+> **Closed 2026-10-27.** `runUp` and `runDown` start their transaction with `idleTimeoutInMs: 0`: the idle limit
+> is for a transaction nobody ends, both directions end theirs on every path, and the migration's own limit is
+> what bounds it, as `data-source.md` already says. Found on the way: postgres sent no
+> `SET LOCAL idle_in_transaction_session_timeout` for 0, so a limit the operator set on the role or the database
+> still applied, against what `StartTransactionOptions.idleTimeoutInMs` documents; it now sets 0 as well. Tests:
+> `migration-idle.test.ts` (in memory, a migration waiting 10.5 s between two writes; red first with "left
+> open for 10000ms", green after) and `postgres-idle-transaction.test.ts` (the database sets 1 s, a transaction
+> with 0 sleeps 2 s and commits; **not run here**).
 
 ### S14. Migrations: no checksum of applied ones, no generator, no operator entry point, and a missing table is found by accident — MINOR
 *Filed 2026-10-21.*
@@ -499,6 +529,44 @@ keys and no string property is not caught at all (no `hasTable` check in `init`,
 **Verify:** `startTestServer` under `'migrations'` with an entity no migration creates; assert the boot error
 names the entity. It names an index.
 
+> **Closed 2026-10-27**, designed with the user over several rounds. Going back works the way Liquibase and Rails
+> do it: `down()` runs with the build that carries the migration, then the older commit is deployed. Every
+> design where the older build reverts what it does not carry was dropped (a recorded way back is too narrow
+> for what a `down` does; compiled migrations kept outside git import what the older commit lacks), and with
+> it the compatibility mark and the checksums. Boot still applies `up` under the schema lock, so there is no
+> `migrate up`.
+> - **Missing table:** `PostgresSchemaManager.validateTablesExist` under `'migrations'` names the entity (entity
+>   tables only, join tables are reconciled).
+> - **Ahead within one release:** `findAhead` counts a migration this build does not carry that ran after the
+>   newest one it carries; the version alone could not tell two commits of one release apart. The refusal
+>   names the exact command, `migrate down <newest carried>` or `migrate down --all` when none ran. Found on
+>   the way: two records within one millisecond had no order, `Migration.resolveRanAt` (red first,
+>   `migration-same-millisecond.test.ts`).
+> - **Operator entry point:** `app.runCommand(process.argv.slice(2))` runs `migrate list`, `migrate down
+>   <version | migration name | --all>`, with `GlobalRegistry.markAppAsRunningCommand` so no schema is set up
+>   for them. Scaffold and sandbox wire it, with `migrate:list`/`migrate:down` scripts; `MigrationRevertTarget`.
+> - **Generator:** `zi migrate create [name] [--empty]` and `zi migrate baseline` in the CLI; the diff and the
+>   code are written by the project's own build (`EntitySnapshotUtilities`, `MigrationGeneratorUtilities`,
+>   hidden `migrate generate` command), so they match the helpers of the zibri version it runs. Generated
+>   migrations import no entity: every helper takes `{ tableName }` (`MigrationTableReference`). New helpers
+>   `removeEntity`, `removeRelationFromEntity`; Postgres reconciles foreign keys, one-to-one uniques and join
+>   tables under `'migrations'` like the keys.
+> - Dropped at the user's decision: the line counts of `data-layer-footprint.test.ts` (09 §Q2), which the
+>   generator took past them.
+> - A commit that only changed indexes, uniques or checks was not refused by an earlier commit of the same
+>   version: the reconciliation record carries the version only, and the earlier commit took the unique away
+>   from the newer instances. A record cannot say which commit is newer (a hash of the keys has no direction),
+>   only the migrations list can: the snapshot holds each entity's keys (`SnapshotKeys`, from `keyGroupsOf`
+>   and the checks), and a key change gets a migration that calls nothing (red first, two cases in
+>   `migration-generator.test.ts`, one booting the earlier commit). Keys changed with no migration, outside
+>   the generator, still have the gap; `data-source.md` says the generator writes one.
+>
+> Tests (in memory): `migration-command.test.ts`, `migration-revert.test.ts`, `migration-ahead.test.ts`,
+> `migration-same-millisecond.test.ts`, `migration-generator.test.ts`, `migrated-relations.test.ts`, new cases
+> in `migration-helpers.cases.ts` and `moved-entities.cases.ts`; CLI `migrate.command.test.ts`. Container
+> variants `migration-generator`, `migrated-relations`, `migration-helpers`, `moved-entities`
+> `.postgres-valkey.test.ts`: **not run here**.
+
 ### S15. A backup's name is a path segment on every transport and is not validated — MINOR
 *Filed 2026-10-21.*
 
@@ -510,6 +578,15 @@ reads directory names back as backups. A name is a date by default; validate it 
 
 **Verify:** unit test on `BaseFsBackupTransport.storeMetadata` with `name: '../escaped'`; the file lands above
 `backupBasePath`.
+
+> **Closed 2026-10-27.** `queueBackup` refuses a name that is empty, `.` or `..`, or holds `/`, `\` or a NUL
+> with a `BadRequestError`, so an endpoint passing a user's name on answers 400. The sync leaves out, with a
+> warning, a record a transport holds whose name fails the same check: a restore and a delete take the name from
+> the record, so a planted one reached outside the folder the same way. Checked in the service rather than in each
+> transport, since every name a transport is handed comes from one of those two places (an s3 listing can yield
+> `..` as a name, but what it reads under it is a record, which the sync then checks). `backup.md` says what a
+> name may hold. Tests: two cases in `backup-service.resource-name.test.ts` (in memory, fs transport; red first:
+> the promise resolved for `../escaped`, and the planted record was synced).
 
 ### S16. A failed backup stays on the transports and in the table; there is no retention and no schedule — MINOR
 *From the user's list. Filed 2026-10-21.*
@@ -524,6 +601,23 @@ does, and offer a `keep` policy on `@Backup` or on the service.
 **Verify:** `startTestServer` with two fs transports, one pointing at an unwritable path; `createBackup` throws,
 and the other transport still holds the resource.
 
+> **Closed 2026-10-27**, the three parts decided by the user. Since the entry was filed, backups became queued per
+> resource; a resource that spends its attempts fails the backup, whose record was never written to the
+> transports, but what its resources stored stayed there.
+> - **Failed backup:** `removeStoredData` deletes every resource from every transport (the failing one's partial
+>   upload included) when the backup fails, and again when a resource stored on another instance finishes after
+>   that (`completeBackupIfStored` on a `FAILED` backup). The `FAILED` row stays with each resource's `error`
+>   until `delete`. Every transport already treated deleting missing data as done. Test:
+>   `backup-service.failed.test.ts` (in memory, two fs transports, one going away halfway; red first).
+> - **Retention:** opt-in `ZIBRI_DI_TOKENS.BACKUP_RETENTION: BackupRetention` in the shape of a borgmatic policy
+>   (`withinInMs`, `last`, `hourly`, `daily`, `weekly`, `monthly`, `quarterly`, `yearly`, a required `timeZone`),
+>   with `borg prune`'s rules: in that order, a period whose newest backup an earlier rule kept is used up, ISO
+>   weeks, the oldest kept while a rule is short of periods. Applied after each completion under the lease
+>   `backup:retention`, through `delete`, failures logged per backup. `BackupRetentionUtilities` (pure, unit
+>   tested in `backup-retention.utilities.test.ts`, including time zones and a week across the turn of a year),
+>   `backup-service.retention.test.ts` end to end. Validated at boot.
+> - **Schedule:** not shipped; `backup.md` "Taking backups on a schedule" shows a cron job of one's own.
+
 ### S17. `RestoreNotUndoneError` cannot be made impossible; what can be is narrower — MINOR
 *From the user's list. Filed 2026-10-21.*
 
@@ -537,6 +631,19 @@ archive through the same `--single-transaction` path so the only remaining failu
 
 **Verify:** none beyond the existing `backup-service.several-resources.test.ts`; this is an analysis entry.
 
+> **Closed 2026-10-27.** The second half already held after the typeorm replacement: a put-back goes through the
+> same `restoreBackup` as the archive, one `psql --single-transaction` on postgres. The first half was open, and
+> worse than the entry said: a snapshot put back at the next start was applied as found, and nothing was flushed
+> to the disk, so a machine going down (not only the process) could leave it short; a dump cut at a statement
+> boundary commits as a smaller one. Now the snapshot's digest from `stage` goes into the journal entry
+> (`RestoreJournalEntry.snapshotDigest`), `putBackFrom` checks it before either put-back (in process and at the
+> next start, `resolveStagedDigest`), and the snapshot and the journal are fsynced (`FsUtilities.sync`) before the
+> journal names them. A snapshot that differs is not put back and is named, like one whose put-back failed.
+> `backup.md` says so. Found on the way: `deployment.md` recommended an `emptyDir`/tmpfs `.zibri`, which loses a
+> killed restore's snapshots with the container; it now carries a WARNING. Test: a case in
+> `backup-service.shutdown.test.ts` (in memory; red first: the short snapshot was put back as `curr`). The fsync
+> has no test: nothing in a test takes a machine down.
+
 ### S18. The staging folder is a third path the application writes, and `deployment.md` lists two — MINOR
 *Filed 2026-10-21.*
 
@@ -546,6 +653,9 @@ largest backup in disk; `deployment.md:115-123` says the application writes `ver
 backup with `EROFS`.
 
 **Verify:** documentation; or boot with `BACKUP_TEMP_FOLDER` on a read-only mount and run `createBackup`.
+
+> **Closed 2026-10-27, already fixed.** `deployment.md` "What the application writes" lists `.zibri/backups` as
+> the third path and mounts `.zibri` writable under a read-only root. What that mount left out is in §S17.
 
 ### S19. Starting a postgres transaction costs three to four statements before any work — MINOR
 *Filed 2026-10-21; the round-trip count per paginated page is round-2 01 §D4, this is the store-side half.*
@@ -566,6 +676,11 @@ typeorm's two statements.
 **Verify:** `RoundTripCounter.describe()` around a `startTransaction({ isolationLevel: REPEATABLE_READ })` plus
 one `findAll` inside a request; four statements precede the read.
 
+> **Closed 2026-10-27, fixed by the typeorm replacement (09 §Q2).** `PostgresDataSource.startTransaction` sends
+> `BEGIN ISOLATION LEVEL …; SET LOCAL idle_in_transaction_session_timeout …; SET LOCAL statement_timeout …` as
+> one round trip. Nothing held it: `postgres-transaction.costs.test.ts` counts the round trips of a repeatable
+> read transaction under an operation limit, with one `findAll` (begin, read, rollback). **Not run here (postgres).**
+
 ### S20. The migration table is created under the statement timeout, not the migration timeout — MINOR
 *Filed 2026-10-25, found by `postgres-statement-timeout.test.ts` failing its boot once.*
 
@@ -584,6 +699,29 @@ longer once, so the boot failed.
 > trigger that sleeps 0.5 s on the migration table's `CREATE TABLE` and drops the table; `reInit` then boots, and
 > the migration is recorded again. The boot failed with the statement timeout before the fix. **Not run here
 > (postgres).**
+
+### S21. A valkey call naming the time of the data source reads the server's clock in a round trip of its own — MINOR
+*Filed 2026-10-28, found while closing 06 §F13; the user decided to keep the lease cost limits and file this.*
+
+`dataSourceNow()` is resolved inside the statement on postgres (`PostgresParameters.add`). `ValKeyRepositoryDriver`
+judges filters in this process, so it implements `resolveDataSourceTime` with a `TIME` call, and
+`DataSourceTimeResolvingRepositoryDriver` makes it before the call's own round trips. Every lease acquire
+(lapsed-grant delete, insert) pays two more round trips on valkey, and every renewal one. The time can be read in
+the script or pipeline the call already sends: `redis.call('TIME')` inside the scripts that read candidates, and a
+`TIME` queued into the write's `MULTI`.
+
+**Verify:** `data-sources/val-key/val-key-data-source-time.costs.test.ts`. A `findAll` and a `create` naming
+`dataSourceNow()` cost as many round trips as the same calls naming a date. Red: one `time` more each.
+**Not run here (valkey).**
+
+> **Fixed 2026-10-29**, the user's choice of a clock offset over reading `TIME` inside each call's own
+> scripts, which would have touched about twelve methods of the driver. `ValKeyClock` reads the server's
+> clock when the data source starts and carries it forward on `performance.now()`, reading it again once a
+> reading is a minute old; `ValKeyDataSource.resolveServerTime()` answers from it, and the driver's
+> `resolveDataSourceTime` with it. As exact as before: the `TIME` read before a call was a round trip old
+> when the call ran, a reading is off by at most half one, plus the drift of a minute. Covered by
+> `val-key-clock.model.test.ts` (one read for many calls, one for concurrent ones, again after a minute and
+> after a failure); the costs test above is the user's to run.
 
 ## Code quality and architecture
 

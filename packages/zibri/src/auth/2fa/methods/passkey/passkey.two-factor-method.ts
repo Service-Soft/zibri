@@ -5,6 +5,7 @@ import { Inject } from '../../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../../di/inject.function';
 import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error';
+import { findHeader } from '../../../../http/find-header.function';
 import { MimeType } from '../../../../http/mime-type.enum';
 import { $ts } from '../../../../localization/translate.function';
 import { JsonBodyMetadata, XmlBodyMetadata } from '../../../../routing/decorators/body-metadata.model';
@@ -100,7 +101,7 @@ implements TwoFactorMethod<PasskeyAdditionRequest, PasskeyRegistrationResponse, 
     }
 
     private async resolveResponse(context: HttpRequestContext | WebsocketRequestContext): Promise<PasskeyAuthenticationResponse> {
-        const header: string | undefined = context.request.headers?.[this.passkeyHeader];
+        const header: string | undefined = findHeader(context.request.headers, this.passkeyHeader);
         if (!header) {
             throw new UnauthorizedError($ts`"${this.passkeyHeader}" header not found`);
         }

@@ -47,14 +47,14 @@ export interface TwoFactorMethod<
      * Initializes the two factor method while the application starts.
      */
     init?: (app: ZibriApplication) => void | Promise<void>,
+    // returned rather than stored: everything in it is derived from the secret, so keeping a copy at
+    // rest would mean a second plaintext of the thing the row exists to protect
     /**
      * Requests to register the two factor method for the given user.
      *
      * What it answers is whatever the user has to be shown to finish enrolling - for an
      * authenticator app that is the otpauth url behind the qr code, for a method that mails a code
-     * it is nothing at all, which is why this defaults to `void`. It is returned rather than stored:
-     * everything in it is derived from the secret, so keeping a copy at rest would mean a second
-     * plaintext of the thing the row exists to protect.
+     * it is nothing at all, which is why this defaults to `void`. What it answers is not stored.
      */
     requestRegistration: <UserType extends UserAccount>(
         user: UserType,

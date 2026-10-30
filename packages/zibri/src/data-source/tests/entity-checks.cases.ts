@@ -17,6 +17,11 @@ import { Repository } from '../repository/repository';
  * file per data source runs them against a repository of its own.
  */
 
+/**
+ * The earliest a chore may start, as a check of it names.
+ */
+const EARLIEST_START: string = '2000-01-01T00:00:00.000Z';
+
 @Entity({
     tenant: 'shared',
     allowOrphan: true,
@@ -32,12 +37,14 @@ import { Repository } from '../repository/repository';
         { where: whereFor<Chore>({ estimate: { greaterThanEquals: 1 } }), code: 'estimateTooSmall', message: $t`takes at least 1` },
         { where: whereFor<Chore>({ label: { notOneOf: ['forbidden'] } }), code: 'labelForbidden', message: $t`this label is forbidden` },
         {
+            // eslint-disable-next-line unicorn/no-null
             where: whereFor<Chore>([{ endsAt: null }, { endsAt: { after: propertyOf('startsAt') } }]),
             code: 'endsBeforeStart',
             message: $t`a chore ends after it starts`
         },
         {
-            where: whereFor<Chore>([{ startsAt: null }, { startsAt: { afterOrOn: new Date('2000-01-01T00:00:00.000Z') } }]),
+            // eslint-disable-next-line unicorn/no-null
+            where: whereFor<Chore>([{ startsAt: null }, { startsAt: { afterOrOn: new Date(EARLIEST_START) } }]),
             code: 'startsTooEarly',
             message: $t`a chore starts in this millennium`
         },
@@ -152,7 +159,8 @@ export function describeEntityChecks(dataSourceName: string, choresOf: () => Rep
                 endsAt: new Date('2026-05-01T09:00:00.000Z')
             });
 
-            const refusal: Promise<Chore> = choresOf().create({ code: freshCode(), status: 'open', estimate: 2, startsAt, endsAt: startsAt });
+            const refusal: Promise<Chore> = choresOf()
+                .create({ code: freshCode(), status: 'open', estimate: 2, startsAt, endsAt: startsAt });
             await expect(refusal).rejects.toThrow(CheckConstraintViolationError);
             await expect(refusal).rejects.toMatchObject({ properties: ['endsAt', 'startsAt'] });
             // the other property moving is judged the same way
@@ -172,9 +180,9 @@ export function describeEntityChecks(dataSourceName: string, choresOf: () => Rep
                 code: freshCode(),
                 status: 'open',
                 estimate: 2,
-                startsAt: new Date('2000-01-01T00:00:00.000Z')
+                startsAt: new Date(EARLIEST_START)
             });
-            expect((await choresOf().findById(chore.id)).startsAt).toEqual(new Date('2000-01-01T00:00:00.000Z'));
+            expect((await choresOf().findById(chore.id)).startsAt).toEqual(new Date(EARLIEST_START));
         });
 
         // 01 §D20: a write the data source refused answered with the filter alone, without the

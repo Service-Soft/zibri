@@ -11,6 +11,7 @@ import { createScratchDirectory, removeScratchDirectory, scratchProviders } from
 import { settleAfterFailure } from './settle-after-failure.function';
 import { applyContainerPorts, buildDataSources, DataSourcePorts, needsContainer, runAsSuperuser, StartedDataSourceContainer, startDataSourceContainers, stopDataSourceContainer } from './start-data-source-containers.function';
 import { StartTestServerOptions } from './start-test-server-options.model';
+import { TestCommandRun } from './test-command-run.model';
 import { defaultTestProviders } from './test-providers';
 
 /**
@@ -111,8 +112,8 @@ export class StartedTestServer {
     /**
      * Runs a command inside the container a data source was given, as the container's own user.
      *
-     * For what a test has to arrange on the server's machine rather than in its database, such as a
-     * locale the image does not ship.
+     * For what a test has to arrange on the server's machine, outside its database, such as a locale
+     * the image does not ship.
      * @param dataSourceClass - The data source whose container the command runs in.
      * @param command - The command and its arguments.
      * @returns What the command printed.
@@ -135,9 +136,13 @@ export class StartedTestServer {
      * wrote.
      */
     async shutdown(): Promise<void> {
-        await this.app.shutdown();
-        await Promise.all(this.containers.map(c => stopDataSourceContainer(c)));
-        removeScratchDirectory(this.scratchPath);
+        try {
+            await this.app.shutdown();
+            await Promise.all(this.containers.map(c => stopDataSourceContainer(c)));
+        }
+        finally {
+            removeScratchDirectory(this.scratchPath);
+        }
     }
 
     /**
@@ -149,6 +154,51 @@ export class StartedTestServer {
      * from the application that is being replaced, or from the `application` named here.
      */
     async reInit(options: StartTestServerOptions = {}): Promise<void> {
+        const restoreLogger: () => LoggerInterface = await this.replaceApplication(options, 're initializes test server...');
+        try {
+            await this.app.init();
+        }
+        catch (error) {
+            // a failed init can still have connected a data source in beforeAppInit - shut down
+            // whatever was actually constructed so the containers below don't outlive this call
+            await settleAfterFailure('shut the application down', [this.app.shutdown()]);
+            throw error;
+        }
+
+        restoreLogger().info('test server re initialized');
+    }
+
+    /**
+     * Runs a command of the application, the way a process started with these arguments does: in an
+     * application of its own on the same containers, which is shut down once the command is done.
+     * `reInit` starts the application again afterwards.
+     * @param args - The arguments, as `process.argv.slice(2)` holds them.
+     * @param options - What the application running the command is built from. Anything left out is
+     * taken from the application that is being replaced.
+     * @returns Whether the arguments named a command, and what the application logged at info while
+     * it ran.
+     */
+    async runCommand(args: string[], options: StartTestServerOptions = {}): Promise<TestCommandRun> {
+        const restoreLogger: () => LoggerInterface = await this.replaceApplication(options, 'runs a command on the test server...');
+        try {
+            const ran: boolean = await this.app.runCommand(args);
+            return { ran, log: this.bootLog };
+        }
+        finally {
+            restoreLogger();
+        }
+    }
+
+    /**
+     * Shuts the application down and builds the one replacing it, not yet initialized, on the
+     * containers this one already started.
+     *
+     * What the logger logs at info goes into the boot log until it is put back.
+     * @param options - What the replacement is built from.
+     * @param announcement - What is logged before it is built.
+     * @returns What puts the logger back, and hands it over.
+     */
+    private async replaceApplication(options: StartTestServerOptions, announcement: string): Promise<() => LoggerInterface> {
         await this.app.shutdown();
 
         const resolved: ZibriApplicationOptions = resolveApplicationOptions(
@@ -171,7 +221,7 @@ export class StartedTestServer {
         registerAheadOfInit(providers);
 
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-        logger.info('re initializes test server...');
+        logger.info(announcement);
         const info: typeof logger.info = logger.info;
         this.bootLog = [];
         logger.info = (message: string): void => {
@@ -181,19 +231,10 @@ export class StartedTestServer {
         await this.reApplyContainerPorts();
 
         this.app = new ZibriApplication({ ...resolved, providers });
-
-        try {
-            await this.app.init();
-        }
-        catch (error) {
-            // a failed init can still have connected a data source in beforeAppInit - shut down
-            // whatever was actually constructed so the containers below don't outlive this call
-            await settleAfterFailure('shut the application down', [this.app.shutdown()]);
-            throw error;
-        }
-
-        logger.info = info;
-        logger.info('test server re initialized');
+        return () => {
+            logger.info = info;
+            return logger;
+        };
     }
 }
 
@@ -250,12 +291,14 @@ export async function startTestServer(options: StartTestServerOptions = {}): Pro
     catch (error) {
         // a failed init can still have connected a data source in beforeAppInit, and the containers
         // above are already running - no StartedTestServer is ever returned to clean either of them
-        // up, so both have to be torn down here or they outlive this call. The scratch directory
-        // stays: a boot that failed is exactly the case where what it managed to write is worth
-        // looking at, and the next run's is a directory of its own.
+        // up, so all of it has to be torn down here or it outlives this call. The scratch directory
+        // too: it was kept once, for what a failed boot wrote, but a suite asserting that a boot is
+        // refused fails one on every run, and nothing ever removed those. The error says why the
+        // boot failed; the directory held the files the harness itself wrote into it
         logger.info = info;
         await settleAfterFailure('shut the application down', [app.shutdown()]);
         await settleAfterFailure('stop a container', containers.map(c => stopDataSourceContainer(c)));
+        removeScratchDirectory(scratchPath);
         throw error;
     }
 

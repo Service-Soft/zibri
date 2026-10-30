@@ -48,6 +48,11 @@ export type OpenApiRequestBodyObject = oas31.RequestBodyObject;
 export type OpenApiSchemaObject = oas31.SchemaObject;
 
 /**
+ * A type a schema allows, such as 'string' or 'null'.
+ */
+export type OpenApiSchemaObjectType = oas31.SchemaObjectType;
+
+/**
  * How a schema appears in xml: its element's name and namespace, or that it is an attribute.
  */
 export type OpenApiXmlObject = oas31.XmlObject;
@@ -58,7 +63,7 @@ export type OpenApiXmlObject = oas31.XmlObject;
 export type OpenApiReferenceObject = oas31.ReferenceObject;
 
 /**
- * Whether the given value is a reference to a schema rather than a schema.
+ * Whether the given value is a reference to a schema, not a schema itself.
  * @param value - The value to check.
  * @returns True when the value is a reference object.
  */
@@ -117,7 +122,7 @@ export type FileOpenApiResponse = {
      */
     mimeType?: 'all' | MimeType | MimeType[],
     /**
-     * Whether this response was added automatically by the framework rather than explicitly declared by the
+     * Whether this response was added automatically by the framework, not declared by the
      * developer. Used to distinguish auto-generated documentation from legitimate ones when checking for missing
      * response data.
      */
@@ -165,7 +170,7 @@ export type JsonOpenApiResponse = {
      */
     mimeTypes?: (JsonMimeType | MimeType.XML)[],
     /**
-     * Whether this response was added automatically by the framework (such as by \@RateLimited) rather than
+     * Whether this response was added automatically by the framework (such as by \@RateLimited), not
      * explicitly declared by the developer. Used to distinguish auto-generated documentation from legitimate ones
      * when checking for missing response data.
      */
@@ -196,7 +201,7 @@ export type EmptyOpenApiResponse = {
      */
     mimeTypes?: (JsonMimeType | MimeType.XML)[],
     /**
-     * Whether this response was added automatically by the framework rather than explicitly declared by the
+     * Whether this response was added automatically by the framework, not declared by the
      * developer. Used to distinguish auto-generated documentation from legitimate ones when checking for missing
      * response data.
      */
@@ -222,7 +227,7 @@ export type ErrorOpenApiResponse = {
      */
     description?: string,
     /**
-     * Whether this response was added automatically by the framework rather than explicitly declared by the
+     * Whether this response was added automatically by the framework, not declared by the
      * developer. Used to distinguish auto-generated documentation from legitimate ones when checking for missing
      * response data.
      */
@@ -248,7 +253,7 @@ export type HtmlOpenApiResponse = {
      */
     description?: string,
     /**
-     * Whether this response was added automatically by the framework rather than explicitly declared by the
+     * Whether this response was added automatically by the framework, not declared by the
      * developer. Used to distinguish auto-generated documentation from legitimate ones when checking for missing
      * response data.
      */
@@ -279,7 +284,7 @@ export type RedirectOpenApiResponse = {
      */
     description?: string,
     /**
-     * Whether this response was added automatically by the framework rather than explicitly declared by the
+     * Whether this response was added automatically by the framework, not declared by the
      * developer. Used to distinguish auto-generated documentation from legitimate ones when checking for missing
      * response data.
      */

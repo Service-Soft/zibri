@@ -2,13 +2,15 @@ import assert from 'node:assert';
 
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
-import { AuthServiceInterface } from './auth-service.interface';
 import { Auth } from './decorators/auth.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { RouteAuthServiceInterface } from './route-auth-service.interface';
 import { TestPermissions } from '../__testing__/mocks/entities/test-permissions.model';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { defineProvider } from '../di/models/di-provider.model';
 import { LoggerInterface } from '../logging/logger.interface';
 import { OpenApiDefinition, OpenApiOperation, OpenApiSecurityRequirementObject } from '../open-api/open-api.model';
 import { Controller } from '../routing/decorators/controller.decorator';
@@ -93,20 +95,22 @@ let server: StartedTestServer;
 let baseUrl: string;
 
 /**
- * The running application's auth service.
+ * The running application's route auth service.
  *
  * Resolved per call rather than once in `beforeAll`, so it is the instance of whichever container is
  * live rather than of the one that happened to exist first.
  * @returns The service.
  */
-function authService(): AuthServiceInterface {
-    return inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
+function routeAuthService(): RouteAuthServiceInterface {
+    return inject(ZIBRI_DI_TOKENS.ROUTE_AUTH_SERVICE);
 }
 
 beforeAll(async () => {
     server = await startTestServer({
         controllers: [DefaultAuthController, PublicControllerWithOneGuardedRoute, LoginSkippedController],
-        defaultAuth: 'isLoggedIn'
+        defaultAuth: 'isLoggedIn',
+        // the document open to everyone, which the spec cases below read anonymously
+        providers: [...defaultTestServerProviders, defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_AUTH, useValue: { skip: true } })]
     });
     baseUrl = await server.start();
 }, 60000);
@@ -187,7 +191,7 @@ describe('defaultAuth: isLoggedIn', () => {
         // eslint-disable-next-line typescript/typedef
         const warnSpy = jest.spyOn(logger, 'warn');
 
-        authService().resolveRouteAuth(DefaultAuthController, 'declaredPublic');
+        routeAuthService().resolveRouteAuth(DefaultAuthController, 'declaredPublic');
 
         // the inverse of ./auth.service.test.ts's warning case. Under this default the skip is the
         // only thing making the route reachable, so warning about it would tell a developer to
@@ -201,8 +205,8 @@ describe('defaultAuth: isLoggedIn', () => {
         // eslint-disable-next-line typescript/typedef
         const warnSpy = jest.spyOn(logger, 'warn');
 
-        authService().resolveRouteAuth(DefaultAuthController, 'loginSkipped');
-        authService().resolveRouteAuth(LoginSkippedController, 'anyone');
+        routeAuthService().resolveRouteAuth(DefaultAuthController, 'loginSkipped');
+        routeAuthService().resolveRouteAuth(LoginSkippedController, 'anyone');
 
         // it opts a route out of the application wide requirement, so under this default it is
         // load bearing in exactly the way @Auth.skip is
@@ -215,7 +219,7 @@ describe('defaultAuth: isLoggedIn', () => {
         // eslint-disable-next-line typescript/typedef
         const warnSpy = jest.spyOn(logger, 'warn');
 
-        authService().resolveRouteAuth(DefaultAuthController, 'permissionSkipped');
+        routeAuthService().resolveRouteAuth(DefaultAuthController, 'permissionSkipped');
 
         // the control for the two above: making the isLoggedIn skips conditional must not quietly
         // silence the others, which have nothing to skip under either default
@@ -228,10 +232,8 @@ describe('defaultAuth: isLoggedIn', () => {
 
         beforeAll(async () => {
             // anonymously, even though this application requires a login for everything that does
-            // not say otherwise: the OpenApi surface says otherwise by default. See
-            // ZIBRI_DI_TOKENS.OPEN_API_AUTH for why, and
-            // ../__testing__/evaluation/manual-routes.evaluation.test.ts for an application that
-            // decides differently.
+            // not say otherwise: its ZIBRI_DI_TOKENS.OPEN_API_AUTH opens the OpenApi surface, which
+            // follows defaultAuth when nothing is provided.
             const res: Response = await fetch(`${baseUrl}/explorer/spec/1.0.0`);
             expect(res.status).toBe(200);
             // eslint-disable-next-line typescript/no-unsafe-assignment

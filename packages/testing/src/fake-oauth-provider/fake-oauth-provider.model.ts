@@ -167,6 +167,11 @@ export class FakeOAuthProvider {
      */
     readonly sessionIds: string[] = [];
 
+    /**
+     * How often the provider's metadata was read.
+     */
+    metadataReads: number = 0;
+
     private readonly server: Server;
     private readonly codes: Map<string, IssuedCode> = new Map();
     // whoever each access token was issued for, which the resources answer about
@@ -177,6 +182,8 @@ export class FakeOAuthProvider {
     private readonly publicKey: KeyObject;
     private readonly algorithm: 'ES256' | 'RS256' | 'EdDSA';
     private deniedWith: string | undefined;
+    private tokenFailureStatus: number | undefined;
+    private discoveryFailureStatus: number | undefined;
     private nextAnswerFields: Record<string, string> = {};
     private rewriteIdToken: ((claims: FakeOidcIdTokenClaims) => FakeOidcIdTokenClaims) | undefined;
     private url: string | undefined;
@@ -194,15 +201,33 @@ export class FakeOAuthProvider {
     }
 
     /**
-     * The issuer url, which is where the provider is reached.
+     * The issuer url its metadata names: where the provider is reached, unless its options name another.
      * @returns The issuer.
      * @throws When the provider has not been started.
      */
     get issuer(): string {
+        return this.options.issuer ?? this.publicUrl;
+    }
+
+    /**
+     * Where the provider listens, which its public url resolves to.
+     * @returns The url.
+     * @throws When the provider has not been started.
+     */
+    get listeningUrl(): string {
         if (this.url == undefined) {
             throw new Error('The fake provider has not been started.');
         }
         return this.url;
+    }
+
+    /**
+     * The url every url the provider names starts with.
+     * @returns The url.
+     * @throws When the provider has not been started.
+     */
+    private get publicUrl(): string {
+        return this.options.publicUrl ?? this.listeningUrl;
     }
 
     /**
@@ -218,12 +243,31 @@ export class FakeOAuthProvider {
     }
 
     /**
-     * Answers the next login with the given error rather than a code, as a provider does when the user
+     * Answers the next login with the given error and no code, as a provider does when the user
      * declines or something goes wrong there.
      * @param error - The error, eg. `access_denied`.
      */
     denyNext(error: string): void {
         this.deniedWith = error;
+    }
+
+    /**
+     * Answers the next request to the token endpoint with the given status and a page that is no OAuth
+     * answer, the way a gateway does in front of a provider that is down.
+     * @param status - The status, eg. `503`.
+     */
+    failNextTokenRequest(status: number): void {
+        this.tokenFailureStatus = status;
+    }
+
+    /**
+     * Answers the next request for the provider's metadata with the given status and a page that is no
+     * metadata: the way a gateway does in front of a provider that is down, with a status of 500 or
+     * more, or a server that is no provider at that url, with one below.
+     * @param status - The status, eg. `503`.
+     */
+    failNextDiscovery(status: number): void {
+        this.discoveryFailureStatus = status;
     }
 
     /**
@@ -252,7 +296,7 @@ export class FakeOAuthProvider {
     createJwtAccessToken(options: FakeJwtAccessTokenOptions): string {
         const now: number = Math.floor(Date.now() / 1000);
         return this.signJwt(options.type ?? 'at+jwt', {
-            iss: this.issuer,
+            iss: this.resolveTokenIssuer(this.identity),
             sub: this.identity.subject,
             aud: options.audience,
             client_id: this.options.clientId,
@@ -275,7 +319,7 @@ export class FakeOAuthProvider {
     createIdToken(audience: string, claims: FakeOidcIdTokenClaims = {}): string {
         const now: number = Math.floor(Date.now() / 1000);
         return this.signJwt('JWT', {
-            iss: this.issuer,
+            iss: this.resolveTokenIssuer(this.identity),
             sub: this.identity.subject,
             aud: audience,
             iat: now,
@@ -295,7 +339,7 @@ export class FakeOAuthProvider {
      */
     createLogoutToken(options: FakeLogoutTokenOptions): string {
         return this.signJwt('logout+jwt', {
-            iss: this.issuer,
+            iss: this.resolveTokenIssuer(this.identity),
             aud: this.options.clientId,
             iat: Math.floor(Date.now() / 1000),
             jti: randomBytes(12).toString('hex'),
@@ -332,16 +376,24 @@ export class FakeOAuthProvider {
     }
 
     private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
-        const url: URL = new URL(req.url ?? '/', this.issuer);
+        const url: URL = new URL(req.url ?? '/', this.listeningUrl);
         switch (url.pathname) {
             case '/.well-known/openid-configuration': {
+                this.metadataReads++;
+                const failingWith: number | undefined = this.discoveryFailureStatus;
+                if (failingWith != undefined) {
+                    this.discoveryFailureStatus = undefined;
+                    res.writeHead(failingWith, { [KnownHeader.CONTENT_TYPE]: MimeType.HTML });
+                    res.end('<html><body>No metadata here.</body></html>');
+                    return;
+                }
                 this.sendJson(res, 200, {
                     issuer: this.issuer,
-                    authorization_endpoint: `${this.issuer}/authorize`,
-                    token_endpoint: `${this.issuer}/token`,
-                    jwks_uri: `${this.issuer}/jwks`,
-                    revocation_endpoint: `${this.issuer}/revoke`,
-                    end_session_endpoint: `${this.issuer}/end-session`,
+                    authorization_endpoint: `${this.publicUrl}/authorize`,
+                    token_endpoint: `${this.publicUrl}/token`,
+                    jwks_uri: `${this.publicUrl}/jwks`,
+                    revocation_endpoint: `${this.publicUrl}/revoke`,
+                    end_session_endpoint: `${this.publicUrl}/end-session`,
                     // eslint-disable-next-line cspell/spellchecker
                     backchannel_logout_supported: true,
                     response_types_supported: ['code'],
@@ -469,6 +521,14 @@ export class FakeOAuthProvider {
 
     private async token(body: URLSearchParams, authorization: string | undefined, res: ServerResponse): Promise<void> {
         this.tokenRequests.push(body);
+        const failingWith: number | undefined = this.tokenFailureStatus;
+        if (failingWith != undefined) {
+            this.tokenFailureStatus = undefined;
+            // the page a gateway answers in front of a provider that is down, which no OAuth client reads
+            res.writeHead(failingWith, { [KnownHeader.CONTENT_TYPE]: MimeType.HTML });
+            res.end('<html><body>The service is unavailable.</body></html>');
+            return;
+        }
         if (!await this.isClientAuthenticated(body, authorization)) {
             this.sendJson(res, 401, { error: 'invalid_client' });
             return;
@@ -495,7 +555,7 @@ export class FakeOAuthProvider {
 
         const now: number = Math.floor(Date.now() / 1000);
         const claims: FakeOidcIdTokenClaims = {
-            iss: this.issuer,
+            iss: this.resolveTokenIssuer(issued.identity),
             sub: issued.identity.subject,
             aud: this.options.clientId,
             iat: now,
@@ -530,6 +590,17 @@ export class FakeOAuthProvider {
      */
     private authTimeClaim(authenticatedAt: Date): FakeOidcIdTokenClaims {
         return this.options.issuesAuthTime === false ? {} : { auth_time: Math.floor(authenticatedAt.getTime() / 1000) };
+    }
+
+    /**
+     * The issuer a token for an identity names: the one of the metadata, with the identity's `tid` claim
+     * in place of a `{tenantid}` in it.
+     * @param identity - Who the token is for.
+     * @returns The issuer.
+     */
+    private resolveTokenIssuer(identity: FakeOAuthIdentity): string {
+        const tenantId: unknown = identity.claims?.['tid'];
+        return typeof tenantId === 'string' ? this.issuer.replace('{tenantid}', tenantId) : this.issuer;
     }
 
     private refresh(refreshToken: string | null, res: ServerResponse): void {

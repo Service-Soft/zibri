@@ -122,7 +122,7 @@ defineProvider({
     useFactory: (): HttpServerLimits => ({
         requestTimeoutInMs: Ms.SECOND * 60,
         headersTimeoutInMs: Ms.SECOND * 15,
-        keepAliveTimeoutInMs: Ms.SECOND * 5,
+        keepAliveTimeoutInMs: Ms.SECOND * 75,
         handlerTimeoutInMs: Ms.SECOND * 30,
         maxHeaderCount: 100,
         maxHeaderSizeInBytes: 16 * 1024
@@ -132,10 +132,10 @@ defineProvider({
 
 `requestTimeoutInMs` is how long a request may take to arrive in full, and `headersTimeoutInMs` how long its headers alone may. Keep the headers timeout shorter: a body can be large and slow, a set of headers cannot. It has to be at most the request timeout.
 
-`keepAliveTimeoutInMs` is how long an idle connection is kept.
+`keepAliveTimeoutInMs` is how long a connection is kept open after a response, waiting for the next request on it. It is 75 seconds by default, nginx's idle timeout towards the applications behind it, and above the 60 seconds of an AWS load balancer.
 
 > [!WARNING]
-> Set `keepAliveTimeoutInMs` above the idle timeout of whatever sits in front of the application. Otherwise a proxy can reuse a connection the server closed in the same moment, and reports a gateway error that no log of the application explains.
+> Set `keepAliveTimeoutInMs` above the idle timeout of whatever sits in front of the application, such as above 600 seconds behind a Google Cloud load balancer. Otherwise a proxy can reuse a connection the server closed in the same moment, and reports a gateway error that no log of the application explains.
 
 `handlerTimeoutInMs` is how long a route handler has to produce a result, for every route that does not say otherwise. It runs from the handler being called to it returning, so it is independent of the three above: they are all satisfied the moment the request has arrived. Set it to `'none'` to leave handlers unbounded unless a route asks for a deadline itself. A route declares its own with `timeoutInMs`, see [creating endpoints](./creating-endpoints.md#deadlines).
 

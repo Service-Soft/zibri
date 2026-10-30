@@ -133,6 +133,14 @@ const roles: TestServerRole[] = defaultTestServerRoles
 class TestScimController extends ScimController(TestScimProvisioner, { permission: SCIM_PROVISION, bulk: { maxOperations: MAX_BULK_OPERATIONS } }) {}
 
 /**
+ * The most resources a list of the small pages controller answers.
+ */
+const SMALL_MAX_RESULTS: number = 2;
+
+@Controller('/scim/small')
+class SmallPagesScimController extends ScimController(TestScimProvisioner, { permission: SCIM_PROVISION, maxResults: SMALL_MAX_RESULTS }) {}
+
+/**
  * The tenant the identity provider of the tests provisions for.
  */
 const TENANT: string = UUIDUtilities.generate();
@@ -200,7 +208,7 @@ async function startApp(authStrategies: AuthStrategies, entities: Newable<BaseEn
     return await startTestServer({
         dataSources: [dataSourceClass],
         authStrategies,
-        controllers: [TestScimController],
+        controllers: [TestScimController, SmallPagesScimController],
         providers: [
             ...defaultTestServerProviders,
             ...rolesAndPermissionsProviders(
@@ -412,6 +420,22 @@ describe('ScimController', () => {
         expect(first.body).toMatchObject({ totalResults: 2, startIndex: 1, itemsPerPage: 1, Resources: [{ userName: 'page-1@corp.test' }] });
         expect(first.body['Resources']).toEqual([expect.not.objectContaining({ meta: expect.anything() })]);
         expect(second.body).toMatchObject({ totalResults: 2, startIndex: 2, itemsPerPage: 1, Resources: [{ userName: 'page-2@corp.test' }] });
+    });
+
+    // 09 §Q7: the most a list answers was a constant of the service, which no application could lower
+    it('answers a list with at most as many resources as the controller allows, and says so', async () => {
+        await provisionUser('small-1@corp.test');
+        await provisionUser('small-2@corp.test');
+        await provisionUser('small-3@corp.test');
+        const headers: Record<string, string> = { [KnownHeader.ACCEPT]: 'application/scim+json', [KnownHeader.AUTHORIZATION]: `Bearer ${token}` };
+        const filter: string = encodeURIComponent('userName sw "small-"');
+
+        const list: Response = await fetch(`${baseUrl}/scim/small/Users?filter=${filter}&count=5`, { headers });
+        const config: Response = await fetch(`${baseUrl}/scim/small/ServiceProviderConfig`, { headers });
+
+        expect(await list.json()).toMatchObject({ totalResults: 3, itemsPerPage: SMALL_MAX_RESULTS, Resources: [{}, {}] });
+        expect(await config.json()).toMatchObject({ filter: { supported: true, maxResults: SMALL_MAX_RESULTS } });
+        expect((await scim('GET', '/ServiceProviderConfig')).body).toMatchObject({ filter: { supported: true, maxResults: 200 } });
     });
 
     it('refuses a second user of the same userName, in any case', async () => {

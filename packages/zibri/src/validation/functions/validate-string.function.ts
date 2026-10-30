@@ -81,7 +81,9 @@ export function stringValueProblems(
             }
         ];
     }
-    if (meta.minLength && meta.minLength > property.length) {
+    // in characters, as the OpenAPI schema states the bounds: an emoji is one, and two utf-16 units
+    const length: number = [...property].length;
+    if (meta.minLength && meta.minLength > length) {
         return [
             {
                 key: fullKey,
@@ -90,7 +92,7 @@ export function stringValueProblems(
             }
         ];
     }
-    if (meta.maxLength && property.length > meta.maxLength) {
+    if (meta.maxLength && length > meta.maxLength) {
         return [
             {
                 key: fullKey,

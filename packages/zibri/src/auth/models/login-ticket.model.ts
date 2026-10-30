@@ -10,7 +10,7 @@ import { Sha256HashStrategy } from '../hash/strategies/sha256.hash-strategy';
  *
  * Spent once, by the login it completes.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate' })
 export class LoginTicket extends BaseEntity {
     /**
      * The ticket.

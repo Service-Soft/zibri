@@ -46,6 +46,10 @@ export interface ApiKeyServiceInterface {
      */
     findActiveByKey: (key: string) => Promise<ApiKey | undefined>,
     /**
+     * Gets what every key starts with, which tells a key apart from any other token.
+     */
+    getKeyPrefix: () => string,
+    /**
      * Finds an api key by its id, while it has not expired.
      */
     findActiveById: (id: string) => Promise<ApiKey | undefined>,

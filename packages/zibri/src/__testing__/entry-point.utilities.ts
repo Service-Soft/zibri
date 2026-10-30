@@ -17,6 +17,24 @@ export type ExportedName = {
 };
 
 /**
+ * One JSDoc block of what an entry point exports.
+ */
+export type PublishedComment = {
+    /**
+     * The file holding it, relative to `src`.
+     */
+    file: string,
+    /**
+     * The line it starts on, counted from 1.
+     */
+    line: number,
+    /**
+     * The block, as it is written.
+     */
+    text: string
+};
+
+/**
  * The entry point of zibri-testing, relative to zibri's `src`. Its names are documented in zibri's
  * docs as well.
  */
@@ -86,6 +104,53 @@ export abstract class EntryPointUtilities {
             }
         }
         return names;
+    }
+
+    /**
+     * Every JSDoc block typedoc publishes for an entry point: on what it exports, and on the public
+     * members, properties and enum members declared inside. Function bodies, private and protected
+     * members, and what a namespace does not export are left out, as typedoc leaves them out.
+     * @param entryPoint - The entry point's file, relative to `src`.
+     * @returns The blocks, each once.
+     */
+    static resolvePublishedComments(entryPoint: string): PublishedComment[] {
+        const checker: ts.TypeChecker = this.resolveProgram().getTypeChecker();
+        const found: Set<ts.JSDoc> = new Set();
+        for (const symbol of checker.getExportsOfModule(this.resolveModule(entryPoint))) {
+            const declared: ts.Symbol = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
+            for (const declaration of declared.declarations ?? []) {
+                if (declaration.getSourceFile().fileName.startsWith(this.srcDir)
+                    || declaration.getSourceFile().fileName.startsWith(path.resolve(this.srcDir, TESTING_ENTRY_POINT, '..'))) {
+                    this.collectComments(declaration, found);
+                }
+            }
+        }
+        return [...found].map(comment => ({
+            file: path.relative(this.srcDir, comment.getSourceFile().fileName),
+            line: comment.getSourceFile().getLineAndCharacterOfPosition(comment.getStart()).line + 1,
+            text: comment.getText()
+        }));
+    }
+
+    /**
+     * Adds the JSDoc blocks of a node and below it that typedoc publishes.
+     * @param node - The node to start at.
+     * @param found - The blocks found so far, added to.
+     */
+    private static collectComments(node: ts.Node, found: Set<ts.JSDoc>): void {
+        if (ts.isBlock(node)
+            || (ts.isClassElement(node) && ts.getCombinedModifierFlags(node) & (ts.ModifierFlags.Private | ts.ModifierFlags.Protected))
+            || (ts.isClassElement(node) && node.name != undefined && ts.isPrivateIdentifier(node.name))
+            || (ts.isModuleBlock(node.parent)
+                && !(ts.canHaveModifiers(node) && ts.getModifiers(node)?.some(m => m.kind === ts.SyntaxKind.ExportKeyword) === true))) {
+            return;
+        }
+        for (const comment of ts.getJSDocCommentsAndTags(node)) {
+            if (ts.isJSDoc(comment)) {
+                found.add(comment);
+            }
+        }
+        ts.forEachChild(node, child => this.collectComments(child, found));
     }
 
     /**

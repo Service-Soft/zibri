@@ -5,6 +5,9 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
 import { NewCommand } from './new.command';
 import { version } from '../../../package.json';
+import { testFileFolder } from '../../__testing__/constants';
+import { DeploymentMeasurement } from '../../__testing__/deployment-measurement.model';
+import { DeploymentMeasurementUtilities } from '../../__testing__/deployment-measurements.utilities';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
 import { EVERY_FEATURE } from '../../__testing__/generated-file-paths';
 import { quietly } from '../../__testing__/quietly.function';
@@ -95,9 +98,34 @@ const APPLICATION_TIMEOUT_MS: number = 180_000;
  */
 const PROJECT_TESTS_TIMEOUT_MS: number = 300_000;
 
+/**
+ * How often a condition is asked again. Short, because the time the application takes to answer is
+ * measured by it, and the measurement can only be as fine as the asking.
+ */
+const POLL_INTERVAL_MS: number = 250;
+
+/**
+ * What the last recorded deployment measured, beside the suite: the image, the bundle, the pruned
+ * dependency tree and the time to the first ready answer. Replaced by a run with
+ * `ZIBRI_DEPLOYMENT_UPDATE_BASELINE=1`, which is worth doing on the machine that compares against it.
+ */
+const BASELINE_PATH: Path = getPath(__dirname, '..', '..', '__testing__', 'deployment-baseline.json');
+
+const REPORT_PATH: Path = getPath(testFileFolder, 'deployment-report.json');
+
 let workDir: Path;
 let appDir: Path;
 let containerEnvPath: Path;
+
+/**
+ * When the application container was started, which the time to ready is counted from.
+ */
+let applicationStartedAtMs: number = 0;
+
+/**
+ * How long the application took from its start to its first ready answer.
+ */
+let timeToReadyMs: number = 0;
 
 function run(command: string, cwd: string = REPOSITORY_ROOT): string {
     try {
@@ -229,9 +257,29 @@ async function waitFor(isReady: () => Promise<boolean>, timeoutMs: number, descr
         if (await isReady()) {
             return;
         }
-        await new Promise<void>(resolve => setTimeout(resolve, 1000));
+        await new Promise<void>(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
     }
     throw new Error(describeFailure());
+}
+
+/**
+ * Waits for an application that is alive to say it is ready, which is the moment an orchestrator
+ * sends it traffic.
+ * @param port - The host port the container is published on.
+ */
+async function waitForReady(port: number): Promise<void> {
+    await waitFor(
+        async () => {
+            try {
+                return (await request('/health/ready', port)).ok;
+            }
+            catch {
+                return false;
+            }
+        },
+        APPLICATION_TIMEOUT_MS,
+        () => `The application never said it was ready.\n\n${containerDiagnostics(APPLICATION_CONTAINER)}`
+    );
 }
 
 /**
@@ -425,28 +473,56 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         );
 
         // the environment the generator wrote for this project, with what is about where it runs
-        // pointed at the container network instead of at localhost, and what makes it a deployment:
-        // production, which starts only with a mail server named. Nothing has to listen there, since
-        // a mail server is reached only when a mail is sent. Everything else is what "zi new" already
-        // decided, which is the point: a deployment sets these and nothing else.
+        // pointed at the container network instead of at localhost
         const generatedEnv: string = await FsUtilities.readFile(path.join(appDir, '.env') as Path);
+        const networkEnv: string = generatedEnv
+            .replace(/^DB_HOST=.*$/m, `DB_HOST=${DATABASE_CONTAINER}`)
+            .replace(/^BASE_URL=.*$/m, `BASE_URL=http://127.0.0.1:${HOST_PORT}`);
+
+        // what a developer does before the first release: start the application once in development,
+        // which records the version in "versions", and build again from that folder. A production
+        // application only reads the record (03 §H14), so an image built from the empty folder "zi new"
+        // writes refuses to start. The image stands in for "npm start" here, with the project's own
+        // folder mounted, as the user owning it, so the record lands where it would be committed
+        const developmentEnvPath: Path = path.join(workDir, 'development.env') as Path;
+        await FsUtilities.createFile(developmentEnvPath, networkEnv);
+        run(
+            `docker run -d --name ${APPLICATION_CONTAINER} --network ${NETWORK_NAME}`
+            + ` --user ${process.getuid?.() ?? 0}:${process.getgid?.() ?? 0} --tmpfs /app/.zibri`
+            + ` -v "${path.join(appDir, 'versions')}":/app/versions`
+            + ` --env-file "${developmentEnvPath}" -p ${HOST_PORT}:3000 ${IMAGE_TAG}`
+        );
+        await waitForApplication(APPLICATION_CONTAINER, HOST_PORT);
+        run(`docker rm -f ${APPLICATION_CONTAINER}`);
+        // a fresh database again, so the production start below is a first boot, as the measurement
+        // at the end reports it
+        run(
+            `docker exec ${DATABASE_CONTAINER} psql -U postgres -d postgres`
+            + ' -c "DROP DATABASE db WITH (FORCE)" -c "CREATE DATABASE db"'
+        );
+        run(`docker build --network ${NETWORK_NAME} -t ${IMAGE_TAG} .`, appDir);
+
+        // what makes it a deployment: production, which starts only with a mail server named. Nothing
+        // has to listen there, since a mail server is reached only when a mail is sent. Everything else
+        // is what "zi new" already decided, which is the point: a deployment sets these and nothing else.
         containerEnvPath = path.join(workDir, 'container.env') as Path;
         await FsUtilities.createFile(
             containerEnvPath,
-            generatedEnv
+            networkEnv
                 .replace(/^ENVIRONMENT=.*$/m, 'ENVIRONMENT=production')
-                .replace(/^DB_HOST=.*$/m, `DB_HOST=${DATABASE_CONTAINER}`)
-                .replace(/^BASE_URL=.*$/m, `BASE_URL=http://127.0.0.1:${HOST_PORT}`)
                 .replace(/^SMTP_HOST=.*$/m, 'SMTP_HOST=mail.example.com')
                 .replace(/^SMTP_PORT=.*$/m, 'SMTP_PORT=587')
         );
 
+        applicationStartedAtMs = Date.now();
         run(
             `docker run -d --name ${APPLICATION_CONTAINER} --network ${NETWORK_NAME}`
             + ` --env-file "${containerEnvPath}" -p ${HOST_PORT}:3000 ${IMAGE_TAG}`
         );
 
         await waitForApplication(APPLICATION_CONTAINER, HOST_PORT);
+        await waitForReady(HOST_PORT);
+        timeToReadyMs = Date.now() - applicationStartedAtMs;
     }, BUILD_TIMEOUT_MS);
 
     afterAll(() => {
@@ -499,11 +575,12 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
     });
 
     it('runs as a user that owns only what it writes', () => {
-        // the two paths written while the application runs. Everything else under /app stays owned by
-        // root, so an image that is compromised cannot rewrite the bundle it is running
+        // the one path written while the application runs. Everything else under /app stays owned by
+        // root, so an image that is compromised cannot rewrite the bundle it is running, nor the
+        // version record it is checked against
         expect(run(`docker exec ${APPLICATION_CONTAINER} id -un`).trim()).toBe('node');
-        expect(run(`docker exec ${APPLICATION_CONTAINER} stat -c %U /app/versions`).trim()).toBe('node');
         expect(run(`docker exec ${APPLICATION_CONTAINER} stat -c %U /app/.zibri`).trim()).toBe('node');
+        expect(run(`docker exec ${APPLICATION_CONTAINER} stat -c %U /app/versions`).trim()).toBe('root');
         expect(run(`docker exec ${APPLICATION_CONTAINER} stat -c %U /app/dist`).trim()).toBe('root');
         expect(run(`docker exec ${APPLICATION_CONTAINER} stat -c %U /app/node_modules`).trim()).toBe('root');
     });
@@ -514,14 +591,10 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         });
 
         it('serves once its versions record holds the version it runs', async () => {
-            // the record the first container wrote at boot: a fresh project ships "versions" empty. Mounted
-            // read only, it is what an image built from a folder that already recorded the release carries
-            const recordedVersions: Path = path.join(workDir, 'recorded-versions') as Path;
-            run(`docker cp ${APPLICATION_CONTAINER}:/app/versions/. "${recordedVersions}"`);
-
+            // the image's own "versions", built from the folder development recorded the release in
             run(
                 `docker run -d --name ${READ_ONLY_CONTAINER} --network ${NETWORK_NAME}`
-                + ` --read-only --tmpfs /app/.zibri -v "${recordedVersions}":/app/versions:ro`
+                + ' --read-only --tmpfs /app/.zibri'
                 + ` --env-file "${containerEnvPath}" -p ${READ_ONLY_HOST_PORT}:3000 ${IMAGE_TAG}`
             );
             await waitForApplication(READ_ONLY_CONTAINER, READ_ONLY_HOST_PORT);
@@ -531,11 +604,13 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
 
         it('stops at startup when its versions record lacks the version it runs', async () => {
             runQuietly(`docker rm -f ${READ_ONLY_CONTAINER}`);
-            // the image's own "versions", as "zi new" wrote it: nothing recorded, so the application
-            // has to write the first record and cannot
+            // "versions" as "zi new" wrote it, before anything was recorded: an image built without
+            // starting the application in development first
+            const unrecordedVersions: Path = path.join(workDir, 'unrecorded-versions') as Path;
+            await FsUtilities.mkdir(unrecordedVersions);
             run(
                 `docker run -d --name ${READ_ONLY_CONTAINER} --network ${NETWORK_NAME}`
-                + ` --read-only --tmpfs /app/.zibri`
+                + ` --read-only --tmpfs /app/.zibri -v "${unrecordedVersions}":/app/versions:ro`
                 + ` --env-file "${containerEnvPath}" -p ${READ_ONLY_HOST_PORT}:3000 ${IMAGE_TAG}`
             );
             await waitFor(
@@ -545,8 +620,36 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
                 () => `The application kept running.\n\n${containerDiagnostics(READ_ONLY_CONTAINER)}`
             );
 
-            expect(containerDiagnostics(READ_ONLY_CONTAINER)).toMatch(/EROFS[^\n]*\/app\/versions/);
+            // refused before anything is written, saying how to record it
+            expect(containerDiagnostics(READ_ONLY_CONTAINER)).toContain('does not record it as the latest');
+            expect(containerDiagnostics(READ_ONLY_CONTAINER)).not.toContain('EROFS');
         }, APPLICATION_TIMEOUT_MS);
+    });
+
+    // 07 §T14: what a deployment weighs and how long it takes to answer, read off the image and the
+    // container that were just built and started. Reported against the baseline beside the suite,
+    // the way the benchmark job reports timings, and never gated: the numbers are the machine's as
+    // much as the framework's
+    it('reports what it weighs and how long it takes to answer, against the baseline', async () => {
+        const bytesOf: (command: string) => number = command => Number.parseInt(run(command).trim()
+            .split(/\s/)[0] ?? '', 10);
+        const measurements: DeploymentMeasurement[] = [
+            { name: 'image', value: bytesOf(`docker image inspect -f '{{.Size}}' ${IMAGE_TAG}`), unit: 'bytes' },
+            { name: 'bundle', value: bytesOf(`docker exec ${APPLICATION_CONTAINER} stat -c %s /app/dist/bundle.js`), unit: 'bytes' },
+            { name: 'dist, maps and assets included', value: bytesOf(`docker exec ${APPLICATION_CONTAINER} du -sb /app/dist`), unit: 'bytes' },
+            { name: 'node_modules, pruned', value: bytesOf(`docker exec ${APPLICATION_CONTAINER} du -sb /app/node_modules`), unit: 'bytes' },
+            { name: 'time to ready, first boot', value: timeToReadyMs, unit: 'ms' }
+        ];
+
+        const report: string = await DeploymentMeasurementUtilities.resolveReport(
+            measurements,
+            REPORT_PATH,
+            BASELINE_PATH,
+            process.env['ZIBRI_DEPLOYMENT_UPDATE_BASELINE'] === '1'
+        );
+        process.stdout.write(`\n${report}\n\n`);
+
+        expect(measurements.every(measurement => Number.isFinite(measurement.value) && measurement.value > 0)).toBe(true);
     });
 
     it('leaves the secrets it was generated with out of the image', () => {

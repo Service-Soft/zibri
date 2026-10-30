@@ -1,7 +1,6 @@
 import { SaveOperation } from './before-save';
+import { RepositoryHookServices } from './repository-hook-services.model';
 import { RepositoryHooks } from './repository-hooks.model';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { decryptEncryptionProperties } from '../../global/model-registry/decrypt-encryption-properties.function';
 import { encryptEncryptionProperties } from '../../global/model-registry/encrypt-encryption-properties.function';
@@ -15,6 +14,9 @@ import { Newable } from '../../types/newable.type';
 /**
  * Runs the hooks every repository runs: the ones the application provides under
  * `ZIBRI_DI_TOKENS.REPOSITORY_HOOKS`, around what a repository does by default.
+ *
+ * Given what the hooks run with by the repository, which resolves it once, rather than resolving it
+ * per row here.
  */
 export abstract class RepositoryHookUtilities {
     /**
@@ -22,23 +24,28 @@ export abstract class RepositoryHookUtilities {
      * @param data - The row, or the change to it.
      * @param operation - Whether it is created or updated.
      * @param entity - The entity of the row.
+     * @param services - What the hooks run with.
      */
-    static async beforeSave<T extends BaseEntity>(data: T | DeepPartial<T>, operation: SaveOperation, entity: Newable<T>): Promise<void> {
-        const hooks: RepositoryHooks = inject(ZIBRI_DI_TOKENS.REPOSITORY_HOOKS);
-        if (hooks.beforeSave == undefined) {
-            await this.defaultBeforeSave(data, operation, entity);
+    static async beforeSave<T extends BaseEntity>(
+        data: T | DeepPartial<T>,
+        operation: SaveOperation,
+        entity: Newable<T>,
+        services: RepositoryHookServices
+    ): Promise<void> {
+        if (services.hooks.beforeSave == undefined) {
+            await this.defaultBeforeSave(data, operation, entity, services);
             return;
         }
-        await hooks.beforeSave(data, operation, entity, (d, o, e) => this.defaultBeforeSave(d, o, e));
+        await services.hooks.beforeSave(data, operation, entity, (d, o, e) => this.defaultBeforeSave(d, o, e, services));
     }
 
     /**
      * Runs the before delete hooks on a row about to be removed.
      * @param row - The row, as read.
      * @param entity - The entity of the row.
+     * @param hooks - The hooks the application provides.
      */
-    static async beforeDelete<T extends BaseEntity>(row: T, entity: Newable<T>): Promise<void> {
-        const hooks: RepositoryHooks = inject(ZIBRI_DI_TOKENS.REPOSITORY_HOOKS);
+    static async beforeDelete<T extends BaseEntity>(row: T, entity: Newable<T>, hooks: RepositoryHooks): Promise<void> {
         if (hooks.beforeDelete == undefined) {
             this.defaultBeforeDelete(row, entity);
             return;
@@ -51,23 +58,19 @@ export abstract class RepositoryHookUtilities {
      * @param row - The row.
      * @param entity - The entity of the row.
      * @param autoDecrypt - Whether its encrypted properties are decrypted.
+     * @param services - What the hooks run with.
      */
-    static async beforeReturn<T extends BaseEntity>(row: T, entity: Newable<T>, autoDecrypt: boolean): Promise<void> {
-        const hooks: RepositoryHooks = inject(ZIBRI_DI_TOKENS.REPOSITORY_HOOKS);
-        if (hooks.beforeReturn == undefined) {
-            await this.defaultBeforeReturn(row, entity, autoDecrypt);
+    static async beforeReturn<T extends BaseEntity>(
+        row: T,
+        entity: Newable<T>,
+        autoDecrypt: boolean,
+        services: RepositoryHookServices
+    ): Promise<void> {
+        if (services.hooks.beforeReturn == undefined) {
+            await this.defaultBeforeReturn(row, entity, autoDecrypt, services);
             return;
         }
-        await hooks.beforeReturn(row, entity, autoDecrypt, (r, e, a) => this.defaultBeforeReturn(r, e, a));
-    }
-
-    /**
-     * Whether the application provides a before delete hook, which every row a delete removes is
-     * handed to.
-     * @returns True when it provides one.
-     */
-    static hasBeforeDelete(): boolean {
-        return inject(ZIBRI_DI_TOKENS.REPOSITORY_HOOKS).beforeDelete != undefined;
+        await services.hooks.beforeReturn(row, entity, autoDecrypt, (r, e, a) => this.defaultBeforeReturn(r, e, a, services));
     }
 
     /**
@@ -75,19 +78,21 @@ export abstract class RepositoryHookUtilities {
      * @param data - The row, or the change to it.
      * @param operation - Whether it is created or updated.
      * @param entity - The entity of the row.
+     * @param services - What the row is encrypted and hashed with.
      */
     private static async defaultBeforeSave<T extends BaseEntity>(
         data: T | DeepPartial<T>,
         operation: SaveOperation,
-        entity: Newable<T>
+        entity: Newable<T>,
+        services: RepositoryHookServices
     ): Promise<void> {
         // an excluded property is a non-enumerable getter on a loaded entity, and the driver has to see it
         restoreExcludeProperties(data, entity);
         if (operation === SaveOperation.CREATE) {
             await setDefaultValues(data, entity);
         }
-        await encryptEncryptionProperties(data, entity, inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE));
-        await hashHashProperties(data, entity, inject(ZIBRI_DI_TOKENS.HASH_SERVICE));
+        await encryptEncryptionProperties(data, entity, services.encryptionService);
+        await hashHashProperties(data, entity, services.hashService);
     }
 
     /**
@@ -109,13 +114,19 @@ export abstract class RepositoryHookUtilities {
      * @param row - The row.
      * @param entity - The entity of the row.
      * @param autoDecrypt - Whether its encrypted properties are decrypted.
+     * @param services - What the row is decrypted with.
      */
-    private static async defaultBeforeReturn<T extends BaseEntity>(row: T, entity: Newable<T>, autoDecrypt: boolean): Promise<void> {
+    private static async defaultBeforeReturn<T extends BaseEntity>(
+        row: T,
+        entity: Newable<T>,
+        autoDecrypt: boolean,
+        services: RepositoryHookServices
+    ): Promise<void> {
         // decrypting first, even though an excluded property is about to be thrown away: an `exclude`
         // callback may read another encrypted property, and it has to see the value rather than the
         // envelope. The cost is a key spent on a value nobody receives
         if (autoDecrypt) {
-            await decryptEncryptionProperties(row, entity, inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE));
+            await decryptEncryptionProperties(row, entity, services.encryptionService);
         }
         await removeExcludeProperties(row, entity);
     }
