@@ -15,7 +15,7 @@ export class PasskeyRegistrationTicket extends BaseEntity {
     /**
      * The ticket.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     value!: HashString;
 
     /**
@@ -98,6 +98,6 @@ export class PasskeyRegistrationTicketCreateData extends OmitClass(PasskeyRegist
     /**
      * The ticket, before the hook hashes it.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     value!: string;
 }

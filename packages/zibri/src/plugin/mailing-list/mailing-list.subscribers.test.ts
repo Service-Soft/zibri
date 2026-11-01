@@ -25,11 +25,15 @@ import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
 import { KnownHeader } from '../../http/known-header.enum';
 import { MimeType } from '../../http/mime-type.enum';
+import { Controller } from '../../routing/decorators/controller.decorator';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 
 const TENANT: string = UUIDUtilities.generate();
+
+@Controller('/mailing-lists', { versions: 'all' })
+class AppMailingListController extends MailingListController {}
 
 let server: StartedTestServer | undefined;
 let baseUrl: string = '';
@@ -108,7 +112,7 @@ function onServer(link: string): string {
 describe('a mailing list subscriber on no list', () => {
     beforeAll(async () => {
         server = await startTestServer({
-            controllers: [MailingListController],
+            controllers: [AppMailingListController],
             plugins: [new ZibriMailingListPlugin()],
             dataSources: [
                 createInMemoryDataSource({

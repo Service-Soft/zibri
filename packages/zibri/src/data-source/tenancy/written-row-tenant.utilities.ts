@@ -6,14 +6,14 @@
 // transaction refuses being used again.
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
-import { Transaction } from '../transaction/transaction.model';
+import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
 
 /**
  * The tenant of each row, by entity and id.
  */
 type TenantsByEntity = Map<Newable<BaseEntity>, Map<string, string | undefined>>;
 
-const tenantsByTransaction: WeakMap<Transaction, TenantsByEntity> = new WeakMap();
+const tenantsByTransaction: WeakMap<RepositoryTransaction, TenantsByEntity> = new WeakMap();
 
 /**
  * Remembers the tenant of every row a transaction wrote, for the tenant checks of the writes after it.
@@ -27,7 +27,7 @@ export class WrittenRowTenantUtilities {
      * @param rows - Each row's id and tenant, undefined for a row of no tenant.
      */
     static record(
-        transaction: Transaction | undefined,
+        transaction: RepositoryTransaction | undefined,
         entityClass: Newable<BaseEntity>,
         rows: [string, string | undefined][]
     ): void {
@@ -50,7 +50,7 @@ export class WrittenRowTenantUtilities {
      * @param entityClass - The entity of the rows.
      * @param ids - Their ids.
      */
-    static forget(transaction: Transaction | undefined, entityClass: Newable<BaseEntity>, ids: string[]): void {
+    static forget(transaction: RepositoryTransaction | undefined, entityClass: Newable<BaseEntity>, ids: string[]): void {
         const byId: Map<string, string | undefined> | undefined = transaction == undefined
             ? undefined
             : tenantsByTransaction.get(transaction)?.get(entityClass);
@@ -67,7 +67,7 @@ export class WrittenRowTenantUtilities {
      * @returns The tenant of each row the transaction wrote, by id. A row it did not write is absent.
      */
     static findTenants(
-        transaction: Transaction | undefined,
+        transaction: RepositoryTransaction | undefined,
         entityClass: Newable<BaseEntity>,
         ids: string[]
     ): Map<string, string | undefined> {

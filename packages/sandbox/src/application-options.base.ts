@@ -1,6 +1,6 @@
-import { MailingListController, OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOptions, ZibriInvoicingPlugin, ZibriMailingListPlugin } from 'zibri';
+import { OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOptions, ZibriInvoicingPlugin, ZibriMailingListPlugin } from 'zibri';
 
-import { AppAuthController, CronController, FileController, HealthController, MetricsController, PageController, TemplateController, TestController, TestCrudController, TestWebsocketController } from './controllers';
+import { AppAuthController, AppMailingListController, CronController, FileController, HealthController, MetricsController, PageController, TemplateController, TestController, TestCrudController, TestWebsocketController } from './controllers';
 import { StatusCronJob } from './cron';
 import { requireOneOfEnv, requireUrlEnv } from './env';
 import { version } from '../package.json';
@@ -32,7 +32,7 @@ export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSo
         MetricsController,
         TestCrudController,
         PageController,
-        MailingListController
+        AppMailingListController
     ],
     websocketControllers: [TestWebsocketController],
     cronJobs: [StatusCronJob],

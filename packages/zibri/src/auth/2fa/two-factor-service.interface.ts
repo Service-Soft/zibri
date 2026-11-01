@@ -3,7 +3,7 @@ import { TwoFactorLock } from './two-factor-failure-limit.model';
 import { TwoFactorMethods } from './two-factor-methods.model';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { UserAccount } from '../models/user-account.model';
 
 /**
@@ -120,5 +120,5 @@ export interface TwoFactorServiceInterface {
      * Deletes every row of the given users' second factors, of every method, and their failure
      * streaks. Called in the transaction that deletes the users for good.
      */
-    deleteUserRows: (userIds: string[], transaction: Transaction) => Promise<void>
+    deleteUserRows: (userIds: string[], transaction: RepositoryTransaction) => Promise<void>
 }

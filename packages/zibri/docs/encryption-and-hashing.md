@@ -86,7 +86,7 @@ export class Integration extends BaseTenantEntity() {
     @Property.string({ encryption: true })
     accessToken!: string;
 
-    @Property.string({ hash: true })
+    @Property.string({ hash: true, password: false })
     inboundToken!: HashString;
 }
 ```
@@ -94,6 +94,13 @@ export class Integration extends BaseTenantEntity() {
 `accessToken` is what your application calls the other service with, so it is encrypted and read
 back. `inboundToken` is what the other service calls your application with, which is only compared,
 so it is hashed. `encryption` and `hash` also take an options object in place of `true`.
+
+A hashed property says whether it holds a password. `password: false` is for anything else, such as
+this token. `password: true` hashes the property without `hash`, and checks every password written
+to it against the [password policy](./auth.md#how-long-a-password-may-be). The policy says how long a
+password is, so a password declares no `minLength`, `maxLength`, `regex`, `format`, `enum` or
+`default`. It is hashed by a strategy that salts each value, and it is the property of an entity, not
+an item of an array or a shape.
 
 Every value stored through a repository is encrypted or hashed. The same flags work on the string items of an array and on a string shape of `@Property.oneOf`, and each shape can name a strategy of its own.
 
@@ -112,12 +119,12 @@ import { BaseEntity, Entity, HashString, OmitClass, Property } from 'zibri';
 
 @Entity({ tenant: 'shared' })
 export class Credentials extends BaseEntity {
-    @Property.string({ hash: true })
+    @Property.string({ password: true })
     password!: HashString;
 }
 
 export class CredentialsCreateData extends OmitClass(Credentials, ['id', 'password']) {
-    @Property.string({ hash: true })
+    @Property.string({ password: true })
     password!: string;
 }
 ```
@@ -183,6 +190,7 @@ export async function rotateKey(encryptionService: EncryptionServiceInterface, o
 
 `EncryptionRotationCronJob` is registered for you and does the rewriting: hourly, on one instance,
 at most 500 rows per run. Each value is re-encrypted under the current key through its repository.
+To rewrite more rows an hour, run it more often with [`changeCron`](./cron.md#changing-a-job-while-the-app-runs).
 
 It also binds every value stored without a [binding](#binding-a-value-to-its-row), so
 the binding covers the values already in the database too.
@@ -275,7 +283,7 @@ import { BaseTenantEntity, Entity, HashString, Property, Sha256HashStrategy } fr
 
 @Entity()
 export class ApiToken extends BaseTenantEntity() {
-    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy }, password: false })
     value!: HashString;
 }
 ```

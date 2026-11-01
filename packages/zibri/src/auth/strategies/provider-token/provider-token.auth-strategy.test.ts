@@ -443,6 +443,21 @@ describe('ProviderTokenAuthStrategy — reading a provider\'s tokens', () => {
         expect((await callWith('/me', token)).status).toBe(401);
     });
 
+    // evaluation/round-2/12-hardcoded-values.md §A1: a provider's clock a second ahead of the
+    // application's refused its tokens
+    it('takes a token the provider\'s clock calls valid within the accepted skew, and refuses one past it', async () => {
+        const user: JwtUser = await createLinkedUser(strictProvider);
+        const now: number = Math.floor(Date.now() / Ms.SECOND);
+
+        const justExpired: string = strictProvider.createJwtAccessToken({ audience: API_AUDIENCE, claims: { iat: now - 330, exp: now - 30 } });
+        const notYetValid: string = strictProvider.createJwtAccessToken({ audience: API_AUDIENCE, claims: { nbf: now + 30 } });
+        const expiredLonger: string = strictProvider.createJwtAccessToken({ audience: API_AUDIENCE, claims: { iat: now - 390, exp: now - 90 } });
+
+        expect(await readUserId(await callWith('/me', justExpired))).toBe(user.id);
+        expect(await readUserId(await callWith('/me', notYetValid))).toBe(user.id);
+        expect((await callWith('/me', expiredLonger)).status).toBe(401);
+    });
+
     it('refuses a token whose identity is linked to nobody, or linked for the provider\'s apis only', async () => {
         strictProvider.identity = { subject: `subject-${randomBytes(6).toString('hex')}` };
         expect((await callWith('/me', strictProvider.createJwtAccessToken({ audience: API_AUDIENCE }))).status).toBe(401);

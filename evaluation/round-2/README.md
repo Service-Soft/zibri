@@ -32,6 +32,7 @@ finding ends with a **Verify** note saying which test would prove it.
 | [08-docs-and-dx.md](./08-docs-and-dx.md) | Claims the code does not support, missing pages, articulation, the day-to-day of building an app | X |
 | [10-whats-open.md](./10-whats-open.md) | Every finding of this round in one table, by severity — the round's own "what now" | |
 | [11-unread-code-review.md](./11-unread-code-review.md) | What neither round had read, reviewed after this round's findings closed, and what came of it | T, C, L, S, K, A, U, V, W |
+| [12-hardcoded-values.md](./12-hardcoded-values.md) | Values the framework hardcodes that an application might want to set, and what the sweep found on the way | B, A, D, H, P, O |
 
 The code review is kept apart from the evaluation, under [code-review/](./code-review/):
 

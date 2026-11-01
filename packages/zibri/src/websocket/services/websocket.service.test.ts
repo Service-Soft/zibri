@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 
 import { type WebsocketServiceInterface } from './websocket-service.interface';
 import { TestTimeouts } from '../../__testing__/constants';
+import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
 import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
@@ -105,8 +106,8 @@ describe('WebsocketService — starting', () => {
             { websocketControllers: [TestWsController] }
         );
 
-        await expect(start).rejects.toThrow('Error initializing WebsocketService');
-        await expect(start).rejects.toThrow(/WebsocketChannel[\S\s]*WebsocketMessage/);
+        await expect(start).rejects.toThrow(missingEntityPattern('WebsocketChannel', 'WebsocketService'));
+        await expect(start).rejects.toThrow(missingEntityPattern('WebsocketMessage', 'WebsocketService'));
     }, TestTimeouts.inMemory.start);
 
     it('starts without its entities when nothing declares websockets', async () => {

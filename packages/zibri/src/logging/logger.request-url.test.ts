@@ -46,6 +46,9 @@ class LinkController {
     }
 }
 
+@Controller('/mailing-lists', { versions: 'all' })
+class AppMailingListController extends MailingListController {}
+
 let server: StartedTestServer | undefined;
 let baseUrl: string = '';
 let logRepository: Repository<Log>;
@@ -71,7 +74,7 @@ function carries(log: Log, text: string): boolean {
 
 beforeAll(async () => {
     server = await startTestServer({
-        controllers: [MailingListController, LinkController],
+        controllers: [AppMailingListController, LinkController],
         plugins: [new ZibriMailingListPlugin()],
         dataSources: [
             createInMemoryDataSource({

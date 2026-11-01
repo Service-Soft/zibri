@@ -63,7 +63,19 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
         private readonly store: InMemoryStore,
         private readonly idleTimeoutInMs: number,
         private readonly logger: LoggerInterface
-    ) {}
+    ) {
+        // idle from its start, as on postgres: a transaction that never does anything is ended too
+        this.touch();
+    }
+
+    /**
+     * Whether the transaction was started on the given store, which is the one data source it belongs to.
+     * @param store - The store of a data source.
+     * @returns True for the store of the data source that started it.
+     */
+    isStartedOn(store: InMemoryStore): boolean {
+        return this.store === store;
+    }
 
     /**
      * Restarts the idle countdown, because something just happened on this transaction.

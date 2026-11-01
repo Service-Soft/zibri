@@ -23,7 +23,7 @@ class Secrets {
     @Property.string({ encryption: { bindToRow: false } })
     apiKey!: string;
 
-    @Property.string({ hash: true })
+    @Property.string({ password: true })
     password!: string;
 
     @Property.string({ encryption: { bindToRow: false }, excludeFromChangeSets: false })
@@ -32,7 +32,7 @@ class Secrets {
     @Property.array({ items: { type: 'string', encryption: true } })
     recoveryCodes!: string[];
 
-    @Property.array({ items: { type: 'array', items: { type: 'string', hash: true } } })
+    @Property.array({ items: { type: 'array', items: { type: 'string', hash: true, password: false } } })
     pinsPerDevice!: string[][];
 
     @Property.oneOf({ shapes: { Email: { type: 'string', encryption: true }, Count: { type: 'number' } } })

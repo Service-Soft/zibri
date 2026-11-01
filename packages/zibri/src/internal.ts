@@ -214,7 +214,9 @@ export * from './data-source/driver/postgres.repository-driver';
 export * from './data-source/driver/val-key.repository-driver';
 export * from './data-source/keyset/after-cursor-where.function';
 export * from './data-source/keyset/keyset-order.model';
+export * from './data-source/transaction/open-transactions.model';
 export * from './data-source/transaction/postgres-transaction.model';
+export * from './data-source/transaction/spanning-transaction-participants.model';
 export * from './data-source/transaction/val-key-transaction.model';
 export * from './data-source/models/column-type.model';
 export * from './data-source/models/entity-migration-input.model';
@@ -275,6 +277,7 @@ export { type NewChange } from './data-source/change-sets/models/change.model';
 
 // document
 export * from './document/xml-element-node.model';
+export * from './document/pdf-font-fallback.utilities';
 
 // mailing list
 export { MailingListSubscriptionConfirmationTokenCreateData } from './plugin/mailing-list/models/mailing-list-subscription-confirmation-token.model';

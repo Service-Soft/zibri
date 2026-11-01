@@ -38,7 +38,7 @@ const DEFAULT_PART_SIZE: FileSize = '16mb';
 const DEFAULT_TIMEOUT_MS: number = Ms.MINUTE * 5;
 // a request that is answered with a 5xx or a 429 is sent again. Only the idempotent ones, which the
 // http client decides by itself
-const ATTEMPTS: number = 3;
+const DEFAULT_ATTEMPTS: number = 3;
 // the record of a backup names it and its resources, which is far below this
 const MAX_METADATA_SIZE: FileSize = '10mb';
 // a page of a listing holds up to 1,000 objects of a few hundred bytes each, and keys of up to a kilobyte.
@@ -137,7 +137,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
             headers: request.headers,
             responseBody: { type: MimeType.OCTET_STREAM, maxSize: `${resource.size}b` },
             timeoutInMs: this.options.timeoutInMs ?? DEFAULT_TIMEOUT_MS,
-            attempts: ATTEMPTS
+            attempts: this.options.attempts ?? DEFAULT_ATTEMPTS
         })).body;
     }
 
@@ -156,7 +156,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
         await this.httpClient.delete(request.url, {
             headers: request.headers,
             timeoutInMs: this.options.timeoutInMs ?? DEFAULT_TIMEOUT_MS,
-            attempts: ATTEMPTS
+            attempts: this.options.attempts ?? DEFAULT_ATTEMPTS
         });
     }
 
@@ -218,7 +218,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
                     maxSize: MAX_LISTING_PAGE_SIZE
                 },
                 timeoutInMs: this.options.timeoutInMs ?? DEFAULT_TIMEOUT_MS,
-                attempts: ATTEMPTS
+                attempts: this.options.attempts ?? DEFAULT_ATTEMPTS
             })).body;
             keys.push(...(page.contents ?? []).map(o => o.key));
             continuationToken = page.isTruncated ? page.nextContinuationToken : undefined;
@@ -233,7 +233,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
             headers: request.headers,
             responseBody: { type: MimeType.OCTET_STREAM, maxSize: MAX_METADATA_SIZE },
             timeoutInMs: this.options.timeoutInMs ?? DEFAULT_TIMEOUT_MS,
-            attempts: ATTEMPTS
+            attempts: this.options.attempts ?? DEFAULT_ATTEMPTS
         })).body;
         return await text(data);
     }
@@ -247,7 +247,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
             headers: request.headers,
             requestBodyType: MimeType.OCTET_STREAM,
             timeoutInMs: this.options.timeoutInMs ?? DEFAULT_TIMEOUT_MS,
-            attempts: ATTEMPTS
+            attempts: this.options.attempts ?? DEFAULT_ATTEMPTS
         });
     }
 
@@ -281,7 +281,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
             requestBodyType: MimeType.OCTET_STREAM,
             responseHeaders: { etag: { type: 'string' } },
             timeoutInMs: this.options.timeoutInMs ?? DEFAULT_TIMEOUT_MS,
-            attempts: ATTEMPTS
+            attempts: this.options.attempts ?? DEFAULT_ATTEMPTS
         });
         return { partNumber, eTag: headers.etag };
     }
@@ -305,7 +305,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
             await this.httpClient.delete(request.url, {
                 headers: request.headers,
                 timeoutInMs: this.options.timeoutInMs ?? DEFAULT_TIMEOUT_MS,
-                attempts: ATTEMPTS
+                attempts: this.options.attempts ?? DEFAULT_ATTEMPTS
             });
         }
         catch (error) {

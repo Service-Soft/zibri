@@ -18,6 +18,7 @@ import { WebsocketRequestContext } from '../context/request/websocket-request.co
 import { type ChainServiceInterface } from '../data-source/chain/chain-service.interface';
 import { ChainVerification } from '../data-source/chain/chain-verification.model';
 import { ChainUtilities } from '../data-source/chain/chain.utilities';
+import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 import { WhereFilter } from '../data-source/models/where/where-filter.model';
 import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
@@ -48,16 +49,6 @@ const RETRY_INTERVAL_IN_MS: number = Ms.SECOND * 5;
  * The name of the signing key the entries are hashed with.
  */
 const SIGNING_KEY_NAME: string = 'audit';
-
-/**
- * How much time one checkpoint seals at most.
- */
-const CHECKPOINT_SPAN_IN_MS: number = Ms.HOUR;
-
-/**
- * How long after its end a span is sealed.
- */
-const SEAL_DELAY_IN_MS: number = Ms.MINUTE * 5;
 
 /**
  * What a checkpoint about to be written has gathered of the entries of one tenant.
@@ -120,7 +111,9 @@ export class AuditService implements AuditServiceInterface, OnAppInit, OnAppShut
         @Inject(ZIBRI_DI_TOKENS.AUDIT_MAX_REFUSALS_PER_MINUTE)
         maxRefusalsPerMinute: number,
         @Inject(ZIBRI_DI_TOKENS.AUDIT_INTEGRITY)
-        private readonly integrity: AuditIntegrity
+        private readonly integrity: AuditIntegrity,
+        @Inject(ZIBRI_DI_TOKENS.AUDIT_SEAL_DELAY_IN_MS)
+        private readonly sealDelayInMs: number
     ) {
         this.budget = new AuditBudget(maxRefusalsPerMinute, entries => {
             this.enqueue(entries);
@@ -191,7 +184,28 @@ export class AuditService implements AuditServiceInterface, OnAppInit, OnAppShut
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    record(event: AuditEvent): void {
+    record(event: AuditEvent, transaction?: RepositoryTransaction): void {
+        // built now rather than once committed, so that the request, the tenant and the time are
+        // those of the step
+        const entry: RecordedAuditEntry = this.resolveEntry(event);
+        // a success waits for the writes it reports, which a rollback undoes along with it. A refusal
+        // happened whatever becomes of the transaction
+        if (transaction != undefined && event.outcome === AuditOutcome.SUCCESS) {
+            transaction.afterCommit(() => {
+                this.store(event, entry);
+                return Promise.resolve();
+            });
+            return;
+        }
+        this.store(event, entry);
+    }
+
+    /**
+     * Logs an event and queues its entry.
+     * @param event - The event.
+     * @param entry - Its entry.
+     */
+    private store(event: AuditEvent, entry: RecordedAuditEntry): void {
         // info rather than debug so that the default db transport keeps it, and warn rather than
         // error for a failure because error() wants an Error and a refused login is not one - a
         // rule keys on metadata.audit.action, not on the level
@@ -199,15 +213,24 @@ export class AuditService implements AuditServiceInterface, OnAppInit, OnAppShut
         const message: string = `${event.action} ${event.outcome}${reason}`;
         if (event.outcome === AuditOutcome.SUCCESS) {
             this.logger.info(message, { metadata: { audit: event } });
+            this.enqueue([entry]);
+            return;
         }
-        else {
-            this.logger.warn(message, { metadata: { audit: event } });
-        }
+        this.logger.warn(message, { metadata: { audit: event } });
+        // never rejects: what the budget hands on is only queued here
+        void this.budget.write([entry]);
+    }
 
+    /**
+     * Resolves the entry of an event, with what the step it happened in knows.
+     * @param event - The event.
+     * @returns The entry.
+     */
+    private resolveEntry(event: AuditEvent): RecordedAuditEntry {
         // read now rather than when written, since the write happens outside the request and the tenant
         const requestContext: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
         const occurredAt: Date = new Date();
-        const entry: RecordedAuditEntry = {
+        return {
             ...event,
             // null rather than undefined for no tenant, since the write fills an undefined one with
             // the tenant it runs in - which is whichever entry happened to start it
@@ -221,13 +244,6 @@ export class AuditService implements AuditServiceInterface, OnAppInit, OnAppShut
             lastOccurredAt: occurredAt,
             count: 1
         };
-
-        if (event.outcome === AuditOutcome.SUCCESS) {
-            this.enqueue([entry]);
-            return;
-        }
-        // never rejects: what the budget hands on is only queued here
-        void this.budget.write([entry]);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -281,9 +297,10 @@ export class AuditService implements AuditServiceInterface, OnAppInit, OnAppShut
         if (this.integrity === 'chain') {
             return 0;
         }
-        // a while after the span ends, so an entry stored at its very end has landed, also from an
-        // instance whose clock runs a little behind
-        const until: Date = new Date(Math.floor((Date.now() - SEAL_DELAY_IN_MS) / CHECKPOINT_SPAN_IN_MS) * CHECKPOINT_SPAN_IN_MS);
+        // up to a while before now rather than whole hours, so how often the cron job runs is how soon
+        // an entry is sealed. The while is for an entry stored just before to have landed, also from
+        // an instance whose clock runs a little behind
+        const until: Date = new Date(Date.now() - this.sealDelayInMs);
         const sealedUntil: Date | undefined = await this.checkpointRepository.maximum('periodEnd', { acrossTenants: true, unscoped: true });
         // the tenants with entries since the newest checkpoint of any tenant: one whose own newest
         // checkpoint is older stored nothing in between, or it would have one up to there as well

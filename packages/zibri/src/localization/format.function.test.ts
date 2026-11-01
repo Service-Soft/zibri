@@ -52,7 +52,7 @@ describe('$f', () => {
         });
 
         it('formats a percentage', () => {
-            const result: string = $f.percent(0.5);
+            const result: string = $f.percent(50);
             expect(result).toContain('50');
         });
     });

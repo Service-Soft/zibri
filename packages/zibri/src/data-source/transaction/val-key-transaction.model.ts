@@ -203,10 +203,8 @@ export class ValKeyTransaction implements Transaction {
     private readonly finishedWork: ((committed: boolean) => Promise<void>)[] = [];
 
     /**
-     * Rolls the transaction back once nothing has happened on it for long enough.
-     *
-     * Armed by the first write or the first work waiting for its end rather than by the constructor,
-     * because a transaction with neither is holding nothing and costs nobody else anything.
+     * Rolls the transaction back once nothing has happened on it for long enough. Armed when the
+     * transaction starts, and again by everything that happens on it.
      */
     private idleTimer: NodeJS.Timeout | undefined;
 
@@ -215,7 +213,19 @@ export class ValKeyTransaction implements Transaction {
         private readonly grants: ValKeyTransactionGrants,
         private readonly idleTimeoutInMs: number,
         private readonly logger: LoggerInterface
-    ) {}
+    ) {
+        // idle from its start, as on postgres: a transaction that never does anything is ended too
+        this.touch();
+    }
+
+    /**
+     * Whether the transaction was started on the given connection, which is the one data source it belongs to.
+     * @param client - The connection of a data source.
+     * @returns True for the connection of the data source that started it.
+     */
+    isStartedOn(client: GlideClient): boolean {
+        return this.client === client;
+    }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     get isFinished(): boolean {

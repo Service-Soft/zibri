@@ -79,7 +79,7 @@ uses. Install the package of a feature you use:
 | Login through a directory, see [login through a directory](./login-through-a-directory.md) | `ldapts` |
 | Client certificates, see [client certificates](./client-certificates.md) | `@peculiar/x509` |
 | Passkeys, see [passkeys](./passkeys.md) | `@simplewebauthn/server`, and `jose` when the devices are [restricted](./passkeys.md#restricting-the-devices) |
-| Websocket controllers | `socket.io`, and `socket.io-parser`, which `socket.io` brings with it |
+| Websocket controllers | `socket.io`, and `socket.io-parser` and `ws`, which `socket.io` brings with it |
 | A websocket adapter data source, for broadcasts across instances | `socket.io-adapter`, which `socket.io` brings with it |
 | `PdfUtilities` and the invoicing plugin | `pdfmake` |
 | The xml body parser, which ships as one of the default body parsers, translations, `XmlUtilities`, XRechnung and Peppol invoices | `saxes` |

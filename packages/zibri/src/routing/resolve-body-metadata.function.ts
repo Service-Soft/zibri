@@ -7,12 +7,8 @@ import { MimeType } from '../http/mime-type.enum';
 import { ExcludeStrict } from '../types/exclude-strict.type';
 import { isNewable, Newable } from '../types/newable.type';
 import { Ms } from '../utilities/ms';
+import { BigNumber } from '../utilities/number.utilities';
 import { BodyMetadata, BodyShapeMetadata, FormDataBodyMetadataInput, FormUrlEncodedBodyMetadataInput, JsonBodyMetadata, JsonBodyMetadataInput, JsonBodyShapeMetadataInput, RawXmlBodyMetadataInput, StreamBodyMetadataInput, XmlBodyMetadata, XmlBodyMetadataInput } from './decorators/body-metadata.model';
-
-/**
- * What a body may weigh, besides its files, when the declaration does not say.
- */
-const DEFAULT_BASE_MAX_SIZE: FileSize = '100kb';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type BaseBodyDeclaration = { modelClass: Newable<unknown> | (() => Newable<unknown>) } | { shapes: JsonBodyShapeMetadataInput[] };
@@ -70,7 +66,8 @@ export type StructuredBodyDeclaration = JsonBodyDeclaration | XmlBodyDeclaration
  *
  * Built per kind rather than spread over one set of defaults: `cleanupAfterInMs` and `limits` belong
  * to a form data body and mean nothing on a json one, and `baseMaxSize` is an input that resolves
- * into `maxSize` rather than a field of its own.
+ * into `maxSize` rather than a field of its own. A size left out stays undefined: it is the limit of
+ * whoever reads the body, the application or the http client, which only exists once it has started.
  *
  * Internal, and in a file of its own so that it stays that way: `body.decorator.ts` is re-exported
  * whole, and this is the framework filling in its own defaults rather than something a consumer
@@ -99,7 +96,7 @@ export function resolveBodyMetadata(input: BodyDeclaration, index: number): Body
                 shape,
                 required: input.required ?? true,
                 description: input.description,
-                baseMaxSize: fileSizeToBytes(input.baseMaxSize ?? DEFAULT_BASE_MAX_SIZE),
+                baseMaxSize: toBytes(input.baseMaxSize),
                 type: MimeType.FORM_DATA,
                 cleanupAfterInMs: input.cleanupAfterInMs ?? Ms.DAY,
                 limits: input.limits
@@ -113,7 +110,7 @@ export function resolveBodyMetadata(input: BodyDeclaration, index: number): Body
                 shape,
                 required: input.required ?? true,
                 description: input.description,
-                baseMaxSize: fileSizeToBytes(input.maxSize ?? DEFAULT_BASE_MAX_SIZE)
+                baseMaxSize: toBytes(input.maxSize)
             };
         }
         case MimeType.OCTET_STREAM: {
@@ -122,7 +119,7 @@ export function resolveBodyMetadata(input: BodyDeclaration, index: number): Body
                 index,
                 required: input.required ?? true,
                 description: input.description,
-                maxSize: fileSizeToBytes(input.maxSize ?? '10mb')
+                maxSize: toBytes(input.maxSize)
             };
         }
     }
@@ -144,7 +141,7 @@ export function resolveStructuredBodyMetadata(
         index,
         required: input.required ?? true,
         description: input.description,
-        baseMaxSize: fileSizeToBytes(input.maxSize ?? DEFAULT_BASE_MAX_SIZE)
+        baseMaxSize: toBytes(input.maxSize)
     };
     if ('raw' in input) {
         return { ...common, type: MimeType.XML, shape: resolveRawXmlShape(), raw: true };
@@ -233,6 +230,15 @@ function resolveBodyShape(input: ExcludeStrict<BodyDeclaration, StreamBodyDeclar
             return model;
         }
     }
+}
+
+/**
+ * A size a declaration names, in bytes.
+ * @param size - The size, or undefined when the declaration names none.
+ * @returns The bytes, or undefined for the limit of whoever reads the body.
+ */
+function toBytes(size: FileSize | undefined): BigNumber | undefined {
+    return size == undefined ? undefined : fileSizeToBytes(size);
 }
 
 /**

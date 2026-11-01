@@ -6,7 +6,7 @@ import { BaseRepositoryOptions } from '../models/options/base-repository-options
 import { FindAllOptions } from '../models/options/find-all-options.model';
 import { type RelatedNarrowing } from '../models/related-narrowing.model';
 import { Where } from '../models/where/where-filter.model';
-import { Transaction } from '../transaction/transaction.model';
+import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
 
 /**
  * What an upsert takes from the repository it writes for: its hooks and its reads, as the repository
@@ -28,9 +28,9 @@ export type UpsertWriterContext<T extends BaseEntity> = {
     /**
      * Resolves what the rows a filter reaches through relations are narrowed to.
      */
-    resolveRelated: (where: Where<T> | undefined, options: BaseRepositoryOptions | undefined) => Promise<RelatedNarrowing | undefined>,
+    resolveRelated: (where: Where<T> | undefined, options: BaseRepositoryOptions<T> | undefined) => Promise<RelatedNarrowing | undefined>,
     /**
      * Runs work in the caller's transaction, or in one taken out for it.
      */
-    inTransaction: <R>(options: BaseRepositoryOptions | undefined, fn: (transaction: Transaction) => Promise<R>) => Promise<R>
+    inTransaction: <R>(options: BaseRepositoryOptions<T> | undefined, fn: (transaction: RepositoryTransaction<T>) => Promise<R>) => Promise<R>
 };

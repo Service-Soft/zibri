@@ -84,6 +84,16 @@ export function rolesAndPermissionsProviders(
 }
 
 /**
+ * The password policy of this repository's test servers and cluster instances: any password at all,
+ * since the fixtures log in with short ones, and a suite about the policy provides its own. Over the
+ * harness's own, which takes what an application takes.
+ */
+export const testServerPasswordPolicyProvider: DiProvider<unknown> = defineProvider({
+    token: ZIBRI_DI_TOKENS.PASSWORD_POLICY,
+    useValue: { minLength: 1, outdatedPasswords: 'keep' }
+});
+
+/**
  * What this repository's own test servers run with.
  *
  * The harness's defaults, plus what is about *this* repository rather than about running a Zibri
@@ -118,6 +128,7 @@ export const defaultTestServerProviders: DiProvider<unknown>[] = [
         token: ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT,
         useValue: { messageRetentionInMs: Ms.DAY }
     }),
+    testServerPasswordPolicyProvider,
     // the permissions and roles of this repository's fixtures, for the reason above: an application's
     // own tests declare their own permissions, and seed their own roles
     ...rolesAndPermissionsProviders(defaultTestServerPermissions, defaultTestServerRoles)

@@ -17,7 +17,7 @@ The email service queues mails in your data source and sends them in the backgro
 | `ZIBRI_DI_TOKENS.EMAIL_TRANSPORT` | DI token | Injects `EmailTransportInterface` |
 | `SmtpEmailTransport` | class | The transport Zibri ships, over SMTP |
 | `LoggingEmailTransport` | class | Logs every mail instead of sending it. Defaults to it in development |
-| `SmtpEmailTransportOptions` | type | How `SmtpEmailTransport` reaches the SMTP server: `host`, `port`, `auth`, `pool` and `secure` |
+| `SmtpEmailTransportOptions` | type | How `SmtpEmailTransport` reaches the SMTP server, see [reaching the SMTP server](#reaching-the-smtp-server) |
 | `EmailPriority` | enum | Priority of a queued email (such as `HIGH`, `NORMAL`) |
 | `EmailStatus` | enum | Status of a queued email: `QUEUED`, `SENT` or `FAILED` |
 | `Email` | entity | A queued email |
@@ -83,6 +83,23 @@ import { SharedEmailRateLimiter } from './services/shared-email-rate-limiter';
 
 defineProvider({ token: ZIBRI_DI_TOKENS.EMAIL_RATE_LIMITER, useClass: SharedEmailRateLimiter })
 ```
+
+## Reaching the SMTP server
+`SmtpEmailTransport` takes these options:
+
+| Option | What it is |
+|---|---|
+| `host`, `port` | Where the server listens. Required |
+| `auth` | The `user` and `pass` the mails are sent as. Required |
+| `secure` | Whether the connection is TLS from the first byte. Otherwise it is upgraded with STARTTLS. `true` on port 465 and `false` on every other by default |
+| `requireTls` | Whether a server that offers no STARTTLS is refused, so nothing is sent unencrypted. `true` by default |
+| `tls` | Further TLS options, such as `ca` for a server whose certificate a private authority signed |
+| `pool` | Whether connections are kept open for the next mail. `true` by default |
+| `connectionTimeoutInMs` | How long connecting may take. Two minutes by default |
+| `greetingTimeoutInMs` | How long the server may take to greet once connected. 30 seconds by default |
+| `socketTimeoutInMs` | How long the connection may stay silent. Ten minutes by default |
+
+A relay that speaks no TLS at all, such as one on the same machine, needs `requireTls: false`.
 
 ## Sending through something other than SMTP
 To send through an HTTP API, such as SES, SendGrid or Postmark, implement `EmailTransportInterface` and register it under `ZIBRI_DI_TOKENS.EMAIL_TRANSPORT`. The queue works the same with every transport.

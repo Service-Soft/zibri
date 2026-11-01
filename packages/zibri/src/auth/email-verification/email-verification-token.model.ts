@@ -19,7 +19,7 @@ export class EmailVerificationToken extends BaseEntity {
     /**
      * The token, stored hashed and found by its hash, for the reason `PasswordResetToken` gives.
      */
-    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy }, password: false })
     value!: HashString;
 
     /**
@@ -54,6 +54,6 @@ export class EmailVerificationTokenCreateData extends OmitClass(EmailVerificatio
     /**
      * The token as it is generated and mailed out, before the hook hashes it.
      */
-    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy }, password: false })
     value!: string;
 }

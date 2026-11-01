@@ -1,12 +1,3 @@
-import { Ms } from '../utilities/ms';
-
-/**
- * How often a collector that reads the data source runs at most.
- *
- * Every instance collects on its own, so this bounds what the metrics cost the shared data source.
- */
-export const DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS: number = 30 * Ms.SECOND;
-
 /**
  * Brings gauges up to date before the metrics are read.
  *
@@ -20,8 +11,11 @@ export type MetricsCollector = {
     name: string,
     /**
      * The shortest time between two runs, in milliseconds. 0 runs it on every read.
+     *
+     * `'dataSource'` for a collector that reads the data source: it runs at most once every
+     * `ZIBRI_DI_TOKENS.METRICS_DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS`.
      */
-    minIntervalInMs: number,
+    minIntervalInMs: number | 'dataSource',
     /**
      * Sets the gauges. A collector that throws leaves them as the last run set them.
      */

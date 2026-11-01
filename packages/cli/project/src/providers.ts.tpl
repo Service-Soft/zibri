@@ -89,6 +89,11 @@ export const providers: DiProvider<unknown>[] = [
         useFactory: () => requireUrlEnv('CONFIRM_PASSWORD_RESET_URL')
     }),
     defineProvider({
+        // long enough for a password that is the only factor, see the auth docs
+        token: ZIBRI_DI_TOKENS.PASSWORD_POLICY,
+        useValue: { minLength: 15, outdatedPasswords: 'requireChange' }
+    }),
+    defineProvider({
         // the OpenAPI explorer open to everyone, whatever defaultAuth says. Remove this to put it behind defaultAuth
         token: ZIBRI_DI_TOKENS.OPEN_API_AUTH,
         useValue: { skip: true }

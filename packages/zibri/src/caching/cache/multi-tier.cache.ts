@@ -6,6 +6,7 @@ import { AlsUtilities } from '../../context/als.utilities';
 import { CacheContext } from '../../context/cache/cache.context';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { LoggerInterface } from '../../logging/logger.interface';
+import { DurationHistogram } from '../../metrics/duration-histogram.model';
 import { MetricsServiceInterface } from '../../metrics/metrics-service.interface';
 import { CacheMetrics } from '../cache-metrics.model';
 import { CacheServiceInterface } from '../cache-service.interface';
@@ -131,13 +132,15 @@ export abstract class MultiTierCache<
             errors: this.metricsService.getCounter('cache_errors_total', ['cache', 'operation']),
             inFlight: this.metricsService.getGauge('cache_in_flight', ['cache']),
             size: this.metricsService.getGauge('cache_size', ['cache']),
-            sourceDuration: this.metricsService.getHistogram(
-                'cache_source_duration_ms',
+            sourceDuration: DurationHistogram.resolve(
+                this.metricsService,
+                'cache_source_duration_seconds',
                 ['cache', 'operation'],
                 [1, 5, 10, 25, 50, 100, 250, 500, 1000]
             ),
-            storeDuration: this.metricsService.getHistogram(
-                'cache_store_duration_ms',
+            storeDuration: DurationHistogram.resolve(
+                this.metricsService,
+                'cache_store_duration_seconds',
                 ['cache', 'operation'],
                 [1, 5, 10, 25, 50, 100, 250, 500]
             )

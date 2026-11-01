@@ -20,7 +20,7 @@ describe('declaring the shapes of a body', () => {
 
             byCodes(
                 // @ts-expect-error - nor hashes the items of a list in it
-                @Body.oneOf({ shapes: [{ type: 'array', items: { type: 'string', hash: true } }, { type: 'number' }] }) codes: string[] | number
+                @Body.oneOf({ shapes: [{ type: 'array', items: { type: 'string', hash: true, password: false } }, { type: 'number' }] }) codes: string[] | number
             ): string {
                 return String(codes);
             }

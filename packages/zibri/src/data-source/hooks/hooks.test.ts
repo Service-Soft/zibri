@@ -31,7 +31,7 @@ class HookTestEntity extends BaseEntity implements ChangeSetEntity, SoftDeleteEn
     @Property.string({ encryption: true, exclude: true })
     secretValue!: string; // encrypted on save, decrypted on read, excluded from response
 
-    @Property.string({ hash: true })
+    @Property.string({ password: true })
     password!: HashString; // hashed on save
 
     @Property.boolean({ default: true })

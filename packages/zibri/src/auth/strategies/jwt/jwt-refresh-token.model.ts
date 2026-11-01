@@ -26,7 +26,7 @@ export class JwtRefreshToken extends BaseEntity {
      * usable session, which matters most here: a refresh token is a live login for as long as it
      * lasts.
      */
-    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy }, password: false })
     value!: HashString;
 
     /**
@@ -133,6 +133,6 @@ export class JwtRefreshTokenCreateDto extends OmitClass(JwtRefreshToken, ['id', 
     /**
      * The signed token as it is handed to the caller, before the hook hashes it.
      */
-    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy }, password: false })
     value!: string;
 }

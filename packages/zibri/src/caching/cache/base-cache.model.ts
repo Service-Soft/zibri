@@ -1,6 +1,7 @@
 import { AlsUtilities } from '../../context/als.utilities';
 import { CacheContext } from '../../context/cache/cache.context';
 import { LoggerInterface } from '../../logging/logger.interface';
+import { DurationHistogram } from '../../metrics/duration-histogram.model';
 import { MetricsServiceInterface } from '../../metrics/metrics-service.interface';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { CacheMetrics } from '../cache-metrics.model';
@@ -136,12 +137,13 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
             errors: this.metricsService.getCounter('cache_errors_total', labelWithOp),
             inFlight: this.metricsService.getGauge('cache_in_flight', label),
             size: this.metricsService.getGauge('cache_size', label),
-            sourceDuration: this.metricsService.getHistogram(
-                'cache_source_duration_ms',
+            sourceDuration: DurationHistogram.resolve(
+                this.metricsService,
+                'cache_source_duration_seconds',
                 labelWithOp,
                 [1, 5, 10, 25, 50, 100, 250, 500, 1000]
             ),
-            storeDuration: this.metricsService.getHistogram('cache_store_duration_ms', labelWithOp, [1, 5, 10, 25, 50, 100, 250, 500])
+            storeDuration: DurationHistogram.resolve(this.metricsService, 'cache_store_duration_seconds', labelWithOp, [1, 5, 10, 25, 50, 100, 250, 500])
         };
     }
 

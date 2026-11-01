@@ -134,4 +134,4 @@ loader, the vendor bundles and the source maps were found sound.
 | ID | Finding | Status |
 |---|---|---|
 | 06 §Q7 | The mail rate limiter counts per instance | Decided (user): email.md warns and shows replacing it with a shared one |
-| 06 §Q8 | Thread jobs whose effect is a write could run exactly once | **Open** (user: solve at `queueThreadJob`; design to be proposed) |
+| 06 §Q8 | Thread jobs whose effect is a write could run exactly once | Closed (user: no exactly-once, thread jobs are compute): checkpoints to resume after a takeover, an idempotency key and the job id for the app's own writes, see 06 §Q8 |

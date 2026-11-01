@@ -5,6 +5,7 @@ import { CronJobEntity, CreateCronJobEntityData, CronJobState } from './cron-job
 import { CronJob, InitialCronConfig } from './cron-job.model';
 import { CronService } from './cron.service';
 import { noOp, TestTimeouts } from '../__testing__/constants';
+import { missingEntityPattern } from '../__testing__/missing-entity-pattern.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
@@ -87,7 +88,7 @@ describe('CronService — starting', () => {
             providers: [...defaultTestServerProviders, defineProvider({ token: ZIBRI_DI_TOKENS.CRON_SERVICE, useClass: CronService })]
         });
 
-        await expect(start).rejects.toThrow(/Error initializing CronService[\S\s]*CronJobEntity/);
+        await expect(start).rejects.toThrow(missingEntityPattern('CronJobEntity', 'CronService'));
     }, TestTimeouts.inMemory.start);
 });
 

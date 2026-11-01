@@ -4,7 +4,7 @@ import { CacheContext } from './cache/cache.context';
 import { OperationLimit } from './operation-limit.model';
 import { HttpRequestContext } from './request/http-request.context';
 import { WebsocketRequestContext } from './request/websocket-request.context';
-import { type Transaction } from '../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 import { type TraceSpanContext } from '../tracing/trace-span-context.model';
 import { type TraceSpanInterface } from '../tracing/trace-span.interface';
 
@@ -19,7 +19,7 @@ export type LeaseScopeResult<T> = {
     /**
      * Every transaction a repository wrote to while the function was running.
      */
-    transactions: Transaction[]
+    transactions: RepositoryTransaction[]
 };
 
 /**
@@ -29,7 +29,7 @@ export abstract class AlsUtilities {
     private static readonly httpRequest: AsyncLocalStorage<HttpRequestContext> = new AsyncLocalStorage<HttpRequestContext>();
     private static readonly websocketRequest: AsyncLocalStorage<WebsocketRequestContext> = new AsyncLocalStorage<WebsocketRequestContext>();
     private static readonly cacheContext: AsyncLocalStorage<CacheContext[]> = new AsyncLocalStorage<CacheContext[]>();
-    private static readonly leaseScope: AsyncLocalStorage<Set<Transaction>> = new AsyncLocalStorage<Set<Transaction>>();
+    private static readonly leaseScope: AsyncLocalStorage<Set<RepositoryTransaction>> = new AsyncLocalStorage<Set<RepositoryTransaction>>();
     private static readonly asyncFactory: AsyncLocalStorage<string> = new AsyncLocalStorage<string>();
     private static readonly migration: AsyncLocalStorage<string> = new AsyncLocalStorage<string>();
     private static readonly span: AsyncLocalStorage<TraceSpanInterface> = new AsyncLocalStorage<TraceSpanInterface>();
@@ -201,7 +201,7 @@ export abstract class AlsUtilities {
      * @returns The result of the function, and the transactions that were written to while it ran.
      */
     static async runInLeaseScope<T>(fn: () => Promise<T>): Promise<LeaseScopeResult<T>> {
-        const written: Set<Transaction> = new Set();
+        const written: Set<RepositoryTransaction> = new Set();
         // a nested grant gets its own set rather than the outer one, so each one is only judged on
         // the writes made while it was the innermost one
         const result: T = await this.leaseScope.run(written, fn);
@@ -214,7 +214,7 @@ export abstract class AlsUtilities {
      * A no-op outside one, which is the common case.
      * @param transaction - The transaction that was written to.
      */
-    static recordTransactionInLeaseScope(transaction: Transaction): void {
+    static recordTransactionInLeaseScope(transaction: RepositoryTransaction): void {
         this.leaseScope.getStore()?.add(transaction);
     }
 

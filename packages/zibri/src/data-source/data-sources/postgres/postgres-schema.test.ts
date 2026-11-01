@@ -131,6 +131,8 @@ const COLUMNS_ADDED_SINCE_RECORDING: Record<string, string[]> = {
     audit_entry: ['mac', 'recordedAt'],
     jwt_refresh_token: ['authenticatedAt', 'ipAddress', 'issuedAt', 'userAgent'],
     jwt_user: ['emailVerifiedAt'],
+    login_ticket: ['passwordChangeRequired', 'purpose'],
+    password_credentials: ['changeRequired'],
     thread_job_entity: ['checkpoint', 'instanceId']
 };
 

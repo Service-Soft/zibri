@@ -55,6 +55,7 @@ export class DataSourceService implements DataSourceServiceInterface {
 
         // has to happen before any data source is initialized, because only here it is known
         // which entities belong to more than one of them
+        this.validateDataSourceNamesDistinct(registeredDataSources);
         resolveEntityOwnership(registeredDataSources);
         this.validateEntityNamesDistinct(registeredDataSources);
         RepositoryForUtilities.validateListed(registeredDataSources);
@@ -89,6 +90,32 @@ export class DataSourceService implements DataSourceServiceInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     async afterAppShutdown(): Promise<void> {
         await Promise.all(this.dataSources.map(ds => ds.shutDown()));
+    }
+
+    /**
+     * Refuses two data sources of the same name in one application.
+     *
+     * A repository is registered under the name of its data source, so the repositories of the one
+     * registered last would answer for both, and write to it.
+     * @param dataSources - Every data source of the application.
+     * @throws When two different data source classes have the same name.
+     */
+    private validateDataSourceNamesDistinct(dataSources: RegisteredDataSource[]): void {
+        const byName: Map<string, Set<Newable<DataSourceInterface>>> = new Map();
+        for (const { dataSourceClass } of dataSources) {
+            byName.set(dataSourceClass.name, (byName.get(dataSourceClass.name) ?? new Set()).add(dataSourceClass));
+        }
+        const clashes: string[] = [...byName.entries()]
+            .filter(([, classes]) => classes.size > 1)
+            .map(([name]) => `  - "${name}"`);
+        if (!clashes.length) {
+            return;
+        }
+        throw new InternalError([
+            'The application declares different data sources of the same name:',
+            ...clashes,
+            'A data source is told apart by its name, so the repositories of one would answer for the other. Rename all but one of them.'
+        ]);
     }
 
     /**

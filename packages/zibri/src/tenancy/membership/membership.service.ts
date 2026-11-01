@@ -7,7 +7,7 @@ import { type AuditServiceInterface } from '../../audit/audit-service.interface'
 import { RoleUtilities } from '../../auth/roles/role.utilities';
 import { type UserServiceInterface } from '../../auth/user/user-service.interface';
 import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { EntityWriteObserverRegistry } from '../../data-source/write-observers/entity-write-observer.registry';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -127,7 +127,7 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
     async findActiveMembership<Role extends string, T extends BaseMembership<Role>>(
         userId: string,
         tenantId: string,
-        transaction?: Transaction
+        transaction?: RepositoryTransaction
     ): Promise<T | undefined> {
         const repository: MembershipRepositoryInterface<string, BaseMembership<string>> | undefined = this.repository;
         if (repository == undefined) {
@@ -154,7 +154,7 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
     async resolveMembership<Role extends string, T extends BaseMembership<Role>>(
         userId: string,
         tenantId: string,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<T> {
         const repository: MembershipRepositoryInterface<string, BaseMembership<string>> = this.getRepository();
         return await this.tenantService.runAs(tenantId, async () => await repository.resolveMembership(userId, transaction)) as T;
@@ -165,24 +165,26 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
         userId: string,
         tenantId: string,
         deactivatedAt: Date | null,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<void> {
         const repository: MembershipRepositoryInterface<string, BaseMembership<string>> = this.getRepository();
         await this.audited(
             deactivatedAt == undefined ? AuditAction.MEMBERSHIP_REACTIVATED : AuditAction.MEMBERSHIP_DEACTIVATED,
             userId,
             tenantId,
+            transaction,
             async () => await repository.updateDeactivatedAt(userId, deactivatedAt, transaction)
         );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteMembership(userId: string, tenantId: string, transaction: Transaction | undefined): Promise<void> {
+    async deleteMembership(userId: string, tenantId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         const repository: MembershipRepositoryInterface<string, BaseMembership<string>> = this.getRepository();
         await this.audited(
             AuditAction.MEMBERSHIP_DELETED,
             userId,
             tenantId,
+            transaction,
             async () => await repository.deleteMembership(userId, transaction)
         );
     }
@@ -195,13 +197,20 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
      * @param action - The change.
      * @param userId - The id of the member.
      * @param tenantId - The tenant of the membership, which the entry is recorded in.
+     * @param transaction - The transaction the change writes in, if any.
      * @param change - Makes the change.
      */
-    private async audited(action: AuditAction, userId: string, tenantId: string, change: () => Promise<void>): Promise<void> {
+    private async audited(
+        action: AuditAction,
+        userId: string,
+        tenantId: string,
+        transaction: RepositoryTransaction | undefined,
+        change: () => Promise<void>
+    ): Promise<void> {
         await this.tenantService.runAs(tenantId, async () => {
             try {
                 await change();
-                this.auditService.record({ action, outcome: AuditOutcome.SUCCESS, userId });
+                this.auditService.record({ action, outcome: AuditOutcome.SUCCESS, userId }, transaction);
             }
             catch (error) {
                 this.auditService.record({ action, outcome: AuditOutcome.FAILURE, reason: AuditUtilities.resolveReason(error), userId });
@@ -211,7 +220,7 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async updateRoles(userId: string, tenantId: string, roles: string[], transaction: Transaction | undefined): Promise<void> {
+    async updateRoles(userId: string, tenantId: string, roles: string[], transaction: RepositoryTransaction | undefined): Promise<void> {
         const repository: MembershipRepositoryInterface<string, BaseMembership<string>> = this.getRepository();
         await this.tenantService.runAs(tenantId, async () => await repository.updateRoles(userId, roles, transaction));
     }
@@ -229,7 +238,7 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteMemberships(userIds: string[], transaction: Transaction): Promise<void> {
+    async deleteMemberships(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
         if (!userIds.length) {
             return;
         }

@@ -742,7 +742,7 @@ export class HttpClient implements HttpClientInterface {
         if (metadata == undefined) {
             return fileSizeToBytes(this.clientOptions.defaultMaxResponseSize);
         }
-        return metadata.type === MimeType.OCTET_STREAM ? metadata.maxSize : resolveMaxBodySize(metadata);
+        return resolveMaxBodySize(metadata, this.clientOptions.maxBodySizes);
     }
 
     /**

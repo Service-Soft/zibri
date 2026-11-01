@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
 import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
 import { PostgresPooler } from './postgres-pooler.model';
@@ -9,10 +9,16 @@ import { defaultTestServerEntities, defaultTestServerRepositories } from '../../
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
+import { GatewayTimeoutError } from '../../../error-handling/errors/gateway-timeout.error';
+import { HttpStatus } from '../../../http/http-status.enum';
+import { type LoggerInterface } from '../../../logging/logger.interface';
+import { Controller } from '../../../routing/decorators/controller.decorator';
+import { Get } from '../../../routing/decorators/get.decorator';
 import { Newable } from '../../../types/newable.type';
 import { SemVerVersion } from '../../../utilities/sem-ver.utilities';
 import { DataSource } from '../../decorators/data-source.decorator';
@@ -135,7 +141,24 @@ class SingleConnectionDataSource extends PostgresDataSource {
     readonly pooler: PostgresPooler = 'none';
 }
 
+/**
+ * The statement of the last request to the controller below, once it came back.
+ */
+let sleeping: Promise<unknown> | undefined;
+
+@Controller('/timed')
+class TimedController {
+    // well inside the statement timeout of the data source, so what stops the statement is the request
+    @Get('/sleep', { timeoutInMs: 50 })
+    async sleep(): Promise<{ ok: boolean }> {
+        sleeping = queryPostgres(inject(TimedDataSource), 'SELECT pg_sleep(0.15)');
+        await sleeping;
+        return { ok: true };
+    }
+}
+
 let server: StartedTestServer | undefined;
+let baseUrl: string;
 let rows: Repository<TimedRow>;
 
 /**
@@ -160,7 +183,8 @@ async function lockRow(id: string): Promise<Transaction> {
 }
 
 beforeAll(async () => {
-    server = await startTestServer({ dataSources: [TimedDataSource, SingleConnectionDataSource] });
+    server = await startTestServer({ dataSources: [TimedDataSource, SingleConnectionDataSource], controllers: [TimedController] });
+    baseUrl = await server.start();
     rows = inject(repositoryTokenFor(TimedRow));
 }, 90000);
 
@@ -213,6 +237,31 @@ describe('the time a statement may take', () => {
         }
         finally {
             await transaction.rollback();
+        }
+    });
+});
+
+describe('a request that runs out of time while its statement runs', () => {
+    // found in the transaction pooler suite, 2026-11-01: the statement the deadline stopped came back
+    // as postgres' own cancel, which did not read as the deadline, so every such timeout also logged
+    // the handler as having failed after it was answered
+    it('stops the statement, and reports the deadline alone', async () => {
+        const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+        const errors: jest.Spied<LoggerInterface['error']> = jest.spyOn(logger, 'error');
+        try {
+            const res: Response = await fetch(`${baseUrl}/timed/sleep`);
+            expect(res.status).toBe(HttpStatus.GATEWAY_TIMEOUT);
+
+            // stopped, and failing with what every other wait the deadline ends fails with
+            await expect(sleeping).rejects.toBeInstanceOf(GatewayTimeoutError);
+            // the report of a failure after the deadline is written once the handler has come back
+            await sleep(100);
+
+            const messages: string[] = errors.mock.calls.map(([error]) => error instanceof Error ? error.message : String(error));
+            expect(messages).not.toContain('A request handler failed after its deadline had been answered.');
+        }
+        finally {
+            errors.mockRestore();
         }
     });
 });

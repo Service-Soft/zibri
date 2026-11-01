@@ -1,3 +1,4 @@
+import { LoginTicketPurpose } from './login-ticket-purpose.enum';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
@@ -6,16 +7,16 @@ import type { HashString } from '../hash/hash.utilities';
 import { Sha256HashStrategy } from '../hash/strategies/sha256.hash-strategy';
 
 /**
- * A login whose credentials were accepted and that waits for its second factor.
+ * A login whose credentials were accepted and that waits for its second factor, or for a new password.
  *
- * Spent once, by the login it completes.
+ * Spent once, by the step it is for.
  */
 @Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate' })
 export class LoginTicket extends BaseEntity {
     /**
      * The ticket.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     value!: HashString;
 
     /**
@@ -61,6 +62,18 @@ export class LoginTicket extends BaseEntity {
     federatedLogout: string | undefined | null;
 
     /**
+     * What the ticket continues the login with. A ticket is taken for nothing else.
+     */
+    @Property.string({ enum: LoginTicketPurpose })
+    purpose!: LoginTicketPurpose;
+
+    /**
+     * Whether the user chooses a new password once the second factor was presented.
+     */
+    @Property.boolean()
+    passwordChangeRequired!: boolean;
+
+    /**
      * Whether the ticket has been spent.
      */
     @Property.boolean()
@@ -80,6 +93,6 @@ export class LoginTicketCreateData extends OmitClass(LoginTicket, ['id', 'value'
     /**
      * The ticket, before the hook hashes it.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     value!: string;
 }

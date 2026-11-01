@@ -17,7 +17,10 @@ import { ModelRegistry } from '../../global/model-registry/model.registry';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import type { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { ObjectUtilities } from '../../utilities/object.utilities';
 import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
+import { PasswordPolicy } from '../password-policy/password-policy.model';
+import { PasswordPolicyUtilities } from '../password-policy/password-policy.utilities';
 
 /**
  * A property a unique declaration names, hashed by a strategy known before any row is written.
@@ -90,6 +93,7 @@ export class HashService implements HashServiceInterface, OnAppInit {
         await this.validateNoMissingHashStrategy();
         this.validateStrategyNamesAndVersions();
         await this.validateUniqueHashesCompare(app);
+        this.validatePasswords(app);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -284,6 +288,50 @@ export class HashService implements HashServiceInterface, OnAppInit {
             const hash: unknown = metadata != undefined && 'hash' in metadata ? metadata.hash : undefined;
             return hash === true || this.isHashOptions(hash) ? [{ entityName: entityClass.name, key, hash }] : [];
         });
+    }
+
+    /**
+     * Refuses an application whose entities hold a password without a password policy to check one
+     * against, or that hashes one by a strategy that hashes one value the same way every time.
+     *
+     * Here rather than where the entity is declared, because only the built strategy says whether it is
+     * deterministic. The default strategy never is.
+     * @param app - The application, whose data sources hold the entities.
+     * @throws When the policy is missing or cannot be met, or a password names a deterministic strategy.
+     */
+    private validatePasswords(app: ZibriApplication): void {
+        const policy: PasswordPolicy | undefined = inject(ZIBRI_DI_TOKENS.PASSWORD_POLICY);
+        if (policy != undefined) {
+            PasswordPolicyUtilities.validatePolicy(policy);
+        }
+        const passwords: [string, PropertyMetadata][] = app.options.dataSources
+            .flatMap(dataSourceClass => inject(dataSourceClass).entities)
+            .flatMap(entityClass => ObjectUtilities.entries(MetadataUtilities.getModelProperties(entityClass))
+                .filter(([, metadata]) => metadata.type === 'string' && metadata.password)
+                .map(([key, metadata]): [string, PropertyMetadata] => [`${entityClass.name}.${key}`, metadata]));
+        if (passwords.length && policy == undefined) {
+            throw new InitHashServiceError([
+                'These properties hold passwords:',
+                ...passwords.map(([fullKey]) => `- ${fullKey}`),
+                'Provide ZIBRI_DI_TOKENS.PASSWORD_POLICY, which says what a password has to be,',
+                'such as "{ minLength: 15, outdatedPasswords: \'requireChange\' }".'
+            ]);
+        }
+        // a fast hash without a salt turns a stolen table into a lookup of every common password
+        const fast: string[] = passwords.flatMap(([fullKey, metadata]) => {
+            const hash: unknown = 'hash' in metadata ? metadata.hash : undefined;
+            const strategy: HashStrategyInterface<Record<string, unknown>> | undefined = this.isHashOptions(hash)
+                ? this.strategies.find(s => s instanceof hash.strategy)
+                : undefined;
+            return strategy?.deterministic === true ? [`- ${fullKey}, hashed with "${strategy.name}"`] : [];
+        });
+        if (fast.length) {
+            throw new InitHashServiceError([
+                'These passwords are hashed by a strategy that hashes one value the same way every time:',
+                ...fast,
+                'Leave "hash" out to hash them with the default strategy, or name one that salts each value.'
+            ]);
+        }
     }
 
     private isHashOptions(value: unknown): value is HashOptions<Record<string, unknown>> {

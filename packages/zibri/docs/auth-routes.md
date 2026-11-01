@@ -12,7 +12,7 @@
 | `AuthControllerStrategyClass`, `AuthControllerAuthenticatorClass` | type | A class of a strategy and of an authenticator the routes log in with |
 | `AuthControllerLoginRoutes`, `AuthControllerLoginListingRoutes`, `AuthControllerEmailVerificationRoutes`, `AuthControllerCsrfTokenRoutes`, `AuthControllerPasswordResetRoutes`, `AuthControllerPasswordChangeRoutes`, `AuthControllerLoginOptionsRoutes`, `AuthControllerRegistrationRoutes`, `AuthControllerFederatedRoutes`, `AuthControllerLinkIdentityRoutes`, `AuthControllerLinkIdentityConfirmingRoutes`, `AuthControllerIdentityRoutes`, `AuthControllerTwoFactorRoutes` | type | The methods of the routes, by the classes that call for them |
 | `FEDERATED_ROUTE` | constant | Where the routes of a login at a provider are, below the path of the controller: `/federated` |
-| `AuthControllerUtilities` | class | What the routes share: finding the class a request names, checking a body against one model, running in a transaction of a strategy |
+| `AuthControllerUtilities` | class | What the routes share: finding the class a request names, checking a body against one model, running in a transaction across data sources |
 | `AuthControllerStrategyInterface`, `isAuthControllerStrategy` | interface, function | What a strategy the routes log in with implements |
 | `CsrfTokenAuthStrategyInterface`, `isCsrfTokenAuthStrategy` | interface, function | What a strategy issuing CSRF tokens implements |
 | `AuthControllerAuthenticatorInterface`, `isAuthControllerAuthenticator` | interface, function | What an authenticator the login route logs in with implements |
@@ -71,6 +71,7 @@ Every route is below the path of your controller. A route is there when one of t
 | `POST /confirm-password-reset` | `PasswordAuthenticator` | `{ "resetToken", "newPassword" }` | anyone |
 | `POST /request-email-verification`, `POST /confirm-email-verification`, `POST /request-email-change`, `POST /confirm-email-change` | `emailVerification` | see [verifying email addresses](./email-verification.md) | a logged in user to request, anyone with the link to confirm. A change is requested with a second factor or a [recent login](./glossary.md#recent-login) |
 | `POST /change-password` | `PasswordAuthenticator` | `{ "currentPassword", "newPassword" }`. Ends every other login of the user, see [changing a password](./auth.md#changing-a-password) | a logged in user |
+| `POST /login/change-password` | `PasswordAuthenticator` | `{ "newPassword" }`, for a login that waits for a new password. Answers what `login` answers, see [requiring a new password](./auth.md#requiring-a-new-password) | anyone, with the login [ticket](./glossary.md#ticket) |
 | `POST /login-options` | an authenticator hands out a challenge to log in with, such as `PasskeyAuthenticator` | nothing. Answers the challenge | anyone |
 | `POST /registration/request`, `POST /registration/confirm` | an authenticator registers users by itself, such as `PasskeyAuthenticator` | what the registration starts with, and the client's answer. `registration/confirm` answers the [ticket](./glossary.md#ticket) your own registration route creates the user with | anyone |
 | `GET /federated/login/request` | an authenticator logs users in at a provider | see [logging in at a provider](#logging-in-at-a-provider) | anyone |
@@ -89,7 +90,7 @@ Every route is below the path of your controller. A route is there when one of t
 | `POST /login/2fa/registration/request`, `POST /login/2fa/registration/confirm` | a two factor method | what `2fa/registration/request` and `2fa/registration/confirm` take, for the user of a login that waits for a second factor and has none | anyone, with the login ticket |
 | `POST /login/2fa/confirm` | a two factor method | nothing, with the second factor in its header. Answers what `login` answers | anyone, with the login ticket |
 
-A recent login is one of the last 5 minutes, see [accepting a recent login instead](./two-factor.md#accepting-a-recent-login-instead). The login ticket is what `POST /login` answers when the application asks for a second factor at login, sent in the `x-login-ticket` header, see [asking for a second factor at login](./two-factor.md#asking-for-a-second-factor-at-login).
+A recent login is one of the last 5 minutes, see [accepting a recent login instead](./two-factor.md#accepting-a-recent-login-instead). The login ticket is what `POST /login` answers when the application asks for a second factor at login, or the user chooses a new password first, sent in the `x-login-ticket` header, see [asking for a second factor at login](./two-factor.md#asking-for-a-second-factor-at-login) and [requiring a new password](./auth.md#requiring-a-new-password).
 
 ## Naming the strategy and the authenticator
 A request names the strategy it logs in, refreshes or logs out with in the query parameter `strategy`, the authenticator it proves its login with in `authenticator`, and the two factor method in `method`, each by its `name`:
@@ -138,7 +139,7 @@ A strategy or an authenticator of your own takes part in the routes by the inter
 
 | Interface | Members | For |
 |---|---|---|
-| `AuthControllerStrategyInterface` | `authDataModel`, `refreshLoginModel`, `logoutModel`, `logsInWithResponse`, `startTransaction` | logging in, refreshing and logging out with the strategy |
+| `AuthControllerStrategyInterface` | `authDataModel`, `refreshLoginModel`, `logoutModel`, `logsInWithResponse` | logging in, refreshing and logging out with the strategy |
 | `CsrfTokenAuthStrategyInterface` | `resolveCsrfToken` | `GET csrf-token` |
 | `LoginListingAuthStrategyInterface` | `findLogins`, `endLogin`, `resolveLoginId` | `GET logins` and `DELETE logins/:loginId`, and keeping the login asking when a password changes |
 | `AuthControllerAuthenticatorInterface` | `credentialsModel` | `POST login` |

@@ -2,7 +2,7 @@ import { AlsUtilities, LeaseScopeResult } from '../context/als.utilities';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { type LoggerInterface } from '../logging/logger.interface';
-import { Transaction } from './transaction/transaction.model';
+import { type RepositoryTransaction } from './transaction/repository-transaction.type';
 
 /**
  * Runs the work held under a lease and warns when a write made inside it will only land after the
@@ -12,8 +12,6 @@ import { Transaction } from './transaction/transaction.model';
  * visible on commit, so if the caller commits after the lease has been released, the exclusion ended
  * while the write was still invisible - and the next holder reads a value the previous one already
  * claimed. Both callers were exclusive, over a window that ended too early, and nothing fails.
- *
- * This is the shape of evaluation/10-leases-and-claims.md 10.4, which is why the guard exists at all.
  *
  * Committing inside the held section is fine and is not reported. Only a transaction that is still
  * open when the grant is about to be released is, because that is the case the grant cannot cover -
@@ -27,10 +25,11 @@ import { Transaction } from './transaction/transaction.model';
  * @param heldUntil - The transaction the grant is held until, if any.
  * @returns Whatever the work returned.
  */
-export async function runInLeaseScope<T>(name: string, fn: () => Promise<T>, heldUntil?: Transaction): Promise<T> {
+// the shape of evaluation/10-leases-and-claims.md 10.4, which is why the guard exists at all
+export async function runInLeaseScope<T>(name: string, fn: () => Promise<T>, heldUntil?: RepositoryTransaction): Promise<T> {
     const scope: LeaseScopeResult<T> = await AlsUtilities.runInLeaseScope(fn);
 
-    const escaping: Transaction[] = scope.transactions.filter(t => !t.isFinished && t !== heldUntil);
+    const escaping: RepositoryTransaction[] =scope.transactions.filter(t => !t.isFinished && t !== heldUntil);
     if (escaping.length) {
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
         logger.warn([

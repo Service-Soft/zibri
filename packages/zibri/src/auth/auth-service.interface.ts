@@ -30,7 +30,7 @@ import { AuthStrategyInterface } from './strategies/auth-strategy.interface';
 import { LoginAuthStrategyInterface } from './strategies/login-auth-strategy.interface';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { Transaction } from '../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 
 /**
  * Interface for an auth service.
@@ -166,7 +166,7 @@ export interface AuthServiceInterface {
         authenticator: Newable<AuthenticatorInterface<Role, UserType, CredentialsType>>,
         strategy: Newable<LoginAuthStrategyInterface<Role, UserType, AuthDataType, RefreshLoginDataType, LogoutDataType>>,
         credentials: CredentialsType,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ) => Promise<AuthDataType>,
     /**
      * Requests the second factor of a login that waits for one, with the given method: sends the user a
@@ -227,7 +227,7 @@ export interface AuthServiceInterface {
     >(
         ticket: string,
         strategy: Newable<LoginAuthStrategyInterface<Role, UserType, AuthDataType, RefreshLoginDataType, LogoutDataType>>,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ) => Promise<AuthDataType>,
     /**
      * Reads who logged in through the provided authenticator, for creating the user they become, from
@@ -247,7 +247,7 @@ export interface AuthServiceInterface {
             Role, UserType, CredentialsType, TicketType, RegistrationType, IdentityType, LinkIdentityRequestType, LinkIdentityStartType
         >>,
         ticket: TicketType,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ) => Promise<RegistrationType>,
     /**
      * Links the identity a ticket of the provided authenticator names to a user, so the ticket logs
@@ -268,7 +268,7 @@ export interface AuthServiceInterface {
         >>,
         ticket: TicketType,
         userId: string,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ) => Promise<void>,
     /**
      * Requests linking an identity of the provided authenticator to the user logged in with the
@@ -304,24 +304,24 @@ export interface AuthServiceInterface {
      * through. Of every authenticator that links identities, or of the provided ones only.
      */
     findIdentities: {
-        (userId: string, transaction: Transaction | undefined): Promise<LinkedIdentity[]>,
+        (userId: string, transaction: RepositoryTransaction | undefined): Promise<LinkedIdentity[]>,
         <IdentityType extends Pick<BaseEntity, 'id'>>(
             userId: string,
-            transaction: Transaction | undefined,
+            transaction: RepositoryTransaction | undefined,
             authenticators: IdentityLinkingAuthenticators<IdentityType>
         ): Promise<LinkedIdentity<IdentityType>[]>
     },
     /**
      * Unlinks an identity from a user, whichever authenticator it logs in through.
      */
-    unlinkIdentity: (userId: string, identityId: string, transaction: Transaction | undefined) => Promise<void>,
+    unlinkIdentity: (userId: string, identityId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Deletes every row auth keeps for the given users: what each registered authenticator, auth
      * strategy and two factor method keeps for them, their api keys, failure streaks and login tickets.
      * Called in the transaction that deletes the users for good, so a user is never gone while their
      * passwords, second factors or sessions stay; a soft deleted user keeps them.
      */
-    deleteUserRows: (userIds: string[], transaction: Transaction) => Promise<void>,
+    deleteUserRows: (userIds: string[], transaction: RepositoryTransaction) => Promise<void>,
     /**
      * Resolves an access token for calling a provider's apis for a user, with an identity of theirs
      * whose tokens are kept, that has been granted the provided scopes. Asks the provider for a new one
@@ -332,13 +332,13 @@ export interface AuthServiceInterface {
      * Stops keeping the tokens of an identity of a user, and hands them back to the provider. An
      * identity that does not log in is unlinked.
      */
-    revokeProviderAccess: (userId: string, identityId: string, transaction: Transaction | undefined) => Promise<void>,
+    revokeProviderAccess: (userId: string, identityId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Stops an identity of a user from logging in as them, and keeps the provider's tokens for its
      * apis. An identity without api access is unlinked. Connecting it again to log in turns logging in
      * on again.
      */
-    revokeProviderLogin: (userId: string, identityId: string, transaction: Transaction | undefined) => Promise<void>,
+    revokeProviderLogin: (userId: string, identityId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Creates an api key for a user, with the permissions the key may use. A key that is a secret is
      * sent by a request to act as the user through ApiKeyAuthStrategy, and answers with the key itself,
@@ -349,40 +349,40 @@ export interface AuthServiceInterface {
         (
             userId: string,
             data: ApiKeyCreateData<undefined>,
-            transaction: Transaction | undefined
+            transaction: RepositoryTransaction | undefined
         ): Promise<CreatedApiKey>,
         (
             userId: string,
             data: ApiKeyCreateData<ApiKeyClientAuthentication>,
-            transaction: Transaction | undefined
+            transaction: RepositoryTransaction | undefined
         ): Promise<ApiKey>
     },
     /**
      * Finds the api keys of a user, expired ones included, oldest first.
      */
-    findApiKeys: (userId: string, transaction: Transaction | undefined) => Promise<ApiKey[]>,
+    findApiKeys: (userId: string, transaction: RepositoryTransaction | undefined) => Promise<ApiKey[]>,
     /**
      * Revokes an api key of a user. Throws a NotFoundError when the user has no key with that id.
      */
-    revokeApiKey: (userId: string, apiKeyId: string, transaction: Transaction | undefined) => Promise<void>,
+    revokeApiKey: (userId: string, apiKeyId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Revokes every api key of a user.
      */
-    revokeApiKeys: (userId: string, transaction: Transaction | undefined) => Promise<void>,
+    revokeApiKeys: (userId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Deactivates a user: ends their logins and revokes their api keys. Until they are reactivated
      * they cannot log in, and no request acts as them.
      */
-    deactivateUser: (userId: string, transaction: Transaction | undefined) => Promise<void>,
+    deactivateUser: (userId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Reactivates a deactivated user, who can log in again. Their revoked api keys stay revoked.
      */
-    reactivateUser: (userId: string, transaction: Transaction | undefined) => Promise<void>,
+    reactivateUser: (userId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Ends every login of a user and revokes their api keys. Unlike deactivating, it leaves them able to
      * log in again.
      */
-    endAccess: (userId: string, transaction: Transaction | undefined) => Promise<void>,
+    endAccess: (userId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Refreshes the login of a user using the provided auth strategy and refresh login data.
      */
@@ -404,7 +404,7 @@ export interface AuthServiceInterface {
      */
     resolveRefreshUser: <Role extends string, UserType extends BaseUser<Role>>(
         user: UserType,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ) => Promise<UserType>,
     /**
      * Resolves the currently logged in user, without their roles and with the permissions the request
@@ -447,7 +447,7 @@ export interface AuthServiceInterface {
     /**
      * Ends every login of the provided user, in every auth strategy.
      */
-    endLogins: (userId: string, transaction: Transaction | undefined) => Promise<void>,
+    endLogins: (userId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Finds the live logins of a user, in every strategy that lists them, the most recently used
      * first. With the request asking, the login it carries is marked `current`.
@@ -455,18 +455,18 @@ export interface AuthServiceInterface {
     findLogins: (
         userId: string,
         context: HttpRequestContext | WebsocketRequestContext | undefined,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ) => Promise<UserLogin[]>,
     /**
      * Ends one login of a user, by the id `findLogins` lists it with, and records it.
      * @throws A NotFoundError when the user has no such login.
      */
-    endLogin: (userId: string, loginId: string, transaction: Transaction | undefined) => Promise<void>,
+    endLogin: (userId: string, loginId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Ends every login of a user in every auth strategy, as `endLogins` does, and records it as asked
      * for by the user.
      */
-    endOwnLogins: (userId: string, transaction: Transaction | undefined) => Promise<void>,
+    endOwnLogins: (userId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Sets a new password for a user who knows the current one, ends every other login of theirs and
      * records it. With the request asking, the login it carries stays.
@@ -478,10 +478,35 @@ export interface AuthServiceInterface {
         context: HttpRequestContext | WebsocketRequestContext | undefined
     ) => Promise<void>,
     /**
+     * Has a user choose a new password before their next login starts, and ends every login of theirs,
+     * such as after their password got out. Setting a password in any way clears it.
+     * @throws A NotFoundError when the user has no password.
+     */
+    requirePasswordChange: (userId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
+    /**
+     * Sets the new password a login waits for, with the ticket it answered with, ends every other
+     * login of the user, and starts the login with the provided auth strategy.
+     * @throws An UnauthorizedError when the ticket is unknown, spent, expired or for the second factor,
+     * a BadRequestError when the new password is the one the user has, and what the password policy
+     * throws for one it refuses.
+     */
+    changePasswordAtLogin: <
+        Role extends string,
+        UserType extends BaseUser<Role>,
+        AuthDataType,
+        RefreshLoginDataType,
+        LogoutDataType
+    >(
+        ticket: string,
+        newPassword: string,
+        strategy: Newable<LoginAuthStrategyInterface<Role, UserType, AuthDataType, RefreshLoginDataType, LogoutDataType>>,
+        transaction: RepositoryTransaction | undefined
+    ) => Promise<AuthDataType>,
+    /**
      * Ends the logins started from a session at a provider, in every auth strategy, once the user
      * logged out there.
      */
-    endFederatedLogins: (session: FederatedSessionMatch, transaction: Transaction | undefined) => Promise<void>,
+    endFederatedLogins: (session: FederatedSessionMatch, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Logs out the current user.
      * @returns Where to send the browser to log out at the provider the login was started at too, if any.

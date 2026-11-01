@@ -21,3 +21,19 @@
 Im aware that zibri isn't really a microservice framework but these performance numbers should at least be decent/okayish
 - Currently, entity validation happens at multiple places, because eg. a JwtRefreshToken entity is only required when the strategy initializes. I want to combine all required entities into a single startup error, instead of manually adding entities to a datasource, just to then start the api and get a new error of missing entities that werent mentioned before
 - There are multiple places that use seconds instead of ms. It should always be ms if that's possible/makes sense
+
+## What's left of the list
+
+Checked 2026-11-01 against the code, the docs and the round-2 chapters. Every other bullet above is
+done or decided; `round-2/00-executive-summary.md` §"The user's own list, mapped" names where. A row
+leaves this table the moment it is done.
+
+Closed 2026-11-01: every missing entity in one startup error, each with what requires it (W2); every
+duration metric in seconds through `DurationHistogram`, protocol seconds staying seconds (W3);
+no declarative SSO mapping, the hooks are where it lives (W4, decided); unlinking deleted rows,
+covered by leaving a row out of its relation (W6, decided); the size of a compiled app, its
+deployment baseline recorded by the user (W5).
+
+| | |
+|---|---|
+| W1 | **Evaluation references, to go once the evaluation is thrown away.** The 46 `*.evaluation.test.ts` files in `packages/zibri/src/__testing__/evaluation/` fold into the normal suites next to what they test (07 §T1 left this on the list). 126 source files still mention `evaluation/`: 103 test files and 21 production files, mostly under `leases/`. The docs bullet above is this as well. Last, since it is what lets the evaluation docs go |

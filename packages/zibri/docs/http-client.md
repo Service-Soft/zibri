@@ -179,7 +179,7 @@ The limit comes from whichever is more specific:
 
 | | Limit |
 |---|---|
-| `responseBody` declared | Derived from that model, exactly like a route's request body |
+| `responseBody` declared | Derived from that model, exactly like a route's request body. Without a `maxSize` of its own, `maxBodySizes` for its kind: 100kb, and 10mb for a stream, by default |
 | Nothing declared | `defaultMaxResponseSize`, 10mb by default |
 | `stream` response type | None. Nothing is buffered, and the body is yours to consume |
 
@@ -195,7 +195,8 @@ defineProvider({
     token: ZIBRI_DI_TOKENS.HTTP_CLIENT_OPTIONS_INPUT,
     useValue: {
         defaultTimeoutInMs: 30000,
-        defaultMaxResponseSize: '50mb'
+        defaultMaxResponseSize: '50mb',
+        maxBodySizes: { json: '1mb', xml: '1mb', formUrlEncoded: '100kb', formData: '100kb', stream: '50mb' }
     }
 })
 ```

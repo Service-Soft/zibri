@@ -1,3 +1,5 @@
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
 import { XmlElementNode } from '../../document/xml-element-node.model';
 import { XmlReaderUtilities } from '../../document/xml-reader.utilities';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
@@ -51,7 +53,10 @@ export class XmlBodyParser implements BodyParserInterface<MimeType.XML> {
         if (req.body !== undefined) {
             return req.body;
         }
-        const raw: Buffer = await BodyParserUtilities.readRequestBodyIntoMemory(req, resolveMaxBodySize(metadata));
+        const raw: Buffer = await BodyParserUtilities.readRequestBodyIntoMemory(
+            req,
+            resolveMaxBodySize(metadata, inject(ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS).maxBodySizes)
+        );
         return this.parseXml(raw.length ? raw.toString('utf8') : undefined, metadata);
     }
 

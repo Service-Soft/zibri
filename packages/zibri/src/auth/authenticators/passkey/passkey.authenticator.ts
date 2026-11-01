@@ -9,7 +9,7 @@ import { PasskeyRegistration } from './passkey-registration.model';
 import { PasskeyRequestOptions } from './passkey-request-options.model';
 import { type PasskeyServiceInterface } from './passkey-service.interface';
 import { Passkey } from './passkey.model';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
@@ -125,7 +125,7 @@ export class PasskeyAuthenticator<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async authenticate(credentials: PasskeyCredentials, transaction: Transaction | undefined): Promise<Authentication<UserType>> {
+    async authenticate(credentials: PasskeyCredentials, transaction: RepositoryTransaction | undefined): Promise<Authentication<UserType>> {
         if ('ticket' in credentials) {
             const ticket: PasskeyRegistrationTicket = await this.passkeyService.spendRegistrationTicket(credentials.ticket, transaction);
             return { user: await this.resolveUser(ticket.userId), authenticatedAt: new Date(ticket.authenticatedAt) };
@@ -142,7 +142,7 @@ export class PasskeyAuthenticator<
      * @returns The name the device lists the account under, and the device.
      * @throws UnauthorizedError when the ticket is unknown, spent or expired.
      */
-    async resolveRegistration(credentials: PasskeyTicketCredentials, transaction: Transaction | undefined): Promise<PasskeyRegistration> {
+    async resolveRegistration(credentials: PasskeyTicketCredentials, transaction: RepositoryTransaction | undefined): Promise<PasskeyRegistration> {
         const ticket: PasskeyRegistrationTicket = await this.passkeyService.findRegistrationTicket(credentials.ticket, transaction);
         return { name: ticket.userName, aaguid: ticket.aaguid, synced: ticket.synced };
     }
@@ -155,22 +155,22 @@ export class PasskeyAuthenticator<
      * @param transaction - The transaction the registration runs in, if any.
      * @throws UnauthorizedError when the ticket is unknown, spent, expired or added to a user already.
      */
-    async linkTicketIdentity(credentials: PasskeyTicketCredentials, userId: string, transaction: Transaction | undefined): Promise<void> {
+    async linkTicketIdentity(credentials: PasskeyTicketCredentials, userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         await this.passkeyService.linkRegistrationTicket(credentials.ticket, userId, transaction);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async findIdentities(userId: string, transaction: Transaction | undefined): Promise<Passkey[]> {
+    async findIdentities(userId: string, transaction: RepositoryTransaction | undefined): Promise<Passkey[]> {
         return await this.passkeyService.findPasskeys(userId, transaction);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async unlinkIdentity(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
+    async unlinkIdentity(userId: string, identityId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         await this.passkeyService.removePasskey(userId, identityId, transaction);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+    async deleteUserRows(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
         await this.passkeyService.deleteUserRows(userIds, transaction);
     }
 

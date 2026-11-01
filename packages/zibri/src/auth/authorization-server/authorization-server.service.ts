@@ -268,7 +268,8 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
                 tenantId: client.apiKey.tenantId ?? undefined,
                 audience: this.resolveAudience(endpoint, request.resource),
                 certificateThumbprint: client.certificateThumbprint,
-                dpopKeyThumbprint
+                dpopKeyThumbprint,
+                expiresInMs: endpoint.accessTokenExpiresInMs
             });
             this.auditService.record({
                 action: AuditAction.TOKEN_ISSUED,
@@ -636,18 +637,22 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
         const key: KeyObject | JwtRemoteKeySet | undefined = this.findClientKey(apiKey);
         const payload: Record<string, unknown> | undefined = key == undefined
             ? undefined
-            : await JwtUtilities.verifyAssertion(assertion, key, { clientId: apiKey.id, audiences });
+            : await JwtUtilities.verifyAssertion(assertion, key, {
+                clientId: apiKey.id,
+                audiences,
+                clockToleranceInMs: endpoint.acceptedClockSkewInMs
+            });
         const expiresAt: number = typeof payload?.['exp'] === 'number' ? payload['exp'] * Ms.SECOND : 0;
         const jwtId: unknown = payload?.['jti'];
         if (typeof jwtId !== 'string' || expiresAt - Date.now() > endpoint.maxClientAssertionLifetimeInMs) {
             throw refused;
         }
-        // kept rather than handed back, for as long as the jwt could be presented: it is the record
-        // that the jwt was spent, on every replica
+        // kept rather than handed back, for as long as the jwt could be presented, which the skew
+        // accepted past its exp extends: it is the record that the jwt was spent, on every replica
         const first: boolean | undefined = await this.leaseService.withLease(
             {
                 key: `oauth2-client-assertion:${apiKey.id}:${jwtId}`,
-                leaseInMs: Math.max(expiresAt - Date.now(), Ms.SECOND),
+                leaseInMs: Math.max(expiresAt + endpoint.acceptedClockSkewInMs - Date.now(), Ms.SECOND),
                 mode: 'skip',
                 onCompletion: 'retain'
             },

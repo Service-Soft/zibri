@@ -10,6 +10,7 @@ import { TooManyRequestsError } from '../../error-handling/errors/too-many-reque
 import { InternalError } from '../../error-handling/internal-error.model';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { $ts } from '../../localization/translate.function';
+import { DurationHistogram } from '../../metrics/duration-histogram.model';
 import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface';
 import { NumberUtilities } from '../../utilities/number.utilities';
 import { PromiseUtilities, TimeoutError } from '../../utilities/promise.utilities';
@@ -286,13 +287,15 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
             errors: this.metricsService.getCounter('rate_limit_errors_total', labelsWithOp),
             activeKeys: this.metricsService.getGauge('rate_limit_active_keys', labels),
             activeReservations: this.metricsService.getGauge('rate_limit_active_reservations', labels),
-            decisionDuration: this.metricsService.getHistogram(
-                'rate_limit_decision_duration_ms',
+            decisionDuration: DurationHistogram.resolve(
+                this.metricsService,
+                'rate_limit_decision_duration_seconds',
                 labels,
                 [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 25, 50, 100]
             ),
-            storeDuration: this.metricsService.getHistogram(
-                'rate_limit_store_duration_ms',
+            storeDuration: DurationHistogram.resolve(
+                this.metricsService,
+                'rate_limit_store_duration_seconds',
                 labelsWithOp,
                 [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 25, 50, 100]
             ),
@@ -301,8 +304,9 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
                 labels,
                 [0, 0.1, 0.2, 0.4, 0.6, 0.8, 0.9, 1]
             ),
-            retryAfterMs: this.metricsService.getHistogram(
-                'rate_limit_retry_after_ms',
+            retryAfterMs: DurationHistogram.resolve(
+                this.metricsService,
+                'rate_limit_retry_after_seconds',
                 labels,
                 [100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000, 300000]
             )

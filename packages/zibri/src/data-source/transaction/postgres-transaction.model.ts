@@ -21,13 +21,24 @@ export class PostgresTransaction implements Transaction {
      * @param run - Runs a statement on the connection, as every statement of the data source is run.
      * @param resolveCommitError - Resolves what a failed commit means, so that a conflict that ends the
      * transaction at its commit fails it the way it fails any of its statements.
+     * @param startedBy - The data source that started it, the one it belongs to.
      */
     constructor(
         readonly client: PgPoolClient,
         readonly limit: OperationLimit | undefined,
         private readonly run: (sql: string) => Promise<unknown>,
-        private readonly resolveCommitError: (error: unknown) => unknown
+        private readonly resolveCommitError: (error: unknown) => unknown,
+        private readonly startedBy: object
     ) {}
+
+    /**
+     * Whether the given data source started the transaction.
+     * @param dataSource - The data source.
+     * @returns True for the one it belongs to.
+     */
+    isStartedBy(dataSource: object): boolean {
+        return this.startedBy === dataSource;
+    }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     get isFinished(): boolean {

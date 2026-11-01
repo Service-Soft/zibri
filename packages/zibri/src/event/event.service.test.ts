@@ -8,6 +8,7 @@ import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber
 import { Event, EventStatus } from './event.model';
 import { EventSubscription } from './event.service';
 import { TestTimeouts } from '../__testing__/constants';
+import { missingEntityPattern } from '../__testing__/missing-entity-pattern.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -73,8 +74,9 @@ describe('EventService — starting', () => {
     it('refuses to start without its entities, and names all three', async () => {
         const start: Promise<void> = startAndStopTestServerWithout([Event, EventSubscriberRun, EventSubscriberRegistration]);
 
-        await expect(start).rejects.toThrow('Error initializing EventService');
-        await expect(start).rejects.toThrow(/Event[\S\s]*EventSubscriberRun[\S\s]*EventSubscriberRegistration/);
+        await expect(start).rejects.toThrow(missingEntityPattern('Event', 'EventService'));
+        await expect(start).rejects.toThrow(missingEntityPattern('EventSubscriberRun', 'EventService'));
+        await expect(start).rejects.toThrow(missingEntityPattern('EventSubscriberRegistration', 'EventService'));
     }, TestTimeouts.inMemory.start);
 
     it('refuses to start without saying how long a failed event is kept', async () => {

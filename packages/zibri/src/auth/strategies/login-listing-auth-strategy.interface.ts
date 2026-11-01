@@ -1,7 +1,7 @@
 import { LoginAuthStrategyInterface } from './login-auth-strategy.interface';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { BaseUser } from '../models/base-user.model';
 import { ListedLogin } from '../models/listed-login.model';
 
@@ -19,12 +19,12 @@ export interface LoginListingAuthStrategyInterface<
     /**
      * Finds the logins of a user that are live: started and not ended or expired.
      */
-    findLogins: (userId: string, transaction: Transaction | undefined) => Promise<ListedLogin[]>,
+    findLogins: (userId: string, transaction: RepositoryTransaction | undefined) => Promise<ListedLogin[]>,
     /**
      * Ends one login of a user.
      * @returns Whether the user had that login.
      */
-    endLogin: (userId: string, loginId: string, transaction: Transaction | undefined) => Promise<boolean>,
+    endLogin: (userId: string, loginId: string, transaction: RepositoryTransaction | undefined) => Promise<boolean>,
     /**
      * Resolves the login the request carries, by the id `findLogins` lists it with.
      */

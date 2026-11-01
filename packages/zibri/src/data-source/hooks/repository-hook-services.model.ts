@@ -1,6 +1,7 @@
 import { RepositoryHooks } from './repository-hooks.model';
 import { type EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface';
 import { type HashServiceInterface } from '../../auth/hash/hash-service.interface';
+import { type PasswordPolicy } from '../../auth/password-policy/password-policy.model';
 
 /**
  * What the hooks of a repository run with: the hooks the application provides, and the services the
@@ -18,5 +19,10 @@ export type RepositoryHookServices = {
     /**
      * What the hashed properties are hashed with.
      */
-    hashService: HashServiceInterface
+    hashService: HashServiceInterface,
+    /**
+     * What a password is checked against before it is hashed, undefined when the application provides
+     * none.
+     */
+    passwordPolicy: PasswordPolicy | undefined
 };

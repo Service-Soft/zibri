@@ -22,9 +22,9 @@ export interface JwtServiceInterface {
     readonly accessTokenExpiresInMs: number,
     /**
      * Signs an access token with the current key: `typ` `at+jwt`, the issuer, the audience, and
-     * expiring after `accessTokenExpiresInMs`.
+     * expiring after the given time, `accessTokenExpiresInMs` when none is given.
      */
-    signAccessToken: (payload: Record<string, unknown>, audience: string | string[]) => Promise<string>,
+    signAccessToken: (payload: Record<string, unknown>, audience: string | string[], expiresInMs?: number) => Promise<string>,
     /**
      * Finds what an access token the application signed says, when it verifies against one of the
      * keys, names the issuer, and is for the audience, or for anyone when that is undefined.

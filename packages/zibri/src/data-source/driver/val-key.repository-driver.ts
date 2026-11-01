@@ -3684,6 +3684,11 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         if (!(transaction instanceof ValKeyTransaction)) {
             throw new InternalError('The provided transaction does not belong to a valkey data source.');
         }
+        // a transaction applies its writes on the connection it was started on, so one of another data
+        // source would write this entity's keys there
+        if (!transaction.isStartedOn(this.client)) {
+            throw new InternalError('The provided transaction belongs to another valkey data source: this one did not start it.');
+        }
         return transaction;
     }
 

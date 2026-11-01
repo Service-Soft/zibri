@@ -1,6 +1,8 @@
 import { type CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
+import { FileSize } from '../../entity/models/file-property-metadata.model';
 import { HandlerTimeout } from '../../http/handler-timeout.type';
+import { Route } from '../../routing/controller-route-configuration.model';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 
@@ -63,7 +65,27 @@ export type WebsocketOptions = {
      * sent a `ws:replay-incomplete` instead.
      * @default 1000
      */
-    maxReplayedMessages: number
+    maxReplayedMessages: number,
+    /**
+     * The path clients connect to, which a client names as its `path` option.
+     * @default '/socket.io'
+     */
+    path: Route,
+    /**
+     * The most one message from a client may weigh. A client sending a larger one is disconnected.
+     * @default '1mb'
+     */
+    maxMessageSize: FileSize,
+    /**
+     * How often the server checks that a connection is still alive.
+     * @default 25000
+     */
+    pingIntervalInMs: number,
+    /**
+     * How long a client has to answer that check before its connection is closed.
+     * @default 20000
+     */
+    pingTimeoutInMs: number
 };
 
 /**

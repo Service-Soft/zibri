@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 import { InMemoryDataSource } from 'zibri-testing';
 
 import { TestTimeouts } from '../../__testing__/constants';
+import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
 import { CookieTestAuthController } from '../../__testing__/mocks/controllers/cookie-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
@@ -80,7 +81,8 @@ describe('CookieAuthStrategy — starting', () => {
             ]
         });
 
-        await expect(start).rejects.toThrow(/Error initializing CookieAuthStrategy[\S\s]*CookieAuthSession[\S\s]*CookieAuthRefreshSession/);
+        await expect(start).rejects.toThrow(missingEntityPattern('CookieAuthSession', 'CookieAuthStrategy'));
+        await expect(start).rejects.toThrow(missingEntityPattern('CookieAuthRefreshSession', 'CookieAuthStrategy'));
     }, TestTimeouts.inMemory.start);
 });
 

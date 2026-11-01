@@ -20,7 +20,7 @@ import { type AuditServiceInterface } from '../../audit/audit-service.interface'
 import { type CacheServiceInterface } from '../../caching/cache-service.interface';
 import { InMemoryCacheStore } from '../../caching/store/in-memory.cache-store';
 import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { EntityWriteObserverRegistry } from '../../data-source/write-observers/entity-write-observer.registry';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -145,7 +145,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
      * The roles each transaction holds the lease on, see withHeldRoles. Keyed by the transaction, so
      * an entry is gone with it.
      */
-    private readonly heldUntilTransactionEnds: WeakMap<Transaction, Set<string>> = new WeakMap();
+    private readonly heldUntilTransactionEnds: WeakMap<RepositoryTransaction, Set<string>> = new WeakMap();
 
     private get leaseService(): LeaseServiceInterface {
         return inject(ZIBRI_DI_TOKENS.LEASE_SERVICE);
@@ -301,7 +301,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async validateRoles(roles: string[], tenantId: string, transaction: Transaction | undefined): Promise<void> {
+    async validateRoles(roles: string[], tenantId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         let index: RoleIndex = this.index;
         let own: TenantRoleIndex = await this.findTenantIndexFor(roles, tenantId);
         // a role created on another instance a moment ago is known here only once it is read again, so
@@ -328,7 +328,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async validatePlatformRoles(roles: string[], transaction: Transaction | undefined): Promise<void> {
+    async validatePlatformRoles(roles: string[], transaction: RepositoryTransaction | undefined): Promise<void> {
         let index: RoleIndex = this.index;
         // for the reason validateRoles reads them again
         if (roles.some(role => !index.levels.has(role))) {
@@ -397,7 +397,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async validateWrittenRoles(roles: WrittenRole[], transaction: Transaction | undefined): Promise<void> {
+    async validateWrittenRoles(roles: WrittenRole[], transaction: RepositoryTransaction | undefined): Promise<void> {
         const platformOfTenant: WrittenRole | undefined = roles.find(role => role.tenantId != undefined && role.level === 'platform');
         if (platformOfTenant != undefined) {
             throw new BadRequestError(
@@ -458,22 +458,22 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async findRoles<T extends BaseRole>(transaction?: Transaction): Promise<T[]> {
+    async findRoles<T extends BaseRole>(transaction?: RepositoryTransaction): Promise<T[]> {
         const roles: BaseRole[] = await this.getRepository().findAll({ order: { name: 'ASC' }, limit: 'all', transaction });
         // the caller names the type of its roles: the rows are theirs, read through their repository
         return roles as T[];
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async findRole<T extends BaseRole>(name: string, transaction?: Transaction): Promise<T | undefined> {
+    async findRole<T extends BaseRole>(name: string, transaction?: RepositoryTransaction): Promise<T | undefined> {
         const role: BaseRole | undefined = await this.getRepository().findOne({ where: { name }, transaction, required: false });
         // the caller names the type of its roles, for the reason findRoles gives
         return role as T | undefined;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async createRole<T extends BaseRole>(caller: CurrentUser, data: RoleCreateData<T>, transaction: Transaction | undefined): Promise<T> {
-        return await this.audited(AuditAction.ROLE_CREATED, caller, data.name, undefined, async () => {
+    async createRole<T extends BaseRole>(caller: CurrentUser, data: RoleCreateData<T>, transaction: RepositoryTransaction | undefined): Promise<T> {
+        return await this.audited(AuditAction.ROLE_CREATED, caller, data.name, undefined, transaction, async () => {
             // a tenant's own role is checked against the caller's permissions in the tenant the request
             // acts in, and the data layer refuses one naming any other tenant
             const tenantId: string | undefined = data.tenantId ?? undefined;
@@ -496,9 +496,9 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
         caller: CurrentUser,
         name: string,
         data: RoleUpdateData<T>,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<T> {
-        return await this.audited(AuditAction.ROLE_UPDATED, caller, name, undefined, async () => {
+        return await this.audited(AuditAction.ROLE_UPDATED, caller, name, undefined, transaction, async () => {
             const role: BaseRole = await this.resolveRole(name, transaction);
             // as it is and as it becomes, so that neither narrowing a role wider than the caller nor
             // widening one past them gets through
@@ -511,8 +511,8 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteRole(caller: CurrentUser, name: string, transaction: Transaction | undefined): Promise<void> {
-        await this.audited(AuditAction.ROLE_DELETED, caller, name, undefined, async () => {
+    async deleteRole(caller: CurrentUser, name: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+        await this.audited(AuditAction.ROLE_DELETED, caller, name, undefined, transaction, async () => {
             const role: BaseRole = await this.resolveRole(name, transaction);
             this.validateMayDefine(caller, this.resolveKind(role), 'delete', [role.permissions]);
             // refused while held by the repository, for every way a role is deleted
@@ -521,15 +521,15 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async assignRole(caller: CurrentUser, userId: string, role: string, transaction: Transaction | undefined): Promise<void> {
-        await this.audited(AuditAction.ROLE_ASSIGNED, caller, role, userId, async () => {
+    async assignRole(caller: CurrentUser, userId: string, role: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+        await this.audited(AuditAction.ROLE_ASSIGNED, caller, role, userId, transaction, async () => {
             await this.updateHeldRoles(caller, userId, role, 'assign', transaction, held => [...new Set([...held, role])]);
         });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async unassignRole(caller: CurrentUser, userId: string, role: string, transaction: Transaction | undefined): Promise<void> {
-        await this.audited(AuditAction.ROLE_UNASSIGNED, caller, role, userId, async () => {
+    async unassignRole(caller: CurrentUser, userId: string, role: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+        await this.audited(AuditAction.ROLE_UNASSIGNED, caller, role, userId, transaction, async () => {
             await this.updateHeldRoles(caller, userId, role, 'unassign', transaction, held => held.filter(r => r !== role));
         });
     }
@@ -551,7 +551,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
         userId: string,
         name: string,
         operation: 'assign' | 'unassign',
-        transaction: Transaction | undefined,
+        transaction: RepositoryTransaction | undefined,
         change: (held: string[]) => string[]
     ): Promise<void> {
         const role: BaseRole = await this.resolveRole(name, transaction);
@@ -595,7 +595,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
      * @param transaction - The transaction the roles are written in, if any.
      * @param work - Reads and writes them.
      */
-    private async withHeldRoles(key: string, transaction: Transaction | undefined, work: () => Promise<void>): Promise<void> {
+    private async withHeldRoles(key: string, transaction: RepositoryTransaction | undefined, work: () => Promise<void>): Promise<void> {
         // a transaction that already holds the key holds it until it ends, so a second change in it
         // goes ahead rather than waiting for the transaction it is part of. Changes run in parallel
         // inside one transaction would each wait for the other
@@ -776,6 +776,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
      * @param caller - Who asks.
      * @param role - The role it is about.
      * @param subject - The user it gives a role to or takes one from, if any.
+     * @param transaction - The transaction the operation writes in, if any.
      * @param operation - The operation.
      * @returns What the operation answers.
      */
@@ -784,11 +785,12 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
         caller: CurrentUser,
         role: string,
         subject: string | undefined,
+        transaction: RepositoryTransaction | undefined,
         operation: () => Promise<T>
     ): Promise<T> {
         try {
             const result: T = await operation();
-            this.auditService.record({ action, outcome: AuditOutcome.SUCCESS, role, subject, userId: caller.id });
+            this.auditService.record({ action, outcome: AuditOutcome.SUCCESS, role, subject, userId: caller.id }, transaction);
             return result;
         }
         catch (error) {
@@ -807,7 +809,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
      * @returns The role.
      * @throws A NotFoundError when there is none.
      */
-    private async resolveRole(name: string, transaction: Transaction | undefined): Promise<BaseRole> {
+    private async resolveRole(name: string, transaction: RepositoryTransaction | undefined): Promise<BaseRole> {
         const role: BaseRole | undefined = await this.findRole(name, transaction);
         if (role == undefined) {
             throw new NotFoundError($ts`There is no role named '${name}'.`);
@@ -829,7 +831,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
      * @param transaction - The transaction of the write, if any.
      * @returns The roles, indexed.
      */
-    private async readIndex(transaction: Transaction | undefined): Promise<RoleIndex> {
+    private async readIndex(transaction: RepositoryTransaction | undefined): Promise<RoleIndex> {
         if (transaction == undefined) {
             await this.readRoles();
             return this.index;
@@ -842,7 +844,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
      * @param transaction - The transaction to read in, if any.
      * @returns The roles, indexed.
      */
-    private async readSharedRoles(transaction: Transaction | undefined): Promise<RoleIndex> {
+    private async readSharedRoles(transaction: RepositoryTransaction | undefined): Promise<RoleIndex> {
         const roles: BaseRole[] = await this.getRepository().findAll({
             // eslint-disable-next-line unicorn/no-null
             where: { tenantId: null },
@@ -902,7 +904,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
      * @param transaction - The transaction to read in, if any.
      * @returns The roles, indexed.
      */
-    private async readTenantRoles(tenantId: string, transaction: Transaction | undefined): Promise<TenantRoleIndex> {
+    private async readTenantRoles(tenantId: string, transaction: RepositoryTransaction | undefined): Promise<TenantRoleIndex> {
         const roles: BaseRole[] = await this.getRepository().findAll({
             where: { tenantId },
             acrossTenants: true,

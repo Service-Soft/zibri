@@ -1,4 +1,4 @@
-import { Transaction } from '../transaction/transaction.model';
+import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
 
 /**
  * Which operation of a driver a write is.
@@ -48,7 +48,7 @@ export type ObservedWrite = EntityWrite & {
     /**
      * The transaction of the write, if any.
      */
-    transaction: Transaction | undefined
+    transaction: RepositoryTransaction | undefined
 };
 
 /**

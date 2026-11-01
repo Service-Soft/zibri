@@ -84,7 +84,8 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async parseFromHttpRequest(req: HttpRequest, metadata: FormDataBodyMetadata): Promise<unknown> {
-        return await this.parseFromBody(req.body, metadata, req.headers, req);
+        const maxSize: BigNumber = resolveMaxBodySize(metadata, inject(ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS).maxBodySizes);
+        return await this.parseFromBody(req.body, metadata, maxSize, req.headers, req);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -92,12 +93,14 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
         res: HttpClientResponse,
         metadata: FormDataBodyMetadata
     ): Promise<unknown> {
-        return await this.parseFromBody(res.body, metadata, res.headers, res.rawBody as Readable);
+        const maxSize: BigNumber = resolveMaxBodySize(metadata, inject(ZIBRI_DI_TOKENS.HTTP_CLIENT_OPTIONS).maxBodySizes);
+        return await this.parseFromBody(res.body, metadata, maxSize, res.headers, res.rawBody as Readable);
     }
 
     private async parseFromBody(
         body: unknown,
         metadata: FormDataBodyMetadata,
+        maxSize: BigNumber,
         headers: Partial<Record<string, string | undefined>>,
         stream: Readable
     ): Promise<unknown> {
@@ -105,14 +108,14 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
             return body;
         }
         const contentLength: string | undefined = headers[KnownHeader.CONTENT_LENGTH];
-        if (contentLength && NumberUtilities.new(Number(contentLength)).isGreaterThan(resolveMaxBodySize(metadata))) {
+        if (contentLength && NumberUtilities.new(Number(contentLength)).isGreaterThan(maxSize)) {
             throw new ContentTooLargeError();
         }
 
         const tempFolder: FsPath = this.getTempFolder();
 
         try {
-            const parsed: ParsedForm = await this.parseMultipartStreamToDisk(stream, headers, tempFolder, metadata);
+            const parsed: ParsedForm = await this.parseMultipartStreamToDisk(stream, headers, tempFolder, metadata, maxSize);
             const formDataValue: object = this.requestToValue(parsed, metadata.shape);
             const formData: FormData<object> = await FormData.create(
                 formDataValue,
@@ -276,13 +279,13 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
         stream: Readable,
         headers: Partial<Record<string, string | undefined>>,
         tempFolder: FsPath,
-        metadata: FormDataBodyMetadata
+        metadata: FormDataBodyMetadata,
+        maxSize: BigNumber
     ): Promise<ParsedForm> {
         const contentType: string | undefined = headers[KnownHeader.CONTENT_TYPE]
             ?? headers[KnownHeader.CONTENT_TYPE.toLowerCase()];
 
         await FsUtilities.mkdir(tempFolder);
-        const maxSize: BigNumber = resolveMaxBodySize(metadata);
 
         // the application's limits, with whatever this body said for itself over the top. Resolved
         // here rather than in the decorator because a decorator runs at module load, long before

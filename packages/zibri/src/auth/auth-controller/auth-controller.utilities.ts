@@ -1,8 +1,8 @@
 import { AuthControllerClass } from './auth-controller-class.type';
-import { AuthControllerStrategyClass } from './auth-controller-strategy-class.type';
 import { isAuthControllerClass } from './is-auth-controller-class.function';
 import { ZibriApplication } from '../../application/application';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { StartTransactionOptions } from '../../data-source/data-sources/data-source.interface';
+import { SpanningTransaction } from '../../data-source/transaction/spanning-transaction.model';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
@@ -131,13 +131,18 @@ export abstract class AuthControllerUtilities {
     }
 
     /**
-     * Runs something in a transaction of the data source the given strategy keeps its logins in.
-     * @param strategy - The strategy.
+     * Runs something in a transaction across every data source it writes to.
      * @param run - What runs in it.
+     * @param options - What the transaction of each data source is started with.
      * @returns What it answers with, once the transaction is committed.
      */
-    static async runInTransaction<T>(strategy: AuthControllerStrategyClass, run: (transaction: Transaction) => Promise<T>): Promise<T> {
-        const transaction: Transaction = await inject(strategy).startTransaction();
+    static async runInTransaction<T>(
+        run: (transaction: SpanningTransaction) => Promise<T>,
+        options: StartTransactionOptions = {}
+    ): Promise<T> {
+        // spanning, since the routes hand it to the strategies, authenticators and two factor methods
+        // of the application, each writing wherever it keeps its rows
+        const transaction: SpanningTransaction = new SpanningTransaction(options);
         try {
             const result: T = await run(transaction);
             await transaction.commit();

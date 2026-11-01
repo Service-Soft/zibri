@@ -1,11 +1,11 @@
 {{#mailingList}}
-import { MailingListController, OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOptions, ZibriMailingListPlugin } from 'zibri';
+import { OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOptions, ZibriMailingListPlugin } from 'zibri';
 {{/mailingList}}
 {{^mailingList}}
 import { OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOptions } from 'zibri';
 {{/mailingList}}
 
-import { AppAuthController, HealthController{{#pages}}, PageController{{/pages}} } from './controllers';
+import { AppAuthController{{#mailingList}}, AppMailingListController{{/mailingList}}, HealthController{{#pages}}, PageController{{/pages}} } from './controllers';
 import { requireOneOfEnv, requireUrlEnv } from './env';
 import { version } from '../package.json';
 import { providers } from './providers';
@@ -26,7 +26,7 @@ export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSo
     name: '{{name}}',
     baseUrl: requireUrlEnv('BASE_URL'),
     plugins: [{{#mailingList}}new ZibriMailingListPlugin(){{/mailingList}}],
-    controllers: [HealthController{{#pages}}, PageController{{/pages}}{{#mailingList}}, MailingListController{{/mailingList}}, AppAuthController],
+    controllers: [HealthController{{#pages}}, PageController{{/pages}}{{#mailingList}}, AppMailingListController{{/mailingList}}, AppAuthController],
     websocketControllers: [],
     cronJobs: [],
     version,

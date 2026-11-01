@@ -32,7 +32,7 @@ export class Vault extends BaseEntity {
     @Property.array({ items: { type: 'string', encryption: true } })
     codes!: string[];
 
-    @Property.array({ items: { type: 'string', hash: true }, required: false })
+    @Property.array({ items: { type: 'string', hash: true, password: false }, required: false })
     pins?: string[];
 
     @Property.array({ items: { type: 'string', encryption: { strategy: AesGcmEncryptionStrategy, bindToRow: false } }, required: false })

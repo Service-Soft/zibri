@@ -14,6 +14,7 @@ import { BadRequestError } from '../error-handling/errors/bad-request.error';
 import { InternalError } from '../error-handling/internal-error.model';
 import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
+import { DurationHistogram } from '../metrics/duration-histogram.model';
 import { type MetricsServiceInterface } from '../metrics/metrics-service.interface';
 import { TraceSpanStatus } from '../tracing/trace-span-status.enum';
 import { TracingUtilities } from '../tracing/tracing.utilities';
@@ -59,7 +60,12 @@ export type CronConfig = OmitStrict<
      * nothing else can see, such as collecting this process's metrics or clearing this container's
      * temp folder. Electing one instance would leave the others uncollected or filling up.
      */
-    runsOn: RunsOn
+    runsOn: RunsOn,
+    /**
+     * Up to how long after its slot a run starts, at random, so that the jobs sharing a slot do not all
+     * start at once. A second by default, `0` to start every run on its slot.
+     */
+    maxRandomDelayInMs: number
 };
 
 /**
@@ -138,6 +144,7 @@ export abstract class CronJob {
             syncToDataSource: true,
             onFailure: {},
             runsOn: 'oneInstance',
+            maxRandomDelayInMs: Ms.SECOND,
             // the deployment's answer unless this job has one of its own, which is what lets a single
             // deployment run the same work on the schedule each of its tenants expects
             timezone: inject(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS).defaultTimezone,
@@ -263,7 +270,7 @@ export abstract class CronJob {
         if (failed) {
             metricsService.getCounter('cron_job_failures_total', ['job']).increase(labels);
         }
-        metricsService.getHistogram('cron_job_duration_ms', ['job'], [10, 100, 1000, 10000, 60000, 600000])
+        DurationHistogram.resolve(metricsService, 'cron_job_duration_seconds', ['job'], [10, 100, 1000, 10000, 60000, 600000])
             .observe(labels, durationInMs);
     }
 
@@ -338,7 +345,7 @@ export abstract class CronJob {
             throw new CronJobNotInitializedError();
         }
         this.task = cron.createTask(this.entity.cron, async (context: TaskContext) => await this.runOnTick(context.date), {
-            maxRandomDelay: Ms.SECOND,
+            maxRandomDelay: this.fullInitialConfig.maxRandomDelayInMs,
             // without this the expression is read in whatever zone the machine is set to, so the same
             // schedule fires at a different moment on a laptop than in production, and moves by an
             // hour twice a year anywhere that observes daylight saving. And in UTC where that is the

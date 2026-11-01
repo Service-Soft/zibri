@@ -70,12 +70,6 @@ import { PromiseUtilities, TimeoutError } from '../utilities/promise.utilities';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
 
 /**
- * How long stopping a running backup or restore may take once the application has stopped waiting for it:
- * deleting what a backup wrote, or putting back what a restore applied.
- */
-const STOPPING_TIMEOUT_IN_MS: number = Ms.SECOND * 30;
-
-/**
  * How long storing a resource waits for a restore or another backup of it to be done, before the
  * attempt fails and is tried again after the retry delay.
  */
@@ -161,7 +155,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     get shutdownTimeoutInMs(): number {
-        return this.shutdownWaitInMs + STOPPING_TIMEOUT_IN_MS;
+        return this.shutdownWaitInMs + inject(ZIBRI_DI_TOKENS.BACKUP_STOPPING_TIMEOUT_IN_MS);
     }
 
     // aborted when the application stops waiting for a running backup or restore. Never reset: a
@@ -613,7 +607,6 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         return {
             name: 'backup',
             wakeUpTopic: WAKE_UP_TOPICS.BACKUPS,
-            dataSource: this.backupResourceRepository.dataSource,
             // how long the resources an instance that stopped existing was storing wait for another
             leaseInMs: Ms.MINUTE,
             onCompletion: 'release',

@@ -14,7 +14,6 @@ import { TooManyRequestsError } from '../error-handling/errors/too-many-requests
 import { OnAppInit } from '../global/on-app-init.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { type GaugeInterface } from '../metrics/gauge.interface';
-import { DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS } from '../metrics/metrics-collector.model';
 import { type MetricsServiceInterface } from '../metrics/metrics-service.interface';
 import { type WakeUpServiceInterface } from '../polling/wake-up-service.interface';
 import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
@@ -125,7 +124,7 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         const metricsService: MetricsServiceInterface = inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
         metricsService.addCollector({
             name: 'email queue',
-            minIntervalInMs: DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS,
+            minIntervalInMs: 'dataSource',
             collect: async () => await this.collectQueueMetrics(metricsService)
         });
     }
@@ -210,7 +209,6 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         return {
             name: 'email',
             wakeUpTopic: WAKE_UP_TOPICS.EMAILS,
-            dataSource: this.emailRepository.dataSource,
             leaseInMs: this.config.sendLeaseInMs,
             // claimed together, and before anything is sent or the rate limiter is asked for tokens:
             // the status is only written back once a send returns, so until then these rows still

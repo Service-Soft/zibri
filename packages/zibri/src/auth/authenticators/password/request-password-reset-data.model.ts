@@ -1,4 +1,4 @@
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
 import { QueueEmailData } from '../../../email/models/create-email-data.model';
 import { BaseUser } from '../../models/base-user.model';
 
@@ -24,5 +24,5 @@ export type RequestPasswordResetData<RoleType extends string, UserType extends B
     /**
      * The transaction that this should run in.
      */
-    transaction: Transaction
+    transaction: RepositoryTransaction
 };

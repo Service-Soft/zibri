@@ -185,8 +185,20 @@ export type StringPropertyMetadata<
     encryption: EncryptionPropertyValue<Data, TKey, TEncryptOptions, TDecryptOptions>,
     /**
      * Settings for hashing this property.
+     *
+     * A hashed property says whether it holds a password, with `password`.
      */
-    hash: HashPropertyValue<Data, THashOptions>
+    hash: HashPropertyValue<Data, THashOptions>,
+    /**
+     * Whether the property holds a password.
+     *
+     * A password is hashed, by the default strategy unless `hash` names another one that hashes one
+     * value differently each time, and checked against `ZIBRI_DI_TOKENS.PASSWORD_POLICY` whenever one
+     * is written. The policy says what a password may be, so a password declares no length, pattern,
+     * format, enum or default, and is neither unique nor indexed. A hashed property that holds
+     * something else, such as a token, declares `password: false`.
+     */
+    password: boolean
 };
 
 /**
@@ -245,7 +257,7 @@ export type IncomingStringPropertyMetadataInput = OmitStrict<
     StringPropertyMetadataInput,
     // encryption and hashing are what a repository does to a value it stores, so nothing would ever act
     // on either flag for a value that is only read
-    'encryption' | 'hash'
+    'encryption' | 'hash' | 'password'
 >;
 
 /**

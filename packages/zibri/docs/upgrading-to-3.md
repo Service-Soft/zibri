@@ -30,6 +30,10 @@ defineProvider({
 
 The migration below marks bcrypt `DEPRECATED` and scrypt as the default, so each password is replaced with a scrypt hash the next time its user logs in. `BcryptHashStrategy` is deprecated: keep it registered while stored hashes need it.
 
+**Say whether a hashed property holds a password.** A string declared with `hash` declares `password` as well, or the application refuses to start: `password: true` for a password, and `password: false` for anything else, such as a token. `password: true` hashes the property without `hash`, see [encryption and hashing](./encryption-and-hashing.md#defining-encryptedhashed-properties).
+
+**Say what a password has to be.** An application whose entities hold a password, such as `PasswordCredentials`, refuses to start without `ZIBRI_DI_TOKENS.PASSWORD_POLICY`, such as `{ minLength: 15, outdatedPasswords: 'requireChange' }`. Every password written is checked against it. `outdatedPasswords` says whether a user whose password 2.x took and the policy refuses logs in with it, or [chooses a new one](./auth.md#requiring-a-new-password) first, see [how long a password may be](./auth.md#how-long-a-password-may-be). With `PasswordAuthenticator`, declare `LoginTicket` in your data source.
+
 **Bring your project to what 3.x generates with `zi upgrade`.** Templates are compiled by `zibri-tsx` now, and the build, the jest configuration and the compiler options come from the packages, see [upgrade a project](./getting-started.md#upgrading-a-project). A 2.x project has no `zibri-scaffold.json`, so `zi upgrade` asks what `zi new` would have, and writes each file that differs from what 3.x generates beside yours as `<file>.zibri-upgrade`. Take what you need from each and delete it. Every later upgrade merges.
 
 **Choose how your schema is managed.** `schemaManagement` is required on every sql data source, see [data source](./data-source.md). 2.x synchronized the schema unless you turned it off.
@@ -273,6 +277,11 @@ export class UpgradeToZibri3Migration extends Migration {
         await this.dataSource.mergeEntity({ entity: PasswordCredentials, currentTableName: 'cookie_auth_credentials', transaction });
         // the email is read from the user
         await this.dataSource.removePropertyFromEntity({ entity: PasswordCredentials, propertyKey: 'email', transaction });
+        await this.dataSource.addPropertyToEntity({
+            entity: PasswordCredentials,
+            property: { name: 'changeRequired', type: 'boolean', default: false },
+            transaction
+        });
     }
 
     // 2.x recorded bcrypt as the default strategy, which every new hash would otherwise still use.
@@ -846,6 +855,7 @@ What they change:
 |---|---|
 | New entities are created | [Leases](./glossary.md#lease), cache invalidations, event subscriber registrations, rate limit state, two factor failure streaks, recovery codes, the name abbreviations of invoice recipients, and the progress and failures of the [key rotation](./encryption-and-hashing.md#rotating-a-key) each have a table of their own |
 | The passwords move from `jwt_credentials` and `cookie_auth_credentials` to `PasswordCredentials`, without the email | Every login reads them from there |
+| `PasswordCredentials` gets `changeRequired`, `false` for every password 2.x stored | Whether the user [chooses a new password](./auth.md#requiring-a-new-password) before their next login |
 | bcrypt is marked `DEPRECATED` in the hash strategy table, and scrypt the default | New passwords are hashed with scrypt, and each bcrypt hash is replaced with one the next time its user logs in |
 | Number columns without a format become doubles | 2.x stored them as decimals |
 | A cron job's `active` becomes `state`, and `timezone` is added | Both are required |
@@ -911,7 +921,7 @@ Once they have run, the first start [keeps the indexes and uniques](./data-sourc
 
 **Models.** `before` and `after` of a `@Property.date` take a function returning the date, such as `after: () => new Date()` for a date in the future, see [bounding a date](./validation.md#bounding-a-date): a fixed date does not compile. A `ValidationProblem` your code builds, such as in a `ValidationServiceInterface` of your own, carries a `code`, see [reading a refused request](./validation.md#reading-a-refused-request).
 
-**Names and tables.** Two entities of the same name in one application refuse the start, and so do two entities of one data source stored in the same table: rename all but one of them, or give it a `tableName` on `@Entity`.
+**Names and tables.** Two entities of the same name in one application refuse the start, and so do two entities of one data source stored in the same table: rename all but one of them, or give it a `tableName` on `@Entity`. Two data source classes of the same name refuse it as well: rename all but one of them.
 
 **Data sources.** A `RepositoryDriverInterface` of your own implements `insert`, which writes rows whose ids were generated for them, so no stored row holds one, and `updateEach`, which writes each row's own values to the stored row with its id among the rows a filter matches. Handing the rows of `insert` to your `save` is enough, and so is writing the rows of `updateEach` one at a time with your `updateAll`. Its `updateAll` adds the amounts in `increments` to what each matching row stores, in the same write as `data`, a property holding no value counting as 0. It implements `aggregate`, which takes a sum, an average, a smallest or largest value or a count over the matching rows, per group when asked; `AggregateUtilities.resolveRows` answers it from rows you already read. Its `remove` takes a `RemovalReach` after the ids: a filter the rows still have to match, judged in the same write, and `wholly`, which says that a row gone or no longer matching keeps every row from being removed. It answers with the ids it removed. It implements `removeMatching`, which removes every row a filter matches; your `findIds` followed by your `remove` with the filter as the reach is enough. It implements `resolveRelations`, which resolves relations on rows a write handed back; reading them again by their ids with your `find` is enough. Its `updateAll` refuses with an `UnboundedReturnError` before writing anything when more rows than `returnAtMost` match. Its `stream` hands the rows out in the `order` it is given, when there is one. A `Transaction` of your own implements `afterFinish`, which runs work once it is committed, rolled back or its commit failed, and tells the work whether it was committed. A `DataSourceInterface` of your own implements `runInTransaction`; `TransactionUtilities.runInTransaction(this, work, options)` answers it from your `startTransaction`.
 
@@ -965,6 +975,11 @@ Confirming a password reset ends every login of that user, in every [auth strate
 - A request names its strategy in the query parameter `strategy` and its [authenticator](./glossary.md#authenticator) in `authenticator` once your auth controller has more than one of either.
 - The application refuses to start when the options of your auth controller name other strategies, authenticators or two factor methods than the application registers.
 
+### The mailing list routes are below a controller of your own
+`MailingListController` has no path of its own. Extend it with a `@Controller` of your own and register that class instead, see [setting up the mailing list plugin](./mailing-list-plugin.md#setting-it-up). `@Controller('/mailing-lists', { versions: 'all' })` keeps the paths of 2.x. `zi new` writes it as `AppMailingListController` in `src/controllers/mailing-list.controller.ts`.
+
+`mailingListBaseRoute` is gone from the mailing list service. The links in the emails point at the path of your controller, or below [`PAGES_URL`](./mailing-list-plugin.md#showing-the-pages-in-your-frontend) when your frontend shows the pages.
+
 ### Requests have limits
 | Limit | Default | When it is exceeded |
 |---|---|---|
@@ -983,6 +998,9 @@ A call that waits longer than 30 seconds for a postgres connection fails as well
 
 ### A deadlock or a serialization failure fails with a `TransactionConflictError`
 A transaction ended to break a deadlock fails with a `TransactionDeadlockError`, on postgres and on valkey. A `REPEATABLE READ` or `SERIALIZABLE` transaction ended because another one changed what it read fails with a `TransactionSerializationError`, at a statement or at its commit. Both are a `TransactionConflictError`. Code that recognized them by the query error's sql state `40P01` or `40001` catches these errors instead, or runs its work through `runInTransaction`, which runs it again, see [using transactions](./data-source.md#using-transactions).
+
+### The auth routes and transactional hooks run in a `SpanningTransaction`
+The auth routes, SCIM provisioning and event hooks delivered `'transactional'` hand your strategies, authenticators, two factor methods, provisioners and hooks a [transaction across data sources](./data-source.md#writing-to-several-data-sources-in-one-transaction). Type the transaction parameters of yours as `RepositoryTransaction`. One that hands the transaction to an operation of a data source itself, such as a query written by hand, starts a transaction of that data source for it instead.
 
 ### The http client stops calling an upstream that keeps failing
 After 5 failures in a row, a connection error, a timeout or a `500`, `502`, `503` or `504`, every request of the http client to that origin fails at once with a `CircuitOpenError` for 30 seconds, without being sent. Code that catches a failed upstream call and tries again in a loop gets this error instead of a timeout. Set other thresholds, or turn it off, with `circuitBreaker` in `HTTP_CLIENT_OPTIONS_INPUT`, see [when an upstream keeps failing](./http-client.md#when-an-upstream-keeps-failing).
@@ -1029,7 +1047,10 @@ A filter like `{ ownerId: { not: 'abc' } }` on a uuid property fails with a `Bad
 The `x-correlation-id` header is gone. The id of a request is returned as `traceresponse`, and a failed request repeats it in its body as `traceId`. Update clients and log queries that read the old header, see [logging](./logging.md).
 
 ### Metrics are labeled by route
-The `route` label of `http_requests_total` and `http_request_duration_ms` is the route template, such as `/invoices/:id`, not the url that was requested. Update dashboards and alerts that filter on urls, see [metrics](./metrics.md).
+The `route` label of `http_requests_total` and `http_request_duration_seconds` is the route template, such as `/invoices/:id`, not the url that was requested. Update dashboards and alerts that filter on urls, see [metrics](./metrics.md).
+
+### Durations are measured in seconds
+`http_request_duration_ms`, `cache_store_duration_ms` and `cache_source_duration_ms` are `http_request_duration_seconds`, `cache_store_duration_seconds` and `cache_source_duration_seconds`, and their values and buckets are in seconds. `METRICS_REQUEST_DURATION_BUCKETS_IN_MS` stays in milliseconds. Update dashboards and alerts that read the old names, see [metrics](./metrics.md#what-a-snapshot-contains).
 
 ### The db logger transport writes 1000 rows a minute
 Past 1000 entries a minute on an instance, the db transport writes one row per kind of entry, which counts how many it stands for in `context.collapsed`. Queries that count log rows add up `context.collapsed.count` instead. Pass `maxEntriesPerMinute` to `LoggerTransport.db` where you need more rows, see [logging](./logging.md#how-many-rows-the-db-transport-writes).
@@ -1040,8 +1061,17 @@ Past 1000 entries a minute on an instance, the db transport writes one row per k
 ### A reconnecting websocket client names its `offset`
 The websocket server has no socket.io connection state recovery, and `SocketIOWebsocketConnection.recovered` is gone. A client that reconnects is sent what it missed when it sends the `seq` of the last message it received as `offset`, on any instance. Clients that relied on socket.io to send them missed messages send their `offset`, see [reconnecting](./websocket.md#reconnecting).
 
+### A websocket message weighs at most what its body allows
+A message for an event with a `@WebsocketBody` is refused once it is larger than the body's `maxSize`, or than `maxBodySizes.json` of `ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS`, 100 kilobytes, when it names none, and the connection is closed with code `1009`. An event that takes larger messages names a `maxSize`, see [limiting the size of a message](./websocket.md#limiting-the-size-of-a-message).
+
 ### A `ValKeyCacheStore` belongs to one cache
 A `ValKeyCacheStore` keeps its entries under the name of the cache it is given to, and a store given to a second cache is refused. Give each cache a store of its own. What the stores held before is not read again: delete the keys under `<keyPrefix>:cache:` that name no cache, such as `<keyPrefix>:cache:index`, see [caching](./caching.md#using-a-cache).
 
 ### `sendBatchSize` is at most `maxEmailsPerHour`
 An `EMAIL_CONFIG` whose `sendBatchSize` is larger than its `maxEmailsPerHour` is refused at startup. Lower `sendBatchSize` to at most `maxEmailsPerHour`, see [email](./email.md).
+
+### `SmtpEmailTransport` refuses a server without STARTTLS
+A connection that is not `secure` is upgraded with STARTTLS, and a server that offers none is refused, so a mail fails to send. Pass `requireTls: false` for a relay that speaks no TLS, such as one on the same machine, see [reaching the SMTP server](./email.md#reaching-the-smtp-server).
+
+### `formatPercent` takes the number of percent
+`formatPercent` and `$f.percent` format `19` as `19 %`, with up to three decimals. Multiply a share such as `0.19` by 100 before you pass it, see [formatting](./localization.md#formatting).

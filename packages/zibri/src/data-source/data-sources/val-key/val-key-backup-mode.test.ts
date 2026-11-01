@@ -20,6 +20,7 @@ import { EncryptionRotationProgress } from '../../../auth/encryption/encryption-
 import { SigningKey } from '../../../auth/encryption/signing-key.model';
 import { EncryptionStrategyEntity } from '../../../auth/encryption/strategies/encryption-strategy-entity.model';
 import { HashStrategyEntity } from '../../../auth/hash/strategies/hash-strategy-entity.model';
+import { LoginTicket } from '../../../auth/models/login-ticket.model';
 import { PasswordResetToken } from '../../../auth/models/password-reset-token.model';
 import { JwtRefreshToken } from '../../../auth/strategies/jwt/jwt-refresh-token.model';
 import { CacheInvalidation } from '../../../caching/cache-invalidation.model';
@@ -75,6 +76,7 @@ class BackedUpValKeyDataSource extends ValKeyDataSource {
         AuditCheckpoint,
         PasswordCredentials,
         PasswordResetToken,
+        LoginTicket,
         JwtRefreshToken,
         CacheInvalidation,
         TwoFactorFailureStreak,

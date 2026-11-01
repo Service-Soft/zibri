@@ -3,7 +3,8 @@ import { QueueDelivery } from './queue-delivery.type';
 import { QueuedWorkHandedBackError } from './queued-work-handed-back.error';
 import { QueuedWorkItem } from './queued-work-item.model';
 import { QueuedWorkOutcome } from './queued-work-outcome.model';
-import { Transaction } from '../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
+import { SpanningTransaction } from '../data-source/transaction/spanning-transaction.model';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { InternalError } from '../error-handling/internal-error.model';
@@ -137,7 +138,9 @@ export abstract class QueueUtilities {
         runId: string,
         lost: AbortSignal
     ): Promise<void> {
-        const transaction: Transaction = await queue.dataSource.startTransaction();
+        // spanning, since the run is the subsystem's or the application's, writing wherever it keeps
+        // its rows
+        const transaction: SpanningTransaction = new SpanningTransaction();
         try {
             await queue.run(item, { runId, attempt: attempts, signal: lost, transaction });
             if (lost.aborted) {
@@ -170,7 +173,7 @@ export abstract class QueueUtilities {
         attempts: number,
         failure: Error | undefined,
         mayRetry: boolean,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<void> {
         const outcome: QueuedWorkOutcome = failure == undefined
             // eslint-disable-next-line unicorn/no-null

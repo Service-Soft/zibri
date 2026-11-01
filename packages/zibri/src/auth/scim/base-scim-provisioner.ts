@@ -1,6 +1,6 @@
 import { ScimGroupResource } from './scim-group-resource.model';
 import { ScimUserResource } from './scim-user-resource.model';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { BaseMembership } from '../../tenancy/membership/base-membership.model';
 import { BaseUser } from '../models/base-user.model';
 
@@ -30,7 +30,7 @@ export abstract class BaseScimProvisioner<
      * @param transaction - The transaction it is provisioned in.
      * @returns The user, or undefined to have one created through `createProvisionedUser`.
      */
-    abstract findProvisionedUser(resource: ScimUserResource, transaction: Transaction): Promise<UserType | undefined>;
+    abstract findProvisionedUser(resource: ScimUserResource, transaction: RepositoryTransaction): Promise<UserType | undefined>;
 
     /**
      * Creates the user a newly provisioned resource stands for, when `findProvisionedUser` found
@@ -39,7 +39,7 @@ export abstract class BaseScimProvisioner<
      * @param transaction - The transaction it is provisioned in.
      * @returns The user.
      */
-    abstract createProvisionedUser(resource: ScimUserResource, transaction: Transaction): Promise<UserType>;
+    abstract createProvisionedUser(resource: ScimUserResource, transaction: RepositoryTransaction): Promise<UserType>;
 
     /**
      * Changes a user the tenant owns after the identity provider changed their resource, such as their
@@ -48,7 +48,7 @@ export abstract class BaseScimProvisioner<
      * @param user - The user it stands for.
      * @param transaction - The transaction it is changed in.
      */
-    abstract resolveUpdatedUser(resource: ScimUserResource, user: UserType, transaction: Transaction): Promise<void>;
+    abstract resolveUpdatedUser(resource: ScimUserResource, user: UserType, transaction: RepositoryTransaction): Promise<void>;
 
     /**
      * Changes the membership of a user in the tenant after the groups they are a member of changed,
@@ -59,7 +59,7 @@ export abstract class BaseScimProvisioner<
      * members of others.
      * @param transaction - The transaction the groups are changed in.
      */
-    abstract resolveGroupMembership(membership: MembershipType, groups: ScimGroupResource[], transaction: Transaction): Promise<void>;
+    abstract resolveGroupMembership(membership: MembershipType, groups: ScimGroupResource[], transaction: RepositoryTransaction): Promise<void>;
 
     /**
      * Deletes a user the tenant owns after the identity provider deleted them, or keeps them
@@ -68,5 +68,5 @@ export abstract class BaseScimProvisioner<
      * @param user - The user.
      * @param transaction - The transaction they are deleted in.
      */
-    abstract resolveDeletedUser(user: UserType, transaction: Transaction): Promise<void>;
+    abstract resolveDeletedUser(user: UserType, transaction: RepositoryTransaction): Promise<void>;
 }

@@ -613,6 +613,27 @@ describe('socket.io-parser', () => {
     });
 });
 
+describe('ws', () => {
+
+    it('is an optional peer dependency', () => {
+        // the websocket server reads each connection's frames ahead of ws, through a server class of
+        // ws's own, so it is needed exactly when socket.io is, and it arrives with socket.io
+        expect(optionalPeers()).toContain('ws');
+    });
+
+    it('is not needed to load the framework', () => {
+        const res: { loaded: boolean } = inConsumerProcess(`
+            ${hiding(['socket.io', 'socket.io-adapter', 'socket.io-parser', 'ws'])}
+            const { createRequire } = await import('node:module');
+            const require = createRequire(process.cwd() + '/index.cjs');
+            const zibri = require('zibri');
+            console.log(JSON.stringify({ loaded: typeof zibri.ZibriApplication === 'function' }));
+        `);
+
+        expect(res.loaded).toBe(true);
+    });
+});
+
 describe('the test harness', () => {
 
     it('declares ts-node as an optional peer', () => {

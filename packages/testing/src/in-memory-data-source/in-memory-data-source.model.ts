@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream';
 
 import { AddPropertyToEntityInput, type AuthServiceInterface, BaseEntity, ChangePropertyOfEntityInput, DataSourceInitializationError, DataSourceInterface, DataSourceSubscription, EntityMetadataMissingError, GlobalRegistry, Inject, InternalError, JsonUtilities, type LoggerInterface, MergeEntityInput, Migration, MigrationPropertyMetadata, MigrationRevertTarget, Newable, ObjectUtilities, PubSubDataSourceInterface, RemoveEntityInput, RemovePropertyFromEntityInput, RemoveRelationFromEntityInput, RenameEntityInput, Repository, RepositoryClass, RepositoryTypeForEntity, RunInTransactionOptions, StartTransactionOptions, Transaction, TransactionUtilities, ZIBRI_DI_TOKENS } from 'zibri';
-import { ConvertedValue, DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS, EntityMetadata, MetadataUtilities, MigratedEntityUtilities, PropertyMetadata, recordKeyReconciliation, RefusedValue, registerRepositoryProvidersFor, RepositoryForUtilities, ResolvedPropertyConversion, revertMigrationsAfter, runMigrations, runMigrationsAfterRestore, ValueConversionUtilities } from 'zibri/internal';
+import { ConvertedValue, DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS, EntityMetadata, MetadataUtilities, MigratedEntityUtilities, OpenTransactions, PropertyMetadata, recordKeyReconciliation, RefusedValue, registerRepositoryProvidersFor, RepositoryForUtilities, ResolvedPropertyConversion, revertMigrationsAfter, runMigrations, runMigrationsAfterRestore, UNBOUNDED_FIND_ALL_LIMIT, ValueConversionUtilities } from 'zibri/internal';
 
 import { InMemoryScope, inMemoryStoreFor, InMemoryStore, InMemoryStoreSnapshot, StoredRow } from './in-memory-store';
 import { InMemoryTransaction } from './in-memory-transaction.model';
@@ -81,16 +81,27 @@ export abstract class InMemoryDataSource implements DataSourceInterface, PubSubD
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly maxMessageBytes: number | undefined = undefined;
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly maxRowsWithoutLimit: number = UNBOUNDED_FIND_ALL_LIMIT;
+
     /**
      * Where every call a repository makes on the store is recorded, if anywhere.
      */
     protected readonly roundTrips: RoundTripCounter | undefined = undefined;
+
+    /**
+     * How long a transaction may sit idle, in milliseconds, before it is rolled back. 0 for no limit.
+     * A transaction that names its own `idleTimeoutInMs` when it starts takes that instead.
+     */
+    protected readonly transactionIdleTimeoutInMs: number = DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS;
 
     private get store(): InMemoryStore {
         return inMemoryStoreFor(this.constructor as Newable<DataSourceInterface>);
     }
 
     private initialized: boolean = false;
+
+    private readonly openTransactions: OpenTransactions = new OpenTransactions();
 
     private readonly builtRepositories: Map<Newable<BaseEntity>, Repository<BaseEntity>> = new Map();
 
@@ -150,7 +161,9 @@ export abstract class InMemoryDataSource implements DataSourceInterface, PubSubD
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    shutDown(): void {
+    async shutDown(): Promise<void> {
+        // a transaction nothing ended kept its idle timer, which fired once the application was gone
+        await this.openTransactions.rollBackAll(this.constructor.name, this.logger);
         this.initialized = false;
         this.builtRepositories.clear();
         // the store is deliberately left alone: an application that is started again on the same
@@ -237,7 +250,9 @@ export abstract class InMemoryDataSource implements DataSourceInterface, PubSubD
                 + ` "${options.isolationLevel}" is ignored.`
             );
         }
-        return new InMemoryTransaction(this.store, options?.idleTimeoutInMs ?? DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS, this.logger);
+        const transaction: InMemoryTransaction = new InMemoryTransaction(this.store, options?.idleTimeoutInMs ?? this.transactionIdleTimeoutInMs, this.logger);
+        this.openTransactions.add(transaction);
+        return transaction;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -419,7 +434,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface, PubSubD
      * @param entity - The entity class which rows should be updated.
      * @param transaction - The transaction to run the operation in.
      * @param update - Produces the fields to write and remove, or undefined when the row stays untouched.
-     * @throws When the transaction was started by a different kind of data source.
+     * @throws When the transaction was started by another data source.
      */
     private updateStoredRows<T extends BaseEntity>(
         entity: Newable<T>,
@@ -428,6 +443,9 @@ export abstract class InMemoryDataSource implements DataSourceInterface, PubSubD
     ): void {
         if (!(transaction instanceof InMemoryTransaction)) {
             throw new InternalError('The provided transaction does not belong to an in memory data source.');
+        }
+        if (!transaction.isStartedOn(this.store)) {
+            throw new InternalError('The provided transaction belongs to another in memory data source: this one did not start it.');
         }
         const metadata: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(entity);
         if (!metadata) {

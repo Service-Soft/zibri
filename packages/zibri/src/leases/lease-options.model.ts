@@ -1,4 +1,4 @@
-import { Transaction } from '../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 
 // The only thing that ever differed between the framework's locks and its claims, which is why it
 // is a parameter here rather than two separate primitives - see evaluation/10-leases-and-claims.md.
@@ -118,5 +118,5 @@ export type LeaseOptions = LeaseSetOptions & {
      *
      * A transaction that is rolled back counts as work that threw, for `onCompletion`.
      */
-    heldUntil?: Transaction
+    heldUntil?: RepositoryTransaction
 };

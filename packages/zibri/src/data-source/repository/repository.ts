@@ -51,6 +51,7 @@ import { DataSourceTimeResolvingRepositoryDriver } from '../driver/data-source-t
 import { DeadlineAwareRepositoryDriver } from '../driver/deadline-aware.repository-driver';
 import { type RemovalReach } from '../driver/removal-reach.model';
 import { DriverFindOptions, DriverStreamOptions, RepositoryDriverInterface } from '../driver/repository-driver.interface';
+import { SpanningTransactionRepositoryDriver } from '../driver/spanning-transaction.repository-driver';
 import { TracedRepositoryDriver } from '../driver/traced.repository-driver';
 import { WriteObservingRepositoryDriver } from '../driver/write-observing.repository-driver';
 import { SaveOperation } from '../hooks/before-save';
@@ -93,6 +94,7 @@ import { resolveOutOfScopeError } from '../scopes/resolve-out-of-scope-error.fun
 import { ScopedWhere, ScopeWhereUtilities } from '../scopes/scope-where.utilities';
 import { TenantRowData, TenantUtilities } from '../tenancy/tenant.utilities';
 import { WrittenRowTenantUtilities } from '../tenancy/written-row-tenant.utilities';
+import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
 import { Transaction } from '../transaction/transaction.model';
 import { TransactionUtilities } from '../transaction/transaction.utilities';
 import { UnboundedReturnError } from '../unbounded-return.error';
@@ -113,7 +115,8 @@ import { WriteDataUtilities } from '../write-data.utilities';
 const bulkBoundUpdateWarningThreshold: number = 100;
 
 /**
- * How many rows a `findAll` that names no limit may return before it is refused.
+ * How many rows a `findAll` that names no limit may return before it is refused, unless the data source
+ * says otherwise with `maxRowsWithoutLimit`.
  *
  * Not a memory figure - ten thousand rows is a few megabytes, and the read this exists to stop is
  * the one that streams millions. It is the point past which a call that asked for everything has
@@ -172,7 +175,7 @@ export type BulkUpdate<T extends BaseEntity> = {
 /**
  * What a call taking a value over rows hands on, whichever of them it is.
  */
-type AggregateCallOptions<T extends BaseEntity> = BaseRepositoryOptions & {
+type AggregateCallOptions<T extends BaseEntity> = BaseRepositoryOptions<T> & {
     /**
      * The filter the rows are taken from.
      */
@@ -278,9 +281,9 @@ export class Repository<
     UpdateData extends DeepPartial<T> = DeepPartial<T>
 > {
     /**
-     * The storage specific part of this repository.
+     * The storage specific part of this repository, which takes a spanning transaction as well.
      */
-    protected readonly driver: RepositoryDriverInterface<T>;
+    protected readonly driver: RepositoryDriverInterface<T, RepositoryTransaction>;
 
     /**
      * What this repository logs through.
@@ -403,7 +406,11 @@ export class Repository<
                 ? repo
                 : new DataSourceTimeResolvingRepositoryDriver(repo, async () => await resolveTime.call(repo));
             const traced: TracedRepositoryDriver<T> = new TracedRepositoryDriver(timed, entityClass);
-            this.driver = new DeadlineAwareRepositoryDriver(new WriteObservingRepositoryDriver(traced, entityClass, this.logger));
+            // the spanning transaction resolved inside the observers, so that what they do once a
+            // write is committed waits for every data source it spans, and outside the tracing, so
+            // that the reads of the rows as they were before a write are spans of their own
+            const spanning: SpanningTransactionRepositoryDriver<T> = new SpanningTransactionRepositoryDriver(traced, entityClass, this._dataSource);
+            this.driver = new DeadlineAwareRepositoryDriver(new WriteObservingRepositoryDriver(spanning, entityClass, this.logger));
         }
         ModelRegistry.get(this.entityClass);
         const metadata: EntityMetadata<T> | undefined = MetadataUtilities.getEntityMetadata(this.entityClass);
@@ -499,7 +506,8 @@ export class Repository<
         this.hookServices ??= {
             hooks: inject(ZIBRI_DI_TOKENS.REPOSITORY_HOOKS),
             encryptionService: inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE),
-            hashService: inject(ZIBRI_DI_TOKENS.HASH_SERVICE)
+            hashService: inject(ZIBRI_DI_TOKENS.HASH_SERVICE),
+            passwordPolicy: inject(ZIBRI_DI_TOKENS.PASSWORD_POLICY)
         };
         return this.hookServices;
     }
@@ -523,7 +531,7 @@ export class Repository<
     private async toDriverFindOptions<S extends EntitySelection<T> | undefined>(
         options: FindAllOptions<T, S> | FindOneOptions<T, boolean, S> | undefined,
         where: Where<T> | undefined
-    ): Promise<DriverFindOptions<T>> {
+    ): Promise<DriverFindOptions<T, RepositoryTransaction>> {
         const allOptions: FindAllOptions<T, S> | undefined = options as FindAllOptions<T, S> | undefined;
         // 'all' is the absence of a limit as far as the store is concerned. The difference
         // between saying it and saying nothing is handled by findAll, which is where it matters
@@ -595,7 +603,7 @@ export class Repository<
     private async resolveRelated(
         where: Where<T> | undefined,
         relations: FindAllOptions<T>['relations'] | RelationTree | undefined,
-        options: BaseRepositoryOptions | undefined
+        options: BaseRepositoryOptions<T> | undefined
     ): Promise<RelatedNarrowing | undefined> {
         const related: RelatedNarrowing = await RelatedNarrowingUtilities.resolve(
             this.entityClass,
@@ -664,7 +672,7 @@ export class Repository<
     private async toDriverStreamOptions(
         options: StreamOptions<T, EntitySelection<T> | undefined> | undefined,
         where: Where<T> | undefined
-    ): Promise<DriverStreamOptions<T>> {
+    ): Promise<DriverStreamOptions<T, RepositoryTransaction>> {
         const relations: FindAllOptions<T>['relations'] = options?.relations ?? this.entityMetadata.defaultRelations;
         FuzzySearchUtilities.validateOrderable(options?.order, this.entityClass);
         return {
@@ -690,7 +698,7 @@ export class Repository<
      */
     protected async scopedWhere(
         where: Where<T> | undefined,
-        options?: BaseRepositoryOptions
+        options?: BaseRepositoryOptions<T>
     ): Promise<ScopedWhere<T>> {
         const scope: Where<T> | DenyAll | undefined = await this.resolveRestriction(options);
         if (scope === denyAll) {
@@ -733,7 +741,7 @@ export class Repository<
      * undefined when nothing restricts the call.
      * @throws When the entity's rows belong to a tenant and none is active, or whatever a scope throws.
      */
-    private async resolveRestriction(options: BaseRepositoryOptions | undefined): Promise<Where<T> | DenyAll | undefined> {
+    private async resolveRestriction(options: BaseRepositoryOptions<T> | undefined): Promise<Where<T> | DenyAll | undefined> {
         const call: CallRestrictions<T> | undefined = this.callRestrictions.getStore();
         if (call?.open !== true) {
             return await this.resolveRestrictionNow(options);
@@ -763,7 +771,7 @@ export class Repository<
      * undefined when nothing restricts the call.
      * @throws When the entity's rows belong to a tenant and none is active, or whatever a scope throws.
      */
-    private async resolveRestrictionNow(options: BaseRepositoryOptions | undefined): Promise<Where<T> | DenyAll | undefined> {
+    private async resolveRestrictionNow(options: BaseRepositoryOptions<T> | undefined): Promise<Where<T> | DenyAll | undefined> {
         // first, so a call that should never have run outside a tenant says so before a scope refuses
         // it for want of a user
         const tenant: Where<T> | undefined = TenantUtilities.resolveRestriction(
@@ -797,7 +805,7 @@ export class Repository<
      * @param options - The options of the write, carrying `acrossTenants`.
      * @returns The filter, or the note that nothing can match it.
      */
-    protected resolveWriteWhere(where: Where<T> | undefined, options: BaseRepositoryOptions | undefined): ScopedWhere<T> {
+    protected resolveWriteWhere(where: Where<T> | undefined, options: BaseRepositoryOptions<T> | undefined): ScopedWhere<T> {
         return ScopeWhereUtilities.applyToWhere(
             where,
             TenantUtilities.resolveWriteRestriction(this.entityClass, this.entityMetadata, options?.acrossTenants),
@@ -828,7 +836,7 @@ export class Repository<
     protected async applyScopeToData(
         data: DeepPartial<T>,
         operation: SaveOperation.CREATE | SaveOperation.UPDATE,
-        options?: BaseRepositoryOptions
+        options?: BaseRepositoryOptions<T>
     ): Promise<void> {
         if (
             operation === SaveOperation.UPDATE
@@ -883,7 +891,7 @@ export class Repository<
      * @param options - The options of the write, carrying `acrossTenants`.
      * @throws {ForbiddenError} When the row is outside what the write may change.
      */
-    private validateWritable(row: T, options: BaseRepositoryOptions | undefined): void {
+    private validateWritable(row: T, options: BaseRepositoryOptions<T> | undefined): void {
         const restriction: Where<T> | undefined = TenantUtilities.resolveWriteRestriction(
             this.entityClass,
             this.entityMetadata,
@@ -1016,7 +1024,7 @@ export class Repository<
      */
     private async prepareChangedRows<D extends UpdateData>(
         rows: D[],
-        options: BaseRepositoryOptions | undefined
+        options: BaseRepositoryOptions<T> | undefined
     ): Promise<PreparedWrite<D>[]> {
         // generic in the rows for the reason prepareNewRows is. A copy each, for the reason a create
         // takes one
@@ -1239,7 +1247,7 @@ export class Repository<
         options: CreateOptions<T> | CreateAllOptions<T> | undefined,
         times: DataSourceTimes[]
     ): Promise<T[]> {
-        const transaction: Transaction | undefined = TransactionUtilities.resolveWriteTransaction(options);
+        const transaction: RepositoryTransaction<T> | undefined = TransactionUtilities.resolveWriteTransaction(options);
         if (options?.allowId === true) {
             // a create is a create: a row given its id used to be *saved*, which rewrote a stored row
             // holding that id - another tenant's, another owner's, a soft deleted one - past every
@@ -1289,6 +1297,7 @@ export class Repository<
         for (let attempt: number = 1; ; attempt++) {
             try {
                 return await this.inTransaction(options, async transaction => {
+                    TransactionUtilities.validateNotSpanning(transaction, `${entityClass.name} is chained, and a row of a chain cannot be restored`);
                     const links: ChainLink[] = await chainService.resolveLinks(entityClass, rows, transaction);
                     const res: T[] = await this.driver.insert(rows.map((row, i) => ({ ...row, ...links[i] })), transaction);
                     this.recordWrittenRows(res, transaction);
@@ -1310,7 +1319,7 @@ export class Repository<
      * @param rows - The written rows, as they are stored.
      * @param transaction - The transaction they were written in, if any.
      */
-    private recordWrittenRows(rows: T[], transaction: Transaction | undefined): void {
+    private recordWrittenRows(rows: T[], transaction: RepositoryTransaction | undefined): void {
         WrittenRowTenantUtilities.record(
             transaction,
             this.entityClass,
@@ -1442,7 +1451,7 @@ export class Repository<
                 return [];
             }
 
-            const driverOptions: DriverFindOptions<T> = await this.toDriverFindOptions(options, scoped.where);
+            const driverOptions: DriverFindOptions<T, RepositoryTransaction> = await this.toDriverFindOptions(options, scoped.where);
             // a call that names no limit is claiming the result is small enough to hold, and this
             // checks that claim rather than believing it. One row more than the cap is asked for, so
             // getting that row back is proof there was something past the cap - a result of exactly
@@ -1450,7 +1459,7 @@ export class Repository<
             //
             // Read from what the caller passed rather than from the driver options, because `'all'`
             // reaches the store as no limit too and is the one case that is deliberate
-            const probe: number = UNBOUNDED_FIND_ALL_LIMIT + 1;
+            const probe: number = this.dataSource.maxRowsWithoutLimit + 1;
             const unbounded: boolean = options?.limit == undefined;
             if (unbounded) {
                 driverOptions.limit = probe;
@@ -1463,7 +1472,7 @@ export class Repository<
                 // half the mails sent, half the rows migrated - and nothing would say so. A table that
                 // has outgrown what a call assumed is worth hearing about at the call that assumed it
                 throw new InternalError(
-                    `${this.entityClass.name}.findAll() matched more than ${UNBOUNDED_FIND_ALL_LIMIT} rows without a limit.`
+                    `${this.entityClass.name}.findAll() matched more than ${this.dataSource.maxRowsWithoutLimit} rows without a limit.`
                     + ' Pass a `limit`, use findAllPaginated, or pass `limit: \'all\'` if reading every row is meant.'
                 );
             }
@@ -1642,7 +1651,7 @@ export class Repository<
             // resolved before the cursor is read, because the cursor is only valid for this order and
             // this filter - and because an order that cannot be continued through is the caller's
             // mistake whether or not they passed a cursor
-            const driverOptions: DriverFindOptions<T> = await this.toDriverFindOptions({ ...options, limit }, scoped.where);
+            const driverOptions: DriverFindOptions<T, RepositoryTransaction> = await this.toDriverFindOptions({ ...options, limit }, scoped.where);
             const keys: KeysetOrderKey[] = resolveKeysetOrder(this.entityClass, driverOptions.order);
             const fingerprint: string = keysetFingerprint(keys, scoped.where);
             if (driverOptions.select != undefined) {
@@ -2034,7 +2043,7 @@ export class Repository<
      * @returns Each row as it is now and the change written to it, in the order they were given.
      * @throws When a row is not there for the caller to change.
      */
-    protected async updateEach(rows: UpdateData[], options?: BaseRepositoryOptions, where?: Where<T>): Promise<WrittenUpdate<T>[]> {
+    protected async updateEach(rows: UpdateData[], options?: BaseRepositoryOptions<T>, where?: Where<T>): Promise<WrittenUpdate<T>[]> {
         AppendOnlyUtilities.validateChangeable(this.entityClass, 'update');
         return await this.applyUpdateEach(rows, options, where, true);
     }
@@ -2048,7 +2057,7 @@ export class Repository<
      * @param where - What every row has to match besides what the caller may change.
      * @returns Each row it wrote as it is now and the change written to it.
      */
-    protected async saveUpdateEach(rows: UpdateData[], options?: BaseRepositoryOptions, where?: Where<T>): Promise<WrittenUpdate<T>[]> {
+    protected async saveUpdateEach(rows: UpdateData[], options?: BaseRepositoryOptions<T>, where?: Where<T>): Promise<WrittenUpdate<T>[]> {
         return await this.applyUpdateEach(rows, options, where, false);
     }
 
@@ -2064,7 +2073,7 @@ export class Repository<
      */
     private async applyUpdateEach(
         rows: UpdateData[],
-        options: BaseRepositoryOptions | undefined,
+        options: BaseRepositoryOptions<T> | undefined,
         where: Where<T> | undefined,
         refusesMissing: boolean
     ): Promise<WrittenUpdate<T>[]> {
@@ -2350,7 +2359,7 @@ export class Repository<
                 // judged by the driver before it writes, so a caller asking for more than fits is
                 // refused while nothing has happened yet - by whatever answers it cheapest there: the
                 // rows it reads anyway to hold them, or a count
-                returnAtMost: options?.returnUpdated === true ? UNBOUNDED_FIND_ALL_LIMIT : undefined
+                returnAtMost: options?.returnUpdated === true ? this.dataSource.maxRowsWithoutLimit : undefined
             });
             for (const entity of written) {
                 this.validateWithinScope(entity, judgedAfter, scope);
@@ -2583,6 +2592,19 @@ export class Repository<
     }
 
     /**
+     * Resolves a transaction handed to a method of this repository as the one its entity takes.
+     *
+     * For a method of your own that takes a transaction for this entity among others, such as one
+     * that a service calls whatever entity it stores.
+     * @param transaction - The transaction.
+     * @returns The same transaction.
+     * @throws When it is a spanning transaction and the entity is chained.
+     */
+    protected resolveRepositoryTransaction(transaction: RepositoryTransaction | undefined): RepositoryTransaction<T> | undefined {
+        return TransactionUtilities.resolveRepositoryTransaction(transaction, this.entityClass);
+    }
+
+    /**
      * Runs the given work in the caller's transaction, or in one taken out for it.
      *
      * For operations that cannot be atomic in a single step and so need something holding across the
@@ -2594,10 +2616,10 @@ export class Repository<
      * @returns Whatever the work returned.
      */
     protected async inTransaction<R>(
-        options: BaseRepositoryOptions | undefined,
-        fn: (transaction: Transaction) => Promise<R>
+        options: BaseRepositoryOptions<T> | undefined,
+        fn: (transaction: RepositoryTransaction<T>) => Promise<R>
     ): Promise<R> {
-        const provided: Transaction | undefined = TransactionUtilities.resolveWriteTransaction(options);
+        const provided: RepositoryTransaction<T> | undefined = TransactionUtilities.resolveWriteTransaction(options);
         if (provided) {
             return await fn(provided);
         }
@@ -2626,7 +2648,7 @@ export class Repository<
      * @returns Whatever the work returned.
      */
     protected async withinTimeout<R>(
-        options: BaseRepositoryOptions | undefined,
+        options: BaseRepositoryOptions<T> | undefined,
         method: string,
         fn: () => Promise<R>
     ): Promise<R> {
@@ -2795,7 +2817,7 @@ export class Repository<
             // with nothing else to remove along with them, nothing has to know which rows they are
             // before they go: the store finds and removes them in one call
             if (this.removesRowsAlone()) {
-                const transaction: Transaction | undefined = TransactionUtilities.resolveWriteTransaction(options);
+                const transaction: RepositoryTransaction<T> | undefined = TransactionUtilities.resolveWriteTransaction(options);
                 const removed: string[] = await this.driver.removeMatching(
                     scoped.where,
                     await this.resolveRelated(scoped.where, undefined, options),
@@ -2818,13 +2840,14 @@ export class Repository<
         // them, the way findAll probes, so that a match too large to hold is refused before anything
         // is deleted - with no more than that held, and without counting first
         const returning: boolean = options?.returnDeleted === true;
+        const maxRows: number = this.dataSource.maxRowsWithoutLimit;
         const toDelete: T[] = await this.findAll({
             where: reach.where,
             ...options,
-            limit: returning ? UNBOUNDED_FIND_ALL_LIMIT + 1 : 'all'
+            limit: returning ? maxRows + 1 : 'all'
         });
-        if (returning && toDelete.length > UNBOUNDED_FIND_ALL_LIMIT) {
-            throw new UnboundedReturnError(this.entityClass.name, UNBOUNDED_FIND_ALL_LIMIT);
+        if (returning && toDelete.length > maxRows) {
+            throw new UnboundedReturnError(this.entityClass.name, maxRows);
         }
         await Promise.all(toDelete.map(r => this.beforeDelete(r)));
 
@@ -2877,7 +2900,7 @@ export class Repository<
      * @throws A conflict when rows of a relation that does not cascade removes still point at one of
      * them, or when a row left the reach and the whole delete fails for it.
      */
-    protected async removeRows(ids: string[], options: BaseRepositoryOptions | undefined, reach?: RemovalReach<T>): Promise<number> {
+    protected async removeRows(ids: string[], options: BaseRepositoryOptions<T> | undefined, reach?: RemovalReach<T>): Promise<number> {
         // a delete that matched nothing - the rows a save left out, when it left none out - removes
         // nothing, and asks the store for nothing
         if (!ids.length) {
@@ -2885,7 +2908,7 @@ export class Repository<
         }
         const isUser: boolean = this.resolveUserService().isUserEntity(this.entityClass);
         const relations: OwnedRelation[] = OwnedRelationUtilities.resolveAll(this.entityClass);
-        const remove: (transaction: Transaction | undefined, within: RemovalReach<T> | undefined) => Promise<number>
+        const remove: (transaction: RepositoryTransaction<T> | undefined, within: RemovalReach<T> | undefined) => Promise<number>
             = async (transaction, within) => {
                 const removed: string[] = await this.driver.remove(ids, within, transaction);
                 WrittenRowTenantUtilities.forget(transaction, this.entityClass, removed);
@@ -2933,7 +2956,7 @@ export class Repository<
      */
     private async resolveRemovalReach(
         where: Where<T> | undefined,
-        options: BaseRepositoryOptions | undefined,
+        options: BaseRepositoryOptions<T> | undefined,
         wholly: boolean
     ): Promise<RemovalReach<T> | undefined> {
         const writable: ScopedWhere<T> = this.resolveWriteWhere(where, options);

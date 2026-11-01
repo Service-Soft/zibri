@@ -98,6 +98,25 @@ describe('Two factor methods - what a deployment sets', () => {
         await server.shutdown();
     }, TestTimeouts.inMemory.start + TestTimeouts.inMemory.shutdown);
 
+    // app codes were generated and checked with six digits whatever OTP_LENGTH said, so a length of
+    // eight refused every code, and the QR code named neither the application nor the user
+    it('hands out app codes of as many digits as the token says, named after the application and the user', async () => {
+        server = await startApp([defineProvider({ token: ZIBRI_DI_TOKENS.OTP_LENGTH, useValue: 8 })]);
+        const user: JwtUser = await createUser();
+
+        const app: OtpRegistration = await twoFactorService().requestTwoFactorRegistration(user, inject(OtpTwoFactorMethod), undefined);
+
+        const url: URL = new URL(app.qrCodeUrl);
+        expect(url.searchParams.get('digits')).toBe('8');
+        // the name the test server runs as
+        expect(url.searchParams.get('issuer')).toBe('test');
+        expect(decodeURIComponent(url.pathname)).toContain(user.email);
+        const token: string = new TOTP({ secret: app.secret, digits: 8 }).generate();
+        await twoFactorService().confirmTwoFactorRegistration(user, inject(OtpTwoFactorMethod), { token });
+        expect(await twoFactorService().isRegistered(user, [OtpTwoFactorMethod])).toBe(true);
+        await server.shutdown();
+    }, TestTimeouts.inMemory.start + TestTimeouts.inMemory.shutdown);
+
     it('refuses to start with a window that is no whole number of periods, or recovery codes weaker than the default', async () => {
         await expect(startApp([
             defineProvider({ token: ZIBRI_DI_TOKENS.OTP_PERIOD_IN_SECONDS, useValue: 60 }),

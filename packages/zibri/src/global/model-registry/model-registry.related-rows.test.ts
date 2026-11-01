@@ -31,7 +31,7 @@ class Keyholder extends BaseEntity {
     @Property.string({ encryption: true })
     secret!: string;
 
-    @Property.string({ hash: true })
+    @Property.string({ password: true })
     password!: HashString;
 
     @Property.manyToMany({ target: () => Vault, inverseSide: 'keyholders', joinTable: false })
@@ -40,7 +40,7 @@ class Keyholder extends BaseEntity {
 
 // password goes in as plaintext and comes back a hash, the same split as ModelRegistryTestItemCreateData
 class KeyholderCreateData extends OmitClass(Keyholder, ['id', 'password']) {
-    @Property.string({ hash: true })
+    @Property.string({ password: true })
     password!: string;
 }
 

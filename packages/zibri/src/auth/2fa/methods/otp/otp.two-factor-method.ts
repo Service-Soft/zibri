@@ -11,7 +11,7 @@ import { ZibriApplication } from '../../../../application/application';
 import { HttpRequestContext } from '../../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context';
 import { Repository } from '../../../../data-source/repository/repository';
-import { Transaction } from '../../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../../data-source/transaction/repository-transaction.type';
 import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
@@ -80,6 +80,9 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpRegistration
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly secondFactorRequestModel: undefined = undefined;
 
+    // what an authenticator app lists the account under: the name of the application, read in init
+    private issuer: string = '';
+
     // read when used rather than injected, so that an application without the entity is told to
     // declare it by init, instead of failing on a repository token while this is built
     private get otpCredentialsRepository(): Repository<OtpCredentials, OtpCredentialsCreateData> {
@@ -112,6 +115,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpRegistration
     // eslint-disable-next-line jsdoc/require-jsdoc
     init(app: ZibriApplication): void {
         validateEntitiesRegistered(OtpTwoFactorMethod.name, app, OtpCredentials);
+        this.issuer = app.options.name;
         const period: number = this.periodInSeconds;
         if (!Number.isInteger(period) || period < 1) {
             throw new InternalError(`ZIBRI_DI_TOKENS.OTP_PERIOD_IN_SECONDS must be a whole number of at least 1, got ${period}.`);
@@ -172,7 +176,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpRegistration
         // so a column holding it was a second, unprotected copy of exactly what the encrypted one
         // guards - and nothing ever read it back, which is why enrolling had no way to show a user
         // their qr code at all.
-        return { qrCodeUrl: OtpUtilities.createQrCodeUrl(secret, this.periodInSeconds), secret };
+        return { qrCodeUrl: OtpUtilities.createQrCodeUrl(secret, this.periodInSeconds, this.otpLength, this.issuer, user.email), secret };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -192,7 +196,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpRegistration
             where: { userId: user.id, confirmed: false }
         });
         for (const c of credentials) {
-            const step: number | undefined = OtpUtilities.validate(c.secret, data.token, this.validationWindowInMs, this.periodInSeconds);
+            const step: number | undefined = this.findCodeStep(c.secret, data.token);
             if (step != undefined) {
                 // spent here too: confirming is a successful validation, so letting the same digits
                 // through again afterwards would leave the very first code a user enters open to
@@ -212,7 +216,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpRegistration
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+    async deleteUserRows(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
         await this.otpCredentialsRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
     }
 
@@ -240,13 +244,23 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpRegistration
         });
         const token: string = this.extractTokenFromRequestContext(context);
         for (const c of credentials) {
-            const step: number | undefined = OtpUtilities.validate(c.secret, token, this.validationWindowInMs, this.periodInSeconds);
+            const step: number | undefined = this.findCodeStep(c.secret, token);
             if (step != undefined) {
                 await this.consumeStep(c.id, step);
                 return;
             }
         }
         throw new InvalidTwoFactorCodeError();
+    }
+
+    /**
+     * Finds the step a code belongs to, with the period, length and window the application set.
+     * @param secret - The secret of the credentials.
+     * @param token - The code.
+     * @returns The step the code belongs to, or undefined when it belongs to none in the window.
+     */
+    private findCodeStep(secret: string, token: string): number | undefined {
+        return OtpUtilities.validate(secret, token, this.validationWindowInMs, this.periodInSeconds, this.otpLength);
     }
 
     private extractTokenFromRequestContext(context: HttpRequestContext | WebsocketRequestContext): string {

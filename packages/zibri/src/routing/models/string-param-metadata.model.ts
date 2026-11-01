@@ -10,7 +10,7 @@ export type StringParamMetadata = BaseParamMetadata & OmitStrict<
     // encryption and hashing are what a repository does to a value it stores, and a parameter is read
     // from a request rather than stored - so nothing would ever act on either flag here
     'primary' | 'default' | 'exclude' | 'excludeFromChangeSets' | 'index' | 'fuzzySearchable' | 'optimisticLocking'
-    | 'encryption' | 'hash'
+    | 'encryption' | 'hash' | 'password'
 >;
 
 /**

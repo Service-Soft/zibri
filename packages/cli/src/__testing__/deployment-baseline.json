@@ -1,1 +1,27 @@
-[]
+[
+    {
+        "name": "image",
+        "value": 384648216,
+        "unit": "bytes"
+    },
+    {
+        "name": "bundle",
+        "value": 4767107,
+        "unit": "bytes"
+    },
+    {
+        "name": "dist, maps and assets included",
+        "value": 19998891,
+        "unit": "bytes"
+    },
+    {
+        "name": "node_modules, pruned",
+        "value": 141678299,
+        "unit": "bytes"
+    },
+    {
+        "name": "time to ready, first boot",
+        "value": 1073,
+        "unit": "ms"
+    }
+]

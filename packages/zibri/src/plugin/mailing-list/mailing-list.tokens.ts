@@ -14,6 +14,7 @@ import { InjectionToken } from '../../di/models/injection-token.model';
 export const ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS = {
     MAILING_LIST_SERVICE: mailingListToken<MailingListServiceInterface>('zi.mailing_list.mailing_list_service'),
     CONFIRMATION_TOKEN_EXPIRES_IN_MS: mailingListToken<number>('zi.mailing_list.subscription_confirmation_token_expires_in_ms'),
+    PAGES_URL: mailingListToken<string | undefined>('zi.mailing_list.pages_url'),
     SUBSCRIBE_CONFIRMATION_EMAIL_TEMPLATE: mailingListToken<MailingListSubscribeConfirmationEmailTemplate | undefined>(
         'zi.mailing_list.subscribe_confirmation_email_template'
     ),

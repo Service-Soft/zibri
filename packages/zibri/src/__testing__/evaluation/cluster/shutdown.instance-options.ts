@@ -15,6 +15,7 @@ import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../test-server/create-test-data-source.function';
 import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function';
+import { testServerPasswordPolicyProvider } from '../../test-server/providers';
 
 /**
  * What every instance of the shutdown cluster boots with.
@@ -195,6 +196,7 @@ const options: StartTestServerOptions = {
     // passed is what is used, so all the defaults have to be kept here
     providers: [
         ...defaultClusterProviders,
+        testServerPasswordPolicyProvider,
         defineProvider({
             token: ZIBRI_DI_TOKENS.LEASE_DRAIN_TIMEOUT_IN_MS,
             useFactory: () => leaseDrainTimeoutInMs

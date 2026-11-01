@@ -119,9 +119,9 @@ it keeps its data, and the same application as a test starts it:
 
 ```ts
 // src/application-options.base.ts
-import { MailingListController, OmitStrict, SemVerUtilities, ZibriApplicationOptions, ZibriMailingListPlugin } from 'zibri';
+import { OmitStrict, SemVerUtilities, ZibriApplicationOptions, ZibriMailingListPlugin } from 'zibri';
 
-import { AppAuthController, PageController } from './controllers';
+import { AppAuthController, AppMailingListController, PageController } from './controllers';
 import { version } from '../package.json';
 import { providers } from './providers';
 
@@ -133,7 +133,7 @@ export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSo
     name: 'Task Tracker',
     baseUrl: 'http://localhost:3000',
     plugins: [new ZibriMailingListPlugin()],
-    controllers: [PageController, MailingListController, AppAuthController],
+    controllers: [PageController, AppMailingListController, AppAuthController],
     websocketControllers: [],
     cronJobs: [],
     version,
@@ -407,6 +407,7 @@ Each replaces a default that fits a deployment and not a test:
 | `SCRYPT_COST` | node's older cost, so hashing a password takes milliseconds instead of a fifth of a second |
 | `JWT_AUTH_OPTIONS_INPUT` | two fixed secrets, so tokens are reproducible across processes, and `requireDpop: false` |
 | `CONFIRM_PASSWORD_RESET_URL`, `PASSWORD_RESET_EMAIL_TEMPLATE` | fixtures, so an application that never resets a password still starts |
+| `PASSWORD_POLICY` | `{ minLength: 15, outdatedPasswords: 'requireChange' }`, the policy `zi new` writes, so an application that stores no password still starts |
 | `EMAIL_CONFIG`, `EMAIL_TRANSPORT` | an `UnconfiguredEmailTransport`, which refuses to send and names the token to register a real one under, and failed mails kept `'forever'` |
 | `EVENT_FAILED_RETENTION_IN_MS`, `THREAD_JOB_RETENTION_IN_MS` | `'forever'`, since they have no default |
 | `AUDIT_RETENTION_IN_MS` | a year, since it has no default |

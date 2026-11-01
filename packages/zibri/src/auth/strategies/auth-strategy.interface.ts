@@ -4,7 +4,7 @@ import { CredentialLimits } from './credential-limits.model';
 import { ZibriApplication } from '../../application/application';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { OpenApiSecuritySchemeObject } from '../../open-api/open-api.model';
 import { BaseUser } from '../models/base-user.model';
 import { ClaimedUser } from '../models/claimed-user.model';
@@ -95,7 +95,7 @@ export interface AuthStrategyInterface<RoleType extends string, UserType extends
      * tokens. Called in the transaction that deletes the users for good; a soft deleted user keeps
      * them. Optional: leave it out for a strategy that keeps nothing per user.
      */
-    deleteUserRows?: (userIds: string[], transaction: Transaction) => Promise<void>,
+    deleteUserRows?: (userIds: string[], transaction: RepositoryTransaction) => Promise<void>,
     /**
      * The entities the credentials of the strategy are checked against, such as the sessions of its
      * logins. A websocket connection that connected with a credential of the strategy is checked again

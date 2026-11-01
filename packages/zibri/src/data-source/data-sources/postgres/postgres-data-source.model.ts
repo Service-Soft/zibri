@@ -55,9 +55,10 @@ import { RenameEntityInput } from '../../models/rename-entity-input.model';
 import { SchemaManagement } from '../../models/schema-management.model';
 import { DEFAULT_MIN_SIMILARITY, MinSimilarity } from '../../models/where/fuzzy-like.model';
 import { QueryFailedError } from '../../query-failed.error';
-import { Repository } from '../../repository/repository';
+import { Repository, UNBOUNDED_FIND_ALL_LIMIT } from '../../repository/repository';
 import { RepositoryClass } from '../../repository/repository-class.type';
 import { RepositoryForUtilities } from '../../repository/repository-for.utilities';
+import { OpenTransactions } from '../../transaction/open-transactions.model';
 import { PostgresTransaction } from '../../transaction/postgres-transaction.model';
 import { RunInTransactionOptions } from '../../transaction/run-in-transaction-options.model';
 import { TransactionAlreadyFinishedError } from '../../transaction/transaction-already-finished.error';
@@ -196,6 +197,11 @@ const MAX_NOTIFY_PAYLOAD_BYTES: number = 7999;
 const MAX_IDENTIFIER_BYTES: number = 63;
 
 /**
+ * What postgres answers a statement it stopped on request with.
+ */
+const QUERY_CANCELED_SQL_STATE: string = '57014';
+
+/**
  * A base postgres data source definition.
  */
 export abstract class PostgresDataSource implements SqlDataSourceInterface, PubSubDataSourceInterface {
@@ -228,6 +234,9 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly maxMessageBytes: number | undefined = MAX_NOTIFY_PAYLOAD_BYTES;
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly maxRowsWithoutLimit: number = UNBOUNDED_FIND_ALL_LIMIT;
 
     /**
      * The password of the separate backup role, if there is one.
@@ -273,6 +282,12 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
     protected readonly statementTimeoutInMs: number = 30000;
 
     /**
+     * How long a transaction may sit idle, in milliseconds, before it is rolled back. 0 for no limit.
+     * A transaction that names its own `idleTimeoutInMs` when it starts takes that instead.
+     */
+    protected readonly transactionIdleTimeoutInMs: number = DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS;
+
+    /**
      * The column type a kind of property is stored as, over the defaults.
      */
     protected readonly columnTypeMapping: Partial<Record<ColumnMappableType, ColumnType>> = {};
@@ -314,6 +329,13 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
      * The connection subscriptions listen on, once something subscribed.
      */
     private notificationListener: PostgresNotificationListener | undefined;
+
+    private readonly openTransactions: OpenTransactions = new OpenTransactions();
+
+    /**
+     * The tables a write changes more than its own rows of, by table, with what else it changes.
+     */
+    private unrestorableTables: Map<string, string> = new Map();
 
     private backupRunner: PostgresBackupRunner | undefined;
 
@@ -473,12 +495,43 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
         if (this.schemaManagement === 'external') {
             await manager.warnAboutMissingTrigramIndexes(this.bindRun(undefined));
         }
+        // read once the schema is set up, which is where a migration of the application adds a
+        // trigger or a foreign key of its own
+        this.unrestorableTables = await manager.findUnrestorableTables(this.bindRun(undefined));
         this.validateQueryStream();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    validateSpanningWrite(entityClass: Newable<BaseEntity>): void {
+        const schema: PostgresSchema = this.getSchema();
+        const own: string = schema.getTable(entityClass).name;
+        // its join tables too, which a write to its rows writes as well
+        const tables: string[] = [
+            own,
+            ...schema.tables
+                .filter(table => table.entityClass == undefined && table.foreignKeys.some(fk => fk.referencedTable === own))
+                .map(table => table.name)
+        ];
+        const found: [string, string][] = tables.flatMap(table => {
+            const what: string | undefined = this.unrestorableTables.get(table);
+            return what == undefined ? [] : [[table, what]];
+        });
+        if (!found.length) {
+            return;
+        }
+        throw new InternalError([
+            `A spanning transaction cannot write ${entityClass.name}: a write to its rows changes more than those rows,`
+            + ' which it could not put back when another data source fails to commit.',
+            ...found.map(([table, what]) => `  - "${table}" has ${what}`),
+            'Write it in a transaction of its data source instead.'
+        ]);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async shutDown(): Promise<void> {
-        // before the pool closes, which waits for every connection it handed out
+        // before the pool closes, which waits for every connection it handed out: one held by a
+        // transaction nothing ends kept the shutdown waiting until the server timed it out
+        await this.openTransactions.rollBackAll(this.constructor.name, this.logger);
         await this.notificationListener?.close();
         await this.pool?.end();
     }
@@ -584,7 +637,7 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
     async startTransaction(options?: StartTransactionOptions): Promise<Transaction> {
         const limit: OperationLimit | undefined = AlsUtilities.findCurrentOperationLimit();
         const client: PgPoolClient = await this.connectFromPool();
-        const idleTimeoutInMs: number = options?.idleTimeoutInMs ?? DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS;
+        const idleTimeoutInMs: number = options?.idleTimeoutInMs ?? this.transactionIdleTimeoutInMs;
         // one round trip for all of it. LOCAL, so each setting covers this transaction and reverts with
         // it: set on the connection instead it would outlive the transaction and apply to every later
         // user of that pooled connection. Postgres ends an idle transaction and takes its connection
@@ -610,9 +663,11 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
             limit,
             async sql => await this.runOn(client, sql, []),
             // a serializable transaction can learn it lost only once it commits, which runOn resolves
-            error => error
+            error => error,
+            this
         );
         this.abandonWithItsConnection(transaction);
+        this.openTransactions.add(transaction);
         return transaction;
     }
 
@@ -781,6 +836,16 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
             return last?.rows ?? [];
         }
         catch (error) {
+            // stopped by the cancel the end of its request sent: the deadline arriving where it
+            // started, so it fails with the deadline's own error, the way every other wait it ends
+            // does. Read as anything else, it is logged as the handler failing after it was answered
+            if (
+                signal?.aborted === true
+                && this.statementWatches.get(client)?.cancelling != undefined
+                && PostgresStatementErrorUtilities.findField(error, 'code') === QUERY_CANCELED_SQL_STATE
+            ) {
+                throw signal.reason;
+            }
             throw PostgresStatementErrorUtilities.resolveError(error, { sql, values }, entityClass, () => this.getManager());
         }
         finally {
@@ -1097,6 +1162,11 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
     private toPostgresTransaction(transaction: Transaction | undefined): PostgresTransaction {
         if (!(transaction instanceof PostgresTransaction)) {
             throw new InternalError('The provided transaction does not belong to a postgres data source.');
+        }
+        // a statement runs on the connection of the transaction, so one of another data source would
+        // run it in that one's database and schema
+        if (!transaction.isStartedBy(this)) {
+            throw new InternalError('The provided transaction belongs to another postgres data source: this one did not start it.');
         }
         // its connection went back to the pool as it ended, and a statement sent on it now would run
         // on whatever somebody else took it for

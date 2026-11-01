@@ -17,7 +17,7 @@ describe('AssetService', () => {
         });
 
         it('should build a file tree for a given directory', async () => {
-            const assetService: AssetService = new AssetService(inject(ZIBRI_DI_TOKENS.LOGGER), testAssetsFolder);
+            const assetService: AssetService = new AssetService(inject(ZIBRI_DI_TOKENS.LOGGER), testAssetsFolder, 0);
             const expectedTree: TreeNode[] = [
                 // Mocked file tree structure
                 { name: 'file1.txt', type: 'file', route: '/assets/file1.txt' },
@@ -34,7 +34,7 @@ describe('AssetService', () => {
             await FsUtilities.createFile(FsUtilities.getPath(folder, 'public', 'constructor'), 'c', true);
             await FsUtilities.createFile(FsUtilities.getPath(folder, 'public', '__proto__', 'a.txt'), 'a', true);
             await FsUtilities.createFile(FsUtilities.getPath(folder, 'public', 'report #1.pdf'), 'r', true);
-            const assetService: AssetService = new AssetService(inject(ZIBRI_DI_TOKENS.LOGGER), folder);
+            const assetService: AssetService = new AssetService(inject(ZIBRI_DI_TOKENS.LOGGER), folder, 0);
 
             const fileTree: TreeNode[] = await assetService.buildFileTree();
 

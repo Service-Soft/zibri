@@ -88,7 +88,7 @@ export interface LocalizeServiceInterface {
      */
     formatPrice: (price: AnyNumber, options: FormatPriceOptions) => string,
     /**
-     * Format the given percentage value.
+     * Formats a percent, such as 19 for 19 %, with up to three decimals.
      */
     formatPercent: (percent: number, options?: FormatPercentOptions) => string,
     /**

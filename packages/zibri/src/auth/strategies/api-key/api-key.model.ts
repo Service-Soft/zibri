@@ -30,7 +30,7 @@ export class ApiKey extends BaseEntity {
      */
     // findable because the strategy is deterministic - the key arrives on its own, with nothing else
     // in the request to find the row by. The key is random enough that a fast hash is all it needs
-    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy }, exclude: true, required: false })
+    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy }, password: false, exclude: true, required: false })
     value: HashString | undefined | null;
 
     /**
@@ -111,6 +111,6 @@ export class ApiKeyCreateDto extends OmitClass(ApiKey, ['id', 'value', 'lastUsed
      * The key as it is handed to its holder, before the hook hashes it. Undefined for a key without a
      * secret.
      */
-    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy }, required: false })
+    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy }, password: false, required: false })
     value: string | undefined | null;
 }

@@ -8,7 +8,7 @@ import { EmailVerificationWriteObserver } from './email-verification.write-obser
 import { ZibriApplication } from '../../application/application';
 import { type AuditServiceInterface } from '../../audit/audit-service.interface';
 import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { EntityWriteObserverRegistry } from '../../data-source/write-observers/entity-write-observer.registry';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -92,7 +92,7 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async requestEmailVerification(userId: string, transaction: Transaction | undefined): Promise<void> {
+    async requestEmailVerification(userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         const user: BaseUser<string> = await inject(ZIBRI_DI_TOKENS.USER_SERVICE).findById(userId, { transaction });
         // one live link at a time, as with a password reset: the earlier one is still in the inbox
         const live: EmailVerificationToken | undefined = await this.tokenRepository.findOne({
@@ -107,7 +107,7 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmEmailVerification(token: string, transaction: Transaction | undefined): Promise<void> {
+    async confirmEmailVerification(token: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         let userId: string | undefined = undefined;
         try {
             const found: EmailVerificationToken = await this.resolveToken(token, 'verification', transaction);
@@ -119,7 +119,7 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
                 throw new UnauthorizedError($ts`Link invalid`);
             }
             await inject(ZIBRI_DI_TOKENS.USER_SERVICE).updateEmail(user.id, user.email, new Date(), transaction);
-            this.auditService.record({ action: AuditAction.EMAIL_VERIFIED, outcome: AuditOutcome.SUCCESS, userId });
+            this.auditService.record({ action: AuditAction.EMAIL_VERIFIED, outcome: AuditOutcome.SUCCESS, userId }, transaction);
         }
         catch (error) {
             this.auditService.record({
@@ -133,7 +133,7 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async requestEmailChange(userId: string, newEmail: string, transaction: Transaction | undefined): Promise<void> {
+    async requestEmailChange(userId: string, newEmail: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         try {
             const user: BaseUser<string> = await inject(ZIBRI_DI_TOKENS.USER_SERVICE).findById(userId, { transaction });
             if (newEmail === user.email) {
@@ -147,7 +147,7 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
                 outcome: AuditOutcome.SUCCESS,
                 subject: newEmail,
                 userId
-            });
+            }, transaction);
         }
         catch (error) {
             this.auditService.record({
@@ -162,7 +162,7 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmEmailChange(token: string, transaction: Transaction | undefined): Promise<void> {
+    async confirmEmailChange(token: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         let userId: string | undefined = undefined;
         try {
             const options: EmailVerificationOptions = this.getEnabledOptions();
@@ -186,7 +186,7 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
                 userId: user.id,
                 priority: EmailPriority.HIGH
             });
-            this.auditService.record({ action: AuditAction.EMAIL_CHANGED, outcome: AuditOutcome.SUCCESS, subject: found.email, userId });
+            this.auditService.record({ action: AuditAction.EMAIL_CHANGED, outcome: AuditOutcome.SUCCESS, subject: found.email, userId }, transaction);
         }
         catch (error) {
             this.auditService.record({
@@ -207,7 +207,7 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+    async deleteUserRows(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
         // only an application verifying addresses declares the entity
         if (!this.isEnabled) {
             return;
@@ -226,7 +226,7 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
         user: UserAccount,
         email: string,
         purpose: EmailVerificationPurpose,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<void> {
         const options: EmailVerificationOptions = this.getEnabledOptions();
         // kept here, for the reason requestPasswordReset gives: the stored value is its hash
@@ -263,7 +263,7 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
     private async resolveToken(
         token: string,
         purpose: EmailVerificationPurpose,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<EmailVerificationToken> {
         this.getEnabledOptions();
         const value: string = await inject(ZIBRI_DI_TOKENS.HASH_SERVICE).hash(token, { strategy: Sha256HashStrategy });

@@ -87,7 +87,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * Resolves what to read and write through.
      * @param transaction - The transaction the caller provided, if any.
      * @returns The transaction when there is one, the store itself otherwise.
-     * @throws When the transaction was started by a different kind of data source.
+     * @throws When the transaction was started by another data source.
      */
     private scope(transaction: Transaction | undefined): InMemoryScope {
         if (transaction == undefined) {
@@ -95,6 +95,11 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         }
         if (!(transaction instanceof InMemoryTransaction)) {
             throw new InternalError('The provided transaction does not belong to an in memory data source.');
+        }
+        // a transaction reads and writes the store it was started on, so one of another data source
+        // would put this entity's rows into that one
+        if (!transaction.isStartedOn(this.store)) {
+            throw new InternalError('The provided transaction belongs to another in memory data source: this one did not start it.');
         }
         return transaction;
     }

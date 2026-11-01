@@ -17,7 +17,7 @@ export class FederatedRegistrationTicket extends BaseEntity {
     /**
      * The ticket.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     value!: HashString;
 
     /**
@@ -115,7 +115,7 @@ export class FederatedRegistrationTicket extends BaseEntity {
     /**
      * The secret of the cookie the ticket can be spent with. Null when it is spent with a PKCE verifier.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy }, required: false })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false, required: false })
     binding: HashString | undefined | null;
 
     /**
@@ -175,12 +175,12 @@ export class FederatedRegistrationTicketCreateData extends OmitClass(FederatedRe
     /**
      * The ticket, before the hook hashes it.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     value!: string;
 
     /**
      * The secret of the cookie, before the hook hashes it.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy }, required: false })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false, required: false })
     binding: string | undefined | null;
 }

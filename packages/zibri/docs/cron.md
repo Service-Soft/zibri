@@ -247,7 +247,7 @@ Failures are counted in a row across every instance, as `consecutiveFailures` on
 
 ## Running more than one instance
 
-One instance runs each scheduled execution of a job. This is on by default. Each execution is claimed through a [lease](./leases.md) on the job and its scheduled time. The instance that wins runs the job, and every other instance skips. An instance whose start was jittered into the next second still competes for the slot it was scheduled for.
+One instance runs each scheduled execution of a job. This is on by default. Each execution is claimed through a [lease](./leases.md) on the job and its scheduled time. The instance that wins runs the job, and every other instance skips. A run starts up to `maxRandomDelayInMs` after its slot, at random, a second by default, so the jobs sharing a slot do not all start at once. Set it to `0` to start every run on its slot. An instance whose start was delayed into the next second still competes for the slot it was scheduled for.
 
 The claim stays after the job finishes, so an instance arriving later does not run the same slot again.
 
@@ -311,7 +311,7 @@ For such a job, claim each work item it processes, see [leases](./leases.md). `S
 
 ## Polling for work
 
-A job that looks for work kept in a data source, in rows any instance may add, extends `PollingCronJob`. Its schedule is how often it looks at most. Every look that finds nothing makes the next one later, up to every 30 seconds, and a tick it skips costs nothing, not even the claim of its slot. Whoever adds work wakes it, and it looks again at its next tick.
+A job that looks for work kept in a data source, in rows any instance may add, extends `PollingCronJob`. Its schedule is how often it looks at most. Every look that finds nothing makes the next one later, up to every `ZIBRI_DI_TOKENS.POLL_MAX_INTERVAL_IN_MS`, 30 seconds by default, and a tick it skips costs nothing, not even the claim of its slot. Whoever adds work wakes it, and it looks again at its next tick.
 
 ```ts
 // src/cron/send-invoices.cron-job.ts
@@ -348,10 +348,10 @@ export async function markDue(invoice: Invoice): Promise<void> {
 
 `poll` returns whether it found anything, and a poll that did looks again at the next tick. A wake up travels through the data source `polledEntity` is kept in. It reaches every instance when that data source carries messages between them, as a `PostgresDataSource` and a `ValKeyDataSource` do. On one that carries none, the job looks at every tick of its schedule. `wakeAt` wakes the job of this instance at a time, for work that falls due later.
 
-Work nobody announces, such as work an instance that stopped existing left unfinished, is found at the pace of an idle poll, within about 30 seconds.
+Work nobody announces, such as work an instance that stopped existing left unfinished, is found at the pace of an idle poll, within about `POLL_MAX_INTERVAL_IN_MS`.
 
 ## Configuration
-Each cron job's `initialConfig` (`name`, `cron` schedule, `active`, `runOnInit`, `onFailure`, `runsOn`, `syncToDataSource`) is set on the job class itself, see [defining a cron job](#defining-a-cron-job).
+Each cron job's `initialConfig` (`name`, `cron` schedule, `active`, `runOnInit`, `onFailure`, `runsOn`, `syncToDataSource`, `maxRandomDelayInMs`) is set on the job class itself, see [defining a cron job](#defining-a-cron-job).
 
 Behavior across instances is configured through DI: `ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS` for how long a claim is held, `ZIBRI_DI_TOKENS.CRON_REGISTRATION_LEASE_IN_MS` for how long one instance may take to register its jobs at boot, or `ZIBRI_DI_TOKENS.CRON_SERVICE` to replace election entirely.
 

@@ -9,6 +9,7 @@ import { HttpRequestContext } from '../../../../context/request/http-request.con
 import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context';
 import { Where } from '../../../../data-source/models/where/where-filter.model';
 import { Repository } from '../../../../data-source/repository/repository';
+import { type RepositoryTransaction } from '../../../../data-source/transaction/repository-transaction.type';
 import { Transaction } from '../../../../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
@@ -164,7 +165,7 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+    async deleteUserRows(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
         await this.deleteCredentials({ userId: { oneOf: userIds }, channel: this.channel }, transaction);
     }
 
@@ -270,7 +271,7 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
      * @param where - Which credentials.
      * @param transaction - The transaction to delete in, if any.
      */
-    private async deleteCredentials(where: Where<TwoFactorCodeCredentials>, transaction: Transaction | undefined): Promise<void> {
+    private async deleteCredentials(where: Where<TwoFactorCodeCredentials>, transaction: RepositoryTransaction | undefined): Promise<void> {
         const credentials: TwoFactorCodeCredentials[] = await this.credentialsRepository.findAll({ where, transaction });
         if (!credentials.length) {
             return;

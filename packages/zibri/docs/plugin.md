@@ -8,6 +8,7 @@ A plugin bundles what an application is built from, such as providers, controlle
 | `validateEntitiesRegistered` | function | Checks at boot that the entities a plugin stores rows in are declared by a data source |
 | `validateTokensRegistered` | function | Checks at boot that every token of a `TokenRecord` has a provider |
 | `optionalPeer`, `hasOptionalPeer` | function, function | Loads a peer dependency a feature needs, failing with the feature it was needed for, and checks whether one is installed without loading it |
+| `optionalPeerDependency` | function | Loads a package a peer dependency brings with it, resolved through the packages between them |
 
 ## Registering a plugin
 Plugins are listed in the `plugins` option your application is built from:

@@ -14,13 +14,13 @@ export class FederatedLoginAttempt extends BaseEntity {
      * What the provider hands back to find this attempt again: the `state` of OAuth, the `RelayState`
      * of SAML.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     state!: HashString;
 
     /**
      * The secret of the cookie that ties the attempt to the browser it was started in.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     binding!: HashString;
 
     /**
@@ -95,12 +95,12 @@ export class FederatedLoginAttemptCreateData extends OmitClass(FederatedLoginAtt
     /**
      * The state, before the hook hashes it.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     state!: string;
 
     /**
      * The secret of the cookie, before the hook hashes it.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     binding!: string;
 }

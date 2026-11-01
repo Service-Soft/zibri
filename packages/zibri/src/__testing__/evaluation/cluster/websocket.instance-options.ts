@@ -26,7 +26,7 @@ import { JwtUser } from '../../mocks/entities/jwt-user.entity';
 import { Roles } from '../../mocks/entities/roles.enum';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../test-server/create-test-data-source.function';
 import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function';
-import { defaultTestServerPermissions, defaultTestServerRoles, rolesAndPermissionsProviders } from '../../test-server/providers';
+import { defaultTestServerPermissions, defaultTestServerRoles, rolesAndPermissionsProviders, testServerPasswordPolicyProvider } from '../../test-server/providers';
 
 /**
  * What every instance of the websocket cluster boots with.
@@ -193,6 +193,7 @@ const options: StartTestServerOptions = {
     // passed is what is used, so all the defaults have to be kept here
     providers: [
         ...defaultClusterProviders,
+        testServerPasswordPolicyProvider,
         ...rolesAndPermissionsProviders(defaultTestServerPermissions, defaultTestServerRoles),
         defineProvider({
             token: ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT,

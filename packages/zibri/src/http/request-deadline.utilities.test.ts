@@ -260,7 +260,8 @@ const limits: HttpServerLimits = {
     keepAliveTimeoutInMs: 5000,
     handlerTimeoutInMs: 80,
     maxHeaderCount: 100,
-    maxHeaderSizeInBytes: 16 * 1024
+    maxHeaderSizeInBytes: 16 * 1024,
+    maxBodySizes: { json: '100kb', xml: '100kb', formUrlEncoded: '100kb', formData: '100kb', stream: '10mb' }
 };
 
 const providers: DiProvider<unknown>[] = [

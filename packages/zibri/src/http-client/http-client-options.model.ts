@@ -1,6 +1,7 @@
 import { HttpClientCircuitBreakerOptions } from './http-client-circuit-breaker-options.model';
 import { HttpClientRedirect } from './http-client-redirect.model';
 import { FileSize } from '../entity/models/file-property-metadata.model';
+import { BodySizeLimits } from '../http/body-size-limits.model';
 
 // Described here rather than imported from `undici-types`, which is the version undici's own
 // `Dispatcher` would have dragged in. Naming that package means naming a *version* of it, and there
@@ -47,12 +48,17 @@ export type HttpClientOptions = {
      * hostile or simply broken cannot spend the process's memory. Counted as the body arrives, so a
      * body over the limit is stopped before it is downloaded.
      *
-     * A request that declares a `responseBody` derives its limit from that instead - it is the size of
-     * the thing that was actually asked for. A body genuinely larger than this wants a stream, which
-     * buffers nothing and is not capped.
+     * A request that declares a `responseBody` derives its limit from that instead, see
+     * `maxBodySizes`. A body genuinely larger than this wants a stream, which buffers nothing.
      * @default '10mb'
      */
     defaultMaxResponseSize: FileSize,
+    /**
+     * The most a response body may weigh when the request declared a `responseBody` that names no
+     * size of its own, for each kind of body.
+     * @default { json: '100kb', xml: '100kb', formUrlEncoded: '100kb', formData: '100kb', stream: '10mb' }
+     */
+    maxBodySizes: BodySizeLimits,
     /**
      * What every outbound request is sent over, unless the request names its own.
      *

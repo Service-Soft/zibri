@@ -15,7 +15,7 @@ import { DataSourceInterface } from '../../data-source/data-sources/data-source.
 import { isPubSubDataSource } from '../../data-source/data-sources/pub-sub-data-source.interface';
 import { WhereFilter } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { EntityWriteObserverRegistry } from '../../data-source/write-observers/entity-write-observer.registry';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
@@ -40,6 +40,7 @@ import { GlobalRegistry } from '../../global/global-registry';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { RouteRegistry, RouteRegistryData } from '../../global/route-registry/route.registry';
 import { HandlerTimeout } from '../../http/handler-timeout.type';
+import { HttpServerLimits } from '../../http/http-server-limits.model';
 import { HttpStatus } from '../../http/http-status.enum';
 import { KnownHeader } from '../../http/known-header.enum';
 import { MimeType } from '../../http/mime-type.enum';
@@ -48,6 +49,8 @@ import { RequestDeadlineUtilities } from '../../http/request-deadline.utilities'
 import { $ts } from '../../localization/translate.function';
 import { errorToLoggedError } from '../../logging/error-to-logged-error.function';
 import { type LoggerInterface } from '../../logging/logger.interface';
+import { BodyMetadata } from '../../routing/decorators/body-metadata.model';
+import { resolveMaxBodySize } from '../../routing/decorators/body.decorator';
 import { RouteParamUtilities } from '../../routing/route-param.utilities';
 import { BaseMembership } from '../../tenancy/membership/base-membership.model';
 import { ChangedMembership } from '../../tenancy/membership/changed-membership.model';
@@ -71,6 +74,9 @@ import { type VersioningServiceInterface } from '../../versioning/versioning-ser
 import { type DataSourceWebsocketAdapter, type DataSourceWebsocketAdapterConstructor, dataSourceWebsocketAdapterClass } from '../data-source.websocket-adapter';
 import { WebsocketControllerData } from '../decorators/websocket-controller.decorator';
 import { JsonSocketIoEncoder } from '../json.socket-io-encoder';
+import { messageSizeLimitingWebSocketServerClass } from '../message-size/message-size-limiting-web-socket-server.function';
+import { PollingMessageSizeGuard } from '../message-size/polling-message-size.guard';
+import { WebsocketMessageRefusal } from '../message-size/websocket-message-size.scanner';
 import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model';
 import { WebsocketAnswer } from '../models/websocket-answer.model';
 import { WebsocketChannel } from '../models/websocket-channel.model';
@@ -270,8 +276,16 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
     private readonly pendingRouteGroups: Map<string, {
         // eslint-disable-next-line jsdoc/require-jsdoc
-        entries: { versions: SupportedVersionsOptions, innerHandler: SocketIOWebsocketHandler }[]
+        entries: { versions: SupportedVersionsOptions, innerHandler: SocketIOWebsocketHandler, body: BodyMetadata | undefined }[]
     }> = new Map();
+
+    /**
+     * The most a message of each event may weigh, in bytes: what the largest body among its versions
+     * allows, within `maxMessageSize`. An event not in here, and a message without one, may weigh
+     * `maxMessageSize`.
+     */
+    private readonly maxBytesByEvent: Map<string, number> = new Map();
+    private maxMessageBytes: number = 0;
 
     private get versioningService(): VersioningServiceInterface {
         return inject(ZIBRI_DI_TOKENS.VERSIONING_SERVICE);
@@ -402,6 +416,15 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             app.options.cronJobs.push(WebsocketMessageCleanupCronJob);
         }
 
+        this.maxMessageBytes = fileSizeToBytes(options.maxMessageSize).toNumber();
+        // eslint-disable-next-line typescript/typedef
+        const resolveMaxBytes = (event: string | undefined): number => this.resolveMaxMessageBytes(event);
+        // eslint-disable-next-line typescript/typedef
+        const onRefused = (refusal: WebsocketMessageRefusal): void => this.logger.debug(
+            `closed a websocket connection for a message of ${refusal.bytes} bytes for "${refusal.event ?? ''}",`
+            + ` at most ${refusal.maxBytes} are accepted`
+        );
+
         this.socketServer = new (optionalPeer<typeof import('socket.io')>('socket.io', 'Websockets').Server)(app.server, {
             // no connection state recovery: a reconnecting client is sent what it missed from the
             // stored messages, on any instance and through every check a connection goes through.
@@ -409,7 +432,18 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             // socket, and its client sent the id of the last message as `offset` - a string the
             // handshake refuses, which locked out every client it could not recover
             adapter: this.resolveAdapter(options),
-            maxHttpBufferSize: fileSizeToBytes('1mb').toNumber(),
+            path: options.path,
+            maxHttpBufferSize: this.maxMessageBytes,
+            pingInterval: options.pingIntervalInMs,
+            pingTimeout: options.pingTimeoutInMs,
+            // ws's own server, reading each connection's frames before ws does: a message over what
+            // its event allows closes the connection before its payload is read, as one over
+            // maxHttpBufferSize does. The polling transport is read the same way, below
+            wsEngine: messageSizeLimitingWebSocketServerClass(
+                optionalPeer<typeof import('ws')>('ws', 'Websockets'),
+                resolveMaxBytes,
+                onRefused
+            ),
             // a message is written once, by the encoder. The service used to turn it into json and
             // back first, only so socket.io's encoder would not throw on a bigint, which wrote every
             // message three times over. What clients send is read by socket.io's own decoder
@@ -419,6 +453,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             }
         });
 
+        PollingMessageSizeGuard.install(app.server, options.path, this.socketServer.engine, resolveMaxBytes, onRefused);
         this.logger.info('starts socket.io server');
 
         this.logger.info(`registers ${app.options.websocketControllers.length} websocket controllers:`);
@@ -428,8 +463,14 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             this.registerController(controller);
         }
 
+        const limits: HttpServerLimits = inject(ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS);
         for (const [event, group] of this.pendingRouteGroups.entries()) {
             this.websocketHandlers[event] = this.createDispatchHandler(group.entries);
+            // the version a message is for is inside it, past where its size is read, so an event is
+            // bounded by the largest body among its versions
+            this.maxBytesByEvent.set(event, Math.max(...group.entries.map(entry => entry.body == undefined
+                ? this.maxMessageBytes
+                : Math.min(this.maxMessageBytes, resolveMaxBodySize(entry.body, limits.maxBodySizes).toNumber()))));
             this.logger.debug(`- mounting websocket event "${event}"`);
         }
 
@@ -517,6 +558,15 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             );
         });
         this.socketServer.on(ANSWERS_EVENT, (reply: unknown) => this.receiveAnswers(reply));
+    }
+
+    /**
+     * The most a message of an event may weigh, in bytes.
+     * @param event - The event, or undefined for a message that carries none.
+     * @returns What the event's body allows, within `maxMessageSize`, which a message without a bounded event may weigh.
+     */
+    private resolveMaxMessageBytes(event: string | undefined): number {
+        return (event == undefined ? undefined : this.maxBytesByEvent.get(event)) ?? this.maxMessageBytes;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -785,13 +835,14 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 // declaring `'none'` has said something
                 route.timeoutInMs ?? controllerData.timeoutInMs
             );
+            const body: BodyMetadata | undefined = MetadataUtilities.getRouteBody(controllerClass, route.controllerMethod);
             // eslint-disable-next-line typescript/typedef
             const existing = this.pendingRouteGroups.get(fullEvent);
             if (existing) {
-                existing.entries.push({ versions, innerHandler });
+                existing.entries.push({ versions, innerHandler, body });
             }
             else {
-                this.pendingRouteGroups.set(fullEvent, { entries: [{ versions, innerHandler }] });
+                this.pendingRouteGroups.set(fullEvent, { entries: [{ versions, innerHandler, body }] });
             }
             this.logger.debug(`- registering websocket event "${fullEvent}"`);
         }
@@ -1160,7 +1211,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async disconnectEndedLogins(userIds: string[], transaction: Transaction | undefined): Promise<void> {
+    async disconnectEndedLogins(userIds: string[], transaction: RepositoryTransaction | undefined): Promise<void> {
         const server: Server | undefined = this.socketServer;
         if (server == undefined || !userIds.length) {
             return;

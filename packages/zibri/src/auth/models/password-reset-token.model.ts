@@ -23,7 +23,7 @@ export class PasswordResetToken extends BaseEntity {
      * own, with nothing else in the request to find the row by. A database read therefore yields
      * nothing that can be presented back to the api.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     value!: HashString;
 
     /**
@@ -40,6 +40,6 @@ export class PasswordResetTokenCreateData extends OmitClass(PasswordResetToken, 
     /**
      * The token as it is generated and mailed out, before the hook hashes it.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     value!: string;
 }

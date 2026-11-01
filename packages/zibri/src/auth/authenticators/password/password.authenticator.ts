@@ -10,7 +10,7 @@ import { PasswordResetEmailTemplate } from './password-reset-email-template.mode
 import { RequestPasswordResetData } from './request-password-reset-data.model';
 import { ZibriApplication } from '../../../application/application';
 import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -18,6 +18,7 @@ import { NoProviderError } from '../../../di/errors/no-provider.error';
 import { inject } from '../../../di/inject.function';
 import { type EmailServiceInterface } from '../../../email/email-service.interface';
 import { EmailPriority } from '../../../email/models/email-priority.enum';
+import { BadRequestError } from '../../../error-handling/errors/bad-request.error';
 import { EmailNotVerifiedError } from '../../../error-handling/errors/email-not-verified.error';
 import { ForbiddenError } from '../../../error-handling/errors/forbidden.error';
 import { HttpError } from '../../../error-handling/errors/http.error';
@@ -35,7 +36,10 @@ import type { HashString } from '../../hash/hash.utilities';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
 import { Authentication } from '../../models/authentication.model';
 import { BaseUser } from '../../models/base-user.model';
+import { LoginTicket } from '../../models/login-ticket.model';
 import { PasswordResetToken, PasswordResetTokenCreateData } from '../../models/password-reset-token.model';
+import { PasswordPolicy } from '../../password-policy/password-policy.model';
+import { PasswordPolicyUtilities } from '../../password-policy/password-policy.utilities';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthControllerAuthenticatorInterface } from '../auth-controller-authenticator.interface';
 
@@ -98,7 +102,8 @@ export class PasswordAuthenticator<
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     init(app: ZibriApplication): void {
-        validateEntitiesRegistered(PasswordAuthenticator.name, app, PasswordCredentials, PasswordResetToken);
+        // the ticket too: any login can be the one that has to choose a new password first
+        validateEntitiesRegistered(PasswordAuthenticator.name, app, PasswordCredentials, PasswordResetToken, LoginTicket);
         this.failureLimit = app.options.passwordFailureLimit;
         if (this.failureLimit !== false) {
             validateEntitiesRegistered(PasswordAuthenticator.name, app, PasswordFailureStreak);
@@ -107,7 +112,7 @@ export class PasswordAuthenticator<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+    async deleteUserRows(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
         await this.credentialsRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
         await this.passwordResetTokenRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
         // only an application that limits failed passwords declares the streaks
@@ -117,15 +122,16 @@ export class PasswordAuthenticator<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async authenticate(credentials: PasswordCredentialsDto, transaction: Transaction | undefined): Promise<Authentication<UserType>> {
+    async authenticate(credentials: PasswordCredentialsDto, transaction: RepositoryTransaction | undefined): Promise<Authentication<UserType>> {
         try {
             const foundUser: UserType | undefined = await this.userService.findByEmail(credentials.email, { required: false });
             // a user can exist without a password - created by an admin, or logged in some other way -
             // and that has to answer the same as a wrong password. A store that cannot be read is a
             // fault rather than a missing password, and surfaces as one below
-            const storedPassword: HashString | undefined = foundUser == undefined
+            const stored: PasswordCredentials | undefined = foundUser == undefined
                 ? undefined
-                : (await this.credentialsRepository.findOne({ where: { userId: foundUser.id }, transaction, required: false }))?.password;
+                : await this.credentialsRepository.findOne({ where: { userId: foundUser.id }, transaction, required: false });
+            const storedPassword: HashString | undefined = stored?.password;
 
             // one comparison on every path, against a stand-in when there is nothing to compare
             // against. An unknown address used to answer before any key derivation ran while a known
@@ -138,7 +144,7 @@ export class PasswordAuthenticator<
             // has not logged in since the cost was raised holds one that answers sooner than an
             // address nobody has
             await this.waitForStandInDuration(performance.now() - started);
-            if (foundUser == undefined || storedPassword == undefined || !passwordMatched) {
+            if (foundUser == undefined || stored == undefined || storedPassword == undefined || !passwordMatched) {
                 if (foundUser != undefined) {
                     await this.recordWrongPassword(foundUser.id);
                 }
@@ -152,7 +158,11 @@ export class PasswordAuthenticator<
                 // the right password ends the streak
                 await this.failureStreakRepository.deleteById(streak.id);
             }
-            await this.upgradeStoredPassword(foundUser, credentials.password, storedPassword);
+            const passwordChangeRequired: boolean = stored.changeRequired || await this.isRefusedOutdatedPassword(credentials.password);
+            // a password about to be replaced is not worth hashing again
+            if (!passwordChangeRequired) {
+                await this.upgradeStoredPassword(foundUser, credentials.password, storedPassword);
+            }
             const verification: EmailVerificationServiceInterface = inject(ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_SERVICE);
             if (verification.isRequiredForLogin && foundUser.emailVerifiedAt == undefined) {
                 // after the password, like the lock, so it says nothing to whoever does not know it. With a
@@ -160,7 +170,7 @@ export class PasswordAuthenticator<
                 await verification.requestEmailVerification(foundUser.id, undefined);
                 throw new EmailNotVerifiedError();
             }
-            return { user: foundUser, authenticatedAt: new Date() };
+            return { user: foundUser, authenticatedAt: new Date(), passwordChangeRequired };
         }
         catch (error) {
             // the refusals that say more than "wrong", once the password matched: a lock to the trail
@@ -217,7 +227,7 @@ export class PasswordAuthenticator<
 
         await this.emailService.queue({
             recipients: [data.user.email],
-            subject: 'Password Reset',
+            subject: $ts`Password Reset`,
             html,
             priority: EmailPriority.HIGH,
             ...data.emailData,
@@ -290,13 +300,17 @@ export class PasswordAuthenticator<
         const credentials: PasswordCredentials = await this.credentialsRepository.findOne(
             { where: { userId: user.id }, transaction: data.transaction }
         );
-        await this.credentialsRepository.updateById(credentials.id, { password: data.newPassword }, { transaction: data.transaction });
+        // a new password is what a required change waits for
+        await this.credentialsRepository.updateById(
+            credentials.id,
+            { password: data.newPassword, changeRequired: false },
+            { transaction: data.transaction }
+        );
         await this.passwordResetTokenRepository.deleteById(resetToken.id, { transaction: data.transaction });
         if (this.failureLimit !== false) {
             // the user proved the mailbox is theirs, which is what a lock was waiting for
             await this.failureStreakRepository.deleteAll({ userId: user.id }, { transaction: data.transaction });
         }
-        // TODO: set require password change to false
         return user.id;
     }
 
@@ -328,7 +342,43 @@ export class PasswordAuthenticator<
         const credentials: PasswordCredentials = await this.credentialsRepository.findOne(
             { where: { userId: user.id }, transaction: data.transaction }
         );
-        await this.credentialsRepository.updateById(credentials.id, { password: data.newPassword }, { transaction: data.transaction });
+        await this.credentialsRepository.updateById(
+            credentials.id,
+            { password: data.newPassword, changeRequired: false },
+            { transaction: data.transaction }
+        );
+    }
+
+    /**
+     * Has a user choose a new password before their next login starts.
+     *
+     * Ending the user's logins is not part of this, for the reason `confirmPasswordReset` gives:
+     * `AuthService.requirePasswordChange` ends them.
+     * @param userId - The user.
+     * @param transaction - The transaction to run in, if any.
+     * @throws A NotFoundError when the user has no password.
+     */
+    async requirePasswordChange(userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+        // read rather than updated blindly, for the reason confirmPasswordReset gives
+        const credentials: PasswordCredentials = await this.credentialsRepository.findOne({ where: { userId }, transaction });
+        await this.credentialsRepository.updateById(credentials.id, { changeRequired: true }, { transaction });
+    }
+
+    /**
+     * Sets the new password a login waits for, once the login proved the user knows the one they have.
+     * @param user - The user the login is for.
+     * @param newPassword - The new password.
+     * @param transaction - The transaction to run in, if any.
+     * @throws A BadRequestError when the new password is the one the user has, and what the password
+     * policy throws for one it refuses.
+     */
+    async changePasswordAtLogin(user: UserType, newPassword: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+        const credentials: PasswordCredentials = await this.credentialsRepository.findOne({ where: { userId: user.id }, transaction });
+        // a change asked for after a breach is no change when the password stays what it was
+        if (await this.hashService.equal(newPassword, credentials.password)) {
+            throw new BadRequestError($ts`Choose a password other than the one you have.`);
+        }
+        await this.credentialsRepository.updateById(credentials.id, { password: newPassword, changeRequired: false }, { transaction });
     }
 
     /**
@@ -419,6 +469,11 @@ export class PasswordAuthenticator<
             if (!await this.hashService.needsRehash(storedPassword)) {
                 return;
             }
+            // a password set before the policy asked for more is refused by the write below, and the
+            // hash it has still verifies it. Kept as it is, without a warning on every login
+            if (!await this.isAllowedByPolicy(password)) {
+                return;
+            }
             // written as plaintext on purpose: the entity hook hashes it on the way in, with whatever
             // the current strategy and cost are, which is the whole point of the upgrade
             await this.credentialsRepository.updateAll({ userId: user.id }, { password });
@@ -427,6 +482,38 @@ export class PasswordAuthenticator<
             inject(ZIBRI_DI_TOKENS.LOGGER).warn(
                 `Could not upgrade the stored password hash for user ${user.id}: ${String(error)}`
             );
+        }
+    }
+
+    /**
+     * Whether a password the user just proved is one the policy refuses and has them replace.
+     * @param password - The password.
+     * @returns True when the policy says `'requireChange'` and refuses the password.
+     */
+    private async isRefusedOutdatedPassword(password: string): Promise<boolean> {
+        // asked only when it decides something, since the policy's own check may be a request elsewhere
+        if (inject(ZIBRI_DI_TOKENS.PASSWORD_POLICY)?.outdatedPasswords !== 'requireChange') {
+            return false;
+        }
+        return !await this.isAllowedByPolicy(password);
+    }
+
+    /**
+     * Whether the password policy takes a password.
+     * @param password - The password.
+     * @returns False when the policy refuses it, true when it takes it or the application provides none.
+     */
+    private async isAllowedByPolicy(password: string): Promise<boolean> {
+        const policy: PasswordPolicy | undefined = inject(ZIBRI_DI_TOKENS.PASSWORD_POLICY);
+        if (policy == undefined) {
+            return true;
+        }
+        try {
+            await PasswordPolicyUtilities.validatePassword(password, policy);
+            return true;
+        }
+        catch {
+            return false;
         }
     }
 
@@ -467,7 +554,7 @@ export class PasswordAuthenticator<
         return performance.now() - started;
     }
 
-    private async activePasswordResetTokenAlreadyExists(user: BaseUser<RoleType>, transaction: Transaction): Promise<boolean> {
+    private async activePasswordResetTokenAlreadyExists(user: BaseUser<RoleType>, transaction: RepositoryTransaction): Promise<boolean> {
         const existingToken: PasswordResetToken | undefined = await this.passwordResetTokenRepository.findOne(
             { where: { userId: user.id }, transaction, required: false }
         );

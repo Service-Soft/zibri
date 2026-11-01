@@ -14,9 +14,8 @@ import { VerifiedJwt } from './verified-jwt.model';
 import { ZibriApplication } from '../../../application/application';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
-import { IsolationLevel } from '../../../data-source/data-sources/data-source.interface';
 import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -223,7 +222,7 @@ implements AuthControllerStrategyInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+    async deleteUserRows(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
         await this.refreshTokenRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
     }
 
@@ -233,12 +232,7 @@ implements AuthControllerStrategyInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startTransaction(): Promise<Transaction> {
-        return await this.refreshTokenRepository.dataSource.startTransaction({ isolationLevel: IsolationLevel.READ_COMMITTED });
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async startLogin(authentication: Authentication<UserType>, transaction: Transaction | undefined): Promise<JwtAuthData<RoleType>> {
+    async startLogin(authentication: Authentication<UserType>, transaction: RepositoryTransaction | undefined): Promise<JwtAuthData<RoleType>> {
         const { user, authenticatedAt, federatedSession, providerAuthentication } = authentication;
         // every token of this login carries the time from here on, refreshes included, and so does
         // the family its refresh tokens share, which the access tokens name as the login
@@ -286,14 +280,14 @@ implements AuthControllerStrategyInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async endLogins(userId: string, transaction: Transaction | undefined): Promise<void> {
+    async endLogins(userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         // the refresh tokens only: an access token is signed rather than stored, so it stays valid
         // until it expires - unless access tokens are revoked at once, which finds their family gone
         await this.refreshTokenRepository.deleteAll({ userId }, { transaction });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async endFederatedLogins(session: FederatedSessionMatch, transaction: Transaction | undefined): Promise<void> {
+    async endFederatedLogins(session: FederatedSessionMatch, transaction: RepositoryTransaction | undefined): Promise<void> {
         // every token of a family carries the session, so this ends whole families. The access tokens
         // stay valid as with endLogins
         await this.refreshTokenRepository.deleteAll(FederatedSessionUtilities.toWhere(session), { transaction });
@@ -323,7 +317,7 @@ implements AuthControllerStrategyInterface<
         federatedSession: FederatedSessionColumns,
         dpopKeyThumbprint: string | undefined,
         providerAuthentication: ProviderAuthentication | undefined,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<JwtRefreshToken> {
         const data: JwtRefreshTokenCreateDto = {
             userId: foundUser.id,
@@ -344,7 +338,7 @@ implements AuthControllerStrategyInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async findLogins(userId: string, transaction: Transaction | undefined): Promise<ListedLogin[]> {
+    async findLogins(userId: string, transaction: RepositoryTransaction | undefined): Promise<ListedLogin[]> {
         const live: JwtRefreshToken[] = await this.refreshTokenRepository.findAll({
             where: { userId, blacklisted: false, expirationDate: { after: new Date() } },
             limit: 'all',
@@ -370,7 +364,7 @@ implements AuthControllerStrategyInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async endLogin(userId: string, loginId: string, transaction: Transaction | undefined): Promise<boolean> {
+    async endLogin(userId: string, loginId: string, transaction: RepositoryTransaction | undefined): Promise<boolean> {
         // the refresh tokens only, as with endLogins. By the user as well, so a login of somebody else is
         // none of theirs
         return await this.refreshTokenRepository.deleteAll({ userId, familyId: loginId }, { transaction }) > 0;
@@ -412,7 +406,7 @@ implements AuthControllerStrategyInterface<
         };
     }
 
-    private async verifyAndResolveRefreshToken(tokenValue: string, transaction: Transaction): Promise<RotatedRefreshToken<UserType>> {
+    private async verifyAndResolveRefreshToken(tokenValue: string, transaction: RepositoryTransaction): Promise<RotatedRefreshToken<UserType>> {
         const encoded: EncodedJwt | undefined = await this.verifyRefreshToken(tokenValue);
         // the payload was read as an access token's here, which is the shape it never has. Nothing
         // happened to look at it, so the mistake was invisible - checking it is what keeps a token

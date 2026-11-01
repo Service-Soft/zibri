@@ -68,7 +68,7 @@ export class Subscription extends BaseEntity {
      * Stored as a digest, which is the other direction: nothing on the way out undoes it, so what
      * comes back has to be what is stored rather than what was written.
      */
-    @Property.string({ hash: true, required: false })
+    @Property.string({ password: true, required: false })
     password: string | undefined | null;
 
     /**

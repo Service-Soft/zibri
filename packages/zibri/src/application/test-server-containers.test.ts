@@ -9,6 +9,7 @@ import { defaultTestServerProviders } from '../__testing__/test-server/providers
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { PostgresDataSource } from '../data-source/data-sources/postgres/postgres-data-source.model';
 import { ValKeyDataSource } from '../data-source/data-sources/val-key/val-key-data-source.model';
+import { DataSource } from '../data-source/decorators/data-source.decorator';
 import { MigrationEntity } from '../data-source/migration/migration-entity.model';
 import { defineProvider } from '../di/models/di-provider.model';
 import { OnAppInit } from '../global/on-app-init.interface';
@@ -26,12 +27,14 @@ import { JsonUtilities } from '../utilities/json.utilities';
 // orphans allowed, since the application of the second case does not include them
 const provisionedDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({ entities: [MigrationEntity], allowOrphan: true });
 
-// the database every postgres container already has, so creating it for the application is refused
-const refusedDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-    entities: [MigrationEntity],
-    database: 'postgres',
-    allowOrphan: true
-});
+/**
+ * Named, since the application boots it beside another one of the same helper. Its database is the
+ * one every postgres container already has, so creating it for the application is refused.
+ */
+@DataSource({ allowOrphan: true })
+class RefusedDataSource extends createTestDataSource({ entities: [MigrationEntity], database: 'postgres', allowOrphan: true }) {}
+
+const refusedDataSourceClass: Newable<PostgresDataSource> = RefusedDataSource;
 
 /**
  * The containers this process started that are still running.

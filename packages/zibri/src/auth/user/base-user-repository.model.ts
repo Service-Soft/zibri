@@ -7,7 +7,7 @@ import { FindOneOptions } from '../../data-source/models/options/find-one-option
 import { Where } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository/repository';
 import { USER_REPOSITORY } from '../../data-source/repository/repository-kind.model';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
 import { BaseUser } from '../models/base-user.model';
@@ -66,18 +66,23 @@ export function BaseUserRepository<T extends BaseUser<string>>(
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
-        async updateDeactivatedAt(id: string, deactivatedAt: Date | null, transaction: Transaction | undefined): Promise<void> {
-            await this.updateById(id, { deactivatedAt } as DeepPartial<T>, { transaction });
+        async updateDeactivatedAt(id: string, deactivatedAt: Date | null, transaction: RepositoryTransaction | undefined): Promise<void> {
+            await this.updateById(id, { deactivatedAt } as DeepPartial<T>, { transaction: this.resolveRepositoryTransaction(transaction) });
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
-        async updateRoles(id: string, roles: string[], transaction: Transaction | undefined): Promise<void> {
-            await this.updateById(id, { roles } as DeepPartial<T>, { transaction });
+        async updateRoles(id: string, roles: string[], transaction: RepositoryTransaction | undefined): Promise<void> {
+            await this.updateById(id, { roles } as DeepPartial<T>, { transaction: this.resolveRepositoryTransaction(transaction) });
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
-        async updateEmail(id: string, email: string, emailVerifiedAt: Date | null, transaction: Transaction | undefined): Promise<void> {
-            await this.updateById(id, { email, emailVerifiedAt } as DeepPartial<T>, { transaction });
+        async updateEmail(
+            id: string,
+            email: string,
+            emailVerifiedAt: Date | null,
+            transaction: RepositoryTransaction | undefined
+        ): Promise<void> {
+            await this.updateById(id, { email, emailVerifiedAt } as DeepPartial<T>, { transaction: this.resolveRepositoryTransaction(transaction) });
         }
     }
 

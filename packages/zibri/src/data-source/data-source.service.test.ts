@@ -119,6 +119,21 @@ class ImportedNoteDataSource extends InMemoryDataSource {
     override readonly repositories: RepositoryClass[] = [];
 }
 
+/**
+ * Declares a data source named like {@link NoteDataSource}, the way a module of its own would.
+ * @returns The data source.
+ */
+function declareSecondNoteDataSource(): Newable<InMemoryDataSource> {
+    @DataSource({ allowOrphan: true })
+    class NoteDataSource extends InMemoryDataSource {
+        override readonly entities: Newable<BaseEntity>[] = [MigrationEntity, Memo];
+        override readonly repositories: RepositoryClass[] = [];
+    }
+    return NoteDataSource;
+}
+
+const SecondNoteDataSource: Newable<InMemoryDataSource> = declareSecondNoteDataSource();
+
 @DataSource({ allowOrphan: true })
 class NoteAndMemoDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Note, Memo];
@@ -208,6 +223,14 @@ describe('DataSourceService — starting', () => {
         const start: Promise<StartedTestServer> = startTestServer({ dataSources: [NoteDataSource, ImportedNoteDataSource] });
 
         await expect(start).rejects.toThrow(/"Note"[\S\s]*NoteDataSource and ImportedNoteDataSource/);
+    }, TestTimeouts.inMemory.start);
+
+    it('refuses two data sources of the same name, and names it', async () => {
+        // a repository is registered under the name of its data source, so the repositories of the
+        // second answered for the first, and wrote to the second
+        const start: Promise<StartedTestServer> = startTestServer({ dataSources: [NoteDataSource, SecondNoteDataSource] });
+
+        await expect(start).rejects.toThrow(/different data sources of the same name[\S\s]*"NoteDataSource"/);
     }, TestTimeouts.inMemory.start);
 
     it('refuses two entities of one data source stored in the same table, and names them', async () => {

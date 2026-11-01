@@ -10,7 +10,7 @@ import { ApiKey, ApiKeyCreateDto } from './api-key.model';
 import { CreatedApiKey } from './created-api-key.model';
 import { ZibriApplication } from '../../../application/application';
 import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -112,7 +112,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
     async create(
         userId: string,
         data: ApiKeyCreateData<undefined>,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<CreatedApiKey> {
         await this.validateApiKey(userId, data);
         // 256 random bits: nothing to guess, and no two keys alike. The prefix tells a key sent as a
@@ -138,7 +138,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
     async createClient(
         userId: string,
         data: ApiKeyCreateData<ApiKeyClientAuthentication>,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<ApiKey> {
         await this.validateApiKey(userId, data);
         return await this.apiKeyRepository.create(
@@ -157,7 +157,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async findForUser(userId: string, transaction: Transaction | undefined): Promise<ApiKey[]> {
+    async findForUser(userId: string, transaction: RepositoryTransaction | undefined): Promise<ApiKey[]> {
         return await this.apiKeyRepository.findAll({ where: { userId }, order: { createdAt: 'ASC' }, limit: 'all', transaction });
     }
 
@@ -181,13 +181,13 @@ export class ApiKeyService implements ApiKeyServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async revoke(userId: string, apiKeyId: string, transaction: Transaction | undefined): Promise<void> {
+    async revoke(userId: string, apiKeyId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         const apiKey: ApiKey = await this.apiKeyRepository.findOne({ where: { id: apiKeyId, userId }, transaction });
         await this.apiKeyRepository.deleteById(apiKey.id, { transaction });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async revokeForUser(userId: string, transaction: Transaction | undefined): Promise<void> {
+    async revokeForUser(userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         // a user of an application without api keys holds none
         if (!this.read) {
             return;
@@ -196,7 +196,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+    async deleteUserRows(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
         // a user of an application without api keys holds none
         if (!this.read) {
             return;

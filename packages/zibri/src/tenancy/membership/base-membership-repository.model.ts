@@ -7,7 +7,7 @@ import { SoftDeleteRepository } from '../../data-source/change-sets/soft-delete-
 import { Where } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository/repository';
 import { MEMBERSHIP_REPOSITORY } from '../../data-source/repository/repository-kind.model';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { ModelRegistry } from '../../global/model-registry/model.registry';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
@@ -57,9 +57,13 @@ export function BaseMembershipRepository<T extends BaseMembership<string>>(
         // entity that is still a type parameter, though every membership entity has these columns
 
         // eslint-disable-next-line jsdoc/require-jsdoc
-        async findMembership(userId: string, tenantId: string, transaction?: Transaction): Promise<T | undefined> {
+        async findMembership(userId: string, tenantId: string, transaction?: RepositoryTransaction): Promise<T | undefined> {
             // the tenant is the active one, which the repository narrows to by itself
-            return await this.findOne({ where: { userId } as Where<T>, transaction, required: false });
+            return await this.findOne({
+                where: { userId } as Where<T>,
+                transaction: this.resolveRepositoryTransaction(transaction),
+                required: false
+            });
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
@@ -68,39 +72,52 @@ export function BaseMembershipRepository<T extends BaseMembership<string>>(
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
-        async resolveMembership(userId: string, transaction: Transaction | undefined): Promise<T> {
+        async resolveMembership(userId: string, transaction: RepositoryTransaction | undefined): Promise<T> {
             const roles: string[] = [];
-            return await this.findOne({ where: { userId } as Where<T>, transaction, required: false })
-                ?? await this.create({ userId, roles } as DeepPartial<T>, { transaction });
+            const own: RepositoryTransaction<T> | undefined = this.resolveRepositoryTransaction(transaction);
+            return await this.findOne({ where: { userId } as Where<T>, transaction: own, required: false })
+                ?? await this.create({ userId, roles } as DeepPartial<T>, { transaction: own });
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
-        async updateDeactivatedAt(userId: string, deactivatedAt: Date | null, transaction: Transaction | undefined): Promise<void> {
-            await this.updateAll({ userId } as Where<T>, { deactivatedAt } as DeepPartial<T>, { transaction });
-        }
-
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        async deleteMembership(userId: string, transaction: Transaction | undefined): Promise<void> {
-            // whatever a locked property of the membership holds, which the caller has no value of
-            await this.deleteAll(
-                ModelRegistry.get(this.entityClass).optimisticLockDescriptor.resolveRegardlessWhere({ userId } as Where<T>),
-                { transaction }
+        async updateDeactivatedAt(
+            userId: string,
+            deactivatedAt: Date | null,
+            transaction: RepositoryTransaction | undefined
+        ): Promise<void> {
+            await this.updateAll(
+                { userId } as Where<T>,
+                { deactivatedAt } as DeepPartial<T>,
+                { transaction: this.resolveRepositoryTransaction(transaction) }
             );
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
-        async updateRoles(userId: string, roles: string[], transaction: Transaction | undefined): Promise<void> {
-            await this.updateAll({ userId } as Where<T>, { roles } as DeepPartial<T>, { transaction });
+        async deleteMembership(userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+            // whatever a locked property of the membership holds, which the caller has no value of
+            await this.deleteAll(
+                ModelRegistry.get(this.entityClass).optimisticLockDescriptor.resolveRegardlessWhere({ userId } as Where<T>),
+                { transaction: this.resolveRepositoryTransaction(transaction) }
+            );
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
-        async deleteMemberships(userIds: string[], transaction: Transaction): Promise<void> {
+        async updateRoles(userId: string, roles: string[], transaction: RepositoryTransaction | undefined): Promise<void> {
+            await this.updateAll(
+                { userId } as Where<T>,
+                { roles } as DeepPartial<T>,
+                { transaction: this.resolveRepositoryTransaction(transaction) }
+            );
+        }
+
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        async deleteMemberships(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
             // whatever a locked property holds: the user they belong to is being deleted
             await this.deleteAll(
                 ModelRegistry.get(this.entityClass)
                     .optimisticLockDescriptor
                     .resolveRegardlessWhere({ userId: { oneOf: userIds } } as Where<T>),
-                { transaction, acrossTenants: true }
+                { transaction: this.resolveRepositoryTransaction(transaction), acrossTenants: true }
             );
         }
     }

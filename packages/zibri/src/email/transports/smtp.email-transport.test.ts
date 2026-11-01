@@ -1,4 +1,7 @@
+import { AddressInfo, createServer, Server } from 'node:net';
+
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { createFakeKeyPair, FakeKeyPair } from 'zibri-testing';
 
 import { SmtpEmailTransport } from './smtp.email-transport';
 import { CapturingSmtpServer } from '../../__testing__/capturing-smtp-server.model';
@@ -13,7 +16,7 @@ let transport: SmtpEmailTransport;
 beforeAll(async () => {
     smtp = await CapturingSmtpServer.start();
     // no pooled connection to outlive the server
-    transport = new SmtpEmailTransport({ host: '127.0.0.1', port: smtp.port, pool: false, auth: { user: '', pass: '' } });
+    transport = new SmtpEmailTransport({ host: '127.0.0.1', port: smtp.port, pool: false, requireTls: false, auth: { user: '', pass: '' } });
 });
 
 afterAll(async () => {
@@ -104,4 +107,59 @@ describe('SmtpEmailTransport', () => {
         expect(message).toContain('filename=invoice.pdf');
         expect(message).toContain(base64Content);
     });
+
+    it('refuses a server that offers no STARTTLS, unless told not to', async () => {
+        const strict: SmtpEmailTransport = new SmtpEmailTransport({ host: '127.0.0.1', port: smtp.port, pool: false, auth: { user: '', pass: '' } });
+
+        await expect(strict.send(queuedEmail({}))).rejects.toThrow(/STARTTLS/);
+        expect(smtp.messages).toEqual([]);
+    });
+
+    it('sends over STARTTLS to a server whose certificate the authority it was given signed', async () => {
+        const authority: FakeKeyPair = await createFakeKeyPair('CN=Mail Authority', { authority: true });
+        const certificate: FakeKeyPair = await createFakeKeyPair('CN=mail.example.com', { issuer: authority, hosts: ['127.0.0.1'] });
+        const tlsServer: CapturingSmtpServer = await CapturingSmtpServer.start({ key: certificate.privateKey, cert: certificate.certificate });
+        const withAuthority: SmtpEmailTransport = new SmtpEmailTransport({
+            host: '127.0.0.1',
+            port: tlsServer.port,
+            pool: false,
+            auth: { user: '', pass: '' },
+            tls: { ca: authority.certificate }
+        });
+        const withoutAuthority: SmtpEmailTransport = new SmtpEmailTransport({ host: '127.0.0.1', port: tlsServer.port, pool: false, auth: { user: '', pass: '' } });
+
+        try {
+            await expect(withoutAuthority.send(queuedEmail({}))).rejects.toThrow();
+            await withAuthority.send(queuedEmail({}));
+
+            expect(tlsServer.messages).toHaveLength(1);
+        }
+        finally {
+            await tlsServer.close();
+        }
+    });
+
+    it('gives up on a server that does not greet within the greeting timeout', async () => {
+        const silent: Server = createServer(() => {});
+        await new Promise<void>(resolve => silent.listen(0, '127.0.0.1', resolve));
+        const address: AddressInfo | string | null = silent.address();
+        const port: number = address != undefined && typeof address !== 'string' ? address.port : 0;
+        const impatient: SmtpEmailTransport = new SmtpEmailTransport({
+            host: '127.0.0.1',
+            port,
+            pool: false,
+            requireTls: false,
+            auth: { user: '', pass: '' },
+            greetingTimeoutInMs: 200
+        });
+
+        try {
+            const startedAt: number = Date.now();
+            await expect(impatient.send(queuedEmail({}))).rejects.toThrow(/greeting/i);
+            expect(Date.now() - startedAt).toBeLessThan(5000);
+        }
+        finally {
+            await new Promise<void>(resolve => silent.close(() => resolve()));
+        }
+    }, 10_000);
 });

@@ -7,6 +7,7 @@ import { ZibriPaymentPlugin } from './payment.plugin';
 import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
 import { AnyPaymentProviderInterface } from './providers/payment-provider.interface';
 import { TestTimeouts } from '../../__testing__/constants';
+import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
@@ -92,7 +93,7 @@ describe('ZibriPaymentPlugin — starting', () => {
             ]
         });
 
-        await expect(start).rejects.toThrow(/Error initializing ZibriPaymentPlugin[\S\s]*- Payment/);
+        await expect(start).rejects.toThrow(missingEntityPattern('Payment', 'ZibriPaymentPlugin'));
     }, TestTimeouts.inMemory.start);
 });
 

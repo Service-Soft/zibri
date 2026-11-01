@@ -18,7 +18,7 @@ export const RequestDurationChart: TsxComponent<Props> = ({ className = '', seco
         const latest: Metric[] = snaps[snaps.length - 1]?.metrics ?? [];
         const sumsByLe: Record<string, number> = latest
             .reduce<Record<string, number>>((map, m) => {
-                if (m.name !== 'http_request_duration_ms_bucket' || m.labels.le == undefined) {
+                if (m.name !== 'http_request_duration_seconds_bucket' || m.labels.le == undefined) {
                     return map;
                 }
                 const le: string | number = m.labels.le;
@@ -38,7 +38,7 @@ export const RequestDurationChart: TsxComponent<Props> = ({ className = '', seco
         });
         const hist: { labels: string[], values: number[] } = perBucket.reduce<{ labels: string[], values: number[] }>(
             (acc, m) => {
-                acc.labels.push(`${m.le} ms`);
+                acc.labels.push(`${m.le} s`);
                 acc.values.push(m.v);
                 return acc;
             },

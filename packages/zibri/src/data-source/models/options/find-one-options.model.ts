@@ -10,7 +10,7 @@ export type FindOneOptions<
     T extends BaseEntity,
     Required extends boolean = true,
     S extends EntitySelection<T> | undefined = undefined
-> = BaseRepositoryOptions
+> = BaseRepositoryOptions<T>
     & Pick<FindAllOptions<T, S>, 'where' | 'relations' | 'autoDecrypt' | 'select'>
     & {
         // true by default: reading one specific row that is not there is usually a bug and not a

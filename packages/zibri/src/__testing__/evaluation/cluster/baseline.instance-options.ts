@@ -17,7 +17,7 @@ import { Roles } from '../../mocks/entities/roles.enum';
 import { TestMembership } from '../../mocks/entities/test-membership.entity';
 import { TestRole } from '../../mocks/entities/test-role.entity';
 import { defaultTestServerRepositories } from '../../test-server/create-test-data-source.function';
-import { defaultTestServerPermissions, defaultTestServerRoles, rolesAndPermissionsProviders } from '../../test-server/providers';
+import { defaultTestServerPermissions, defaultTestServerRoles, rolesAndPermissionsProviders, testServerPasswordPolicyProvider } from '../../test-server/providers';
 
 /**
  * The data sources every instance of this scenario boots on.
@@ -134,8 +134,12 @@ const options: StartTestServerOptions = {
     // the real auth controller, so the parent logs in the way a client does and the token it gets
     // back is the one the framework actually issues
     controllers: [BaselineController, JwtTestAuthController],
-    // the cluster's defaults, and the roles the users here hold
-    providers: [...defaultClusterProviders, ...rolesAndPermissionsProviders(defaultTestServerPermissions, defaultTestServerRoles)]
+    // the cluster's defaults, the policy the passwords here meet, and the roles the users here hold
+    providers: [
+        ...defaultClusterProviders,
+        testServerPasswordPolicyProvider,
+        ...rolesAndPermissionsProviders(defaultTestServerPermissions, defaultTestServerRoles)
+    ]
 };
 
 export default options;

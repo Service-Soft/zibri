@@ -74,8 +74,8 @@ export const $f = {
         return inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).formatPrice(price, { currency });
     },
     /**
-     * Formats the given percentage.
-     * @param percent - The percentage value to format.
+     * Formats the given percent.
+     * @param percent - The percent to format, such as 19 for 19 %.
      * @returns The formatted string.
      * @throws When used while the app is still offline, as that would lead to always using the default locale.
      */

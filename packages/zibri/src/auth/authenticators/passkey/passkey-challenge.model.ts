@@ -16,7 +16,7 @@ export class PasskeyChallenge extends BaseEntity {
     /**
      * The challenge.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     value!: HashString;
 
     /**
@@ -63,6 +63,6 @@ export class PasskeyChallengeCreateData extends OmitClass(PasskeyChallenge, ['id
     /**
      * The challenge, before the hook hashes it.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     value!: string;
 }

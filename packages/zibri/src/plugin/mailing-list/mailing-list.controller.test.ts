@@ -25,6 +25,7 @@ import { inject } from '../../di/inject.function';
 import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
 import { AppState } from '../../global/app-state.enum';
 import { GlobalRegistry } from '../../global/global-registry';
+import { Controller } from '../../routing/decorators/controller.decorator';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
@@ -52,6 +53,9 @@ const unsubscribeConfirmationPageTemplate: MailingListUnsubscribeConfirmationPag
     = compileTsxTemplate<MailingListUnsubscribeConfirmationPageTemplate>(
         'export const Page = ({ subscriber, unsubscribed, unsubscribeUrl }) => unsubscribed ? <div id="unsubscribed">{subscriber.email}</div> : <form id="unsubscribe-form" method="post" action={unsubscribeUrl}></form>;'
     );
+
+@Controller('/mailing-lists', { versions: 'all' })
+class AppMailingListController extends MailingListController {}
 
 const dataSources: Newable<PostgresDataSource>[] = [
     createTestDataSource({
@@ -96,7 +100,7 @@ describe('MailingListController', () => {
 
         beforeAll(async () => {
             server = await startTestServer({
-                controllers: [MailingListController],
+                controllers: [AppMailingListController],
                 plugins: [new ZibriMailingListPlugin()],
                 dataSources,
                 providers: [
@@ -340,7 +344,7 @@ describe('MailingListController', () => {
 
         it('rejects startup when the preferences page template is missing', async () => {
             await expect(startTestServer({
-                controllers: [MailingListController],
+                controllers: [AppMailingListController],
                 plugins: [new ZibriMailingListPlugin()],
                 dataSources,
                 providers: [
@@ -352,7 +356,7 @@ describe('MailingListController', () => {
 
         it('rejects startup when the unsubscribe confirmation page template is missing', async () => {
             await expect(startTestServer({
-                controllers: [MailingListController],
+                controllers: [AppMailingListController],
                 plugins: [new ZibriMailingListPlugin()],
                 dataSources,
                 providers: [
@@ -364,7 +368,7 @@ describe('MailingListController', () => {
 
         it('rejects startup when the subscribe success page template is missing', async () => {
             await expect(startTestServer({
-                controllers: [MailingListController],
+                controllers: [AppMailingListController],
                 plugins: [new ZibriMailingListPlugin()],
                 dataSources,
                 providers: [

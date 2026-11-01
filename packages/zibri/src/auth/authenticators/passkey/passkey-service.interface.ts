@@ -4,7 +4,7 @@ import { PasskeyRegistrationResponse } from './passkey-registration-response.mod
 import { PasskeyRegistrationTicket } from './passkey-registration-ticket.model';
 import { PasskeyRequestOptions } from './passkey-request-options.model';
 import { Passkey } from './passkey.model';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
 
 /**
  * Interface for a passkey service: what issues the challenges a device signs, and verifies its answers.
@@ -49,7 +49,7 @@ export interface PasskeyServiceInterface {
      * Throws an UnauthorizedError when it does not verify, and a CredentialClonedError when the
      * device's signature counter went backwards.
      */
-    confirmLogin: (response: PasskeyAuthenticationResponse, transaction: Transaction | undefined) => Promise<Passkey>,
+    confirmLogin: (response: PasskeyAuthenticationResponse, transaction: RepositoryTransaction | undefined) => Promise<Passkey>,
     /**
      * Verifies a passkey presented as the second factor of an operation of a user.
      *
@@ -61,24 +61,24 @@ export interface PasskeyServiceInterface {
      * Finds a registration ticket that may still be used. Throws an UnauthorizedError when it is
      * unknown, spent or expired.
      */
-    findRegistrationTicket: (ticket: string, transaction: Transaction | undefined) => Promise<PasskeyRegistrationTicket>,
+    findRegistrationTicket: (ticket: string, transaction: RepositoryTransaction | undefined) => Promise<PasskeyRegistrationTicket>,
     /**
      * Adds the passkey a registration ticket holds to a user.
      */
-    linkRegistrationTicket: (ticket: string, userId: string, transaction: Transaction | undefined) => Promise<void>,
+    linkRegistrationTicket: (ticket: string, userId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Spends a registration ticket whose passkey was added to a user, and answers with the ticket as it
      * was before.
      */
-    spendRegistrationTicket: (ticket: string, transaction: Transaction | undefined) => Promise<PasskeyRegistrationTicket>,
+    spendRegistrationTicket: (ticket: string, transaction: RepositoryTransaction | undefined) => Promise<PasskeyRegistrationTicket>,
     /**
      * Finds the passkeys of a user, oldest first.
      */
-    findPasskeys: (userId: string, transaction: Transaction | undefined) => Promise<Passkey[]>,
+    findPasskeys: (userId: string, transaction: RepositoryTransaction | undefined) => Promise<Passkey[]>,
     /**
      * Removes a passkey from a user. Throws a NotFoundError when the user has no passkey of that id.
      */
-    removePasskey: (userId: string, passkeyId: string, transaction: Transaction | undefined) => Promise<void>,
+    removePasskey: (userId: string, passkeyId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Removes every passkey of a user.
      */
@@ -87,7 +87,7 @@ export interface PasskeyServiceInterface {
      * Deletes the passkeys of the given users, and the challenges and registration tickets bound to
      * them. Called in the transaction that deletes the users for good.
      */
-    deleteUserRows: (userIds: string[], transaction: Transaction) => Promise<void>,
+    deleteUserRows: (userIds: string[], transaction: RepositoryTransaction) => Promise<void>,
     /**
      * Deletes the challenges and registration tickets that expired.
      */

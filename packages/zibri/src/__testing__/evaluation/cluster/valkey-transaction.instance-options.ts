@@ -14,6 +14,7 @@ import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../test-server/create-test-data-source.function';
 import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function';
+import { testServerPasswordPolicyProvider } from '../../test-server/providers';
 
 /**
  * What every instance of the valkey transaction cluster boots with.
@@ -216,7 +217,7 @@ const options: StartTestServerOptions = {
         }),
         ClusterTransactionValKeyDataSource
     ],
-    providers: defaultClusterProviders
+    providers: [...defaultClusterProviders, testServerPasswordPolicyProvider]
 };
 
 export default options;

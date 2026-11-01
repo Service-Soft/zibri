@@ -1,4 +1,4 @@
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { UserAccount } from '../models/user-account.model';
 
 /**
@@ -17,23 +17,23 @@ export interface EmailVerificationServiceInterface {
      * Mails a user a link to verify the address they have. Does nothing while an earlier link of
      * theirs still works.
      */
-    requestEmailVerification: (userId: string, transaction: Transaction | undefined) => Promise<void>,
+    requestEmailVerification: (userId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Verifies the address a link was sent to, by the token it carries.
      * @throws An UnauthorizedError when the token is unknown, has expired, or the user's address is no
      * longer the one it was sent to.
      */
-    confirmEmailVerification: (token: string, transaction: Transaction | undefined) => Promise<void>,
+    confirmEmailVerification: (token: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Mails a user a link to the address they want to change to, which changes it once followed.
      */
-    requestEmailChange: (userId: string, newEmail: string, transaction: Transaction | undefined) => Promise<void>,
+    requestEmailChange: (userId: string, newEmail: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Changes the address of a user to the one a link was sent to, by the token it carries, verified,
      * and tells the previous address.
      * @throws An UnauthorizedError when the token is unknown or has expired.
      */
-    confirmEmailChange: (token: string, transaction: Transaction | undefined) => Promise<void>,
+    confirmEmailChange: (token: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Refuses a user whose address is not verified, while addresses are verified.
      * @throws An EmailNotVerifiedError when it is not.
@@ -42,5 +42,5 @@ export interface EmailVerificationServiceInterface {
     /**
      * Deletes the links of the given users. Called in the transaction that deletes the users.
      */
-    deleteUserRows: (userIds: string[], transaction: Transaction) => Promise<void>
+    deleteUserRows: (userIds: string[], transaction: RepositoryTransaction) => Promise<void>
 }

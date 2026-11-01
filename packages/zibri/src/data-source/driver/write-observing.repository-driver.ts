@@ -14,6 +14,7 @@ import { AggregateRow } from '../models/aggregate.model';
 import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
+import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
 import { Transaction } from '../transaction/transaction.model';
 import { EntityWrite, EntityWriteObserver, RowWrite, WriteOperation, WrittenRows } from '../write-observers/entity-write-observer.model';
 import { EntityWriteObserverRegistry } from '../write-observers/entity-write-observer.registry';
@@ -21,7 +22,7 @@ import { EntityWriteObserverRegistry } from '../write-observers/entity-write-obs
 /**
  * A write, as it is observed.
  */
-type Write<R> = {
+type Write<R, X extends RepositoryTransaction> = {
     /**
      * Which operation it is.
      */
@@ -33,7 +34,7 @@ type Write<R> = {
     /**
      * The transaction of the write, if any.
      */
-    transaction: Transaction | undefined,
+    transaction: X | undefined,
     /**
      * Reads what the write does to each row, before it is made.
      */
@@ -66,21 +67,22 @@ type RowWritesRead = {
  * there. The rows a write changes are read once, before it, for every observer that needs them; a
  * write to an entity nobody observes reads nothing. Every read forwards.
  */
-export class WriteObservingRepositoryDriver<T extends BaseEntity> extends ForwardingRepositoryDriver<T> {
+export class WriteObservingRepositoryDriver<T extends BaseEntity, X extends RepositoryTransaction = Transaction>
+    extends ForwardingRepositoryDriver<T, X> {
     /**
      * The observers of the entity, kept once no more can be registered.
      */
     private observers: EntityWriteObserver[] | undefined;
 
     constructor(
-        inner: RepositoryDriverInterface<T>,
+        inner: RepositoryDriverInterface<T, X>,
         private readonly entityClass: Newable<T>,
         private readonly logger: LoggerInterface
     ) {
         super(inner);
     }
 
-    override async save(data: DeepPartial<T>[], transaction: Transaction | undefined, reload: boolean): Promise<T[]> {
+    override async save(data: DeepPartial<T>[], transaction: X | undefined, reload: boolean): Promise<T[]> {
         return await this.observe({
             operation: 'save',
             data,
@@ -95,7 +97,7 @@ export class WriteObservingRepositoryDriver<T extends BaseEntity> extends Forwar
         });
     }
 
-    override async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
+    override async insert(data: DeepPartial<T>[], transaction: X | undefined): Promise<T[]> {
         return await this.observe({
             operation: 'insert',
             data,
@@ -110,7 +112,7 @@ export class WriteObservingRepositoryDriver<T extends BaseEntity> extends Forwar
     override async updateEach(
         rows: DeepPartial<T>[],
         where: Where<T>,
-        transaction: Transaction | undefined,
+        transaction: X | undefined,
         related?: RelatedNarrowing
     ): Promise<T[]> {
         return await this.observe({
@@ -129,7 +131,7 @@ export class WriteObservingRepositoryDriver<T extends BaseEntity> extends Forwar
         });
     }
 
-    override async remove(ids: string[], reach: RemovalReach<T> | undefined, transaction: Transaction | undefined): Promise<string[]> {
+    override async remove(ids: string[], reach: RemovalReach<T> | undefined, transaction: X | undefined): Promise<string[]> {
         return await this.observe({
             operation: 'remove',
             data: [],
@@ -146,7 +148,7 @@ export class WriteObservingRepositoryDriver<T extends BaseEntity> extends Forwar
     override async removeMatching(
         where: Where<T> | undefined,
         related: RelatedNarrowing | undefined,
-        transaction: Transaction | undefined
+        transaction: X | undefined
     ): Promise<string[]> {
         return await this.observe({
             operation: 'remove',
@@ -171,7 +173,7 @@ export class WriteObservingRepositoryDriver<T extends BaseEntity> extends Forwar
         observers: EntityWriteObserver[],
         where: Where<T> | undefined,
         related: RelatedNarrowing | undefined,
-        transaction: Transaction | undefined
+        transaction: X | undefined
     ): Promise<RowWrite[]> {
         return (await this.inner.find({
             where,
@@ -195,7 +197,7 @@ export class WriteObservingRepositoryDriver<T extends BaseEntity> extends Forwar
         };
     }
 
-    override async updateAll<R extends boolean = false>(options: DriverUpdateAllOptions<T, R>): Promise<R extends true ? T[] : number> {
+    override async updateAll<R extends boolean = false>(options: DriverUpdateAllOptions<T, R, X>): Promise<R extends true ? T[] : number> {
         return await this.observe({
             operation: 'updateAll',
             data: [options.data],
@@ -225,7 +227,7 @@ export class WriteObservingRepositoryDriver<T extends BaseEntity> extends Forwar
     override async upsert(
         identity: string[],
         rows: UpsertRow<T>[],
-        transaction: Transaction | undefined,
+        transaction: X | undefined,
         reachable: Where<T> | undefined,
         related?: RelatedNarrowing
     ): Promise<T[]> {
@@ -252,7 +254,7 @@ export class WriteObservingRepositoryDriver<T extends BaseEntity> extends Forwar
      * @param write - The write.
      * @returns What the write answers.
      */
-    private async observe<R>(write: Write<R>): Promise<R> {
+    private async observe<R>(write: Write<R, X>): Promise<R> {
         const observers: EntityWriteObserver[] = this.resolveObservers();
         if (!observers.length) {
             return await write.run();

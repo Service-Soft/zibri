@@ -118,12 +118,13 @@ export const RateLimiterDetail: TsxComponent<Props> = ({ name, primary, secondar
                                 m => m.name === `${base}_count` && m.labels['limiter'] === name
                             )?.value ?? 0;
 
-                            return count === 0 ? 0 : Math.round((sum / count) * 10) / 10;
+                            // recorded in seconds, shown in milliseconds
+                            return count === 0 ? 0 : Math.round((sum / count) * 10_000) / 10;
                         };
 
                         chart.data.labels = [$ts`Mean`];
-                        chart.data.datasets[0].data = [getMean('rate_limit_decision_duration_ms')];
-                        chart.data.datasets[1].data = [getMean('rate_limit_store_duration_ms')];
+                        chart.data.datasets[0].data = [getMean('rate_limit_decision_duration_seconds')];
+                        chart.data.datasets[1].data = [getMean('rate_limit_store_duration_seconds')];
                         chart.update();
                     }}
                 />

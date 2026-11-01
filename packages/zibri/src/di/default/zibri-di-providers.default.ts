@@ -37,10 +37,12 @@ import { CronService } from '../../cron/cron.service';
 import { ChainService } from '../../data-source/chain/chain.service';
 import { DataSourceService } from '../../data-source/data-source.service';
 import { RepositoryHooks } from '../../data-source/hooks/repository-hooks.model';
+import { PdfFontOptions } from '../../document/pdf-font-options.model';
 import { EmailRateLimiter } from '../../email/email.rate-limiter';
 import { LoggingEmailTransport } from '../../email/transports/logging.email-transport';
 import { EventService } from '../../event/event.service';
 import { GlobalRegistry } from '../../global/global-registry';
+import { BodySizeLimits } from '../../http/body-size-limits.model';
 import { CompressionOptions } from '../../http/compression.middleware';
 import { HttpServerLimits } from '../../http/http-server-limits.model';
 import { KnownHeader } from '../../http/known-header.enum';
@@ -93,6 +95,9 @@ const bytesPerMb: number = 1024 * 1024;
 const usableMemoryInMb: number = Math.floor((process.constrainedMemory() || os.totalmem()) / bytesPerMb);
 const workerHeapShareInMb: number = Math.max(1, Math.floor(usableMemoryInMb / (maxThreads + maxPriorityThreads + reserveThreadsMain)));
 
+// a structured body is read into memory whole, so its default is small; a stream is not held
+const defaultMaxBodySizes: BodySizeLimits = { json: '100kb', xml: '100kb', formUrlEncoded: '100kb', formData: '100kb', stream: '10mb' };
+
 export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS> = {
     ZIBRI_PACKAGE_ROOT: { useFactory: () => resolveZibriRoot() },
     ROUTER: { useClass: Router },
@@ -117,6 +122,9 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     AUDIT_RETENTION_IN_MS: { useFactory: () => undefined },
     AUDIT_MAX_REFUSALS_PER_MINUTE: { useFactory: () => 1000 },
     AUDIT_INTEGRITY: { useFactory: () => 'checkpoints' },
+    // long enough that an entry stored just before a checkpoint runs has landed, also from an
+    // instance whose clock runs a little behind
+    AUDIT_SEAL_DELAY_IN_MS: { useFactory: () => Ms.MINUTE * 5 },
     CHAIN_SERVICE: { useClass: ChainService },
     LOGGER_CLEANUP_AFTER_IN_MS: {
         useFactory: () => ({
@@ -175,11 +183,17 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
             keepAliveTimeoutInMs: Ms.SECOND * 75,
             handlerTimeoutInMs: Ms.SECOND * 30,
             maxHeaderCount: 100,
-            maxHeaderSizeInBytes: 16 * 1024
+            maxHeaderSizeInBytes: 16 * 1024,
+            maxBodySizes: defaultMaxBodySizes
         })
     },
     LEASE_SERVICE: { useClass: LeaseService },
     WAKE_UP_SERVICE: { useClass: WakeUpService },
+    POLL_MAX_INTERVAL_IN_MS: { useFactory: () => Ms.SECOND * 30 },
+    METRICS_REQUEST_DURATION_BUCKETS_IN_MS: { useFactory: () => [50, 100, 200, 500, 1000, 2000, 5000] },
+    // every instance collects on its own, so this bounds what the metrics cost the shared data source
+    METRICS_DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS: { useFactory: () => Ms.SECOND * 30 },
+    PDF_FONT_OPTIONS: { useFactory: (): PdfFontOptions => ({ families: {}, fallbacks: [] }) },
     TENANT_SERVICE: { useClass: TenantService },
     MEMBERSHIP_SERVICE: { useClass: MembershipService },
     // how long a shutting down instance waits for work it holds a lease on before taking the lease
@@ -300,6 +314,7 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // none, so that stopping a running backup and putting back what a running restore applied fits
     // the 30 seconds most orchestrators give a process before they kill it
     BACKUP_SHUTDOWN_WAIT_IN_MS: { useValue: 0 },
+    BACKUP_STOPPING_TIMEOUT_IN_MS: { useFactory: () => Ms.SECOND * 30 },
     // a transport that cannot be reached for a while is the failure a retry is for, and three tries
     // over a few minutes outlast most of those without holding a backup open for an outage
     BACKUP_MAX_ATTEMPTS: { useValue: 3 },
@@ -318,7 +333,12 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // application that does not bundle resolves this file inside the installed framework, and the
     // service derives its public and template folders from it while it is built.
     ASSETS_PATH: { useFactory: () => FsUtilities.getPath(__dirname, 'assets') },
+    // a browser asks again every time whether a file changed: a file replaced under the same name
+    // is never served stale
+    PUBLIC_ASSETS_MAX_AGE_IN_MS: { useFactory: () => 0 },
     FORM_DATA_LIMITS: { useFactory: () => ({ maxFiles: 20, maxParts: 1000, maxFields: 500 }) },
+    // none, since how long a password has to be has two answers: longer where it is the only factor
+    PASSWORD_POLICY: { useFactory: () => undefined },
     PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: { useFactory: () => 300000 },
     CONFIRM_PASSWORD_RESET_URL: { useFactory: () => undefined },
     FEDERATION_OPTIONS: { useFactory: () => undefined },
@@ -368,6 +388,11 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
                 startServer: 'whenDeclared',
                 isAllowedToConnect: () => true,
                 maxReplayedMessages: 1000,
+                // socket.io's own path and ping settings
+                path: '/socket.io',
+                maxMessageSize: '1mb',
+                pingIntervalInMs: Ms.SECOND * 25,
+                pingTimeoutInMs: Ms.SECOND * 20,
                 ...input
             };
         }
@@ -380,6 +405,7 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
             return {
                 defaultTimeoutInMs: Ms.SECOND * 5,
                 defaultMaxResponseSize: '10mb',
+                maxBodySizes: defaultMaxBodySizes,
                 // on by default: an application that never thought about it is the one whose every
                 // request would otherwise wait out a timeout against a dependency that is down
                 circuitBreaker: { failuresToOpen: 5, openForInMs: Ms.SECOND * 30 },
@@ -397,6 +423,8 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // the same number PromiseUtilities chunks by, because it answers the same question: how much of
     // a backlog one instance takes on at once
     EVENT_MAX_CONCURRENT_HOOKS: { useFactory: () => 50 },
+    EVENT_HOOK_TIMEOUT_IN_MS: { useFactory: () => Ms.SECOND * 30 },
+    EVENT_FINISHED_RETENTION_IN_MS: { useFactory: () => Ms.DAY },
     // none: the framework needs none of them, and each one costs every write of its kind a read and
     // a row, so an application names the ones it subscribes to (06 §Q4)
     FRAMEWORK_EVENT_NAMES: { useFactory: () => ({}) },

@@ -106,7 +106,7 @@ export const CacheDetail: TsxComponent<Props> = ({ name, primary, secondary }) =
                         const operations: string[] = [
                             ...new Set(
                                 latest.metrics
-                                    .filter(m => (m.name === 'cache_source_duration_ms_sum' || m.name === 'cache_store_duration_ms_sum')
+                                    .filter(m => (m.name === 'cache_source_duration_seconds_sum' || m.name === 'cache_store_duration_seconds_sum')
                                         && m.labels['cache'] === name
                                         && m.labels['operation'] != undefined)
                                     .map(m => m.labels['operation'] as string)
@@ -120,12 +120,13 @@ export const CacheDetail: TsxComponent<Props> = ({ name, primary, secondary }) =
                             const count: number = latest.metrics.find(
                                 m => m.name === `${base}_count` && m.labels['cache'] === name && m.labels['operation'] === op
                             )?.value ?? 0;
-                            return count === 0 ? 0 : Math.round((sum / count) * 10) / 10;
+                            // recorded in seconds, shown in milliseconds
+                            return count === 0 ? 0 : Math.round((sum / count) * 10_000) / 10;
                         };
 
                         chart.data.labels = operations;
-                        chart.data.datasets[0].data = operations.map(op => getMean('cache_source_duration_ms', op));
-                        chart.data.datasets[1].data = operations.map(op => getMean('cache_store_duration_ms', op));
+                        chart.data.datasets[0].data = operations.map(op => getMean('cache_source_duration_seconds', op));
+                        chart.data.datasets[1].data = operations.map(op => getMean('cache_store_duration_seconds', op));
                         chart.update();
                     }}
                 />

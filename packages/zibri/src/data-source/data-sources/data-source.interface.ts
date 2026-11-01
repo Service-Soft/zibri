@@ -105,6 +105,12 @@ export interface DataSourceInterface extends BackupResourceInterface {
     readonly migrations: Newable<Migration>[],
 
     /**
+     * The most rows a call without a limit hands back: a `findAll` without `limit`, and an `updateAll`
+     * or `deleteAll` asked to return what it wrote. A call that would hand back more is refused.
+     */
+    readonly maxRowsWithoutLimit: number,
+
+    /**
      * How long setting the schema up and running one migration may take, in milliseconds. 0, the
      * default, for no limit.
      *
@@ -162,6 +168,15 @@ export interface DataSourceInterface extends BackupResourceInterface {
      * @returns What the work returned, once the transaction is committed.
      */
     runInTransaction: <R>(work: (transaction: Transaction) => Promise<R>, options: RunInTransactionOptions) => Promise<R>,
+
+    /**
+     * Refuses a write of a spanning transaction to an entity whose rows the data source cannot put
+     * back as they were, because a write to them changes more than those rows. Left out by a data
+     * source where a write changes nothing else.
+     * @param entityClass - The entity written.
+     * @throws When the data source cannot restore what a write to it changes.
+     */
+    validateSpanningWrite?: (entityClass: Newable<BaseEntity>) => void,
 
     /**
      * Runs migrations for the data source.

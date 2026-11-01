@@ -2,7 +2,7 @@ import { CompanyInfoServiceInterface } from './company-info-service.interface';
 import { InvoiceNumberServiceInterface } from './invoice-number-service.interface';
 import { Repository } from '../../../data-source/repository/repository';
 import { NoActiveTenantError } from '../../../data-source/tenancy/no-active-tenant.error';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
 import { UniqueConstraintViolationError } from '../../../data-source/unique-constraint-violation.error';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
@@ -61,7 +61,7 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
     async generateInvoiceNumber(
         recipientId: string,
         invoiceAddress: InvoiceAddress,
-        transaction: Transaction | undefined,
+        transaction: RepositoryTransaction | undefined,
         nameAbbreviation?: string
     ): Promise<string> {
         const currentYear: number = await this.resolveCurrentYear();
@@ -156,7 +156,7 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
     protected async resolveConsecutiveNumber(
         recipientId: string,
         currentYear: number,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<string> {
         // One upsert, because nothing weaker holds. Reading the counter and writing it back is a
         // race whether or not it runs under a lock: the lock only covers the window it is held for,
@@ -195,7 +195,7 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
         recipientId: string,
         invoiceAddress: InvoiceAddress,
         nameAbbreviation: string | undefined,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<string> {
         const held: InvoiceRecipientAbbreviation | undefined = await this.recipientAbbreviationRepository.findOne(
             { where: { recipientId }, transaction, required: false }

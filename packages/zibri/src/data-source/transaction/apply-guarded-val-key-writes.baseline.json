@@ -1,0 +1,32 @@
+[
+    {
+        "name": "guarded commit of 10 rows",
+        "medianMs": 0.3761880000001838,
+        "p95Ms": 0.6650899999999638
+    },
+    {
+        "name": "batched commit of 10 rows",
+        "medianMs": 0.3083599999999933,
+        "p95Ms": 0.4905529999996361
+    },
+    {
+        "name": "guarded commit of 1000 rows",
+        "medianMs": 9.174751999999899,
+        "p95Ms": 12.380799999999908
+    },
+    {
+        "name": "batched commit of 1000 rows",
+        "medianMs": 18.06514900000002,
+        "p95Ms": 20.662021000000095
+    },
+    {
+        "name": "guarded commit of 10000 rows",
+        "medianMs": 109.81637099999989,
+        "p95Ms": 124.59848599999987
+    },
+    {
+        "name": "batched commit of 10000 rows",
+        "medianMs": 213.43001600000025,
+        "p95Ms": 234.21505799999977
+    }
+]

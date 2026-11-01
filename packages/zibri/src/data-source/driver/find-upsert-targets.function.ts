@@ -2,6 +2,7 @@ import { RepositoryDriverInterface } from './repository-driver.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
+import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
 import { Transaction } from '../transaction/transaction.model';
 
 /**
@@ -13,11 +14,11 @@ import { Transaction } from '../transaction/transaction.model';
  * @param transaction - The transaction of the upsert, if any.
  * @returns The rows, as they are.
  */
-export async function findUpsertTargets<T extends BaseEntity>(
-    driver: RepositoryDriverInterface<T>,
+export async function findUpsertTargets<T extends BaseEntity, X extends RepositoryTransaction = Transaction>(
+    driver: RepositoryDriverInterface<T, X>,
     identity: string[],
     rows: UpsertRow<T>[],
-    transaction: Transaction | undefined
+    transaction: X | undefined
 ): Promise<T[]> {
     const [first] = identity;
     if (first == undefined) {

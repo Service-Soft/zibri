@@ -28,6 +28,7 @@ import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
+import { AfterAppShutdown } from '../global/after-app-shutdown.interface';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Newable } from '../types/newable.type';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
@@ -128,16 +129,20 @@ function getBackupService(): BackupServiceInterface {
 /**
  * Starts a server that waits the given time for a running backup or restore when it stops.
  * @param shutdownWaitInMs - How long it waits, or undefined for the default.
+ * @param stoppingTimeoutInMs - How long stopping it may take then, or undefined for the default.
  * @returns The server.
  */
-async function startServer(shutdownWaitInMs?: number): Promise<StartedTestServer> {
+async function startServer(shutdownWaitInMs?: number, stoppingTimeoutInMs?: number): Promise<StartedTestServer> {
     return await startTestServer({
         dataSources: [ShutdownDataSource],
         providers: [
             ...defaultTestServerProviders,
             ...shutdownWaitInMs == undefined
                 ? []
-                : [defineProvider({ token: ZIBRI_DI_TOKENS.BACKUP_SHUTDOWN_WAIT_IN_MS, useValue: shutdownWaitInMs })]
+                : [defineProvider({ token: ZIBRI_DI_TOKENS.BACKUP_SHUTDOWN_WAIT_IN_MS, useValue: shutdownWaitInMs })],
+            ...stoppingTimeoutInMs == undefined
+                ? []
+                : [defineProvider({ token: ZIBRI_DI_TOKENS.BACKUP_STOPPING_TIMEOUT_IN_MS, useValue: stoppingTimeoutInMs })]
         ]
     });
 }
@@ -261,6 +266,16 @@ describe('BackupService — a backup when the application stops', () => {
         expect(Date.now() - startedAt).toBeLessThan(Ms.SECOND * 10);
         expect(await running.ended).toBeInstanceOf(Error);
         expect((await findBackup(running.backup.id)).status).toBe(BackupStatus.RUNNING);
+    }, TestTimeouts.inMemory.start);
+
+    // evaluation/round-2/12-hardcoded-values.md §D5: stopping was given 30 seconds, whatever putting
+    // back what a large restore applied takes
+    it('is given BACKUP_SHUTDOWN_WAIT_IN_MS and then BACKUP_STOPPING_TIMEOUT_IN_MS when the application stops', async () => {
+        server = await startServer(Ms.SECOND, Ms.MINUTE * 5);
+        // what the application reads off the service's shutdown hook, which the interface leaves out
+        const service: BackupServiceInterface & Pick<AfterAppShutdown, 'shutdownTimeoutInMs'> = getBackupService();
+
+        expect(service.shutdownTimeoutInMs).toBe(Ms.SECOND + (Ms.MINUTE * 5));
     }, TestTimeouts.inMemory.start);
 });
 

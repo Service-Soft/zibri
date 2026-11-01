@@ -45,7 +45,8 @@ import { OwnedRelationUtilities } from '../owned-relation.utilities';
 import { Repository, WrittenUpdate } from '../repository/repository';
 import { ScopedWhere, ScopeWhereUtilities } from '../scopes/scope-where.utilities';
 import { TenantUtilities } from '../tenancy/tenant.utilities';
-import { Transaction } from '../transaction/transaction.model';
+import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
+import { TransactionUtilities } from '../transaction/transaction.utilities';
 import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
 import { validateWriteIsNotBlind } from '../validate-write-is-not-blind.function';
 
@@ -274,7 +275,7 @@ export class SoftDeleteRepository<
     private async validateNotHeldBySoftDeleted(
         keys: string[],
         identities: object[],
-        options: BaseRepositoryOptions | undefined
+        options: BaseRepositoryOptions<T> | undefined
     ): Promise<void> {
         const tenantProperty: string | undefined = TenantUtilities.resolveOwnership(this.entityClass, this.entityMetadata)?.property;
         // the store finds the row by the identity, led by the tenant where the entity has one
@@ -356,7 +357,7 @@ export class SoftDeleteRepository<
 
     protected override async updateEach(
         rows: UpdateData[],
-        options?: BaseRepositoryOptions & Pick<SoftDeleteUpdateByIdOptions<T>, 'deleted'>,
+        options?: BaseRepositoryOptions<T> & Pick<SoftDeleteUpdateByIdOptions<T>, 'deleted'>,
         where?: SoftDeleteWhere<T>
     ): Promise<WrittenUpdate<T>[]> {
         const restoredIds: Set<string> = new Set(rows.filter(r => r.deleted === false).map(r => String(r.id)));
@@ -524,7 +525,7 @@ export class SoftDeleteRepository<
      * @param ownerIds - The ids of the rows just marked deleted.
      * @param transaction - The transaction the delete runs in.
      */
-    private async softDeleteOwnedRows(ownerIds: string[], transaction: Transaction): Promise<void> {
+    private async softDeleteOwnedRows(ownerIds: string[], transaction: RepositoryTransaction): Promise<void> {
         if (!ownerIds.length) {
             return;
         }
@@ -549,8 +550,12 @@ export class SoftDeleteRepository<
      * @param ownerIds - The ids of the owners just marked deleted.
      * @param transaction - The transaction the delete runs in.
      */
-    private async markDeletedAlong(foreignKey: string, ownerIds: string[], transaction: Transaction): Promise<void> {
-        const options: BaseRepositoryOptions = { transaction, unscoped: true, acrossTenants: true };
+    private async markDeletedAlong(foreignKey: string, ownerIds: string[], transaction: RepositoryTransaction): Promise<void> {
+        const options: BaseRepositoryOptions<T> = {
+            transaction: TransactionUtilities.resolveRepositoryTransaction(transaction, this.entityClass),
+            unscoped: true,
+            acrossTenants: true
+        };
         // only what the write needs: no relation, and nothing decrypted for rows about to be marked
         const owned: T[] = await this.findAll({
             ...options,
@@ -580,7 +585,7 @@ export class SoftDeleteRepository<
      * @param ownerIds - The ids of the rows just restored.
      * @param transaction - The transaction the restore runs in.
      */
-    private async restoreOwnedRows(ownerIds: string[], transaction: Transaction): Promise<void> {
+    private async restoreOwnedRows(ownerIds: string[], transaction: RepositoryTransaction): Promise<void> {
         for (const relation of OwnedRelationUtilities.resolveAll(this.entityClass)) {
             if (!relation.cascadesRemove || !isSoftDeleteEntityNewable(relation.target)) {
                 continue;
@@ -616,7 +621,7 @@ export class SoftDeleteRepository<
         entityPriorChanges: T,
         data: CreateData | UpdateData | DeepPartial<T>,
         type: ChangeSetType,
-        options?: BaseRepositoryOptions,
+        options?: BaseRepositoryOptions<T>,
         force: boolean = false
     ): Promise<void> {
         if (this.isRestore(entityPriorChanges, data, type)) {
@@ -630,7 +635,7 @@ export class SoftDeleteRepository<
         entitiesPriorChanges: T[],
         data: (CreateData | UpdateData | DeepPartial<T>)[],
         type: ChangeSetType,
-        options?: BaseRepositoryOptions,
+        options?: BaseRepositoryOptions<T>,
         force: boolean = false
     ): Promise<void> {
         const restored: number[] = entitiesPriorChanges.map((_, index) => index)

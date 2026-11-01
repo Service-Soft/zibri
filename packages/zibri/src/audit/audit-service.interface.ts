@@ -1,4 +1,5 @@
 import { AuditVerification } from './audit-verification.model';
+import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 import { AuditEvent } from '../logging/audit-event.model';
 
 /**
@@ -10,8 +11,11 @@ export interface AuditServiceInterface {
      *
      * Returns at once. A success is stored as an entry of its own. A refusal is too while the minute's
      * budget lasts; past it, refusals of one kind are counted into one entry.
+     *
+     * Given the transaction its writes are in, a success is recorded once the transaction commits, and
+     * never when it is rolled back. A refusal is recorded at once either way.
      */
-    record: (event: AuditEvent) => void,
+    record: (event: AuditEvent, transaction?: RepositoryTransaction) => void,
     /**
      * Waits until everything recorded so far is stored, the counted refusals included.
      *
@@ -25,8 +29,9 @@ export interface AuditServiceInterface {
      */
     deleteExpiredEntries: () => Promise<number>,
     /**
-     * Seals the entries stored in every hour that ended, in one `AuditCheckpoint` per tenant, and
-     * logs where each checkpoint leaves the chain of its tenant. Does nothing when the trail is a chain.
+     * Seals the entries stored since the last checkpoint, up to `ZIBRI_DI_TOKENS.AUDIT_SEAL_DELAY_IN_MS`
+     * ago, in one `AuditCheckpoint` per tenant, and logs where each checkpoint leaves the chain of its
+     * tenant. Does nothing when the trail is a chain.
      * @returns How many checkpoints were written.
      */
     writeCheckpoints: () => Promise<number>,

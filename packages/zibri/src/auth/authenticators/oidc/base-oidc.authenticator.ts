@@ -88,10 +88,15 @@ export abstract class BaseOidcAuthenticator<
     readonly subjectClaim: string = 'sub';
 
     /**
-     * How long ago a logout token the provider sends may have been issued, which is also how long one
-     * is remembered as taken. 10 minutes by default.
+     * How long ago a logout token the provider sends may have been issued. 10 minutes by default.
      */
     readonly logoutTokenMaxAgeInMs: number = Ms.MINUTE * 10;
+
+    /**
+     * How far the clocks of the provider and the application may be apart, for the times in its ID
+     * tokens, its tokens a request sends and its logout tokens. A minute by default.
+     */
+    readonly acceptedClockSkewInMs: number = Ms.MINUTE;
 
     /**
      * The classes of authentication a login asks the provider for, as `acr_values`, such as one that
@@ -182,7 +187,8 @@ export abstract class BaseOidcAuthenticator<
         const verified: EncodedJwt<JWTPayload> | undefined = await JwtUtilities.verifyProviderToken(token, keySet, {
             issuer,
             audiences: [...bearerTokens.accessTokenAudiences, ...bearerTokens.idTokenAudiences],
-            algorithms: this.allowedAlgorithms
+            algorithms: this.allowedAlgorithms,
+            clockToleranceInMs: this.acceptedClockSkewInMs
         });
         const cnf: unknown = verified?.payload['cnf'];
         const confirmation: JwtConfirmation | undefined = isJwtConfirmation(cnf) ? cnf : undefined;
@@ -287,7 +293,8 @@ export abstract class BaseOidcAuthenticator<
                 issuer,
                 audiences: [this.clientId],
                 algorithms: this.allowedAlgorithms,
-                maxAgeInMs: this.logoutTokenMaxAgeInMs
+                maxAgeInMs: this.logoutTokenMaxAgeInMs,
+                clockToleranceInMs: this.acceptedClockSkewInMs
             });
         const events: unknown = payload?.['events'];
         const sessionId: unknown = payload?.['sid'];
@@ -337,7 +344,14 @@ export abstract class BaseOidcAuthenticator<
         clientAuthentication: ClientAuth,
         requestOptions: DiscoveryRequestOptions
     ): Promise<Configuration> {
-        return await client.discovery(new URL(this.issuer), this.clientId, undefined, clientAuthentication, requestOptions);
+        return await client.discovery(
+            new URL(this.issuer),
+            this.clientId,
+            // for the times in the ID token of a login
+            { [client.clockTolerance]: Math.floor(this.acceptedClockSkewInMs / Ms.SECOND) },
+            clientAuthentication,
+            requestOptions
+        );
     }
 
     protected override getAuthorizationParameters(exchange: Pick<OAuthCodeExchange, 'nonce' | 'maxAgeInSeconds'>): Record<string, string> {
@@ -570,8 +584,10 @@ export abstract class BaseOidcAuthenticator<
      * @throws UnauthorizedError when the token was taken before.
      */
     private async spendLogoutToken(jti: string): Promise<void> {
+        // for as long as it is taken: from the skew before its iat to the age and the skew after it
+        const leaseInMs: number = this.logoutTokenMaxAgeInMs + (2 * this.acceptedClockSkewInMs);
         const first: boolean | undefined = await this.leaseService.withLease(
-            { key: `logout-token:${this.name}:${jti}`, leaseInMs: this.logoutTokenMaxAgeInMs, mode: 'skip', onCompletion: 'retain' },
+            { key: `logout-token:${this.name}:${jti}`, leaseInMs, mode: 'skip', onCompletion: 'retain' },
             () => Promise.resolve(true)
         );
         if (first !== true) {

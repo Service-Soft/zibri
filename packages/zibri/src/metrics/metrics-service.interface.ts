@@ -20,7 +20,7 @@ export type GaugeMetricName = string;
 /**
  * The name of a histogram metric.
  */
-export type HistogramMetricName = 'http_request_duration_ms' | string & {};
+export type HistogramMetricName = 'http_request_duration_seconds' | string & {};
 
 /**
  * Interface for a metrics service.

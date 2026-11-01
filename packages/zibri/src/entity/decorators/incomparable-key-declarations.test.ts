@@ -66,7 +66,7 @@ describe('a unique declaration on a hashed property', () => {
         const declare: () => unknown = () => {
             @Entity({ tenant: 'shared', allowOrphan: true })
             class PerRowLogin extends BaseEntity {
-                @Property.string({ unique: true, hash: () => ({ strategy: ScryptHashStrategy }) })
+                @Property.string({ unique: true, hash: () => ({ strategy: ScryptHashStrategy }), password: false })
                 secret!: string;
             }
             return PerRowLogin;
@@ -84,7 +84,7 @@ describe('a unique declaration on a hashed property', () => {
                 @Property.string()
                 tenantId!: string;
 
-                @Property.string({ hash: () => ({ strategy: ScryptHashStrategy }) })
+                @Property.string({ hash: () => ({ strategy: ScryptHashStrategy }), password: false })
                 secret!: string;
             }
             return TenantLogin;
@@ -97,10 +97,10 @@ describe('a unique declaration on a hashed property', () => {
         expect(() => {
             @Entity({ tenant: 'shared', allowOrphan: true })
             class NamedLogin extends BaseEntity {
-                @Property.string({ unique: true, hash: { strategy: ScryptHashStrategy } })
+                @Property.string({ unique: true, hash: { strategy: ScryptHashStrategy }, password: false })
                 secret!: string;
 
-                @Property.string({ unique: true, hash: true })
+                @Property.string({ unique: true, hash: true, password: false })
                 other!: string;
             }
             return NamedLogin;

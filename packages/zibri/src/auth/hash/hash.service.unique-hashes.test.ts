@@ -23,10 +23,10 @@ import { Property } from '../../entity/decorators/property.decorator';
 
 @Entity({ tenant: 'shared', allowOrphan: true })
 class Badge extends BaseEntity {
-    @Property.string({ unique: true, hash: { strategy: ScryptHashStrategy } })
+    @Property.string({ unique: true, hash: { strategy: ScryptHashStrategy }, password: false })
     pin!: string;
 
-    @Property.string({ unique: true, hash: true })
+    @Property.string({ unique: true, hash: true, password: false })
     secret!: string;
 }
 

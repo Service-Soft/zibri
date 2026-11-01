@@ -113,6 +113,20 @@ const corsWithOwnHeaders: CorsOptions = {
 
 They are added to the framework's own headers, which stay allowed.
 
+### Headers your browser clients may read
+
+A browser hands a page only the response headers CORS names. The framework's own are named: the CSRF token, the [DPoP](./glossary.md#dpop) nonce, the trace response, the [rate limit](./rate-limiting.md) headers, `retry-after` and `content-disposition`, which holds the name of a downloaded file. Add your own with `additionalExposedHeaders`:
+
+```ts
+// src/application-options.base.ts
+import { CorsOptions } from 'zibri';
+
+const corsWithOwnResponseHeaders: CorsOptions = {
+    origins: ['https://app.example.com'],
+    additionalExposedHeaders: ['x-request-cost']
+};
+```
+
 ### Methods
 
 Every method the router can serve is allowed by default. Narrow it if you want to:

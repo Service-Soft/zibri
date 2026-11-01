@@ -79,9 +79,13 @@ export class JwtService implements JwtServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async signAccessToken(payload: Record<string, unknown>, audience: string | string[]): Promise<string> {
+    async signAccessToken(
+        payload: Record<string, unknown>,
+        audience: string | string[],
+        expiresInMs: number = this.accessTokenExpiresInMs
+    ): Promise<string> {
         return await this.sign(payload, {
-            expiresInMs: this.accessTokenExpiresInMs,
+            expiresInMs,
             // a single audience as a string, which is the form every resource server reads
             audience: Array.isArray(audience) && audience.length === 1 ? audience[0] : audience,
             type: 'at+jwt'

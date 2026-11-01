@@ -15,6 +15,7 @@ import { TwoFactorCodeCredentials } from './two-factor-code-credentials.model';
 import { TwoFactorCodeOptions } from './two-factor-code-options.model';
 import { TwoFactorCode } from './two-factor-code.model';
 import { TestTimeouts } from '../../../../__testing__/constants';
+import { missingEntityPattern } from '../../../../__testing__/missing-entity-pattern.function';
 import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../../__testing__/mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../../__testing__/test-server/create-test-data-source.function';
@@ -291,7 +292,7 @@ describe('Two factor codes — starting', () => {
             providers: [...defaultTestServerProviders]
         });
 
-        await expect(start).rejects.toThrow(/Error initializing EmailTwoFactorMethod[\S\s]*TwoFactorCodeCredentials/);
+        await expect(start).rejects.toThrow(missingEntityPattern('TwoFactorCodeCredentials', 'EmailTwoFactorMethod'));
     }, TestTimeouts.inMemory.start);
 
     it('refuses to start the sms method without a sender', async () => {
@@ -341,7 +342,7 @@ describe('Two factor codes — starting', () => {
             providers: [...defaultTestServerProviders]
         });
 
-        await expect(start).rejects.toThrow(/Error initializing EmailTwoFactorMethod[\S\s]*RateLimitStateEntity/);
+        await expect(start).rejects.toThrow(missingEntityPattern('RateLimitStateEntity', 'EmailTwoFactorMethod'));
     }, TestTimeouts.inMemory.start);
 
     it('refuses a setting that is not a whole number above 0', async () => {

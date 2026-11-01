@@ -6,7 +6,7 @@ import { Where } from '../where/where-filter.model';
 /**
  * Options for deleting an entity by its id.
  */
-export type DeleteByIdOptions<T extends BaseEntity = BaseEntity> = BaseRepositoryOptions & Pick<WriteRelationsOptions<T>, 'relations'> & {
+export type DeleteByIdOptions<T extends BaseEntity = BaseEntity> = BaseRepositoryOptions<T> &Pick<WriteRelationsOptions<T>, 'relations'> & {
     /**
      * A condition the row has to meet as it is deleted, besides its id. A row that is there and no
      * longer meets it is not deleted, and the call fails with a `ConflictError`.

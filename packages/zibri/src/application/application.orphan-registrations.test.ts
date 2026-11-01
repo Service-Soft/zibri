@@ -230,10 +230,11 @@ describe('an application that imports the package', () => {
     });
 
     it('starts without declaring the entities of a plugin it does not use', async () => {
-        // `import ... from 'zibri'` registers MailingListController, because a decorator registers
-        // at module load. Startup then built every registered token, so the controller was
-        // constructed and asked for `Repository<MailingListSubscriber>` - a table this application
-        // has no reason to carry. The failure was `NoProviderError`, before the first request.
+        // `import ... from 'zibri'` registered the controller of the mailing list plugin, because a
+        // decorator registers at module load. Startup then built every registered token, so the
+        // controller was constructed and asked for `Repository<MailingListSubscriber>` - a table this
+        // application has no reason to carry. The failure was `NoProviderError`, before the first
+        // request. That controller is a factory now, but a shipped one with `allowOrphan` still is not
         // the harness's own defaults, deliberately: this is the shape a consumer gets, and the
         // defect below is one only a consumer could hit
         server = await startTestServer({ dataSources: [dataSourceClass] });

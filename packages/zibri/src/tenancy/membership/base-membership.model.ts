@@ -18,7 +18,7 @@ export type BaseMembership<Role extends string> = BaseEntity & {
      */
     userId: string,
     /**
-     * The roles the user holds in the tenant, which `@Auth.hasRole` checks. Each is one
+     * The roles the user holds in the tenant, whose permissions `@Auth.hasPermission` checks. Each is one
      * `ZIBRI_DI_TOKENS.ROLES_AND_PERMISSIONS` declares at the tenant level.
      */
     roles: Role[],

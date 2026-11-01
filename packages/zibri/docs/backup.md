@@ -45,6 +45,7 @@ A backup copies the data of a resource, such as a data source, to one or more tr
 | `READABLE_BACKUP_FORMAT_VERSIONS` | constant | The shapes this build restores from |
 | `ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER` | DI token | Where a backup is staged on its way to and from a transport |
 | `ZIBRI_DI_TOKENS.BACKUP_SHUTDOWN_WAIT_IN_MS` | DI token | How long the application waits for a running backup or restore when it stops. Defaults to 0 |
+| `ZIBRI_DI_TOKENS.BACKUP_STOPPING_TIMEOUT_IN_MS` | DI token | How long stopping a running backup or restore may take after that. Defaults to 30 seconds |
 
 ## The parts of the backup system
 ### One or more backup resources
@@ -204,6 +205,8 @@ The bucket has to exist. Each resource is stored as the object `<prefix>/<backup
 `addressingStyle` says where the bucket is named in a request: `virtual-hosted` puts it into the host name (`https://my-app-backups.s3.eu-central-1.amazonaws.com`), `path` into the path (`https://s3.eu-central-1.amazonaws.com/my-app-backups`). Use the one your service documents. `region` is the region of the bucket; a service without regions names the one it expects, usually `us-east-1` or `auto`.
 
 A backup is uploaded in parts of `partSize`, `16mb` by default. A backup is at most 10,000 parts, so the default allows backups of up to 156gb. For larger ones, raise `partSize`, up to `5gb`. Each part is held in memory while it is uploaded.
+
+A request the service answers with a server error or `429` is sent again, `attempts` times in all, 3 by default, when sending it again cannot change its outcome. A request that fails all of them fails the resource, which is [tried again](#creating-and-restoring-backups) as a whole. `timeoutInMs` is how long one request may take, five minutes by default.
 
 A backup that fails while it is uploaded is aborted, which removes the parts uploaded so far. When the abort itself fails, the transport logs a warning naming the upload, and its parts stay stored until you abort it or a lifecycle rule of the bucket removes it.
 
@@ -406,8 +409,9 @@ When the application stops while a backup or restore is running, it waits for it
 - A restore stops before its next resource and puts back every resource it already applied, the same
   way as when one of them fails to apply. `restore` fails with an error saying so.
 
-Stopping takes up to 30 seconds more. Choose the wait so that both fit into the time your orchestrator
-gives the process before it kills it:
+Stopping takes up to `ZIBRI_DI_TOKENS.BACKUP_STOPPING_TIMEOUT_IN_MS` more, 30 seconds by default. Raise it
+when putting back what a large restore applied takes longer. Choose both so that they fit into the time your
+orchestrator gives the process before it kills it:
 
 ```ts
 // src/providers.ts

@@ -1,6 +1,5 @@
 import { QueueEmailData } from '../../../email/models/create-email-data.model';
 import { OmitClass } from '../../../entity/omit-class.model';
-import { Route } from '../../../routing/controller-route-configuration.model';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { MailingListTemplateData } from '../models/mailing-list-base-email-template.model';
 import { MailingListSubscriber } from '../models/mailing-list-subscriber.model';
@@ -35,10 +34,6 @@ export class MailingListSubscriberCreateData extends OmitClass(MailingListSubscr
  * Interface for a mailing list service.
  */
 export interface MailingListServiceInterface {
-    /**
-     * The base route for everything regarding mailing lists.
-     */
-    readonly mailingListBaseRoute: Route,
     /**
      * Queues a new email for the mailing list with the provided id.
      */
@@ -81,17 +76,26 @@ export interface MailingListServiceInterface {
     deleteList: (listId: string) => Promise<void>,
     /**
      * Resolves the subscribe confirmation link for the list with the given id and the
-     * confirmationToken. Every link names the active tenant, through `TenantService.resolveTenantUrl`.
+     * confirmationToken, below `PAGES_URL`, or the path of the controller extending
+     * `MailingListController` when that is not set. Every link names the active tenant, through
+     * `TenantService.resolveTenantUrl`.
      */
     resolveSubscribeConfirmationLink: (listId: string, confirmationToken: string) => Promise<string>,
     /**
-     * Resolves the unsubscribe link for the list with the given id and the given subscriber. It
-     * carries the subscriber's id and secret.
+     * Resolves the link to the unsubscribe page for the list with the given id and the given
+     * subscriber, below the same url as the confirmation link. It carries the subscriber's id and secret.
      */
     resolveUnsubscribeLink: (listId: string, subscriber: MailingListSubscriber) => Promise<string>,
     /**
-     * Resolves the link to the manage preferences page for the given subscriber. It carries the
-     * subscriber's id and secret.
+     * Resolves the link a post unsubscribes with, from the list with the given id, for the given
+     * subscriber: the one-click unsubscribe of the email's headers. Always below the path of the
+     * controller extending `MailingListController`, since a mailbox provider posts to it. It carries
+     * the subscriber's id and secret.
+     */
+    resolveOneClickUnsubscribeLink: (listId: string, subscriber: MailingListSubscriber) => Promise<string>,
+    /**
+     * Resolves the link to the manage preferences page for the given subscriber, below the same url as
+     * the confirmation link. It carries the subscriber's id and secret.
      */
     resolveManagePreferencesLink: (subscriber: MailingListSubscriber) => Promise<string>,
     /**

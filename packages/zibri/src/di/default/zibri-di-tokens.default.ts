@@ -27,6 +27,7 @@ import { ScryptCost } from '../../auth/hash/strategies/scrypt.hash-strategy';
 import { Require2faProviderFactors } from '../../auth/models/require-2fa-provider-factors.model';
 import { Require2faReauth } from '../../auth/models/require-2fa-reauth.model';
 import { RouteAuthConfiguration } from '../../auth/models/route-auth-configuration.model';
+import { PasswordPolicy } from '../../auth/password-policy/password-policy.model';
 import { PermissionDeclaration } from '../../auth/roles/permission-declaration.model';
 import { type RoleServiceInterface } from '../../auth/roles/role-service.interface';
 import { RouteAuthServiceInterface } from '../../auth/route-auth-service.interface';
@@ -49,6 +50,7 @@ import { CronServiceInterface } from '../../cron/cron-service.interface';
 import { type ChainServiceInterface } from '../../data-source/chain/chain-service.interface';
 import { DataSourceServiceInterface } from '../../data-source/data-source-service.interface';
 import { RepositoryHooks } from '../../data-source/hooks/repository-hooks.model';
+import { PdfFontOptions } from '../../document/pdf-font-options.model';
 import { EmailServiceInterface } from '../../email/email-service.interface';
 import { EmailConfigInput } from '../../email/models/email-config.model';
 import { EmailTransportInterface } from '../../email/transports/email-transport.interface';
@@ -117,7 +119,7 @@ export const ZIBRI_DI_TOKENS = {
      * Off by default, and most applications should leave it off. The questions it usually gets turned
      * on for - a 404 storm, a spike of 400s, a route that got slower - are about counts and
      * distributions, and the metrics service already answers those from `http_requests_total` and
-     * `http_request_duration_ms` at a cost that does not grow with traffic.
+     * `http_request_duration_seconds` at a cost that does not grow with traffic.
      *
      * What this gives is the individual requests: which client asked for what, in what order, with
      * which agent. That is a debugging and forensics question,
@@ -131,6 +133,7 @@ export const ZIBRI_DI_TOKENS = {
     AUDIT_RETENTION_IN_MS: ziToken<RetentionInMs | undefined>('zi.audit_retention_in_ms'),
     AUDIT_MAX_REFUSALS_PER_MINUTE: ziToken<number>('zi.audit_max_refusals_per_minute'),
     AUDIT_INTEGRITY: ziToken<AuditIntegrity>('zi.audit_integrity'),
+    AUDIT_SEAL_DELAY_IN_MS: ziToken<number>('zi.audit_seal_delay_in_ms'),
     CHAIN_SERVICE: ziToken<ChainServiceInterface>('zi.chain_service'),
     METRICS_SERVICE: ziToken<MetricsServiceInterface>('zi.metrics_service'),
     ASSET_SERVICE: ziToken<AssetServiceInterface>('zi.asset_service'),
@@ -217,6 +220,10 @@ export const ZIBRI_DI_TOKENS = {
     COMPRESSION_OPTIONS: ziToken<CompressionOptions>('zi.compression_options'),
     LEASE_SERVICE: ziToken<LeaseServiceInterface>('zi.lease_service'),
     WAKE_UP_SERVICE: ziToken<WakeUpServiceInterface>('zi.wake_up_service'),
+    POLL_MAX_INTERVAL_IN_MS: ziToken<number>('zi.poll_max_interval_in_ms'),
+    METRICS_REQUEST_DURATION_BUCKETS_IN_MS: ziToken<number[]>('zi.metrics_request_duration_buckets_in_ms'),
+    METRICS_DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS: ziToken<number>('zi.metrics_data_source_collector_interval_in_ms'),
+    PDF_FONT_OPTIONS: ziToken<PdfFontOptions>('zi.pdf_font_options'),
     TENANT_SERVICE: ziToken<TenantServiceInterface>('zi.tenant_service'),
     MEMBERSHIP_SERVICE: ziToken<MembershipServiceInterface>('zi.membership_service'),
     LEASE_DRAIN_TIMEOUT_IN_MS: ziToken<number>('zi.lease_drain_timeout_in_ms'),
@@ -252,6 +259,12 @@ export const ZIBRI_DI_TOKENS = {
      * of a client or a replica that runs behind.
      */
     COOKIE_AUTH_ROW_GRACE_IN_MS: ziToken<number>('zi.cookie_auth_row_grace_in_ms'),
+    /**
+     * What a password has to be, checked whenever one is written to a property declared
+     * `password: true`. Undefined unless provided, and an application whose entities hold a password
+     * does not start without one.
+     */
+    PASSWORD_POLICY: ziToken<PasswordPolicy | undefined>('zi.password_policy'),
     PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: ziToken<number>('zi.password_reset_token_expires_in_ms'),
     CONFIRM_PASSWORD_RESET_URL: ziToken<string | undefined>('zi.confirm_password_reset_url'),
     // eslint-disable-next-line typescript/no-explicit-any
@@ -267,6 +280,7 @@ export const ZIBRI_DI_TOKENS = {
     FILE_UPLOAD_TEMP_FOLDER: ziToken<FsPath>('zi.file_upload_temp_folder'),
     BACKUP_TEMP_FOLDER: ziToken<FsPath>('zi.backup_temp_folder'),
     BACKUP_SHUTDOWN_WAIT_IN_MS: ziToken<number>('zi.backup_shutdown_wait_in_ms'),
+    BACKUP_STOPPING_TIMEOUT_IN_MS: ziToken<number>('zi.backup_stopping_timeout_in_ms'),
     BACKUP_MAX_ATTEMPTS: ziToken<number>('zi.backup_max_attempts'),
     BACKUP_RETRY_DELAY_IN_MS: ziToken<number>('zi.backup_retry_delay_in_ms'),
     // undefined for an application that keeps every backup until it deletes one itself
@@ -274,6 +288,7 @@ export const ZIBRI_DI_TOKENS = {
     VERSIONS_PATH: ziToken<FsPath>('zi.versions_path'),
     TRANSLATIONS_PATH: ziToken<FsPath>('zi.translations_path'),
     ASSETS_PATH: ziToken<FsPath>('zi.assets_path'),
+    PUBLIC_ASSETS_MAX_AGE_IN_MS: ziToken<number>('zi.public_assets_max_age_in_ms'),
     FORM_DATA_LIMITS: ziToken<FormDataLimits>('zi.form_data_limits'),
     EMAIL_SERVICE: ziToken<EmailServiceInterface>('zi.email_service'),
     SMS_SERVICE: ziToken<SmsServiceInterface | undefined>('zi.sms_service'),
@@ -299,6 +314,8 @@ export const ZIBRI_DI_TOKENS = {
     EVENT_SUBSCRIBER_REGISTRATION_TTL_IN_MS: ziToken<number>('zi.event_subscriber_registration_ttl_in_ms'),
     EVENT_RETRY_DELAY_IN_MS: ziToken<number>('zi.event_retry_delay_in_ms'),
     EVENT_MAX_CONCURRENT_HOOKS: ziToken<number>('zi.event_max_concurrent_hooks'),
+    EVENT_HOOK_TIMEOUT_IN_MS: ziToken<number>('zi.event_hook_timeout_in_ms'),
+    EVENT_FINISHED_RETENTION_IN_MS: ziToken<number>('zi.event_finished_retention_in_ms'),
     FRAMEWORK_EVENT_NAMES: ziToken<FrameworkEventNames>('zi.framework_event_names'),
     // undefined for an application that provides none, which the event service refuses to start
     EVENT_FAILED_RETENTION_IN_MS: ziToken<RetentionInMs | undefined>('zi.event_failed_retention_in_ms'),

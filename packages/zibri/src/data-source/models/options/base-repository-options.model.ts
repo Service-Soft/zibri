@@ -1,14 +1,15 @@
+import { type BaseEntity } from '../../../entity/base-entity.model';
 import { type Unscoped } from '../../../entity/models/entity-scope.model';
-import { Transaction } from '../../transaction/transaction.model';
+import { type RepositoryTransaction } from '../../transaction/repository-transaction.type';
 
 /**
  * Base options that are shared by all repository methods.
  */
-export type BaseRepositoryOptions = {
+export type BaseRepositoryOptions<T extends BaseEntity = BaseEntity> = {
     /**
-     * A transaction to use.
+     * A transaction to use: one of the repository's data source, or a `SpanningTransaction`.
      */
-    transaction?: Transaction,
+    transaction?: RepositoryTransaction<T>,
     /**
      * Which of the entity's scopes this call is exempt from.
      *

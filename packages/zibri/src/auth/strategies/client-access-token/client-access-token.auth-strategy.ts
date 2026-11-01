@@ -179,8 +179,9 @@ export class ClientAccessTokenAuthStrategy<
             ...grant.tenantId == undefined ? {} : { tenant_id: grant.tenantId },
             ...isJwtConfirmation(confirmation) ? { cnf: confirmation } : {}
         };
-        const value: string = await this.jwtService.signAccessToken(payload, grant.audience);
-        return { value, expiresInMs: this.jwtService.accessTokenExpiresInMs };
+        const expiresInMs: number = grant.expiresInMs ?? this.jwtService.accessTokenExpiresInMs;
+        const value: string = await this.jwtService.signAccessToken(payload, grant.audience, expiresInMs);
+        return { value, expiresInMs };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

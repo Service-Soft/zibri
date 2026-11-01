@@ -77,18 +77,29 @@ export class StartedTestServer {
 
     /**
      * Starts listening on a port the operating system picks.
+     * @param host - The address to listen on. Every address of the machine when undefined.
      * @returns The base url the server is reachable at.
      */
-    async start(): Promise<string> {
-        await this.app.start(0);
+    async start(host?: string): Promise<string> {
+        await this.app.start(0, host);
+        const address: AddressInfo = this.resolveListeningAddress();
+        const urlHost: string = address.address === '::' || address.address === '0.0.0.0'
+            ? '127.0.0.1'
+            : address.address;
+        return `http://${urlHost}:${address.port}`;
+    }
+
+    /**
+     * The address and port the started server listens on, as the operating system reports them.
+     * @returns The address.
+     * @throws When the server is not listening on a port.
+     */
+    resolveListeningAddress(): AddressInfo {
         const address: string | AddressInfo | null = this.app.server.address();
         if (address == undefined || typeof address === 'string') {
             throw new Error('Failed to resolve test server port.');
         }
-        const host: string = address.address === '::' || address.address === '0.0.0.0'
-            ? '127.0.0.1'
-            : address.address;
-        return `http://${host}:${address.port}`;
+        return address;
     }
 
     /**

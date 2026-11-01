@@ -28,7 +28,7 @@ Then extend `BaseScimProvisioner`:
 
 ```ts
 // src/auth/company.scim-provisioner.ts
-import { BaseScimProvisioner, inject, Repository, repositoryTokenFor, ScimGroupResource, ScimUserResource, Transaction } from 'zibri';
+import { BaseScimProvisioner, inject, Repository, repositoryTokenFor, RepositoryTransaction, ScimGroupResource, ScimUserResource } from 'zibri';
 
 import { Membership } from '../models/membership.model';
 import { MemberRoles } from '../models/member-roles.enum';
@@ -43,26 +43,26 @@ export class CompanyScimProvisioner extends BaseScimProvisioner<User, Membership
         return inject(repositoryTokenFor(Membership));
     }
 
-    async findProvisionedUser(resource: ScimUserResource, transaction: Transaction): Promise<User | undefined> {
+    async findProvisionedUser(resource: ScimUserResource, transaction: RepositoryTransaction): Promise<User | undefined> {
         return await this.users.findOne({ where: { email: resource.userName.toLowerCase() }, transaction, required: false });
     }
 
-    async createProvisionedUser(resource: ScimUserResource, transaction: Transaction): Promise<User> {
+    async createProvisionedUser(resource: ScimUserResource, transaction: RepositoryTransaction): Promise<User> {
         return await this.users.create({ email: resource.userName.toLowerCase(), roles: [] }, { transaction });
     }
 
-    async resolveUpdatedUser(resource: ScimUserResource, user: User, transaction: Transaction): Promise<void> {
+    async resolveUpdatedUser(resource: ScimUserResource, user: User, transaction: RepositoryTransaction): Promise<void> {
         await this.users.updateById(user.id, { email: resource.userName.toLowerCase() }, { transaction });
     }
 
-    async resolveGroupMembership(membership: Membership, groups: ScimGroupResource[], transaction: Transaction): Promise<void> {
+    async resolveGroupMembership(membership: Membership, groups: ScimGroupResource[], transaction: RepositoryTransaction): Promise<void> {
         const roles: MemberRoles[] = groups.some(group => group.displayName === 'App Admins')
             ? [MemberRoles.USER, MemberRoles.ADMIN]
             : [MemberRoles.USER];
         await this.memberships.updateById(membership.id, { roles }, { transaction });
     }
 
-    async resolveDeletedUser(user: User, transaction: Transaction): Promise<void> {
+    async resolveDeletedUser(user: User, transaction: RepositoryTransaction): Promise<void> {
         await this.users.deleteById(user.id, { transaction });
     }
 }

@@ -30,6 +30,8 @@ import { InvoicingOptions } from '../../../models/invoicing-options.model';
 import { NumberInvoices } from '../../../models/number-invoices.model';
 
 const baseInvoicingOptions: InvoicingOptions = {
+    pageSize: 'A4',
+    font: 'Roboto',
     footerFontSize: 10,
     images: undefined,
     phoneLabel: 'Phone',

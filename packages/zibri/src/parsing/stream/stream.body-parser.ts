@@ -1,5 +1,7 @@
 import { Readable, Transform } from 'node:stream';
 
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
 import { ContentTooLargeError } from '../../error-handling/errors/content-too-large.error';
 import { UnsupportedMediaTypeError } from '../../error-handling/errors/unsupported-media-type.error';
 import { InternalError } from '../../error-handling/internal-error.model';
@@ -8,6 +10,7 @@ import { KnownHeader } from '../../http/known-header.enum';
 import { MimeType } from '../../http/mime-type.enum';
 import { HttpClientResponse } from '../../http-client/http-client-response.model';
 import { StreamBodyMetadata } from '../../routing/decorators/body-metadata.model';
+import { resolveMaxBodySize } from '../../routing/decorators/body.decorator';
 import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
 import { BodyParserInterface } from '../body-parser.interface';
 import { BodyParser } from '../decorators/body-parser.decorator';
@@ -22,11 +25,12 @@ export class StreamBodyParser implements BodyParserInterface<MimeType.OCTET_STRE
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     parseFromHttpRequest(req: HttpRequest, bodyMetadata: StreamBodyMetadata): unknown {
+        const maxSize: BigNumber = resolveMaxBodySize(bodyMetadata, inject(ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS).maxBodySizes);
         const contentLength: string | undefined = req.headers[KnownHeader.CONTENT_LENGTH];
-        if (contentLength && NumberUtilities.new(Number(contentLength)).isGreaterThan(bodyMetadata.maxSize)) {
+        if (contentLength && NumberUtilities.new(Number(contentLength)).isGreaterThan(maxSize)) {
             throw new ContentTooLargeError();
         }
-        return this.limitStream(req, bodyMetadata.maxSize);
+        return this.limitStream(req, maxSize);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -42,15 +46,16 @@ export class StreamBodyParser implements BodyParserInterface<MimeType.OCTET_STRE
         if (!(res.rawBody instanceof Readable)) {
             throw new InternalError('Expected response body to be a stream');
         }
+        const maxSize: BigNumber = resolveMaxBodySize(bodyMetadata, inject(ZIBRI_DI_TOKENS.HTTP_CLIENT_OPTIONS).maxBodySizes);
         const contentLength: string | undefined = res.headers[KnownHeader.CONTENT_LENGTH];
-        if (contentLength && NumberUtilities.new(Number(contentLength)).isGreaterThan(bodyMetadata.maxSize)) {
+        if (contentLength && NumberUtilities.new(Number(contentLength)).isGreaterThan(maxSize)) {
             throw new ContentTooLargeError();
         }
 
-        return this.limitStream(res.rawBody, bodyMetadata.maxSize);
+        return this.limitStream(res.rawBody, maxSize);
     }
 
-    private limitStream(stream: Readable, maxSize: StreamBodyMetadata['maxSize']): Readable {
+    private limitStream(stream: Readable, maxSize: BigNumber): Readable {
         let received: BigNumber = NumberUtilities.new(0);
 
         const limitedStream: Transform = new Transform({

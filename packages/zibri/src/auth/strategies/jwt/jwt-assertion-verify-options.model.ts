@@ -9,5 +9,9 @@ export type JwtAssertionVerifyOptions = {
     /**
      * Who it must be for, one of its `aud`: the token endpoint, or the issuer of the authorization server.
      */
-    audiences: string[]
+    audiences: string[],
+    /**
+     * How far the clocks of the client and the application may be apart, for `exp`, `nbf` and `iat`.
+     */
+    clockToleranceInMs: number
 };

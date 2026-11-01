@@ -18,24 +18,30 @@ import { JsonUtilities } from '../../../utilities/json.utilities';
 import { ScryptCost } from '../../hash/strategies/scrypt.hash-strategy';
 
 /**
- * How long a login with a wrong password takes, the quickest of a few.
+ * How long a login with a wrong password takes for each address, the quickest of a few.
+ *
+ * The addresses take turns rather than one after the other, so a machine that gets busier or quieter
+ * meanwhile slows all of them alike - timed in blocks, a busy suite running alongside made the
+ * first block look slower than the second.
  * @param baseUrl - Where the server is reachable.
- * @param email - The address to log in with.
- * @returns The duration in milliseconds.
+ * @param emails - The addresses to log in with.
+ * @returns The duration of each, in milliseconds, in the order of the addresses.
  */
-async function resolveLoginDurationInMs(baseUrl: string, email: string): Promise<number> {
-    const durations: number[] = [];
+async function resolveLoginDurationsInMs(baseUrl: string, emails: string[]): Promise<number[]> {
+    const durations: number[][] = emails.map(() => []);
     for (let attempt: number = 0; attempt < 3; attempt++) {
-        const started: number = performance.now();
-        const res: Response = await fetch(`${baseUrl}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JsonUtilities.stringify({ email, password: 'wrong-password' })
-        });
-        expect(res.status).toBe(401);
-        durations.push(performance.now() - started);
+        for (const [index, email] of emails.entries()) {
+            const started: number = performance.now();
+            const res: Response = await fetch(`${baseUrl}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JsonUtilities.stringify({ email, password: 'wrong-password' })
+            });
+            expect(res.status).toBe(401);
+            durations[index]?.push(performance.now() - started);
+        }
     }
-    return Math.min(...durations);
+    return durations.map(d => Math.min(...d));
 }
 
 // a hash keeps the cost it was made at, so after the cost is raised a user who has not logged in
@@ -64,8 +70,7 @@ describe('PasswordAuthenticator — the time a refused login takes', () => {
     }, TestTimeouts.inMemory.shutdown);
 
     it('takes as long for a user whose hash costs less than for an address nobody has', async () => {
-        const unknown: number = await resolveLoginDurationInMs(baseUrl, 'nobody@example.com');
-        const dormant: number = await resolveLoginDurationInMs(baseUrl, 'dormant@example.com');
+        const [unknown = 0, dormant = 0] = await resolveLoginDurationsInMs(baseUrl, ['nobody@example.com', 'dormant@example.com']);
 
         expect(dormant).toBeGreaterThan(unknown * 0.7);
     }, TestTimeouts.inMemory.start);

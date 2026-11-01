@@ -41,7 +41,7 @@ import { Where, WhereFilter } from '../models/where/where-filter.model';
 import { Repository, WrittenUpdate } from '../repository/repository';
 import { ScopedWhere } from '../scopes/scope-where.utilities';
 import { TenantUtilities } from '../tenancy/tenant.utilities';
-import { Transaction } from '../transaction/transaction.model';
+import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
 import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
 import { WriteDataUtilities } from '../write-data.utilities';
 
@@ -216,7 +216,7 @@ export class ChangeSetRepository<
      * @param transaction - The transaction of the upsert.
      * @returns For each identity, the row holding it, or undefined when none does yet.
      */
-    private async findOriginals(keys: string[], identities: object[], transaction: Transaction): Promise<(T | undefined)[]> {
+    private async findOriginals(keys: string[], identities: object[], transaction: RepositoryTransaction<T>): Promise<(T | undefined)[]> {
         const resolveValues: (row: object) => string = row => UpsertIdentityUtilities.resolveValues(keys, row);
         const where: WhereFilter<T>[] = identities.map(identity => Object.fromEntries(
             keys.map(key => [key, Reflect.get(identity, key)])
@@ -284,7 +284,7 @@ export class ChangeSetRepository<
 
     protected override async updateEach(
         rows: UpdateData[],
-        options?: BaseRepositoryOptions,
+        options?: BaseRepositoryOptions<T>,
         where?: Where<T>
     ): Promise<WrittenUpdate<T>[]> {
         if (!rows.length) {
@@ -293,7 +293,7 @@ export class ChangeSetRepository<
         // the before state of every row, read once, and their change sets written together - in the
         // transaction of the write, for the reason updateAll takes one
         return await this.inTransaction(options, async transaction => {
-            const inTransaction: BaseRepositoryOptions = { ...options, transaction };
+            const inTransaction: BaseRepositoryOptions<T> ={ ...options, transaction };
             const original: T[] = await this.findAll({
                 ...inTransaction,
                 where: { id: { oneOf: rows.map(r => r.id) } } as Where<T>,
@@ -314,7 +314,7 @@ export class ChangeSetRepository<
 
     protected override async removeRows(
         ids: string[],
-        options: BaseRepositoryOptions | undefined,
+        options: BaseRepositoryOptions<T> | undefined,
         reach?: RemovalReach<T>
     ): Promise<number> {
         if (!ids.length) {
@@ -383,7 +383,7 @@ export class ChangeSetRepository<
         changeSetId: string,
         createChangeSet: boolean = true,
         preserveCreateChangeSet: boolean = true,
-        options?: BaseRepositoryOptions
+        options?: BaseRepositoryOptions<T>
     ): Promise<ResetChangeSetResult<T>> {
         // three writes - the row, the change set recording the reset, and the deletion of the change
         // set being undone - so all the more reason for them to land together. A reset that wrote the
@@ -391,7 +391,7 @@ export class ChangeSetRepository<
         // undone a second time
         const name: string = 'resetSingleChangeSet';
         return await this.withinTimeout(options, name, async () => await this.inTransaction(options, async transaction => {
-            const inTransaction: BaseRepositoryOptions = { ...options, transaction };
+            const inTransaction: BaseRepositoryOptions<T> ={ ...options, transaction };
             const changeSet: ChangeSet = await this.changeSetRepository.findById(
                 changeSetId,
                 { relations: ['changes'], ...inTransaction }
@@ -421,7 +421,7 @@ export class ChangeSetRepository<
                 await this.createChangeSet(entity, written, ChangeSetType.RESET, inTransaction);
             }
             if (!preserveCreateChangeSet || changeSet.type !== ChangeSetType.CREATE) {
-                await this.changeSetRepository.deleteById(changeSet.id, inTransaction);
+                await this.changeSetRepository.deleteById(changeSet.id, { ...inTransaction });
             }
             // the written change rather than the one assembled from the stored values, so a caller
             // aggregating several resets - the method below does - aggregates what landed
@@ -446,7 +446,7 @@ export class ChangeSetRepository<
         changeSetId: string,
         createChangeSet: boolean = true,
         preserveCreateChangeSet: boolean = true,
-        options?: BaseRepositoryOptions
+        options?: BaseRepositoryOptions<T>
     ): Promise<ResetChangeSetResult<T>> {
         return await this.withinTimeout(options, 'resetSingleChangeSetById', async () => {
             const entity: T = await this.findById(id, options);
@@ -472,10 +472,10 @@ export class ChangeSetRepository<
         changeSetId: string,
         createChangeSet: boolean = true,
         preserveCreateChangeSet: boolean = true,
-        options?: BaseRepositoryOptions
+        options?: BaseRepositoryOptions<T>
     ): Promise<T> {
         return await this.withinTimeout(options, 'rollbackToChangeSet', async () => {
-            const changeSet: ChangeSet = await this.changeSetRepository.findById(changeSetId, options);
+            const changeSet: ChangeSet = await this.changeSetRepository.findById(changeSetId, { ...options });
             // the change set only lends its timestamp, so another row's would roll this one back to a
             // moment of that row's history - checked here, as resetting a single change set checks it
             if (changeSet.changeSetEntityId !== entity.id) {
@@ -505,7 +505,7 @@ export class ChangeSetRepository<
         changeSetId: string,
         createChangeSet: boolean = true,
         preserveCreateChangeSet: boolean = true,
-        options?: BaseRepositoryOptions
+        options?: BaseRepositoryOptions<T>
     ): Promise<T> {
         return await this.withinTimeout(options, 'rollbackToChangeSetById', async () => {
             // read in the caller's transaction, like the change set: a row written in it is not there
@@ -532,13 +532,13 @@ export class ChangeSetRepository<
         timestampInNs: bigint,
         createChangeSet: boolean = true,
         preserveCreateChangeSet: boolean = true,
-        options?: BaseRepositoryOptions
+        options?: BaseRepositoryOptions<T>
     ): Promise<T> {
         // one transaction over every reset this walks through, so a rollback that fails partway does
         // not leave the row at a state it was never in - between two of the change sets it is
         // undoing, which is not a state anything recorded
         return await this.withinTimeout(options, 'rollbackToTimestamp', async () => await this.inTransaction(options, async transaction => {
-            const inTransaction: BaseRepositoryOptions = { ...options, transaction };
+            const inTransaction: BaseRepositoryOptions<T> ={ ...options, transaction };
             const changeSets: ChangeSet[] = await this.changeSetRepository.findAll({
                 // every change since the timestamp, because a rollback that skipped some would land
                 // the row somewhere it never was
@@ -582,7 +582,7 @@ export class ChangeSetRepository<
         timestampInNs: bigint,
         createChangeSet: boolean = true,
         preserveCreateChangeSet: boolean = true,
-        options?: BaseRepositoryOptions
+        options?: BaseRepositoryOptions<T>
     ): Promise<T> {
         return await this.withinTimeout(options, 'rollbackToTimestampById', async () => {
             const entity: T = await this.findById(id, options);
@@ -607,14 +607,14 @@ export class ChangeSetRepository<
         where?: Where<T>,
         createChangeSet: boolean = true,
         preserveCreateChangeSet: boolean = true,
-        options?: BaseRepositoryOptions
+        options?: BaseRepositoryOptions<T>
     ): Promise<number> {
         // one transaction over all of them, for the same reason the singular version takes one over
         // its own resets: rolling back half the rows the filter matched is not a rollback of that
         // filter, and nothing afterwards says which half it got to
         const name: string = 'rollbackAllToTimestamp';
         return await this.withinTimeout(options, name, async () => await this.inTransaction(options, async transaction => {
-            const inTransaction: BaseRepositoryOptions = { ...options, transaction };
+            const inTransaction: BaseRepositoryOptions<T> ={ ...options, transaction };
             // a rollback covers everything the filter matches or it is not a rollback of that filter -
             // of the rows it may change, which inside a tenant leaves out the ones of no tenant
             const reach: ScopedWhere<T> = this.resolveWriteWhere(where, inTransaction);
@@ -644,7 +644,7 @@ export class ChangeSetRepository<
         entityPriorChanges: T,
         data: CreateData | UpdateData | DeepPartial<T>,
         type: ChangeSetType,
-        options?: BaseRepositoryOptions,
+        options?: BaseRepositoryOptions<T>,
         force: boolean = false
     ): Promise<void> {
         restoreExcludeProperties(entityPriorChanges, this.entityClass);
@@ -697,7 +697,7 @@ export class ChangeSetRepository<
         entitiesPriorChanges: T[],
         data: (CreateData | UpdateData | DeepPartial<T>)[],
         type: ChangeSetType,
-        options?: BaseRepositoryOptions,
+        options?: BaseRepositoryOptions<T>,
         force: boolean = false
     ): Promise<void> {
         const userId: string | undefined = await this.resolveCreatedBy();

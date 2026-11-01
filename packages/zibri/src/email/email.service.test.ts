@@ -7,6 +7,7 @@ import { EmailPriority } from './models/email-priority.enum';
 import { EmailStatus } from './models/email-status.enum';
 import { Email } from './models/email.model';
 import { TestTimeouts } from '../__testing__/constants';
+import { missingEntityPattern } from '../__testing__/missing-entity-pattern.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -62,7 +63,7 @@ function makeQueueData(overrides: Partial<QueueEmailData> = {}): QueueEmailData 
 // suite rather than for the whole file, so it is not already running when this boots
 describe('EmailService — starting', () => {
     it('refuses to start without Email, and names it', async () => {
-        await expect(startAndStopTestServerWithout([Email])).rejects.toThrow(/Error initializing EmailService[\S\s]*Email/);
+        await expect(startAndStopTestServerWithout([Email])).rejects.toThrow(missingEntityPattern('Email', 'EmailService'));
     }, TestTimeouts.inMemory.start);
 });
 

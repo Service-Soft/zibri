@@ -1,6 +1,6 @@
 import { BaseMembership } from './base-membership.model';
 import { MEMBERSHIP_REPOSITORY } from '../../data-source/repository/repository-kind.model';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 
 // methods rather than properties holding functions, for the reason UserRepositoryInterface gives
 /* eslint-disable typescript/method-signature-style */
@@ -17,7 +17,7 @@ export interface MembershipRepositoryInterface<RoleType extends string, Membersh
      * Finds the membership of a user in a tenant, deactivated or not, inside the transaction when one
      * is given. Called while that tenant is active.
      */
-    findMembership(userId: string, tenantId: string, transaction?: Transaction): Promise<MembershipType | undefined>,
+    findMembership(userId: string, tenantId: string, transaction?: RepositoryTransaction): Promise<MembershipType | undefined>,
     /**
      * Finds the memberships of a user in every tenant, deactivated or not. A repository reading them
      * from a data source reaches across tenants, eg. With `acrossTenants`.
@@ -27,25 +27,25 @@ export interface MembershipRepositoryInterface<RoleType extends string, Membersh
      * Answers the membership of a user in the active tenant, deactivated or not, and creates one
      * without roles when they have none.
      */
-    resolveMembership(userId: string, transaction: Transaction | undefined): Promise<MembershipType>,
+    resolveMembership(userId: string, transaction: RepositoryTransaction | undefined): Promise<MembershipType>,
     /**
      * Sets when the membership of a user in the active tenant was deactivated, or null to reactivate
      * it.
      */
-    updateDeactivatedAt(userId: string, deactivatedAt: Date | null, transaction: Transaction | undefined): Promise<void>,
+    updateDeactivatedAt(userId: string, deactivatedAt: Date | null, transaction: RepositoryTransaction | undefined): Promise<void>,
     /**
      * Deletes the membership of a user in the active tenant, if they have one.
      */
-    deleteMembership(userId: string, transaction: Transaction | undefined): Promise<void>,
+    deleteMembership(userId: string, transaction: RepositoryTransaction | undefined): Promise<void>,
     /**
      * Stores the roles of the membership of a user in the active tenant.
      */
-    updateRoles(userId: string, roles: string[], transaction: Transaction | undefined): Promise<void>,
+    updateRoles(userId: string, roles: string[], transaction: RepositoryTransaction | undefined): Promise<void>,
     /**
      * Deletes every membership of the given users, in every tenant. Called in the transaction that
      * deletes the users.
      */
-    deleteMemberships(userIds: string[], transaction: Transaction): Promise<void>
+    deleteMemberships(userIds: string[], transaction: RepositoryTransaction): Promise<void>
 }
 /* eslint-enable typescript/method-signature-style */
 

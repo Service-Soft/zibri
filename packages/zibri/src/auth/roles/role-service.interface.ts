@@ -5,7 +5,7 @@ import { RoleCreateData } from './role-create-data.model';
 import { RoleIdentity } from './role-identity.model';
 import { RoleUpdateData } from './role-update-data.model';
 import { WrittenRole } from './written-role.model';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { type CurrentUser } from '../decorators/current-user.decorator';
 
 /**
@@ -45,13 +45,13 @@ export interface RoleServiceInterface {
      * membership, with the transaction of the write, which a role it created exists in.
      * @throws A BadRequestError when a role does not exist in the tenant, or is a platform role.
      */
-    validateRoles: (roles: string[], tenantId: string, transaction: Transaction | undefined) => Promise<void>,
+    validateRoles: (roles: string[], tenantId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Refuses roles a user cannot hold. Called for every write of the roles of a user, with the
      * transaction of the write, which a role it created exists in.
      * @throws A BadRequestError when a role does not exist, or is a tenant role.
      */
-    validatePlatformRoles: (roles: string[], transaction: Transaction | undefined) => Promise<void>,
+    validatePlatformRoles: (roles: string[], transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Refuses role rows that cannot be written: a level that is none, or a permission that is not
      * declared at the role's level. Called for every write of a role.
@@ -64,7 +64,7 @@ export interface RoleServiceInterface {
      * write creating a role, or changing its name, level or tenant.
      * @throws A BadRequestError naming the first role refused.
      */
-    validateWrittenRoles: (roles: WrittenRole[], transaction: Transaction | undefined) => Promise<void>,
+    validateWrittenRoles: (roles: WrittenRole[], transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Refuses deleting, renaming or moving roles somebody holds: a role every tenant shares held
      * anywhere, a tenant's own role held in that tenant. Called for every such write.
@@ -81,11 +81,11 @@ export interface RoleServiceInterface {
      * Finds every role the active tenant sees, ordered by name: those every tenant shares, and the
      * tenant's own. Outside every tenant, those every tenant shares.
      */
-    findRoles: <T extends BaseRole>(transaction?: Transaction) => Promise<T[]>,
+    findRoles: <T extends BaseRole>(transaction?: RepositoryTransaction) => Promise<T[]>,
     /**
      * Finds a role the active tenant sees by its name, the way `findRoles` does.
      */
-    findRole: <T extends BaseRole>(name: string, transaction?: Transaction) => Promise<T | undefined>,
+    findRole: <T extends BaseRole>(name: string, transaction?: RepositoryTransaction) => Promise<T | undefined>,
     /**
      * Creates a role. One every tenant shares needs `auth.create_role` for a tenant role or
      * `auth.create_platform_role` for a platform role as a platform permission. One of a tenant's
@@ -95,7 +95,7 @@ export interface RoleServiceInterface {
      * @throws A ForbiddenError when the caller may not, or names another tenant than the one the
      * request acts in, a BadRequestError when the role cannot exist.
      */
-    createRole: <T extends BaseRole>(caller: CurrentUser, data: RoleCreateData<T>, transaction: Transaction | undefined) => Promise<T>,
+    createRole: <T extends BaseRole>(caller: CurrentUser, data: RoleCreateData<T>, transaction: RepositoryTransaction | undefined) => Promise<T>,
     /**
      * Changes a role, but not its name, level or tenant. The caller needs `auth.update_role`,
      * `auth.update_platform_role` or `auth.update_tenant_role`, checked as for creating it, against
@@ -106,7 +106,7 @@ export interface RoleServiceInterface {
         caller: CurrentUser,
         name: string,
         data: RoleUpdateData<T>,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ) => Promise<T>,
     /**
      * Deletes a role nobody holds. The caller needs `auth.delete_role`, `auth.delete_platform_role`
@@ -114,7 +114,7 @@ export interface RoleServiceInterface {
      * @throws A ForbiddenError when the caller may not, a NotFoundError when there is no such role, a
      * BadRequestError while somebody holds it.
      */
-    deleteRole: (caller: CurrentUser, name: string, transaction: Transaction | undefined) => Promise<void>,
+    deleteRole: (caller: CurrentUser, name: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Gives a user a role: a platform role to the user, a tenant role to their membership in the
      * tenant the request acts in. The caller needs `auth.assign_platform_role` as a platform
@@ -123,11 +123,11 @@ export interface RoleServiceInterface {
      * @throws A ForbiddenError when the caller may not, a NotFoundError when there is no such role,
      * user or membership, a BadRequestError for a tenant role while no tenant is active.
      */
-    assignRole: (caller: CurrentUser, userId: string, role: string, transaction: Transaction | undefined) => Promise<void>,
+    assignRole: (caller: CurrentUser, userId: string, role: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Takes a role from a user, the way `assignRole` gives it. The caller needs
      * `auth.unassign_platform_role` or `auth.unassign_role`, checked the same way.
      * @throws Like `assignRole`.
      */
-    unassignRole: (caller: CurrentUser, userId: string, role: string, transaction: Transaction | undefined) => Promise<void>
+    unassignRole: (caller: CurrentUser, userId: string, role: string, transaction: RepositoryTransaction | undefined) => Promise<void>
 }

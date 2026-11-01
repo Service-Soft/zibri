@@ -5,6 +5,7 @@ import type { Systeminformation } from 'systeminformation';
 
 import { CollectMetricsCronJob } from './collect-metrics.cron-job';
 import { CounterInterface } from './counter.interface';
+import { DurationHistogram } from './duration-histogram.model';
 import { GaugeInterface } from './gauge.interface';
 import { HistogramInterface } from './histogram.interface';
 import { MetricType } from './metric-type.enum';
@@ -119,6 +120,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
     private readonly metricSnapshots: MetricsSnapshot[] = [];
     private readonly collectors: RegisteredCollector[] = [];
     private readonly runtimeMetrics: RuntimeMetrics;
+    private readonly requestDuration: DurationHistogram;
 
     // eslint-disable-next-line sonar/no-duplicate-string
     private get promClient(): typeof import('@prometheus-io/client') {
@@ -131,7 +133,11 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.ASSET_SERVICE)
-        private readonly assetService: AssetServiceInterface
+        private readonly assetService: AssetServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.METRICS_REQUEST_DURATION_BUCKETS_IN_MS)
+        requestDurationBucketsInMs: number[],
+        @Inject(ZIBRI_DI_TOKENS.METRICS_DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS)
+        private readonly dataSourceCollectorIntervalInMs: number
     ) {
         this.registry = new this.promClient.Registry();
         // the client's default metrics one by one rather than through collectDefaultMetrics, which also
@@ -145,9 +151,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
         this.runtimeMetrics = new RuntimeMetrics(this.promClient, this.registry, 10);
 
         this.getCounter('http_requests_total', ['method', 'route', 'status_code']);
-        this.getHistogram(
-            'http_request_duration_ms', ['method', 'route', 'status_code'], [50, 100, 200, 500, 1000, 2000, 5000]
-        );
+        this.requestDuration = DurationHistogram.resolve(this, 'http_request_duration_seconds', ['method', 'route', 'status_code'], requestDurationBucketsInMs);
         this.getGauge('process_cpu_count').set({ }, os.availableParallelism());
     }
 
@@ -193,7 +197,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
 
         this.getCounter('http_requests_total').increase({ method, route, status_code: statusCode });
 
-        this.getHistogram('http_request_duration_ms').observe({ method, route, status_code: statusCode }, durationInMs);
+        this.requestDuration.observe({ method, route, status_code: statusCode }, durationInMs);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -240,7 +244,8 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
     private async runCollectors(): Promise<void> {
         const now: number = Date.now();
         await Promise.all(this.collectors
-            .filter(c => c.lastRunAtMs == undefined || now - c.lastRunAtMs >= c.minIntervalInMs)
+            .filter(c => c.lastRunAtMs == undefined
+                || now - c.lastRunAtMs >= (c.minIntervalInMs === 'dataSource' ? this.dataSourceCollectorIntervalInMs : c.minIntervalInMs))
             .map(async c => {
                 // taken before the run, so a read arriving while it runs does not start a second one
                 c.lastRunAtMs = now;

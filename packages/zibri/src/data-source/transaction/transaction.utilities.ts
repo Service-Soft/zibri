@@ -3,6 +3,10 @@ import { TransactionConflictError } from './transaction-conflict.error';
 import { Transaction } from './transaction.model';
 import { AlsUtilities } from '../../context/als.utilities';
 import { InternalError } from '../../error-handling/internal-error.model';
+import { type RepositoryTransaction } from './repository-transaction.type';
+import { type BaseEntity } from '../../entity/base-entity.model';
+import { Newable } from '../../types/newable.type';
+import { ChainUtilities } from '../chain/chain.utilities';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { BaseRepositoryOptions } from '../models/options/base-repository-options.model';
 
@@ -18,11 +22,46 @@ export abstract class TransactionUtilities {
      * @param options - The options the write was called with.
      * @returns The transaction to hand to the driver, if any.
      */
-    static resolveWriteTransaction(options?: BaseRepositoryOptions): Transaction | undefined {
+    static resolveWriteTransaction<T extends BaseEntity>(options?: BaseRepositoryOptions<T>): RepositoryTransaction<T> | undefined {
         if (options?.transaction != undefined) {
             AlsUtilities.recordTransactionInLeaseScope(options.transaction);
         }
         return options?.transaction;
+    }
+
+    /**
+     * Refuses a spanning transaction where only a transaction of one data source is taken.
+     * @param transaction - The transaction.
+     * @param reason - Why it is refused, which the error leads with.
+     * @throws When it is a spanning transaction.
+     */
+    static validateNotSpanning(
+        transaction: RepositoryTransaction | undefined,
+        reason: string
+    ): asserts transaction is Transaction | undefined {
+        if (transaction?.spansDataSources === true) {
+            throw new InternalError(`${reason}, so it takes no spanning transaction.`);
+        }
+    }
+
+    /**
+     * Resolves a transaction handed on from the write of one entity as the transaction a repository
+     * of another entity takes.
+     * @param transaction - The transaction.
+     * @param entityClass - The entity it is handed to.
+     * @returns The same transaction.
+     * @throws When it is a spanning transaction and the entity is chained.
+     */
+    static resolveRepositoryTransaction<T extends BaseEntity>(
+        transaction: RepositoryTransaction | undefined,
+        entityClass: Newable<T>
+    ): RepositoryTransaction<T> | undefined {
+        if (ChainUtilities.isChained(entityClass)) {
+            this.validateNotSpanning(transaction, `${entityClass.name} is chained, and a row of a chain cannot be restored`);
+        }
+        // checked above, which is what the conditional type cannot see for an entity it does not know:
+        // only a chained one takes nothing but a transaction of its data source
+        return transaction as RepositoryTransaction<T> | undefined;
     }
 
     /**

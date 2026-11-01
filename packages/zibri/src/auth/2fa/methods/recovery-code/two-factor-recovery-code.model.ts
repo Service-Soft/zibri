@@ -23,7 +23,7 @@ export class TwoFactorRecoveryCode extends BaseEntity {
      * there is nothing to guess, and it arrives on its own. A database read yields nothing that can be
      * presented back to the api.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     code!: HashString;
 
     /**
@@ -41,6 +41,6 @@ export class TwoFactorRecoveryCodeCreateData extends OmitClass(TwoFactorRecovery
     /**
      * The code as it is generated and shown to the user, before the hook hashes it.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     code!: string;
 }

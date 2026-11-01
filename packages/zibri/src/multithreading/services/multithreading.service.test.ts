@@ -7,6 +7,7 @@ import { MultithreadingServiceInterface } from './multithreading-service.interfa
 import { MultithreadingService, PersistedFunctionJobError } from './multithreading.service';
 import { ThreadJobWorker } from './thread-job-worker';
 import { TestTimeouts } from '../../__testing__/constants';
+import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -88,7 +89,7 @@ describe('MultithreadingService — starting', () => {
             ]
         });
 
-        await expect(start).rejects.toThrow(/Error initializing MultithreadingService[\S\s]*ThreadJobEntity/);
+        await expect(start).rejects.toThrow(missingEntityPattern('ThreadJobEntity', 'MultithreadingService'));
     }, TestTimeouts.inMemory.start);
 });
 

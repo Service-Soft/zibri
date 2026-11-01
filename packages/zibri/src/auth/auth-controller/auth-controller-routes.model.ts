@@ -4,6 +4,7 @@ import { HtmlResponse } from '../../parsing/html/html-response.model';
 import { Route } from '../../routing/controller-route-configuration.model';
 import { FederatedCallbackForm } from '../authenticators/federated/federated-callback-form.model';
 import { LinkedIdentity } from '../authenticators/linked-identity.model';
+import { ChangePasswordAtLoginInput } from '../authenticators/password/change-password-at-login-input.model';
 import { ChangePasswordDto } from '../authenticators/password/change-password-data.model';
 import { ConfirmPasswordResetDto } from '../authenticators/password/confirm-password-reset-data.model';
 import { PasswordResetTokenInput } from '../authenticators/password/password-reset-token-input.model';
@@ -61,11 +62,14 @@ export type AuthControllerEmailVerificationRoutes = {
 };
 
 /**
- * The route of `AuthController` for an authenticator that changes passwords.
+ * The routes of `AuthController` for an authenticator that changes passwords: at the request of a
+ * logged in user, and at a login waiting for a new password.
  */
 export type AuthControllerPasswordChangeRoutes = {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    changePassword: (user: CurrentUser, data: ChangePasswordDto) => Promise<void>
+    changePassword: (user: CurrentUser, data: ChangePasswordDto) => Promise<void>,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    changePasswordAtLogin: (strategy: string | undefined, input: ChangePasswordAtLoginInput) => Promise<unknown>
 };
 
 /**

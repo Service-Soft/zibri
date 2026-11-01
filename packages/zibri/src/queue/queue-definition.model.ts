@@ -2,8 +2,7 @@ import { QueueDelivery } from './queue-delivery.type';
 import { QueuedWorkItem } from './queued-work-item.model';
 import { QueuedWorkOutcome } from './queued-work-outcome.model';
 import { QueuedWorkRun } from './queued-work-run.model';
-import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
-import { Transaction } from '../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 import { LeaseCompletion } from '../leases/lease-options.model';
 
 /**
@@ -20,10 +19,6 @@ export type QueueDefinition<T extends QueuedWorkItem> = {
      * The topic a retry falling due wakes the poll of the queue with.
      */
     wakeUpTopic: string,
-    /**
-     * The data source the rows are kept in, which a `'transactional'` attempt runs in.
-     */
-    dataSource: DataSourceInterface,
     /**
      * How long a claim lasts without being renewed, which is how long work an instance left behind
      * waits before another takes it over.
@@ -80,7 +75,7 @@ export type QueueDefinition<T extends QueuedWorkItem> = {
      * Writes how an attempt ended: the outcome's columns, and whatever else the queue keeps, such as
      * its status.
      */
-    record: (item: T, outcome: QueuedWorkOutcome, transaction: Transaction | undefined) => Promise<void>,
+    record: (item: T, outcome: QueuedWorkOutcome, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * The error logged when a row gives up, the outcome's cause by default.
      */

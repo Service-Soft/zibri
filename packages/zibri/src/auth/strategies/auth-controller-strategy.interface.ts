@@ -1,6 +1,5 @@
 import { AuthStrategyInterface } from './auth-strategy.interface';
 import { isLoginAuthStrategy, LoginAuthStrategyInterface } from './login-auth-strategy.interface';
-import { Transaction } from '../../data-source/transaction/transaction.model';
 import { Newable } from '../../types/newable.type';
 import { BaseUser } from '../models/base-user.model';
 
@@ -31,12 +30,7 @@ export interface AuthControllerStrategyInterface<
      * A login at a provider without a code challenge completes on the redirect back from it, which only
      * such a strategy can do. Any other strategy has the login handed over by code.
      */
-    readonly logsInWithResponse: boolean,
-    /**
-     * Starts a transaction in the data source the strategy keeps its logins in, which a login, a refresh
-     * and a logout run in.
-     */
-    startTransaction: () => Promise<Transaction>
+    readonly logsInWithResponse: boolean
 }
 
 /**
@@ -50,6 +44,6 @@ export function isAuthControllerStrategy(
     if (!isLoginAuthStrategy(strategy)) {
         return false;
     }
-    const keys: string[] = ['authDataModel', 'refreshLoginModel', 'logoutModel', 'logsInWithResponse', 'startTransaction'];
+    const keys: string[] = ['authDataModel', 'refreshLoginModel', 'logoutModel', 'logsInWithResponse'];
     return keys.every(key => key in strategy);
 }

@@ -46,12 +46,13 @@ import { RemovePropertyFromEntityInput } from '../../models/remove-property-from
 import { RemoveRelationFromEntityInput } from '../../models/remove-relation-from-entity-input.model';
 import { RenameEntityInput } from '../../models/rename-entity-input.model';
 import { ResolvedPropertyConversion } from '../../models/resolved-property-conversion.model';
-import { Repository } from '../../repository/repository';
+import { Repository, UNBOUNDED_FIND_ALL_LIMIT } from '../../repository/repository';
 import { RepositoryClass } from '../../repository/repository-class.type';
 import { RepositoryForUtilities } from '../../repository/repository-for.utilities';
 import { RunInTransactionOptions } from '../../transaction/run-in-transaction-options.model';
 import { TransactionDeadlockError } from '../../transaction/transaction-deadlock.error';
 import { Transaction } from '../../transaction/transaction.model';
+import { OpenTransactions } from '../../transaction/open-transactions.model';
 import { TransactionUtilities } from '../../transaction/transaction.utilities';
 import { ValKeyTransaction, ValKeyTransactionGrants } from '../../transaction/val-key-transaction.model';
 import { ValueConversionUtilities } from '../../value-conversion.utilities';
@@ -162,7 +163,7 @@ const LOCK_RETRY_IN_MS: number = 100;
 const LOCKS_PER_SCRIPT: number = 1000;
 
 // Valkey has no server side equivalent of postgres' idle_in_transaction_session_timeout, so the
-// transaction keeps DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS itself
+// transaction keeps transactionIdleTimeoutInMs itself
 
 /**
  * How long to wait before subscribing again on a new client, once the one subscribed failed.
@@ -370,6 +371,9 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly maxMessageBytes: number | undefined = undefined;
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly maxRowsWithoutLimit: number = UNBOUNDED_FIND_ALL_LIMIT;
+
     /**
      * How a backup of this data source is read. Has to be set when the data source is marked with
      * \@Backup.
@@ -395,6 +399,12 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         requestTimeout: 5000
     };
 
+    /**
+     * How long a transaction may sit idle, in milliseconds, before it is rolled back. 0 for no limit.
+     * A transaction that names its own `idleTimeoutInMs` when it starts takes that instead.
+     */
+    protected readonly transactionIdleTimeoutInMs: number = DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS;
+
     // eslint-disable-next-line jsdoc/require-returns
     /**
      * Combination of the default and user provided options.
@@ -418,6 +428,8 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
      * The client that is connected to the valkey server.
      */
     protected client?: GlideClient;
+
+    private readonly openTransactions: OpenTransactions = new OpenTransactions();
 
     // eslint-disable-next-line jsdoc/require-returns
     /**
@@ -914,8 +926,11 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         return await inject(ZIBRI_DI_TOKENS.LEASE_SERVICE).hold(lease, holdInMs, fn);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async shutDown(): Promise<void> {
+        // before the client closes, which handing back their grants needs: a transaction nothing
+        // ended kept its idle timer, which fired once the application was gone
+        await this.openTransactions.rollBackAll(this.constructor.name, this.logger);
         this.client?.close();
         this.client = undefined;
         this.clock = undefined;
@@ -964,12 +979,14 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         const holdInMs: number = inject(ZIBRI_DI_TOKENS.VAL_KEY_TRANSACTION_LOCK_HOLD_IN_MS);
         const timeoutInMs: number = inject(ZIBRI_DI_TOKENS.VAL_KEY_TRANSACTION_LOCK_TIMEOUT_IN_MS);
 
-        return new ValKeyTransaction(
+        const transaction: ValKeyTransaction = new ValKeyTransaction(
             this.client,
             this.openTransactionGrants(this.client, holdInMs, timeoutInMs),
-            options?.idleTimeoutInMs ?? DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS,
+            options?.idleTimeoutInMs ?? this.transactionIdleTimeoutInMs,
             this.logger
         );
+        this.openTransactions.add(transaction);
+        return transaction;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1408,6 +1425,9 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         }
         if (!(transaction instanceof ValKeyTransaction)) {
             throw new InternalError('The provided transaction does not belong to a valkey data source.');
+        }
+        if (!transaction.isStartedOn(this.client)) {
+            throw new InternalError('The provided transaction belongs to another valkey data source: this one did not start it.');
         }
 
         const entityMetadata: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(entity);

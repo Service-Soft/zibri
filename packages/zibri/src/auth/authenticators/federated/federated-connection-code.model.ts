@@ -15,7 +15,7 @@ export class FederatedConnectionCode extends BaseEntity {
     /**
      * The code.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     value!: HashString;
 
     /**
@@ -68,6 +68,6 @@ export class FederatedConnectionCodeCreateData extends OmitClass(FederatedConnec
     /**
      * The code, before the hook hashes it.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     value!: string;
 }

@@ -49,7 +49,7 @@ describe('encryption and hashing on a string', () => {
     it('refuses both at once on a property, an item and a shape', () => {
         expect(() => {
             class Account {
-                @Property.string({ encryption: true, hash: true })
+                @Property.string({ encryption: true, hash: true, password: false })
                 secret!: string;
             }
             return Account;
@@ -57,7 +57,7 @@ describe('encryption and hashing on a string', () => {
 
         expect(() => {
             class Account {
-                @Property.array({ items: { type: 'string', encryption: true, hash: true } })
+                @Property.array({ items: { type: 'string', encryption: true, hash: true, password: false } })
                 secrets!: string[];
             }
             return Account;
@@ -65,7 +65,7 @@ describe('encryption and hashing on a string', () => {
 
         expect(() => {
             class Account {
-                @Property.oneOf({ shapes: { Secret: { type: 'string', encryption: true, hash: true }, Count: { type: 'number' } } })
+                @Property.oneOf({ shapes: { Secret: { type: 'string', encryption: true, hash: true, password: false }, Count: { type: 'number' } } })
                 secret!: OneOf<{ Secret: string, Count: number }>;
             }
             return Account;
@@ -123,8 +123,8 @@ describe('encryption and hashing on a string', () => {
             /* eslint-disable typescript/no-deprecated */
             @Property.oneOf({
                 shapes: {
-                    Slow: { type: 'string', hash: { strategy: BcryptHashStrategy, strategyOptions: { rounds: 12 } } },
-                    Fast: { type: 'string', hash: { strategy: ScryptHashStrategy, strategyOptions: { saltLength: 32 } } }
+                    Slow: { type: 'string', hash: { strategy: BcryptHashStrategy, strategyOptions: { rounds: 12 } }, password: false },
+                    Fast: { type: 'string', hash: { strategy: ScryptHashStrategy, strategyOptions: { saltLength: 32 } }, password: false }
                 }
             })
             pin!: OneOf<{ Slow: string, Fast: string }>;
@@ -145,7 +145,7 @@ describe('encryption and hashing on a string', () => {
             swapped!: OneOf<{ Remote: string, Local: string }>;
 
             // @ts-expect-error - "rounds" is an option of the other shape's strategy, not of this one's
-            @Property.oneOf({ shapes: { Slow: { type: 'string', hash: { strategy: BcryptHashStrategy } }, Fast: { type: 'string', hash: { strategy: ScryptHashStrategy, strategyOptions: { rounds: 12 } } } } })
+            @Property.oneOf({ shapes: { Slow: { type: 'string', hash: { strategy: BcryptHashStrategy }, password: false }, Fast: { type: 'string', hash: { strategy: ScryptHashStrategy, strategyOptions: { rounds: 12 } }, password: false } } })
             swappedHash!: OneOf<{ Slow: string, Fast: string }>;
             /* eslint-enable typescript/no-deprecated */
 
@@ -157,6 +157,110 @@ describe('encryption and hashing on a string', () => {
         const secret: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(Vault)['secret'];
         expect(secret?.type === 'oneOf' && secret.shapes['Local']?.type === 'string' ? secret.shapes['Local'].encryption : undefined)
             .toEqual({ strategy: AesGcmEncryptionStrategy, encrypt: { aad: 'vault' } });
+    });
+});
+
+// a hashed string was a password or a token by nothing but the strategy it named, so no password was
+// ever checked against a policy, and nothing told a forgotten password from a token
+describe('a password', () => {
+    it('is hashed without saying so, and kept out of change sets', () => {
+        class Account {
+            @Property.string({ password: true })
+            password!: string;
+        }
+
+        const password: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(Account)['password'];
+        expect(password?.type === 'string' ? [password.password, password.hash, password.excludeFromChangeSets] : undefined)
+            .toEqual([true, true, true]);
+    });
+
+    it('refuses a hashed string that does not say whether it is a password, on a property, an item and a shape', () => {
+        expect(() => {
+            class Account {
+                @Property.string({ hash: true })
+                secret!: string;
+            }
+            return Account;
+        }).toThrow(/Account\.secret: A hashed string says whether it is a password/);
+
+        expect(() => {
+            class Account {
+                @Property.array({ items: { type: 'string', hash: true } })
+                secrets!: string[];
+            }
+            return Account;
+        }).toThrow(/Account\.secrets: A hashed string says whether it is a password/);
+
+        expect(() => {
+            class Account {
+                @Property.oneOf({ shapes: { Secret: { type: 'string', hash: true }, Count: { type: 'number' } } })
+                secret!: OneOf<{ Secret: string, Count: number }>;
+            }
+            return Account;
+        }).toThrow(/Account\.secret\.Secret: A hashed string says whether it is a password/);
+
+        class Token {
+            @Property.string({ hash: true, password: false })
+            value!: string;
+        }
+        const value: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(Token)['value'];
+        expect(value?.type === 'string' ? [value.password, value.hash] : undefined).toEqual([false, true]);
+    });
+
+    it('refuses a password that is not hashed, or not hashed the same way for every row', () => {
+        expect(() => {
+            class Account {
+                @Property.string({ password: true, hash: false })
+                password!: string;
+            }
+            return Account;
+        }).toThrow(/Account\.password: A password is hashed/);
+
+        expect(() => {
+            class Account {
+                @Property.string({ password: true, hash: () => ({ strategy: ScryptHashStrategy }) })
+                password!: string;
+            }
+            return Account;
+        }).toThrow(/Account\.password: How a password is hashed is decided per row/);
+    });
+
+    it('refuses a password as an item or a shape', () => {
+        expect(() => {
+            class Account {
+                @Property.array({ items: { type: 'string', password: true } })
+                passwords!: string[];
+            }
+            return Account;
+        }).toThrow(/Account\.passwords: A password is a property of its own/);
+
+        expect(() => {
+            class Account {
+                @Property.oneOf({ shapes: { Password: { type: 'string', password: true }, Count: { type: 'number' } } })
+                secret!: OneOf<{ Password: string, Count: number }>;
+            }
+            return Account;
+        }).toThrow(/Account\.secret\.Password: A password is a property of its own/);
+    });
+
+    it('refuses what the password policy says, or what a salted hash cannot hold', () => {
+        for (const declared of [
+            { minLength: 15 },
+            { maxLength: 64 },
+            { regex: /\d/ },
+            { format: 'email' as const },
+            { default: 'welcome' },
+            { unique: true },
+            { index: true }
+        ]) {
+            expect(() => {
+                class Account {
+                    @Property.string({ password: true, ...declared })
+                    password!: string;
+                }
+                return Account;
+            }).toThrow(`Account.password: A password cannot declare "${Object.keys(declared)[0]}"`);
+        }
     });
 });
 

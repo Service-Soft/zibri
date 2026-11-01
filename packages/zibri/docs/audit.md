@@ -4,7 +4,7 @@ The audit trail records what happens around security: logins, refused routes, pa
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
-| `AuditServiceInterface` | interface | `record` an event, `flush` to wait until everything recorded is stored, `deleteExpiredEntries` to remove what is past the retention, `writeCheckpoints` to seal the hours that ended, `resolveVerification` to check the trail of a [tenant](./glossary.md#tenant) |
+| `AuditServiceInterface` | interface | `record` an event, `flush` to wait until everything recorded is stored, `deleteExpiredEntries` to remove what is past the retention, `writeCheckpoints` to seal what was stored since the last checkpoint, `resolveVerification` to check the trail of a [tenant](./glossary.md#tenant) |
 | `AuditService` | class | The default implementation |
 | `ZIBRI_DI_TOKENS.AUDIT_SERVICE` | DI token | Injects `AuditServiceInterface` |
 | `AuditEntry` | entity | One entry of the trail, with a keyed hash of what it holds |
@@ -14,7 +14,8 @@ The audit trail records what happens around security: logins, refused routes, pa
 | `AuditIntegrity` | type | How the trail tells a changed entry: `'checkpoints'` or `'chain'` |
 | `ZIBRI_DI_TOKENS.AUDIT_INTEGRITY` | DI token | How the trail tells a changed entry. Defaults to `'checkpoints'` |
 | `AuditVerification`, `IntactAuditTrail`, `BrokenAuditTrail` | type, type, type | What checking the trail of a tenant found |
-| `AuditCheckpointCronJob` | cron job | Seals the entries of the hour that ended, hourly. Registered for you with `'checkpoints'` |
+| `AuditCheckpointCronJob` | cron job | Seals the entries stored since the last checkpoint, hourly. Registered for you with `'checkpoints'` |
+| `ZIBRI_DI_TOKENS.AUDIT_SEAL_DELAY_IN_MS` | DI token | How long ago an entry was stored at least, for a checkpoint to seal it. Defaults to 5 minutes |
 | `RetentionInMs` | type | How long something is kept, in milliseconds, or `'forever'`. The type of `AUDIT_RETENTION_IN_MS` and the other retention tokens |
 | `AuditCollapse` | enum | How an entry stands for refusals past the budget |
 | `AuditEvent` | type | What `record` takes: an action, an outcome, and who it was about |
@@ -57,6 +58,8 @@ export function recordFailedLogin(auditService: AuditServiceInterface): void {
 
 `record` returns at once and is stored right after. The entry carries the [tenant](./tenancy.md) the event happened in, and the client's address and the trace of the request it was recorded in. The event is also [logged](./logging.md#security-events), at `info` when it succeeded and `warn` when it did not.
 
+Give `record` the transaction the event's writes are in as its second argument. A success is then stored and logged once the transaction commits, and never when it is rolled back. A failure is stored at once either way.
+
 `action`, `outcome` and `reason` are closed sets, for a detection rule to key on.
 
 ## Reading the trail
@@ -89,7 +92,7 @@ Each minute keeps at most 100 kinds apart. The refusals beyond them are counted 
 An entry the data source does not take is kept and stored again later. `audit_entries_pending` in the [metrics](./metrics.md) says how many are waiting, and shutdown stores what is left.
 
 ## Telling whether the trail was changed
-Each entry carries `mac`, a keyed hash of everything else it holds. The key is a [signing key](./encryption-and-hashing.md#keeping-a-signing-key), so writing a hash that fits takes more than access to the database. Every hour, `AuditCheckpointCronJob` seals what each tenant stored since its last checkpoint in an `AuditCheckpoint`: how many entries there are, and a digest of their hashes. The checkpoints of each tenant form a [hash chain](./glossary.md#hash-chain), and each starts where the one before it ends.
+Each entry carries `mac`, a keyed hash of everything else it holds. The key is a [signing key](./encryption-and-hashing.md#keeping-a-signing-key), so writing a hash that fits takes more than access to the database. Every hour, `AuditCheckpointCronJob` seals what each tenant stored since its last checkpoint, up to five minutes before the job runs, in an `AuditCheckpoint`: how many entries there are, and a digest of their hashes. The checkpoints of each tenant form a [hash chain](./glossary.md#hash-chain), and each starts where the one before it ends.
 
 Check the trail of a tenant, or of the events of no tenant with `undefined`:
 
@@ -107,7 +110,23 @@ A trail that holds answers `{ intact: true, newestSequence, newestHash, sealedUn
 Each checkpoint is logged at `info` as well, with its tenant, `chainSequence` and `chainHash` under `metadata.auditCheckpoint`. Ship the log to a store outside the data source, such as with [JSON lines for a log collector](./logging.md#writing-json-lines-for-a-log-collector). The newest checkpoint there is what tells the trail apart from one whose newest entries and checkpoints were removed together.
 
 > [!NOTE]
-> An entry is sealed at the first checkpoint after the hour it was stored in, five minutes into the next hour. Removing it before then goes unnoticed. `sealedUntil` says where the sealed part of the trail ends.
+> An entry is sealed by the first checkpoint that runs at least five minutes after it was stored. Removing it before then goes unnoticed. `sealedUntil` says where the sealed part of the trail ends.
+
+## Sealing the trail more often
+Run `AuditCheckpointCronJob` more often through the [cron service](./cron.md#changing-a-job-while-the-app-runs):
+
+```ts
+// src/services/audit-schedule.function.ts
+import { CronExpression, inject, ZIBRI_DI_TOKENS } from 'zibri';
+
+export async function sealAuditTrailEveryTenMinutes(): Promise<void> {
+    await inject(ZIBRI_DI_TOKENS.CRON_SERVICE).changeCron('Audit Checkpoints', CronExpression.every(10, 'minutes').build());
+}
+```
+
+Each run stores one checkpoint for every tenant that stored entries since the last one.
+
+`AUDIT_SEAL_DELAY_IN_MS` sets how long ago an entry was stored at least, for a checkpoint to seal it. An entry stored with a time inside a span that is already sealed is one no checkpoint holds, and checking the trail reports it. Keep the delay above how long storing an entry takes, and how far the clocks of your instances drift apart.
 
 ## Keeping the trail as a chain
 Kept as a chain, the entries of each tenant form a [hash chain](./glossary.md#hash-chain) of their own, see [tamper-evident tables](./tamper-evident-tables.md). Provide `ZIBRI_DI_TOKENS.AUDIT_INTEGRITY` and declare `ChainedAuditEntry` in place of `AuditEntry` and `AuditCheckpoint`:
@@ -121,7 +140,7 @@ defineProvider({ token: ZIBRI_DI_TOKENS.AUDIT_INTEGRITY, useValue: 'chain' });
 
 | Use | When |
 |---|---|
-| `'checkpoints'` | Storing an entry costs no more than storing any row. A removed entry is told once its hour is sealed |
+| `'checkpoints'` | Storing an entry costs no more than storing any row. A removed entry is told once a checkpoint sealed it |
 | `'chain'` | A removed entry is told at once. Each write first reads where the chains of its tenants end |
 
 Read the entries through the repository of `ChainedAuditEntry`. `resolveVerification` checks the chain of the tenant, and its `sealedUntil` is `undefined`. Switching an application that holds entries starts a new trail: the entries stored before stay in the table of the other kind.

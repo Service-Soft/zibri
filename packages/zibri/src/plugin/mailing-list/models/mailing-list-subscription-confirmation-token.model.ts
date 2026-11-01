@@ -31,7 +31,7 @@ export class MailingListSubscriptionConfirmationToken extends BaseEntity {
      * own, with nothing else in the link to find the row by. A database read therefore yields
      * nothing that can be presented back to the api.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     value!: HashString;
 
     /**
@@ -69,6 +69,6 @@ export class MailingListSubscriptionConfirmationTokenCreateData extends OmitClas
     /**
      * The token as it is generated and mailed out, before the hook hashes it.
      */
-    @Property.string({ hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ hash: { strategy: Sha256HashStrategy }, password: false })
     value!: string;
 }

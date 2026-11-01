@@ -18,6 +18,7 @@ export class ZibriMailingListPlugin extends ZibriPlugin {
     private readonly defaultDiProviders: DiTokenProviderRecord<typeof ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS> = {
         MAILING_LIST_SERVICE: { useClass: MailingListService },
         CONFIRMATION_TOKEN_EXPIRES_IN_MS: { useFactory: () => Ms.DAY },
+        PAGES_URL: { useFactory: () => undefined },
         SUBSCRIBE_CONFIRMATION_EMAIL_TEMPLATE: { useFactory: () => undefined },
         PREFERENCES_PAGE_TEMPLATE: { useFactory: () => undefined },
         UNSUBSCRIBE_CONFIRMATION_PAGE_TEMPLATE: { useFactory: () => undefined },

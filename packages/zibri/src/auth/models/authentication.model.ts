@@ -26,5 +26,10 @@ export type Authentication<UserType extends BaseUser<string>> = {
      * says. A strategy keeps it for the whole login, refreshes included, so a route can take the
      * second factor presented there in place of one presented here.
      */
-    providerAuthentication?: ProviderAuthentication
+    providerAuthentication?: ProviderAuthentication,
+    /**
+     * Whether the user chooses a new password before the login starts, as an authenticator checking a
+     * password says. Asked for after the second factor, when the login asks for one.
+     */
+    passwordChangeRequired?: boolean
 };

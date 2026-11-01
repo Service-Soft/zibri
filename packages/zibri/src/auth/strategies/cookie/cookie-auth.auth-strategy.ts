@@ -8,9 +8,8 @@ import { CookieAuthSession, CookieAuthSessionCreateData } from './cookie-auth-se
 import { ZibriApplication } from '../../../application/application';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
-import { IsolationLevel } from '../../../data-source/data-sources/data-source.interface';
 import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -205,7 +204,7 @@ export class CookieAuthStrategy<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+    async deleteUserRows(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
         await this.sessionRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
         await this.refreshSessionRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
     }
@@ -293,12 +292,7 @@ export class CookieAuthStrategy<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startTransaction(): Promise<Transaction> {
-        return await this.sessionRepository.dataSource.startTransaction({ isolationLevel: IsolationLevel.READ_COMMITTED });
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async startLogin(authentication: Authentication<UserType>, transaction: Transaction | undefined): Promise<CookieAuthData<RoleType>> {
+    async startLogin(authentication: Authentication<UserType>, transaction: RepositoryTransaction | undefined): Promise<CookieAuthData<RoleType>> {
         // the tokens exist here and in the cookies only, the rows hold their hashes
         const refreshToken: string = this.generateToken();
         const refreshSession: CookieAuthRefreshSession = await this.createRefreshSession(
@@ -326,7 +320,7 @@ export class CookieAuthStrategy<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async endLogins(userId: string, transaction: Transaction | undefined): Promise<void> {
+    async endLogins(userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         await this.sessionRepository.deleteAll({ userId }, { transaction });
         // the refresh sessions too. With only the sessions gone, a refresh session from before rotated
         // into a fresh session on its next refresh, so whoever held the cookies stayed logged in
@@ -335,7 +329,7 @@ export class CookieAuthStrategy<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async findLogins(userId: string, transaction: Transaction | undefined): Promise<ListedLogin[]> {
+    async findLogins(userId: string, transaction: RepositoryTransaction | undefined): Promise<ListedLogin[]> {
         const live: CookieAuthRefreshSession[] = await this.refreshSessionRepository.findAll({
             where: { userId, blacklisted: false, expirationDate: { after: new Date() } },
             limit: 'all',
@@ -361,7 +355,7 @@ export class CookieAuthStrategy<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async endLogin(userId: string, loginId: string, transaction: Transaction | undefined): Promise<boolean> {
+    async endLogin(userId: string, loginId: string, transaction: RepositoryTransaction | undefined): Promise<boolean> {
         // the sessions as well as the refresh sessions, for the reason endLogins gives. By the user as
         // well, so a login of somebody else is none of theirs
         await this.sessionRepository.deleteAll({ userId, familyId: loginId }, { transaction });
@@ -375,7 +369,7 @@ export class CookieAuthStrategy<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async endFederatedLogins(session: FederatedSessionMatch, transaction: Transaction | undefined): Promise<void> {
+    async endFederatedLogins(session: FederatedSessionMatch, transaction: RepositoryTransaction | undefined): Promise<void> {
         const refreshSessions: CookieAuthRefreshSession[] = await this.refreshSessionRepository.findAll({
             where: FederatedSessionUtilities.toWhere(session),
             transaction
@@ -413,7 +407,7 @@ export class CookieAuthStrategy<
     private async endFamily(
         refreshSession: CookieAuthRefreshSession | undefined,
         clearCookies: boolean,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<EndedLogin | undefined> {
         if (refreshSession) {
             await this.sessionRepository.deleteAll({ familyId: refreshSession.familyId }, { transaction });
@@ -502,7 +496,7 @@ export class CookieAuthStrategy<
      */
     private async rotateSessions(
         currentRefreshSession: CookieAuthRefreshSession,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<SessionPair> {
         if (currentRefreshSession.blacklisted && !this.isWithinReuseGrace(currentRefreshSession)) {
             // ends here. This used to log out and then carry on to mint a new refresh session and a
@@ -598,7 +592,7 @@ export class CookieAuthStrategy<
      * @param transaction - The transaction of the refresh, if any.
      * @returns The user, as the authenticators answered them, or undefined when there is no such user.
      */
-    private async findRefreshUser(userId: string, transaction: Transaction | undefined): Promise<UserType | undefined> {
+    private async findRefreshUser(userId: string, transaction: RepositoryTransaction | undefined): Promise<UserType | undefined> {
         const user: UserType | undefined = await this.userService.findById<RoleType, UserType, false>(userId, { required: false });
         return user == undefined
             ? undefined
@@ -607,7 +601,7 @@ export class CookieAuthStrategy<
 
     private async resolveSession(
         context: HttpRequestContext | WebsocketRequestContext,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<CookieAuthSession | undefined> {
         const token: string | undefined = this.findCookieToken(context, this.sessionOptions);
         if (token == undefined) {
@@ -618,7 +612,7 @@ export class CookieAuthStrategy<
 
     private async resolveAndValidateSessions(
         context: HttpRequestContext | WebsocketRequestContext,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<SessionPair | undefined> {
         const presented: PresentedRefreshSession | undefined = await this.resolveRefreshSession(context, transaction);
 
@@ -725,7 +719,7 @@ export class CookieAuthStrategy<
 
     private async resolveRefreshSession(
         context: HttpRequestContext | WebsocketRequestContext,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<PresentedRefreshSession | undefined> {
         const token: string | undefined = this.findCookieToken(context, this.refreshSessionOptions);
         if (token == undefined) {
@@ -765,7 +759,7 @@ export class CookieAuthStrategy<
     private async createSession(
         refreshSession: CookieAuthRefreshSession,
         token: string,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<CookieAuthSession> {
         const sessionCreateData: CookieAuthSessionCreateData = {
             token,
@@ -779,7 +773,7 @@ export class CookieAuthStrategy<
     private async createRefreshSession(
         userId: string,
         familyId: string,
-        transaction: Transaction | undefined,
+        transaction: RepositoryTransaction | undefined,
         token: string,
         authenticatedAt: Date,
         federatedSession: FederatedSessionColumns,

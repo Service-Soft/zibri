@@ -24,11 +24,15 @@ import { repositoryTokenFor } from '../../di/decorators/inject-repository.decora
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
+import { Controller } from '../../routing/decorators/controller.decorator';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 
 const ACME: string = UUIDUtilities.generate();
 const GLOBEX: string = UUIDUtilities.generate();
+
+@Controller('/mailing-lists', { versions: 'all' })
+class AppMailingListController extends MailingListController {}
 
 let server: StartedTestServer | undefined;
 let baseUrl: string = '';
@@ -60,7 +64,7 @@ async function createSubscribedList(tenantId: string, name: string): Promise<Mai
 describe('mailing lists across tenants', () => {
     beforeAll(async () => {
         server = await startTestServer({
-            controllers: [MailingListController],
+            controllers: [AppMailingListController],
             plugins: [new ZibriMailingListPlugin()],
             dataSources: [
                 createInMemoryDataSource({

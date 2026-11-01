@@ -7,6 +7,7 @@ import { BaseOidcAuthenticator } from './base-oidc.authenticator';
 import { OidcAuthenticationTime } from './oidc-authentication-time.type';
 import { OidcDiscoveryAtBoot } from './oidc-discovery-at-boot.type';
 import { TestTimeouts } from '../../../__testing__/constants';
+import { missingEntityPattern } from '../../../__testing__/missing-entity-pattern.function';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -492,7 +493,8 @@ describe('BaseOidcAuthenticator — starting', () => {
             providers: [...defaultTestServerProviders, defineProvider({ token: ZIBRI_DI_TOKENS.FEDERATION_OPTIONS, useValue: createFederationOptions() })]
         });
 
-        await expect(start).rejects.toThrow(/Error initializing FakeProviderAuthenticator[\S\s]*FederatedLoginAttempt[\S\s]*FederatedRegistrationTicket/);
+        await expect(start).rejects.toThrow(missingEntityPattern('FederatedLoginAttempt', 'FakeProviderAuthenticator'));
+        await expect(start).rejects.toThrow(missingEntityPattern('FederatedRegistrationTicket', 'FakeProviderAuthenticator'));
     }, TestTimeouts.inMemory.start);
 
     it('refuses to start without the options every provider shares', async () => {
@@ -634,6 +636,21 @@ describe('BaseOidcAuthenticator — logging in to cookies', () => {
         const { landing } = await logInAtProvider(newBrowser(baseUrl), authorizeUrl());
 
         expect(landing).toBe(`${ERROR_URL}?error=invalid`);
+    });
+
+    // evaluation/round-2/12-hardcoded-values.md §A1: the ID token got openid-client's 30 seconds, the
+    // provider's other tokens none
+    it('takes an ID token the provider\'s clock calls valid within the accepted skew, and refuses one past it', async () => {
+        const subject: string = newSubject();
+        await createUser(`${subject}@example.com`, subject);
+        provider.identity = { subject, email: `${subject}@example.com`, emailVerified: true };
+        const now: number = Math.floor(Date.now() / 1000);
+
+        provider.rewriteNextIdToken(claims => ({ ...claims, exp: now - 45 }));
+        expect((await logInAtProvider(newBrowser(baseUrl), authorizeUrl())).landing).toBe(REDIRECT_TO);
+
+        provider.rewriteNextIdToken(claims => ({ ...claims, exp: now - 90 }));
+        expect((await logInAtProvider(newBrowser(baseUrl), authorizeUrl())).landing).toBe(`${ERROR_URL}?error=invalid`);
     });
 
     it('refuses an ID token carrying another nonce', async () => {

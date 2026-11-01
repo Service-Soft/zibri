@@ -1,5 +1,5 @@
 import { AuthStrategyInterface } from './auth-strategy.interface';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { FederatedSessionMatch } from '../authenticators/federated/federated-session-match.model';
 import { Authentication } from '../models/authentication.model';
 import { BaseUser } from '../models/base-user.model';
@@ -25,7 +25,7 @@ export interface LoginAuthStrategyInterface<
      * The login keeps `authenticatedAt` for as long as it lasts, which is what
      * `resolveAuthenticatedAt` answers, and `federatedSession`, which `endFederatedLogins` finds it by.
      */
-    startLogin: (authentication: Authentication<UserType>, transaction: Transaction | undefined) => Promise<AuthDataType>,
+    startLogin: (authentication: Authentication<UserType>, transaction: RepositoryTransaction | undefined) => Promise<AuthDataType>,
     /**
      * Ends the login the data names.
      * @returns The login it ended: whose it was, and the session at a provider it was started from.
@@ -43,14 +43,14 @@ export interface LoginAuthStrategyInterface<
      * What the strategy issued but cannot take back, such as a signed token, stays valid until it
      * expires. Nothing can be refreshed into a new login afterwards.
      */
-    endLogins: (userId: string, transaction: Transaction | undefined) => Promise<void>,
+    endLogins: (userId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Ends the logins started from a session at a provider, once the user logged out there: every login
      * of the person at the provider, or those of one session of theirs when the match names it.
      *
      * Like `endLogins`, what the strategy cannot take back stays valid until it expires.
      */
-    endFederatedLogins: (session: FederatedSessionMatch, transaction: Transaction | undefined) => Promise<void>
+    endFederatedLogins: (session: FederatedSessionMatch, transaction: RepositoryTransaction | undefined) => Promise<void>
 }
 
 /**

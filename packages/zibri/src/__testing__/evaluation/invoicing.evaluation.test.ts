@@ -52,6 +52,8 @@ import { StartedTestServer, startTestServer } from '../test-server/start-test-se
  */
 
 const invoicingOptions: InvoicingOptions = {
+    pageSize: 'A4',
+    font: 'Roboto',
     footerFontSize: 10,
     images: undefined,
     phoneLabel: 'Phone',

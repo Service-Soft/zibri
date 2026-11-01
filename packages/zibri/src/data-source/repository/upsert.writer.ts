@@ -28,7 +28,7 @@ import { Where, WhereFilter } from '../models/where/where-filter.model';
 import { resolveOutOfScopeError } from '../scopes/resolve-out-of-scope-error.function';
 import { ScopedWhere, ScopeWhereUtilities } from '../scopes/scope-where.utilities';
 import { TenantOwnership, TenantUtilities } from '../tenancy/tenant.utilities';
-import { Transaction } from '../transaction/transaction.model';
+import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
 import { TransactionUtilities } from '../transaction/transaction.utilities';
 import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
 import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
@@ -68,7 +68,7 @@ export class UpsertWriter<T extends BaseEntity, CreateData extends DeepPartial<T
     constructor(
         private readonly entityClass: Newable<T>,
         private readonly entityMetadata: EntityMetadata<T>,
-        private readonly driver: RepositoryDriverInterface<T>,
+        private readonly driver: RepositoryDriverInterface<T, RepositoryTransaction>,
         private readonly references: ReferenceValidator<T>,
         private readonly context: UpsertWriterContext<T>
     ) {}
@@ -187,7 +187,7 @@ export class UpsertWriter<T extends BaseEntity, CreateData extends DeepPartial<T
         identity: string[],
         prepared: PreparedUpsert<T>[],
         scope: Where<T> | DenyAll | undefined,
-        options: BaseRepositoryOptions | undefined
+        options: BaseRepositoryOptions<T> | undefined
     ): Promise<T[]> {
         const rows: UpsertRow<T>[] = prepared.map(p => p.row);
         const reachable: Where<T> | undefined = this.resolveReachable(identity, rows, scope);
@@ -304,7 +304,7 @@ export class UpsertWriter<T extends BaseEntity, CreateData extends DeepPartial<T
      * @param written - The rows the store wrote, in the same order. Replaced by what this writes.
      * @param transaction - The transaction the upsert runs in.
      */
-    private async writeBoundConflictSets(prepared: PreparedUpsert<T>[], written: T[], transaction: Transaction): Promise<void> {
+    private async writeBoundConflictSets(prepared: PreparedUpsert<T>[], written: T[], transaction: RepositoryTransaction): Promise<void> {
         const rows: T[] = [];
         for (const [i, p] of prepared.entries()) {
             const entity: T | undefined = written[i];
@@ -440,7 +440,7 @@ export class UpsertWriter<T extends BaseEntity, CreateData extends DeepPartial<T
         error: unknown,
         identity: string[],
         rows: UpsertRow<T>[],
-        options: BaseRepositoryOptions | undefined
+        options: BaseRepositoryOptions<T> | undefined
     ): Promise<void> {
         const conditioned: UpsertRow<T>[] = rows.filter(row => row.where != undefined);
         if (!(error instanceof UniqueConstraintViolationError) || !conditioned.length) {

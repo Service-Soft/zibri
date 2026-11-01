@@ -15,7 +15,7 @@ import { BaseEntity, Entity, HashString, Property } from 'zibri';
 
 @Entity({ tenant: 'shared' })
 export class User extends BaseEntity {
-    @Property.string({ hash: true, exclude: true })
+    @Property.string({ password: true, exclude: true })
     password!: HashString;
 }
 ```

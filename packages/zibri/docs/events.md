@@ -29,6 +29,8 @@ A durable pub/sub system for decoupling parts of your app. Unlike a plain event 
 | `ZIBRI_DI_TOKENS.EVENT_SUBSCRIBER_REGISTRATION_TTL_IN_MS` | DI token | How long a subscriber stays on record without being refreshed. Defaults to one minute |
 | `ZIBRI_DI_TOKENS.EVENT_RETRY_DELAY_IN_MS` | DI token | How long the first retry waits, doubling for each one after it. Defaults to one minute |
 | `ZIBRI_DI_TOKENS.EVENT_MAX_CONCURRENT_HOOKS` | DI token | How many hooks one instance runs at a time. Defaults to 50 |
+| `ZIBRI_DI_TOKENS.EVENT_HOOK_TIMEOUT_IN_MS` | DI token | How long a hook whose subscriber names no `timeoutInMs` may take. Defaults to 30 seconds |
+| `ZIBRI_DI_TOKENS.EVENT_FINISHED_RETENTION_IN_MS` | DI token | How long a finished event that names no `cleanupAfterInMs` is kept. Defaults to one day |
 | `ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS` | DI token | How long a `FAILED` event is kept, counted from when it was emitted, or `'forever'`. Required |
 | `ZIBRI_DI_TOKENS.FRAMEWORK_EVENT_NAMES` | DI token | Injects `FrameworkEventNames`. Defaults to none |
 
@@ -89,7 +91,7 @@ export async function announceUser(eventService: EventServiceInterface, userId: 
 
 `emit` stores the event together with the ids of every subscriber registered for it at that moment, and hands it to them. A subscriber registered after the emit does not receive it.
 
-An optional third argument, `cleanupAfterInMs`, sets how long a finished event is kept after it was created. `EventCleanupCronJob` deletes it after that. Defaults to one day (`Ms.DAY`).
+An optional third argument, `cleanupAfterInMs`, sets how long a finished event is kept after it was created. `EventCleanupCronJob` deletes it after that. Defaults to `ZIBRI_DI_TOKENS.EVENT_FINISHED_RETENTION_IN_MS`, one day by default, which also covers the events the framework emits.
 
 An event emitted in a [tenant](./tenancy.md#work-outside-a-request) belongs to it, and every hook runs in that tenant, whichever instance picks the event up.
 
@@ -239,7 +241,7 @@ export async function subscribeAnnounceAssignment(eventService: EventServiceInte
 | `delivery` | The hook | Use it when |
 |---|---|---|
 | `'atLeastOnce'` | Runs again after an instance stopped at the wrong moment. The default | Its work is safe to repeat, or carries `runId` to something that drops repeats |
-| `'transactional'` | Writes through `run.transaction`, which records its run too, so its writes happen once. A hook that throws has its writes rolled back | Its work is writes to the data source the events are kept in |
+| `'transactional'` | Writes through `run.transaction`, a [transaction across data sources](./data-source.md#writing-to-several-data-sources-in-one-transaction) which records its run too, so its writes happen once. A hook that throws has its writes rolled back | Its work is writes through repositories |
 | `'atMostOnce'` | Is recorded as failed before it runs, so it never runs twice, and is not retried. An instance stopping during it leaves it `FAILED` | A repeat is worse than a miss, such as a push notification |
 
 ```ts
@@ -309,7 +311,7 @@ Raise the limit for hooks that spend their time waiting on something else. Lower
 ### Retry and timeout semantics
 Passed per subscription via `EventSubscribeOptions`:
 - `attempts`: how many times the hook runs in total before the subscriber gives up. Defaults to `1`, a single attempt.
-- `timeoutInMs`: milliseconds the hook has to finish, per attempt, before it is aborted and counted as a failure. Defaults to `30000` (30 seconds). The hook receives an `AbortSignal` as its second argument. It fires when the timeout elapses, and when the [claim](#running-more-than-one-instance) on the event is lost.
+- `timeoutInMs`: milliseconds the hook has to finish, per attempt, before it is aborted and counted as a failure. Defaults to `ZIBRI_DI_TOKENS.EVENT_HOOK_TIMEOUT_IN_MS`, 30 seconds by default. The hook receives an `AbortSignal` as its second argument. It fires when the timeout elapses, and when the [claim](#running-more-than-one-instance) on the event is lost.
 
 Each delivery runs one attempt. A hook that fails leaves its `EventSubscriberRun` at `PENDING_RETRY`, with a `nextAttemptAt`, the attempts spent so far, and the failure as a `LoggedError` that keeps the message and the chain of causes. `EventDispatchCronJob` offers the event again once that time has passed. Until then the event's `nextDispatchAt` keeps it out of the poll, unless another subscriber owes it a run that is due.
 

@@ -7,6 +7,7 @@ import { ApiKeyAuthStrategy } from './api-key.auth-strategy';
 import { ApiKey, ApiKeyCreateDto } from './api-key.model';
 import { CreatedApiKey } from './created-api-key.model';
 import { TestTimeouts } from '../../../__testing__/constants';
+import { missingEntityPattern } from '../../../__testing__/missing-entity-pattern.function';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { MemberRoles } from '../../../__testing__/mocks/entities/member-roles.enum';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
@@ -234,7 +235,7 @@ describe('ApiKeyAuthStrategy — starting', () => {
             { authStrategies: [JwtAuthStrategy, ApiKeyAuthStrategy], controllers: [MachineController] }
         );
 
-        await expect(start).rejects.toThrow(/ApiKeyAuthStrategy[\S\s]*ApiKey/);
+        await expect(start).rejects.toThrow(missingEntityPattern('ApiKey', 'ApiKeyAuthStrategy'));
     }, TestTimeouts.inMemory.start);
 
     it('refuses to create a key in an application that reads none', async () => {

@@ -6,6 +6,7 @@ Your application records metrics about requests and about its background work, a
 |---|---|---|
 | `MetricsServiceInterface` | interface | Records metrics, collects snapshots and answers a scrape |
 | `ZIBRI_DI_TOKENS.METRICS_SERVICE` | DI token | Injects `MetricsServiceInterface` |
+| `ZIBRI_DI_TOKENS.METRICS_REQUEST_DURATION_BUCKETS_IN_MS` | DI token | The buckets of `http_request_duration_seconds`, in milliseconds. Defaults to 50 up to 5000 |
 | `PrometheusMetricsService` | class | The default `MetricsServiceInterface`. Replaceable through ZIBRI_DI_TOKENS.METRICS_SERVICE |
 | `CounterInterface`, `GaugeInterface`, `HistogramInterface` | interface, interface, interface | What `getCounter`, `getGauge` and `getHistogram` return: a counter to increase, a gauge to set, a histogram to observe values in |
 | `PromCounter`, `PromGauge`, `PromHistogram` | class, class, class | The counter, gauge and histogram `PrometheusMetricsService` returns |
@@ -16,7 +17,7 @@ Your application records metrics about requests and about its background work, a
 | `MetricsSnapshot` | class | A snapshot of all metrics at a point in time |
 | `MetricsExposition` | type | The metrics in the text format Prometheus scrapes, with its content type |
 | `MetricsCollector` | type | Work that sets gauges before the metrics are read |
-| `DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS` | constant | How often a collector reading the data source runs at most: 30 seconds |
+| `ZIBRI_DI_TOKENS.METRICS_DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS` | DI token | How often a collector reading the data source runs at most, such as the one counting a queue. Defaults to 30 seconds |
 
 ## Collecting data
 `collect` takes a snapshot:
@@ -41,7 +42,7 @@ its own:
 | Metric | Labels | Holds |
 |---|---|---|
 | `http_requests_total` | `method`, `route`, `status_code` | How many requests each route answered |
-| `http_request_duration_ms` | `method`, `route`, `status_code` | How long they took |
+| `http_request_duration_seconds` | `method`, `route`, `status_code` | How long they took |
 | `process_cpu_count` | | How many threads the machine can run in parallel |
 | `process_*`, `nodejs_*` | | The standard Node.js process metrics: CPU time, memory, heap, event loop lag, handles and garbage collection |
 | `network_bytes_received_total` | `interface` | Bytes that interface received |
@@ -56,20 +57,20 @@ its own:
 | `cache_in_flight` | `cache` | How many keys are being loaded right now |
 | `cache_size` | `cache` | How many entries it holds |
 | `cache_expired_evictions_total` | `cache` | How many entries left it for having expired |
-| `cache_store_duration_ms` | `cache`, `operation` | How long its store took |
-| `cache_source_duration_ms` | `cache`, `operation` | How long the cached method took |
+| `cache_store_duration_seconds` | `cache`, `operation` | How long its store took |
+| `cache_source_duration_seconds` | `cache`, `operation` | How long the cached method took |
 | `rate_limit_allowed_total` | `limiter` | How many calls each [rate limiter](./rate-limiting.md) let through |
 | `rate_limit_blocked_total` | `limiter` | How many it refused |
 | `rate_limit_errors_total` | `limiter`, `operation` | How many of its calls and store operations failed |
 | `rate_limit_active_keys` | `limiter` | How many keys its store holds |
 | `rate_limit_active_reservations` | `limiter` | How many reservations are open |
-| `rate_limit_decision_duration_ms` | `limiter` | How long a decision took |
-| `rate_limit_store_duration_ms` | `limiter`, `operation` | How long its store took |
+| `rate_limit_decision_duration_seconds` | `limiter` | How long a decision took |
+| `rate_limit_store_duration_seconds` | `limiter`, `operation` | How long its store took |
 | `rate_limit_remaining_ratio` | `limiter` | How much of the capacity was left after a call, from 0 to 1 |
-| `rate_limit_retry_after_ms` | `limiter` | How long a refused caller had to wait |
+| `rate_limit_retry_after_seconds` | `limiter` | How long a refused caller had to wait |
 | `cron_job_runs_total` | `job` | How many times each cron job ran on this instance |
 | `cron_job_failures_total` | `job` | How many of those runs failed, after their retries |
-| `cron_job_duration_ms` | `job` | How long they took, retries included |
+| `cron_job_duration_seconds` | `job` | How long they took, retries included |
 | `email_queue_depth` | `status` | How many mails are `QUEUED`, and how many `FAILED` |
 | `email_queue_oldest_age_seconds` | | How long the oldest queued mail has waited |
 | `event_queue_depth` | `status` | How many events are owed a run (`CREATED`), and how many `FAILED` |
@@ -83,10 +84,23 @@ its own:
 | `log_entries_dropped_total` | | How many log entries were dropped because the write queue was full |
 | `audit_entries_pending` | | How many [audit entries](./audit.md) wait to be stored |
 
-A queue's gauges are the deployment's: every instance reports the same numbers, counted at most every 30 seconds. The cron, worker, lease, log, audit, cache and rate limiter metrics are each instance's own, except `cache_size` and `rate_limit_active_keys`, which count what the store holds. A queue gauge of a subsystem your application does not use is not reported.
+A queue's gauges are the deployment's: every instance reports the same numbers, counted at most every `METRICS_DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS`. Each count reads the data source once on every instance, so a shorter interval makes the gauges fresher and costs the data source more. The cron, worker, lease, log, audit, cache and rate limiter metrics are each instance's own, except `cache_size` and `rate_limit_active_keys`, which count what the store holds. A queue gauge of a subsystem your application does not use is not reported.
 
 `route` is the route template, such as `/invoices/:id`, so a path parameter stays out of the
 label. A request that matched no route is counted as `<unmatched>`.
+
+Every duration is in seconds, the way Prometheus names them, as a fraction where it is shorter.
+
+`http_request_duration_seconds` counts the requests into buckets of 50, 100, 200, 500, 1000, 2000 and 5000 milliseconds. For an API that mostly answers within a few milliseconds, give it finer ones, in milliseconds:
+
+```ts
+// src/providers.ts
+import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
+
+defineProvider({ token: ZIBRI_DI_TOKENS.METRICS_REQUEST_DURATION_BUCKETS_IN_MS, useValue: [5, 10, 25, 50, 100, 250, 1000] })
+```
+
+Each bucket is one more series for every route, method and status code.
 
 The two network counters are collected once per interface and labeled with its name, so a query
 names the interface it means. They are the counters of the machine the process runs on, so they
@@ -124,7 +138,7 @@ A gauge that is counted rather than kept up to date as things happen is set by a
 
 ```ts
 // src/services/order-metrics.service.ts
-import { DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS, inject, MetricsServiceInterface, OnAppInit, Repository, ZIBRI_DI_TOKENS } from 'zibri';
+import { inject, MetricsServiceInterface, OnAppInit, Repository, ZIBRI_DI_TOKENS } from 'zibri';
 
 import { Order } from '../models/order.model';
 
@@ -135,7 +149,7 @@ export class OrderMetrics implements OnAppInit {
         const metricsService: MetricsServiceInterface = inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
         metricsService.addCollector({
             name: 'open orders',
-            minIntervalInMs: DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS,
+            minIntervalInMs: 'dataSource',
             collect: async () => {
                 metricsService.getGauge('open_orders').set({}, await this.orders.count({ where: { status: 'open' } }));
             }
@@ -143,6 +157,8 @@ export class OrderMetrics implements OnAppInit {
     }
 }
 ```
+
+`'dataSource'` runs it at most every `METRICS_DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS`, like the collectors counting the queues. A number of milliseconds sets an interval of its own, and `0` runs it on every read.
 
 A collector that throws is logged, and its gauges keep what its last run set.
 

@@ -1,4 +1,4 @@
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 
 /**
  * Interface for an authenticator that keeps the tokens of a provider for its identities, so the
@@ -19,12 +19,12 @@ export interface ProviderAccessAuthenticatorInterface {
      * identity that does not log in is unlinked. Throws a NotFoundError when the user has no identity
      * of that id.
      */
-    revokeAccess: (userId: string, identityId: string, transaction: Transaction | undefined) => Promise<void>,
+    revokeAccess: (userId: string, identityId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Stops an identity of a user from logging in as them, and keeps the tokens of its apis. An identity
      * without api access is unlinked. Throws a NotFoundError when the user has no identity of that id.
      */
-    revokeLogin: (userId: string, identityId: string, transaction: Transaction | undefined) => Promise<void>
+    revokeLogin: (userId: string, identityId: string, transaction: RepositoryTransaction | undefined) => Promise<void>
 }
 
 /**

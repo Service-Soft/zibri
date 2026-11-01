@@ -5,7 +5,6 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
 import { MimeType } from '../../http/mime-type.enum';
 import { BodyMetadata } from '../../routing/decorators/body-metadata.model';
-import { resolveMaxBodySize } from '../../routing/decorators/body.decorator';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 
 class Message {
@@ -33,7 +32,7 @@ describe('WebsocketBody', () => {
         const metadata: BodyMetadata | undefined = MetadataUtilities.getRouteBody(Handlers, 'sized');
 
         expect(metadata?.type).toBe(MimeType.JSON);
-        expect(metadata?.type === MimeType.OCTET_STREAM || metadata == undefined ? undefined : resolveMaxBodySize(metadata).toString())
+        expect(metadata?.type === MimeType.OCTET_STREAM ? undefined : metadata?.baseMaxSize?.toString())
             .toBe(fileSizeToBytes('1kb').toString());
     });
 

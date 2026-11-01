@@ -102,6 +102,7 @@
         "socket.io-adapter": "^2.5.5",
         "socket.io-parser": "^4.2.4",
         "ssh2": "^1.17.0",
+        "ws": "^8.21.0",
         "swagger2openapi": "^7.0.8",
         "systeminformation": "^5.31.6",
         "ts-node": "^10.9.2",
@@ -156,6 +157,9 @@
             "optional": true
         },
         "socket.io-parser": {
+            "optional": true
+        },
+        "ws": {
             "optional": true
         },
         "typescript": {

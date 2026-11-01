@@ -13,5 +13,9 @@ export type JwtProviderTokenVerifyOptions = {
     /**
      * The algorithms it may be signed with.
      */
-    algorithms: string[]
+    algorithms: string[],
+    /**
+     * How far the clocks of the provider and the application may be apart, for `exp`, `nbf` and `iat`.
+     */
+    clockToleranceInMs: number
 };

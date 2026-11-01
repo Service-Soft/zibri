@@ -30,10 +30,11 @@ type BaseBodyMetadata = OmitStrict<BasePropertyMetadata, 'excludeFromChangeSets'
      */
     index: number,
     /**
-     * The maximum size of the body without the files it may carry. `resolveMaxBodySize` adds the sizes
-     * of its file and file array properties to it.
+     * The maximum size of the body without the files it may carry, or undefined for the one the
+     * application or the http client reading it allows. `resolveMaxBodySize` adds the sizes of its
+     * file and file array properties to it.
      */
-    baseMaxSize: BigNumber
+    baseMaxSize: BigNumber | undefined
 };
 
 /**
@@ -104,9 +105,10 @@ export type StreamBodyMetadata = OmitStrict<BaseBodyMetadata, 'shape' | 'baseMax
      */
     type: MimeType.OCTET_STREAM,
     /**
-     * The maximum size of the body.
+     * The maximum size of the body, or undefined for the one the application or the http client
+     * reading it allows.
      */
-    maxSize: BigNumber
+    maxSize: BigNumber | undefined
 };
 
 /**

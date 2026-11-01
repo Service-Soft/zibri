@@ -8,9 +8,6 @@ import { AlsUtilities } from '../../context/als.utilities';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { IsolationLevel } from '../../data-source/data-sources/data-source.interface';
-import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { ClassPropertyUtilities } from '../../entity/utilities/class-property.utilities';
@@ -47,9 +44,9 @@ import { isLinkIdentityConfirmingAuthenticator, LinkIdentityConfirmingAuthentica
 import { isLinkIdentityRequestingAuthenticator, LinkIdentityRequestingAuthenticatorInterface } from '../authenticators/link-identity-requesting-authenticator.interface';
 import { LinkedIdentity } from '../authenticators/linked-identity.model';
 import { isLoginOptionsAuthenticator, LoginOptionsAuthenticatorInterface } from '../authenticators/login-options-authenticator.interface';
+import { ChangePasswordAtLoginInput } from '../authenticators/password/change-password-at-login-input.model';
 import { ChangePasswordDto } from '../authenticators/password/change-password-data.model';
 import { ConfirmPasswordResetDto } from '../authenticators/password/confirm-password-reset-data.model';
-import { PasswordCredentials } from '../authenticators/password/password-credentials.model';
 import { PasswordResetTokenInput } from '../authenticators/password/password-reset-token-input.model';
 import { PasswordResetTokenValidity } from '../authenticators/password/password-reset-token-validity.model';
 import { RequestPasswordResetInput } from '../authenticators/password/request-password-reset-input.model';
@@ -58,11 +55,9 @@ import { Auth } from '../decorators/auth.decorator';
 import { CurrentUser } from '../decorators/current-user.decorator';
 import { type EmailVerificationServiceInterface } from '../email-verification/email-verification-service.interface';
 import { EmailVerificationTokenInput } from '../email-verification/email-verification-token-input.model';
-import { EmailVerificationToken } from '../email-verification/email-verification-token.model';
 import { RequestEmailChangeInput } from '../email-verification/request-email-change-input.model';
 import { type BaseUser } from '../models/base-user.model';
 import { LogoutResult } from '../models/logout-result.model';
-import { PasswordResetToken } from '../models/password-reset-token.model';
 import { UserLogin } from '../models/user-login.model';
 import { isAuthStrategy } from '../strategies/auth-strategy.interface';
 import { CsrfTokenAuthStrategyInterface, isCsrfTokenAuthStrategy } from '../strategies/csrf-token-auth-strategy.interface';
@@ -201,28 +196,6 @@ export function AuthController<
             return inject(ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_SERVICE);
         }
 
-        /**
-         * Runs the confirmation of a link in a transaction of the data source of its tokens.
-         * @param work - The confirmation.
-         */
-        private async runInEmailVerificationTransaction(work: (transaction: Transaction) => Promise<void>): Promise<void> {
-            const transaction: Transaction = await inject(repositoryTokenFor(EmailVerificationToken)).dataSource.startTransaction();
-            try {
-                await work(transaction);
-                await transaction.commit();
-            }
-            catch (error) {
-                await transaction.rollback();
-                throw error;
-            }
-        }
-
-        // read when used rather than injected: only the password reset needs it, and its authenticator
-        // names the entity when it is missing
-        private get passwordResetTokenRepository(): Repository<PasswordResetToken> {
-            return inject(repositoryTokenFor(PasswordResetToken));
-        }
-
         // the routes anyone may call without being anybody yet are unauthenticated by necessity: they
         // stay reachable whichever `defaultAuth` the application declared, and `allowRedundant` because
         // a controller the framework defines cannot know which one that was.
@@ -251,9 +224,9 @@ export function AuthController<
             await AuthControllerUtilities.validateBody(credentials, inject(authenticatorClass).credentialsModel);
             const strategyClass: AuthControllerStrategyClass = AuthControllerUtilities.resolveNamed(strategies, strategy, 'strategy');
             return await AuthControllerUtilities.runInTransaction(
-                strategyClass,
                 // eslint-disable-next-line typescript/no-unsafe-return
-                async transaction => await this.authService.login(authenticatorClass, strategyClass, credentials, transaction)
+                async transaction => await this.authService.login(authenticatorClass, strategyClass, credentials, transaction),
+                { isolationLevel: IsolationLevel.READ_COMMITTED }
             );
         }
 
@@ -270,9 +243,9 @@ export function AuthController<
             const strategyClass: AuthControllerStrategyClass = AuthControllerUtilities.resolveNamed(strategies, strategy, 'strategy');
             await AuthControllerUtilities.validateBody(data, inject(strategyClass).refreshLoginModel);
             return await AuthControllerUtilities.runInTransaction(
-                strategyClass,
                 // eslint-disable-next-line typescript/no-unsafe-return
-                async transaction => await this.authService.refreshLogin(strategyClass, { ...data, transaction })
+                async transaction => await this.authService.refreshLogin(strategyClass, { ...data, transaction }),
+                { isolationLevel: IsolationLevel.READ_COMMITTED }
             );
         }
 
@@ -290,8 +263,8 @@ export function AuthController<
             const strategyClass: AuthControllerStrategyClass = AuthControllerUtilities.resolveNamed(strategies, strategy, 'strategy');
             await AuthControllerUtilities.validateBody(data, inject(strategyClass).logoutModel);
             return await AuthControllerUtilities.runInTransaction(
-                strategyClass,
-                async transaction => await this.authService.logout(strategyClass, { ...data, transaction })
+                async transaction => await this.authService.logout(strategyClass, { ...data, transaction }),
+                { isolationLevel: IsolationLevel.READ_COMMITTED }
             );
         }
 
@@ -352,7 +325,7 @@ export function AuthController<
             @Body(EmailVerificationTokenInput)
             input: EmailVerificationTokenInput
         ): Promise<void> {
-            await this.runInEmailVerificationTransaction(
+            await AuthControllerUtilities.runInTransaction(
                 async transaction => await this.emailVerificationService.confirmEmailVerification(input.token, transaction)
             );
         }
@@ -381,7 +354,7 @@ export function AuthController<
             @Body(EmailVerificationTokenInput)
             input: EmailVerificationTokenInput
         ): Promise<void> {
-            await this.runInEmailVerificationTransaction(
+            await AuthControllerUtilities.runInTransaction(
                 async transaction => await this.emailVerificationService.confirmEmailChange(input.token, transaction)
             );
         }
@@ -399,15 +372,13 @@ export function AuthController<
             @Body(ChangePasswordDto)
             data: ChangePasswordDto
         ): Promise<void> {
-            const transaction: Transaction = await inject(repositoryTokenFor(PasswordCredentials)).dataSource.startTransaction();
-            try {
-                await this.authService.changePassword(user.id, { ...data, transaction }, inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT));
-                await transaction.commit();
-            }
-            catch (error) {
-                await transaction.rollback();
-                throw error;
-            }
+            await AuthControllerUtilities.runInTransaction(
+                async transaction => await this.authService.changePassword(
+                    user.id,
+                    { ...data, transaction },
+                    inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT)
+                )
+            );
         }
 
         // how a client that holds the cookies but not the token gets it: after a page reload, or after a
@@ -472,16 +443,10 @@ export function AuthController<
             @Body(ConfirmPasswordResetDto)
             data: ConfirmPasswordResetDto
         ): Promise<void> {
-            const transaction: Transaction = await this.passwordResetTokenRepository.dataSource
-                .startTransaction({ isolationLevel: IsolationLevel.READ_COMMITTED });
-            try {
-                await this.authService.confirmPasswordReset({ ...data, transaction });
-                await transaction.commit();
-            }
-            catch (error) {
-                await transaction.rollback();
-                throw error;
-            }
+            await AuthControllerUtilities.runInTransaction(
+                async transaction => await this.authService.confirmPasswordReset({ ...data, transaction }),
+                { isolationLevel: IsolationLevel.READ_COMMITTED }
+            );
         }
 
         // every route anyone may call that stores a challenge shares the login's budget
@@ -893,9 +858,31 @@ export function AuthController<
             const strategyClass: AuthControllerStrategyClass = AuthControllerUtilities.resolveNamed(strategies, strategy, 'strategy');
             const ticket: string = this.resolveLoginTicket();
             return await AuthControllerUtilities.runInTransaction(
-                strategyClass,
                 // eslint-disable-next-line typescript/no-unsafe-return
-                async transaction => await this.authService.confirmSecondFactorAtLogin(ticket, strategyClass, transaction)
+                async transaction => await this.authService.confirmSecondFactorAtLogin(ticket, strategyClass, transaction),
+                { isolationLevel: IsolationLevel.READ_COMMITTED }
+            );
+        }
+
+        // where a login waiting for a new password continues, with the ticket it answered with. On the
+        // login's budget, like the second factor: the ticket stands in for a password already checked
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.skip({ allowRedundant: true })
+        @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER, { refundOnSuccess: true })
+        @respondsWith(strategies.map(s => () => inject(s).authDataModel))
+        @Post('/login/change-password')
+        async changePasswordAtLogin(
+            @Param.query('strategy', { type: 'string', required: strategies.length > 1 })
+            strategy: string | undefined,
+            @Body(ChangePasswordAtLoginInput)
+            input: ChangePasswordAtLoginInput
+        ): Promise<unknown> {
+            const strategyClass: AuthControllerStrategyClass = AuthControllerUtilities.resolveNamed(strategies, strategy, 'strategy');
+            const ticket: string = this.resolveLoginTicket();
+            return await AuthControllerUtilities.runInTransaction(
+                // eslint-disable-next-line typescript/no-unsafe-return
+                async transaction => await this.authService.changePasswordAtLogin(ticket, input.newPassword, strategyClass, transaction),
+                { isolationLevel: IsolationLevel.READ_COMMITTED }
             );
         }
 
@@ -913,14 +900,14 @@ export function AuthController<
                         // the code was minted for this browser a moment ago, and the cookie it is bound to
                         // is on this very request
                         await AuthControllerUtilities.runInTransaction(
-                            strategyClass,
                             // eslint-disable-next-line typescript/no-unsafe-return
                             async transaction => await this.authService.login(
                                 authenticatorClass,
                                 strategyClass,
                                 { code: result.code },
                                 transaction
-                            )
+                            ),
+                            { isolationLevel: IsolationLevel.READ_COMMITTED }
                         );
                         return FederatedRouteUtilities.toRedirect(result.redirectTo, undefined);
                     }
@@ -955,7 +942,7 @@ export function AuthController<
     const groups: RouteGroup[] = [
         { routes: ['csrfToken'], present: csrfStrategies.length > 0 },
         { routes: ['requestPasswordReset', 'verifyPasswordResetToken', 'confirmPasswordReset'], present: resetting.length > 0 },
-        { routes: ['changePassword'], present: changing.length > 0 },
+        { routes: ['changePassword', 'changePasswordAtLogin'], present: changing.length > 0 },
         {
             routes: ['requestEmailVerification', 'confirmEmailVerification', 'requestEmailChange', 'confirmEmailChange'],
             present: options.emailVerification === true

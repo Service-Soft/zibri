@@ -23,7 +23,7 @@ export class Credential extends BaseEntity {
     @Property.string({ encryption: true })
     secret!: string;
 
-    @Property.string({ hash: true })
+    @Property.string({ hash: true, password: false })
     pin!: string;
 
     @Property.string({ encryption: { bindToRow: false }, required: false })

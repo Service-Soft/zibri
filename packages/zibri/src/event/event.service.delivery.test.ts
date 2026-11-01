@@ -1,7 +1,7 @@
 import { setTimeout } from 'node:timers/promises';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { createInMemoryDataSource } from 'zibri-testing';
+import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
 import { type EventServiceInterface } from './event-service.interface';
 import { EventSubscriberRegistration } from './event-subscriber-registration.model';
@@ -12,7 +12,10 @@ import { defaultTestServerEntities, defaultTestServerRepositories } from '../__t
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../__testing__/wait-until.function';
+import { DataSource } from '../data-source/decorators/data-source.decorator';
+import { MigrationEntity } from '../data-source/migration/migration-entity.model';
 import { Repository } from '../data-source/repository/repository';
+import { RepositoryClass } from '../data-source/repository/repository-class.type';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
@@ -21,6 +24,7 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { QueuedWorkRun } from '../queue/queued-work-run.model';
+import { Newable } from '../types/newable.type';
 
 declare module './event-service.interface' {
     /**
@@ -29,6 +33,7 @@ declare module './event-service.interface' {
     interface ZibriEventMap {
         'delivery.retried': { n: number },
         'delivery.transactional': { label: string },
+        'delivery.elsewhere': { label: string },
         'delivery.at-most-once': { n: number },
         'delivery.everywhere': { n: number }
     }
@@ -41,6 +46,24 @@ declare module './event-service.interface' {
 class DeliveryEffect extends BaseEntity {
     @Property.string()
     label!: string;
+}
+
+/**
+ * What a hook writes to another data source than the one the events are kept in.
+ */
+@Entity({ tenant: 'shared', allowOrphan: true })
+class DeliveryNote extends BaseEntity {
+    @Property.string()
+    label!: string;
+}
+
+/**
+ * The data source of the notes.
+ */
+@DataSource()
+class NotesDataSource extends InMemoryDataSource {
+    override readonly entities: Newable<BaseEntity>[] = [MigrationEntity, DeliveryNote];
+    override readonly repositories: RepositoryClass[] = [];
 }
 
 /**
@@ -60,7 +83,8 @@ beforeAll(async () => {
             createInMemoryDataSource({
                 entities: [...defaultTestServerEntities, DeliveryEffect],
                 repositories: defaultTestServerRepositories
-            })
+            }),
+            NotesDataSource
         ],
         providers: [
             ...defaultTestServerProviders,
@@ -134,6 +158,26 @@ describe('EventService - how a subscriber is delivered an event', () => {
         const failed: EventSubscriberRun<unknown> = await waitForRun('delivery-transactional', EventSubscriberRunStatus.PENDING_RETRY);
         expect(failed.attempts).toBe(1);
         expect(await effects.findAll({ where: { label: 'failing' } })).toEqual([]);
+    });
+
+    it('keeps what a transactional hook wrote to another data source together with recording its run', async () => {
+        const notes: Repository<DeliveryNote> = inject(NotesDataSource).getRepository(DeliveryNote);
+        await eventService.subscribe('delivery.elsewhere', async (event, _, run) => {
+            await notes.create({ label: event.data.label }, { transaction: run.transaction });
+            if (event.data.label === 'failing') {
+                throw new Error('the invoice could not be numbered');
+            }
+        }, { subscriberId: 'delivery-elsewhere', attempts: 2, delivery: 'transactional' });
+
+        await eventService.emit('delivery.elsewhere', { label: 'kept' });
+        await waitForRun('delivery-elsewhere', EventSubscriberRunStatus.SUCCEEDED);
+        expect(await notes.findAll({ where: { label: 'kept' } })).toHaveLength(1);
+
+        await runs.deleteAll({ subscriberId: 'delivery-elsewhere' });
+        await eventService.emit('delivery.elsewhere', { label: 'failing' });
+        const failed: EventSubscriberRun<unknown> = await waitForRun('delivery-elsewhere', EventSubscriberRunStatus.PENDING_RETRY);
+        expect(failed.attempts).toBe(1);
+        expect(await notes.findAll({ where: { label: 'failing' } })).toEqual([]);
     });
 
     it('records a run delivered at most once as failed before its hook runs, and never runs it again', async () => {

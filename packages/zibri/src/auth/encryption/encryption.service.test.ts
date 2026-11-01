@@ -9,6 +9,7 @@ import { EncryptionString } from './encryption.utilities';
 import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
 import { EncryptionStrategyEntity } from './strategies/encryption-strategy-entity.model';
 import { TestTimeouts } from '../../__testing__/constants';
+import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -25,8 +26,8 @@ describe('EncryptionService — starting', () => {
     test('refuses to start without its entities, and names both', async () => {
         const start: Promise<void> = startAndStopTestServerWithout([EncryptionKey, EncryptionStrategyEntity]);
 
-        await expect(start).rejects.toThrow('Error initializing EncryptionService');
-        await expect(start).rejects.toThrow(/EncryptionStrategyEntity[\S\s]*EncryptionKey/);
+        await expect(start).rejects.toThrow(missingEntityPattern('EncryptionStrategyEntity', 'EncryptionService'));
+        await expect(start).rejects.toThrow(missingEntityPattern('EncryptionKey', 'EncryptionService'));
     }, TestTimeouts.inMemory.start);
 
     test('refuses to start without the master key options, whether or not anything is encrypted', async () => {

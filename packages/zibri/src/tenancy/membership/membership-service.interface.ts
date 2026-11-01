@@ -1,5 +1,5 @@
 import { BaseMembership } from './base-membership.model';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { Newable } from '../../types/newable.type';
 
 /**
@@ -13,7 +13,7 @@ export interface MembershipServiceInterface {
     findActiveMembership: <Role extends string, T extends BaseMembership<Role>>(
         userId: string,
         tenantId: string,
-        transaction?: Transaction
+        transaction?: RepositoryTransaction
     ) => Promise<T | undefined>,
     /**
      * Finds the active memberships of a user in every tenant, eg. To let them pick the tenant to work
@@ -27,7 +27,7 @@ export interface MembershipServiceInterface {
     resolveMembership: <Role extends string, T extends BaseMembership<Role>>(
         userId: string,
         tenantId: string,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ) => Promise<T>,
     /**
      * Sets when the membership of a user in a tenant was deactivated, or null to reactivate it.
@@ -36,22 +36,22 @@ export interface MembershipServiceInterface {
         userId: string,
         tenantId: string,
         deactivatedAt: Date | null,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ) => Promise<void>,
     /**
      * Deletes the membership of a user in a tenant, if they have one.
      */
-    deleteMembership: (userId: string, tenantId: string, transaction: Transaction | undefined) => Promise<void>,
+    deleteMembership: (userId: string, tenantId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Stores the roles a user holds through their membership in a tenant.
      */
-    updateRoles: (userId: string, tenantId: string, roles: string[], transaction: Transaction | undefined) => Promise<void>,
+    updateRoles: (userId: string, tenantId: string, roles: string[], transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Deletes every membership of the given users, in every tenant.
      *
      * Called by the repository of a user entity whenever it deletes users, in the same transaction.
      */
-    deleteMemberships: (userIds: string[], transaction: Transaction) => Promise<void>,
+    deleteMemberships: (userIds: string[], transaction: RepositoryTransaction) => Promise<void>,
     /**
      * Finds the roles stored memberships hold other than the given ones and those of their tenant's
      * own, in every tenant, eg. To refuse starting an application whose members hold a role that does

@@ -23,5 +23,15 @@ export type AuthorizationServerEndpoint = {
     /**
      * How far ahead a jwt a client signs to authenticate itself may expire.
      */
-    maxClientAssertionLifetimeInMs: number
+    maxClientAssertionLifetimeInMs: number,
+    /**
+     * How far the clocks of a client and the application may be apart, for the times in a jwt the
+     * client signs.
+     */
+    acceptedClockSkewInMs: number,
+    /**
+     * How long a token issued to a client lasts, or undefined for as long as the issuing strategy's
+     * own access tokens.
+     */
+    accessTokenExpiresInMs: number | undefined
 };

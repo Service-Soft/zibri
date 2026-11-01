@@ -23,9 +23,10 @@ export abstract class CronJobEntityUtilities {
         // runsOn is a property of the job rather than of the row, so it is read off the config
         // wherever it is needed rather than stored and read back
 
-        // and onFailure, which the class owns and every start would take back from it anyway
+        // and onFailure and maxRandomDelayInMs, which the class owns and every start would take back
+        // from it anyway
         // eslint-disable-next-line unusedImports/no-unused-vars
-        const { active, syncToDataSource, runsOn, onFailure, ...persisted } = config;
+        const { active, syncToDataSource, runsOn, onFailure, maxRandomDelayInMs, ...persisted } = config;
         return {
             ...persisted,
             declaredCron: persisted.cron,

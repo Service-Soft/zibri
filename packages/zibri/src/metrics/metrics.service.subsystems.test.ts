@@ -219,6 +219,14 @@ describe('PrometheusMetricsService — the queues', () => {
         expect(body).toContain('# TYPE http_requests_total counter');
         expect(body).toMatch(/^email_queue_depth{status="QUEUED"} \d+$/m);
     });
+
+    // after-all-findings-fixed W3: the gauges were in seconds and the histograms in milliseconds
+    it('names every duration in seconds, the way the runtime metrics are', async () => {
+        const body: string = await (await fetch(`${baseUrl}/metrics-subsystems-test/scrape`)).text();
+
+        expect(body).toContain('# TYPE http_request_duration_seconds histogram');
+        expect(body.match(/^# TYPE \w+_ms \w+$/gm) ?? []).toEqual([]);
+    });
 });
 
 /**
@@ -288,6 +296,10 @@ describe('PrometheusMetricsService — cron jobs', () => {
         expect(valueOf(snapshot, 'cron_job_failures_total', { job: 'metrics succeeding' })).toBe(0);
         expect(valueOf(snapshot, 'cron_job_runs_total', { job: 'metrics failing' })).toBe(2);
         expect(valueOf(snapshot, 'cron_job_failures_total', { job: 'metrics failing' })).toBe(2);
-        expect(valueOf(snapshot, 'cron_job_duration_ms_count', { job: 'metrics failing' })).toBe(2);
+        expect(valueOf(snapshot, 'cron_job_duration_seconds_count', { job: 'metrics failing' })).toBe(2);
+        const bounds: (string | number | undefined)[] = snapshot.metrics
+            .filter(m => m.name === 'cron_job_duration_seconds_bucket' && m.labels['job'] === 'metrics failing')
+            .map(m => m.labels['le']);
+        expect(bounds).toEqual([0.01, 0.1, 1, 10, 60, 600, '+Inf']);
     });
 });

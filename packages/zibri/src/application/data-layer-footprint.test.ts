@@ -35,7 +35,9 @@ describe('the data layer', () => {
     it('imports no ORM, in any package', () => {
         const importing: string[] = ['zibri/src', 'testing/src', 'sandbox/src', 'cli/src']
             .flatMap(dir => findTypeScriptFiles(dir))
-            // the group keeps this line from matching itself
+            // this file, whose pattern below names what it looks for. A group in the pattern kept it from
+            // matching itself, until the linter removed the group as useless
+            .filter(file => path.join(packagesDir, file) !== __filename)
             .filter(file => /from 'typeorm|require\('typeorm/.test(readFileSync(path.join(packagesDir, file), 'utf8')));
 
         expect(importing).toEqual([]);

@@ -46,5 +46,10 @@ export interface S3BackupTransportOptions {
     /**
      * How long a single request to the service may take, in milliseconds. Defaults to five minutes.
      */
-    readonly timeoutInMs?: number
+    readonly timeoutInMs?: number,
+    /**
+     * How many times a request the service answers with a server error or `429` is sent, the first
+     * one included. Only a request that can be sent again without changing its outcome is. Defaults to 3.
+     */
+    readonly attempts?: number
 }

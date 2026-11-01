@@ -1,7 +1,7 @@
 import { ZibriApplication } from '../../../application/application';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
 import { Newable } from '../../../types/newable.type';
 import { UserAccount } from '../../models/user-account.model';
 
@@ -76,7 +76,7 @@ export interface TwoFactorMethod<
      * transaction that deletes the users for good; a soft deleted user keeps them. Optional: leave it
      * out for a method that keeps nothing per user.
      */
-    deleteUserRows?: (userIds: string[], transaction: Transaction) => Promise<void>,
+    deleteUserRows?: (userIds: string[], transaction: RepositoryTransaction) => Promise<void>,
     /**
      * Whether the given user has a confirmed registration of this method.
      *

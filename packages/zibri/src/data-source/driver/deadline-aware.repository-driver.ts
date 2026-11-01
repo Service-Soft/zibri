@@ -10,6 +10,7 @@ import { PaginationResult } from '../models/pagination-result.model';
 import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
+import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
 import { Transaction } from '../transaction/transaction.model';
 
 /**
@@ -27,14 +28,15 @@ import { Transaction } from '../transaction/transaction.model';
  *
  * Every method forwards. What is added is the refusal in front of it.
  */
-export class DeadlineAwareRepositoryDriver<T extends BaseEntity> extends ForwardingRepositoryDriver<T> {
+export class DeadlineAwareRepositoryDriver<T extends BaseEntity, X extends RepositoryTransaction = Transaction>
+    extends ForwardingRepositoryDriver<T, X> {
 
-    override async save(data: DeepPartial<T>[], transaction: Transaction | undefined, reload: boolean): Promise<T[]> {
+    override async save(data: DeepPartial<T>[], transaction: X | undefined, reload: boolean): Promise<T[]> {
         this.validateStillWanted();
         return await super.save(data, transaction, reload);
     }
 
-    override async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
+    override async insert(data: DeepPartial<T>[], transaction: X | undefined): Promise<T[]> {
         this.validateStillWanted();
         return await super.insert(data, transaction);
     }
@@ -42,14 +44,14 @@ export class DeadlineAwareRepositoryDriver<T extends BaseEntity> extends Forward
     override async updateEach(
         rows: DeepPartial<T>[],
         where: Where<T>,
-        transaction: Transaction | undefined,
+        transaction: X | undefined,
         related?: RelatedNarrowing
     ): Promise<T[]> {
         this.validateStillWanted();
         return await super.updateEach(rows, where, transaction, related);
     }
 
-    override async find(options: DriverFindOptions<T>): Promise<T[]> {
+    override async find(options: DriverFindOptions<T, X>): Promise<T[]> {
         this.validateStillWanted();
         return await super.find(options);
     }
@@ -58,33 +60,33 @@ export class DeadlineAwareRepositoryDriver<T extends BaseEntity> extends Forward
         entities: T[],
         relations: FindAllOptions<T>['relations'],
         related: RelatedNarrowing | undefined,
-        transaction: Transaction | undefined
+        transaction: X | undefined
     ): Promise<T[]> {
         this.validateStillWanted();
         return await super.resolveRelations(entities, relations, related, transaction);
     }
 
-    override async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
+    override async findOne(options: DriverFindOptions<T, X>): Promise<T | undefined> {
         this.validateStillWanted();
         return await super.findOne(options);
     }
 
-    override async count(options: DriverFindOptions<T>): Promise<number> {
+    override async count(options: DriverFindOptions<T, X>): Promise<number> {
         this.validateStillWanted();
         return await super.count(options);
     }
 
-    override async aggregate(options: DriverAggregateOptions<T>): Promise<AggregateRow[]> {
+    override async aggregate(options: DriverAggregateOptions<T, X>): Promise<AggregateRow[]> {
         this.validateStillWanted();
         return await super.aggregate(options);
     }
 
-    override async findAndCount(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
+    override async findAndCount(options: DriverFindAndCountOptions<T, X>): Promise<PaginationResult<T>> {
         this.validateStillWanted();
         return await super.findAndCount(options);
     }
 
-    override async remove(ids: string[], reach: RemovalReach<T> | undefined, transaction: Transaction | undefined): Promise<string[]> {
+    override async remove(ids: string[], reach: RemovalReach<T> | undefined, transaction: X | undefined): Promise<string[]> {
         this.validateStillWanted();
         return await super.remove(ids, reach, transaction);
     }
@@ -92,18 +94,18 @@ export class DeadlineAwareRepositoryDriver<T extends BaseEntity> extends Forward
     override async removeMatching(
         where: Where<T> | undefined,
         related: RelatedNarrowing | undefined,
-        transaction: Transaction | undefined
+        transaction: X | undefined
     ): Promise<string[]> {
         this.validateStillWanted();
         return await super.removeMatching(where, related, transaction);
     }
 
-    override async findIds(options: DriverFindOptions<T>): Promise<string[]> {
+    override async findIds(options: DriverFindOptions<T, X>): Promise<string[]> {
         this.validateStillWanted();
         return await super.findIds(options);
     }
 
-    override async updateAll<R extends boolean = false>(options: DriverUpdateAllOptions<T, R>): Promise<R extends true ? T[] : number> {
+    override async updateAll<R extends boolean = false>(options: DriverUpdateAllOptions<T, R, X>): Promise<R extends true ? T[] : number> {
         this.validateStillWanted();
         return await super.updateAll(options);
     }
@@ -111,7 +113,7 @@ export class DeadlineAwareRepositoryDriver<T extends BaseEntity> extends Forward
     override async upsert(
         identity: string[],
         rows: UpsertRow<T>[],
-        transaction: Transaction | undefined,
+        transaction: X | undefined,
         reachable: Where<T> | undefined,
         related?: RelatedNarrowing
     ): Promise<T[]> {
@@ -128,7 +130,7 @@ export class DeadlineAwareRepositoryDriver<T extends BaseEntity> extends Forward
      * @param options - What to read.
      * @yields Each row the store answers with.
      */
-    override async* stream(options: DriverStreamOptions<T>): AsyncIterable<T> {
+    override async* stream(options: DriverStreamOptions<T, X>): AsyncIterable<T> {
         this.validateStillWanted();
         for await (const row of super.stream(options)) {
             this.validateStillWanted();

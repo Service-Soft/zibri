@@ -6,7 +6,7 @@ import { ZibriApplication } from '../../../../application/application';
 import { HttpRequestContext } from '../../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context';
 import { Repository } from '../../../../data-source/repository/repository';
-import { Transaction } from '../../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../../data-source/transaction/repository-transaction.type';
 import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
@@ -157,7 +157,7 @@ export class RecoveryCodeTwoFactorMethod implements TwoFactorMethod<void, Recove
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+    async deleteUserRows(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
         await this.recoveryCodeRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
     }
 

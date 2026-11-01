@@ -1,6 +1,6 @@
 import { HttpRequestContext } from '../../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context';
-import { Transaction } from '../../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../../data-source/transaction/repository-transaction.type';
 import { Inject } from '../../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../../di/inject.function';
@@ -83,7 +83,7 @@ implements TwoFactorMethod<PasskeyAdditionRequest, PasskeyRegistrationResponse, 
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+    async deleteUserRows(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
         await this.passkeyService.deleteUserRows(userIds, transaction);
     }
 

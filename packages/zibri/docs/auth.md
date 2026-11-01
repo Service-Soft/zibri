@@ -38,6 +38,10 @@ Logging users in, and deciding what each request may do. An [authenticator](./gl
 | `PasswordResetEmailTemplate`, `PasswordResetEmailTemplateProps` | type, type | The email a reset link is sent in, via `ZIBRI_DI_TOKENS.PASSWORD_RESET_EMAIL_TEMPLATE`, and what it renders: the link and the user |
 | `PasswordFailureLimit` | type | The `passwordFailureLimit` app option: how many wrong passwords in a row [lock an account](#locking-an-account-after-too-many-wrong-passwords), and for how long. Defaults to `false` |
 | `PasswordFailureStreak` | entity | A user's wrong passwords in a row, and until when they lock the account |
+| `PasswordPolicy`, `ZIBRI_DI_TOKENS.PASSWORD_POLICY` | type, DI token | What a password has to be: its [length](#how-long-a-password-may-be) and a check of your own. Required once an entity holds a password |
+| `PasswordRefusedError` | error | Thrown when a password written is shorter or longer than the policy says. Answers `400` |
+| `PasswordChangeRequiredError` | error | What a login answers when the user [chooses a new password](#requiring-a-new-password) first: `401`, with the [ticket](./glossary.md#ticket) the new password is set with |
+| `ChangePasswordAtLoginInput` | class | What setting that new password takes, besides the ticket: the new password |
 | `Authentication` | type | Who an authenticator authenticated, and when |
 | `DefaultAuth` | type | What a route with no `@Auth` decorator requires. Set on the application options, no default |
 | `IsLoggedInFn`, `IsNotLoggedInFn` | interface, interface | The types of `@Auth.isLoggedIn` and `@Auth.isNotLoggedIn`, with their `skip` |
@@ -533,9 +537,43 @@ nothing. Every lock is recorded as `auth.password.locked`, and a login refused b
 `auth.login` with `reason: locked`.
 
 ## How long a password may be
-Login and confirming a password reset accept passwords of up to `PASSWORD_MAX_LENGTH` (1024)
-characters. A longer one answers `400`. Put a lower or the same limit on your own password fields, such as
-registration, so that every password a user can set is one they can log in with:
+`ZIBRI_DI_TOKENS.PASSWORD_POLICY` says what a password has to be. Every password written to
+`PasswordCredentials`, or to any other property declared `password: true`, is checked against it
+before it is hashed: at registration, at a reset, at a change, and wherever your own code writes one.
+
+```ts
+// src/providers.ts
+import { $ts, BadRequestError, defineProvider, PasswordPolicy, ZIBRI_DI_TOKENS } from 'zibri';
+
+defineProvider({
+    token: ZIBRI_DI_TOKENS.PASSWORD_POLICY,
+    useFactory: (): PasswordPolicy => ({
+        minLength: 15,
+        validatePassword: (password: string): void => {
+            if (!/\d/.test(password)) {
+                throw new BadRequestError($ts`A password holds at least one digit.`);
+            }
+        },
+        outdatedPasswords: 'requireChange'
+    })
+})
+```
+
+| Option | What it is |
+|---|---|
+| `minLength` | The fewest characters a password has. Required |
+| `maxLength` | The most characters a password has, up to `PASSWORD_MAX_LENGTH` (1024). 128 by default, as OWASP ASVS asks |
+| `validatePassword` | Refuses a password the lengths let through, by throwing, such as one without a digit or one on a list of breached passwords. What it throws is what the write fails with. None by default |
+| `outdatedPasswords` | What a login does with a password the policy refuses, such as one set before the policy asked for more. `'keep'` logs the user in with it until they set a new one, `'requireChange'` has them [choose a new one](#requiring-a-new-password) first. Required |
+
+NIST SP 800-63B asks for at least 15 characters where the password is the only factor, and 8 where
+every user also has a [second factor](./two-factor.md).
+
+A password shorter or longer than the policy says fails the write with `PasswordRefusedError`, which
+answers `400`. Lengths count characters, so an emoji is one.
+
+Login takes passwords of up to `PASSWORD_MAX_LENGTH` characters, which is why `maxLength` goes no
+higher. Your own registration body takes the same, and leaves the rest to the policy:
 
 ```ts
 // src/models/register-data.model.ts
@@ -545,10 +583,40 @@ export class RegisterData {
     @Property.string({ format: 'email' })
     email!: string;
 
-    @Property.string({ minLength: 12, maxLength: PASSWORD_MAX_LENGTH })
+    @Property.string({ maxLength: PASSWORD_MAX_LENGTH })
     password!: string;
 }
 ```
+
+## Requiring a new password
+A login whose user has to choose a new password does not start. It answers `401` with a
+`PasswordChangeRequiredError`, whose body holds a `ticket`. The client sends the new password with the
+ticket in the `LOGIN_TICKET_HEADER` header, `x-login-ticket` by default:
+
+```http
+POST /auth/login/change-password
+x-login-ticket: <ticket>
+
+{ "newPassword": "a longer passphrase" }
+```
+
+That answers what `login` answers, and the user is logged in with the new password. Every other login
+of theirs ends. A password the policy refuses answers `400`, and the ticket stays for another try. The
+ticket is spent once, and lasts as long as `LOGIN_TICKET_EXPIRES_IN_MS` says, five minutes by default.
+
+A user has to choose a new password in two cases:
+
+- `outdatedPasswords` in the policy is `'requireChange'`, and the policy refuses the password they log in with
+- your code asked for it with `requirePasswordChange` of `ZIBRI_DI_TOKENS.AUTH_SERVICE`, such as after their password got out. This ends every login of theirs, and the new password has to differ from the one they have
+
+Setting a password any way, through a reset, a change or the ticket, ends the requirement.
+
+When the login asks for a [second factor](./two-factor.md#asking-for-a-second-factor-at-login), it
+asks for the second factor first. Confirming it answers the `PasswordChangeRequiredError`, with a new
+ticket. Each ticket is taken for its own step only, so somebody holding only the old password cannot
+set a new one.
+
+Declare `LoginTicket` in your data source.
 
 ## Deactivating a user
 `AuthService.deactivateUser` takes a user's access away and keeps the user: their logins end, their api keys are revoked, and until `reactivateUser` they cannot log in, by password, provider, directory or passkey alike, and no request acts as them. A login of a deactivated user answers `403` with an `AccountDeactivatedError`. A reactivated user logs in again; their api keys stay revoked.
@@ -566,13 +634,14 @@ subsystem records its own events in the [audit trail](./audit.md) instead:
 | `action` | `outcome` | Carries |
 |---|---|---|
 | `auth.login` | success / failure | `subject` (the email, or the username of a [directory](./login-through-a-directory.md), as submitted), `userId` on success, `reason: credential-cloned` when a [passkey](./passkeys.md#what-gets-recorded) comes from a copied device, `reason: deactivated` for a [deactivated user](#deactivating-a-user), `reason: locked` for a [locked account](#locking-an-account-after-too-many-wrong-passwords) |
-| `auth.login.pending` | success | `subject`, `userId`, see [asking for a second factor at login](./two-factor.md#asking-for-a-second-factor-at-login) |
+| `auth.login.pending` | success | `subject`, `userId`, see [asking for a second factor at login](./two-factor.md#asking-for-a-second-factor-at-login) and [requiring a new password](#requiring-a-new-password) |
 | `auth.refresh-login` | success / failure | `userId` on success, `reason: token-reused` when a spent credential comes back, `reason: deactivated` when the user's [entry in a directory](./login-through-a-directory.md#a-disabled-entry) was disabled |
 | `auth.logout` | success / failure | `userId` on success, `reason: refused` when what was presented names no login, `reason: error` when the login could not be ended and is still live |
 | `auth.password-reset.requested` | success / failure | `subject`, `userId` when a reset actually went out |
 | `auth.password-reset.confirmed` | success / failure | Nothing else |
 | `auth.password.locked` | success | `userId`, see [locking an account](#locking-an-account-after-too-many-wrong-passwords) |
-| `auth.password.changed` | success / failure | `userId`, `reason: refused` for a wrong current password, see [changing a password](#changing-a-password) |
+| `auth.password.changed` | success / failure | `userId`, `reason: refused` for a wrong current password, see [changing a password](#changing-a-password). A new password set with a login ticket too |
+| `auth.password.change-required` | success | `userId`, see [requiring a new password](#requiring-a-new-password) |
 | `auth.login.ended`, `auth.logins.ended` | success / failure | `userId`, for one login and for every login a user ended, see [where a user is logged in](#where-a-user-is-logged-in) |
 | `auth.2fa` | failure | `userId` |
 | `auth.2fa.enrolled` | success / failure | `userId`, see [enrolling a user](./two-factor.md#enrolling-a-user) |
@@ -780,7 +849,7 @@ Your data source declares these entities:
 
 | Entity | Needed when |
 |---|---|
-| `PasswordCredentials`, `PasswordResetToken` | `PasswordAuthenticator` is registered |
+| `PasswordCredentials`, `PasswordResetToken`, `LoginTicket` | `PasswordAuthenticator` is registered |
 | `PasswordFailureStreak` | `PasswordAuthenticator` is registered and `passwordFailureLimit` is not `false` |
 | `JwtRefreshToken` | `JwtAuthStrategy` is registered |
 | `CookieAuthSession`, `CookieAuthRefreshSession` | `CookieAuthStrategy` is registered |

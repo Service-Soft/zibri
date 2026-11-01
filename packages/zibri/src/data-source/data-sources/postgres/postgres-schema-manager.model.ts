@@ -1,7 +1,7 @@
 import { PostgresColumnSql } from './postgres-column-sql.model';
 import { PostgresColumnSettings, PostgresSchema } from './postgres-schema.model';
 import { PostgresSqlUtilities } from './postgres-sql.utilities';
-import { PostgresColumn, PostgresForeignKey, PostgresKey, PostgresTable } from './postgres-table.model';
+import { PostgresColumn, PostgresForeignKey, PostgresKey, PostgresReferentialAction, PostgresTable } from './postgres-table.model';
 import { PostgresValueConversionUtilities } from './postgres-value-conversion.utilities';
 import { TrigramSupport } from './postgres-where-filter.converter';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -277,6 +277,28 @@ const STORED_CHECKS_SQL: string = `
     JOIN pg_class t ON t.oid = c.conrelid
     JOIN pg_namespace n ON n.oid = t.relnamespace
     WHERE c.contype = 'c' AND n.nspname = current_schema() AND t.relname = ANY($1)
+`;
+
+/**
+ * Lists the triggers on tables in the current schema, and the foreign keys pointing at its tables that
+ * change the rows pointing at a row once it is removed or its key changes.
+ */
+const CHANGING_DEPENDENTS_SQL: string = `
+    SELECT t.relname AS "table", 'trigger' AS "kind", g.tgname AS "name",
+        NULL AS "dependent", NULL AS "onDelete", NULL AS "onUpdate"
+    FROM pg_trigger g
+    JOIN pg_class t ON t.oid = g.tgrelid
+    JOIN pg_namespace n ON n.oid = t.relnamespace
+    WHERE NOT g.tgisinternal AND n.nspname = current_schema()
+    UNION ALL
+    SELECT rt.relname AS "table", 'foreign key' AS "kind", c.conname AS "name",
+        t.relname AS "dependent", c.confdeltype::text AS "onDelete", c.confupdtype::text AS "onUpdate"
+    FROM pg_constraint c
+    JOIN pg_class t ON t.oid = c.conrelid
+    JOIN pg_class rt ON rt.oid = c.confrelid
+    JOIN pg_namespace n ON n.oid = rt.relnamespace
+    WHERE c.contype = 'f' AND n.nspname = current_schema()
+        AND (c.confdeltype IN ('c', 'n', 'd') OR c.confupdtype IN ('c', 'n', 'd'))
 `;
 
 /**
@@ -1669,6 +1691,57 @@ export class PostgresSchemaManager {
             + ' fuzzySearchable: false on the property:'
             + missing.map(([name, table, column]) => `\n- ${table}.${column}, as "${name}"`).join('')
         );
+    }
+
+    /**
+     * Finds the tables a write changes more than its own rows of: those with a trigger, and those a
+     * foreign key the entities do not declare points at with an action that changes the rows
+     * pointing at them.
+     *
+     * What a spanning transaction cannot undo, since it restores the rows it wrote and nothing such
+     * a write changed besides them.
+     * @param run - Runs a statement.
+     * @returns By table, what else a write to it changes.
+     */
+    async findUnrestorableTables(run: PostgresRun): Promise<Map<string, string>> {
+        const declared: PostgresForeignKey[] = this.schema.tables.flatMap(table => table.foreignKeys);
+        const res: Map<string, string> = new Map();
+        for (const row of await run(CHANGING_DEPENDENTS_SQL)) {
+            const table: string = String(row['table']);
+            const name: string = String(row['name']);
+            if (row['kind'] === 'trigger') {
+                res.set(table, `the trigger "${name}"`);
+                continue;
+            }
+            // the relations' own keys cascade too: the rows they remove are removed through their
+            // repositories first, and the join rows go back along with the row they belong to
+            const ownKey: boolean = declared.some(fk => fk.name === name
+                && fk.onDelete === this.findDeclaredAction(row['onDelete'])
+                && fk.onUpdate === this.findDeclaredAction(row['onUpdate']));
+            if (!ownKey) {
+                res.set(table, `the foreign key "${name}" of "${String(row['dependent'])}"`);
+            }
+        }
+        return res;
+    }
+
+    /**
+     * Finds the action a stored foreign key takes as the entities would declare it.
+     * @param stored - The action, as the catalog holds it.
+     * @returns The declared action, undefined for one the entities never declare.
+     */
+    private findDeclaredAction(stored: unknown): PostgresReferentialAction | undefined {
+        switch (stored) {
+            case 'c': {
+                return 'CASCADE';
+            }
+            case 'a': {
+                return 'NO ACTION';
+            }
+            default: {
+                return undefined;
+            }
+        }
     }
 
     private findSearchableProperties(entity: Newable<BaseEntity>): string[] {

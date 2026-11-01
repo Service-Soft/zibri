@@ -53,7 +53,9 @@ export class CompanyAuthorizationServerController extends AuthorizationServerCon
 |---|---|
 | `introspectionPermission` | The [platform permission](./roles-and-permissions.md#declaring-permissions) a platform role of a caller of `/introspect` carries. Required |
 | `resources` | The services tokens may be issued for besides your application, each by an absolute URL without a fragment. Required, `[]` for none |
-| `maxClientAssertionLifetimeInMs` | How far ahead a [JWT a client signs](#clients) may expire. A JWT is remembered as spent until it expires. One hour by default |
+| `maxClientAssertionLifetimeInMs` | How far ahead a [JWT a client signs](#clients) may expire. A JWT is taken once. One hour by default |
+| `acceptedClockSkewInMs` | How far a client's clock may differ from your application's when the times in a JWT it signs are checked. One minute by default |
+| `accessTokenExpiresInMs` | How long a token issued to a client lasts. As long as the access tokens of logins by default, `accessTokenExpiresInMs` of `JWT_AUTH_OPTIONS_INPUT` |
 
 The issuer of every token is your application's `baseUrl`, so set it to the URL your clients and services reach.
 
@@ -89,7 +91,7 @@ or both in the body, beside `grant_type`. The answer:
 }
 ```
 
-A token lasts as long as the access tokens of logins, `accessTokenExpiresInMs`, see [how long a login lasts](./auth.md#how-long-a-login-lasts). A client asks for a new one when it expires; there is no refresh token.
+A token lasts for the `accessTokenExpiresInMs` of your controller, and as long as the access tokens of logins without it, see [how long a login lasts](./auth.md#how-long-a-login-lasts). A client asks for a new one when it expires; there is no refresh token.
 
 | Parameter | What it is |
 |---|---|

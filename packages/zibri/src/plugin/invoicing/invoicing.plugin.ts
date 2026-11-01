@@ -40,6 +40,8 @@ export class ZibriInvoicingPlugin extends ZibriPlugin {
             useFactory: () => {
                 const input: InvoicingOptionsInput = inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT);
                 const res: InvoicingOptions = {
+                    pageSize: 'A4',
+                    font: 'Roboto',
                     footerFontSize: 10,
                     images: undefined,
                     phoneLabel: 'Phone',

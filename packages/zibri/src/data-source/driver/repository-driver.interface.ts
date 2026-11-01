@@ -11,6 +11,7 @@ import { PaginationResult } from '../models/pagination-result.model';
 import { type RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
+import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
 import { Transaction } from '../transaction/transaction.model';
 import { type WriteDataUtilities } from '../write-data.utilities';
 
@@ -20,7 +21,7 @@ import { type WriteDataUtilities } from '../write-data.utilities';
  * Any defaults (eg. The default order or the default relations of an entity) have already
  * been applied by the repository, a driver only needs to apply what it is given.
  */
-export type DriverFindOptions<T extends BaseEntity> = {
+export type DriverFindOptions<T extends BaseEntity, X extends RepositoryTransaction = Transaction> = {
     /**
      * The where filter to find the entities by.
      */
@@ -63,19 +64,19 @@ export type DriverFindOptions<T extends BaseEntity> = {
     /**
      * The transaction to run the operation in.
      */
-    transaction?: Transaction
+    transaction?: X
 };
 
 /**
  * The resolved options for streaming, which are the find options minus the window a stream has no
  * answer for. See {@link StreamOptions} for why.
  */
-export type DriverStreamOptions<T extends BaseEntity> = OmitStrict<DriverFindOptions<T>, 'limit' | 'offset'>;
+export type DriverStreamOptions<T extends BaseEntity, X extends RepositoryTransaction = Transaction> = OmitStrict<DriverFindOptions<T, X>, 'limit' | 'offset'>;
 
 /**
  * The resolved options for taking a value over the rows a filter matches.
  */
-export type DriverAggregateOptions<T extends BaseEntity> = Pick<DriverFindOptions<T>, 'where' | 'related' | 'transaction'> & {
+export type DriverAggregateOptions<T extends BaseEntity, X extends RepositoryTransaction = Transaction> = Pick<DriverFindOptions<T, X>, 'where' | 'related' | 'transaction'> & {
     /**
      * What is taken over the rows.
      */
@@ -93,7 +94,7 @@ export type DriverAggregateOptions<T extends BaseEntity> = Pick<DriverFindOption
 /**
  * The resolved options for reading a window and the total it is part of.
  */
-export type DriverFindAndCountOptions<T extends BaseEntity> = DriverFindOptions<T> & {
+export type DriverFindAndCountOptions<T extends BaseEntity, X extends RepositoryTransaction = Transaction> = DriverFindOptions<T, X> & {
     /**
      * What the total counts, when that is a wider question than the window's own filter.
      *
@@ -108,7 +109,7 @@ export type DriverFindAndCountOptions<T extends BaseEntity> = DriverFindOptions<
 /**
  * The resolved options that a repository driver receives for changing every entity a filter matches.
  */
-export type DriverUpdateAllOptions<T extends BaseEntity, R extends boolean = false> = {
+export type DriverUpdateAllOptions<T extends BaseEntity, R extends boolean = false, X extends RepositoryTransaction = Transaction> = {
     /**
      * The filter selecting the entities to change.
      */
@@ -127,7 +128,7 @@ export type DriverUpdateAllOptions<T extends BaseEntity, R extends boolean = fal
      * The transaction to run the operation in. A driver that needs one to be atomic takes its own
      * when this is undefined.
      */
-    transaction?: Transaction,
+    transaction?: X,
     /**
      * What the rows of each entity the filter reaches through a relation are narrowed to, as a
      * read's `related`.
@@ -155,8 +156,12 @@ export const STREAM_BATCH_SIZE: number = 500;
  * A Repository handles everything that is independent of the underlying storage (hooks, change sets,
  * soft deletes, pagination, ...) and delegates the actual reading and writing to a driver. That way the
  * same repositories can be used for eg. Postgres and ValKey.
+ *
+ * A store's driver takes the transactions of its data source. The ones a repository wraps it in take
+ * a spanning transaction as well, which the innermost of them resolves to the transaction of this
+ * data source.
  */
-export interface RepositoryDriverInterface<T extends BaseEntity> {
+export interface RepositoryDriverInterface<T extends BaseEntity, X extends RepositoryTransaction = Transaction> {
     /**
      * Persists the given data.
      *
@@ -166,7 +171,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * @param reload - Whether or not the persisted entities should be read back after saving.
      * @returns The persisted entities.
      */
-    save: (data: DeepPartial<T>[], transaction: Transaction | undefined, reload: boolean) => Promise<T[]>,
+    save: (data: DeepPartial<T>[], transaction: X | undefined, reload: boolean) => Promise<T[]>,
 
     /**
      * Writes rows that are new: each carries an id that was generated for it, which no stored row
@@ -175,7 +180,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * @param transaction - The transaction to run the operation in.
      * @returns The written entities, in the order they were given.
      */
-    insert: (data: DeepPartial<T>[], transaction: Transaction | undefined) => Promise<T[]>,
+    insert: (data: DeepPartial<T>[], transaction: X | undefined) => Promise<T[]>,
 
     /**
      * Writes each row's own values to the stored row holding its id, among the rows the filter
@@ -195,7 +200,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
     updateEach: (
         rows: DeepPartial<T>[],
         where: Where<T>,
-        transaction: Transaction | undefined,
+        transaction: X | undefined,
         related?: RelatedNarrowing
     ) => Promise<T[]>,
 
@@ -204,7 +209,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * @param options - The resolved find options.
      * @returns The found entities.
      */
-    find: (options: DriverFindOptions<T>) => Promise<T[]>,
+    find: (options: DriverFindOptions<T, X>) => Promise<T[]>,
 
     /**
      * Resolves relations on entities the caller already holds, as a find asking for them would.
@@ -221,7 +226,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
         entities: T[],
         relations: FindAllOptions<T>['relations'],
         related: RelatedNarrowing | undefined,
-        transaction: Transaction | undefined
+        transaction: X | undefined
     ) => Promise<T[]>,
 
     /**
@@ -229,14 +234,14 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * @param options - The resolved find options.
      * @returns The found entity or undefined when nothing matched.
      */
-    findOne: (options: DriverFindOptions<T>) => Promise<T | undefined>,
+    findOne: (options: DriverFindOptions<T, X>) => Promise<T | undefined>,
 
     /**
      * Counts all entities that match the given options.
      * @param options - The resolved find options. Relations, offset and limit are ignored.
      * @returns The amount of matching entities.
      */
-    count: (options: DriverFindOptions<T>) => Promise<number>,
+    count: (options: DriverFindOptions<T, X>) => Promise<number>,
 
     /**
      * Takes a value over the entities that match the given options: a sum, an average, a smallest or
@@ -248,7 +253,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * @param options - What to take of which property, over which entities, grouped by what.
      * @returns One row per group.
      */
-    aggregate: (options: DriverAggregateOptions<T>) => Promise<AggregateRow[]>,
+    aggregate: (options: DriverAggregateOptions<T, X>) => Promise<AggregateRow[]>,
 
     /**
      * Reads one window of what a filter matches, and how many it matches in total, as of one moment.
@@ -265,7 +270,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * counts everything the filter matches, whatever the window is.
      * @returns The window, and the total the filter matches.
      */
-    findAndCount: (options: DriverFindAndCountOptions<T>) => Promise<PaginationResult<T>>,
+    findAndCount: (options: DriverFindAndCountOptions<T, X>) => Promise<PaginationResult<T>>,
 
     // on the interface rather than optional, for the reason `schemaLock` is: a `findAll` is bounded
     // so that a read which outgrows the heap says so instead of dying, and this is the way past that
@@ -283,7 +288,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * whole of what matched.
      * @returns The matching entities, one at a time, in the order asked for if there is one.
      */
-    stream: (options: DriverStreamOptions<T>) => AsyncIterable<T>,
+    stream: (options: DriverStreamOptions<T, X>) => AsyncIterable<T>,
 
     /**
      * Removes the rows with the given ids that are within a reach, and says which those were.
@@ -299,7 +304,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * @param transaction - The transaction to run the operation in.
      * @returns The ids of the rows it removed.
      */
-    remove: (ids: string[], reach: RemovalReach<T> | undefined, transaction: Transaction | undefined) => Promise<string[]>,
+    remove: (ids: string[], reach: RemovalReach<T> | undefined, transaction: X | undefined) => Promise<string[]>,
 
     /**
      * Removes every row a filter matches, judged on each row in the same window as its removal.
@@ -315,7 +320,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
     removeMatching: (
         where: Where<T> | undefined,
         related: RelatedNarrowing | undefined,
-        transaction: Transaction | undefined
+        transaction: X | undefined
     ) => Promise<string[]>,
 
     /**
@@ -326,7 +331,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * @param options - The resolved find options.
      * @returns The ids of the matching entities.
      */
-    findIds: (options: DriverFindOptions<T>) => Promise<string[]>,
+    findIds: (options: DriverFindOptions<T, X>) => Promise<string[]>,
 
     /**
      * Applies the given changes to every row matching the filter, with no window for another writer
@@ -350,7 +355,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * write knows how many it touched without looking at any of them, so handing them back is a
      * cost the caller decides to pay.
      */
-    updateAll: <R extends boolean = false>(options: DriverUpdateAllOptions<T, R>) => Promise<R extends true ? T[] : number>,
+    updateAll: <R extends boolean = false>(options: DriverUpdateAllOptions<T, R, X>) => Promise<R extends true ? T[] : number>,
 
     /**
      * Inserts each given row, or applies its `onConflict` to the row already holding its identity,
@@ -387,7 +392,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
     upsert: (
         identity: string[],
         rows: UpsertRow<T>[],
-        transaction: Transaction | undefined,
+        transaction: X | undefined,
         reachable: Where<T> | undefined,
         related?: RelatedNarrowing
     ) => Promise<T[]>,

@@ -6,6 +6,7 @@ import { AuditCollapse } from './audit-collapse.enum';
 import { AuditEntry } from './audit-entry.model';
 import { type AuditServiceInterface } from './audit-service.interface';
 import { TestTimeouts } from '../__testing__/constants';
+import { missingEntityPattern } from '../__testing__/missing-entity-pattern.function';
 import { JwtTestAuthController } from '../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../__testing__/mocks/entities/roles.enum';
@@ -33,6 +34,7 @@ import { UUIDUtilities } from '../utilities/uuid.utilities';
 const PASSWORD: string = 'correct horse battery staple';
 const MAX_REFUSALS_PER_MINUTE: number = 3;
 const RETENTION_IN_MS: number = Ms.DAY * 30;
+const SEAL_DELAY_IN_MS: number = Ms.MINUTE;
 
 let server: StartedTestServer;
 let baseUrl: string;
@@ -48,6 +50,7 @@ function providers(): DiProvider<unknown>[] {
     const replaced: unknown[] = [
         ZIBRI_DI_TOKENS.AUDIT_MAX_REFUSALS_PER_MINUTE,
         ZIBRI_DI_TOKENS.AUDIT_RETENTION_IN_MS,
+        ZIBRI_DI_TOKENS.AUDIT_SEAL_DELAY_IN_MS,
         ZIBRI_DI_TOKENS.LOGGER_BUFFER_CAPACITY,
         ZIBRI_DI_TOKENS.AUTH_RATE_LIMIT_OPTIONS
     ];
@@ -55,6 +58,7 @@ function providers(): DiProvider<unknown>[] {
         ...defaultTestServerProviders.filter(p => !replaced.includes(p.token)),
         defineProvider({ token: ZIBRI_DI_TOKENS.AUDIT_MAX_REFUSALS_PER_MINUTE, useValue: MAX_REFUSALS_PER_MINUTE }),
         defineProvider({ token: ZIBRI_DI_TOKENS.AUDIT_RETENTION_IN_MS, useValue: RETENTION_IN_MS }),
+        defineProvider({ token: ZIBRI_DI_TOKENS.AUDIT_SEAL_DELAY_IN_MS, useValue: SEAL_DELAY_IN_MS }),
         // small, so a handful of log lines is enough to make the logger drop entries
         defineProvider({ token: ZIBRI_DI_TOKENS.LOGGER_BUFFER_CAPACITY, useValue: 5 }),
         defineProvider({
@@ -118,11 +122,11 @@ describe('AuditService - at startup', () => {
     }, TestTimeouts.inMemory.start);
 
     it('refuses an application whose data sources do not hold the trail, and names it', async () => {
-        await expect(startAndStopTestServerWithout([AuditEntry])).rejects.toThrow(/Error initializing AuditService[\S\s]*AuditEntry/);
+        await expect(startAndStopTestServerWithout([AuditEntry])).rejects.toThrow(missingEntityPattern('AuditEntry', 'AuditService'));
     }, TestTimeouts.inMemory.start);
 
     it('refuses an application kept with checkpoints whose data sources do not hold them, and names them', async () => {
-        await expect(startAndStopTestServerWithout([AuditCheckpoint])).rejects.toThrow(/Error initializing AuditService[\S\s]*AuditCheckpoint/);
+        await expect(startAndStopTestServerWithout([AuditCheckpoint])).rejects.toThrow(missingEntityPattern('AuditCheckpoint', 'AuditService'));
     }, TestTimeouts.inMemory.start);
 
     it('refuses an application kept as a chain whose data sources do not hold the chained entries, and names them', async () => {
@@ -130,7 +134,7 @@ describe('AuditService - at startup', () => {
             providers: [...defaultTestServerProviders, defineProvider({ token: ZIBRI_DI_TOKENS.AUDIT_INTEGRITY, useValue: 'chain' })]
         });
 
-        await expect(start).rejects.toThrow(/Error initializing AuditService[\S\s]*ChainedAuditEntry/);
+        await expect(start).rejects.toThrow(missingEntityPattern('ChainedAuditEntry', 'AuditService'));
     }, TestTimeouts.inMemory.start);
 });
 
@@ -283,5 +287,20 @@ describe('AuditService', () => {
 
         expect((await findEntriesOf(tenantId)).map(e => e.subject)).toEqual(['kept']);
         expect(await auditService.resolveVerification(tenantId)).toMatchObject({ intact: true, newestSequence: 2 });
+    });
+
+    // 12 §O3: the five minutes before an entry could be sealed were fixed
+    it('seals what was stored up to the delay it is given before it runs', async () => {
+        const tenantId: string = UUIDUtilities.generate();
+        // past everything the cases before it stored and sealed
+        await runWithApplicationClockAhead(Ms.DAY, async () => {
+            await recordIn(tenantId, () => auditService.record({ action: AuditAction.LOGOUT, outcome: AuditOutcome.SUCCESS, subject: 'sealed' }));
+            await auditService.flush();
+        });
+
+        await runWithApplicationClockAhead(Ms.DAY + (SEAL_DELAY_IN_MS * 2), async () => await auditService.writeCheckpoints());
+
+        const sealed: AuditCheckpoint[] = await inject(repositoryTokenFor(AuditCheckpoint)).findAll({ where: { tenantId }, acrossTenants: true });
+        expect(sealed.map(c => c.entryCount)).toEqual([1]);
     });
 });

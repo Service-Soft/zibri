@@ -10,7 +10,7 @@ import { DataSourceInterface } from '../data-source/data-sources/data-source.int
 import { dataSourceNow } from '../data-source/models/data-source-now.function';
 import { Repository } from '../data-source/repository/repository';
 import { runInLeaseScope } from '../data-source/run-in-lease-scope.function';
-import { Transaction } from '../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
@@ -139,7 +139,7 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
     private async runHoldingUntil<T>(
         taken: Lease,
         options: LeaseOptions,
-        transaction: Transaction,
+        transaction: RepositoryTransaction,
         fn: (lost: AbortSignal) => Promise<T>
     ): Promise<T> {
         let workOutcome: LeaseWorkOutcome = 'unfinished';

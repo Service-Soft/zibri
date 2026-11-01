@@ -65,6 +65,7 @@ import { OmitStrict } from '../types/omit-strict.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { Ms } from '../utilities/ms';
 import { NumberUtilities } from '../utilities/number.utilities';
+import { RequiredEntities } from '../utilities/required-entities.model';
 import { PromiseUtilities } from '../utilities/promise.utilities';
 
 /**
@@ -388,16 +389,19 @@ export class ZibriApplication {
         await this.afterAppInit(injectables);
 
         for (const controller of this.options.controllers) {
-            inject(controller);
+            await this.runKeepingFailuresOfMissingEntities(() => inject(controller));
         }
 
         for (const websocketController of this.options.websocketControllers) {
-            inject(websocketController);
+            await this.runKeepingFailuresOfMissingEntities(() => inject(websocketController));
         }
 
         for (const plugin of this.providedOptions.plugins ?? []) {
-            await plugin.validate(this);
+            await this.runKeepingFailuresOfMissingEntities(async () => await plugin.validate(this));
         }
+
+        // once for every entity a part asked for while initializing, rather than part by part
+        RequiredEntities.of(this).validate();
 
         GlobalRegistry.markAppAsInitialized();
     }
@@ -471,9 +475,11 @@ export class ZibriApplication {
     /**
      * Starts on the given port.
      * @param port - The port to start on.
+     * @param host - The address to listen on, such as `127.0.0.1` to be reachable from this machine
+     * alone. Every address of the machine when undefined.
      * @throws When the app has already been started.
      */
-    async start(port: number): Promise<void> {
+    async start(port: number, host?: string): Promise<void> {
         if (GlobalRegistry.isAppStarted()) {
             // We need this check in addition to the one in the registry.
             // Because we would otherwise have a wrong state when we call markAppAsStarted
@@ -489,7 +495,7 @@ export class ZibriApplication {
 
         this.use((req, _, next) => next(new UnmatchedRouteError(req.originalUrl)), MiddlewarePhase.AFTER_ROUTING);
         this.mountMiddleware();
-        this.server.listen(port);
+        this.server.listen(port, host);
         await this.awaitListening();
         if (port === 0) {
             const address: string | AddressInfo | null = this.server.address();
@@ -758,13 +764,12 @@ export class ZibriApplication {
      * Drops every controller that says it may go unused and that this application did not ask for.
      *
      * A decorator registers at module load, so importing a module registers what it declares whether
-     * or not anything wanted it - and this package's barrel exports both shipped plugins. An
-     * application that writes `import { ZibriApplication } from 'zibri'` therefore has
-     * `MailingListController` in its container, and startup builds every registered token: the
-     * lifecycle sweeps do, and so do the three services that check nothing looks like a cache, a
-     * rate limiter or a user repository without saying so. Building it asks for
-     * `Repository<MailingListSubscriber>` - a table nothing in that application uses, for a feature
-     * it does not run - and the application does not start.
+     * or not anything wanted it. An application that writes `import { ZibriApplication } from 'zibri'`
+     * therefore has every shipped controller with `allowOrphan`, such as `JwksController`, in its
+     * container, and startup builds every registered token: the lifecycle sweeps do, and so do the
+     * three services that check nothing looks like a cache, a rate limiter or a user repository
+     * without saying so. Building one that asks for a repository of a feature the application does
+     * not run - as the mailing list plugin's controller did - stops the application from starting.
      *
      * `allowOrphan` already says such a controller may go unused. This is the half that was missing:
      * one that goes unused is not built either. Dropped from the container rather than skipped at
@@ -882,13 +887,31 @@ export class ZibriApplication {
                 }
                 reached.add(value);
                 if (declares(value)) {
-                    await run(value);
+                    await this.runKeepingFailuresOfMissingEntities(async () => await run(value));
                 }
             }
             // again after every round, because a hook run in it may be what built the next one
             pending = getAllInstantiatedValues().filter(v => !reached.has(v) && declares(v));
         }
         GlobalRegistry.markLifecyclePhaseAsFinished(phase);
+    }
+
+    /**
+     * Runs one step of initializing, and keeps what it throws while a required entity is missing.
+     *
+     * A part that needs a missing entity often reads it right after asking for it, and fails on that
+     * read. Kept, the parts after it still say what they need, and the boot is refused once for all of it.
+     * @param step - The step.
+     */
+    private async runKeepingFailuresOfMissingEntities(step: () => unknown): Promise<void> {
+        try {
+            await step();
+        }
+        catch (error) {
+            if (!RequiredEntities.of(this).keepFailure(error)) {
+                throw error;
+            }
+        }
     }
 
     /**

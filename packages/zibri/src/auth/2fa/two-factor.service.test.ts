@@ -11,6 +11,7 @@ import { TwoFactorFailureStreak } from './two-factor-failure-streak.model';
 import { TwoFactorServiceInterface } from './two-factor-service.interface';
 import { TwoFactorThrottledError } from './two-factor-throttled.error';
 import { TestTimeouts } from '../../__testing__/constants';
+import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
@@ -69,13 +70,13 @@ describe('OtpTwoFactorMethod — starting', () => {
     it('refuses to start without OtpCredentials, and names it', async () => {
         const start: Promise<void> = startAndStopTestServerWithout([OtpCredentials]);
 
-        await expect(start).rejects.toThrow(/Error initializing OtpTwoFactorMethod[\S\s]*OtpCredentials/);
+        await expect(start).rejects.toThrow(missingEntityPattern('OtpCredentials', 'OtpTwoFactorMethod'));
     }, TestTimeouts.inMemory.start);
 
     it('refuses to start without TwoFactorFailureStreak, and names it', async () => {
         const start: Promise<void> = startAndStopTestServerWithout([TwoFactorFailureStreak]);
 
-        await expect(start).rejects.toThrow(/Error initializing TwoFactorService[\S\s]*TwoFactorFailureStreak/);
+        await expect(start).rejects.toThrow(missingEntityPattern('TwoFactorFailureStreak', 'TwoFactorService'));
     }, TestTimeouts.inMemory.start);
 
     it('refuses a failure delay that would switch the wait off', async () => {

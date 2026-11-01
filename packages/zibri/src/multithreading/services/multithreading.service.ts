@@ -28,7 +28,6 @@ import { type LeaseServiceInterface } from '../../leases/lease-service.interface
 import { errorToLoggedError } from '../../logging/error-to-logged-error.function';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { type GaugeInterface } from '../../metrics/gauge.interface';
-import { DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS } from '../../metrics/metrics-collector.model';
 import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface';
 import { WakeUpListener } from '../../polling/wake-up-listener.model';
 import { type WakeUpServiceInterface } from '../../polling/wake-up-service.interface';
@@ -360,7 +359,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         const metricsService: MetricsServiceInterface = inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
         metricsService.addCollector({
             name: 'thread job queue',
-            minIntervalInMs: DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS,
+            minIntervalInMs: 'dataSource',
             collect: async () => await this.collectQueueMetrics(metricsService)
         });
         metricsService.addCollector({

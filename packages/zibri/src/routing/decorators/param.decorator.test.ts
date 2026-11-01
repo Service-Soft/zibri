@@ -18,7 +18,7 @@ describe('declaring a string parameter', () => {
                 // @ts-expect-error - a header neither
                 @Param.header('x-api-key', { type: 'string', encryption: true }) apiKey: string,
                 // @ts-expect-error - nor the items of a list read from the query
-                @Param.query('codes', { type: 'array', items: { type: 'string', hash: true } }) codes: string[]
+                @Param.query('codes', { type: 'array', items: { type: 'string', hash: true, password: false } }) codes: string[]
             ): string {
                 return code + pin + apiKey + codes.join(',');
             }
@@ -27,7 +27,7 @@ describe('declaring a string parameter', () => {
                 // @ts-expect-error - nor a string shape of a parameter that is one of several
                 @Param.path('code', { type: 'oneOf', shapes: [{ type: 'string', encryption: true }, { type: 'number' }] }) code: string | number,
                 // @ts-expect-error - nor the items of a list shape
-                @Param.query('codes', { type: 'oneOf', shapes: [{ type: 'array', items: { type: 'string', hash: true } }, { type: 'number' }] }) codes: string[] | number
+                @Param.query('codes', { type: 'oneOf', shapes: [{ type: 'array', items: { type: 'string', hash: true, password: false } }, { type: 'number' }] }) codes: string[] | number
             ): string {
                 return String(code) + String(codes);
             }

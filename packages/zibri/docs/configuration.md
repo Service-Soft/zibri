@@ -83,6 +83,7 @@ These have no default either. An application using the feature provides them.
 | [`COOKIE_SIGN_SECRET`](./auth.md#setting-the-session-cookie-flags) | `string` | The secret cookies are signed with. Required by `CookieAuthStrategy` |
 | `CONFIRM_PASSWORD_RESET_URL` | `string` | The page of your frontend a password reset email links to. Required by `PasswordAuthenticator` |
 | `PASSWORD_RESET_EMAIL_TEMPLATE` | `PasswordResetEmailTemplate` | The email carrying that link. Required by `PasswordAuthenticator` |
+| [`PASSWORD_POLICY`](./auth.md#how-long-a-password-may-be) | `PasswordPolicy` | What a password has to be. Required once an entity holds a password, such as `PasswordCredentials` with `PasswordAuthenticator` |
 | [`EMAIL_VERIFICATION_OPTIONS`](./email-verification.md#setting-it-up) | `EmailVerificationOptions \| undefined` | How email addresses are verified. Not at all by default |
 | [`EMAIL_VERIFICATION_SERVICE`](./email-verification.md) | `EmailVerificationServiceInterface` | Mails the links verifying and changing addresses, and confirms them |
 | [`PASSKEY_OPTIONS`](./passkeys.md) | `PasskeyOptions` | The domain passkeys are bound to and the pages that use them. Required by `PasskeyAuthenticator` |
@@ -102,12 +103,15 @@ These have no default either. An application using the feature provides them.
 | [`ACCESS_LOG`](./logging.md) | `boolean` | Whether one entry is written for every finished request. Off by default |
 | [`AUDIT_MAX_REFUSALS_PER_MINUTE`](./audit.md) | `number` | How many refusals a minute are stored as entries of their own, on each instance. 1000 by default |
 | [`AUDIT_INTEGRITY`](./audit.md#keeping-the-trail-as-a-chain) | `AuditIntegrity` | How the audit trail tells a changed entry: `'checkpoints'` or `'chain'`. `'checkpoints'` by default |
+| [`AUDIT_SEAL_DELAY_IN_MS`](./audit.md#sealing-the-trail-more-often) | `number` | How long ago an audit entry was stored at least, for a checkpoint to seal it. 5 minutes by default |
+| [`METRICS_REQUEST_DURATION_BUCKETS_IN_MS`](./metrics.md#what-a-snapshot-contains) | `number[]` | The buckets requests are counted into by how long they took. 50, 100, 200, 500, 1000, 2000 and 5000 milliseconds by default |
+| [`METRICS_DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS`](./metrics.md#adding-gauges-of-your-own) | `number` | How often a collector reading the data source runs at most, such as the one counting a queue. 30 seconds by default |
 
 ## Configuring the HTTP server
 
 | Token | Type | What it is |
 |---|---|---|
-| [`HTTP_SERVER_LIMITS`](./creating-endpoints.md) | `HttpServerLimits` | How long a request, its headers, an idle connection and a handler may take, and how many and how large the headers may be. 60, 15, 5 and 30 seconds, 100 headers and 16 kilobytes by default |
+| [`HTTP_SERVER_LIMITS`](./creating-endpoints.md) | `HttpServerLimits` | How long a request, its headers, an idle connection and a handler may take, how many and how large the headers may be, and how large a body may be. 60, 15, 75 and 30 seconds, 100 headers, 16 kilobytes, and 100 kilobytes for a body or ten megabytes for a stream by default |
 | [`HTTP_DRAIN_TIMEOUT_IN_MS`](./application-lifecycle.md) | `number` | How long open requests may take to finish on shutdown. Ten seconds by default |
 | [`COMPRESSION_OPTIONS`](./creating-endpoints.md) | `CompressionOptions` | Whether responses are compressed, and from what size on. On, from one kilobyte, by default |
 | [`FORM_DATA_LIMITS`](./creating-endpoints.md) | `FormDataLimits` | How many files, parts and fields a multipart body may have. 20, 1000 and 500 by default |
@@ -189,14 +193,18 @@ These have no default either. An application using the feature provides them.
 |---|---|---|
 | [`CRON_EXECUTION_LEASE_IN_MS`](./cron.md) | `number` | How long one run of a cron job holds its claim. Five minutes by default |
 | [`CRON_REGISTRATION_LEASE_IN_MS`](./cron.md) | `number` | How long one instance may take to register its jobs at startup. 30 seconds by default |
+| [`POLL_MAX_INTERVAL_IN_MS`](./cron.md#polling-for-work) | `number` | How long a job looking for work waits at most while it finds none. 30 seconds by default |
 | [`EVENT_EXECUTION_LEASE_IN_MS`](./events.md) | `number` | How long one run of a hook holds its claim. A minute by default |
 | [`EVENT_SUBSCRIBER_REGISTRATION_TTL_IN_MS`](./events.md) | `number` | How long a subscriber stays on record without being refreshed. A minute by default |
 | [`EVENT_RETRY_DELAY_IN_MS`](./events.md) | `number` | How long the first retry of a hook waits, doubling with each one after it. A minute by default |
 | [`EVENT_MAX_CONCURRENT_HOOKS`](./events.md) | `number` | How many hooks one instance runs at a time. 50 by default |
+| [`EVENT_HOOK_TIMEOUT_IN_MS`](./events.md) | `number` | How long a hook whose subscriber names no `timeoutInMs` may take. 30 seconds by default |
+| [`EVENT_FINISHED_RETENTION_IN_MS`](./events.md) | `number` | How long a finished event that names no `cleanupAfterInMs` is kept. One day by default |
 | [`FRAMEWORK_EVENT_NAMES`](./events.md#hearing-of-users-memberships-and-roles) | `FrameworkEventNames` | Which writes of users, [memberships](./glossary.md#membership) and roles are emitted, as which of your events. None by default |
 | [`MULTITHREADING_OPTIONS_INPUT`](./multithreading.md#configuration) | `MultithreadingOptionsInput` | How many workers run, how long a job may take, and whether a worker file may be TypeScript. Sized to the machine, with JavaScript worker files, by default |
 | [`BACKUP_TEMP_FOLDER`](./backup.md) | `FsPath` | Where a backup is staged on its way to and from a transport. `.zibri/backups` in the application's root by default |
 | [`BACKUP_SHUTDOWN_WAIT_IN_MS`](./backup.md) | `number` | How long the application waits for a running backup or restore when it stops. 0 by default |
+| [`BACKUP_STOPPING_TIMEOUT_IN_MS`](./backup.md) | `number` | How long stopping a running backup or restore may take after that wait. 30 seconds by default |
 | [`BACKUP_MAX_ATTEMPTS`](./backup.md#creating-and-restoring-backups) | `number` | How many times a resource of a backup is tried before the backup fails. 3 by default |
 | [`BACKUP_RETRY_DELAY_IN_MS`](./backup.md#creating-and-restoring-backups) | `number` | How long the first retry of a resource waits, doubling for each one after it. One minute by default |
 | [`BACKUP_RETENTION`](./backup.md#deleting-old-backups) | `BackupRetention \| undefined` | Which completed backups are kept each time a backup completes. None by default, which keeps every backup |
@@ -209,8 +217,10 @@ These have no default either. An application using the feature provides them.
 | [`LOCALIZE_OPTIONS_INPUT`](./localization.md) | `LocalizeOptionsInput` | The supported locales, the default locale and the default time zone. `en-US` and `UTC` by default |
 | [`TRANSLATIONS_PATH`](./localization.md) | `FsPath` | Where translations are read from. `translations` beside the bundle by default |
 | [`ASSETS_PATH`](./assets.md) | `FsPath` | Where assets are read from. `assets` beside the bundle by default |
+| [`PUBLIC_ASSETS_MAX_AGE_IN_MS`](./assets.md#letting-browsers-keep-assets) | `number` | How long a browser may keep an asset without asking whether it changed. 0 by default |
+| [`PDF_FONT_OPTIONS`](./document.md#setting-the-fonts) | `PdfFontOptions` | The font families a PDF may be set in besides Roboto, and the ones a character its font lacks is set in. None by default |
 | `HANDLEBAR_OPTIONS` | `HandlebarOptions` | The Handlebars instance and the folder of the components a Handlebars template uses. None by default |
-| [`HTTP_CLIENT_OPTIONS_INPUT`](./http-client.md) | `HttpClientOptionsInput` | The timeout, response size limit, circuit breaker and redirects of outgoing requests. Five seconds, ten megabytes, open for 30 seconds after 5 failures, and following redirects except from https to http, by default |
+| [`HTTP_CLIENT_OPTIONS_INPUT`](./http-client.md) | `HttpClientOptionsInput` | The timeout, response size limits, circuit breaker and redirects of outgoing requests. Five seconds, ten megabytes, 100 kilobytes for a declared response body or ten megabytes for a stream, open for 30 seconds after 5 failures, and following redirects except from https to http, by default |
 | [`TRACE_BUFFER`](./tracing.md) | `TraceBufferInterface` | Where recorded spans are kept. An `InMemoryTraceBuffer` of a thousand spans by default |
 | [`TRACE_EXPORTER`](./tracing.md) | `OpenTelemetrySpanExporter` | Where finished spans are sent. Nowhere by default |
 

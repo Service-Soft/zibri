@@ -109,6 +109,19 @@ class KmsEncryptedS3BackupTransport extends BaseS3BackupTransport {
     }
 }
 
+@BackupTransport()
+class SingleAttemptS3BackupTransport extends BaseS3BackupTransport {
+    override readonly name: string = 'single-attempt-s3-backup-transport';
+    protected override get options(): S3BackupTransportOptions {
+        return {
+            ...resolveSharedOptions(),
+            credentials: { accessKeyId: 'static-key', secretAccessKey: 'static-secret' },
+            serverSideEncryption: 'bucket-default',
+            attempts: 1
+        };
+    }
+}
+
 /**
  * The names of the headers a request's signature covers.
  * @param request - The request.
@@ -143,6 +156,11 @@ async function record(request: IncomingMessage, response: ServerResponse): Promi
  * @param response - Where the answer goes.
  */
 function answer(request: ReceivedRequest, response: ServerResponse): void {
+    // what a service that is down answers, for the backup the case below names so
+    if (request.url.includes('/unavailable/')) {
+        response.writeHead(503).end();
+        return;
+    }
     if (request.method === 'POST' && request.url.endsWith('?uploads')) {
         response.writeHead(200).end('<InitiateMultipartUploadResult><UploadId>an-upload</UploadId></InitiateMultipartUploadResult>');
         return;
@@ -242,4 +260,17 @@ describe('BaseS3BackupTransport — what it sends', () => {
 
         expect(received[0]?.headers['x-amz-server-side-encryption']).toBeUndefined();
     }, 15000);
+
+    // evaluation/round-2/12-hardcoded-values.md §D5: every request was tried three times, whatever the
+    // application's own retries of a resource
+    it('tries a request as often as it is told, three times by default', async () => {
+        const unavailable: BackupEntity = Object.assign(new BackupEntity(), { name: 'unavailable' });
+
+        await expect(inject(SingleAttemptS3BackupTransport).deleteMetadata(unavailable)).rejects.toThrow();
+        const once: number = received.length;
+        received.length = 0;
+        await expect(inject(StaticCredentialsS3BackupTransport).deleteMetadata(unavailable)).rejects.toThrow();
+
+        expect([once, received.length]).toEqual([1, 3]);
+    }, 30000);
 });

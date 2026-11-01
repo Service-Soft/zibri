@@ -13,14 +13,32 @@ import { defaultTestServerProviders } from '../__testing__/test-server/providers
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { defineProvider, DiProvider } from '../di/models/di-provider.model';
+import { Property } from '../entity/decorators/property.decorator';
+import { Body } from '../routing/decorators/body.decorator';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
+import { Post } from '../routing/decorators/post.decorator';
+
+class LimitsNote {
+    @Property.string({ maxLength: 10_000 })
+    text!: string;
+}
 
 @Controller('/limits')
 class LimitsController {
     @Get('/')
     read(): { ok: boolean } {
         return { ok: true };
+    }
+
+    @Post('/notes')
+    write(@Body(LimitsNote) note: LimitsNote): { length: number } {
+        return { length: note.text.length };
+    }
+
+    @Post('/long-notes')
+    writeLong(@Body(LimitsNote, { maxSize: '10kb' }) note: LimitsNote): { length: number } {
+        return { length: note.text.length };
     }
 }
 
@@ -38,8 +56,25 @@ const ownLimits: HttpServerLimits = {
     keepAliveTimeoutInMs: 5000,
     handlerTimeoutInMs: 30000,
     maxHeaderCount: 10,
-    maxHeaderSizeInBytes: 2048
+    maxHeaderSizeInBytes: 2048,
+    maxBodySizes: { json: '1kb', xml: '1kb', formUrlEncoded: '1kb', formData: '1kb', stream: '1kb' }
 };
+
+/**
+ * Posts a note of the given length.
+ * @param url - Where to post it.
+ * @param length - How many characters its text has.
+ * @returns The status it was answered with.
+ */
+async function resolveNoteStatus(url: string, length: number): Promise<number> {
+    const res: Response = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: 'x'.repeat(length) })
+    });
+    await res.arrayBuffer();
+    return res.status;
+}
 
 /**
  * The header lines of a request: the host, a connection closed after the answer, and fillers up to
@@ -130,6 +165,12 @@ describe('the headers a request may carry, as the application limits them', () =
     it('serves headers inside the size it allows, and refuses larger ones with 431', async () => {
         expect(await resolveStatus(baseUrl, headersOf(4, 100))).toBe(HttpStatus.OK);
         expect(await resolveStatus(baseUrl, headersOf(4, 1000))).toBe(HttpStatus.REQUEST_HEADER_FIELDS_TOO_LARGE);
+    });
+
+    it('refuses a body over its size with 413 on a route that names none, and lets a route name a larger one', async () => {
+        expect(await resolveNoteStatus(`${baseUrl}/limits/notes`, 500)).toBe(HttpStatus.OK);
+        expect(await resolveNoteStatus(`${baseUrl}/limits/notes`, 2000)).toBe(HttpStatus.CONTENT_TOO_LARGE);
+        expect(await resolveNoteStatus(`${baseUrl}/limits/long-notes`, 2000)).toBe(HttpStatus.OK);
     });
 });
 

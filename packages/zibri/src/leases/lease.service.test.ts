@@ -8,6 +8,7 @@ import { LeaseServiceInterface } from './lease-service.interface';
 import { Lease } from './lease.model';
 import { LeaseService } from './lease.service';
 import { TestTimeouts } from '../__testing__/constants';
+import { missingEntityPattern } from '../__testing__/missing-entity-pattern.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
@@ -28,7 +29,7 @@ import { PromiseUtilities } from '../utilities/promise.utilities';
 
 describe('LeaseService — starting', () => {
     it('refuses to start without Lease, and names it', async () => {
-        await expect(startAndStopTestServerWithout([Lease])).rejects.toThrow(/Error initializing LeaseService[\S\s]*Lease/);
+        await expect(startAndStopTestServerWithout([Lease])).rejects.toThrow(missingEntityPattern('Lease', 'LeaseService'));
     }, TestTimeouts.inMemory.start);
 });
 

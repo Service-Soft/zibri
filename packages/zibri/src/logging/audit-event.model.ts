@@ -10,7 +10,8 @@ export enum AuditAction {
      */
     LOGIN = 'auth.login',
     /**
-     * A login whose credentials were accepted and that waits for its second factor.
+     * A login whose credentials were accepted and that waits for its second factor, or for a new
+     * password.
      */
     LOGIN_PENDING = 'auth.login.pending',
     /**
@@ -34,9 +35,13 @@ export enum AuditAction {
      */
     PASSWORD_LOCKED = 'auth.password.locked',
     /**
-     * Changing a password by presenting the current one.
+     * Changing a password by presenting the current one, or a login ticket that proved it.
      */
     PASSWORD_CHANGED = 'auth.password.changed',
+    /**
+     * Having a user choose a new password before their next login starts.
+     */
+    PASSWORD_CHANGE_REQUIRED = 'auth.password.change-required',
     /**
      * A user ending one of their logins, such as one on a device they lost.
      */

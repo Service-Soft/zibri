@@ -41,11 +41,18 @@ export abstract class OtpUtilities {
      * @param windowInMs - How far either side of now to accept from, for clocks that disagree. A whole
      * number of periods.
      * @param periodInSeconds - How long one code is shown for.
+     * @param digits - How many digits a code has.
      * @returns The step the token belongs to, or undefined when it belongs to none of them.
      */
-    static validate(secret: string, token: string, windowInMs: OtpValidationWindowInMs, periodInSeconds: number): number | undefined {
+    static validate(
+        secret: string,
+        token: string,
+        windowInMs: OtpValidationWindowInMs,
+        periodInSeconds: number,
+        digits: number
+    ): number | undefined {
         const totp: TOTP = new (optionalPeer<typeof import('otpauth')>('otpauth', 'Two factor authentication with an otp').TOTP)(
-            { secret, period: periodInSeconds }
+            { secret, period: periodInSeconds, digits }
         );
         // exact, because the window is a whole number of periods, which the method checks at start
         const window: number = windowInMs / (periodInSeconds * 1000);
@@ -60,11 +67,14 @@ export abstract class OtpUtilities {
      * Creates a qr code url.
      * @param secret - The secret to generate the qr code url for.
      * @param periodInSeconds - How long one code is shown for, which the url tells the app.
+     * @param digits - How many digits a code has, which the url tells the app.
+     * @param issuer - What the app lists the account under, such as the name of the application.
+     * @param label - Which account of the issuer it is, such as the email of the user.
      * @returns The url for the qr.
      */
-    static createQrCodeUrl(secret: string, periodInSeconds: number): string {
+    static createQrCodeUrl(secret: string, periodInSeconds: number, digits: number, issuer: string, label: string): string {
         const totp: TOTP = new (optionalPeer<typeof import('otpauth')>('otpauth', 'Two factor authentication with an otp').TOTP)(
-            { secret, period: periodInSeconds }
+            { secret, period: periodInSeconds, digits, issuer, label }
         );
         return totp.toString();
     }

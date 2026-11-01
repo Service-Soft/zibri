@@ -4,6 +4,7 @@ import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 import { PasswordCredentials, PasswordCredentialsCreateData } from './password-credentials.model';
 import { PasswordAuthenticator } from './password.authenticator';
 import { TestTimeouts } from '../../../__testing__/constants';
+import { missingEntityPattern } from '../../../__testing__/missing-entity-pattern.function';
 import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
@@ -68,7 +69,8 @@ describe('PasswordAuthenticator — starting', () => {
             controllers: [JwtTestAuthController]
         });
 
-        await expect(start).rejects.toThrow(/Error initializing PasswordAuthenticator[\S\s]*PasswordCredentials[\S\s]*PasswordResetToken/);
+        await expect(start).rejects.toThrow(missingEntityPattern('PasswordCredentials', 'PasswordAuthenticator'));
+        await expect(start).rejects.toThrow(missingEntityPattern('PasswordResetToken', 'PasswordAuthenticator'));
     }, TestTimeouts.inMemory.start);
 });
 
@@ -171,7 +173,7 @@ describe('PasswordAuthenticator — passwords 2.x stored', () => {
         @Property.string({ unique: true, format: 'email' })
         email!: string;
 
-        @Property.string({ hash: true })
+        @Property.string({ password: true })
         password!: HashString;
     }
 
@@ -186,7 +188,7 @@ describe('PasswordAuthenticator — passwords 2.x stored', () => {
         @Property.string({ unique: true, format: 'email' })
         email!: string;
 
-        @Property.string({ hash: true })
+        @Property.string({ password: true })
         password!: HashString;
     }
 
@@ -194,7 +196,7 @@ describe('PasswordAuthenticator — passwords 2.x stored', () => {
      * What 2.x created the credentials of either strategy from.
      */
     class LegacyCredentialsCreateData extends OmitClass(LegacyJwtCredentials, ['id', 'password']) {
-        @Property.string({ hash: true })
+        @Property.string({ password: true })
         password!: string;
     }
 
@@ -229,6 +231,11 @@ describe('PasswordAuthenticator — passwords 2.x stored', () => {
             await this.dataSource.mergeEntity({ entity: PasswordCredentials, currentTableName: 'jwt_credentials', transaction });
             await this.dataSource.mergeEntity({ entity: PasswordCredentials, currentTableName: 'cookie_auth_credentials', transaction });
             await this.dataSource.removePropertyFromEntity({ entity: PasswordCredentials, propertyKey: 'email', transaction });
+            await this.dataSource.addPropertyToEntity({
+                entity: PasswordCredentials,
+                property: { name: 'changeRequired', type: 'boolean', default: false },
+                transaction
+            });
         }
 
         // eslint-disable-next-line typescript/require-await
@@ -285,7 +292,8 @@ describe('PasswordAuthenticator — passwords 2.x stored', () => {
             repositoryTokenFor(PasswordCredentials)
         ).findAll({ limit: 'all' });
 
-        expect(stored.map(c => Object.keys(c).sort())).toStrictEqual([0, 1, 2].map(() => ['id', 'password', 'userId']));
+        expect(stored.map(c => Object.keys(c).sort())).toStrictEqual([0, 1, 2].map(() => ['changeRequired', 'id', 'password', 'userId']));
+        expect(stored.map(c => c.changeRequired)).toEqual([false, false, false]);
     });
 });
 

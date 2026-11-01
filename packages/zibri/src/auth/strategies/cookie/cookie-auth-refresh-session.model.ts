@@ -20,7 +20,7 @@ export class CookieAuthRefreshSession extends BaseEntity {
      * that there is nothing to guess, and it arrives on its own. A database read yields nothing that
      * can be presented back to the api.
      */
-    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy }, password: false })
     token!: HashString;
     /**
      * The id of the user that this session belong to.
@@ -112,6 +112,6 @@ export class CookieAuthRefreshSessionCreateData extends OmitClass(CookieAuthRefr
     /**
      * The token as the cookie carries it, before the hook hashes it.
      */
-    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy } })
+    @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy }, password: false })
     token!: string;
 }

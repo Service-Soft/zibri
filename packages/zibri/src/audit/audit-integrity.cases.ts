@@ -171,6 +171,22 @@ export function describeAuditIntegrity(
             expect((await checkpointsOf(team)).map(c => c.entryCount)).toEqual([1]);
         });
 
+        // 12 §O3: a checkpoint sealed whole hours only, so running the job more often sealed nothing sooner
+        it('seals what was stored up to five minutes before it runs, however soon after the checkpoint before', async () => {
+            const ahead: number = takeHours();
+            const team: string = UUIDUtilities.generate();
+            await recordAt(ahead, team, 'ada');
+            await sealAt(ahead + (Ms.MINUTE * 6));
+            await recordAt(ahead + (Ms.MINUTE * 7), team, 'grace');
+            await recordAt(ahead + (Ms.MINUTE * 12), team, 'alan');
+
+            await sealAt(ahead + (Ms.MINUTE * 13));
+
+            const [first, second] = await checkpointsOf(team);
+            expect([first?.entryCount, second?.entryCount, second?.periodStart]).toEqual([1, 1, first?.periodEnd]);
+            expect(await auditService.resolveVerification(team)).toMatchObject({ intact: true, newestSequence: 2 });
+        });
+
         it('goes on where the checkpoint before it ends, and the trail still holds', async () => {
             const ahead: number = takeHours();
             const team: string = UUIDUtilities.generate();

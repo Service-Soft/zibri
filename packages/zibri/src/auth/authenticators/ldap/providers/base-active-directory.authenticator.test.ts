@@ -119,7 +119,6 @@ class ActiveDirectoryLoginController {
         data: JwtRefreshLoginDto
     ): Promise<JwtAuthData<string>> {
         return await AuthControllerUtilities.runInTransaction(
-            JwtAuthStrategy,
             async transaction => await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).refreshLogin(JwtAuthStrategy, { ...data, transaction })
         );
     }

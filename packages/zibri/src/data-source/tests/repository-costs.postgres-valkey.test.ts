@@ -15,6 +15,7 @@ import { FsUtilities } from '../../utilities/fs.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
+import { DataSource } from '../decorators/data-source.decorator';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { Repository } from '../repository/repository';
 
@@ -78,10 +79,17 @@ const valKeyRoundTrips: RoundTripCounter = new RoundTripCounter();
 // application - a cron poll, a lease being renewed - sends anything through the counted ones
 const frameworkDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories });
 
-const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
+/**
+ * The postgres data source being measured. Named, since the framework's is built by the same helper.
+ */
+@DataSource()
+class CountedPostgresDataSource extends createTestDataSource({
     entities: [MigrationEntity, CostGroup, CostItem],
-    roundTrips: postgresRoundTrips
-});
+    roundTrips: postgresRoundTrips,
+    allowOrphan: true
+}) {}
+
+const postgresDataSourceClass: Newable<PostgresDataSource> = CountedPostgresDataSource;
 
 const valKeyDataSourceClass: Newable<ValKeyDataSource> = createTestValKeyDataSource({
     entities: [MigrationEntity, CostGroup, CostItem, CostCrowd, CostBulk],

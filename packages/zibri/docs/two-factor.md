@@ -63,7 +63,8 @@ A [second factor](./glossary.md#second-factor) is a further proof a user present
 | `ProviderAuthentication` | type | How a user proved who they are at the provider: the methods and the class of the authentication, as a login keeps them |
 | `TwoFactorAtLogin` | type | The `twoFactorAtLogin` app option: whether a login asks for a second factor, see [asking for a second factor at login](#asking-for-a-second-factor-at-login) |
 | `SecondFactorRequiredError` | error | What a login that waits for its second factor answers. `401`, with the [ticket](./glossary.md#ticket) the login continues with |
-| `LoginTicket` | entity | A login that waits for its second factor. Kept hashed |
+| `LoginTicket` | entity | A login that waits for its second factor, or for a [new password](./auth.md#requiring-a-new-password). Kept hashed |
+| `LoginTicketPurpose` | enum | What a login ticket continues the login with: the second factor or a new password. A ticket is taken for nothing else |
 | `ZIBRI_DI_TOKENS.LOGIN_TICKET_HEADER` | DI token | Which header carries the ticket. Defaults to `x-login-ticket` |
 | `ZIBRI_DI_TOKENS.LOGIN_TICKET_EXPIRES_IN_MS` | DI token | How long the ticket works. Defaults to 5 minutes |
 
@@ -223,7 +224,7 @@ x-authorization-email-code: 123456
                                 answers what the login route answers
 ```
 
-`confirm` takes the second factor in its header, exactly as a guarded route does, and names the strategy in `strategy` like the login route. A wrong code is refused as on any guarded route, and the ticket stays. The ticket is spent by the login it completes, and expires after 5 minutes, or after what `ZIBRI_DI_TOKENS.LOGIN_TICKET_EXPIRES_IN_MS` says.
+`confirm` takes the second factor in its header, exactly as a guarded route does, and names the strategy in `strategy` like the login route. A wrong code is refused as on any guarded route, and the ticket stays. The ticket is spent by the login it completes, and expires after 5 minutes, or after what `ZIBRI_DI_TOKENS.LOGIN_TICKET_EXPIRES_IN_MS` says. A user who has to [choose a new password](./auth.md#requiring-a-new-password) is asked for it once the second factor is confirmed, with a new ticket.
 
 An empty `methods` list means the user has no second factor, and `twoFactorAtLogin` is `'required'`: the ticket enrolls their first, at `POST /auth/login/2fa/registration/request` and `POST /auth/login/2fa/registration/confirm`, which take what [enrolling](#enrolling-a-user) takes. A user who has a second factor is refused there with `403`.
 
@@ -259,7 +260,7 @@ export async function enroll(
 }
 ```
 
-The first step answers what the user scans: `registration.qrCodeUrl`, the `otpauth` URL to show as a QR code, and `registration.secret`, the same secret to type in where scanning is not an option. The second step takes the first code their app shows, and only then does the second factor satisfy `@Auth.require2fa`.
+The first step answers what the user scans: `registration.qrCodeUrl`, the `otpauth` URL to show as a QR code, which the app lists under the `name` of your application and the email of the user, and `registration.secret`, the same secret to type in where scanning is not an option. The second step takes the first code their app shows, and only then does the second factor satisfy `@Auth.require2fa`.
 
 Neither field is stored. Show them to the user once.
 
@@ -295,7 +296,7 @@ defineProvider({ token: ZIBRI_DI_TOKENS.OTP_VALIDATION_WINDOW_IN_MS, useFactory:
 
 `0` accepts only the current code. It leaves the least room for replaying a code, and a client whose clock is off by more than a few seconds starts failing. Phone clocks drift.
 
-An authenticator app shows each code for 30 seconds, which is what most apps generate. `ZIBRI_DI_TOKENS.OTP_PERIOD_IN_SECONDS` sets another period, which the QR code tells the app. The window is a whole number of periods, or the application does not start.
+An authenticator app shows each code for 30 seconds, which is what most apps generate. `ZIBRI_DI_TOKENS.OTP_PERIOD_IN_SECONDS` sets another period, which the QR code tells the app. The window is a whole number of periods, or the application does not start. `ZIBRI_DI_TOKENS.OTP_LENGTH` sets how many digits a code has, 6 by default, which the QR code tells the app as well.
 
 The type accepts `0`, `30_000`, `60_000` and `90_000`, whole 30-second windows. Every window more is another code an observer could still spend.
 
@@ -589,7 +590,7 @@ Your data source declares these entities:
 | Entity | Needed when |
 |---|---|
 | `TwoFactorFailureStreak` | A two-factor method is registered |
-| `LoginTicket` | `twoFactorAtLogin` is not `'never'` |
+| `LoginTicket` | `twoFactorAtLogin` is not `'never'`, or `PasswordAuthenticator` is registered |
 | `OtpCredentials` | `OtpTwoFactorMethod` is registered |
 | `TwoFactorCodeCredentials`, `TwoFactorCode`, `RateLimitStateEntity` | `EmailTwoFactorMethod` or `SmsTwoFactorMethod` is registered |
 | `TwoFactorRecoveryCode` | `RecoveryCodeTwoFactorMethod` is registered |

@@ -1,4 +1,4 @@
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitClass } from '../../../entity/omit-class.model';
 
@@ -14,7 +14,7 @@ export class JwtRefreshLoginData {
     /**
      * The transaction that this should run in.
      */
-    transaction!: Transaction;
+    transaction!: RepositoryTransaction;
 }
 
 /**

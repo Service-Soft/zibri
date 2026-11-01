@@ -8,6 +8,7 @@ import { Logger } from './logger';
 import { LoggerInterface } from './logger.interface';
 import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
 import { TestTimeouts } from '../__testing__/constants';
+import { missingEntityPattern } from '../__testing__/missing-entity-pattern.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -45,7 +46,7 @@ describe('Logger — starting', () => {
     it('refuses to start without Log while a transport writes to the data source, and names it', async () => {
         const start: Promise<void> = startAndStopTestServerWithout([Log], { controllers: [LoggerIntegrationController] });
 
-        await expect(start).rejects.toThrow(/Error initializing Logger[\S\s]*- Log/);
+        await expect(start).rejects.toThrow(missingEntityPattern('Log', 'Logger'));
     }, TestTimeouts.inMemory.start);
 
     it('starts without Log, and schedules no cleanup for it, when no transport writes to the data source', async () => {

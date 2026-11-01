@@ -1,4 +1,4 @@
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { BaseWebsocketConnection } from '../models/connection/base-websocket-connection.model';
@@ -131,7 +131,7 @@ export interface WebsocketServiceInterface<Connection extends BaseWebsocketConne
      * A write ending a row of the `credentialEntities` of an auth strategy does this by itself. Call
      * it where logins end that are stored somewhere else.
      */
-    disconnectEndedLogins: (userIds: string[], transaction: Transaction | undefined) => Promise<void>,
+    disconnectEndedLogins: (userIds: string[], transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Disconnects the given connection.
      */

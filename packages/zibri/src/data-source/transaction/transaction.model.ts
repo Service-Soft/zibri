@@ -7,6 +7,11 @@
  */
 export type Transaction = {
     /**
+     * Never set on a transaction of one data source. What tells it apart from a `SpanningTransaction`,
+     * which only a repository takes.
+     */
+    readonly spansDataSources?: false,
+    /**
      * Whether the transaction has already been committed or rolled back.
      *
      * Exposed so that a lock can tell whether a write made while it was held has actually landed, or

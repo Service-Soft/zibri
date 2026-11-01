@@ -51,6 +51,7 @@ export * from './auth/models/provider-authentication.model';
 export * from './auth/models/ended-login.model';
 export * from './auth/models/logout-result.model';
 export { LoginTicket } from './auth/models/login-ticket.model';
+export * from './auth/models/login-ticket-purpose.enum';
 
 export * from './auth/auth-service.interface';
 export * from './auth/auth.rate-limiter';
@@ -197,11 +198,14 @@ export * from './auth/authenticators/provider-token.model';
 export * from './auth/authenticators/password/password.authenticator';
 export * from './auth/authenticators/password/password-credentials.model';
 export * from './auth/authenticators/password/password-failure-limit.model';
+export * from './auth/password-policy/password-policy.model';
 export { PasswordFailureStreak } from './auth/authenticators/password/password-failure-streak.model';
 export * from './auth/authenticators/password/password-reset-email-template.model';
 export * from './auth/authenticators/password/request-password-reset-data.model';
 export * from './auth/authenticators/password/confirm-password-reset-data.model';
 export * from './auth/authenticators/password/change-password-data.model';
+export * from './auth/authenticators/password/change-password-at-login-input.model';
+export * from './auth/authenticators/password/password-change-required.error';
 export * from './auth/email-verification/email-verification-options.model';
 export * from './auth/email-verification/email-verification-purpose.type';
 export * from './auth/email-verification/email-verification-email-template.model';
@@ -484,6 +488,7 @@ export * from './error-handling/errors/email-not-verified.error';
 export * from './error-handling/errors/credential-reused.error';
 export * from './error-handling/errors/account-deactivated.error';
 export * from './error-handling/errors/password-locked.error';
+export * from './error-handling/errors/password-refused.error';
 export * from './error-handling/errors/account-locked.error';
 export * from './error-handling/errors/too-many-requests.error';
 export * from './error-handling/errors/service-unavailable.error';
@@ -637,6 +642,7 @@ export * from './http/mime-type.utilities';
 export * from './http/file-extension.model';
 export * from './http/handler-timeout.type';
 export * from './http/http-server-limits.model';
+export * from './http/body-size-limits.model';
 
 export * from './tenancy/tenant-service.interface';
 export * from './tenancy/tenant.service';
@@ -708,7 +714,11 @@ export * from './data-source/driver/repository-driver.interface';
 
 export * from './data-source/transaction/transaction-already-finished.error';
 export * from './data-source/transaction/key-declarations-changed.error';
+export * from './data-source/transaction/repository-transaction.type';
 export * from './data-source/transaction/run-in-transaction-options.model';
+export * from './data-source/transaction/spanning-transaction-commit.error';
+export * from './data-source/transaction/spanning-transaction-restore-failure.model';
+export * from './data-source/transaction/spanning-transaction.model';
 export * from './data-source/transaction/transaction-conflict.error';
 export * from './data-source/transaction/transaction-deadlock.error';
 export * from './data-source/transaction/transaction-serialization.error';
@@ -925,6 +935,7 @@ export * from './data-source/change-sets/models/soft-deleted-rows.type';
 
 // document
 export * from './document/pdf.utilities';
+export * from './document/pdf-font-options.model';
 export * from './document/xml.utilities';
 export * from './document/xml-string.type';
 export * from './document/xml-generate-options.model';

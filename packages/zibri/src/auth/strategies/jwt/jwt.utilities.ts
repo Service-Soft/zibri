@@ -224,7 +224,8 @@ export abstract class JwtUtilities {
             subject: options.clientId,
             audience: options.audiences,
             // the jti is what a jwt is spent by, so a captured one cannot be presented again
-            requiredClaims: ['exp', 'jti']
+            requiredClaims: ['exp', 'jti'],
+            clockTolerance: Math.floor(options.clockToleranceInMs / Ms.SECOND)
         };
         try {
             const verified: JWTVerifyResult = await jose.jwtVerify(token, key, verifyOptions);
@@ -259,7 +260,8 @@ export abstract class JwtUtilities {
                 issuer: options.issuer,
                 audience: options.audiences,
                 // the subject is who the token logs in as, which a token without one names nobody
-                requiredClaims: ['exp', 'sub']
+                requiredClaims: ['exp', 'sub'],
+                clockTolerance: Math.floor(options.clockToleranceInMs / Ms.SECOND)
             });
             return {
                 header: { alg: verified.protectedHeader.alg, kid: verified.protectedHeader.kid, typ: verified.protectedHeader.typ },
@@ -294,7 +296,11 @@ export abstract class JwtUtilities {
                 issuer: options.issuer,
                 audience: options.audiences,
                 requiredClaims: ['iat', 'jti', 'events'],
-                maxTokenAge: Math.floor(options.maxAgeInMs / Ms.SECOND)
+                // jose adds the tolerance to the age, so a token is taken for up to the age plus the
+                // tolerance after its iat, and from the tolerance before it: what spends it has to
+                // remember it that long
+                maxTokenAge: Math.floor(options.maxAgeInMs / Ms.SECOND),
+                clockTolerance: Math.floor(options.clockToleranceInMs / Ms.SECOND)
             });
             return verified.payload;
         }

@@ -37,7 +37,7 @@ class ModelRegistryTestItem extends BaseEntity {
     @Property.string({ exclude: true })
     secret!: string;
 
-    @Property.string({ hash: true })
+    @Property.string({ password: true })
     password!: HashString;
 
     @Property.string({ encryption: true })
@@ -51,7 +51,7 @@ class ModelRegistryTestItemCreateData extends OmitClass(ModelRegistryTestItem, [
     @Property.string({ required: false })
     withDefault?: string;
 
-    @Property.string({ hash: true })
+    @Property.string({ password: true })
     password!: string;
 }
 

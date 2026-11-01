@@ -100,10 +100,16 @@ export namespace Property {
             excludeFromChangeSets: excludedFromChangeSetsByDefault(data),
             exclude: false,
             encryption: false,
-            hash: false,
+            // a password is hashed without saying so, and refused when it says otherwise
+            hash: data?.password === true,
+            password: false,
             ...data
         };
-        return applyData(toStoredStringPropertyMetadata(fullMetadata));
+        const stored: StoredStringPropertyMetadata = toStoredStringPropertyMetadata(fullMetadata);
+        return (target, key) => {
+            validatePasswordDeclaration(`${target.constructor.name}.${key.toString()}`, data, true);
+            applyData(stored)(target, key);
+        };
     }
 
     /**
@@ -428,7 +434,11 @@ type RecordableDeclaration = {
     /**
      * The hashing the property declares, when it declares any.
      */
-    hash?: unknown
+    hash?: unknown,
+    /**
+     * Whether the property holds a password, which is hashed without declaring it.
+     */
+    password?: unknown
 };
 
 /**
@@ -448,7 +458,7 @@ function excludedFromChangeSetsByDefault(data?: RecordableDeclaration): boolean 
     if (data?.encryption != undefined && data.encryption !== false) {
         return true;
     }
-    if (data?.hash != undefined && data.hash !== false) {
+    if ((data?.hash != undefined && data.hash !== false) || data?.password === true) {
         return true;
     }
     return typeof data?.exclude === 'boolean' ? data.exclude : false;
@@ -562,6 +572,82 @@ function validateNotEncryptedAndHashed(fullKey: string, data: PropertyMetadata):
         && data.hash !== undefined && data.hash !== false
     ) {
         throw new InternalError(`${fullKey}: Cannot set the flags "encryption" and "hash" at the same time.`);
+    }
+}
+
+/**
+ * What a password cannot declare.
+ */
+type RefusedForPasswords = 'minLength' | 'maxLength' | 'regex' | 'format' | 'enum' | 'default' | 'unique' | 'index' | 'primary';
+
+const POLICY_SAYS_LENGTH: string = 'ZIBRI_DI_TOKENS.PASSWORD_POLICY says how long a password is.';
+const POLICY_SAYS_CONTENT: string = 'ZIBRI_DI_TOKENS.PASSWORD_POLICY says what a password holds, with its validatePassword.';
+const NEVER_LOOKED_UP: string = 'A password is hashed differently each time, so a stored value is never looked up.';
+
+/**
+ * What a password cannot declare, and why.
+ */
+const REFUSED_FOR_PASSWORDS: Record<RefusedForPasswords, string> = {
+    minLength: POLICY_SAYS_LENGTH,
+    maxLength: POLICY_SAYS_LENGTH,
+    regex: POLICY_SAYS_CONTENT,
+    format: POLICY_SAYS_CONTENT,
+    enum: POLICY_SAYS_CONTENT,
+    default: 'A password every row starts with is known to everyone who reads this declaration.',
+    unique: 'A password is hashed differently each time, so no two stored values are ever the same.',
+    index: NEVER_LOOKED_UP,
+    primary: NEVER_LOOKED_UP
+};
+
+/**
+ * Refuses a hashed string that does not say whether it is a password, and a password declared in a
+ * way that cannot hold one.
+ *
+ * Read off the declaration as written, since a password that says nothing about its hashing and a
+ * token that forgot to say it is none look the same once the defaults are filled in.
+ * @param fullKey - Where the string is declared, for the message.
+ * @param data - The string as declared.
+ * @param isProperty - Whether it is a property of its own, not an item of an array or a shape.
+ * @throws When a hashed string leaves `password` out, or a password is an item or a shape, is not hashed,
+ * is hashed in a way decided per row, or declares what the password policy or its hash says instead.
+ */
+function validatePasswordDeclaration(
+    fullKey: string,
+    data: AnyStrategyStringPropertyMetadataInput | undefined,
+    isProperty: boolean
+): void {
+    // a hashed string of 2.x, or one whose author forgot, would be a password nobody checks
+    if (data?.password == undefined) {
+        if (data?.hash != undefined && data.hash !== false) {
+            throw new InternalError([
+                `${fullKey}: A hashed string says whether it is a password.`,
+                'Declare "password: true" for a password, which is then checked against ZIBRI_DI_TOKENS.PASSWORD_POLICY',
+                'whenever one is written, or "password: false" for anything else, such as a token.'
+            ]);
+        }
+        return;
+    }
+    if (!data.password) {
+        return;
+    }
+    // the policy is checked on the value of a property, and a list of passwords is one no user types
+    if (!isProperty) {
+        throw new InternalError(`${fullKey}: A password is a property of its own, not an item of an array or one of several shapes.`);
+    }
+    if (data.hash === false) {
+        throw new InternalError(`${fullKey}: A password is hashed, so it cannot declare "hash: false".`);
+    }
+    if (typeof data.hash === 'function') {
+        throw new InternalError([
+            `${fullKey}: How a password is hashed is decided per row,`,
+            'so nothing can check that each row hashes it with a strategy that hashes one value differently each time.',
+            'Name the strategy, or leave "hash" out for the default one.'
+        ]);
+    }
+    const refused: keyof typeof REFUSED_FOR_PASSWORDS | undefined = ObjectUtilities.keys(REFUSED_FOR_PASSWORDS)
+        .find(key => data[key] != undefined && data[key] !== false);
+    if (refused != undefined) {
+        throw new InternalError([`${fullKey}: A password cannot declare "${refused}".`, REFUSED_FOR_PASSWORDS[refused]]);
     }
 }
 
@@ -707,8 +793,10 @@ export function createArrayItemPropertyMetadata(
                 encryption: false,
                 hash: false,
                 excludeFromChangeSets: typeof data?.exclude === 'boolean' ? data.exclude : false,
-                ...data
+                ...data,
+                password: data.password ?? false
             });
+            validatePasswordDeclaration(fullPropertyKey, data, false);
             validateNotEncryptedAndHashed(fullPropertyKey, item);
             return item;
         }

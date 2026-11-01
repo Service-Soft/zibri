@@ -43,6 +43,12 @@ export type CorsOptions = {
     // disable its features from a browser
     additionalAllowedHeaders?: Header[],
     /**
+     * Response headers a browser page may read **on top of** the ones the framework answers with:
+     * the csrf token, the rate limit headers, `retry-after`, the file name of a download, the trace
+     * context.
+     */
+    additionalExposedHeaders?: Header[],
+    /**
      * Whether a browser may send cookies and credentials it holds for this api.
      *
      * Required for cookie based auth from another origin, and refused together with `origins: '*'`:
@@ -103,7 +109,7 @@ export function corsMiddleware(options: CorsOptions): RequestHandler {
             KnownHeader.CONTENT_TYPE,
             KnownHeader.AUTHORIZATION,
             KnownHeader.DPOP,
-            KnownHeader.X_VERSION,
+            inject(ZIBRI_DI_TOKENS.VERSION_HEADER),
             inject(ZIBRI_DI_TOKENS.CSRF_TOKEN_HEADER),
             inject(ZIBRI_DI_TOKENS.OTP_HEADER),
             inject(ZIBRI_DI_TOKENS.PASSKEY_HEADER),
@@ -120,11 +126,18 @@ export function corsMiddleware(options: CorsOptions): RequestHandler {
         // answers *with* have to be listed as well. The csrf token is the one that matters: it is
         // reissued on the response whose session rotated, and a page that cannot read it goes on
         // sending the token that was just retired. A DPoP nonce likewise, which a page signs its next
-        // proof with.
+        // proof with. The rate limit headers and retry-after tell a page when to try again, and
+        // content-disposition the name of the file it downloaded
         exposedHeaders ??= [
             inject(ZIBRI_DI_TOKENS.CSRF_TOKEN_HEADER),
             KnownHeader.DPOP_NONCE,
-            KnownHeader.TRACERESPONSE
+            KnownHeader.TRACERESPONSE,
+            KnownHeader.X_RATE_LIMIT_LIMIT,
+            KnownHeader.X_RATE_LIMIT_REMAINING,
+            KnownHeader.X_RATE_LIMIT_RESET,
+            KnownHeader.RETRY_AFTER,
+            KnownHeader.CONTENT_DISPOSITION,
+            ...options.additionalExposedHeaders ?? []
         ].join(', ');
 
         if (options.origins !== '*') {

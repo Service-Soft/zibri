@@ -1,6 +1,6 @@
 import { UserRepositoryInterface } from './user-repository.interface';
 import { FindByIdOptions } from '../../data-source/models/options/find-by-id-options.model';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
 import { BaseUser } from '../models/base-user.model';
@@ -41,18 +41,18 @@ export interface UserServiceInterface {
      * holds them.
      * @throws A NotFoundError when no user repository holds the user.
      */
-    updateDeactivatedAt: (id: string, deactivatedAt: Date | null, transaction: Transaction | undefined) => Promise<void>,
+    updateDeactivatedAt: (id: string, deactivatedAt: Date | null, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Stores the roles a user holds of their own, in the user repository that holds them.
      * @throws A NotFoundError when no user repository holds the user.
      */
-    updateRoles: (id: string, roles: string[], transaction: Transaction | undefined) => Promise<void>,
+    updateRoles: (id: string, roles: string[], transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Stores the email of a user and when it was verified, or null while it is not, in the user
      * repository that holds them.
      * @throws A NotFoundError when no user repository holds the user.
      */
-    updateEmail: (id: string, email: string, emailVerifiedAt: Date | null, transaction: Transaction | undefined) => Promise<void>,
+    updateEmail: (id: string, email: string, emailVerifiedAt: Date | null, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Whether the rows of an entity are users, because a user repository reads them.
      *

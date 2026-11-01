@@ -19,7 +19,7 @@ import { OwnedRelationWrite } from '../models/owned-relation-write.model';
 import { OwnedRelation } from '../models/owned-relation.model';
 import { Where } from '../models/where/where-filter.model';
 import { OwnedRelationUtilities } from '../owned-relation.utilities';
-import { Transaction } from '../transaction/transaction.model';
+import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
 
 /**
  * What a write giving rows of its relations hands on to every level of them.
@@ -199,7 +199,7 @@ export class OwnedRowWriter<T extends BaseEntity> {
      * @param transaction - The transaction of the write.
      * @returns The ids no row holds.
      */
-    async findMissingIds(target: Newable<BaseEntity>, ids: string[], transaction: Transaction | undefined): Promise<Set<string>> {
+    async findMissingIds(target: Newable<BaseEntity>, ids: string[], transaction: RepositoryTransaction | undefined): Promise<Set<string>> {
         if (!ids.length) {
             return new Set();
         }
@@ -263,7 +263,7 @@ export class OwnedRowWriter<T extends BaseEntity> {
      * @param relations - Their relations that cascade removes.
      * @param transaction - The transaction the removal runs in.
      */
-    async remove(ownerIds: string[], relations: OwnedRelation[], transaction: Transaction): Promise<void> {
+    async remove(ownerIds: string[], relations: OwnedRelation[], transaction: RepositoryTransaction): Promise<void> {
         const childOptions: BaseRepositoryOptions = { transaction, unscoped: true, acrossTenants: true };
         for (const relation of relations) {
             // whatever their locked properties hold: what the delete was based on was checked on the owner
@@ -285,7 +285,7 @@ export class OwnedRowWriter<T extends BaseEntity> {
      * @param transaction - The transaction the removal runs in.
      * @throws A conflict naming the first relation whose rows still point at one of them.
      */
-    async validateNotReferenced(ownerIds: string[], relations: OwnedRelation[], transaction: Transaction): Promise<void> {
+    async validateNotReferenced(ownerIds: string[], relations: OwnedRelation[], transaction: RepositoryTransaction): Promise<void> {
         const childOptions: BaseRepositoryOptions = { transaction, unscoped: true, acrossTenants: true };
         for (const relation of relations) {
             const where: Where<BaseEntity> = OwnedRelationUtilities.resolveStillReferencingWhere(relation, ownerIds, this.entityClass);

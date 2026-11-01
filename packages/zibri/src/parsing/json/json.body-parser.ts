@@ -1,3 +1,5 @@
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { HttpRequest } from '../../http/http-request.model';
 import { MimeType } from '../../http/mime-type.enum';
@@ -38,7 +40,10 @@ export class JsonBodyParser implements BodyParserInterface<MimeType.JSON> {
         if (req.body !== undefined) {
             return req.body;
         }
-        const raw: Buffer = await BodyParserUtilities.readRequestBodyIntoMemory(req, resolveMaxBodySize(metadata));
+        const raw: Buffer = await BodyParserUtilities.readRequestBodyIntoMemory(
+            req,
+            resolveMaxBodySize(metadata, inject(ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS).maxBodySizes)
+        );
 
         try {
             if (!raw.length) {

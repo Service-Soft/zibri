@@ -6,7 +6,7 @@ import { GroupKeysOf } from '../aggregate.model';
 /**
  * Options for counting entities.
  */
-export type CountOptions<T extends BaseEntity, G extends readonly GroupKeysOf<T>[] | undefined = undefined> = BaseRepositoryOptions
+export type CountOptions<T extends BaseEntity, G extends readonly GroupKeysOf<T>[] | undefined = undefined> = BaseRepositoryOptions<T>
     & Pick<FindAllOptions<T>, 'where'>
     & {
         /**

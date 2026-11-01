@@ -369,6 +369,13 @@ describe('LocalizeService', () => {
         expect([percentOptions, dateOptions, priceOptions]).toEqual([{}, {}, { currency: 'EUR' }]);
     });
 
+    // a percent of 19 was formatted as 1,900%, and 7.7 was rounded to 8%
+    it('formats a percent as the number of percent it is, with its decimals', () => {
+        expect(localizeService.formatPercent(19, { locale: 'en-US' })).toBe('19%');
+        expect(localizeService.formatPercent(7.7, { locale: 'en-US' })).toBe('7.7%');
+        expect(localizeService.formatPercent(19, { locale: 'de-DE' })).toBe('19 %');
+    });
+
     describe('ordering text', () => {
         it('orders alphabetically rather than by the bytes text is written with', () => {
             // 'B' is the lower byte and the later letter

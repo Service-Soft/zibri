@@ -10,7 +10,7 @@ import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Repository } from '../data-source/repository/repository';
-import { Transaction } from '../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
@@ -92,7 +92,6 @@ function defineQueue(
     return {
         name: 'test-work',
         wakeUpTopic: 'test-work',
-        dataSource: works.dataSource,
         leaseInMs: Ms.MINUTE,
         onCompletion: 'release',
         claimedPer: 'item',
@@ -102,7 +101,7 @@ function defineQueue(
         findRunId: work => work.id,
         findMaxAttempts: () => 2,
         run,
-        record: async (item: TestWork, outcome: QueuedWorkOutcome, transaction: Transaction | undefined) => {
+        record: async (item: TestWork, outcome: QueuedWorkOutcome, transaction: RepositoryTransaction | undefined) => {
             await works.updateById(item.id, { ...outcome, status: STATUS_OF[outcome.kind] }, { transaction });
         },
         ...overrides

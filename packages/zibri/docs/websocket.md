@@ -53,6 +53,13 @@ defineProvider({
 
 `isAllowedToConnect` receives the `CurrentUser` of the handshake, `undefined` for an anonymous one.
 
+| Option | What it is |
+|---|---|
+| `path` | The path clients connect to. A client names the same one as its `path` option. `/socket.io` by default |
+| `maxMessageSize` | The most one message from a client may weigh. A client sending a larger one is disconnected. One megabyte by default |
+| `pingIntervalInMs` | How often the server checks that a connection is still alive. 25 seconds by default |
+| `pingTimeoutInMs` | How long a client has to answer that check before its connection is closed. 20 seconds by default |
+
 An application whose clients only listen registers no websocket controller, so it starts the server itself:
 
 ```ts
@@ -120,6 +127,26 @@ export class LimitedWebsocketController {
     }
 }
 ```
+
+## Limiting the size of a message
+A message weighs at most `maxMessageSize`, one megabyte by default. A message for an event with a body weighs at most what the body allows: `maxSize` of `@WebsocketBody`, or `maxBodySizes` of `ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS` for its kind when the body names none, see [how long a request may take](./application-lifecycle.md#how-long-a-request-may-take). The whole message counts: the body, the query and the headers, and the buffers it carries. An event with several [versions](./versioning.md) allows what the largest of their bodies does.
+
+```ts
+// src/controllers/chat.websocket-controller.ts
+import { WebsocketBody, WebsocketController, WebsocketRoute } from 'zibri';
+
+import { ChatMessage } from '../models/chat-message.model';
+
+@WebsocketController({ eventPrefix: 'chat:' })
+export class ChatSizeController {
+    @WebsocketRoute('send')
+    send(@WebsocketBody(ChatMessage, { maxSize: '4kb' }) message: ChatMessage): ChatMessage {
+        return message;
+    }
+}
+```
+
+A larger message is refused by its length before it is read, and the connection is closed with code `1009`, over long polling with `413`. A message that is not an event, such as an acknowledgement, weighs at most `maxMessageSize`.
 
 ## Sending messages
 Send messages with the websocket service. It sends:
@@ -315,6 +342,7 @@ An instance that loses its connection to the data source connects again and hear
 | `socket.io` | Running the websocket server. You install it |
 | `socket.io-adapter` | Carrying broadcasts to the other instances, with an `adapterDataSource`. You install it |
 | `socket.io-parser` | Sending every message as JSON. You install it |
+| `ws` | Reading the size of a message before the message. You install it |
 
 Your data source declares these entities:
 

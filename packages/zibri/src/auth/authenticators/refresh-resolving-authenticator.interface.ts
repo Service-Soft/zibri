@@ -1,4 +1,4 @@
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { BaseUser } from '../models/base-user.model';
 
 /**
@@ -14,7 +14,7 @@ export interface RefreshResolvingAuthenticatorInterface<RoleType extends string,
      * Throws an AccountDeactivatedError to refuse the refresh and end every login and api key of the
      * user, or any other error to refuse only this refresh.
      */
-    resolveRefreshUser: (user: UserType, transaction: Transaction | undefined) => Promise<UserType>
+    resolveRefreshUser: (user: UserType, transaction: RepositoryTransaction | undefined) => Promise<UserType>
 }
 
 /**

@@ -221,6 +221,8 @@ A JSON body is read in every JSON type: `application/json`, and every format wri
 
 The OpenAPI explorer lists the route `POST /users` with its request body and return type.
 
+A body weighs at most 100 kilobytes, and a stream ten megabytes, and a larger one is answered `413`. `maxSize` sets the limit of one body, such as `@Body(UserCreateDTO, { maxSize: '1mb' })`, and `maxBodySizes` of `ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS` the one of every body that names none, see [how long a request may take](./application-lifecycle.md#how-long-a-request-may-take).
+
 A body that is a list of the model is declared with `isArray`:
 
 ```ts
@@ -482,7 +484,7 @@ Set it where the application's own directory is read only, or where two applicat
 
 #### Limits on a multipart body
 
-A multipart body has two kinds of limits: its size, and how many parts it has. `baseMaxSize` limits the size. `FORM_DATA_LIMITS` limits the counts, since every file part keeps a file open while it arrives.
+A multipart body has two kinds of limits: its size, and how many parts it has. `baseMaxSize` limits the size without the files, `formData` of `maxBodySizes` when the body names none, and the sizes its file properties declare are added to it. `FORM_DATA_LIMITS` limits the counts, since every file part keeps a file open while it arrives.
 
 The defaults allow 20 files, 1000 parts and 500 fields. A body over any of them is answered with `413`. Set them once for the application:
 

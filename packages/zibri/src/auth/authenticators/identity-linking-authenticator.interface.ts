@@ -1,6 +1,6 @@
 import { AuthenticatorInterface, isAuthenticator } from './authenticator.interface';
 import type { IdentityLinkingAuthenticators } from './identity-linking-authenticators.model';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { BaseUser } from '../models/base-user.model';
 
@@ -24,12 +24,12 @@ export interface IdentityLinkingAuthenticatorInterface<
      * Reads who logged in, for creating the user they become, from the ticket a first login
      * continues with. Does not spend the ticket.
      */
-    resolveRegistration: (ticket: TicketType, transaction: Transaction | undefined) => Promise<RegistrationType>,
+    resolveRegistration: (ticket: TicketType, transaction: RepositoryTransaction | undefined) => Promise<RegistrationType>,
     /**
      * Links the identity a ticket names to a user, so the ticket logs them in and every later login
      * with the identity finds them. Does not spend the ticket.
      */
-    linkTicketIdentity: (ticket: TicketType, userId: string, transaction: Transaction | undefined) => Promise<void>,
+    linkTicketIdentity: (ticket: TicketType, userId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Requests linking an identity to a user who exists already, as the request says. Answers with
      * what the browser needs to go on with it, such as the url of a provider, and links the identity
@@ -39,11 +39,11 @@ export interface IdentityLinkingAuthenticatorInterface<
     /**
      * Finds the identities linked to a user.
      */
-    findIdentities: (userId: string, transaction: Transaction | undefined) => Promise<IdentityType[]>,
+    findIdentities: (userId: string, transaction: RepositoryTransaction | undefined) => Promise<IdentityType[]>,
     /**
      * Unlinks an identity from a user. Throws a NotFoundError when the user has no identity of that id.
      */
-    unlinkIdentity: (userId: string, identityId: string, transaction: Transaction | undefined) => Promise<void>
+    unlinkIdentity: (userId: string, identityId: string, transaction: RepositoryTransaction | undefined) => Promise<void>
 }
 
 /**

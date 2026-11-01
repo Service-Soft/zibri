@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
 import { TestTimeouts } from '../../__testing__/constants';
+import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
 import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
@@ -54,7 +55,7 @@ describe('JwtAuthStrategy — starting', () => {
             controllers: [JwtTestAuthController, JwtProtectedController]
         });
 
-        await expect(start).rejects.toThrow(/Error initializing JwtAuthStrategy[\S\s]*JwtRefreshToken/);
+        await expect(start).rejects.toThrow(missingEntityPattern('JwtRefreshToken', 'JwtAuthStrategy'));
     }, TestTimeouts.inMemory.start);
 });
 

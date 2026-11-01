@@ -140,7 +140,9 @@ function toEndpoint(
         url: ControllerUtilities.resolveUrl(controller),
         introspectionPermission: options.introspectionPermission,
         resources: options.resources,
-        maxClientAssertionLifetimeInMs: options.maxClientAssertionLifetimeInMs ?? Ms.HOUR
+        maxClientAssertionLifetimeInMs: options.maxClientAssertionLifetimeInMs ?? Ms.HOUR,
+        acceptedClockSkewInMs: options.acceptedClockSkewInMs ?? Ms.MINUTE,
+        accessTokenExpiresInMs: options.accessTokenExpiresInMs
     };
 }
 

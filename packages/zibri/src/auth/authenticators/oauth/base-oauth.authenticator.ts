@@ -10,7 +10,7 @@ import { OpenIdClient } from './open-id-client.type';
 import { ZibriApplication } from '../../../application/application';
 import { type AuditServiceInterface } from '../../../audit/audit-service.interface';
 import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
 import { UniqueConstraintViolationError } from '../../../data-source/unique-constraint-violation.error';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -174,7 +174,7 @@ export abstract class BaseOAuthAuthenticator<
      * @param userIds - The users.
      * @param transaction - The transaction deleting them.
      */
-    override async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+    override async deleteUserRows(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
         // only where tokens can be kept, as init declares them
         if (this.apiScopes.length) {
             const identities: FederatedIdentity[] = await this.findOwnIdentitiesOf(userIds, transaction);
@@ -193,7 +193,7 @@ export abstract class BaseOAuthAuthenticator<
      * @param transaction - The transaction to unlink in, if any.
      * @throws NotFoundError when the user has no identity of that id at the provider.
      */
-    override async unlinkIdentity(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
+    override async unlinkIdentity(userId: string, identityId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         const identity: FederatedIdentity = await this.findOwnIdentity(userId, identityId, transaction);
         const tokens: OAuthProviderTokens | undefined = await this.removeTokens(identity, transaction);
         await super.unlinkIdentity(userId, identityId, transaction);
@@ -253,7 +253,7 @@ export abstract class BaseOAuthAuthenticator<
      * @param transaction - The transaction to remove them in, if any.
      * @throws NotFoundError when the user has no identity of that id at the provider.
      */
-    async revokeAccess(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
+    async revokeAccess(userId: string, identityId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         const identity: FederatedIdentity = await this.findOwnIdentity(userId, identityId, transaction);
         if (!identity.forLogin) {
             await this.unlinkUnusedIdentity(identity, transaction);
@@ -275,7 +275,7 @@ export abstract class BaseOAuthAuthenticator<
      * @param transaction - The transaction to change it in, if any.
      * @throws NotFoundError when the user has no identity of that id at the provider.
      */
-    async revokeLogin(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
+    async revokeLogin(userId: string, identityId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         const identity: FederatedIdentity = await this.findOwnIdentity(userId, identityId, transaction);
         if (!identity.grantedScopes.length) {
             await this.unlinkUnusedIdentity(identity, transaction);
@@ -285,7 +285,7 @@ export abstract class BaseOAuthAuthenticator<
             return;
         }
         await this.identityRepository.updateById(identity.id, { forLogin: false }, { transaction });
-        this.auditService.record({ action: AuditAction.IDENTITY_LOGIN_REVOKED, outcome: AuditOutcome.SUCCESS, userId: identity.userId });
+        this.auditService.record({ action: AuditAction.IDENTITY_LOGIN_REVOKED, outcome: AuditOutcome.SUCCESS, userId: identity.userId }, transaction);
     }
 
     /**
@@ -530,7 +530,7 @@ export abstract class BaseOAuthAuthenticator<
     protected override async keepProviderTokens(
         identity: FederatedIdentity,
         tokens: ProviderTokenGrant,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<void> {
         await this.writeTokens(identity, tokens, transaction);
         this.auditService.record({
@@ -538,10 +538,10 @@ export abstract class BaseOAuthAuthenticator<
             outcome: AuditOutcome.SUCCESS,
             userId: identity.userId,
             scopes: tokens.grantedScopes
-        });
+        }, transaction);
     }
 
-    private async findTokens(identityId: string, transaction: Transaction | undefined): Promise<OAuthProviderTokens | undefined> {
+    private async findTokens(identityId: string, transaction: RepositoryTransaction | undefined): Promise<OAuthProviderTokens | undefined> {
         return await this.tokensRepository.findOne({ where: { identityId }, transaction, required: false });
     }
 
@@ -576,7 +576,7 @@ export abstract class BaseOAuthAuthenticator<
     private async writeTokens(
         identity: FederatedIdentity,
         tokens: ProviderTokenGrant,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<void> {
         const kept: OAuthProviderTokens | undefined = await this.findTokens(identity.id, transaction);
         // a provider that issues no new refresh token keeps the one it issued before valid
@@ -614,10 +614,10 @@ export abstract class BaseOAuthAuthenticator<
      * @param identity - The identity.
      * @param transaction - The transaction to unlink it in, if any.
      */
-    private async unlinkUnusedIdentity(identity: FederatedIdentity, transaction: Transaction | undefined): Promise<void> {
+    private async unlinkUnusedIdentity(identity: FederatedIdentity, transaction: RepositoryTransaction | undefined): Promise<void> {
         await this.unlinkIdentity(identity.userId, identity.id, transaction);
         // recorded here, since the unlink of AuthService that records it is not the one that ran
-        this.auditService.record({ action: AuditAction.IDENTITY_UNLINKED, outcome: AuditOutcome.SUCCESS, userId: identity.userId });
+        this.auditService.record({ action: AuditAction.IDENTITY_UNLINKED, outcome: AuditOutcome.SUCCESS, userId: identity.userId }, transaction);
     }
 
     /**
@@ -628,7 +628,7 @@ export abstract class BaseOAuthAuthenticator<
      */
     private async removeTokens(
         identity: FederatedIdentity,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<OAuthProviderTokens | undefined> {
         // read only for an identity that has some: without api scopes the tokens are not declared at all
         if (!identity.grantedScopes.length) {
@@ -644,7 +644,7 @@ export abstract class BaseOAuthAuthenticator<
             outcome: AuditOutcome.SUCCESS,
             userId: identity.userId,
             scopes: identity.grantedScopes
-        });
+        }, transaction);
         return tokens;
     }
 

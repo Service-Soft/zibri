@@ -26,7 +26,7 @@ A cleanup cron job is registered for you with the feature that needs it. An expi
 | `LdapIdentity` | One row per directory entry that logged in, see [login through a directory](./login-through-a-directory.md) | Deleted with its user |
 | `ScimUser`, `ScimUserValue`, `ScimGroup`, `ScimGroupMember` | One row per user, attribute value, group and member an identity provider provisions, see [SCIM](./scim.md) | Deleted when the identity provider deletes the resource |
 | `AuditEntry` | Every audited action, with repeats of one collapsed into a row, see [audit](./audit.md) | Daily by `AuditCleanupCronJob` with the checkpoint sealing it, once its span ended longer ago than `AUDIT_RETENTION_IN_MS`, which has no default, or kept for good with `'forever'` |
-| `AuditCheckpoint` | One row per [tenant](./glossary.md#tenant) and hour in which it stored audit entries | Deleted with the entries it seals |
+| `AuditCheckpoint` | One row per [tenant](./glossary.md#tenant) and run of `AuditCheckpointCronJob` after it stored audit entries | Deleted with the entries it seals |
 | `ChainedAuditEntry` | Every audited action of a trail [kept as a chain](./audit.md#keeping-the-trail-as-a-chain) | Daily by `AuditCleanupCronJob` from the start of each tenant's chain, once older than `AUDIT_RETENTION_IN_MS` |
 | `ChainAnchor` | One row per chain whose oldest rows were pruned, see [tamper-evident tables](./tamper-evident-tables.md) | Kept for good |
 | `SigningKey` | One row per [signing key](./encryption-and-hashing.md#keeping-a-signing-key) | Kept for good |

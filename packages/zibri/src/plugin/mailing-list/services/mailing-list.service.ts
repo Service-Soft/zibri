@@ -1,6 +1,7 @@
 import { randomBytes, timingSafeEqual } from 'crypto';
 
 import { MailingListSubscriberCreateData, MailingListQueueEmailData, MailingListServiceInterface } from './mailing-list-service.interface';
+import { ZibriApplication } from '../../../application/application';
 import { type AssetServiceInterface } from '../../../assets/asset-service.interface';
 import { type HashServiceInterface } from '../../../auth/hash/hash-service.interface';
 import { Sha256HashStrategy } from '../../../auth/hash/strategies/sha256.hash-strategy';
@@ -17,14 +18,15 @@ import { EmailPriority } from '../../../email/models/email-priority.enum';
 import { NotFoundError } from '../../../error-handling/errors/not-found.error';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
 import { InternalError } from '../../../error-handling/internal-error.model';
-import { GlobalRegistry } from '../../../global/global-registry';
 import { OnAppInit } from '../../../global/on-app-init.interface';
 import { $ts } from '../../../localization/translate.function';
-import { Route } from '../../../routing/controller-route-configuration.model';
+import { ControllerUtilities } from '../../../routing/controller.utilities';
 import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
 import { TsxUtilities } from '../../../tsx/tsx.utilities';
+import { Newable } from '../../../types/newable.type';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { PromiseUtilities } from '../../../utilities/promise.utilities';
+import { MailingListController } from '../mailing-list.controller';
 import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from '../mailing-list.tokens';
 import { type MailingListBaseEmailTemplate, MailingListTemplateData } from '../models/mailing-list-base-email-template.model';
 import { type MailingListSubscribeConfirmationEmailTemplate } from '../models/mailing-list-subscribe-confirmation-email-template.model';
@@ -37,8 +39,8 @@ import { MailingList } from '../models/mailing-list.model';
  */
 @Injectable({ register: 'onUse' })
 export class MailingListService implements MailingListServiceInterface, OnAppInit {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly mailingListBaseRoute: Route = '/mailing-lists';
+    // the declared controller extending MailingListController, found while the application starts
+    private routesController: Newable<unknown> | undefined;
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE)
@@ -54,7 +56,9 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
         @Inject(ZIBRI_DI_TOKENS.TENANT_SERVICE)
         protected readonly tenantService: TenantServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.HASH_SERVICE)
-        protected readonly hashService: HashServiceInterface
+        protected readonly hashService: HashServiceInterface,
+        @Inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.PAGES_URL)
+        protected readonly pagesUrl: string | undefined
     ) {}
 
     // the three below are read when used rather than injected: this is built at every boot that
@@ -89,7 +93,10 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    onAppInit(): void {
+    onAppInit(app: ZibriApplication): void {
+        // none is no mistake yet: a subclass resolving links of its own needs none, and building a
+        // link says so when it is missing
+        this.routesController = app.options.controllers.find(c => c.prototype instanceof MailingListController);
         if (inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.SUBSCRIBE_CONFIRMATION_EMAIL_TEMPLATE) == undefined) {
             throw new InternalError([
                 'The builtin MailingListService requires that a value for',
@@ -106,17 +113,22 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveSubscribeConfirmationLink(listId: string, confirmationToken: string): Promise<string> {
-        return await this.resolveLink(`${this.mailingListBaseRoute}/${listId}/subscribe/${confirmationToken}`);
+        return await this.resolveLink(`${this.resolvePagesUrl()}/${listId}/subscribe/${confirmationToken}`);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveUnsubscribeLink(listId: string, subscriber: MailingListSubscriber): Promise<string> {
-        return await this.resolveLink(`${this.mailingListBaseRoute}/${listId}/unsubscribe?${this.getSubscriberQuery(subscriber)}`);
+        return await this.resolveLink(`${this.resolvePagesUrl()}/${listId}/unsubscribe?${this.getSubscriberQuery(subscriber)}`);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveOneClickUnsubscribeLink(listId: string, subscriber: MailingListSubscriber): Promise<string> {
+        return await this.resolveLink(`${this.resolveControllerUrl()}/${listId}/unsubscribe?${this.getSubscriberQuery(subscriber)}`);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveManagePreferencesLink(subscriber: MailingListSubscriber): Promise<string> {
-        return await this.resolveLink(`${this.mailingListBaseRoute}/preferences?${this.getSubscriberQuery(subscriber)}`);
+        return await this.resolveLink(`${this.resolvePagesUrl()}/preferences?${this.getSubscriberQuery(subscriber)}`);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -145,19 +157,44 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
     }
 
     /**
-     * Resolves a link to a route of the mailing lists, naming the active tenant the way its requests are
-     * read: following a link sends no header.
-     * @param path - The route, below the application's `baseUrl`.
+     * Resolves a link of the mailing lists, naming the active tenant the way its requests are read:
+     * following a link sends no header.
+     * @param url - The link, without the tenant.
      * @returns The link.
      * @throws A NoActiveTenantError when no tenant is active, whose mailing lists the link would be for.
      */
-    protected async resolveLink(path: string): Promise<string> {
+    protected async resolveLink(url: string): Promise<string> {
         const tenantId: string | undefined = this.tenantService.getActiveTenantId();
         if (tenantId == undefined) {
             throw new NoActiveTenantError(MailingList);
         }
-        const baseUrl: string = GlobalRegistry.getAppData('baseUrl') ?? '';
-        return await this.tenantService.resolveTenantUrl(`${baseUrl}${path}`, tenantId);
+        return await this.tenantService.resolveTenantUrl(url, tenantId);
+    }
+
+    /**
+     * Resolves where the pages the links of the emails open are: `PAGES_URL`, or the path of the
+     * controller extending `MailingListController` when that is not set.
+     * @returns The url, without a trailing slash.
+     * @throws An InternalError when neither is there.
+     */
+    protected resolvePagesUrl(): string {
+        return this.pagesUrl == undefined ? this.resolveControllerUrl() : this.pagesUrl.replace(/\/+$/, '');
+    }
+
+    /**
+     * Resolves where the routes of the controller extending `MailingListController` answer.
+     * @returns The url, without a trailing slash.
+     * @throws An InternalError when the application declares no such controller.
+     */
+    protected resolveControllerUrl(): string {
+        if (this.routesController == undefined) {
+            throw new InternalError([
+                `${this.constructor.name} links to the routes of the mailing lists, and found no controller extending`,
+                'MailingListController to serve them while the application started.',
+                'Declare one, or override the methods resolving the links to name routes of your own.'
+            ]);
+        }
+        return ControllerUtilities.resolveUrl(this.routesController);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -189,7 +226,7 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
                     priority: EmailPriority.LOW,
                     recipients: [subscriber.email],
                     persist: false,
-                    listUnsubscribeUrl: templateData.unsubscribeLink,
+                    listUnsubscribeUrl: await this.resolveOneClickUnsubscribeLink(list.id, subscriber),
                     ...data
                 });
             }

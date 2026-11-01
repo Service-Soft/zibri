@@ -8,6 +8,7 @@ import { hashHashProperties } from '../../global/model-registry/hash-hash-proper
 import { removeExcludeProperties } from '../../global/model-registry/remove-exclude-properties.function';
 import { restoreExcludeProperties } from '../../global/model-registry/restore-exclude-properties.function';
 import { setDefaultValues } from '../../global/model-registry/set-default-values.function';
+import { validatePasswordProperties } from '../../global/model-registry/validate-password-properties.function';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
 
@@ -91,6 +92,8 @@ export abstract class RepositoryHookUtilities {
         if (operation === SaveOperation.CREATE) {
             await setDefaultValues(data, entity);
         }
+        // every password first, so a write refused for one of them encrypts and hashes nothing
+        await validatePasswordProperties(data, entity, services.passwordPolicy);
         await encryptEncryptionProperties(data, entity, services.encryptionService);
         await hashHashProperties(data, entity, services.hashService);
     }

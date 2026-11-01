@@ -25,7 +25,7 @@ import { type BaseRepositoryOptions } from '../../data-source/models/options/bas
 import { KeysetPage } from '../../data-source/models/pagination-result.model';
 import { Where } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { UniqueConstraintViolationError } from '../../data-source/unique-constraint-violation.error';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
@@ -493,7 +493,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             throw new DefaultEncryptionKeyCannotBeDeletedError();
         }
 
-        const transaction: Transaction = options.transaction ?? await this.keyRepository.dataSource.startTransaction();
+        const transaction: RepositoryTransaction = options.transaction ?? await this.keyRepository.dataSource.startTransaction();
         const ownTransaction: boolean = !options.transaction;
         options.transaction = transaction;
 
@@ -518,7 +518,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         options: BaseRepositoryOptions = {}
     ): Promise<void> {
         await this.loadStrategies();
-        const transaction: Transaction = options.transaction ?? await this.keyRepository.dataSource.startTransaction();
+        const transaction: RepositoryTransaction = options.transaction ?? await this.keyRepository.dataSource.startTransaction();
         const ownTransaction: boolean = !options.transaction; // track if we created it
         options.transaction = transaction;
 

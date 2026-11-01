@@ -1,3 +1,4 @@
+import { BodySizeLimits } from './body-size-limits.model';
 import { HandlerTimeout } from './handler-timeout.type';
 
 /**
@@ -50,5 +51,10 @@ export type HttpServerLimits = {
      * How many bytes the headers of a request may take up together. Headers that take more are
      * answered `431`.
      */
-    maxHeaderSizeInBytes: number
+    maxHeaderSizeInBytes: number,
+    /**
+     * The most the body of a request may weigh, for every route that does not say otherwise. A
+     * larger one is answered `413`.
+     */
+    maxBodySizes: BodySizeLimits
 };

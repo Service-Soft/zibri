@@ -14,6 +14,7 @@ import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../test-server/create-test-data-source.function';
 import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function';
+import { testServerPasswordPolicyProvider } from '../../test-server/providers';
 
 /**
  * What every instance of the lock cluster boots with.
@@ -149,7 +150,7 @@ const options: StartTestServerOptions = {
     ],
     // spread rather than replaced: providers is the same field startTestServer takes, where what is
     // passed is what is used, so all the defaults have to be kept here
-    providers: defaultClusterProviders
+    providers: [...defaultClusterProviders, testServerPasswordPolicyProvider]
 };
 
 export default options;

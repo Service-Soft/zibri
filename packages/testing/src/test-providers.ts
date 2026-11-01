@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { AesGcmEncryptionStrategy, CronServiceInterface, defineProvider, DiProvider, EmailConfigInput, EncryptionMasterKey, JwtAuthOptionsInput, Ms, MultithreadingServiceInterface, RateLimitStoreFailurePolicy, ScryptCost, ZIBRI_DI_TOKENS } from 'zibri';
+import { AesGcmEncryptionStrategy, CronServiceInterface, defineProvider, DiProvider, EmailConfigInput, EncryptionMasterKey, JwtAuthOptionsInput, Ms, MultithreadingServiceInterface, PasswordPolicy, RateLimitStoreFailurePolicy, ScryptCost, ZIBRI_DI_TOKENS } from 'zibri';
 
 import { defaultPasswordResetEmailTemplate } from './password-reset-email.template';
 import { UnconfiguredEmailTransport } from './unconfigured.email-transport';
@@ -57,6 +57,13 @@ export const defaultTestProviders: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.PASSWORD_RESET_EMAIL_TEMPLATE,
         useValue: defaultPasswordResetEmailTemplate
+    }),
+    // every in-memory data source of the harness declares PasswordCredentials, so an application that
+    // stores no password still needs a policy for it. The one `zi new` writes, so a password a test
+    // stores is one a new application takes
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.PASSWORD_POLICY,
+        useFactory: (): PasswordPolicy => ({ minLength: 15, outdatedPasswords: 'requireChange' })
     }),
     defineProvider({
         token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,

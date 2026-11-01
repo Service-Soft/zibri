@@ -12,6 +12,7 @@ import { LdapEntry } from './ldap-entry.model';
 import { LdapIdentity, LdapIdentityCreateData } from './ldap-identity.model';
 import { LdapServiceAccount } from './ldap-service-account.model';
 import { TestTimeouts } from '../../../__testing__/constants';
+import { missingEntityPattern } from '../../../__testing__/missing-entity-pattern.function';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
 import { TestPlatformPermissions } from '../../../__testing__/mocks/entities/test-permissions.model';
@@ -333,7 +334,7 @@ class LdapLoginController {
         @Body(LdapCredentials)
         credentials: LdapCredentials
     ): Promise<JwtAuthData<string>> {
-        return await AuthControllerUtilities.runInTransaction(JwtAuthStrategy, async transaction => {
+        return await AuthControllerUtilities.runInTransaction(async transaction => {
             const authData: JwtAuthData<string> = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE)
                 .login(getDirectory(name), JwtAuthStrategy, credentials, transaction);
             await sleep(SLOW_COMMIT_IN_MS);
@@ -348,7 +349,6 @@ class LdapLoginController {
         data: JwtRefreshLoginDto
     ): Promise<JwtAuthData<string>> {
         return await AuthControllerUtilities.runInTransaction(
-            JwtAuthStrategy,
             async transaction => await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).refreshLogin(JwtAuthStrategy, { ...data, transaction })
         );
     }
@@ -566,7 +566,7 @@ describe('BaseLdapAuthenticator — starting', () => {
     it('refuses to start without LdapIdentity, and names it', async () => {
         const start: Promise<void> = startAndStopTestServerWithout([], { authenticators: [CompanyDirectory] });
 
-        await expect(start).rejects.toThrow(/Error initializing CompanyDirectory[\S\s]*LdapIdentity/);
+        await expect(start).rejects.toThrow(missingEntityPattern('LdapIdentity', 'CompanyDirectory'));
     }, TestTimeouts.inMemory.start);
 
     it('refuses to start with a url that is not ldaps:// or ldap://', async () => {

@@ -39,6 +39,7 @@ import { PasswordCredentials, PasswordCredentialsCreateData } from './authentica
 import { PasswordFailureStreak, PasswordFailureStreakCreateData } from './authenticators/password/password-failure-streak.model';
 import { PasswordAuthenticator } from './authenticators/password/password.authenticator';
 import { BaseUserEntity } from './models/base-user.model';
+import { LoginTicketPurpose } from './models/login-ticket-purpose.enum';
 import { LoginTicket, LoginTicketCreateData } from './models/login-ticket.model';
 import { PasswordResetToken, PasswordResetTokenCreateData } from './models/password-reset-token.model';
 import { ApiKeyAuthenticationMethod } from './strategies/api-key/api-key-authentication-method.enum';
@@ -314,6 +315,8 @@ async function giveRows(userId: string): Promise<IndirectRows> {
         federatedSubjectKey: undefined,
         federatedSessionKey: undefined,
         federatedLogout: undefined,
+        purpose: LoginTicketPurpose.SECOND_FACTOR,
+        passwordChangeRequired: false,
         spent: false,
         expirationDate: later
     });

@@ -20,7 +20,7 @@ import { SimpleWebAuthnHelpers } from './simple-web-authn-helpers.type';
 import { SimpleWebAuthn } from './simple-web-authn.type';
 import { ZibriApplication } from '../../../application/application';
 import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -147,7 +147,9 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
             rpID: options.relyingPartyId,
             challenge: randomBytes(32),
             // the passkey is the whole proof, so the device has to have verified who holds it
-            userVerification: 'required'
+            userVerification: 'required',
+            // as long as the challenge lives, so the browser does not give up on one still accepted
+            timeout: options.challengeExpiresInMs
         });
         await this.storeChallenge(requestOptions.challenge, { ceremony: PasskeyCeremony.LOGIN }, options);
         return requestOptions;
@@ -180,7 +182,8 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
             rpID: options.relyingPartyId,
             challenge: randomBytes(32),
             allowCredentials: passkeys.map(p => ({ id: p.credentialId, transports: p.transports })),
-            userVerification: 'required'
+            userVerification: 'required',
+            timeout: options.challengeExpiresInMs
         });
         await this.storeChallenge(requestOptions.challenge, { ceremony: PasskeyCeremony.SECOND_FACTOR, userId }, options);
         return requestOptions;
@@ -233,7 +236,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmLogin(response: PasskeyAuthenticationResponse, transaction: Transaction | undefined): Promise<Passkey> {
+    async confirmLogin(response: PasskeyAuthenticationResponse, transaction: RepositoryTransaction | undefined): Promise<Passkey> {
         const options: ResolvedPasskeyOptions = this.resolveOptions();
         // spent outside the login's transaction, so a failed login does not give the challenge back for
         // another answer
@@ -253,7 +256,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async findRegistrationTicket(ticket: string, transaction: Transaction | undefined): Promise<PasskeyRegistrationTicket> {
+    async findRegistrationTicket(ticket: string, transaction: RepositoryTransaction | undefined): Promise<PasskeyRegistrationTicket> {
         const found: PasskeyRegistrationTicket | undefined = await this.ticketRepository.findOne({
             where: { value: await this.hashService.hash(ticket, { strategy: Sha256HashStrategy }) },
             transaction,
@@ -266,7 +269,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async linkRegistrationTicket(ticket: string, userId: string, transaction: Transaction | undefined): Promise<void> {
+    async linkRegistrationTicket(ticket: string, userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         const found: PasskeyRegistrationTicket = await this.findRegistrationTicket(ticket, transaction);
         if (found.userId != undefined) {
             throw new UnauthorizedError($ts`The ticket is invalid or has expired.`);
@@ -288,7 +291,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async spendRegistrationTicket(ticket: string, transaction: Transaction | undefined): Promise<PasskeyRegistrationTicket> {
+    async spendRegistrationTicket(ticket: string, transaction: RepositoryTransaction | undefined): Promise<PasskeyRegistrationTicket> {
         const found: PasskeyRegistrationTicket = await this.findRegistrationTicket(ticket, transaction);
         // read in the login's transaction, which is where a registration has just added it
         const passkey: Passkey | undefined = found.userId == undefined
@@ -310,13 +313,13 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async findPasskeys(userId: string, transaction: Transaction | undefined): Promise<Passkey[]> {
+    async findPasskeys(userId: string, transaction: RepositoryTransaction | undefined): Promise<Passkey[]> {
         const passkeys: Passkey[] = await this.passkeyRepository.findAll({ where: { userId }, transaction });
         return [...passkeys].sort((a: Passkey, b: Passkey) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async removePasskey(userId: string, passkeyId: string, transaction: Transaction | undefined): Promise<void> {
+    async removePasskey(userId: string, passkeyId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         // throws NotFoundError for a passkey of somebody else, the same as for one that does not exist
         await this.passkeyRepository.findOne({ where: { id: passkeyId, userId }, transaction });
         await this.passkeyRepository.deleteById(passkeyId, { transaction });
@@ -328,7 +331,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+    async deleteUserRows(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
         await this.passkeyRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
         await this.challengeRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
         // only an application whose passkeys log in declares the tickets
@@ -373,7 +376,8 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
             authenticatorSelection: {
                 residentKey: ceremony === PasskeyCeremony.REGISTRATION ? 'required' : 'preferred',
                 userVerification: 'required'
-            }
+            },
+            timeout: options.challengeExpiresInMs
         });
         await this.storeChallenge(
             creationOptions.challenge,
@@ -518,7 +522,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
         challenge: string,
         userId: string | undefined,
         options: ResolvedPasskeyOptions,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<Passkey> {
         const passkey: Passkey | undefined = await this.passkeyRepository.findOne({
             where: { credentialId: response.id },

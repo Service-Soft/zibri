@@ -34,7 +34,7 @@ import { FederationOptions } from './federation-options.model';
 import { ProviderTokenGrant } from './provider-token-grant.model';
 import { ZibriApplication } from '../../../application/application';
 import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
 import { UniqueConstraintViolationError } from '../../../data-source/unique-constraint-violation.error';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -471,7 +471,7 @@ export abstract class BaseFederatedAuthenticator<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async authenticate(credentials: FederatedCredentials, transaction: Transaction | undefined): Promise<Authentication<UserType>> {
+    async authenticate(credentials: FederatedCredentials, transaction: RepositoryTransaction | undefined): Promise<Authentication<UserType>> {
         if ('code' in credentials) {
             const handover: FederatedHandoverCode = await this.findHandoverCode(credentials.code, credentials.codeVerifier, transaction);
             await this.claim(async () => await this.handoverCodeRepository.updateById(
@@ -525,7 +525,7 @@ export abstract class BaseFederatedAuthenticator<
      */
     async resolveRegistration(
         credentials: FederatedTicketCredentials,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<FederatedRegistration> {
         const ticket: FederatedRegistrationTicket = await this.findRegistrationTicket(credentials, transaction);
         return {
@@ -551,7 +551,7 @@ export abstract class BaseFederatedAuthenticator<
      * @param transaction - The transaction the registration runs in, if any.
      * @throws When the ticket is unknown, spent or expired, or the proof is missing.
      */
-    async linkTicketIdentity(credentials: FederatedTicketCredentials, userId: string, transaction: Transaction | undefined): Promise<void> {
+    async linkTicketIdentity(credentials: FederatedTicketCredentials, userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         const ticket: FederatedRegistrationTicket = await this.findRegistrationTicket(credentials, transaction);
         const identity: FederatedIdentity = await this.identityRepository.create(
             { issuer: ticket.issuer, subject: ticket.subject, userId, forLogin: true, grantedScopes: [] },
@@ -573,7 +573,7 @@ export abstract class BaseFederatedAuthenticator<
      * @param transaction - The transaction to read in, if any.
      * @returns The identities, none when the user has none at the provider.
      */
-    async findIdentities(userId: string, transaction: Transaction | undefined): Promise<FederatedIdentity[]> {
+    async findIdentities(userId: string, transaction: RepositoryTransaction | undefined): Promise<FederatedIdentity[]> {
         const identities: FederatedIdentity[] = await this.identityRepository.findAll({ where: { userId }, transaction });
         return identities.filter(identity => this.isOwnIssuer(identity.issuer));
     }
@@ -585,7 +585,7 @@ export abstract class BaseFederatedAuthenticator<
      * @param transaction - The transaction to unlink in, if any.
      * @throws NotFoundError when the user has no identity of that id at the provider.
      */
-    async unlinkIdentity(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
+    async unlinkIdentity(userId: string, identityId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         const identity: FederatedIdentity = await this.findOwnIdentity(userId, identityId, transaction);
         await this.identityRepository.deleteById(identity.id, { transaction });
     }
@@ -596,7 +596,7 @@ export abstract class BaseFederatedAuthenticator<
      * @param userIds - The users.
      * @param transaction - The transaction deleting them.
      */
-    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+    async deleteUserRows(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
         const identities: FederatedIdentity[] = await this.findOwnIdentitiesOf(userIds, transaction);
         if (identities.length) {
             await this.identityRepository.deleteAll({ id: { oneOf: identities.map(identity => identity.id) } }, { transaction });
@@ -633,7 +633,7 @@ export abstract class BaseFederatedAuthenticator<
         claims: Record<string, unknown>,
         user: UserType,
         // eslint-disable-next-line unusedImports/no-unused-vars
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<UserType> {
         return user;
     }
@@ -777,7 +777,7 @@ export abstract class BaseFederatedAuthenticator<
         // eslint-disable-next-line unusedImports/no-unused-vars
         tokens: ProviderTokenGrant,
         // eslint-disable-next-line unusedImports/no-unused-vars
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<void> {
         throw new InternalError(`${this.constructor.name} keeps no tokens, but was handed some for the identity ${identity.id}.`);
     }
@@ -788,7 +788,7 @@ export abstract class BaseFederatedAuthenticator<
      * @param transaction - The transaction to read in.
      * @returns Their identities here, of every other provider none.
      */
-    protected async findOwnIdentitiesOf(userIds: string[], transaction: Transaction): Promise<FederatedIdentity[]> {
+    protected async findOwnIdentitiesOf(userIds: string[], transaction: RepositoryTransaction): Promise<FederatedIdentity[]> {
         const identities: FederatedIdentity[] = await this.identityRepository
             .findAll({ where: { userId: { oneOf: userIds } }, transaction });
         return identities.filter(identity => this.isOwnIssuer(identity.issuer));
@@ -802,7 +802,7 @@ export abstract class BaseFederatedAuthenticator<
      * @returns The identity.
      * @throws NotFoundError when the user has no identity of that id at the provider.
      */
-    protected async findOwnIdentity(userId: string, identityId: string, transaction: Transaction | undefined): Promise<FederatedIdentity> {
+    protected async findOwnIdentity(userId: string, identityId: string, transaction: RepositoryTransaction | undefined): Promise<FederatedIdentity> {
         const identity: FederatedIdentity | undefined = await this.identityRepository.findOne({
             where: { id: identityId, userId },
             transaction,
@@ -1093,7 +1093,7 @@ export abstract class BaseFederatedAuthenticator<
     private async findHandoverCode(
         code: string,
         codeVerifier: string | undefined,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<FederatedHandoverCode> {
         const handover: FederatedHandoverCode | undefined = await this.handoverCodeRepository.findOne({
             where: { value: await this.hashService.hash(code, { strategy: Sha256HashStrategy }), provider: this.name },
@@ -1109,7 +1109,7 @@ export abstract class BaseFederatedAuthenticator<
 
     private async findRegistrationTicket(
         credentials: FederatedTicketCredentials,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<FederatedRegistrationTicket> {
         const ticket: FederatedRegistrationTicket | undefined = await this.registrationTicketRepository.findOne({
             where: { value: await this.hashService.hash(credentials.ticket, { strategy: Sha256HashStrategy }), provider: this.name },

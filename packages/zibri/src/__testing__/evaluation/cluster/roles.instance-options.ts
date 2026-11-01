@@ -19,7 +19,7 @@ import { JwtUser } from '../../mocks/entities/jwt-user.entity';
 import { TestRole } from '../../mocks/entities/test-role.entity';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../test-server/create-test-data-source.function';
 import { DefaultTestServerMembershipRepository } from '../../test-server/membership-repository';
-import { rolesAndPermissionsProviders } from '../../test-server/providers';
+import { rolesAndPermissionsProviders, testServerPasswordPolicyProvider } from '../../test-server/providers';
 import { DefaultTestServerRoleRepository } from '../../test-server/role-repository';
 
 /**
@@ -188,6 +188,7 @@ const options: StartTestServerOptions = {
     ],
     providers: [
         ...defaultClusterProviders,
+        testServerPasswordPolicyProvider,
         ...rolesAndPermissionsProviders({ permissions: [INVOICES_EXPORT], platformPermissions: [REPORTS_READ] }, [])
     ]
 };

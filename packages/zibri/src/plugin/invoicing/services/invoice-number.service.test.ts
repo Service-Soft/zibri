@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { InvoiceNumberService } from './invoice-number.service';
 import { TestTimeouts } from '../../../__testing__/constants';
+import { missingEntityPattern } from '../../../__testing__/missing-entity-pattern.function';
 import { companyInfoProvider } from '../../../__testing__/mocks/company-info-provider.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerPlugins } from '../../../__testing__/test-server/plugins';
@@ -31,6 +32,8 @@ import { NumberInvoices } from '../models/number-invoices.model';
 const currentYear: string = getZonedDate(new Date(), 'Europe/Berlin').year.toString();
 
 const invoicingOptions: InvoicingOptions = {
+    pageSize: 'A4',
+    font: 'Roboto',
     footerFontSize: 10,
     images: undefined,
     phoneLabel: 'Phone',
@@ -174,9 +177,9 @@ describe('ZibriInvoicingPlugin — starting', () => {
             ]
         });
 
-        await expect(start).rejects.toThrow(
-            /Error initializing ZibriInvoicingPlugin[\S\s]*- Invoice\n[\S\s]*- NumberInvoices\n[\S\s]*- InvoiceRecipientAbbreviation/
-        );
+        await expect(start).rejects.toThrow(missingEntityPattern('Invoice', 'ZibriInvoicingPlugin'));
+        await expect(start).rejects.toThrow(missingEntityPattern('NumberInvoices', 'ZibriInvoicingPlugin'));
+        await expect(start).rejects.toThrow(missingEntityPattern('InvoiceRecipientAbbreviation', 'ZibriInvoicingPlugin'));
     }, TestTimeouts.inMemory.start);
 });
 

@@ -3,7 +3,7 @@ import { ApiKeyCreateData } from './api-key-create-data.model';
 import { ApiKey } from './api-key.model';
 import { CreatedApiKey } from './created-api-key.model';
 import { ZibriApplication } from '../../../application/application';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
 
 /**
  * Interface for the service keeping the api keys of the users.
@@ -13,8 +13,9 @@ import { Transaction } from '../../../data-source/transaction/transaction.model'
  */
 export interface ApiKeyServiceInterface {
     /**
-     * Registers something that reads api keys, such as a strategy, while the application starts. Throws
-     * a MissingEntitiesError naming the reader when the application declares no `ApiKey`.
+     * Registers something that reads api keys, such as a strategy, while the application starts. The
+     * start is refused with a MissingEntitiesError naming the reader when the application declares no
+     * `ApiKey`.
      */
     registerReader: (app: ZibriApplication, reader: string) => void,
     /**
@@ -25,7 +26,7 @@ export interface ApiKeyServiceInterface {
     create: (
         userId: string,
         data: ApiKeyCreateData<undefined>,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ) => Promise<CreatedApiKey>,
     /**
      * Creates an api key without a secret, which proves itself the way `clientAuthentication` says at
@@ -35,12 +36,12 @@ export interface ApiKeyServiceInterface {
     createClient: (
         userId: string,
         data: ApiKeyCreateData<ApiKeyClientAuthentication>,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ) => Promise<ApiKey>,
     /**
      * Finds the api keys of a user, expired ones included, oldest first.
      */
-    findForUser: (userId: string, transaction: Transaction | undefined) => Promise<ApiKey[]>,
+    findForUser: (userId: string, transaction: RepositoryTransaction | undefined) => Promise<ApiKey[]>,
     /**
      * Finds the api key a key is, while it has not expired.
      */
@@ -61,16 +62,16 @@ export interface ApiKeyServiceInterface {
     /**
      * Revokes an api key of a user. Throws a NotFoundError when the user has no key with that id.
      */
-    revoke: (userId: string, apiKeyId: string, transaction: Transaction | undefined) => Promise<void>,
+    revoke: (userId: string, apiKeyId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Revokes every api key of a user. Does nothing in an application where nothing reads api keys.
      */
-    revokeForUser: (userId: string, transaction: Transaction | undefined) => Promise<void>,
+    revokeForUser: (userId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Deletes every api key of the given users. Called in the transaction that deletes the users for
      * good. Does nothing in an application where nothing reads api keys.
      */
-    deleteUserRows: (userIds: string[], transaction: Transaction) => Promise<void>,
+    deleteUserRows: (userIds: string[], transaction: RepositoryTransaction) => Promise<void>,
     /**
      * Deletes the api keys that expired longer ago than `deleteExpiredAfterInMs` of `API_KEY_OPTIONS`.
      */

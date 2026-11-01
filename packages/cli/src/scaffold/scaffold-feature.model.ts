@@ -47,6 +47,7 @@ export const SCAFFOLD_FEATURE_FILES: Record<ScaffoldFeature, string[]> = {
         'src/templates/pages/error.tsx'
     ],
     mailingList: [
+        'src/controllers/mailing-list.controller.ts',
         'src/templates/pages/mailing-list-preferences.tsx',
         'src/templates/pages/mailing-list-unsubscribe-confirmation.tsx',
         'src/templates/pages/subscribe-success.tsx',

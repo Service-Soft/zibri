@@ -214,10 +214,10 @@ class ReportService {
         this.localizeService.getCurrencyMinorUnits('JPY');
         // → 0
 
-        // Format a percentage
-        this.localizeService.formatPercent(0.856, { locale });
-        // en-US → '86%'
-        // de    → '86 %'
+        // Format a percent, with up to three decimals
+        this.localizeService.formatPercent(85.6, { locale });
+        // en-US → '85.6%'
+        // de    → '85,6 %'
 
         // Format a date using the locale's default date format
         this.localizeService.formatDate(new Date(), 'date', { locale });

@@ -135,6 +135,8 @@ beforeAll(async () => {
                     port: port,
                     // no pooled connection to outlive the server below
                     pool: false,
+                    // the server above offers no STARTTLS
+                    requireTls: false,
                     auth: { user: '', pass: '' }
                 })
             })

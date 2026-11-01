@@ -13,7 +13,7 @@ import { DataSourceInterface } from '../data-source/data-sources/data-source.int
 import { DataSourceSubscription, isPubSubDataSource } from '../data-source/data-sources/pub-sub-data-source.interface';
 import { WhereFilter } from '../data-source/models/where/where-filter.model';
 import { Repository } from '../data-source/repository/repository';
-import { Transaction } from '../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
@@ -24,7 +24,6 @@ import { AfterAppShutdown } from '../global/after-app-shutdown.interface';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { type GaugeInterface } from '../metrics/gauge.interface';
-import { DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS } from '../metrics/metrics-collector.model';
 import { type MetricsServiceInterface } from '../metrics/metrics-service.interface';
 import { type WakeUpServiceInterface } from '../polling/wake-up-service.interface';
 import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
@@ -43,11 +42,6 @@ import { validateEntitiesRegistered } from '../utilities/validate-entities-regis
  * The channel an emitted event is announced on to the subscribers on every instance.
  */
 const EVERY_INSTANCE_CHANNEL: string = 'zibri.event-emitted';
-
-/**
- * How long a hook may take, unless its subscriber says otherwise.
- */
-const DEFAULT_HOOK_TIMEOUT_IN_MS: number = Ms.SECOND * 30;
 
 /**
  * Where a run stands once an attempt ended so.
@@ -210,7 +204,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         const metricsService: MetricsServiceInterface = inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
         metricsService.addCollector({
             name: 'event queue',
-            minIntervalInMs: DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS,
+            minIntervalInMs: 'dataSource',
             collect: async () => await this.collectQueueMetrics(metricsService)
         });
     }
@@ -253,7 +247,11 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async emit<K extends keyof ZibriEventMap>(type: K, data: ZibriEventMap[K], cleanupAfterInMs: number = Ms.DAY): Promise<void> {
+    async emit<K extends keyof ZibriEventMap>(
+        type: K,
+        data: ZibriEventMap[K],
+        cleanupAfterInMs: number = inject(ZIBRI_DI_TOKENS.EVENT_FINISHED_RETENTION_IN_MS)
+    ): Promise<void> {
         const registrations: EventSubscriberRegistration[] = await this.findLiveRegistrations([String(type)]);
         const event: Event<ZibriEventMap[keyof ZibriEventMap]> = await this.eventRepository.create({
             type: String(type),
@@ -611,7 +609,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
                         signal,
                         transaction: undefined
                     }),
-                    options.timeoutInMs ?? DEFAULT_HOOK_TIMEOUT_IN_MS
+                    options.timeoutInMs ?? inject(ZIBRI_DI_TOKENS.EVENT_HOOK_TIMEOUT_IN_MS)
                 ));
             }
             catch (error) {
@@ -674,7 +672,6 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         return {
             name: 'event',
             wakeUpTopic: WAKE_UP_TOPICS.EVENTS,
-            dataSource: this.eventRepository.dataSource,
             leaseInMs: inject(ZIBRI_DI_TOKENS.EVENT_EXECUTION_LEASE_IN_MS),
             // 'retain' rather than 'release', because the grant is not only the exclusion but the
             // thing that stops a replica arriving a moment later from running the same subscriber
@@ -703,7 +700,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
             // side there is no difference, it has stopped being worth finishing
             run: async (item, run) => await PromiseUtilities.withTimeout(
                 async signal => await hook(item.event, signal, { ...run, signal }),
-                options.timeoutInMs ?? DEFAULT_HOOK_TIMEOUT_IN_MS,
+                options.timeoutInMs ?? inject(ZIBRI_DI_TOKENS.EVENT_HOOK_TIMEOUT_IN_MS),
                 run.signal
             ),
             record: async (item, outcome, transaction) => await this.recordResult(item.event, subscriberId, outcome, transaction),
@@ -732,7 +729,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         event: Event<ZibriEventMap[K]>,
         subscriberId: string,
         outcome: QueuedWorkOutcome,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<void> {
         const status: EventSubscriberRunStatus = RUN_STATUS_OF[outcome.kind];
         await this.eventSubscriberRunRepository.upsert(
@@ -774,7 +771,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
      */
     private async findRunsOf<K extends keyof ZibriEventMap>(
         event: Event<ZibriEventMap[K]>,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<EventSubscriberRun<unknown>[]> {
         return await this.eventSubscriberRunRepository.findAll({
             where: { event: { where: { id: event.id } } },
@@ -798,7 +795,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         event: Event<ZibriEventMap[K]>,
         runs: EventSubscriberRun<unknown>[],
         liveSubscriberIds: string[],
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<void> {
         const dueAt: number[] = event.subscriberIds
             .filter(id => liveSubscriberIds.includes(id))
@@ -832,7 +829,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         event: Event<ZibriEventMap[K]>,
         runs: EventSubscriberRun<unknown>[],
         liveSubscriberIds: string[],
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<boolean> {
         const settled: EventStatus | undefined = this.settledStatusOf(event, runs, liveSubscriberIds);
         if (settled == undefined) {

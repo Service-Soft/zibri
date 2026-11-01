@@ -395,7 +395,8 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     formatPercent(percent: number, options: FormatPercentOptions = {}): string {
-        return percent.toLocaleString(options.locale ?? this.resolveSupportedLocale(), { style: 'percent' });
+        // the unit rather than the percent style, which takes a share of 1 and rounds it to a whole percent
+        return new Intl.NumberFormat(options.locale ?? this.resolveSupportedLocale(), { style: 'unit', unit: 'percent' }).format(percent);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

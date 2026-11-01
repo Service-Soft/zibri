@@ -12,7 +12,7 @@ import { Ldapts } from './ldapts.type';
 import { ZibriApplication } from '../../../application/application';
 import { KeysetPage } from '../../../data-source/models/pagination-result.model';
 import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
@@ -264,7 +264,7 @@ export abstract class BaseLdapAuthenticator<
      * @param transaction - The transaction of the login, if any.
      * @returns The user.
      */
-    abstract resolveFirstLogin(entry: LdapEntry, transaction: Transaction | undefined): Promise<UserType>;
+    abstract resolveFirstLogin(entry: LdapEntry, transaction: RepositoryTransaction | undefined): Promise<UserType>;
 
     /**
      * Answers the user of every later login as an entry, from the user it is linked to: updated from
@@ -275,7 +275,7 @@ export abstract class BaseLdapAuthenticator<
      * @param transaction - The transaction of the login, if any.
      * @returns The user the login logs in as.
      */
-    abstract resolveLogin(entry: LdapEntry, user: UserType, transaction: Transaction | undefined): Promise<UserType>;
+    abstract resolveLogin(entry: LdapEntry, user: UserType, transaction: RepositoryTransaction | undefined): Promise<UserType>;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     init(app: ZibriApplication): void {
@@ -315,12 +315,12 @@ export abstract class BaseLdapAuthenticator<
      * @param userIds - The users.
      * @param transaction - The transaction deleting them.
      */
-    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+    async deleteUserRows(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
         await this.identityRepository.deleteAll({ directory: this.name, userId: { oneOf: userIds } }, { transaction });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async authenticate(credentials: LdapCredentials, transaction: Transaction | undefined): Promise<Authentication<UserType>> {
+    async authenticate(credentials: LdapCredentials, transaction: RepositoryTransaction | undefined): Promise<Authentication<UserType>> {
         // a bind with a name and no password is an unauthenticated bind, which a directory answers with
         // success without checking anything (RFC 4513, 5.1.2)
         if (!credentials.username || !credentials.password) {
@@ -341,7 +341,7 @@ export abstract class BaseLdapAuthenticator<
      * @throws AccountDeactivatedError when an entry linked to the user is disabled or deleted.
      * @throws InternalError when no server of the directory can be reached.
      */
-    async resolveRefreshUser(user: UserType, transaction: Transaction | undefined): Promise<UserType> {
+    async resolveRefreshUser(user: UserType, transaction: RepositoryTransaction | undefined): Promise<UserType> {
         const links: LdapIdentity[] = await this.identityRepository.findAll({
             where: { directory: this.name, userId: user.id },
             transaction
@@ -921,7 +921,7 @@ export abstract class BaseLdapAuthenticator<
      * @param transaction - The transaction of the login, if any.
      * @returns The user.
      */
-    private async resolveUser(entry: LdapEntry, transaction: Transaction | undefined): Promise<UserType> {
+    private async resolveUser(entry: LdapEntry, transaction: RepositoryTransaction | undefined): Promise<UserType> {
         const linked: LdapIdentity | undefined = await this.findIdentity(entry, transaction);
         if (linked != undefined) {
             // the directory took the password, so the entry is enabled again; and it was just asked
@@ -960,7 +960,7 @@ export abstract class BaseLdapAuthenticator<
         return user;
     }
 
-    private async findIdentity(entry: LdapEntry, transaction: Transaction | undefined): Promise<LdapIdentity | undefined> {
+    private async findIdentity(entry: LdapEntry, transaction: RepositoryTransaction | undefined): Promise<LdapIdentity | undefined> {
         return await this.identityRepository.findOne({
             where: { directory: this.name, entryId: entry.id },
             transaction,

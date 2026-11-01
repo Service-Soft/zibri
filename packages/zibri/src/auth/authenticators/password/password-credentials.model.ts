@@ -18,8 +18,15 @@ export class PasswordCredentials extends BaseEntity {
     /**
      * The hashed password.
      */
-    @Property.string({ hash: true })
+    @Property.string({ password: true })
     password!: HashString;
+
+    /**
+     * Whether the user chooses a new password before their next login starts, as
+     * `AuthService.requirePasswordChange` asks. Setting a password clears it.
+     */
+    @Property.boolean({ default: false })
+    changeRequired!: boolean;
 }
 
 /**
@@ -42,10 +49,17 @@ export class PasswordCredentialsDto {
 /**
  * The data for storing a password.
  */
-export class PasswordCredentialsCreateData extends OmitClass(PasswordCredentials, ['id', 'password']) {
+export class PasswordCredentialsCreateData extends OmitClass(PasswordCredentials, ['id', 'password', 'changeRequired']) {
     /**
-     * The password, which is hashed when it is stored.
+     * The password, which is checked against `ZIBRI_DI_TOKENS.PASSWORD_POLICY` and hashed when it is
+     * stored.
      */
-    @Property.string({ hash: true })
+    @Property.string({ password: true })
     password!: string;
+
+    /**
+     * Whether the user chooses a new password before their next login starts. False by default.
+     */
+    @Property.boolean({ required: false })
+    changeRequired?: boolean;
 }

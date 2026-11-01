@@ -380,6 +380,37 @@ function clientWith(options: HttpClientOptionsInput): HttpClientInterface {
     return inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
 }
 
+describe('a declared response body without a size of its own', () => {
+    let server: Server;
+    let baseUrl: string;
+
+    beforeAll(async () => {
+        const app: express.Express = express();
+        app.get('/large-item', (_req, res) => {
+            res.json({ name: 'x'.repeat(2048), value: 1 });
+        });
+        server = createServer(app);
+        await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+        baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    });
+
+    afterAll(async () => {
+        await new Promise<void>((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+    });
+
+    it('may weigh what the application allows its kind, unless the request names a size', async () => {
+        const http: HttpClientInterface = clientWith({
+            maxBodySizes: { json: '1kb', xml: '1kb', formUrlEncoded: '1kb', formData: '1kb', stream: '1kb' }
+        });
+        const parser: Parser = inject(ZIBRI_DI_TOKENS.PARSER) as Parser;
+        parser['bodyParsers'].push(inject(JsonBodyParser));
+
+        await expect(http.get(`${baseUrl}/large-item`, { responseBody: Item })).rejects.toMatchObject({ cause: expect.any(ContentTooLargeError) });
+        const res: HttpClientResponse<Item> = await http.get(`${baseUrl}/large-item`, { responseBody: { type: MimeType.JSON, modelClass: Item, maxSize: '4kb' } });
+        expect(res.body.name).toHaveLength(2048);
+    });
+});
+
 describe('fetchForLibrary', () => {
     let server: Server;
     let baseUrl: string;

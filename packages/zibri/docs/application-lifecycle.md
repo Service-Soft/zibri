@@ -21,7 +21,8 @@ Zibri exposes hooks that run at specific points while the app boots up and shuts
 | `MiddlewarePhase` | enum | Where a middleware sits in the request pipeline |
 | `ShutdownSignal` | type | The signal that started a shutdown: `SIGTERM`, `SIGINT` or `SIGHUP` |
 | `SHUTDOWN_SIGNALS` | constant | The signals the app shuts down on, as a list |
-| `HttpServerLimits` | type | How long a request may take to arrive and to be handled, and how many headers it may carry, via `ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS` |
+| `HttpServerLimits` | type | How long a request may take to arrive and to be handled, how many headers it may carry and how large its body may be, via `ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS` |
+| `BodySizeLimits` | type | The most a body may weigh, for each kind of body |
 
 ## Implementing a lifecycle hook
 Any class decorated with `@Injectable()` (the default `register: 'immediately'`) is instantiated during `app.init()` and automatically checked against every lifecycle interface. There is nothing else to register.
@@ -87,6 +88,18 @@ export class TaskReminderService implements OnAppInit, AfterAppStart, AfterAppSh
 }
 ```
 
+## Choosing the address to listen on
+`app.start(port)` listens on every address of the machine. Name one as the second argument to be reachable only there, such as `127.0.0.1` behind a proxy on the same machine:
+
+```ts
+// src/index.ts
+import { ZibriApplication } from 'zibri';
+
+export async function startLocally(app: ZibriApplication): Promise<void> {
+    await app.start(8080, '127.0.0.1');
+}
+```
+
 ## When the port cannot be bound
 `app.start(port)` resolves once the port is bound. A bind failure, such as an address already in use, a privileged port or an interface that went away, rejects the promise it returned, and you handle it like any other error:
 
@@ -125,7 +138,8 @@ defineProvider({
         keepAliveTimeoutInMs: Ms.SECOND * 75,
         handlerTimeoutInMs: Ms.SECOND * 30,
         maxHeaderCount: 100,
-        maxHeaderSizeInBytes: 16 * 1024
+        maxHeaderSizeInBytes: 16 * 1024,
+        maxBodySizes: { json: '100kb', xml: '100kb', formUrlEncoded: '100kb', formData: '100kb', stream: '10mb' }
     })
 })
 ```
@@ -140,6 +154,8 @@ defineProvider({
 `handlerTimeoutInMs` is how long a route handler has to produce a result, for every route that does not say otherwise. It runs from the handler being called to it returning, so it is independent of the three above: they are all satisfied the moment the request has arrived. Set it to `'none'` to leave handlers unbounded unless a route asks for a deadline itself. A route declares its own with `timeoutInMs`, see [creating endpoints](./creating-endpoints.md#deadlines).
 
 `maxHeaderCount` is how many headers a request may carry and `maxHeaderSizeInBytes` how many bytes they may take up together. A request over either is answered `431` before any middleware or route sees it. Both are whole numbers of at least one.
+
+`maxBodySizes` is the most the body of a request may weigh, for each kind of body, on every route whose `@Body` names no size of its own. A larger one is answered `413`. The files of a multipart body are added to `formData`, see [limits on a multipart body](./creating-endpoints.md#limits-on-a-multipart-body).
 
 ## Handling shutdown timeouts and errors
 `BeforeAppShutdown`, `OnAppShutdown` and `AfterAppShutdown` accept an optional `shutdownTimeoutInMs` (default 30 seconds). All implementers within the same shutdown phase run in parallel; if one throws or times out, the error is logged and the remaining implementers in that phase are unaffected.

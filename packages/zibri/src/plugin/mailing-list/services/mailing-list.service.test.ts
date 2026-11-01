@@ -4,6 +4,7 @@ import { MailingListServiceInterface, MailingListSubscriberCreateData } from './
 import { MailingListService } from './mailing-list.service';
 import { compileTsxTemplate } from '../../../__testing__/compile-tsx-template.function';
 import { TestTimeouts } from '../../../__testing__/constants';
+import { missingEntityPattern } from '../../../__testing__/missing-entity-pattern.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function';
@@ -18,14 +19,19 @@ import { inject } from '../../../di/inject.function';
 import { defineProvider } from '../../../di/models/di-provider.model';
 import { Email } from '../../../email/models/email.model';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
+import { Controller } from '../../../routing/decorators/controller.decorator';
 import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
+import { MailingListController } from '../mailing-list.controller';
 import { ZibriMailingListPlugin } from '../mailing-list.plugin';
 import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from '../mailing-list.tokens';
 import { MailingListBaseEmailTemplate } from '../models/mailing-list-base-email-template.model';
+import { MailingListPreferencesPageTemplate } from '../models/mailing-list-preferences-page-template.model';
 import { MailingListSubscribeConfirmationEmailTemplate } from '../models/mailing-list-subscribe-confirmation-email-template.model';
+import { MailingListSubscribeSuccessPageTemplate } from '../models/mailing-list-subscribe-success-page-template.model';
 import { MailingListSubscriber } from '../models/mailing-list-subscriber.model';
 import { MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from '../models/mailing-list-subscription-confirmation-token.model';
+import { MailingListUnsubscribeConfirmationPageTemplate } from '../models/mailing-list-unsubscribe-confirmation-page-template.model';
 import { MailingList } from '../models/mailing-list.model';
 
 const baseEmailTemplate: MailingListBaseEmailTemplate = compileTsxTemplate<MailingListBaseEmailTemplate>(
@@ -40,6 +46,10 @@ const subscribeConfirmationEmailTemplate: MailingListSubscribeConfirmationEmailT
  * The tenant the mailing lists of the tests belong to.
  */
 const TENANT: string = UUIDUtilities.generate();
+
+// allowed to go unused by the application that is refused for its missing entities
+@Controller('/mailing-lists', { versions: 'all', allowOrphan: true })
+class AppMailingListController extends MailingListController {}
 
 /**
  * Runs the given work in the tenant of the tests.
@@ -80,9 +90,9 @@ describe('ZibriMailingListPlugin — starting', () => {
             ]
         });
 
-        await expect(start).rejects.toThrow(
-            /Error initializing ZibriMailingListPlugin[\S\s]*- MailingList\n[\S\s]*- MailingListSubscriber\n[\S\s]*- MailingListSubscriptionConfirmationToken/
-        );
+        await expect(start).rejects.toThrow(missingEntityPattern('MailingList', 'ZibriMailingListPlugin'));
+        await expect(start).rejects.toThrow(missingEntityPattern('MailingListSubscriber', 'ZibriMailingListPlugin'));
+        await expect(start).rejects.toThrow(missingEntityPattern('MailingListSubscriptionConfirmationToken', 'ZibriMailingListPlugin'));
     }, TestTimeouts.inMemory.start);
 });
 
@@ -99,6 +109,8 @@ describe('MailingListService', () => {
 
     beforeAll(async () => {
         server = await startTestServer({
+            // the links point at its path
+            controllers: [AppMailingListController],
             plugins: [new ZibriMailingListPlugin()],
             dataSources: [
                 createTestDataSource({
@@ -112,6 +124,19 @@ describe('MailingListService', () => {
                 defineProvider({
                     token: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.SUBSCRIBE_CONFIRMATION_EMAIL_TEMPLATE,
                     useValue: subscribeConfirmationEmailTemplate
+                }),
+                // the controller the links point at renders these
+                defineProvider({
+                    token: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.PREFERENCES_PAGE_TEMPLATE,
+                    useValue: compileTsxTemplate<MailingListPreferencesPageTemplate>('export const Page = () => <div></div>;')
+                }),
+                defineProvider({
+                    token: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.SUBSCRIBE_SUCCESS_PAGE_TEMPLATE,
+                    useValue: compileTsxTemplate<MailingListSubscribeSuccessPageTemplate>('export const Page = () => <div></div>;')
+                }),
+                defineProvider({
+                    token: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.UNSUBSCRIBE_CONFIRMATION_PAGE_TEMPLATE,
+                    useValue: compileTsxTemplate<MailingListUnsubscribeConfirmationPageTemplate>('export const Page = () => <div></div>;')
                 })
             ]
         });

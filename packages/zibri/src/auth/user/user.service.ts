@@ -3,7 +3,7 @@ import { isUserRepository, UserRepositoryInterface } from './user-repository.int
 import { FindUserOptions, UserServiceInterface } from './user-service.interface';
 import { UserWriteObserver } from './user.write-observer';
 import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { EntityWriteObserverRegistry } from '../../data-source/write-observers/entity-write-observer.registry';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -144,7 +144,7 @@ export class UserService implements UserServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async updateDeactivatedAt(id: string, deactivatedAt: Date | null, transaction: Transaction | undefined): Promise<void> {
+    async updateDeactivatedAt(id: string, deactivatedAt: Date | null, transaction: RepositoryTransaction | undefined): Promise<void> {
         // every repository asked to write, inside the transaction, and the one holding the user does:
         // the others refuse an id that is not theirs. Finding the holder first would look outside the
         // transaction, where a user it has just created is not there yet
@@ -160,7 +160,7 @@ export class UserService implements UserServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async updateRoles(id: string, roles: string[], transaction: Transaction | undefined): Promise<void> {
+    async updateRoles(id: string, roles: string[], transaction: RepositoryTransaction | undefined): Promise<void> {
         // asked of every repository, for the reason updateDeactivatedAt gives
         const written: true | undefined = await this.resolveFromAnyRepository(
             this.userRepositories.map(async r => {
@@ -174,7 +174,7 @@ export class UserService implements UserServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async updateEmail(id: string, email: string, emailVerifiedAt: Date | null, transaction: Transaction | undefined): Promise<void> {
+    async updateEmail(id: string, email: string, emailVerifiedAt: Date | null, transaction: RepositoryTransaction | undefined): Promise<void> {
         // asked of every repository, for the reason updateDeactivatedAt gives
         const written: true | undefined = await this.resolveFromAnyRepository(
             this.userRepositories.map(async r => {

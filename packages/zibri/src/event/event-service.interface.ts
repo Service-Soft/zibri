@@ -106,9 +106,10 @@ export interface EventServiceInterface {
      */
     replayFailed: (options: EventReplayOptions) => Promise<number>,
     /**
-     * Emits an event of the given type and data.
+     * Emits an event of the given type and data. Once finished it is kept for `cleanupAfterInMs`,
+     * `ZIBRI_DI_TOKENS.EVENT_FINISHED_RETENTION_IN_MS` when that is not given.
      */
-    emit: <K extends keyof ZibriEventMap>(type: K, data: ZibriEventMap[K], cleanupAfterInMs?: number) => void | Promise<void>,
+    emit:<K extends keyof ZibriEventMap>(type: K, data: ZibriEventMap[K], cleanupAfterInMs?: number) => void | Promise<void>,
     /**
      * Subscribes to events of the given type with the given hook.
      *

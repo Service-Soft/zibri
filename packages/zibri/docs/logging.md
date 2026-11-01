@@ -190,7 +190,7 @@ defineProvider({
 });
 ```
 
-For counts and durations per route, use [metrics](./metrics.md). `http_requests_total` and `http_request_duration_ms` are labeled by method, route and status, at a fixed cost that does not grow with traffic. Build dashboards and alerts on them.
+For counts and durations per route, use [metrics](./metrics.md). `http_requests_total` and `http_request_duration_seconds` are labeled by method, route and status, at a fixed cost that does not grow with traffic. Build dashboards and alerts on them.
 
 Turn the access log on when you need the individual requests: which client asked for what, in what order, with which user agent. The default transports include the db transport, which keeps every entry from `info` up, so on a busy application the log table becomes its busiest table. The db transport writes 1000 entries a minute as rows of their own and [counts the rest](#how-many-rows-the-db-transport-writes), so on a busy application most requests are counted, not written. Enable the access log together with a transport that takes the volume, or raise the db transport's budget and set `LOGGER_CLEANUP_AFTER_IN_MS` low enough for it.
 

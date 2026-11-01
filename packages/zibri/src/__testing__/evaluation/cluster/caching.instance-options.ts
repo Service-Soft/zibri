@@ -1,4 +1,4 @@
-import { ClusterMark, clusterInstanceId, StartTestServerOptions } from 'zibri-testing';
+import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
 import { MultiTierCache } from '../../../caching/cache/multi-tier.cache';
 import { WriteThroughReadThroughCache } from '../../../caching/cache/read-through/write-through-read-through.cache';
@@ -23,6 +23,7 @@ import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../test-server/create-test-data-source.function';
 import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function';
+import { testServerPasswordPolicyProvider } from '../../test-server/providers';
 
 /**
  * What every instance of the caching cluster boots with.
@@ -185,7 +186,8 @@ const options: StartTestServerOptions = {
             repositories: defaultTestServerRepositories
         }),
         ClusterValKeyDataSource
-    ]
+    ],
+    providers: [...defaultClusterProviders, testServerPasswordPolicyProvider]
 };
 
 export default options;

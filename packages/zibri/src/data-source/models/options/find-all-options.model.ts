@@ -8,7 +8,7 @@ import { Where } from '../where/where-filter.model';
 /**
  * Options for finding multiple entities.
  */
-export type FindAllOptions<T extends BaseEntity, S extends EntitySelection<T> | undefined = undefined> = BaseRepositoryOptions
+export type FindAllOptions<T extends BaseEntity, S extends EntitySelection<T> | undefined = undefined> = BaseRepositoryOptions<T>
     & {
         /**
          * The properties to hand back, by default every one.

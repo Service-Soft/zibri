@@ -8,7 +8,7 @@ import { BaseEntity } from '../../../entity/base-entity.model';
  * A property declaring `optimisticLocking` has to be named in the filter of the delete, with the value
  * the delete was based on, or with no value to delete the rows regardless.
  */
-export type DeleteAllOptions<T extends BaseEntity, R extends boolean = false> = BaseRepositoryOptions
+export type DeleteAllOptions<T extends BaseEntity, R extends boolean = false> = BaseRepositoryOptions<T>
     & Pick<WriteRelationsOptions<T>, 'relations'>
     & {
         /**

@@ -1,4 +1,4 @@
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
 import { InvoiceAddress } from '../models/invoice-address.model';
 
 /**
@@ -17,7 +17,7 @@ export interface InvoiceNumberServiceInterface<AddressData extends InvoiceAddres
     generateInvoiceNumber: (
         recipientId: string,
         invoiceAddress: AddressData,
-        transaction?: Transaction,
+        transaction?: RepositoryTransaction,
         nameAbbreviation?: string
     ) => string | Promise<string>,
     /**

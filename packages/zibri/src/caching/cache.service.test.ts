@@ -7,6 +7,7 @@ import { Cache } from './decorators/cache.decorator';
 import { CachedValue } from './store/cached-value.model';
 import { InMemoryCacheStore } from './store/in-memory.cache-store';
 import { TestTimeouts } from '../__testing__/constants';
+import { missingEntityPattern } from '../__testing__/missing-entity-pattern.function';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -111,10 +112,10 @@ function createCachedValue<V>(value: V, tags: string[]): CachedValue<V> {
 // first, for the reason on startAndStopTestServerWithout
 describe('CacheService — starting', () => {
     // every application has a cache, since the encryption key cache is one, and one with users has
-    // roles, which are told about a change through the same row: whichever starts first names itself
+    // roles, which are told about a change through the same row
     it('refuses to start without CacheInvalidation, and names it', async () => {
         await expect(startAndStopTestServerWithout([CacheInvalidation]))
-            .rejects.toThrow(/Error initializing (CacheService|RoleService)[\S\s]*CacheInvalidation/);
+            .rejects.toThrow(missingEntityPattern('CacheInvalidation', 'CacheService'));
     }, TestTimeouts.inMemory.start);
 });
 

@@ -12,18 +12,13 @@ import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { Newable } from '../types/newable.type';
-import { Ms } from '../utilities/ms';
-
-/**
- * The longest a poll waits while it finds nothing, when whoever adds work wakes it.
- */
-const MAX_POLL_INTERVAL_IN_MS: number = Ms.SECOND * 30;
 
 /**
  * A cron job that looks for work kept in a data source, as often as there is any.
  *
  * Its schedule is how often it may look at most. While it keeps finding nothing it looks ever less
- * often, up to every 30 seconds, and a tick it skips costs nothing - not even the claim of the slot
+ * often, up to every `ZIBRI_DI_TOKENS.POLL_MAX_INTERVAL_IN_MS`, 30 seconds by default, and a tick it
+ * skips costs nothing - not even the claim of the slot
  * of a job that runs on one instance. Whoever adds work wakes it through the
  * {@link WakeUpServiceInterface}, and it looks at its next tick again.
  *
@@ -73,7 +68,8 @@ export abstract class PollingCronJob extends CronJob {
         const dataSource: DataSourceInterface = inject(repositoryTokenFor(this.polledEntity)).dataSource;
         const wakeUpService: WakeUpServiceInterface = inject(ZIBRI_DI_TOKENS.WAKE_UP_SERVICE);
         // waiting longer while nothing is found is only safe when whoever adds work can say so
-        this.pacing = new PollPacing(wakeUpService.reachesOtherInstances(dataSource) ? MAX_POLL_INTERVAL_IN_MS : 0);
+        const maxIntervalInMs: number = wakeUpService.reachesOtherInstances(dataSource) ? inject(ZIBRI_DI_TOKENS.POLL_MAX_INTERVAL_IN_MS) : 0;
+        this.pacing = new PollPacing(maxIntervalInMs);
         this.wakeUpListener = await wakeUpService.listen(dataSource, this.wakeUpTopic, () => this.pacing.wake());
     }
 

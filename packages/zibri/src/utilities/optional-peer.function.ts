@@ -97,6 +97,53 @@ export function optionalPeer<T>(name: string, neededFor: string): T {
 }
 
 /**
+ * Loads a package that an optional peer depends on, through the packages between the two.
+ *
+ * Resolved from each package in turn, because a package may keep what it depends on below itself,
+ * where resolving from the application does not look.
+ * @param via - The optional peer, then each package on the way to the one depending on `name`.
+ * @param name - The package to load.
+ * @param neededFor - The feature that wants it, so the error says why it was asked for.
+ * @returns The package's exports.
+ * @throws If the optional peer is not installed, or a package on the way does not resolve.
+ */
+export function optionalPeerDependency<T>(via: string[], name: string, neededFor: string): T {
+    const key: string = [...via, name].join(' > ');
+    const cached: unknown = loadedPeers.get(key);
+    if (cached != undefined) {
+        return cached as T;
+    }
+    const [peer] = via;
+    if (peer == undefined) {
+        throw new InternalError(`${neededFor} names no optional peer that "${name}" is reached through.`);
+    }
+    // the peer first, so that a missing one is reported as the package to install
+    optionalPeer(peer, neededFor);
+
+    let loaded: T;
+    try {
+        let current: ReturnType<typeof createRequire> = applicationRequire();
+        for (const dependency of via) {
+            current = createRequire(current.resolve(dependency));
+        }
+        const resolvedRequire: ReturnType<typeof createRequire> = current;
+        // eslint-disable-next-line typescript/no-unsafe-return
+        loaded = runOutsideAnyCall(() => resolvedRequire(name)) as T;
+    }
+    catch (error) {
+        throw new InternalError(
+            [
+                `${neededFor} needs "${name}", which the installed "${peer}" should bring with it, and it could not be loaded:`,
+                error instanceof Error ? error.message : String(error)
+            ],
+            { cause: error }
+        );
+    }
+    loadedPeers.set(key, loaded);
+    return loaded;
+}
+
+/**
  * Whether a peer dependency could be loaded, without loading it.
  *
  * Resolution only, so a startup check can ask whether a feature is usable without paying for the

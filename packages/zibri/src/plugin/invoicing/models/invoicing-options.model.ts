@@ -1,9 +1,19 @@
-import { PdfImageDefinition } from '../../../document/pdf.utilities';
+import { PdfImageDefinition, PdfPageSize } from '../../../document/pdf.utilities';
 
 /**
  * Options used throughout the plugin.
  */
 export type InvoicingOptions = {
+    /**
+     * The size of the pages of an invoice pdf, unless the call that renders it names one.
+     * @default 'A4'
+     */
+    readonly pageSize: PdfPageSize,
+    /**
+     * The font family the invoice is set in, one of the `families` of `ZIBRI_DI_TOKENS.PDF_FONT_OPTIONS`.
+     * @default 'Roboto'
+     */
+    readonly font: string,
     /**
      * The font size that should be used for the footer.
      * @default 10

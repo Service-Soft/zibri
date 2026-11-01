@@ -6,7 +6,7 @@ import { Where } from '../where/where-filter.model';
 /**
  * Options for updating an entity by its id.
  */
-export type UpdateByIdOptions<T extends BaseEntity> = BaseRepositoryOptions & WriteRelationsOptions<T> & {
+export type UpdateByIdOptions<T extends BaseEntity> = BaseRepositoryOptions<T> &WriteRelationsOptions<T> & {
     /**
      * An additional condition the row has to still meet for the update to happen.
      *

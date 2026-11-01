@@ -24,16 +24,25 @@ export class HashDescriptor<T> extends ModelDescriptor<HashDescriptor<unknown>> 
     readonly keys: Map<string, StringValueDescriptor<HashSettings>> = new Map();
 
     /**
+     * Keys whose value is a password, which is checked against the password policy before it is hashed.
+     */
+    readonly passwordKeys: Set<string> = new Set();
+
+    /**
      * Updates this descriptor by the properties of the given class.
      * @param entityClass - The class to get the hash properties from.
      */
     update(entityClass: Newable<T>): void {
         this.keys.clear();
+        this.passwordKeys.clear();
         this.nestedKeys.clear();
 
         const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
 
         for (const [key, metadata] of ObjectUtilities.entries(properties)) {
+            if (metadata.type === 'string' && metadata.password) {
+                this.passwordKeys.add(key);
+            }
             const strings: StringValueDescriptor<HashSettings> | undefined = StringValueUtilities.resolveDescriptor(
                 metadata,
                 m => m.hash === false ? undefined : m.hash

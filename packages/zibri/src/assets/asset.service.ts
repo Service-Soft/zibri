@@ -68,7 +68,9 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         private readonly logger: LoggerInterface,
         @Inject(ZIBRI_DI_TOKENS.ASSETS_PATH)
-        assetsPath: FsPath
+        assetsPath: FsPath,
+        @Inject(ZIBRI_DI_TOKENS.PUBLIC_ASSETS_MAX_AGE_IN_MS)
+        private readonly publicAssetsMaxAgeInMs: number
     ) {
         this.assetsPath = assetsPath;
         this.publicAssetsPath = FsUtilities.getPath(assetsPath, 'public');
@@ -80,7 +82,7 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
         this.logger.info(`registers public static assets from folder "${this.publicAssetsPath}" at ${this.assetsRoute}`);
         // routing rather than anything earlier: serving a file is answering the request, so it
         // belongs beside the router and behind everything that is about the request itself
-        app.use(this.assetsRoute, express.static(this.publicAssetsPath), MiddlewarePhase.ROUTING);
+        app.use(this.assetsRoute, express.static(this.publicAssetsPath, { maxAge: this.publicAssetsMaxAgeInMs }), MiddlewarePhase.ROUTING);
 
         inject(ZIBRI_DI_TOKENS.ROUTER).registerRoute({
             httpMethod: HttpMethod.GET,
@@ -91,9 +93,9 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
                     throw new NotFoundError($ts`No favicon.png was found in the public assets folder.`);
                 }
                 // what the static middleware answers the other public assets with: anyone may keep it,
-                // and asks again whether it changed. A file the router sends is called public by
-                // nobody but its route
-                res.setHeader(KnownHeader.CACHE_CONTROL, 'public, max-age=0');
+                // for as long as they may. A file the router sends is called public by nobody but its
+                // route
+                res.setHeader(KnownHeader.CACHE_CONTROL, `public, max-age=${Math.floor(this.publicAssetsMaxAgeInMs / 1000)}`);
                 return FileResponse.fromPath(faviconPath);
             },
             versions: 'all',

@@ -126,9 +126,10 @@ describe('PrometheusMetricsService', () => {
             expect(counterMetric?.value).toBeGreaterThanOrEqual(1);
 
             const histogramSum: Metric | undefined = snapshot.metrics.find(
-                m => m.name === 'http_request_duration_ms_sum' && m.labels['route'] === '/some/route'
+                m => m.name === 'http_request_duration_seconds_sum' && m.labels['route'] === '/some/route'
             );
-            expect(histogramSum?.value).toBeGreaterThanOrEqual(42);
+            // observed in milliseconds, recorded in seconds
+            expect(histogramSum?.value).toBeGreaterThanOrEqual(0.042);
         });
 
         it('ignores requests whose route is under the assets route', async () => {
@@ -291,7 +292,7 @@ describe('PrometheusMetricsService', () => {
             expect(counter?.value).toBeGreaterThanOrEqual(1);
 
             const histogramCount: Metric | undefined = snapshot.metrics.find(
-                m => m.name === 'http_request_duration_ms_count' && m.labels['route'] === '/metrics-integration-test/ok'
+                m => m.name === 'http_request_duration_seconds_count' && m.labels['route'] === '/metrics-integration-test/ok'
             );
             expect(histogramCount?.value).toBeGreaterThanOrEqual(1);
         });

@@ -1,4 +1,4 @@
-import { AuditCheckpoint, AuditEntry, BaseEntity, CacheInvalidation, ChainAnchor, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionRotationFailure, EncryptionRotationProgress, EncryptionStrategyEntity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, JwtRefreshToken, Lease, Log, MigrationEntity, Newable, OtpCredentials, PasswordCredentials, PasswordResetToken, SigningKey, ThreadJobEntity, TwoFactorFailureStreak, WebsocketChannel, WebsocketMessage, WebsocketMessageSequence } from 'zibri';
+import { AuditCheckpoint, AuditEntry, BaseEntity, CacheInvalidation, ChainAnchor, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionRotationFailure, EncryptionRotationProgress, EncryptionStrategyEntity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, JwtRefreshToken, Lease, Log, LoginTicket, MigrationEntity, Newable, OtpCredentials, PasswordCredentials, PasswordResetToken, SigningKey, ThreadJobEntity, TwoFactorFailureStreak, WebsocketChannel, WebsocketMessage, WebsocketMessageSequence } from 'zibri';
 
 // not every entity of the framework: each one here is a table every test data source creates, so
 // one only some suites need stays with those suites
@@ -28,6 +28,7 @@ export const zibriFrameworkEntities: Newable<BaseEntity>[] = [
     PasswordResetToken,
     JwtRefreshToken,
     PasswordCredentials,
+    LoginTicket,
     OtpCredentials,
     TwoFactorFailureStreak,
     Event,

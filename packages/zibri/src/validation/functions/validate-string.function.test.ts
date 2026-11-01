@@ -32,6 +32,7 @@ function meta(overrides: Partial<StringPropertyMetadata<any, any, any, any, any>
         exclude: false,
         encryption: false,
         hash: false,
+        password: false,
         ...overrides
     };
 }

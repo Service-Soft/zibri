@@ -1,4 +1,4 @@
-import { Transaction } from '../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 
 /**
  * What one attempt at a piece of queued work is handed.
@@ -18,8 +18,8 @@ export type QueuedWorkRun = {
      */
     signal: AbortSignal,
     /**
-     * The transaction the attempt is recorded in, with `'transactional'` delivery. Undefined
-     * otherwise.
+     * The transaction the attempt is recorded in, with `'transactional'` delivery, across every data
+     * source the attempt writes to. Undefined otherwise.
      */
-    transaction: Transaction | undefined
+    transaction: RepositoryTransaction | undefined
 };

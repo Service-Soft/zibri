@@ -1,3 +1,5 @@
+import type { ConnectionOptions } from 'node:tls';
+
 import type { Transporter } from 'nodemailer';
 import type SMTPPool from 'nodemailer/lib/smtp-pool';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
@@ -44,7 +46,31 @@ export type SmtpEmailTransportOptions = {
      * Defaults to true on port 465 and false everywhere else, which is what those ports conventionally
      * mean. Say it explicitly when a server does implicit TLS on some other port.
      */
-    secure?: boolean
+    secure?: boolean,
+    /**
+     * Whether a connection that is not `secure` refuses a server that offers no STARTTLS, so nothing,
+     * the password included, is sent unencrypted.
+     *
+     * Defaults to true. Set it to false for a relay that speaks no TLS at all, such as one on the same
+     * machine.
+     */
+    requireTls?: boolean,
+    /**
+     * Further TLS options, such as `ca` for a server whose certificate a private authority signed.
+     */
+    tls?: ConnectionOptions,
+    /**
+     * How long connecting to the server may take. Defaults to two minutes.
+     */
+    connectionTimeoutInMs?: number,
+    /**
+     * How long the server may take to greet once connected. Defaults to 30 seconds.
+     */
+    greetingTimeoutInMs?: number,
+    /**
+     * How long the connection may stay silent. Defaults to ten minutes.
+     */
+    socketTimeoutInMs?: number
 };
 
 /**
@@ -83,11 +109,17 @@ export class SmtpEmailTransport implements EmailTransportInterface {
         // eslint-disable-next-line typescript/typedef
         const createTransport = optionalPeer<typeof import('nodemailer')>('nodemailer', 'The smtp email transport').createTransport;
 
+        // the timeouts left undefined fall back to nodemailer's, which the options name
         const transportOptions: SMTPTransport.Options = {
             host: options.host,
             port: options.port,
             auth: options.auth,
-            secure: options.secure ?? options.port === 465
+            secure: options.secure ?? options.port === 465,
+            requireTLS: options.requireTls ?? true,
+            tls: options.tls,
+            connectionTimeout: options.connectionTimeoutInMs,
+            greetingTimeout: options.greetingTimeoutInMs,
+            socketTimeout: options.socketTimeoutInMs
         };
         this.transporter = options.pool ?? true
             ? createTransport({ ...transportOptions, pool: true })

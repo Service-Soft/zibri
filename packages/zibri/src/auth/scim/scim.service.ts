@@ -33,7 +33,8 @@ import { ZibriApplication } from '../../application/application';
 import { type AuditServiceInterface } from '../../audit/audit-service.interface';
 import { Where, WhereFilter } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
+import { SpanningTransaction } from '../../data-source/transaction/spanning-transaction.model';
 import { UniqueConstraintViolationError } from '../../data-source/unique-constraint-violation.error';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -635,7 +636,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         scimUser: ScimUser,
         input: ScimUserInput,
         ifMatch: string | undefined,
-        transaction: Transaction
+        transaction: RepositoryTransaction
     ): Promise<ScimResourceResponse> {
         if (input.userName.toLowerCase() !== scimUser.userNameKey) {
             await this.validateUserNameFree(input.userName, scimUser.id, transaction);
@@ -678,7 +679,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
      * @param active - Whether the identity provider has them active now.
      * @param transaction - The transaction of the request.
      */
-    private async updateActive(scimUser: ScimUser, user: BaseUser<string>, active: boolean, transaction: Transaction): Promise<void> {
+    private async updateActive(scimUser: ScimUser, user: BaseUser<string>, active: boolean, transaction: RepositoryTransaction): Promise<void> {
         if (scimUser.ownsUser) {
             await (active ? this.authService.reactivateUser(user.id, transaction) : this.authService.deactivateUser(user.id, transaction));
             return;
@@ -717,7 +718,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         memberIds: string[],
         input: ScimGroupInput,
         ifMatch: string | undefined,
-        transaction: Transaction
+        transaction: RepositoryTransaction
     ): Promise<ScimResourceResponse> {
         const before: string[] = await this.resolveUsersUnder([group.id], transaction);
         const kept: Set<string> = new Set(input.memberIds);
@@ -764,7 +765,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
      * @param scimUserIds - The ids of the SCIM resources of the users whose groups changed.
      * @param transaction - The transaction of the request.
      */
-    private async applyGroupMembership(endpoint: ScimEndpoint, scimUserIds: string[], transaction: Transaction): Promise<void> {
+    private async applyGroupMembership(endpoint: ScimEndpoint, scimUserIds: string[], transaction: RepositoryTransaction): Promise<void> {
         if (!scimUserIds.length) {
             return;
         }
@@ -789,7 +790,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
      * @param transaction - The transaction of the request, if any.
      * @returns The groups, by the id of the user: those they are a direct member of first.
      */
-    private async resolveGroupsOfUsers(scimUserIds: string[], transaction: Transaction | undefined): Promise<Map<string, ScimUserGroup[]>> {
+    private async resolveGroupsOfUsers(scimUserIds: string[], transaction: RepositoryTransaction | undefined): Promise<Map<string, ScimUserGroup[]>> {
         if (!scimUserIds.length) {
             return new Map();
         }
@@ -858,7 +859,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
      * @param transaction - The transaction of the request, if any.
      * @returns The ids of the SCIM resources of the users, each once.
      */
-    private async resolveUsersUnder(groupIds: string[], transaction: Transaction | undefined): Promise<string[]> {
+    private async resolveUsersUnder(groupIds: string[], transaction: RepositoryTransaction | undefined): Promise<string[]> {
         const users: Set<string> = new Set();
         const reached: Set<string> = new Set(groupIds);
         let level: string[] = groupIds;
@@ -889,7 +890,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
      * @returns The members.
      * @throws A ScimError (invalidValue) when one is neither a provisioned user nor a group.
      */
-    private async resolveMembers(memberIds: string[], transaction: Transaction): Promise<ScimMember[]> {
+    private async resolveMembers(memberIds: string[], transaction: RepositoryTransaction): Promise<ScimMember[]> {
         if (!memberIds.length) {
             return [];
         }
@@ -923,7 +924,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
      * @param memberIds - The ids of their SCIM resources.
      * @param transaction - The transaction of the request.
      */
-    private async removeMembers(memberIds: string[], transaction: Transaction): Promise<void> {
+    private async removeMembers(memberIds: string[], transaction: RepositoryTransaction): Promise<void> {
         const memberships: ScimGroupMember[] = await this.members.findAll({
             where: { memberId: { oneOf: memberIds } },
             limit: 'all',
@@ -1164,7 +1165,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         return key == undefined ? undefined : record[key];
     }
 
-    private async validateUserNameFree(userName: string, exceptId: string | undefined, transaction: Transaction): Promise<void> {
+    private async validateUserNameFree(userName: string, exceptId: string | undefined, transaction: RepositoryTransaction): Promise<void> {
         const holder: ScimUser | undefined = await this.users.findOne({
             where: { userNameKey: userName.toLowerCase() },
             required: false,
@@ -1175,7 +1176,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         }
     }
 
-    private async findScimUser(id: string, transaction: Transaction | undefined): Promise<ScimUser> {
+    private async findScimUser(id: string, transaction: RepositoryTransaction | undefined): Promise<ScimUser> {
         const scimUser: ScimUser | undefined = UUIDUtilities.isUuid(id)
             ? await this.users.findOne({ where: { id }, required: false, transaction })
             : undefined;
@@ -1185,7 +1186,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         return scimUser;
     }
 
-    private async findScimGroup(id: string, transaction: Transaction | undefined): Promise<ScimGroup> {
+    private async findScimGroup(id: string, transaction: RepositoryTransaction | undefined): Promise<ScimGroup> {
         const group: ScimGroup | undefined = UUIDUtilities.isUuid(id)
             ? await this.groups.findOne({ where: { id }, required: false, transaction })
             : undefined;
@@ -1195,7 +1196,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         return group;
     }
 
-    private async findMemberIds(groupId: string, transaction: Transaction | undefined): Promise<string[]> {
+    private async findMemberIds(groupId: string, transaction: RepositoryTransaction | undefined): Promise<string[]> {
         const memberships: ScimGroupMember[] = await this.members.findAll({ where: { groupId }, limit: 'all', transaction });
         return memberships.map(membership => membership.memberId);
     }
@@ -1243,7 +1244,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         endpoint: ScimEndpoint,
         scimUser: ScimUser,
         query: Pick<ScimListQuery, 'attributes' | 'excludedAttributes'>,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<ScimResourceResponse> {
         const groups: ScimUserGroup[] = this.isAnswered('groups', query)
             ? (await this.resolveGroupsOfUsers([scimUser.id], transaction)).get(scimUser.id) ?? []
@@ -1303,7 +1304,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         endpoint: ScimEndpoint,
         group: ScimGroup,
         query: Pick<ScimListQuery, 'attributes' | 'excludedAttributes'>,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<ScimResourceResponse> {
         const location: string = `${endpoint.url}/Groups/${group.id}`;
         const version: string = this.toEtag(group.version);
@@ -1327,7 +1328,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         return { id: group.id, body: this.project(body, query), version, location };
     }
 
-    private async resolveMemberBodies(endpoint: ScimEndpoint, groupId: string, transaction: Transaction | undefined): Promise<ScimBody[]> {
+    private async resolveMemberBodies(endpoint: ScimEndpoint, groupId: string, transaction: RepositoryTransaction | undefined): Promise<ScimBody[]> {
         const memberships: ScimGroupMember[] = await this.members.findAll({ where: { groupId }, limit: 'all', transaction });
         const userIds: string[] = memberships.filter(m => m.memberType === ScimMemberType.USER).map(m => m.memberId);
         const groupIds: string[] = memberships.filter(m => m.memberType === ScimMemberType.GROUP).map(m => m.memberId);
@@ -1388,8 +1389,9 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
      * @param work - The change.
      * @returns What it answers with.
      */
-    private async inTransaction<T>(work: (transaction: Transaction) => Promise<T>): Promise<T> {
-        const transaction: Transaction = await this.users.dataSource.startTransaction();
+    private async inTransaction<T>(work: (transaction: RepositoryTransaction) => Promise<T>): Promise<T> {
+        // spanning, since the provisioner is the application's and writes wherever it keeps its users
+        const transaction: SpanningTransaction = new SpanningTransaction();
         try {
             const result: T = await work(transaction);
             await transaction.commit();

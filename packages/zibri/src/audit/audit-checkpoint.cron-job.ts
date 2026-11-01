@@ -5,15 +5,13 @@ import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 
 /**
- * Seals the audit entries of every hour that ended in an `AuditCheckpoint` per tenant.
+ * Seals the audit entries stored since the last checkpoint in an `AuditCheckpoint` per tenant, hourly.
  */
 export class AuditCheckpointCronJob extends CronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly initialConfig: InitialCronConfig = {
         name: 'Audit Checkpoints',
-        // a few minutes into the hour, past the delay before an hour is sealed
-        cron: CronExpression.every(1, 'hours').at(10, 'minutes')
-            .build(),
+        cron: CronExpression.every(1, 'hours').build(),
         runOnInit: false
     };
 

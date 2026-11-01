@@ -27,6 +27,7 @@ import { type JwtServiceInterface } from '../../auth/strategies/jwt/jwt-service.
 import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy';
 import { type UserServiceInterface } from '../../auth/user/user-service.interface';
 import { Repository } from '../../data-source/repository/repository';
+import { SpanningTransaction } from '../../data-source/transaction/spanning-transaction.model';
 import { Transaction } from '../../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -245,13 +246,13 @@ describe('a socket whose login has ended', () => {
     it('is closed when a spent refresh token of its login is presented again', async () => {
         const login: LoggedIn = await logIn(await createUser());
         const socket: Socket = await connectAs(login);
-        const strategy: JwtAuthStrategy<Roles> = inject(JwtAuthStrategy<Roles>);
-        const refresh: Transaction = await strategy.startTransaction();
+        // what the refresh route runs it in
+        const refresh: SpanningTransaction = new SpanningTransaction();
         await authService.refreshLogin(JwtAuthStrategy<Roles>, { refreshToken: login.authData.refreshToken.value, transaction: refresh });
         await refresh.commit();
 
         // the token the refresh above spent, presented by whoever else holds it
-        const reuse: Transaction = await strategy.startTransaction();
+        const reuse: SpanningTransaction = new SpanningTransaction();
         await expect(authService.refreshLogin(JwtAuthStrategy<Roles>, { refreshToken: login.authData.refreshToken.value, transaction: reuse }))
             .rejects.toThrow(CredentialReusedError);
         await reuse.commit();
@@ -315,7 +316,8 @@ describe('a socket whose login has ended', () => {
             tenantId: undefined,
             audience: [inject<JwtServiceInterface>(ZIBRI_DI_TOKENS.JWT_SERVICE).issuer],
             certificateThumbprint: undefined,
-            dpopKeyThumbprint: undefined
+            dpopKeyThumbprint: undefined,
+            expiresInMs: undefined
         });
         const socket: Socket = await connect({ authorization: `Bearer ${issued.value}` });
 

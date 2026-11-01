@@ -35,9 +35,10 @@ import { DataSourceSubscription } from '../pub-sub-data-source.interface';
  */
 
 /**
- * What postgres says when it stops a statement, for having run out of time or because it was asked to.
+ * What a statement that was stopped fails with: postgres' own error when its statement timeout ran
+ * out, the error of the call's own clock when the cancel that clock sent stopped it.
  */
-const STATEMENT_STOPPED: RegExp = /canceling statement due to (statement timeout|user request)/;
+const STATEMENT_STOPPED: RegExp = /canceling statement due to statement timeout|took longer than the \d+ms it was given/;
 
 /**
  * How long the pooler's container takes on top of the server's: it installs PgBouncer as it starts.

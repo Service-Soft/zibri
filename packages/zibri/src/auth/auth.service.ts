@@ -23,6 +23,7 @@ import { LinkIdentityConfirmingAuthenticatorInterface } from './authenticators/l
 import { LinkedIdentity } from './authenticators/linked-identity.model';
 import { ChangePasswordData } from './authenticators/password/change-password-data.model';
 import { ConfirmPasswordResetData } from './authenticators/password/confirm-password-reset-data.model';
+import { PasswordChangeRequiredError } from './authenticators/password/password-change-required.error';
 import { PasswordAuthenticator } from './authenticators/password/password.authenticator';
 import { RequestPasswordResetData } from './authenticators/password/request-password-reset-data.model';
 import { isProviderAccessAuthenticator, ProviderAccessAuthenticatorInterface } from './authenticators/provider-access-authenticator.interface';
@@ -40,9 +41,9 @@ import { HasPermissionMetadata } from './models/has-permission-metadata.model';
 import { IsLoggedInMetadata } from './models/is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model';
 import { ListedLogin } from './models/listed-login.model';
+import { LoginTicketPurpose } from './models/login-ticket-purpose.enum';
 import { LoginTicket, LoginTicketCreateData } from './models/login-ticket.model';
 import { LogoutResult } from './models/logout-result.model';
-import { PasswordResetToken } from './models/password-reset-token.model';
 import { ProviderAuthentication } from './models/provider-authentication.model';
 import { Require2faMetadata } from './models/require-2fa-metadata.model';
 import type { Require2faProviderFactors } from './models/require-2fa-provider-factors.model';
@@ -71,7 +72,8 @@ import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { IsolationLevel } from '../data-source/data-sources/data-source.interface';
 import { Repository } from '../data-source/repository/repository';
-import { Transaction } from '../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
+import { SpanningTransaction } from '../data-source/transaction/spanning-transaction.model';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
@@ -130,6 +132,28 @@ type StrategyLogin = {
      * The login.
      */
     login: ListedLogin
+};
+
+/**
+ * Who a login waiting on a ticket is for, and how they proved it.
+ */
+type TicketedLogin = {
+    /**
+     * The user.
+     */
+    userId: string,
+    /**
+     * The account the credentials named, as the trail records it.
+     */
+    subject: string | undefined,
+    /**
+     * When the user proved who they are.
+     */
+    authenticatedAt: Date,
+    /**
+     * The session at a provider the login was started from, if any.
+     */
+    federatedSession: FederatedSession | undefined
 };
 
 const PERMISSIONS_TOKEN: string = 'ZIBRI_DI_TOKENS.PERMISSIONS';
@@ -358,7 +382,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
         authenticator: Newable<AuthenticatorInterface<Role, UserType, CredentialsType>>,
         strategy: Newable<LoginAuthStrategyInterface<Role, UserType, AuthDataType, RefreshLoginDataType, LogoutDataType>>,
         credentials: CredentialsType,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<AuthDataType> {
         // recorded here rather than in the authenticators and strategies, so that custom ones are
         // audited without having to remember to be.
@@ -380,6 +404,16 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
                 throw new AccountLockedError();
             }
             await this.validateSecondFactorAtLogin(authentication, subject);
+            // after the second factor, which asks for it again once presented: a new password set with
+            // the old one alone would lock the user out of an account somebody else holds the password of
+            if (authentication.passwordChangeRequired === true) {
+                await this.requirePasswordChangeAtLogin({
+                    userId: authentication.user.id,
+                    subject,
+                    authenticatedAt: authentication.authenticatedAt,
+                    federatedSession: authentication.federatedSession
+                });
+            }
             const authData: AuthDataType = await inject(strategy).startLogin(authentication, transaction);
             await this.endLoginsPastLimit(authentication.user.id, transaction);
             this.auditService.record({
@@ -387,13 +421,13 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
                 outcome: AuditOutcome.SUCCESS,
                 subject,
                 userId: authentication.user.id
-            });
+            }, transaction);
             return authData;
         }
         catch (error) {
-            // a login waiting for its second factor is recorded as such where it is turned away, and
-            // is not a failed one
-            if (!(error instanceof SecondFactorRequiredError)) {
+            // a login waiting for its second factor or a new password is recorded as such where it is
+            // turned away, and is not a failed one
+            if (!(error instanceof SecondFactorRequiredError) && !(error instanceof PasswordChangeRequiredError)) {
                 this.auditService.record({
                     action: AuditAction.LOGIN,
                     outcome: AuditOutcome.FAILURE,
@@ -414,7 +448,8 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
         ticket: string,
         method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, unknown, SecondFactorRequestType>
     ): Promise<SecondFactorRequestType> {
-        const user: BaseUser<string> = await this.resolveTicketUser(await this.resolveLoginTicket(ticket));
+        const found: LoginTicket = await this.resolveLoginTicket(ticket, LoginTicketPurpose.SECOND_FACTOR);
+        const user: BaseUser<string> = await this.resolveTicketUser(found);
         return await this.twoFactorService.requestSecondFactor(user, method);
     }
 
@@ -460,12 +495,12 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     >(
         ticket: string,
         strategy: Newable<LoginAuthStrategyInterface<Role, UserType, AuthDataType, RefreshLoginDataType, LogoutDataType>>,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<AuthDataType> {
         let subject: string | undefined = undefined;
         let userId: string | undefined = undefined;
         try {
-            const found: LoginTicket = await this.resolveLoginTicket(ticket);
+            const found: LoginTicket = await this.resolveLoginTicket(ticket, LoginTicketPurpose.SECOND_FACTOR);
             subject = found.subject ?? undefined;
             userId = found.userId;
             const user: UserType = await this.resolveTicketUser<Role, UserType>(found);
@@ -480,6 +515,17 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             // the user's own methods only, so that a wrong code is answered as one rather than as one
             // of several factors the user never held
             await this.twoFactorService.validate2fa(user, context, methods);
+            if (found.passwordChangeRequired) {
+                // spent outside the transaction, which the refusal below rolls back: the factor was
+                // presented, and the ticket for the new password is what the login continues with
+                await this.loginTicketRepository.updateById(found.id, { spent: true });
+                await this.requirePasswordChangeAtLogin({
+                    userId: found.userId,
+                    subject,
+                    authenticatedAt: found.authenticatedAt,
+                    federatedSession: FederatedSessionUtilities.fromColumns(found)
+                });
+            }
             // inside the transaction, so that a strategy that cannot start the login leaves the
             // ticket for another try. The factor itself is spent either way
             await this.loginTicketRepository.updateById(found.id, { spent: true }, { transaction });
@@ -488,7 +534,56 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
                 transaction
             );
             await this.endLoginsPastLimit(user.id, transaction);
-            this.auditService.record({ action: AuditAction.LOGIN, outcome: AuditOutcome.SUCCESS, subject, userId });
+            this.auditService.record({ action: AuditAction.LOGIN, outcome: AuditOutcome.SUCCESS, subject, userId }, transaction);
+            return authData;
+        }
+        catch (error) {
+            // waiting for a new password is recorded where the login is turned away for it
+            if (!(error instanceof PasswordChangeRequiredError)) {
+                this.auditService.record({
+                    action: AuditAction.LOGIN,
+                    outcome: AuditOutcome.FAILURE,
+                    reason: AuditUtilities.resolveReason(error),
+                    subject,
+                    userId
+                });
+            }
+            throw error;
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async changePasswordAtLogin<
+        Role extends string,
+        UserType extends BaseUser<Role>,
+        AuthDataType,
+        RefreshLoginDataType,
+        LogoutDataType
+    >(
+        ticket: string,
+        newPassword: string,
+        strategy: Newable<LoginAuthStrategyInterface<Role, UserType, AuthDataType, RefreshLoginDataType, LogoutDataType>>,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<AuthDataType> {
+        let subject: string | undefined = undefined;
+        let userId: string | undefined = undefined;
+        try {
+            const found: LoginTicket = await this.resolveLoginTicket(ticket, LoginTicketPurpose.PASSWORD_CHANGE);
+            subject = found.subject ?? undefined;
+            userId = found.userId;
+            const user: UserType = await this.resolveTicketUser<Role, UserType>(found);
+            // inside the transaction, so that a password the policy refuses leaves the ticket for another
+            await inject(PasswordAuthenticator).changePasswordAtLogin(user, newPassword, transaction);
+            await this.loginTicketRepository.updateById(found.id, { spent: true }, { transaction });
+            // every login of the user, as a reset ends them: whoever else knew the old password may hold one
+            await this.endLogins(user.id, transaction);
+            this.auditService.record({ action: AuditAction.PASSWORD_CHANGED, outcome: AuditOutcome.SUCCESS, userId }, transaction);
+            const authData: AuthDataType = await inject(strategy).startLogin(
+                { user, authenticatedAt: found.authenticatedAt, federatedSession: FederatedSessionUtilities.fromColumns(found) },
+                transaction
+            );
+            await this.endLoginsPastLimit(user.id, transaction);
+            this.auditService.record({ action: AuditAction.LOGIN, outcome: AuditOutcome.SUCCESS, subject, userId }, transaction);
             return authData;
         }
         catch (error) {
@@ -501,6 +596,61 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             });
             throw error;
         }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async requirePasswordChange(userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+        await inject(PasswordAuthenticator).requirePasswordChange(userId, transaction);
+        // whoever the change is meant to lock out may hold a login of any strategy
+        await this.endLogins(userId, transaction);
+        this.auditService.record({ action: AuditAction.PASSWORD_CHANGE_REQUIRED, outcome: AuditOutcome.SUCCESS, userId }, transaction);
+    }
+
+    /**
+     * Turns a login into one waiting for a new password.
+     * @param login - Who the login is for, and how they proved it.
+     * @throws {PasswordChangeRequiredError} With the ticket the new password is set with.
+     */
+    private async requirePasswordChangeAtLogin(login: TicketedLogin): Promise<never> {
+        const ticket: string = await this.issueLoginTicket(login, LoginTicketPurpose.PASSWORD_CHANGE, false);
+        this.auditService.record({
+            action: AuditAction.LOGIN_PENDING,
+            outcome: AuditOutcome.SUCCESS,
+            subject: login.subject,
+            userId: login.userId
+        });
+        throw new PasswordChangeRequiredError(ticket);
+    }
+
+    /**
+     * Stores a ticket a login continues with.
+     *
+     * Outside the request's transaction: the login answers with a refusal, which rolls that transaction
+     * back, and the ticket has to outlive it.
+     * @param login - Who the login is for, and how they proved it.
+     * @param purpose - What the ticket continues the login with.
+     * @param passwordChangeRequired - Whether the user chooses a new password once the second factor was
+     * presented.
+     * @returns The ticket, as the login answers with it.
+     */
+    private async issueLoginTicket(
+        login: TicketedLogin,
+        purpose: LoginTicketPurpose,
+        passwordChangeRequired: boolean
+    ): Promise<string> {
+        const ticket: string = randomBytes(32).toString('base64url');
+        await this.loginTicketRepository.create({
+            value: ticket,
+            userId: login.userId,
+            subject: login.subject,
+            authenticatedAt: login.authenticatedAt,
+            ...FederatedSessionUtilities.toColumns(login.federatedSession),
+            purpose,
+            passwordChangeRequired,
+            spent: false,
+            expirationDate: new Date(Date.now() + this.loginTicketExpiresInMs)
+        });
+        return ticket;
     }
 
     /**
@@ -521,18 +671,16 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
         if (this.twoFactorAtLogin === 'ifEnrolled' && !methods.length) {
             return;
         }
-        const ticket: string = randomBytes(32).toString('base64url');
-        // without the request's transaction on purpose: the login answers with a refusal, which rolls
-        // that transaction back, and the ticket has to outlive it
-        await this.loginTicketRepository.create({
-            value: ticket,
-            userId: authentication.user.id,
-            subject,
-            authenticatedAt: authentication.authenticatedAt,
-            ...FederatedSessionUtilities.toColumns(authentication.federatedSession),
-            spent: false,
-            expirationDate: new Date(Date.now() + this.loginTicketExpiresInMs)
-        });
+        const ticket: string = await this.issueLoginTicket(
+            {
+                userId: authentication.user.id,
+                subject,
+                authenticatedAt: authentication.authenticatedAt,
+                federatedSession: authentication.federatedSession
+            },
+            LoginTicketPurpose.SECOND_FACTOR,
+            authentication.passwordChangeRequired === true
+        );
         this.auditService.record({
             action: AuditAction.LOGIN_PENDING,
             outcome: AuditOutcome.SUCCESS,
@@ -545,15 +693,19 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     /**
      * Finds the ticket a login continues with.
      * @param ticket - The ticket as the login answered it.
+     * @param purpose - What the login continues with, which the ticket has to be for.
      * @returns The ticket.
-     * @throws {UnauthorizedError} When there is no such ticket, or it is spent or expired.
+     * @throws {UnauthorizedError} When there is no such ticket for the purpose, or it is spent or expired.
      */
-    private async resolveLoginTicket(ticket: string): Promise<LoginTicket> {
+    private async resolveLoginTicket(ticket: string, purpose: LoginTicketPurpose): Promise<LoginTicket> {
         const found: LoginTicket | undefined = await this.loginTicketRepository.findOne({
             where: { value: await this.hashService.hash(ticket, { strategy: Sha256HashStrategy }) },
             required: false
         });
-        if (found == undefined || found.spent || new Date(found.expirationDate).getTime() <= Date.now()) {
+        // a ticket of the other purpose answers like an unknown one: one for a new password would log
+        // in past it on the route of the second factor, and one for the second factor would set a
+        // password with nothing but the old one
+        if (found?.purpose !== purpose || found.spent || new Date(found.expirationDate).getTime() <= Date.now()) {
             throw new UnauthorizedError($ts`This login ticket is unknown, spent or expired. Log in again.`);
         }
         return found;
@@ -589,7 +741,8 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
      * @throws {ForbiddenError} When the user has a second factor already.
      */
     private async resolveEnrollingUser(ticket: string): Promise<BaseUser<string>> {
-        const user: BaseUser<string> = await this.resolveTicketUser(await this.resolveLoginTicket(ticket));
+        const found: LoginTicket = await this.resolveLoginTicket(ticket, LoginTicketPurpose.SECOND_FACTOR);
+        const user: BaseUser<string> = await this.resolveTicketUser(found);
         // the credentials alone must not be enough to add a factor of the caller's own to an account
         // that has one, exactly as on the enrollment routes of a logged in user
         if (await this.twoFactorService.isRegistered(user)) {
@@ -646,7 +799,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             Role, UserType, CredentialsType, TicketType, RegistrationType, IdentityType, LinkIdentityRequestType, LinkIdentityStartType
         >>,
         ticket: TicketType,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<RegistrationType> {
         return await inject(authenticator).resolveRegistration(ticket, transaction);
     }
@@ -667,11 +820,11 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
         >>,
         ticket: TicketType,
         userId: string,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<void> {
         try {
             await inject(authenticator).linkTicketIdentity(ticket, userId, transaction);
-            this.auditService.record({ action: AuditAction.IDENTITY_LINKED, outcome: AuditOutcome.SUCCESS, userId });
+            this.auditService.record({ action: AuditAction.IDENTITY_LINKED, outcome: AuditOutcome.SUCCESS, userId }, transaction);
         }
         catch (error) {
             this.auditService.record({
@@ -739,17 +892,17 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async findIdentities(userId: string, transaction: Transaction | undefined): Promise<LinkedIdentity[]>;
+    async findIdentities(userId: string, transaction: RepositoryTransaction | undefined): Promise<LinkedIdentity[]>;
     // eslint-disable-next-line jsdoc/require-jsdoc
     async findIdentities<IdentityType extends Pick<BaseEntity, 'id'>>(
         userId: string,
-        transaction: Transaction | undefined,
+        transaction: RepositoryTransaction | undefined,
         authenticators: IdentityLinkingAuthenticators<IdentityType>
     ): Promise<LinkedIdentity<IdentityType>[]>;
     // eslint-disable-next-line jsdoc/require-jsdoc
     async findIdentities(
         userId: string,
-        transaction: Transaction | undefined,
+        transaction: RepositoryTransaction | undefined,
         authenticators: IdentityLinkingAuthenticators = this.findIdentityLinkingAuthenticators()
     ): Promise<LinkedIdentity[]> {
         const found: LinkedIdentity[][] = await Promise.all(authenticators.map(async authenticator => {
@@ -760,12 +913,12 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async unlinkIdentity(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
+    async unlinkIdentity(userId: string, identityId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         try {
             const holder: InstanceType<IdentityLinkingAuthenticators[number]>
                 = await this.resolveIdentityHolder(userId, identityId, transaction);
             await holder.unlinkIdentity(userId, identityId, transaction);
-            this.auditService.record({ action: AuditAction.IDENTITY_UNLINKED, outcome: AuditOutcome.SUCCESS, userId });
+            this.auditService.record({ action: AuditAction.IDENTITY_UNLINKED, outcome: AuditOutcome.SUCCESS, userId }, transaction);
         }
         catch (error) {
             this.auditService.record({
@@ -779,7 +932,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+    async deleteUserRows(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
         if (!userIds.length) {
             return;
         }
@@ -810,7 +963,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async revokeProviderAccess(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
+    async revokeProviderAccess(userId: string, identityId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         try {
             const holder: ProviderAccessAuthenticatorInterface = await this.resolveProviderAccessHolder(userId, identityId, transaction);
             // the success is recorded by the authenticator, which records every end of an access the
@@ -829,7 +982,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async revokeProviderLogin(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
+    async revokeProviderLogin(userId: string, identityId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         try {
             const holder: ProviderAccessAuthenticatorInterface = await this.resolveProviderAccessHolder(userId, identityId, transaction);
             // the success is recorded by the authenticator, which knows whether the identity stopped
@@ -851,19 +1004,19 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     async createApiKey(
         userId: string,
         data: ApiKeyCreateData<undefined>,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<CreatedApiKey>;
     // eslint-disable-next-line jsdoc/require-jsdoc
     async createApiKey(
         userId: string,
         data: ApiKeyCreateData<ApiKeyClientAuthentication>,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<ApiKey>;
     // eslint-disable-next-line jsdoc/require-jsdoc
     async createApiKey(
         userId: string,
         data: ApiKeyCreateData,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<CreatedApiKey | ApiKey> {
         try {
             const clientAuthentication: ApiKeyClientAuthentication | undefined = data.clientAuthentication;
@@ -872,7 +1025,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
                 : await this.apiKeyService.createClient(userId, { ...data, clientAuthentication }, transaction);
             // a key is a way into the account for as long as it lives, including for whoever made it
             // after getting in some other way, which is why its creation is worth a line of its own
-            this.auditService.record({ action: AuditAction.API_KEY_CREATED, outcome: AuditOutcome.SUCCESS, userId });
+            this.auditService.record({ action: AuditAction.API_KEY_CREATED, outcome: AuditOutcome.SUCCESS, userId }, transaction);
             return created;
         }
         catch (error) {
@@ -887,29 +1040,34 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async findApiKeys(userId: string, transaction: Transaction | undefined): Promise<ApiKey[]> {
+    async findApiKeys(userId: string, transaction: RepositoryTransaction | undefined): Promise<ApiKey[]> {
         return await this.apiKeyService.findForUser(userId, transaction);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async revokeApiKey(userId: string, apiKeyId: string, transaction: Transaction | undefined): Promise<void> {
-        await this.auditApiKeyRevocation(userId, async () => await this.apiKeyService.revoke(userId, apiKeyId, transaction));
+    async revokeApiKey(userId: string, apiKeyId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+        await this.auditApiKeyRevocation(userId, transaction, async () => await this.apiKeyService.revoke(userId, apiKeyId, transaction));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async revokeApiKeys(userId: string, transaction: Transaction | undefined): Promise<void> {
-        await this.auditApiKeyRevocation(userId, async () => await this.apiKeyService.revokeForUser(userId, transaction));
+    async revokeApiKeys(userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+        await this.auditApiKeyRevocation(userId, transaction, async () => await this.apiKeyService.revokeForUser(userId, transaction));
     }
 
     /**
      * Revokes api keys of a user, and records it.
      * @param userId - The id of the user.
+     * @param transaction - The transaction they are revoked in, if any.
      * @param revoke - Revokes them.
      */
-    private async auditApiKeyRevocation(userId: string, revoke: () => Promise<void>): Promise<void> {
+    private async auditApiKeyRevocation(
+        userId: string,
+        transaction: RepositoryTransaction | undefined,
+        revoke: () => Promise<void>
+    ): Promise<void> {
         try {
             await revoke();
-            this.auditService.record({ action: AuditAction.API_KEY_REVOKED, outcome: AuditOutcome.SUCCESS, userId });
+            this.auditService.record({ action: AuditAction.API_KEY_REVOKED, outcome: AuditOutcome.SUCCESS, userId }, transaction);
         }
         catch (error) {
             this.auditService.record({
@@ -923,8 +1081,8 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async deactivateUser(userId: string, transaction: Transaction | undefined): Promise<void> {
-        await this.auditUserChange(AuditAction.USER_DEACTIVATED, userId, async () => {
+    async deactivateUser(userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+        await this.auditUserChange(AuditAction.USER_DEACTIVATED, userId, transaction, async () => {
             await this.userService.updateDeactivatedAt(userId, new Date(), transaction);
             await this.endLogins(userId, transaction);
             // gone for good rather than paused: a key handed to a script outlives the reason the user
@@ -934,8 +1092,8 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async endAccess(userId: string, transaction: Transaction | undefined): Promise<void> {
-        await this.auditUserChange(AuditAction.ACCESS_ENDED, userId, async () => {
+    async endAccess(userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+        await this.auditUserChange(AuditAction.ACCESS_ENDED, userId, transaction, async () => {
             await this.endLogins(userId, transaction);
             await this.apiKeyService.revokeForUser(userId, transaction);
         });
@@ -944,7 +1102,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveRefreshUser<Role extends string, UserType extends BaseUser<Role>>(
         user: UserType,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<UserType> {
         let res: BaseUser<string> = user;
         // one after the other, since each is handed what the one before answered
@@ -972,8 +1130,8 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async reactivateUser(userId: string, transaction: Transaction | undefined): Promise<void> {
-        await this.auditUserChange(AuditAction.USER_REACTIVATED, userId, async () => {
+    async reactivateUser(userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+        await this.auditUserChange(AuditAction.USER_REACTIVATED, userId, transaction, async () => {
             // null rather than undefined: it clears the column
             // eslint-disable-next-line unicorn/no-null
             await this.userService.updateDeactivatedAt(userId, null, transaction);
@@ -984,12 +1142,18 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
      * Changes a user, and records it.
      * @param action - What is recorded.
      * @param userId - The id of the user.
+     * @param transaction - The transaction they are changed in, if any.
      * @param change - Changes them.
      */
-    private async auditUserChange(action: AuditAction, userId: string, change: () => Promise<void>): Promise<void> {
+    private async auditUserChange(
+        action: AuditAction,
+        userId: string,
+        transaction: RepositoryTransaction | undefined,
+        change: () => Promise<void>
+    ): Promise<void> {
         try {
             await change();
-            this.auditService.record({ action, outcome: AuditOutcome.SUCCESS, userId });
+            this.auditService.record({ action, outcome: AuditOutcome.SUCCESS, userId }, transaction);
         }
         catch (error) {
             this.auditService.record({ action, outcome: AuditOutcome.FAILURE, reason: AuditUtilities.resolveReason(error), userId });
@@ -1156,8 +1320,9 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
      * @param user - Who the link is for.
      */
     private async requestPasswordResetInTransaction(user: BaseUser<string>): Promise<void> {
-        const transaction: Transaction = await inject(repositoryTokenFor(PasswordResetToken)).dataSource
-            .startTransaction({ isolationLevel: IsolationLevel.READ_COMMITTED });
+        // spanning, as everywhere auth hands a transaction to an authenticator: one of the application
+        // writes wherever it keeps its rows, and one reaching a single data source costs nothing extra
+        const transaction: SpanningTransaction = new SpanningTransaction({ isolationLevel: IsolationLevel.READ_COMMITTED });
         try {
             await this.requestPasswordReset({ user, transaction });
             await transaction.commit();
@@ -1188,7 +1353,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             // in every strategy rather than the one whose controller took the request: whoever the
             // reset is meant to lock out may hold a login of any of them
             await this.endLogins(userId, data.transaction);
-            this.auditService.record({ action: AuditAction.PASSWORD_RESET_CONFIRMED, outcome: AuditOutcome.SUCCESS, userId });
+            this.auditService.record({ action: AuditAction.PASSWORD_RESET_CONFIRMED, outcome: AuditOutcome.SUCCESS, userId }, data.transaction);
         }
         catch (error) {
             // no subject: the request carries a reset token and a new password, and nothing that
@@ -1250,7 +1415,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     private async resolveIdentityHolder(
         userId: string,
         identityId: string,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<InstanceType<IdentityLinkingAuthenticators[number]>> {
         const holders: InstanceType<IdentityLinkingAuthenticators[number]>[] = this.findIdentityLinkingAuthenticators()
             .map(authenticator => inject(authenticator));
@@ -1277,7 +1442,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     private async resolveProviderAccessHolder(
         userId: string,
         identityId: string,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<ProviderAccessAuthenticatorInterface> {
         const holder: InstanceType<IdentityLinkingAuthenticators[number]>
             = await this.resolveIdentityHolder(userId, identityId, transaction);
@@ -1970,12 +2135,12 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async endLogins(userId: string, transaction: Transaction | undefined): Promise<void> {
+    async endLogins(userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         await Promise.all(this.findLoginStrategies().map(async strategy => await strategy.endLogins(userId, transaction)));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async endFederatedLogins(session: FederatedSessionMatch, transaction: Transaction | undefined): Promise<void> {
+    async endFederatedLogins(session: FederatedSessionMatch, transaction: RepositoryTransaction | undefined): Promise<void> {
         await Promise.all(this.findLoginStrategies().map(async strategy => await strategy.endFederatedLogins(session, transaction)));
     }
 
@@ -1983,7 +2148,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     async findLogins(
         userId: string,
         context: HttpRequestContext | WebsocketRequestContext | undefined,
-        transaction: Transaction | undefined
+        transaction: RepositoryTransaction | undefined
     ): Promise<UserLogin[]> {
         const current: CurrentLogin | undefined = context == undefined ? undefined : await this.resolveCurrentLogin(context);
         return (await this.findStrategyLogins(userId, transaction)).map(({ strategy, login }) => ({
@@ -2000,7 +2165,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
      * @param transaction - The transaction to read in, if any.
      * @returns The logins.
      */
-    private async findStrategyLogins(userId: string, transaction: Transaction | undefined): Promise<StrategyLogin[]> {
+    private async findStrategyLogins(userId: string, transaction: RepositoryTransaction | undefined): Promise<StrategyLogin[]> {
         const byStrategy: StrategyLogin[][] = await Promise.all(this.findLoginListingStrategies().map(async strategy => {
             const listed: ListedLogin[] = await strategy.findLogins(userId, transaction);
             return listed.map(login => ({ strategy, login }));
@@ -2016,7 +2181,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
      * @param userId - The user.
      * @param transaction - The transaction the login started in, which sees it.
      */
-    private async endLoginsPastLimit(userId: string, transaction: Transaction | undefined): Promise<void> {
+    private async endLoginsPastLimit(userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         const limit: number | undefined = inject(ZIBRI_DI_TOKENS.MAX_LOGINS_PER_USER);
         if (limit == undefined) {
             return;
@@ -2024,12 +2189,12 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
         const past: StrategyLogin[] = (await this.findStrategyLogins(userId, transaction)).slice(limit);
         await Promise.all(past.map(async ({ strategy, login }) => await strategy.endLogin(userId, login.id, transaction)));
         if (past.length) {
-            this.auditService.record({ action: AuditAction.LOGIN_ENDED, outcome: AuditOutcome.SUCCESS, userId });
+            this.auditService.record({ action: AuditAction.LOGIN_ENDED, outcome: AuditOutcome.SUCCESS, userId }, transaction);
         }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async endLogin(userId: string, loginId: string, transaction: Transaction | undefined): Promise<void> {
+    async endLogin(userId: string, loginId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         try {
             const ended: boolean[] = await Promise.all(
                 this.findLoginListingStrategies().map(async strategy => await strategy.endLogin(userId, loginId, transaction))
@@ -2037,7 +2202,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             if (!ended.includes(true)) {
                 throw new NotFoundError($ts`There is no such login.`);
             }
-            this.auditService.record({ action: AuditAction.LOGIN_ENDED, outcome: AuditOutcome.SUCCESS, userId });
+            this.auditService.record({ action: AuditAction.LOGIN_ENDED, outcome: AuditOutcome.SUCCESS, userId }, transaction);
         }
         catch (error) {
             this.auditService.record({
@@ -2051,12 +2216,12 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async endOwnLogins(userId: string, transaction: Transaction | undefined): Promise<void> {
+    async endOwnLogins(userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         // endLogins with a line of its own in the trail: there it is what a reset or a deactivation
         // does, here what the user asked for
         try {
             await this.endLogins(userId, transaction);
-            this.auditService.record({ action: AuditAction.LOGINS_ENDED, outcome: AuditOutcome.SUCCESS, userId });
+            this.auditService.record({ action: AuditAction.LOGINS_ENDED, outcome: AuditOutcome.SUCCESS, userId }, transaction);
         }
         catch (error) {
             this.auditService.record({
@@ -2091,7 +2256,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
                     .filter(login => login.id !== current.loginId);
                 await Promise.all(others.map(async login => await current.strategy.endLogin(user.id, login.id, data.transaction)));
             }));
-            this.auditService.record({ action: AuditAction.PASSWORD_CHANGED, outcome: AuditOutcome.SUCCESS, userId });
+            this.auditService.record({ action: AuditAction.PASSWORD_CHANGED, outcome: AuditOutcome.SUCCESS, userId }, data.transaction);
         }
         catch (error) {
             this.auditService.record({

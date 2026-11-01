@@ -1,7 +1,8 @@
 import { BodyMetadata, BodyMetadataInput, BodyShapeMetadata, OneOfBodyMetadataInput, RawXmlBodyMetadataInput, ShapedBodyMetadata, StreamBodyMetadataInput } from './body-metadata.model';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
+import { FileSize, fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
 import { Relation } from '../../entity/models/relation.enum';
+import { BodySizeLimits } from '../../http/body-size-limits.model';
 import { MimeType } from '../../http/mime-type.enum';
 import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
@@ -88,9 +89,13 @@ const fileAllowances: WeakMap<BodyShapeMetadata, BigNumber> = new WeakMap();
  * Worked out when a body is first read rather than when it is declared, so a shape may name a class
  * that only exists once the application has started.
  * @param metadata - The body.
+ * @param limits - What the reader allows a body that names no size of its own.
  * @returns The size in bytes.
  */
-export function resolveMaxBodySize(metadata: Pick<ShapedBodyMetadata, 'shape' | 'baseMaxSize'>): BigNumber {
+export function resolveMaxBodySize(metadata: BodyMetadata, limits: BodySizeLimits): BigNumber {
+    if (metadata.type === MimeType.OCTET_STREAM) {
+        return metadata.maxSize ?? fileSizeToBytes(limits.stream);
+    }
     let allowance: BigNumber | undefined = fileAllowances.get(metadata.shape);
     if (allowance == undefined) {
         allowance = metadata.shape.type === 'anyOf'
@@ -98,7 +103,32 @@ export function resolveMaxBodySize(metadata: Pick<ShapedBodyMetadata, 'shape' | 
             : resolveMaxSize(NumberUtilities.new(0), { body: metadata.shape });
         fileAllowances.set(metadata.shape, allowance);
     }
-    return metadata.baseMaxSize.plus(allowance);
+    return (metadata.baseMaxSize ?? fileSizeToBytes(resolveBaseLimit(metadata, limits))).plus(allowance);
+}
+
+/**
+ * What the reader allows a body of this kind, without its files.
+ * @param metadata - The body.
+ * @param limits - What the reader allows each kind.
+ * @returns The size.
+ */
+function resolveBaseLimit(metadata: ShapedBodyMetadata, limits: BodySizeLimits): FileSize {
+    switch (metadata.type) {
+        case MimeType.JSON:
+        case MimeType.JSON_LD:
+        case MimeType.JSON_SCIM: {
+            return limits.json;
+        }
+        case MimeType.XML: {
+            return limits.xml;
+        }
+        case MimeType.FORM_URL_ENCODED: {
+            return limits.formUrlEncoded;
+        }
+        case MimeType.FORM_DATA: {
+            return limits.formData;
+        }
+    }
 }
 
 /**

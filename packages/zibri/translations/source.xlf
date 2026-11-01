@@ -4,7 +4,7 @@
     <body>
       <trans-unit id="&#x22;{$1}&#x22; header not found" xml:space="preserve">
         <source>"<x id="$1" equiv-text="{$1}"/>" header not found</source>
-        <note>src/auth/auth-controller/auth-controller.model.ts:934, src/auth/2fa/methods/recovery-code/recovery-code.two-factor-method.ts:179, src/auth/2fa/methods/passkey/passkey.two-factor-method.ts:106, src/auth/2fa/methods/otp/otp.two-factor-method.ts:254, src/auth/2fa/methods/code/code.two-factor-method.ts:250</note>
+        <note>src/auth/auth-controller/auth-controller.model.ts:936, src/auth/2fa/methods/recovery-code/recovery-code.two-factor-method.ts:180, src/auth/2fa/methods/passkey/passkey.two-factor-method.ts:106, src/auth/2fa/methods/otp/otp.two-factor-method.ts:269, src/auth/2fa/methods/code/code.two-factor-method.ts:251</note>
       </trans-unit>
       <trans-unit id="&#x22;{$1}&#x22; is none of {$2}." xml:space="preserve">
         <source>"<x id="$1" equiv-text="{$1}"/>" is none of <x id="$2" equiv-text="{$2}"/>.</source>
@@ -32,11 +32,11 @@
       </trans-unit>
       <trans-unit id="A {$1} that belongs to no tenant is changed across tenants only." xml:space="preserve">
         <source>A <x id="$1" equiv-text="{$1}"/> that belongs to no tenant is changed across tenants only.</source>
-        <note>src/data-source/repository/repository.ts:903</note>
+        <note>src/data-source/repository/repository.ts:911</note>
       </trans-unit>
       <trans-unit id="A {$1} to delete changed since it was read, so none was deleted." xml:space="preserve">
         <source>A <x id="$1" equiv-text="{$1}"/> to delete changed since it was read, so none was deleted.</source>
-        <note>src/data-source/repository/repository.ts:2861</note>
+        <note>src/data-source/repository/repository.ts:2917</note>
       </trans-unit>
       <trans-unit id="A bulk request holds at most {$1} operations, this one {$2}." xml:space="preserve">
         <source>A bulk request holds at most <x id="$1" equiv-text="{$1}"/> operations, this one <x id="$2" equiv-text="{$2}"/>.</source>
@@ -44,15 +44,15 @@
       </trans-unit>
       <trans-unit id="A client_assertion is a jwt, sent with the client_assertion_type {$1}." xml:space="preserve">
         <source>A client_assertion is a jwt, sent with the client_assertion_type <x id="$1" equiv-text="{$1}"/>.</source>
-        <note>src/auth/authorization-server/authorization-server.service.ts:459</note>
+        <note>src/auth/authorization-server/authorization-server.service.ts:460</note>
       </trans-unit>
       <trans-unit id="A client_secret is sent with a client_id." xml:space="preserve">
         <source>A client_secret is sent with a client_id.</source>
-        <note>src/auth/authorization-server/authorization-server.service.ts:451</note>
+        <note>src/auth/authorization-server/authorization-server.service.ts:452</note>
       </trans-unit>
       <trans-unit id="A code was sent a moment ago. Wait before asking for another one." xml:space="preserve">
         <source>A code was sent a moment ago. Wait before asking for another one.</source>
-        <note>src/auth/2fa/methods/code/code.two-factor-method.ts:289</note>
+        <note>src/auth/2fa/methods/code/code.two-factor-method.ts:291</note>
       </trans-unit>
       <trans-unit id="A connection that does not log in has to ask for scopes." xml:space="preserve">
         <source>A connection that does not log in has to ask for scopes.</source>
@@ -64,19 +64,27 @@
       </trans-unit>
       <trans-unit id="A group is a json object." xml:space="preserve">
         <source>A group is a json object.</source>
-        <note>src/auth/scim/scim.service.ts:1103</note>
+        <note>src/auth/scim/scim.service.ts:1105</note>
       </trans-unit>
       <trans-unit id="A group needs a displayName." xml:space="preserve">
         <source>A group needs a displayName.</source>
-        <note>src/auth/scim/scim.service.ts:1107</note>
+        <note>src/auth/scim/scim.service.ts:1109</note>
       </trans-unit>
       <trans-unit id="A login is bound to a DPoP key, which the request carries no proof of." xml:space="preserve">
         <source>A login is bound to a DPoP key, which the request carries no proof of.</source>
-        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:253</note>
+        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:246</note>
       </trans-unit>
       <trans-unit id="A member of the group is no provisioned user or group." xml:space="preserve">
         <source>A member of the group is no provisioned user or group.</source>
-        <note>src/auth/scim/scim.service.ts:897</note>
+        <note>src/auth/scim/scim.service.ts:899</note>
+      </trans-unit>
+      <trans-unit id="A password has at least {$1} characters." xml:space="preserve">
+        <source>A password has at least <x id="$1" equiv-text="{$1}"/> characters.</source>
+        <note>src/auth/password-policy/password-policy.utilities.ts:49</note>
+      </trans-unit>
+      <trans-unit id="A password has at most {$1} characters." xml:space="preserve">
+        <source>A password has at most <x id="$1" equiv-text="{$1}"/> characters.</source>
+        <note>src/auth/password-policy/password-policy.utilities.ts:53</note>
       </trans-unit>
       <trans-unit id="A patch request names the PatchOp schema and holds Operations." xml:space="preserve">
         <source>A patch request names the PatchOp schema and holds Operations.</source>
@@ -112,7 +120,7 @@
       </trans-unit>
       <trans-unit id="A row to delete was written while it was being deleted. Run the delete again." xml:space="preserve">
         <source>A row to delete was written while it was being deleted. Run the delete again.</source>
-        <note>src/data-source/driver/val-key.repository-driver.ts:1499</note>
+        <note>src/data-source/driver/val-key.repository-driver.ts:1540</note>
       </trans-unit>
       <trans-unit id="A tenant has a role of its own named '{$1}', so no role every tenant shares can be named so." xml:space="preserve">
         <source>A tenant has a role of its own named '<x id="$1" equiv-text="{$1}"/>', so no role every tenant shares can be named so.</source>
@@ -124,19 +132,19 @@
       </trans-unit>
       <trans-unit id="A url encoded form has to be sent as text." xml:space="preserve">
         <source>A url encoded form has to be sent as text.</source>
-        <note>src/parsing/form-url-encoded/form-url-encoded.body-parser.ts:62</note>
+        <note>src/parsing/form-url-encoded/form-url-encoded.body-parser.ts:67</note>
       </trans-unit>
       <trans-unit id="A user is a json object." xml:space="preserve">
         <source>A user is a json object.</source>
-        <note>src/auth/scim/scim.service.ts:1081</note>
+        <note>src/auth/scim/scim.service.ts:1083</note>
       </trans-unit>
       <trans-unit id="A user needs a userName." xml:space="preserve">
         <source>A user needs a userName.</source>
-        <note>src/auth/scim/scim.service.ts:1085</note>
+        <note>src/auth/scim/scim.service.ts:1087</note>
       </trans-unit>
       <trans-unit id="Access tokens work until they expire, so they cannot be revoked." xml:space="preserve">
         <source>Access tokens work until they expire, so they cannot be revoked.</source>
-        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:648, src/auth/strategies/client-access-token/client-access-token.auth-strategy.ts:227</note>
+        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:642, src/auth/strategies/client-access-token/client-access-token.auth-strategy.ts:228</note>
       </trans-unit>
       <trans-unit id="An amount in {$1} has at most {$2} decimals." xml:space="preserve">
         <source>An amount in <x id="$1" equiv-text="{$1}"/> has at most <x id="$2" equiv-text="{$2}"/> decimals.</source>
@@ -152,7 +160,7 @@
       </trans-unit>
       <trans-unit id="An externalId is a string." xml:space="preserve">
         <source>An externalId is a string.</source>
-        <note>src/auth/scim/scim.service.ts:1136</note>
+        <note>src/auth/scim/scim.service.ts:1138</note>
       </trans-unit>
       <trans-unit id="An operation is add, remove or replace, with an optional path." xml:space="preserve">
         <source>An operation is add, remove or replace, with an optional path.</source>
@@ -164,7 +172,7 @@
       </trans-unit>
       <trans-unit id="an XML body has to be sent as text" xml:space="preserve">
         <source>an XML body has to be sent as text</source>
-        <note>src/parsing/xml/xml.body-parser.ts:63</note>
+        <note>src/parsing/xml/xml.body-parser.ts:68</note>
       </trans-unit>
       <trans-unit id="Another {$1} already holds these values for &#x22;{$2}&#x22;." xml:space="preserve">
         <source>Another <x id="$1" equiv-text="{$1}"/> already holds these values for "<x id="$2" equiv-text="{$2}"/>".</source>
@@ -184,7 +192,7 @@
       </trans-unit>
       <trans-unit id="breaks the check on &#x22;{$1}&#x22;" xml:space="preserve">
         <source>breaks the check on "<x id="$1" equiv-text="{$1}"/>"</source>
-        <note>src/data-source/check-constraint-violation.error.ts:82</note>
+        <note>src/data-source/check-constraint-violation.error.ts:84</note>
       </trans-unit>
       <trans-unit id="Can only collect payments from reserved payments." xml:space="preserve">
         <source>Can only collect payments from reserved payments.</source>
@@ -206,9 +214,17 @@
         <source>Cannot refund payment in status <x id="$1" equiv-text="{$1}"/>.</source>
         <note>src/plugin/payment/services/payment.service.ts:221</note>
       </trans-unit>
+      <trans-unit id="Choose a new password to finish logging in." xml:space="preserve">
+        <source>Choose a new password to finish logging in.</source>
+        <note>src/auth/authenticators/password/password-change-required.error.ts:28</note>
+      </trans-unit>
+      <trans-unit id="Choose a password other than the one you have." xml:space="preserve">
+        <source>Choose a password other than the one you have.</source>
+        <note>src/auth/authenticators/password/password.authenticator.ts:379</note>
+      </trans-unit>
       <trans-unit id="Confirm your new email address" xml:space="preserve">
         <source>Confirm your new email address</source>
-        <note>src/auth/email-verification/email-verification.service.ts:220</note>
+        <note>src/auth/email-verification/email-verification.service.ts:243</note>
       </trans-unit>
       <trans-unit id="Conflict" xml:space="preserve">
         <source>Conflict</source>
@@ -220,15 +236,15 @@
       </trans-unit>
       <trans-unit id="Could not find {$1} with id &#x22;{$2}&#x22;." xml:space="preserve">
         <source>Could not find <x id="$1" equiv-text="{$1}"/> with id "<x id="$2" equiv-text="{$2}"/>".</source>
-        <note>src/data-source/repository/reference.validator.ts:153, src/data-source/repository/repository.ts:1373, src/data-source/repository/repository.ts:1883, src/data-source/repository/repository.ts:1943, src/data-source/repository/repository.ts:1954, src/data-source/repository/repository.ts:2167, src/data-source/repository/repository.ts:2693, src/data-source/change-sets/soft-delete-repository.ts:492</note>
+        <note>src/data-source/repository/reference.validator.ts:153, src/data-source/repository/repository.ts:1392, src/data-source/repository/repository.ts:1902, src/data-source/repository/repository.ts:1962, src/data-source/repository/repository.ts:1973, src/data-source/repository/repository.ts:2191, src/data-source/repository/repository.ts:2738, src/data-source/change-sets/soft-delete-repository.ts:515</note>
       </trans-unit>
       <trans-unit id="Could not find {$1}." xml:space="preserve">
         <source>Could not find <x id="$1" equiv-text="{$1}"/>.</source>
-        <note>src/data-source/repository/repository.ts:1396, src/auth/encryption/encryption.service.ts:466, src/auth/encryption/encryption.service.ts:531, src/auth/encryption/encryption.service.ts:591, src/auth/encryption/encryption.service.ts:799</note>
+        <note>src/data-source/repository/repository.ts:1415, src/auth/encryption/encryption.service.ts:466, src/auth/encryption/encryption.service.ts:531, src/auth/encryption/encryption.service.ts:591, src/auth/encryption/encryption.service.ts:799</note>
       </trans-unit>
       <trans-unit id="Could not find connection with id &#x22;{$1}&#x22;." xml:space="preserve">
         <source>Could not find connection with id "<x id="$1" equiv-text="{$1}"/>".</source>
-        <note>src/websocket/services/websocket.service.ts:1247</note>
+        <note>src/websocket/services/websocket.service.ts:1299</note>
       </trans-unit>
       <trans-unit id="Could not find cron job with name &#x22;{$1}&#x22;" xml:space="preserve">
         <source>Could not find cron job with name "<x id="$1" equiv-text="{$1}"/>"</source>
@@ -236,11 +252,11 @@
       </trans-unit>
       <trans-unit id="Could not find handler for websocket event for version &#x22;{$1}&#x22;" xml:space="preserve">
         <source>Could not find handler for websocket event for version "<x id="$1" equiv-text="{$1}"/>"</source>
-        <note>src/websocket/services/websocket.service.ts:1278</note>
+        <note>src/websocket/services/websocket.service.ts:1330</note>
       </trans-unit>
       <trans-unit id="Could not find route &#x22;{$1}&#x22; for version &#x22;{$2}&#x22;" xml:space="preserve">
         <source>Could not find route "<x id="$1" equiv-text="{$1}"/>" for version "<x id="$2" equiv-text="{$2}"/>"</source>
-        <note>src/routing/router.ts:774</note>
+        <note>src/routing/router.ts:793</note>
       </trans-unit>
       <trans-unit id="Could not find strategy for key with id {$1}" xml:space="preserve">
         <source>Could not find strategy for key with id <x id="$1" equiv-text="{$1}"/></source>
@@ -256,23 +272,23 @@
       </trans-unit>
       <trans-unit id="Could not find websocket event &#x22;{$1}&#x22;" xml:space="preserve">
         <source>Could not find websocket event "<x id="$1" equiv-text="{$1}"/>"</source>
-        <note>src/websocket/services/websocket.service.ts:604</note>
+        <note>src/websocket/services/websocket.service.ts:655</note>
       </trans-unit>
       <trans-unit id="Could not reset the changes from the change set: The changeSet doesn't belong to the entity with the given id." xml:space="preserve">
         <source>Could not reset the changes from the change set: The changeSet doesn't belong to the entity with the given id.</source>
-        <note>src/data-source/change-sets/change-set-repository.ts:372</note>
+        <note>src/data-source/change-sets/change-set-repository.ts:401</note>
       </trans-unit>
       <trans-unit id="Could not resolve the currently logged in user." xml:space="preserve">
         <source>Could not resolve the currently logged in user.</source>
-        <note>src/auth/auth.service.ts:704, src/auth/auth.service.ts:718, src/auth/auth.service.ts:1021, src/auth/auth.service.ts:1333</note>
+        <note>src/auth/auth.service.ts:862, src/auth/auth.service.ts:876, src/auth/auth.service.ts:1190, src/auth/auth.service.ts:1515</note>
       </trans-unit>
       <trans-unit id="Could not resolve version" xml:space="preserve">
         <source>Could not resolve version</source>
-        <note>src/versioning/versioning.service.ts:500</note>
+        <note>src/versioning/versioning.service.ts:501</note>
       </trans-unit>
       <trans-unit id="Could not rollback to the given change set: The changeSet doesn't belong to the entity with the given id." xml:space="preserve">
         <source>Could not rollback to the given change set: The changeSet doesn't belong to the entity with the given id.</source>
-        <note>src/data-source/change-sets/change-set-repository.ts:454</note>
+        <note>src/data-source/change-sets/change-set-repository.ts:483</note>
       </trans-unit>
       <trans-unit id="December" xml:space="preserve">
         <source>December</source>
@@ -280,15 +296,15 @@
       </trans-unit>
       <trans-unit id="Enroll a second factor to finish logging in." xml:space="preserve">
         <source>Enroll a second factor to finish logging in.</source>
-        <note>src/auth/auth.service.ts:473</note>
+        <note>src/auth/auth.service.ts:513</note>
       </trans-unit>
       <trans-unit id="Error generating token" xml:space="preserve">
         <source>Error generating token</source>
-        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:793</note>
+        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:787</note>
       </trans-unit>
       <trans-unit id="Every member of a group names the id of a user or a group as its value." xml:space="preserve">
         <source>Every member of a group names the id of a user or a group as its value.</source>
-        <note>src/auth/scim/scim.service.ts:1116</note>
+        <note>src/auth/scim/scim.service.ts:1118</note>
       </trans-unit>
       <trans-unit id="failOnErrors is a whole number above 0." xml:space="preserve">
         <source>failOnErrors is a whole number above 0.</source>
@@ -328,23 +344,23 @@
       </trans-unit>
       <trans-unit id="Invalid email or password." xml:space="preserve">
         <source>Invalid email or password.</source>
-        <note>src/error-handling/errors/password-locked.error.ts:13, src/auth/authenticators/password/password.authenticator.ts:145, src/auth/authenticators/password/password.authenticator.ts:178</note>
+        <note>src/error-handling/errors/password-locked.error.ts:13, src/auth/authenticators/password/password.authenticator.ts:151, src/auth/authenticators/password/password.authenticator.ts:188</note>
       </trans-unit>
       <trans-unit id="invalid JSON in request body" xml:space="preserve">
         <source>invalid JSON in request body</source>
-        <note>src/parsing/json/json.body-parser.ts:53</note>
+        <note>src/parsing/json/json.body-parser.ts:58</note>
       </trans-unit>
       <trans-unit id="Invalid refresh token." xml:space="preserve">
         <source>Invalid refresh token.</source>
-        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:427, src/auth/strategies/jwt/jwt.auth-strategy.ts:438, src/auth/strategies/jwt/jwt.auth-strategy.ts:444, src/auth/strategies/jwt/jwt.auth-strategy.ts:448, src/auth/strategies/jwt/jwt.auth-strategy.ts:457, src/auth/strategies/jwt/jwt.auth-strategy.ts:485</note>
+        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:420, src/auth/strategies/jwt/jwt.auth-strategy.ts:431, src/auth/strategies/jwt/jwt.auth-strategy.ts:437, src/auth/strategies/jwt/jwt.auth-strategy.ts:441, src/auth/strategies/jwt/jwt.auth-strategy.ts:451, src/auth/strategies/jwt/jwt.auth-strategy.ts:479</note>
       </trans-unit>
       <trans-unit id="Invalid username or password." xml:space="preserve">
         <source>Invalid username or password.</source>
-        <note>src/auth/authenticators/ldap/base-ldap.authenticator.ts:327, src/auth/authenticators/ldap/base-ldap.authenticator.ts:532</note>
+        <note>src/auth/authenticators/ldap/base-ldap.authenticator.ts:327, src/auth/authenticators/ldap/base-ldap.authenticator.ts:533</note>
       </trans-unit>
       <trans-unit id="invalid XML in body" xml:space="preserve">
         <source>invalid XML in body</source>
-        <note>src/parsing/xml/xml.body-parser.ts:74</note>
+        <note>src/parsing/xml/xml.body-parser.ts:79</note>
       </trans-unit>
       <trans-unit id="is required" xml:space="preserve">
         <source>is required</source>
@@ -364,11 +380,11 @@
       </trans-unit>
       <trans-unit id="Link expired" xml:space="preserve">
         <source>Link expired</source>
-        <note>src/plugin/mailing-list/services/mailing-list.service.ts:252, src/auth/email-verification/email-verification.service.ts:246, src/auth/authenticators/password/password.authenticator.ts:283</note>
+        <note>src/plugin/mailing-list/services/mailing-list.service.ts:289, src/auth/email-verification/email-verification.service.ts:277, src/auth/authenticators/password/password.authenticator.ts:293</note>
       </trans-unit>
       <trans-unit id="Link invalid" xml:space="preserve">
         <source>Link invalid</source>
-        <note>src/plugin/mailing-list/services/mailing-list.service.ts:133, src/plugin/mailing-list/services/mailing-list.service.ts:249, src/plugin/mailing-list/services/mailing-list.service.ts:265, src/plugin/mailing-list/services/mailing-list.service.ts:301, src/auth/email-verification/email-verification.service.ts:119, src/auth/email-verification/email-verification.service.ts:242, src/auth/authenticators/password/password.authenticator.ts:279</note>
+        <note>src/plugin/mailing-list/services/mailing-list.service.ts:145, src/plugin/mailing-list/services/mailing-list.service.ts:286, src/plugin/mailing-list/services/mailing-list.service.ts:302, src/plugin/mailing-list/services/mailing-list.service.ts:338, src/auth/email-verification/email-verification.service.ts:119, src/auth/email-verification/email-verification.service.ts:273, src/auth/authenticators/password/password.authenticator.ts:289</note>
       </trans-unit>
       <trans-unit id="Log in again to access this route." xml:space="preserve">
         <source>Log in again to access this route.</source>
@@ -430,17 +446,21 @@
         <source>needs to match regex "<x id="$1" equiv-text="{$1}"/>"</source>
         <note>src/validation/functions/validate-string.function.ts:73</note>
       </trans-unit>
+      <trans-unit id="New password required" xml:space="preserve">
+        <source>New password required</source>
+        <note>src/auth/authenticators/password/password-change-required.error.ts:28</note>
+      </trans-unit>
       <trans-unit id="No active version found" xml:space="preserve">
         <source>No active version found</source>
-        <note>src/versioning/versioning.service.ts:483, src/versioning/versioning.service.ts:566</note>
+        <note>src/versioning/versioning.service.ts:484, src/versioning/versioning.service.ts:567</note>
       </trans-unit>
       <trans-unit id="No code is waiting for this account. Ask for a new one." xml:space="preserve">
         <source>No code is waiting for this account. Ask for a new one.</source>
-        <note>src/auth/2fa/methods/code/code.two-factor-method.ts:143</note>
+        <note>src/auth/2fa/methods/code/code.two-factor-method.ts:144</note>
       </trans-unit>
       <trans-unit id="No code is waiting. Ask for a new one." xml:space="preserve">
         <source>No code is waiting. Ask for a new one.</source>
-        <note>src/auth/2fa/methods/code/code.two-factor-method.ts:322</note>
+        <note>src/auth/2fa/methods/code/code.two-factor-method.ts:324</note>
       </trans-unit>
       <trans-unit id="No codes are sent by text message right now. Try again later." xml:space="preserve">
         <source>No codes are sent by text message right now. Try again later.</source>
@@ -448,7 +468,7 @@
       </trans-unit>
       <trans-unit id="No favicon.png was found in the public assets folder." xml:space="preserve">
         <source>No favicon.png was found in the public assets folder.</source>
-        <note>src/assets/asset.service.ts:77</note>
+        <note>src/assets/asset.service.ts:93</note>
       </trans-unit>
       <trans-unit id="No item matches the filter of the path." xml:space="preserve">
         <source>No item matches the filter of the path.</source>
@@ -456,27 +476,27 @@
       </trans-unit>
       <trans-unit id="No user is linked to this login." xml:space="preserve">
         <source>No user is linked to this login.</source>
-        <note>src/auth/authenticators/passkey/passkey.authenticator.ts:182, src/auth/authenticators/passkey/passkey.service.ts:302, src/auth/authenticators/ldap/base-ldap.authenticator.ts:961</note>
+        <note>src/auth/authenticators/passkey/passkey.authenticator.ts:182, src/auth/authenticators/passkey/passkey.service.ts:305, src/auth/authenticators/ldap/base-ldap.authenticator.ts:974</note>
       </trans-unit>
       <trans-unit id="No valid context" xml:space="preserve">
         <source>No valid context</source>
-        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:435</note>
+        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:429</note>
       </trans-unit>
       <trans-unit id="No valid csrf token" xml:space="preserve">
         <source>No valid csrf token</source>
-        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:458</note>
+        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:452</note>
       </trans-unit>
       <trans-unit id="No valid refresh session" xml:space="preserve">
         <source>No valid refresh session</source>
-        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:441, src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:451, src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:455, src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:463</note>
+        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:435, src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:445, src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:449, src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:457</note>
       </trans-unit>
       <trans-unit id="No valid session" xml:space="preserve">
         <source>No valid session</source>
-        <note>src/auth/auth-controller/auth-controller.model.ts:425</note>
+        <note>src/auth/auth-controller/auth-controller.model.ts:405</note>
       </trans-unit>
       <trans-unit id="No version active at date, {$1}" xml:space="preserve">
         <source>No version active at date, <x id="$1" equiv-text="{$1}"/></source>
-        <note>src/versioning/versioning.service.ts:586</note>
+        <note>src/versioning/versioning.service.ts:587</note>
       </trans-unit>
       <trans-unit id="Not Acceptable" xml:space="preserve">
         <source>Not Acceptable</source>
@@ -484,7 +504,7 @@
       </trans-unit>
       <trans-unit id="Not allowed to connect" xml:space="preserve">
         <source>Not allowed to connect</source>
-        <note>src/websocket/services/websocket.service.ts:468, src/websocket/services/websocket.service.ts:469</note>
+        <note>src/websocket/services/websocket.service.ts:510, src/websocket/services/websocket.service.ts:511</note>
       </trans-unit>
       <trans-unit id="Not Found" xml:space="preserve">
         <source>Not Found</source>
@@ -508,7 +528,11 @@
       </trans-unit>
       <trans-unit id="Passkeys on this device are not accepted." xml:space="preserve">
         <source>Passkeys on this device are not accepted.</source>
-        <note>src/auth/authenticators/passkey/passkey.service.ts:475, src/auth/authenticators/passkey/passkey.service.ts:485, src/auth/authenticators/passkey/passkey.service.ts:491, src/auth/authenticators/passkey/passkey.service.ts:501</note>
+        <note>src/auth/authenticators/passkey/passkey.service.ts:479, src/auth/authenticators/passkey/passkey.service.ts:489, src/auth/authenticators/passkey/passkey.service.ts:495, src/auth/authenticators/passkey/passkey.service.ts:505</note>
+      </trans-unit>
+      <trans-unit id="Password Reset" xml:space="preserve">
+        <source>Password Reset</source>
+        <note>src/auth/authenticators/password/password.authenticator.ts:230</note>
       </trans-unit>
       <trans-unit id="Present a second factor to finish logging in." xml:space="preserve">
         <source>Present a second factor to finish logging in.</source>
@@ -516,15 +540,15 @@
       </trans-unit>
       <trans-unit id="Rate limit was reached" xml:space="preserve">
         <source>Rate limit was reached</source>
-        <note>src/rate-limiting/limiter/base-rate-limiter.model.ts:381, src/rate-limiting/limiter/semaphore.rate-limiter.ts:264</note>
+        <note>src/rate-limiting/limiter/base-rate-limiter.model.ts:385, src/rate-limiting/limiter/semaphore.rate-limiter.ts:264</note>
       </trans-unit>
       <trans-unit id="redirectTo has to be an absolute url." xml:space="preserve">
         <source>redirectTo has to be an absolute url.</source>
-        <note>src/auth/authenticators/federated/base-federated.authenticator.ts:1189</note>
+        <note>src/auth/authenticators/federated/base-federated.authenticator.ts:1192</note>
       </trans-unit>
       <trans-unit id="redirectTo is not one of the allowed redirects." xml:space="preserve">
         <source>redirectTo is not one of the allowed redirects.</source>
-        <note>src/auth/authenticators/federated/base-federated.authenticator.ts:1198</note>
+        <note>src/auth/authenticators/federated/base-federated.authenticator.ts:1201</note>
       </trans-unit>
       <trans-unit id="relations are not allowed as part of create or update data." xml:space="preserve">
         <source>relations are not allowed as part of create or update data.</source>
@@ -584,7 +608,7 @@
       </trans-unit>
       <trans-unit id="The {$1} cannot be deleted while rows of &#x22;{$2}&#x22; still point at it." xml:space="preserve">
         <source>The <x id="$1" equiv-text="{$1}"/> cannot be deleted while rows of "<x id="$2" equiv-text="{$2}"/>" still point at it.</source>
-        <note>src/data-source/repository/owned-row.writer.ts:274</note>
+        <note>src/data-source/repository/owned-row.writer.ts:297</note>
       </trans-unit>
       <trans-unit id="The {$1} holding {$2} changed since it was read, so the upsert was not applied." xml:space="preserve">
         <source>The <x id="$1" equiv-text="{$1}"/> holding <x id="$2" equiv-text="{$2}"/> changed since it was read, so the upsert was not applied.</source>
@@ -592,15 +616,15 @@
       </trans-unit>
       <trans-unit id="The {$1} with id &#x22;{$2}&#x22; changed since it was read, so it was not deleted." xml:space="preserve">
         <source>The <x id="$1" equiv-text="{$1}"/> with id "<x id="$2" equiv-text="{$2}"/>" changed since it was read, so it was not deleted.</source>
-        <note>src/data-source/repository/repository.ts:2691, src/data-source/change-sets/soft-delete-repository.ts:419</note>
+        <note>src/data-source/repository/repository.ts:2736, src/data-source/change-sets/soft-delete-repository.ts:441</note>
       </trans-unit>
       <trans-unit id="The {$1} with id &#x22;{$2}&#x22; changed since it was read, so the update was not applied." xml:space="preserve">
         <source>The <x id="$1" equiv-text="{$1}"/> with id "<x id="$2" equiv-text="{$2}"/>" changed since it was read, so the update was not applied.</source>
-        <note>src/data-source/repository/repository.ts:2164</note>
+        <note>src/data-source/repository/repository.ts:2188</note>
       </trans-unit>
       <trans-unit id="The {$1} with id &#x22;{$2}&#x22; is deleted." xml:space="preserve">
         <source>The <x id="$1" equiv-text="{$1}"/> with id "<x id="$2" equiv-text="{$2}"/>" is deleted.</source>
-        <note>src/data-source/change-sets/soft-delete-repository.ts:383</note>
+        <note>src/data-source/change-sets/soft-delete-repository.ts:403</note>
       </trans-unit>
       <trans-unit id="The amount has to be greater than 0." xml:space="preserve">
         <source>The amount has to be greater than 0.</source>
@@ -608,11 +632,11 @@
       </trans-unit>
       <trans-unit id="The authorization header holds no client id and secret." xml:space="preserve">
         <source>The authorization header holds no client id and secret.</source>
-        <note>src/auth/authorization-server/authorization-server.service.ts:498, src/auth/authorization-server/authorization-server.service.ts:513</note>
+        <note>src/auth/authorization-server/authorization-server.service.ts:499, src/auth/authorization-server/authorization-server.service.ts:514</note>
       </trans-unit>
       <trans-unit id="The backup resources {$1} are being backed up or restored. Restore once that is done." xml:space="preserve">
         <source>The backup resources <x id="$1" equiv-text="{$1}"/> are being backed up or restored. Restore once that is done.</source>
-        <note>src/backup/backup.service.ts:963</note>
+        <note>src/backup/backup.service.ts:966</note>
       </trans-unit>
       <trans-unit id="The body is not a SOAP envelope carrying a logout request." xml:space="preserve">
         <source>The body is not a SOAP envelope carrying a logout request.</source>
@@ -620,7 +644,7 @@
       </trans-unit>
       <trans-unit id="The caller may not use the permission to introspect." xml:space="preserve">
         <source>The caller may not use the permission to introspect.</source>
-        <note>src/auth/authorization-server/authorization-server.service.ts:314</note>
+        <note>src/auth/authorization-server/authorization-server.service.ts:315</note>
       </trans-unit>
       <trans-unit id="The certificate of an api key has to be PEM encoded." xml:space="preserve">
         <source>The certificate of an api key has to be PEM encoded.</source>
@@ -628,15 +652,15 @@
       </trans-unit>
       <trans-unit id="The client could not be authenticated." xml:space="preserve">
         <source>The client could not be authenticated.</source>
-        <note>src/auth/authorization-server/authorization-server.service.ts:553</note>
+        <note>src/auth/authorization-server/authorization-server.service.ts:554</note>
       </trans-unit>
       <trans-unit id="The client may not use the permissions {$1}." xml:space="preserve">
         <source>The client may not use the permissions <x id="$1" equiv-text="{$1}"/>.</source>
-        <note>src/auth/authorization-server/authorization-server.service.ts:734</note>
+        <note>src/auth/authorization-server/authorization-server.service.ts:745</note>
       </trans-unit>
       <trans-unit id="The client_id differs from the client in the authorization header." xml:space="preserve">
         <source>The client_id differs from the client in the authorization header.</source>
-        <note>src/auth/authorization-server/authorization-server.service.ts:473</note>
+        <note>src/auth/authorization-server/authorization-server.service.ts:474</note>
       </trans-unit>
       <trans-unit id="The code challenge has to be the S256 challenge of a PKCE verifier." xml:space="preserve">
         <source>The code challenge has to be the S256 challenge of a PKCE verifier.</source>
@@ -644,19 +668,19 @@
       </trans-unit>
       <trans-unit id="The code is invalid or has expired." xml:space="preserve">
         <source>The code is invalid or has expired.</source>
-        <note>src/auth/authenticators/federated/base-federated.authenticator.ts:1103</note>
+        <note>src/auth/authenticators/federated/base-federated.authenticator.ts:1104</note>
       </trans-unit>
       <trans-unit id="The code verifier does not match." xml:space="preserve">
         <source>The code verifier does not match.</source>
-        <note>src/auth/authenticators/federated/base-federated.authenticator.ts:1137</note>
+        <note>src/auth/authenticators/federated/base-federated.authenticator.ts:1138</note>
       </trans-unit>
       <trans-unit id="The cron job &#x22;{$1}&#x22; is declared in code, so only enable, disable and changeCron change it at runtime." xml:space="preserve">
         <source>The cron job "<x id="$1" equiv-text="{$1}"/>" is declared in code, so only enable, disable and changeCron change it at runtime.</source>
-        <note>src/cron/cron-job.model.ts:839</note>
+        <note>src/cron/cron-job.model.ts:846</note>
       </trans-unit>
       <trans-unit id="The current password is wrong." xml:space="preserve">
         <source>The current password is wrong.</source>
-        <note>src/auth/authenticators/password/password.authenticator.ts:325</note>
+        <note>src/auth/authenticators/password/password.authenticator.ts:339</note>
       </trans-unit>
       <trans-unit id="The cursor could not be read." xml:space="preserve">
         <source>The cursor could not be read.</source>
@@ -684,7 +708,7 @@
       </trans-unit>
       <trans-unit id="The field &#x22;{$1}&#x22; is too large." xml:space="preserve">
         <source>The field "<x id="$1" equiv-text="{$1}"/>" is too large.</source>
-        <note>src/parsing/form-data/form-data.body-parser.ts:356</note>
+        <note>src/parsing/form-data/form-data.body-parser.ts:359</note>
       </trans-unit>
       <trans-unit id="the file type needs to be {$1}" xml:space="preserve">
         <source>the file type needs to be <x id="$1" equiv-text="{$1}"/></source>
@@ -712,15 +736,15 @@
       </trans-unit>
       <trans-unit id="The form has both text and files under &#x22;{$1}&#x22;." xml:space="preserve">
         <source>The form has both text and files under "<x id="$1" equiv-text="{$1}"/>".</source>
-        <note>src/parsing/form-data/form-data.body-parser.ts:251</note>
+        <note>src/parsing/form-data/form-data.body-parser.ts:254</note>
       </trans-unit>
       <trans-unit id="The generated invoice-number {$1} already exists!" xml:space="preserve">
         <source>The generated invoice-number <x id="$1" equiv-text="{$1}"/> already exists!</source>
-        <note>src/plugin/invoicing/services/invoice-number.service.ts:266</note>
+        <note>src/plugin/invoicing/services/invoice-number.service.ts:270</note>
       </trans-unit>
       <trans-unit id="The given refresh session has already been used." xml:space="preserve">
         <source>The given refresh session has already been used.</source>
-        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:515, src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:542</note>
+        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:509, src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:536</note>
       </trans-unit>
       <trans-unit id="The id of a resource cannot change." xml:space="preserve">
         <source>The id of a resource cannot change.</source>
@@ -736,11 +760,11 @@
       </trans-unit>
       <trans-unit id="The login is bound to a DPoP key, which the request proves no hold of." xml:space="preserve">
         <source>The login is bound to a DPoP key, which the request proves no hold of.</source>
-        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:525</note>
+        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:519</note>
       </trans-unit>
       <trans-unit id="The login was started in another browser." xml:space="preserve">
         <source>The login was started in another browser.</source>
-        <note>src/auth/authenticators/federated/base-federated.authenticator.ts:1143</note>
+        <note>src/auth/authenticators/federated/base-federated.authenticator.ts:1146</note>
       </trans-unit>
       <trans-unit id="The logout could not be verified." xml:space="preserve">
         <source>The logout could not be verified.</source>
@@ -748,7 +772,7 @@
       </trans-unit>
       <trans-unit id="The logout names another provider, or no session." xml:space="preserve">
         <source>The logout names another provider, or no session.</source>
-        <note>src/auth/authenticators/oidc/base-oidc.authenticator.ts:257</note>
+        <note>src/auth/authenticators/oidc/base-oidc.authenticator.ts:267</note>
       </trans-unit>
       <trans-unit id="The logout request is not signed." xml:space="preserve">
         <source>The logout request is not signed.</source>
@@ -756,23 +780,23 @@
       </trans-unit>
       <trans-unit id="The logout token could not be verified." xml:space="preserve">
         <source>The logout token could not be verified.</source>
-        <note>src/auth/authenticators/oidc/base-oidc.authenticator.ts:298</note>
+        <note>src/auth/authenticators/oidc/base-oidc.authenticator.ts:309</note>
       </trans-unit>
       <trans-unit id="The logout token was presented before." xml:space="preserve">
         <source>The logout token was presented before.</source>
-        <note>src/auth/authenticators/oidc/base-oidc.authenticator.ts:571</note>
+        <note>src/auth/authenticators/oidc/base-oidc.authenticator.ts:594</note>
       </trans-unit>
       <trans-unit id="The name abbreviation {$1} is already used by another recipient." xml:space="preserve">
         <source>The name abbreviation <x id="$1" equiv-text="{$1}"/> is already used by another recipient.</source>
-        <note>src/plugin/invoicing/services/invoice-number.service.ts:218</note>
+        <note>src/plugin/invoicing/services/invoice-number.service.ts:222</note>
       </trans-unit>
       <trans-unit id="The name of a backup is one segment of a path: it is not empty, &#x22;.&#x22; or &#x22;..&#x22;, and holds no slash." xml:space="preserve">
         <source>The name of a backup is one segment of a path: it is not empty, "." or "..", and holds no slash.</source>
-        <note>src/backup/backup.service.ts:567</note>
+        <note>src/backup/backup.service.ts:562</note>
       </trans-unit>
       <trans-unit id="The offset has to be a whole number of at least 0." xml:space="preserve">
         <source>The offset has to be a whole number of at least 0.</source>
-        <note>src/websocket/services/websocket.service.ts:446</note>
+        <note>src/websocket/services/websocket.service.ts:488</note>
       </trans-unit>
       <trans-unit id="The operation refers in a circle to resources the request creates." xml:space="preserve">
         <source>The operation refers in a circle to resources the request creates.</source>
@@ -784,15 +808,15 @@
       </trans-unit>
       <trans-unit id="The passkey challenge is invalid or has expired." xml:space="preserve">
         <source>The passkey challenge is invalid or has expired.</source>
-        <note>src/auth/authenticators/passkey/passkey.service.ts:415, src/auth/authenticators/passkey/passkey.service.ts:422, src/auth/authenticators/passkey/passkey.service.ts:425, src/auth/authenticators/passkey/passkey.service.ts:597</note>
+        <note>src/auth/authenticators/passkey/passkey.service.ts:419, src/auth/authenticators/passkey/passkey.service.ts:426, src/auth/authenticators/passkey/passkey.service.ts:429, src/auth/authenticators/passkey/passkey.service.ts:601</note>
       </trans-unit>
       <trans-unit id="The passkey could not be created." xml:space="preserve">
         <source>The passkey could not be created.</source>
-        <note>src/auth/authenticators/passkey/passkey.service.ts:450, src/auth/authenticators/passkey/passkey.service.ts:453</note>
+        <note>src/auth/authenticators/passkey/passkey.service.ts:454, src/auth/authenticators/passkey/passkey.service.ts:457</note>
       </trans-unit>
       <trans-unit id="The passkey could not be verified." xml:space="preserve">
         <source>The passkey could not be verified.</source>
-        <note>src/auth/authenticators/passkey/passkey.service.ts:529, src/auth/authenticators/passkey/passkey.service.ts:533, src/auth/authenticators/passkey/passkey.service.ts:553, src/auth/authenticators/passkey/passkey.service.ts:556, src/auth/authenticators/passkey/passkey.service.ts:563</note>
+        <note>src/auth/authenticators/passkey/passkey.service.ts:533, src/auth/authenticators/passkey/passkey.service.ts:537, src/auth/authenticators/passkey/passkey.service.ts:557, src/auth/authenticators/passkey/passkey.service.ts:560, src/auth/authenticators/passkey/passkey.service.ts:567</note>
       </trans-unit>
       <trans-unit id="The permission '{$1}' is not declared at the level of the role." xml:space="preserve">
         <source>The permission '<x id="$1" equiv-text="{$1}"/>' is not declared at the level of the role.</source>
@@ -800,7 +824,7 @@
       </trans-unit>
       <trans-unit id="The permission '{$1}' is not declared." xml:space="preserve">
         <source>The permission '<x id="$1" equiv-text="{$1}"/>' is not declared.</source>
-        <note>src/auth/auth.service.ts:1214</note>
+        <note>src/auth/auth.service.ts:1396</note>
       </trans-unit>
       <trans-unit id="The provided two factor code is invalid." xml:space="preserve">
         <source>The provided two factor code is invalid.</source>
@@ -808,7 +832,7 @@
       </trans-unit>
       <trans-unit id="The provided two factor code is not {$1} digits long." xml:space="preserve">
         <source>The provided two factor code is not <x id="$1" equiv-text="{$1}"/> digits long.</source>
-        <note>src/auth/2fa/methods/otp/otp.two-factor-method.ts:257, src/auth/2fa/methods/code/code.two-factor-method.ts:256</note>
+        <note>src/auth/2fa/methods/otp/otp.two-factor-method.ts:272, src/auth/2fa/methods/code/code.two-factor-method.ts:257</note>
       </trans-unit>
       <trans-unit id="The provider &#x22;{$1}&#x22; cannot be logged out at." xml:space="preserve">
         <source>The provider "<x id="$1" equiv-text="{$1}"/>" cannot be logged out at.</source>
@@ -816,11 +840,11 @@
       </trans-unit>
       <trans-unit id="The provider &#x22;{$1}&#x22; logs out with a redirect, not a posted form." xml:space="preserve">
         <source>The provider "<x id="$1" equiv-text="{$1}"/>" logs out with a redirect, not a posted form.</source>
-        <note>src/auth/authenticators/oidc/base-oidc.authenticator.ts:247</note>
+        <note>src/auth/authenticators/oidc/base-oidc.authenticator.ts:257</note>
       </trans-unit>
       <trans-unit id="The provider &#x22;{$1}&#x22; publishes no metadata." xml:space="preserve">
         <source>The provider "<x id="$1" equiv-text="{$1}"/>" publishes no metadata.</source>
-        <note>src/auth/authenticators/federated/federated-route.utilities.ts:298</note>
+        <note>src/auth/authenticators/federated/federated-route.utilities.ts:300</note>
       </trans-unit>
       <trans-unit id="The provider &#x22;{$1}&#x22; takes no logout requests sent server to server." xml:space="preserve">
         <source>The provider "<x id="$1" equiv-text="{$1}"/>" takes no logout requests sent server to server.</source>
@@ -840,11 +864,11 @@
       </trans-unit>
       <trans-unit id="The request authenticates its client in more than one way." xml:space="preserve">
         <source>The request authenticates its client in more than one way.</source>
-        <note>src/auth/authorization-server/authorization-server.service.ts:470</note>
+        <note>src/auth/authorization-server/authorization-server.service.ts:471</note>
       </trans-unit>
       <trans-unit id="The request authenticates no caller." xml:space="preserve">
         <source>The request authenticates no caller.</source>
-        <note>src/auth/authorization-server/authorization-server.service.ts:792</note>
+        <note>src/auth/authorization-server/authorization-server.service.ts:803</note>
       </trans-unit>
       <trans-unit id="The request authenticates no client." xml:space="preserve">
         <source>The request authenticates no client.</source>
@@ -860,7 +884,7 @@
       </trans-unit>
       <trans-unit id="The request names no token." xml:space="preserve">
         <source>The request names no token.</source>
-        <note>src/auth/authorization-server/authorization-server.service.ts:805</note>
+        <note>src/auth/authorization-server/authorization-server.service.ts:816</note>
       </trans-unit>
       <trans-unit id="The request names the tenant &#x22;{$1}&#x22; in its header and &#x22;{$2}&#x22; in its query." xml:space="preserve">
         <source>The request names the tenant "<x id="$1" equiv-text="{$1}"/>" in its header and "<x id="$2" equiv-text="{$2}"/>" in its query.</source>
@@ -868,15 +892,15 @@
       </trans-unit>
       <trans-unit id="The resource changed since the version the request names." xml:space="preserve">
         <source>The resource changed since the version the request names.</source>
-        <note>src/auth/scim/scim.service.ts:1069</note>
+        <note>src/auth/scim/scim.service.ts:1071</note>
       </trans-unit>
       <trans-unit id="The resource conflicts with one that exists." xml:space="preserve">
         <source>The resource conflicts with one that exists.</source>
-        <note>src/auth/scim/scim.service.ts:1402</note>
+        <note>src/auth/scim/scim.service.ts:1405</note>
       </trans-unit>
       <trans-unit id="The resource was changed by another request at the same time." xml:space="preserve">
         <source>The resource was changed by another request at the same time.</source>
-        <note>src/auth/scim/scim.service.ts:1052</note>
+        <note>src/auth/scim/scim.service.ts:1054</note>
       </trans-unit>
       <trans-unit id="The role '{$1}' does not exist." xml:space="preserve">
         <source>The role '<x id="$1" equiv-text="{$1}"/>' does not exist.</source>
@@ -924,23 +948,23 @@
       </trans-unit>
       <trans-unit id="The ticket is invalid or has expired." xml:space="preserve">
         <source>The ticket is invalid or has expired.</source>
-        <note>src/auth/authenticators/passkey/passkey.service.ts:263, src/auth/authenticators/passkey/passkey.service.ts:272, src/auth/authenticators/federated/base-federated.authenticator.ts:1119</note>
+        <note>src/auth/authenticators/passkey/passkey.service.ts:266, src/auth/authenticators/passkey/passkey.service.ts:275, src/auth/authenticators/federated/base-federated.authenticator.ts:1120</note>
       </trans-unit>
       <trans-unit id="The token was not issued to the client." xml:space="preserve">
         <source>The token was not issued to the client.</source>
-        <note>src/auth/authorization-server/authorization-server.service.ts:818</note>
+        <note>src/auth/authorization-server/authorization-server.service.ts:829</note>
       </trans-unit>
       <trans-unit id="The tokens of the client are bound to a DPoP key, which the request carries no proof of." xml:space="preserve">
         <source>The tokens of the client are bound to a DPoP key, which the request carries no proof of.</source>
-        <note>src/auth/authorization-server/authorization-server.service.ts:355</note>
+        <note>src/auth/authorization-server/authorization-server.service.ts:356</note>
       </trans-unit>
       <trans-unit id="The user has no such identity at this provider." xml:space="preserve">
         <source>The user has no such identity at this provider.</source>
-        <note>src/auth/authenticators/federated/base-federated.authenticator.ts:811</note>
+        <note>src/auth/authenticators/federated/base-federated.authenticator.ts:812</note>
       </trans-unit>
       <trans-unit id="The user has no such identity." xml:space="preserve">
         <source>The user has no such identity.</source>
-        <note>src/auth/auth.service.ts:1246</note>
+        <note>src/auth/auth.service.ts:1428</note>
       </trans-unit>
       <trans-unit id="The user is no member of the tenant &#x22;{$1}&#x22;." xml:space="preserve">
         <source>The user is no member of the tenant "<x id="$1" equiv-text="{$1}"/>".</source>
@@ -948,15 +972,15 @@
       </trans-unit>
       <trans-unit id="The userName {$1} is taken." xml:space="preserve">
         <source>The userName <x id="$1" equiv-text="{$1}"/> is taken.</source>
-        <note>src/auth/scim/scim.service.ts:1173</note>
+        <note>src/auth/scim/scim.service.ts:1175</note>
       </trans-unit>
       <trans-unit id="The version is named more than once." xml:space="preserve">
         <source>The version is named more than once.</source>
-        <note>src/versioning/versioning.service.ts:473</note>
+        <note>src/versioning/versioning.service.ts:474</note>
       </trans-unit>
       <trans-unit id="There is no group {$1}." xml:space="preserve">
         <source>There is no group <x id="$1" equiv-text="{$1}"/>.</source>
-        <note>src/auth/scim/scim.service.ts:1192</note>
+        <note>src/auth/scim/scim.service.ts:1194</note>
       </trans-unit>
       <trans-unit id="There is no provider &#x22;{$1}&#x22;." xml:space="preserve">
         <source>There is no provider "<x id="$1" equiv-text="{$1}"/>".</source>
@@ -964,35 +988,35 @@
       </trans-unit>
       <trans-unit id="There is no resource type {$1}." xml:space="preserve">
         <source>There is no resource type <x id="$1" equiv-text="{$1}"/>.</source>
-        <note>src/auth/scim/scim.service.ts:219</note>
+        <note>src/auth/scim/scim.service.ts:220</note>
       </trans-unit>
       <trans-unit id="There is no role named '{$1}'." xml:space="preserve">
         <source>There is no role named '<x id="$1" equiv-text="{$1}"/>'.</source>
-        <note>src/auth/roles/role.service.ts:811</note>
+        <note>src/auth/roles/role.service.ts:815</note>
       </trans-unit>
       <trans-unit id="There is no schema {$1}." xml:space="preserve">
         <source>There is no schema <x id="$1" equiv-text="{$1}"/>.</source>
-        <note>src/auth/scim/scim.service.ts:234</note>
+        <note>src/auth/scim/scim.service.ts:235</note>
       </trans-unit>
       <trans-unit id="There is no such login." xml:space="preserve">
         <source>There is no such login.</source>
-        <note>src/auth/auth.service.ts:2021</note>
+        <note>src/auth/auth.service.ts:2203</note>
       </trans-unit>
       <trans-unit id="There is no user {$1}." xml:space="preserve">
         <source>There is no user <x id="$1" equiv-text="{$1}"/>.</source>
-        <note>src/auth/scim/scim.service.ts:644, src/auth/scim/scim.service.ts:962, src/auth/scim/scim.service.ts:1182</note>
+        <note>src/auth/scim/scim.service.ts:646, src/auth/scim/scim.service.ts:964, src/auth/scim/scim.service.ts:1184</note>
       </trans-unit>
       <trans-unit id="There should only be one message sent." xml:space="preserve">
         <source>There should only be one message sent.</source>
-        <note>src/websocket/services/websocket.service.ts:622</note>
+        <note>src/websocket/services/websocket.service.ts:673</note>
       </trans-unit>
       <trans-unit id="This account has a second factor. Present it to log in." xml:space="preserve">
         <source>This account has a second factor. Present it to log in.</source>
-        <note>src/auth/auth.service.ts:591</note>
+        <note>src/auth/auth.service.ts:749</note>
       </trans-unit>
       <trans-unit id="This account has no second factor of this kind." xml:space="preserve">
         <source>This account has no second factor of this kind.</source>
-        <note>src/auth/2fa/methods/code/code.two-factor-method.ts:185, src/auth/2fa/methods/code/code.two-factor-method.ts:199</note>
+        <note>src/auth/2fa/methods/code/code.two-factor-method.ts:186, src/auth/2fa/methods/code/code.two-factor-method.ts:200</note>
       </trans-unit>
       <trans-unit id="This account is deactivated." xml:space="preserve">
         <source>This account is deactivated.</source>
@@ -1004,7 +1028,7 @@
       </trans-unit>
       <trans-unit id="This is the address of the account already." xml:space="preserve">
         <source>This is the address of the account already.</source>
-        <note>src/auth/email-verification/email-verification.service.ts:135</note>
+        <note>src/auth/email-verification/email-verification.service.ts:140</note>
       </trans-unit>
       <trans-unit id="this key is unknown" xml:space="preserve">
         <source>this key is unknown</source>
@@ -1012,7 +1036,7 @@
       </trans-unit>
       <trans-unit id="This login ticket is unknown, spent or expired. Log in again." xml:space="preserve">
         <source>This login ticket is unknown, spent or expired. Log in again.</source>
-        <note>src/auth/auth.service.ts:552, src/auth/auth.service.ts:568</note>
+        <note>src/auth/auth.service.ts:709, src/auth/auth.service.ts:725</note>
       </trans-unit>
       <trans-unit id="This phone number was sent too many codes today." xml:space="preserve">
         <source>This phone number was sent too many codes today.</source>
@@ -1020,11 +1044,11 @@
       </trans-unit>
       <trans-unit id="This request carries a session, but not its csrf token." xml:space="preserve">
         <source>This request carries a session, but not its csrf token.</source>
-        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:643</note>
+        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:637</note>
       </trans-unit>
       <trans-unit id="This request carries more than one credential ({$1}). Send exactly one." xml:space="preserve">
         <source>This request carries more than one credential (<x id="$1" equiv-text="{$1}"/>). Send exactly one.</source>
-        <note>src/auth/auth.service.ts:1949</note>
+        <note>src/auth/auth.service.ts:2131</note>
       </trans-unit>
       <trans-unit id="This request names no tenant." xml:space="preserve">
         <source>This request names no tenant.</source>
@@ -1048,7 +1072,7 @@
       </trans-unit>
       <trans-unit id="Timed out after {$1} ms waiting for reservation {$2}" xml:space="preserve">
         <source>Timed out after <x id="$1" equiv-text="{$1}"/> ms waiting for reservation <x id="$2" equiv-text="{$2}"/></source>
-        <note>src/rate-limiting/limiter/base-rate-limiter.model.ts:138</note>
+        <note>src/rate-limiting/limiter/base-rate-limiter.model.ts:139</note>
       </trans-unit>
       <trans-unit id="Tokens are issued for the client_credentials grant only." xml:space="preserve">
         <source>Tokens are issued for the client_credentials grant only.</source>
@@ -1056,19 +1080,19 @@
       </trans-unit>
       <trans-unit id="Tokens are not issued for {$1}." xml:space="preserve">
         <source>Tokens are not issued for <x id="$1" equiv-text="{$1}"/>.</source>
-        <note>src/auth/authorization-server/authorization-server.service.ts:754</note>
+        <note>src/auth/authorization-server/authorization-server.service.ts:765</note>
       </trans-unit>
       <trans-unit id="Too many fields, at most {$1} are accepted." xml:space="preserve">
         <source>Too many fields, at most <x id="$1" equiv-text="{$1}"/> are accepted.</source>
-        <note>src/parsing/form-data/form-data.body-parser.ts:344</note>
+        <note>src/parsing/form-data/form-data.body-parser.ts:347</note>
       </trans-unit>
       <trans-unit id="Too many files, at most {$1} are accepted." xml:space="preserve">
         <source>Too many files, at most <x id="$1" equiv-text="{$1}"/> are accepted.</source>
-        <note>src/parsing/form-data/form-data.body-parser.ts:342</note>
+        <note>src/parsing/form-data/form-data.body-parser.ts:345</note>
       </trans-unit>
       <trans-unit id="Too many parts, at most {$1} are accepted." xml:space="preserve">
         <source>Too many parts, at most <x id="$1" equiv-text="{$1}"/> are accepted.</source>
-        <note>src/parsing/form-data/form-data.body-parser.ts:343</note>
+        <note>src/parsing/form-data/form-data.body-parser.ts:346</note>
       </trans-unit>
       <trans-unit id="Too Many Requests" xml:space="preserve">
         <source>Too Many Requests</source>
@@ -1124,7 +1148,7 @@
       </trans-unit>
       <trans-unit id="Verify your email address" xml:space="preserve">
         <source>Verify your email address</source>
-        <note>src/auth/email-verification/email-verification.service.ts:220</note>
+        <note>src/auth/email-verification/email-verification.service.ts:243</note>
       </trans-unit>
       <trans-unit id="Verify your email address first. A link to verify it is in your inbox." xml:space="preserve">
         <source>Verify your email address first. A link to verify it is in your inbox.</source>
@@ -1132,7 +1156,7 @@
       </trans-unit>
       <trans-unit id="Version &#x22;{$1}&#x22; not found" xml:space="preserve">
         <source>Version "<x id="$1" equiv-text="{$1}"/>" not found</source>
-        <note>src/versioning/versioning.service.ts:492, src/open-api/open-api.service.ts:153</note>
+        <note>src/versioning/versioning.service.ts:493, src/open-api/open-api.service.ts:153</note>
       </trans-unit>
       <trans-unit id="Wednesday" xml:space="preserve">
         <source>Wednesday</source>
@@ -1140,15 +1164,15 @@
       </trans-unit>
       <trans-unit id="Whether a user is active is true or false." xml:space="preserve">
         <source>Whether a user is active is true or false.</source>
-        <note>src/auth/scim/scim.service.ts:1158</note>
+        <note>src/auth/scim/scim.service.ts:1160</note>
       </trans-unit>
       <trans-unit id="Without a codeChallenge the user is logged in on the redirect back from the provider, which only a strategy whose login goes out with the response can do, such as cookies. Send a codeChallenge to have the login handed over by code." xml:space="preserve">
         <source>Without a codeChallenge the user is logged in on the redirect back from the provider, which only a strategy whose login goes out with the response can do, such as cookies. Send a codeChallenge to have the login handed over by code.</source>
-        <note>src/auth/auth-controller/auth-controller.model.ts:1053</note>
+        <note>src/auth/auth-controller/auth-controller.model.ts:1055</note>
       </trans-unit>
       <trans-unit id="You cannot be logged in when accessing this route." xml:space="preserve">
         <source>You cannot be logged in when accessing this route.</source>
-        <note>src/auth/auth.service.ts:1314</note>
+        <note>src/auth/auth.service.ts:1496</note>
       </trans-unit>
       <trans-unit id="You cannot write a {$1} outside what you are allowed to see." xml:space="preserve">
         <source>You cannot write a <x id="$1" equiv-text="{$1}"/> outside what you are allowed to see.</source>
@@ -1156,7 +1180,7 @@
       </trans-unit>
       <trans-unit id="You do not have permission to access this route." xml:space="preserve">
         <source>You do not have permission to access this route.</source>
-        <note>src/auth/auth.service.ts:1322, src/auth/auth.service.ts:1387, src/auth/auth.service.ts:1405, src/auth/auth.service.ts:1653</note>
+        <note>src/auth/auth.service.ts:1504, src/auth/auth.service.ts:1569, src/auth/auth.service.ts:1587, src/auth/auth.service.ts:1835</note>
       </trans-unit>
       <trans-unit id="You do not have permission to manage this role." xml:space="preserve">
         <source>You do not have permission to manage this role.</source>
@@ -1164,19 +1188,19 @@
       </trans-unit>
       <trans-unit id="You have no passkey to present." xml:space="preserve">
         <source>You have no passkey to present.</source>
-        <note>src/auth/authenticators/passkey/passkey.service.ts:177</note>
+        <note>src/auth/authenticators/passkey/passkey.service.ts:179</note>
       </trans-unit>
       <trans-unit id="You need to be logged in to access this route." xml:space="preserve">
         <source>You need to be logged in to access this route.</source>
-        <note>src/auth/auth.service.ts:1306</note>
+        <note>src/auth/auth.service.ts:1488</note>
       </trans-unit>
       <trans-unit id="You need to provide a second factor to access this route." xml:space="preserve">
         <source>You need to provide a second factor to access this route.</source>
-        <note>src/auth/2fa/two-factor.service.ts:419</note>
+        <note>src/auth/2fa/two-factor.service.ts:424</note>
       </trans-unit>
       <trans-unit id="Your email address was changed" xml:space="preserve">
         <source>Your email address was changed</source>
-        <note>src/auth/email-verification/email-verification.service.ts:171</note>
+        <note>src/auth/email-verification/email-verification.service.ts:181</note>
       </trans-unit>
       <trans-unit id="Your second factor is locked after too many wrong codes. Use a recovery code, or have it reset." xml:space="preserve">
         <source>Your second factor is locked after too many wrong codes. Use a recovery code, or have it reset.</source>
@@ -1184,11 +1208,11 @@
       </trans-unit>
       <trans-unit id="Your verification code" xml:space="preserve">
         <source>Your verification code</source>
-        <note>src/auth/2fa/methods/code/email.two-factor-method.ts:48</note>
+        <note>src/auth/2fa/methods/code/email.two-factor-method.ts:46</note>
       </trans-unit>
       <trans-unit id="Your verification code is {$1}. It is valid for {$2} minutes." xml:space="preserve">
         <source>Your verification code is <x id="$1" equiv-text="{$1}"/>. It is valid for <x id="$2" equiv-text="{$2}"/> minutes.</source>
-        <note>src/auth/2fa/methods/code/email.two-factor-method.ts:45, src/auth/2fa/methods/code/sms.two-factor-method.ts:96</note>
+        <note>src/auth/2fa/methods/code/email.two-factor-method.ts:43, src/auth/2fa/methods/code/sms.two-factor-method.ts:96</note>
       </trans-unit>
     </body>
   </file>

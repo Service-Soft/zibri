@@ -1,6 +1,6 @@
 import { FindByIdOptions } from '../../data-source/models/options/find-by-id-options.model';
 import { USER_REPOSITORY } from '../../data-source/repository/repository-kind.model';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { BaseUser } from '../models/base-user.model';
 
 // methods rather than properties holding functions, so that a class extending one implementing it,
@@ -26,15 +26,15 @@ export interface UserRepositoryInterface<RoleType extends string, UserType exten
     /**
      * Stores when a user was deactivated, or null to reactivate them.
      */
-    updateDeactivatedAt(id: UserType['id'], deactivatedAt: Date | null, transaction: Transaction | undefined): Promise<void>,
+    updateDeactivatedAt(id: UserType['id'], deactivatedAt: Date | null, transaction: RepositoryTransaction | undefined): Promise<void>,
     /**
      * Stores the roles a user holds of their own.
      */
-    updateRoles(id: UserType['id'], roles: string[], transaction: Transaction | undefined): Promise<void>,
+    updateRoles(id: UserType['id'], roles: string[], transaction: RepositoryTransaction | undefined): Promise<void>,
     /**
      * Stores the email of a user, and when it was verified, or null while it is not.
      */
-    updateEmail(id: UserType['id'], email: string, emailVerifiedAt: Date | null, transaction: Transaction | undefined): Promise<void>
+    updateEmail(id: UserType['id'], email: string, emailVerifiedAt: Date | null, transaction: RepositoryTransaction | undefined): Promise<void>
 }
 /* eslint-enable typescript/method-signature-style */
 

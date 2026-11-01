@@ -6,7 +6,7 @@ import { validateInvoiceTotal } from './validate-invoice-total.function';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { PdfContentDefinition, PdfColumnDefinition, PdfDocument, PdfDocumentDefinition, PdfUtilities, PdfTableCellDefinition, PdfContentSize } from '../../../document/pdf.utilities';
+import { PdfContentDefinition, PdfColumnDefinition, PdfDocument, PdfDocumentDefinition, PdfUtilities, PdfTableCellDefinition, PdfContentSize, PdfPageSize } from '../../../document/pdf.utilities';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { type LocalizeServiceInterface } from '../../../localization/localize-service.interface';
 import { LocaleCode } from '../../../localization/models/locale-code.model';
@@ -48,13 +48,15 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
         invoice: Invoice,
         locale: LocaleCode,
         timezone: Timezone,
-        conformance?: InvoiceConformance
+        conformance?: InvoiceConformance,
+        pageSize?: PdfPageSize
     ): Promise<PdfDocument> {
         const documentDefinition: PdfDocumentDefinition = await this.generateInvoiceDocumentDefinition(
             invoice,
             conformance,
             locale,
-            timezone
+            timezone,
+            pageSize ?? this.options.pageSize
         );
         const doc: PdfDocument = PdfUtilities.create(documentDefinition, undefined);
         return doc;
@@ -66,13 +68,15 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
      * @param conformance - The legal conformance that the invoice should conform to.
      * @param locale - The locale that the invoice should be in.
      * @param timezone - The time zone the invoice's dates are read in, deciding which calendar day each lands on.
+     * @param pageSize - The size of the pages.
      * @returns The invoice document definition.
      */
     protected async generateInvoiceDocumentDefinition(
         invoice: Invoice,
         conformance: InvoiceConformance | undefined,
         locale: LocaleCode,
-        timezone: Timezone
+        timezone: Timezone,
+        pageSize: PdfPageSize = this.options.pageSize
     ): Promise<PdfDocumentDefinition> {
         await validateInvoiceTotal(invoice, this.invoiceCalcService, this.localizeService);
         const taxGroups: Vat[] = await this.getTaxGroups(invoice);
@@ -82,8 +86,9 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
             info: {
                 producer: company.fullName
             },
-            pageSize: 'A4',
+            pageSize,
             pageMargins: [40, 40, 40, 70],
+            defaultStyle: { font: this.options.font },
             attachments: [],
             version: '1.7',
             subset: 'PDF/A-3',

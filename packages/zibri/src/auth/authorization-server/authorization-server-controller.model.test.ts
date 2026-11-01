@@ -9,6 +9,7 @@ import { createFakeKeyPair, createInMemoryDataSource, FakeDpopKey, FakeKeyPair, 
 import { AuthorizationServerController } from './authorization-server-controller.model';
 import { IntrospectionResponse } from './introspection-response.model';
 import { TestTimeouts } from '../../__testing__/constants';
+import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
 import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
@@ -120,6 +121,13 @@ const roles: TestServerRole[] = defaultTestServerRoles
 // orphans allowed: a suite below starts with another authorization server in its place
 @Controller('/oauth2', { allowOrphan: true })
 class TestAuthorizationServerController extends AuthorizationServerController({ introspectionPermission: TOKENS_INTROSPECT, resources: [REPORTS] }) {}
+
+@Controller('/oauth2', { allowOrphan: true })
+class ShortLivedAuthorizationServerController extends AuthorizationServerController({
+    introspectionPermission: TOKENS_INTROSPECT,
+    resources: [REPORTS],
+    accessTokenExpiresInMs: Ms.MINUTE * 5
+}) {}
 
 /**
  * The authority client certificates are issued by, made before any application starts.
@@ -520,7 +528,7 @@ describe('AuthorizationServerController — starting', () => {
     it.each([
         [[JwtAuthStrategy, ApiKeyAuthStrategy], [ApiKey], 'The authStrategies hold 0'],
         [[ClientAccessTokenAuthStrategy, CompanyClientAccessTokenAuthStrategy], [ApiKey], 'The authStrategies hold 2'],
-        [[JwtAuthStrategy, ClientAccessTokenAuthStrategy], [], /AuthorizationServerController[\S\s]*ApiKey/]
+        [[JwtAuthStrategy, ClientAccessTokenAuthStrategy], [], missingEntityPattern('ApiKey', 'AuthorizationServerController')]
     ])('refuses to start without one strategy issuing the tokens of clients, or without its clients (%#)', async (strategies, entities, message) => {
         await expect(startApp([], entities, strategies)).rejects.toThrow(message);
     }, TestTimeouts.inMemory.start);
@@ -563,6 +571,27 @@ describe('AuthorizationServerController — starting', () => {
             expect(await body(introspected)).toMatchObject({ active: true, sub: user.id, scope: TestPlatformPermissions.USER });
             expect((await post('/revoke', [['token', token]])).status).toBe(200);
             expect((await callWith('/me', token)).status).toBe(401);
+        }
+        finally {
+            await server.shutdown();
+        }
+    }, TestTimeouts.inMemory.start);
+
+    // evaluation/round-2/12-hardcoded-values.md §A3: a client's token lasted as long as a login's
+    it('issues tokens that last as long as the authorization server says, apart from the tokens of logins', async () => {
+        server = await startApp([], [ApiKey], ALL_STRATEGIES, [], ShortLivedAuthorizationServerController);
+        try {
+            baseUrl = await server.start();
+            const res: Response = await requestToken(await createKey(await createUser('short-lived')));
+            const answer: OAuth2Answer = await body(res);
+            const payload: unknown = JwtUtilities.findUnverifiedPayload(String(answer['access_token']));
+            const lifetimeInSeconds: number | undefined = typeof payload === 'object' && payload != null && 'exp' in payload && 'iat' in payload
+                && typeof payload.exp === 'number' && typeof payload.iat === 'number'
+                ? payload.exp - payload.iat
+                : undefined;
+
+            expect(answer['expires_in']).toBe(300);
+            expect(lifetimeInSeconds).toBe(300);
         }
         finally {
             await server.shutdown();
@@ -833,6 +862,24 @@ describe('AuthorizationServerController — access tokens that work until they e
         // a key with a secret proves itself by its secret only
         const secretKey: CreatedApiKey = await createKey(user);
         expect((await requestTokenWithAssertion(await signAssertion(privateKey, secretKey.apiKey.id, issuer()))).status).toBe(401);
+    });
+
+    // evaluation/round-2/12-hardcoded-values.md §A1: a client's clock a second behind the application's
+    // had its jwts refused
+    it('takes a jwt the client\'s clock calls valid within the accepted skew, and refuses one past it', async () => {
+        const user: JwtUser = await createUser('skewed');
+        const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+        const apiKey: ApiKey = await authService().createApiKey(user.id, {
+            name: 'skewed',
+            permissions: [TestPlatformPermissions.USER],
+            expiresAt: undefined,
+            tenantId: undefined,
+            clientAuthentication: { method: ApiKeyAuthenticationMethod.PRIVATE_KEY_JWT, publicKey: publicKey.export({ type: 'spki', format: 'pem' }).toString() },
+            requireDpop: false
+        }, undefined);
+
+        expect((await requestTokenWithAssertion(await signAssertion(privateKey, apiKey.id, issuer(), -30))).status).toBe(200);
+        expect((await requestTokenWithAssertion(await signAssertion(privateKey, apiKey.id, issuer(), -90))).status).toBe(401);
     });
 
     it('issues a token to a client signing a jwt with a key it publishes at a url', async () => {

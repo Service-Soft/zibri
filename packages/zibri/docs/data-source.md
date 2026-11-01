@@ -33,7 +33,7 @@ side.
 | `QueryFailedError`, `FailedStatement` | error, type | A SQL query that failed, and what it is described by |
 | `UniqueConstraintViolationError` | error | Thrown when a write takes a value a unique key already holds. Answers 409 over HTTP |
 | `CheckConstraintViolationError` | error | Thrown when a write breaks a check of its entity. Answers 400 over HTTP, with the check as its problem |
-| `UnboundedReturnError` | error | Thrown when `updateAll` or `deleteAll` is asked to return more than 10,000 rows. Nothing is written |
+| `UnboundedReturnError` | error | Thrown when `updateAll` or `deleteAll` is asked to return more rows than the data source's `maxRowsWithoutLimit`, 10,000 by default. Nothing is written |
 | `BaseEntity` | class | Base class entities must extend, defines an id property |
 | `BaseTenantEntity`, `TenantRow` | function, type | `BaseEntity`, or the `SoftDeleteEntity` or `ChangeSetEntity` it is given, with the uuid `tenantId`, for an entity whose rows each belong to a [tenant](./glossary.md#tenant) |
 | `ChangeSetOnlyEntityClass` | type | `ChangeSetEntity`, or a class extending it that does not [soft delete](./glossary.md#soft-delete), as the bases take it |
@@ -105,6 +105,9 @@ side.
 | `TransactionConflictError`, `TransactionSerializationError` | error, error | Thrown when a transaction was ended for a conflict with another one, and that conflict for a `REPEATABLE READ` or `SERIALIZABLE` transaction whose rows changed meanwhile. Nothing it wrote is applied |
 | `KeyDeclarationsChangedError` | error | Thrown at the commit of a transaction after the indexes or uniques of an entity it wrote changed. Nothing it wrote is applied |
 | `TransactionAlreadyFinishedError` | error | Thrown when a transaction is used after its commit or rollback |
+| `SpanningTransaction` | class | One transaction across every data source its writes reach, which repositories take |
+| `SpanningTransactionCommitError`, `SpanningTransactionRestoreFailure` | error, type | Thrown when a spanning transaction could not commit in one of its data sources, once its writes are undone, and a data source whose restore failed |
+| `RepositoryTransaction` | type | What a repository takes as its transaction: one of its data source, or a spanning one |
 | `Migration` | class | Base class to extend when defining a migration |
 | `SemVerVersion` | type | Version type used for `Migration.version` |
 | `MigrationEntity` | entity | The migrations a data source has run |
@@ -677,8 +680,8 @@ async function findExisting(): Promise<Task | undefined> {
 
 The return type follows the flag.
 
-A `findAll` that names no limit throws when more than ten thousand rows match. Name the limit you
-want:
+A `findAll` that names no limit throws when more than ten thousand rows match, or the
+`maxRowsWithoutLimit` your data source sets. Name the limit you want:
 
 ```ts
 // src/services/task.functions.ts
@@ -1920,9 +1923,10 @@ this way.
 
 A transaction that reaches neither a commit nor a rollback is rolled back once it has sat idle for
 ten seconds: everything it held is handed back, its `afterFinish` work runs as for any rollback, and a
-later `commit` throws a `TransactionAlreadyFinishedError`. The clock runs from the last thing it did, so a
-transaction that keeps working keeps its full allowance however long it runs. A transaction that
-waits on something slow between two of its writes says so when it starts:
+later `commit` throws a `TransactionAlreadyFinishedError`. The clock runs from its start and from the last
+thing it did, so a transaction that keeps working keeps its full allowance however long it runs. Override
+`transactionIdleTimeoutInMs` on your data source to give each of its transactions another allowance. A
+transaction that waits on something slow between two of its writes says so when it starts:
 
 ```ts
 // src/services/task.functions.ts
@@ -1938,6 +1942,76 @@ async function startPatientTransaction(): Promise<Transaction> {
 ```
 
 Set it to `0` for a transaction that may sit idle for as long as it likes.
+
+A transaction that is still open when the application shuts down is rolled back as its data source
+shuts down, and logged as an error.
+
+## Writing to several data sources in one transaction
+A `SpanningTransaction` is one transaction across every data source its writes reach. Repositories take
+it wherever they take a transaction:
+
+```ts
+// src/services/task-closing.functions.ts
+import { Repository, SpanningTransaction } from 'zibri';
+
+import { Comment, Task, TaskCreateData, TaskUpdateData } from '../models';
+
+async function closeTask(
+    taskRepository: Repository<Task, TaskCreateData, TaskUpdateData>,
+    commentRepository: Repository<Comment>,
+    taskId: string
+): Promise<void> {
+    const transaction: SpanningTransaction = new SpanningTransaction();
+    try {
+        await taskRepository.updateById(taskId, { status: 'done' }, { transaction });
+        await commentRepository.create({ taskId, text: 'Closed' }, { transaction });
+        await transaction.commit();
+    }
+    catch (error) {
+        await transaction.rollback();
+        throw error;
+    }
+}
+```
+
+Each data source gets a transaction of its own once a repository of it first reads or writes through
+the spanning one. It is started with the options you give `new SpanningTransaction()`, the same
+`StartTransactionOptions` `startTransaction` takes. Each one reads what was written through it before
+the commit.
+
+`commit` commits them one after the other: the data sources reached after the first in the order they
+were reached, and the first one last. When one fails, the transaction is undone everywhere: the data
+sources that had not committed yet are rolled back, the ones that had are restored to the rows they
+held before, and `commit` throws a
+`SpanningTransactionCommitError`. Its `dataSourceName` names the data source that failed, and its
+`restoreFailures` every data source whose restore failed, where the rows stay as the transaction wrote
+them. A property that held no value before is restored as `null`.
+
+The data source reached first is never restored, so it costs what a transaction of its own costs. In
+every other one, a write reads the rows it changes first, so that they can be restored.
+
+Work added with `afterCommit` runs once every data source has committed, and never when the writes were
+undone. Work added with `afterFinish` runs once the transaction has ended, told whether it committed
+everywhere.
+
+The [auth routes](./auth-routes.md), [SCIM](./scim.md) provisioning and event hooks delivered
+[`'transactional'`](./events.md#choosing-how-a-hook-is-delivered) run in one. So a strategy,
+[authenticator](./glossary.md#authenticator), provisioner or hook of yours writes to whichever data source it keeps its rows in.
+
+Only repositories take a spanning transaction. A data source's own operations, such as a migration or
+a query written by hand, take a transaction of that data source. The repository of a
+[chained entity](./tamper-evident-tables.md#chaining-the-rows-of-each-tenant) takes none, since a row of
+a chain cannot be put back.
+
+> [!WARNING]
+> A restore writes back the rows as they were before the transaction, over whatever another writer
+> changed in them between the commit and the restore. A row the transaction created is removed, even
+> when another writer changed it meanwhile.
+
+> [!NOTE]
+> A data source refuses a spanning write to an entity whose writes change more than its own rows, such
+> as through a trigger or a foreign key your migrations add. Write such an entity in a transaction of
+> its data source.
 
 ## Handling migrations
 Migrations are listed on the data source, next to its entities: the `migrations` property on

@@ -39,7 +39,7 @@ beforeAll(async () => {
         controllers: [CorsTestController],
         // headers alone are asserted, so no store has to be running
         dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })],
-        security: { cors: { origins: [allowedOrigin], credentials: true } }
+        security: { cors: { origins: [allowedOrigin], credentials: true, additionalExposedHeaders: ['x-request-cost'] } }
     });
     baseUrl = await server.start();
 }, TestTimeouts.inMemory.start);
@@ -84,6 +84,20 @@ describe('corsMiddleware', () => {
         expect(exposedHeaders).toContain('x-csrf-token');
         expect(exposedHeaders).toContain(KnownHeader.TRACERESPONSE);
         expect(exposedHeaders).toContain(KnownHeader.DPOP_NONCE);
+    });
+
+    it('lets a page read when to try again, the name of a download and the application\'s own headers', async () => {
+        const res: Response = await fetch(`${baseUrl}/cors-test`, { headers: { [KnownHeader.ORIGIN]: allowedOrigin } });
+
+        const exposedHeaders: string[] = (res.headers.get(KnownHeader.ACCESS_CONTROL_EXPOSE_HEADERS) ?? '').split(', ');
+        expect(exposedHeaders).toEqual(expect.arrayContaining([
+            KnownHeader.X_RATE_LIMIT_LIMIT,
+            KnownHeader.X_RATE_LIMIT_REMAINING,
+            KnownHeader.X_RATE_LIMIT_RESET,
+            KnownHeader.RETRY_AFTER,
+            KnownHeader.CONTENT_DISPOSITION,
+            'x-request-cost'
+        ]));
     });
 
     it('does not tell a browser that an unlisted origin may read the response', async () => {

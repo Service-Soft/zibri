@@ -41,6 +41,7 @@ import { Controller } from '../../../routing/decorators/controller.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
 import { JsonUtilities } from '../../../utilities/json.utilities';
+import { Ms } from '../../../utilities/ms';
 import { OtpTwoFactorMethod } from '../../2fa/methods/otp/otp.two-factor-method';
 import { PasskeyTwoFactorMethod } from '../../2fa/methods/passkey/passkey.two-factor-method';
 import { AuthController } from '../../auth-controller/auth-controller.model';
@@ -327,6 +328,23 @@ describe('PasskeyAuthenticator — logging in to cookies', () => {
 
         expect(res.status).toBe(200);
         expect((await read<CookieAuthData<string>>(res)).userId).toBe(registered.userId);
+    });
+
+    // evaluation/round-2/12-hardcoded-values.md §A2: the browser was given the library's 60 seconds
+    // while the challenge lived 5 minutes
+    it('gives the browser as long to answer as the challenge lives, in every ceremony', async () => {
+        const browser: TestBrowser = new TestBrowser(baseUrl, undefined);
+        const creation: PasskeyCreationOptions = await read(await post(browser, '/auth/registration/request', { name: 'timeout@example.com' }));
+        const login: PasskeyRequestOptions = await read(await post(browser, '/auth/login-options', {}));
+        const loggedIn: LoggedIn = await register(new FakePasskeyDevice({ synced: true }));
+        const secondFactor: PasskeyRequestOptions = await read(await post(
+            loggedIn.browser,
+            '/auth/2fa/request?method=passkey',
+            {},
+            { 'x-csrf-token': loggedIn.csrfToken }
+        ));
+
+        expect([creation.timeout, login.timeout, secondFactor.timeout]).toEqual([Ms.MINUTE * 5, Ms.MINUTE * 5, Ms.MINUTE * 5]);
     });
 
     it('counts a login with a passkey as a recent login', async () => {
