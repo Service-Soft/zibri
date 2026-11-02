@@ -38,6 +38,9 @@ const config = {
     // whole environment alive. `node scripts/find-retained-test-environments.mjs <files>` names what
     // does; this restarts a worker before whatever is left adds up
     workerIdleMemoryLimit: '1GB',
+    // with coverage, jest's own process received the sources of every module once per test file that
+    // loaded it, and kept them all until the run was done: past 4 GB for this suite
+    runner: '<rootDir>/__testing__/deduplicating-coverage.test-runner.ts',
     modulePathIgnorePatterns: ['tmp'],
     // coverage
     // collectCoverage: true,

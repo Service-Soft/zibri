@@ -36,6 +36,7 @@ Most changes start in four places:
 | `src/tsx.d.ts` | Declares the `chart.js?client` import the metrics charts run in the browser, see [running code in the browser](./templating.md#running-code-in-the-browser) |
 | `translations/` | The translation source the build extracts, see [providing translations](./localization.md#providing-translations) |
 | `.gitignore` | Keeps `node_modules`, `dist`, `.zibri` and `.env` out of version control |
+| `.gitattributes` | Checks every text file out with the line endings it was committed with, on every system, so `zi upgrade` recognizes a file the project did not change |
 
 ## Storing data
 

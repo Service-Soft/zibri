@@ -33,6 +33,8 @@ jobs:
             - run: npm ci
             - run: npm run build -w zibri-tsx
             - run: npm run build:prod -w zibri
+            # the sandbox's tests import it, and its types are read from what the build writes
+            - run: npm run build -w zibri-testing
             - run: npm run build -w zibri-cli
             - run: npm run lint
             # the tests included: the builds leave them out, and jest only transpiles them, so a type

@@ -187,6 +187,21 @@ describe('UpgradeCommand', () => {
         expect(await read('Dockerfile')).toBe(current);
     });
 
+    // git for windows checks text out with windows line endings unless the project says otherwise,
+    // and a file that differs from what was recorded in every line was taken for one the project changed
+    it('replaces a file the project never changed on a checkout that writes windows line endings', async () => {
+        const current: string = await read('Dockerfile');
+        await writeAsGenerated('Dockerfile', current.replace(BUILD_STAGE, 'FROM node:22-slim AS build'));
+        commitAll('zi new, an older one');
+        git('config', 'core.autocrlf', 'true');
+        await FsUtilities.rm(path.join(appDir, 'Dockerfile') as Path);
+        git('checkout', '--', 'Dockerfile');
+
+        await upgrade();
+
+        expect(await read('Dockerfile')).toBe(current);
+    });
+
     it('merges what the generator changed into a file the project changed elsewhere', async () => {
         const current: string = await read('Dockerfile');
         await writeAsGenerated('Dockerfile', current.replace(BUILD_STAGE, 'FROM node:22-slim AS build'));

@@ -1,0 +1,3 @@
+# every text file checked out with the line endings it was committed with, on every system: the cli
+# copies its templates into a project byte for byte, and its tests compare what it wrote with git
+* text=auto eol=lf

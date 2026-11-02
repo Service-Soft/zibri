@@ -1,6 +1,9 @@
 {
     "alwaysCreateEntryPointModule": false,
     "entryPoints": ["src/index.ts"],
+    "excludePrivate": true,
+    "excludeProtected": true,
+    "excludeReferences": true,
     "highlightLanguages": [
         "bash",
         "console",
@@ -17,9 +20,6 @@
         "xml",
         "yaml"
     ],
-    "excludePrivate": true,
-    "excludeProtected": true,
-    "excludeReferences": true,
     "intentionallyNotExported": [
         "AnyStrategyStringPropertyMetadata",
         "ArrayParamMetadata",
