@@ -1,9 +1,8 @@
-import { tmpdir } from 'node:os';
-
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { FormDataBodyParserCleanupCronJob } from './form-data-body-parser-cleanup.cron-job';
 import { CLEANUP_AT_FILE_NAME } from './form-data.model';
+import { testFileFolder } from '../../__testing__/constants';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { initDiContainer } from '../../di/init-di-container.function';
 import { inject } from '../../di/inject.function';
@@ -24,7 +23,7 @@ class TestCleanupCronJob extends FormDataBodyParserCleanupCronJob {
 }
 
 describe('FormDataBodyParserCleanupCronJob', () => {
-    const root: FsPath = FsUtilities.getPath(tmpdir(), `zibri-upload-cleanup-${process.pid}`);
+    const root: FsPath = FsUtilities.getPath(testFileFolder, `upload-cleanup-${UUIDUtilities.generate()}`);
 
     beforeAll(() => {
         initDiContainer();

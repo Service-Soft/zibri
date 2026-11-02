@@ -1,6 +1,5 @@
 import { IncomingMessage, Server, request as httpRequest } from 'node:http';
 import { AddressInfo } from 'node:net';
-import { tmpdir } from 'node:os';
 import { Readable } from 'node:stream';
 import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 
@@ -12,7 +11,7 @@ import { compressionMiddleware } from './compression.middleware';
 import { HttpMethod } from './http-method.enum';
 import { KnownHeader } from './known-header.enum';
 import { MimeType } from './mime-type.enum';
-import { TestTimeouts } from '../__testing__/constants';
+import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -20,6 +19,7 @@ import { initDiContainer } from '../di/init-di-container.function';
 import { inject } from '../di/inject.function';
 import { type RouterInterface } from '../routing/router.interface';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
+import { UUIDUtilities } from '../utilities/uuid.utilities';
 
 type RawResponse = { status: number, contentEncoding: string | undefined, body: Buffer };
 
@@ -66,7 +66,7 @@ describe('compressionMiddleware', () => {
     beforeAll(async () => {
         initDiContainer();
 
-        folder = FsUtilities.getPath(tmpdir(), `zibri-compression-${process.pid}`);
+        folder = FsUtilities.getPath(testFileFolder, `compression-${UUIDUtilities.generate()}`);
         await FsUtilities.createFile(FsUtilities.getPath(folder, 'large.txt'), largeBody);
 
         const app: Express = express();

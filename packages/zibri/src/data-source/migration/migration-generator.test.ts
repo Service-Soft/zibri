@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
@@ -10,7 +10,7 @@ import { EntitySnapshotUtilities } from './entity-snapshot.utilities';
 import { DATA_SOURCE_IMPORT, describeGeneratedMigrations, firstVersionEntities, GeneratedMigrations, generateMigrations, GenNote, loadGeneratedMigration, secondVersionEntities } from './migration-generator.cases';
 import { GeneratedMigration, MigrationGeneratorUtilities } from './migration-generator.utilities';
 import { Migration } from './migration.model';
-import { TestTimeouts } from '../../__testing__/constants';
+import { testFileFolder, TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
@@ -18,6 +18,7 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { DataSource } from '../decorators/data-source.decorator';
 import { RepositoryClass } from '../repository/repository-class.type';
 
@@ -76,9 +77,8 @@ describe('the code of generated migrations', () => {
     let workDir: string;
 
     beforeAll(() => {
-        const root: string = path.join(__dirname, '..', '..', '__testing__', 'file-output');
-        mkdirSync(root, { recursive: true });
-        workDir = mkdtempSync(path.join(root, 'generated-migrations-'));
+        workDir = path.join(testFileFolder, `generated-migrations-${UUIDUtilities.generate()}`);
+        mkdirSync(workDir, { recursive: true });
     });
 
     afterAll(() => {

@@ -1,8 +1,10 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import ts from 'typescript';
+
+import { UUIDUtilities } from '../utilities/uuid.utilities';
 
 /**
  * Whether every example in `docs/` is code a reader can actually use.
@@ -382,9 +384,8 @@ let program: ts.Program;
 describe('the examples in docs/', () => {
 
     beforeAll(() => {
-        const root: string = path.join(__dirname, '__testing__', 'file-output');
-        mkdirSync(root, { recursive: true });
-        workDir = mkdtempSync(path.join(root, 'docs-examples-'));
+        workDir = path.join(__dirname, '__testing__', 'file-output', `docs-examples-${UUIDUtilities.generate()}`);
+        mkdirSync(workDir, { recursive: true });
 
         for (const name of readdirSync(DOCS_DIR).filter(entry => entry.endsWith('.md'))) {
             const assembled: AssembledPage = assemblePage(readFileSync(path.join(DOCS_DIR, name), 'utf8'));

@@ -5,7 +5,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import { compileServerRender } from './render-codegen';
 import { parseTemplateOk } from '../../__testing__/parse.helper';
-import { collectTsxFiles } from '../../__testing__/sandbox.helper';
+import { collectTsxFiles, resolveTemplateName } from '../../__testing__/sandbox.helper';
 import { ComponentInfo, findComponents } from '../../semantics/component';
 import { eraseTypes } from '../erase-types';
 
@@ -14,7 +14,7 @@ const templatesDir: string = join(__dirname, '..', '..', '..', '..', 'sandbox', 
 describe('server codegen against real sandbox templates', () => {
     const files: string[] = collectTsxFiles(templatesDir);
 
-    it.each(files.map(f => [f.split('/templates/')[1], f] as const))(
+    it.each(files.map(f => [resolveTemplateName(templatesDir, f), f] as const))(
         'generates syntactically valid JS for %s',
         (_name, file) => {
             const components: ComponentInfo[] = findComponents(parseTemplateOk(readFileSync(file, 'utf8')));

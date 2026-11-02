@@ -1,7 +1,7 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { defineProvider, DiProvider, FsPath, ZIBRI_DI_TOKENS } from 'zibri';
+import { defineProvider, DiProvider, FsPath, UUIDUtilities, ZIBRI_DI_TOKENS } from 'zibri';
 
 /**
  * A translation source with nothing in it: what the build writes for an application that marks no
@@ -29,8 +29,8 @@ const scratchRoot: FsPath = path.join(process.cwd(), 'src', '__testing__', 'file
  * @returns The directory, which the caller owns and is responsible for removing.
  */
 export function createScratchDirectory(): FsPath {
-    mkdirSync(scratchRoot, { recursive: true });
-    const scratchPath: FsPath = mkdtempSync(path.join(scratchRoot, 'server-')) as FsPath;
+    const scratchPath: FsPath = path.join(scratchRoot, `server-${UUIDUtilities.generate()}`) as FsPath;
+    mkdirSync(scratchPath, { recursive: true });
     // the directory stands in for a project, and a project has this folder: it is checked in rather
     // than produced by a run, so the application refuses to start when it is missing instead of
     // treating the version it is on as the first that ever existed

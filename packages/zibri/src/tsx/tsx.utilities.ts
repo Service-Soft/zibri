@@ -25,9 +25,8 @@ export abstract class TsxUtilities {
      * ```ts
      * TsxUtilities.renderEmail(TestEmail, { recipient: 'James Smith' });
      * ```
-     * @param args - Component and props.
-     * @param args.component - The function component to render.
-     * @param args.props - The properties to pass into the component.
+     * @param args - The function component to render, followed by the properties to pass into it
+     * when it takes any.
      * @returns The fully rendered html.
      */
     static renderEmail<T = {}>(
@@ -51,9 +50,8 @@ export abstract class TsxUtilities {
      * ```ts
      * TsxUtilities.renderPage(TestPage, { initialCount: 1 });
      * ```
-     * @param args - Component and props.
-     * @param args.component - The function component to render.
-     * @param args.props - The properties to pass into the component.
+     * @param args - The function component to render, followed by the properties to pass into it
+     * when it takes any.
      * @returns The fully rendered html string, with the client script attached in a script tag.
      */
     static renderPage<T = {}>(

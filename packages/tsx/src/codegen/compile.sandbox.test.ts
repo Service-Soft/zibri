@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from '@jest/globals';
 
 import { compile, CompileResult } from './compile';
-import { collectTsxFiles } from '../__testing__/sandbox.helper';
+import { collectTsxFiles, resolveTemplateName } from '../__testing__/sandbox.helper';
 import { collectClientGlobalAliasesFromSource } from '../semantics/client-packages';
 import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols';
 
@@ -13,7 +13,7 @@ const templatesDir: string = join(__dirname, '..', '..', '..', 'sandbox', 'src',
 describe('compile against real sandbox templates', () => {
     const files: string[] = collectTsxFiles(templatesDir);
 
-    it.each(files.map(f => [f.split('/templates/')[1], f] as const))(
+    it.each(files.map(f => [resolveTemplateName(templatesDir, f), f] as const))(
         'emits a valid module for %s',
         (_name, file) => {
             const result: CompileResult = compile(readFileSync(file, 'utf8'));
@@ -27,7 +27,7 @@ describe('compile against real sandbox templates', () => {
         }
     );
 
-    it.each(files.map(f => [f.split('/templates/')[1], f] as const))(
+    it.each(files.map(f => [resolveTemplateName(templatesDir, f), f] as const))(
         'binds every renamed ?client import used by the client script of %s',
         (_name, file) => {
             const source: string = readFileSync(file, 'utf8');
@@ -42,7 +42,7 @@ describe('compile against real sandbox templates', () => {
         }
     );
 
-    it.each(files.map(f => [f.split('/templates/')[1], f] as const))(
+    it.each(files.map(f => [resolveTemplateName(templatesDir, f), f] as const))(
         'wires every function prop of %s from the server render to the client factory',
         (_name, file) => {
             const result: CompileResult = compile(readFileSync(file, 'utf8'));
@@ -55,7 +55,7 @@ describe('compile against real sandbox templates', () => {
         }
     );
 
-    it.each(files.map(f => [f.split('/templates/')[1], f] as const))(
+    it.each(files.map(f => [resolveTemplateName(templatesDir, f), f] as const))(
         'keeps the client behavior of %s after filtering server-only code out',
         (_name, file) => {
             const result: CompileResult = compile(readFileSync(file, 'utf8'));
@@ -70,7 +70,7 @@ describe('compile against real sandbox templates', () => {
     it('finds the function props the sandbox actually passes between components', () => {
         // Guards the checks above against passing simply because nothing was collected.
         const sites: [string, string][] = files.flatMap(file => (compile(readFileSync(file, 'utf8')).client?.clientPropSites ?? [])
-            .map(site => [file.split('/templates/')[1], site.name] as [string, string]));
+            .map(site => [resolveTemplateName(templatesDir, file), site.name] as [string, string]));
 
         expect(sites).toContainEqual(['pages/metrics/network-chart.tsx', 'updateChart']);
         // A chart config holds a tick `callback`, which serializing would silently drop - so the

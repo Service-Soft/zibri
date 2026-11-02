@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -13,8 +14,10 @@ const appRoot: string = path.join(__dirname, '..', '..', '..', 'sandbox');
 const tempDirs: string[] = [];
 
 async function outDir(): Promise<string> {
-    const dir: string = path.join(testFileFolder, `zibri-tsx-vendor-${Date.now()}`);
-    await mkdir(dir);
+    // named by a uuid rather than by the time: two calls in one millisecond were handed the same
+    // folder. Recursive, since file-output is git ignored and a fresh checkout has none
+    const dir: string = path.join(testFileFolder, `zibri-tsx-vendor-${randomUUID()}`);
+    await mkdir(dir, { recursive: true });
     tempDirs.push(dir);
     return dir;
 }
@@ -31,7 +34,7 @@ afterAll(async () => {
  * @returns The application root to resolve from.
  */
 async function appWithPackage(packageName: string, manifest: Record<string, unknown>, files: Record<string, string>): Promise<string> {
-    const root: string = path.join(testFileFolder, `zibri-tsx-vendor-app-${Date.now()}-${packageName}`);
+    const root: string = path.join(testFileFolder, `zibri-tsx-vendor-app-${randomUUID()}`);
     tempDirs.push(root);
     const packageDir: string = path.join(root, 'node_modules', packageName);
     await mkdir(packageDir, { recursive: true });

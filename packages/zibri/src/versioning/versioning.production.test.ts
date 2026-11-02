@@ -1,5 +1,4 @@
-import { mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
-import path from 'node:path';
+import { mkdirSync, readdirSync, rmSync } from 'node:fs';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
@@ -11,12 +10,13 @@ import { StartedTestServer, startTestServer } from '../__testing__/test-server/s
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { defineProvider } from '../di/models/di-provider.model';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { UUIDUtilities } from '../utilities/uuid.utilities';
 
 let emptyVersions: FsPath;
 
 beforeAll(() => {
-    mkdirSync(testFileFolder, { recursive: true });
-    emptyVersions = FsUtilities.getPath(mkdtempSync(path.join(testFileFolder, 'versions-production-')));
+    emptyVersions = FsUtilities.getPath(testFileFolder, `versions-production-${UUIDUtilities.generate()}`);
+    mkdirSync(emptyVersions, { recursive: true });
 });
 
 afterAll(() => {

@@ -1,11 +1,12 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { optionalPeer } from './optional-peer.function';
+import { UUIDUtilities } from './uuid.utilities';
+import { testFileFolder } from '../__testing__/constants';
 
 /**
  * What the context peer exports: a function running a callback in the context the peer loaded in.
@@ -20,7 +21,8 @@ describe('optionalPeer', () => {
     let contextPeer: string;
 
     beforeAll(() => {
-        directory = mkdtempSync(path.join(tmpdir(), 'optional-peer-'));
+        directory = path.join(testFileFolder, `optional-peer-${UUIDUtilities.generate()}`);
+        mkdirSync(directory, { recursive: true });
         // a peer that is there and fails as it loads, the way an es module only package does in a
         // runtime that cannot load it
         brokenPeer = path.join(directory, 'broken-peer.js');
