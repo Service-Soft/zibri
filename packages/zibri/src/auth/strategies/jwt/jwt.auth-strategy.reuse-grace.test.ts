@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/glob
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { JwtAuthOptionsInput } from './jwt-auth-options.model';
+import { JwtRefreshToken } from './jwt-refresh-token.model';
 import { JwtAuthStrategy } from './jwt.auth-strategy';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
@@ -17,10 +18,12 @@ import { repositoryTokenFor } from '../../../di/decorators/inject-repository.dec
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { defineProvider } from '../../../di/models/di-provider.model';
+import { PropertyMetadata } from '../../../entity/decorators/property.decorator';
 import { AuditAction, AuditEvent, AuditReason } from '../../../logging/audit-event.model';
 import { Log } from '../../../logging/log.model';
 import { type LoggerInterface } from '../../../logging/logger.interface';
 import { JsonUtilities } from '../../../utilities/json.utilities';
+import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../authenticators/password/password-credentials.model';
 
 const PASSWORD: string = 'correct horse battery staple';
@@ -157,5 +160,16 @@ describe('JwtAuthStrategy - a replaced refresh token within the grace', () => {
         expect(res.status).toBe(200);
 
         expect((await refresh(successor)).status).toBe(401);
+    });
+});
+
+describe('JwtRefreshToken', () => {
+    // a refresh token is a live login, so a backup, a replica or a support query would otherwise hold
+    // one for every user
+    it('keeps its value hashed', () => {
+        const props: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(JwtRefreshToken);
+
+        expect(props['value']).toMatchObject({ hash: expect.anything() });
+        expect(props['value']).not.toMatchObject({ hash: false });
     });
 });

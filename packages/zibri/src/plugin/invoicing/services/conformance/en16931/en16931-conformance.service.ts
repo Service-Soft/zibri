@@ -324,10 +324,9 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
     }
 
     private getCustomerName(invoice: Invoice): string {
-        if (invoice.customerAddressData.company && invoice.customerAddressData.companyName) {
-            return invoice.customerAddressData.companyName;
-        }
-        return `${invoice.customerAddressData.firstName} ${invoice.customerAddressData.lastName}`;
+        return invoice.customerAddressData.company && invoice.customerAddressData.companyName
+            ? invoice.customerAddressData.companyName
+            : `${invoice.customerAddressData.firstName} ${invoice.customerAddressData.lastName}`;
     }
 
     /**

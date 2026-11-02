@@ -149,16 +149,15 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async deleteExpiredFailedEmails(): Promise<number> {
-        if (this.config.failedRetentionInMs === 'forever') {
-            return 0;
-        }
-        // counted from when the mail was queued, which no row lacks: a mail fails within minutes of
-        // that unless the queue is backed up, and a retention is counted in days
-        return await this.emailRepository.deleteAll(
-            { status: EmailStatus.FAILED, createdAt: { before: new Date(Date.now() - this.config.failedRetentionInMs) } },
-            // the queue is every tenant's, for the reason findMails reads that way
-            { acrossTenants: true }
-        );
+        return this.config.failedRetentionInMs === 'forever'
+            ? 0
+            // counted from when the mail was queued, which no row lacks: a mail fails within minutes of
+            // that unless the queue is backed up, and a retention is counted in days
+            : await this.emailRepository.deleteAll(
+                { status: EmailStatus.FAILED, createdAt: { before: new Date(Date.now() - this.config.failedRetentionInMs) } },
+                // the queue is every tenant's, for the reason findMails reads that way
+                { acrossTenants: true }
+            );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

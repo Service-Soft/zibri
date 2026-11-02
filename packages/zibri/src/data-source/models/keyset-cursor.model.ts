@@ -47,7 +47,7 @@ function isKeysetCursorPayload(value: unknown): value is KeysetCursorPayload {
     if (typeof value !== 'object' || value == undefined) {
         return false;
     }
-    const candidate: Partial<KeysetCursorPayload> = value as Partial<KeysetCursorPayload>;
+    const candidate: Partial<KeysetCursorPayload> = value;
     return typeof candidate.order === 'string'
         && Array.isArray(candidate.values)
         && candidate.values.every(v => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean');

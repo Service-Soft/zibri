@@ -151,7 +151,12 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
         this.runtimeMetrics = new RuntimeMetrics(this.promClient, this.registry, 10);
 
         this.getCounter('http_requests_total', ['method', 'route', 'status_code']);
-        this.requestDuration = DurationHistogram.resolve(this, 'http_request_duration_seconds', ['method', 'route', 'status_code'], requestDurationBucketsInMs);
+        this.requestDuration = DurationHistogram.resolve(
+            this,
+            'http_request_duration_seconds',
+            ['method', 'route', 'status_code'],
+            requestDurationBucketsInMs
+        );
         this.getGauge('process_cpu_count').set({ }, os.availableParallelism());
     }
 

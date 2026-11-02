@@ -5,8 +5,8 @@ import { OmitStrict } from '../types/omit-strict.type';
 
 // One table for every grant in the framework rather than one per subsystem. A named lock over schema
 // setup, a claim on a scheduled execution, a claim on a queued mail and a claim on an event are the
-// same object with different keys - see evaluation/10-leases-and-claims.md, which found the same
-// three operations hand rolled in three places before this existed.
+// same object with different keys, and before this existed the same three operations were hand
+// rolled in three places.
 /**
  * A grant over one named thing, held by one instance at a time: a named lock, or a claim on a
  * scheduled execution, a queued mail or an event.

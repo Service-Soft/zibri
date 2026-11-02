@@ -285,7 +285,11 @@ export abstract class BaseOAuthAuthenticator<
             return;
         }
         await this.identityRepository.updateById(identity.id, { forLogin: false }, { transaction });
-        this.auditService.record({ action: AuditAction.IDENTITY_LOGIN_REVOKED, outcome: AuditOutcome.SUCCESS, userId: identity.userId }, transaction);
+        this.auditService.record({
+            action: AuditAction.IDENTITY_LOGIN_REVOKED,
+            outcome: AuditOutcome.SUCCESS,
+            userId: identity.userId
+        }, transaction);
     }
 
     /**
@@ -406,10 +410,9 @@ export abstract class BaseOAuthAuthenticator<
         }
         // what checking the answer found wrong with it: a claim, a signature, a state that is not the one
         // sent. What is left of the library's codes is a provider not answering in OAuth at all
-        if (error instanceof client.ClientError && error.code != undefined && ANSWER_REFUSED_CODES.has(error.code)) {
-            return FederatedLoginFailure.INVALID;
-        }
-        return FederatedLoginFailure.PROVIDER_ERROR;
+        return error instanceof client.ClientError && error.code != undefined && ANSWER_REFUSED_CODES.has(error.code)
+            ? FederatedLoginFailure.INVALID
+            : FederatedLoginFailure.PROVIDER_ERROR;
     }
 
     /**
@@ -617,7 +620,11 @@ export abstract class BaseOAuthAuthenticator<
     private async unlinkUnusedIdentity(identity: FederatedIdentity, transaction: RepositoryTransaction | undefined): Promise<void> {
         await this.unlinkIdentity(identity.userId, identity.id, transaction);
         // recorded here, since the unlink of AuthService that records it is not the one that ran
-        this.auditService.record({ action: AuditAction.IDENTITY_UNLINKED, outcome: AuditOutcome.SUCCESS, userId: identity.userId }, transaction);
+        this.auditService.record({
+            action: AuditAction.IDENTITY_UNLINKED,
+            outcome: AuditOutcome.SUCCESS,
+            userId: identity.userId
+        }, transaction);
     }
 
     /**

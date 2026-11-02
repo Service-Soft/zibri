@@ -84,7 +84,7 @@ describe('BackupService — a resource with a name of its own', () => {
         await FsUtilities.rm(escapedFolder);
     }, 30000);
 
-    // evaluation round 2, 02 §S15: the name is a path segment on every transport, so `../` stored a
+    // the name is a path segment on every transport, so `../` stored a
     // backup outside the folder the transport was given, and a delete removed it there
     it('refuses a name that is not one segment of a path', async () => {
         const backupService: BackupServiceInterface = getBackupService();

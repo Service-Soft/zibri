@@ -20,7 +20,7 @@ function createReq(cookieHeader: string | undefined): Request {
 function invoke(secret: string | undefined, cookieHeader: string | undefined): Request {
     const req: Request = createReq(cookieHeader);
     const next: jest.Mock = jest.fn();
-    cookieMiddleware(secret)(req, {} as Response, next as unknown as () => void);
+    cookieMiddleware(secret)(req, {} as Response, next);
     expect(next).toHaveBeenCalledTimes(1);
     return req;
 }

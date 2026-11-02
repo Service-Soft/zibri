@@ -349,7 +349,7 @@ async function findTablesWithRows(userId: string, indirect: IndirectRows): Promi
  * A user deleted for good is gone with everything the framework kept for them: their password hash,
  * their second factors, passkeys, api keys, identities at providers and directories with the tokens
  * kept for them, and their sessions. A delete removed their memberships and left every other row
- * behind, growing with each user ever deleted and keeping their personal data (04 §A18).
+ * behind, growing with each user ever deleted and keeping their personal data.
  */
 describe('deleting a user', () => {
     let server: StartedTestServer;

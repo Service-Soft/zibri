@@ -62,7 +62,7 @@ describe('generateSourceXlf', () => {
         expect(content).toContain('second version');
     });
 
-    // 07 §T8: the framework's strings ship as a source.xlf of its own, and a build of the
+    // the framework's strings ship as a source.xlf of its own, and a build of the
     // application takes them from there rather than scanning the framework's sources again
     it('takes the strings of an origin whose source.xlf ships with it as they are, scanning nothing of it', async () => {
         const shippedRoot: FsPath = FsUtilities.getPath(workDir, 'shipped');

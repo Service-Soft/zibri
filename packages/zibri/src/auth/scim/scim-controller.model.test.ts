@@ -422,7 +422,7 @@ describe('ScimController', () => {
         expect(second.body).toMatchObject({ totalResults: 2, startIndex: 2, itemsPerPage: 1, Resources: [{ userName: 'page-2@corp.test' }] });
     });
 
-    // 09 §Q7: the most a list answers was a constant of the service, which no application could lower
+    // the most a list answers was a constant of the service, which no application could lower
     it('answers a list with at most as many resources as the controller allows, and says so', async () => {
         await provisionUser('small-1@corp.test');
         await provisionUser('small-2@corp.test');

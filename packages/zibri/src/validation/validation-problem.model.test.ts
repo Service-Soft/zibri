@@ -54,7 +54,7 @@ describe('validation problems', () => {
         expect(problem.message).toContain(MimeType.PNG);
     });
 
-    // part of evaluation round 2, 03 §H7: it carried a TypeScript example naming the entity's classes,
+    // it carried a TypeScript example naming the entity's classes,
     // which reached every caller
     it('RelationsNotAllowedValidationProblem says that a relation cannot be written, and nothing more', () => {
         const problem: RelationsNotAllowedValidationProblem = new RelationsNotAllowedValidationProblem('target');

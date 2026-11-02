@@ -9,7 +9,7 @@ import { Get } from '../../routing/decorators/get.decorator';
 /**
  * A route names one permission. The decorator stores a single one, so a second on the same route or
  * controller replaced the first without a word: written as "this and that", it checked only one of
- * the two (08 §X18).
+ * the two.
  */
 describe('a permission decorator', () => {
 

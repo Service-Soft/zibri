@@ -64,8 +64,7 @@ export abstract class OperationLimitUtilities {
         }
 
         // a signal and no race, unlike a handler's deadline (RequestDeadlineUtilities): the work keeps
-        // running until it asks a store for something next, which refuses it (round 2's code review
-        // 03 §Q6)
+        // running until it asks a store for something next, which refuses it
         const controller: AbortController = new AbortController();
         const timer: NodeJS.Timeout = setTimeout(
             () => controller.abort(new InternalError(`${subject} took longer than the ${timeoutInMs}ms it was given.`)),

@@ -11,7 +11,7 @@ import { Path } from '../../utilities';
 import { RemoveCommand } from '../remove/remove.command';
 
 /**
- * Adding a feature to a project generated without it (round-2 08 §X14), the way `zi upgrade` brings
+ * Adding a feature to a project generated without it, the way `zi upgrade` brings
  * a release: its files are written, and its lines are merged into the files the project changed.
  */
 

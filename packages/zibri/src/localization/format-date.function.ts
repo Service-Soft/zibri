@@ -79,7 +79,7 @@ export function getZonedDate(date: Date, timezone: Timezone): ZonedDate {
     }
 
     const year: number = Number(parts['year']);
-    const month: Month = Number(parts['month']) - 1 as Month;
+    const month: Month = Number(parts['month']) - 1;
     const day: number = Number(parts['day']);
 
     return {
@@ -87,7 +87,7 @@ export function getZonedDate(date: Date, timezone: Timezone): ZonedDate {
         month: month,
         day: day,
         // the weekday of the zoned calendar date, read back through UTC so that no second zone shifts it again
-        weekday: new Date(Date.UTC(year, month, day)).getUTCDay() as Weekday,
+        weekday: new Date(Date.UTC(year, month, day)).getUTCDay(),
         hours: Number(parts['hour']),
         minutes: Number(parts['minute']),
         seconds: Number(parts['second'])

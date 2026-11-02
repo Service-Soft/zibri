@@ -511,12 +511,11 @@ export class ValKeyTransaction implements Transaction {
             return undefined;
         }
 
-        if (!removed?.size) {
-            return { ...kept, ...buffered };
-        }
-        return Object.fromEntries(
-            Object.entries({ ...kept, ...buffered }).filter(([field]) => !removed.has(field))
-        );
+        return !removed?.size
+            ? { ...kept, ...buffered }
+            : Object.fromEntries(
+                Object.entries({ ...kept, ...buffered }).filter(([field]) => !removed.has(field))
+            );
     }
 
     /**
@@ -604,7 +603,7 @@ export class ValKeyTransaction implements Transaction {
         const release: ValKeyGrantRelease = this.grants.resolveRelease();
         // through the guard script with nothing guarded too, rather than as an atomic batch: one path
         // for every commit, and measured at half the time of the batch from a thousand rows up
-        // (apply-guarded-val-key-writes.benchmark.test.ts, round 2's code review 02 §Q6)
+        // (apply-guarded-val-key-writes.benchmark.test.ts)
         if (!await applyGuardedValKeyWrites(this.client, { values: this.guards, hashes: new Map() }, this.writes, release)) {
             throw new KeyDeclarationsChangedError();
         }

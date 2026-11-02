@@ -33,7 +33,7 @@ export const isNotLoggedInDecorator: IsNotLoggedInFn = ((allowedStrategies?: Aut
     };
     return decorator;
 }) as IsNotLoggedInFn;
-isNotLoggedInDecorator.skip = () => ((
+isNotLoggedInDecorator.skip = () => (
     target: Object,
     propertyKey?: string | symbol
 ) => {
@@ -43,4 +43,4 @@ isNotLoggedInDecorator.skip = () => ((
     else {
         MetadataUtilities.setControllerSkipIsNotLoggedIn(target as Function, {});
     }
-}) as MethodDecorator & ClassDecorator;
+};

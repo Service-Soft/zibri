@@ -17,10 +17,12 @@ import { repositoryTokenFor } from '../../../di/decorators/inject-repository.dec
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { defineProvider } from '../../../di/models/di-provider.model';
+import { PropertyMetadata } from '../../../entity/decorators/property.decorator';
 import { AuditAction, AuditReason } from '../../../logging/audit-event.model';
 import { Controller } from '../../../routing/decorators/controller.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
 import { JsonUtilities } from '../../../utilities/json.utilities';
+import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../authenticators/password/password-credentials.model';
 import { Auth } from '../../decorators/auth.decorator';
 import { CurrentUser } from '../../decorators/current-user.decorator';
@@ -148,5 +150,20 @@ describe('CookieAuthStrategy - a session sent without its csrf token', () => {
         });
 
         expect(res.status).toBe(200);
+    });
+});
+
+describe('CookieAuthSession and CookieAuthRefreshSession', () => {
+    // a cookie carrying the primary key cannot be hashed, so a backup, a replica or a support query
+    // would hold a working login for every session in the tables
+    it('keep what the session cookies carry hashed, and no csrf token at all', () => {
+        const sessionProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(CookieAuthSession);
+        const refreshProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(CookieAuthRefreshSession);
+
+        expect(sessionProps['token']).toMatchObject({ hash: expect.anything() });
+        expect(sessionProps['token']).not.toMatchObject({ hash: false });
+        expect(refreshProps['token']).toMatchObject({ hash: expect.anything() });
+        expect(refreshProps['token']).not.toMatchObject({ hash: false });
+        expect(refreshProps['csrfToken']).toBeUndefined();
     });
 });

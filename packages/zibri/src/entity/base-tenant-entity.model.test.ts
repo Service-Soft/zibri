@@ -25,7 +25,7 @@ class Note extends BaseTenantEntity() {
 
 /**
  * A note per tenant that soft deletes, declared through the base alone: the tenant base extended
- * `BaseEntity`, so an entity that soft deleted declared `tenantId` itself (08 §X28).
+ * `BaseEntity`, so an entity that soft deleted declared `tenantId` itself.
  */
 @Entity()
 class ArchivedNote extends BaseTenantEntity(SoftDeleteEntity) {

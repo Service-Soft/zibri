@@ -67,6 +67,81 @@ class TestMultiTierCache extends MultiTierCache<string, number, [FastCache, Slow
     }
 }
 
+/**
+ * The key an ordinary key provider builds: derived from the arguments, and a new object every call.
+ */
+type ObjectKey = {
+    /** Who the value belongs to. */
+    userId: string,
+    /** Which tenant they were read for. */
+    tenantId: string
+};
+
+@Cache()
+class ObjectKeyTierCache extends WriteThroughReadThroughCache<ObjectKey, number, 'ObjectKeyTier'> {
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        protected readonly logger: LoggerInterface,
+        @Inject(ZIBRI_DI_TOKENS.CACHE_SERVICE)
+        protected readonly cacheService: CacheServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.METRICS_SERVICE)
+        protected readonly metricsService: MetricsServiceInterface
+    ) {
+        super('ObjectKeyTier', new InMemoryCacheStore(), []);
+    }
+}
+
+@Cache()
+class ObjectKeyMultiTierCache extends MultiTierCache<ObjectKey, number, [ObjectKeyTierCache]> {
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        protected readonly logger: LoggerInterface,
+        @Inject(ZIBRI_DI_TOKENS.METRICS_SERVICE)
+        protected readonly metricsService: MetricsServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.CACHE_SERVICE)
+        protected readonly cacheService: CacheServiceInterface,
+        @Inject(ObjectKeyTierCache)
+        tier: ObjectKeyTierCache
+    ) {
+        super('ObjectKeyMulti', [tier]);
+    }
+}
+
+/**
+ * The tag the tier below declares, and the one invalidation is asked for.
+ */
+const CACHE_TAG: 'tagged-user' = 'tagged-user';
+
+@Cache()
+class TaggedTierCache extends WriteThroughReadThroughCache<string, number, 'TaggedTierCache', 'tagged-user'> {
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        protected readonly logger: LoggerInterface,
+        @Inject(ZIBRI_DI_TOKENS.CACHE_SERVICE)
+        protected readonly cacheService: CacheServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.METRICS_SERVICE)
+        protected readonly metricsService: MetricsServiceInterface
+    ) {
+        super('TaggedTierCache', new InMemoryCacheStore(), [CACHE_TAG]);
+    }
+}
+
+@Cache()
+class TaggedMultiTierCache extends MultiTierCache<string, number, [TaggedTierCache], 'tagged-user'> {
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        protected readonly logger: LoggerInterface,
+        @Inject(ZIBRI_DI_TOKENS.METRICS_SERVICE)
+        protected readonly metricsService: MetricsServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.CACHE_SERVICE)
+        protected readonly cacheService: CacheServiceInterface,
+        @Inject(TaggedTierCache)
+        tier: TaggedTierCache
+    ) {
+        super('TaggedMulti', [tier]);
+    }
+}
+
 describe('MultiTierCache basic integration', () => {
     let server: StartedTestServer;
 
@@ -144,5 +219,99 @@ describe('MultiTierCache basic integration', () => {
         expect(slowEntry?.expiresAt).toEqual(new Date('2026-01-01T00:01:00.000Z'));
 
         jest.useRealTimers();
+    });
+
+    // a hot key expiring would otherwise send every concurrent request to the origin at once: the
+    // stampede the single tier caches guard against
+    it('runs the origin once when several callers miss the same key at the same time', async () => {
+        const cache: TestMultiTierCache = inject(TestMultiTierCache);
+        let originCalls: number = 0;
+
+        const cached: () => Promise<number> = cache.wrap(
+            async () => {
+                originCalls++;
+                // long enough that all three callers are inside the miss path together
+                await new Promise<void>(resolve => setTimeout(resolve, 50));
+                return 42;
+            },
+            () => 'single-flight-key'
+        );
+
+        expect(await Promise.all([cached(), cached(), cached()])).toEqual([42, 42, 42]);
+        expect(originCalls).toBe(1);
+    });
+
+    // a counter declared and never incremented reads a permanent zero, which is worse than having no
+    // dashboard because it looks like an answer
+    it('counts the hits and misses it declares counters for', async () => {
+        const cache: TestMultiTierCache = inject(TestMultiTierCache);
+        const metrics: MetricsServiceInterface = inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
+
+        /**
+         * Reads a counter of this cache as it stands right now. Counters are cumulative and the cache
+         * is used by the cases above, so what can be asserted is what this case's two calls added.
+         * @param name - The counter to read.
+         * @returns Its current value, or zero while it has no sample yet.
+         */
+        async function counter(name: string): Promise<number> {
+            await metrics.collect();
+            // the snapshots are a history, so only the last one is now
+            return metrics.getMetricSnapshots().at(-1)?.metrics
+                .find(m => m.name === name && m.labels['cache'] === 'TestMulti')
+                ?.value ?? 0;
+        }
+        const missesBefore: number = await counter('cache_misses_total');
+        const hitsBefore: number = await counter('cache_hits_total');
+
+        const cached: () => Promise<number> = cache.wrap(() => 1, () => 'metrics-key');
+        await cached();
+        await cached();
+
+        expect(await counter('cache_misses_total') - missesBefore).toBe(1);
+        expect(await counter('cache_hits_total') - hitsBefore).toBe(1);
+    });
+
+    // a key built from arguments is a new object every call: keyed by reference, two calls for the
+    // same thing would be two keys, coalescing nothing and never hitting
+    it('coalesces and hits under an equal object key, however often the key is built anew', async () => {
+        const cache: ObjectKeyMultiTierCache = inject(ObjectKeyMultiTierCache);
+        let originCalls: number = 0;
+
+        const cached: () => Promise<number> = cache.wrap(
+            async () => {
+                originCalls++;
+                await new Promise<void>(resolve => setTimeout(resolve, 50));
+                return 42;
+            },
+            () => ({ userId: 'u1', tenantId: 't1' })
+        );
+
+        await Promise.all([cached(), cached(), cached()]);
+        expect(originCalls).toBe(1);
+        expect(await cached()).toBe(42);
+        expect(originCalls).toBe(1);
+    });
+
+    it('re-reads from the origin after the tag its value was stored under is invalidated', async () => {
+        const cache: TaggedMultiTierCache = inject(TaggedMultiTierCache);
+        let originCalls: number = 0;
+
+        const cached: () => Promise<number> = cache.wrap(
+            () => {
+                originCalls++;
+                return originCalls;
+            },
+            () => 'tagged-key',
+            { TaggedTierCache: { tags: () => [CACHE_TAG] } }
+        );
+        expect(await cached()).toBe(1);
+        // the control: without it the assertion below would pass on a cache that never stored anything
+        expect(await cached()).toBe(1);
+
+        await inject<CacheServiceInterface>(ZIBRI_DI_TOKENS.CACHE_SERVICE).invalidateTags([CACHE_TAG]);
+
+        // a permissions change invalidating 'user' would otherwise leave every replica serving the
+        // old permissions until the ttl runs out
+        expect(await cached()).toBe(2);
     });
 });

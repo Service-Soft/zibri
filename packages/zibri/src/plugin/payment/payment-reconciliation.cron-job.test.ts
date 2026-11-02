@@ -89,7 +89,7 @@ async function runReconciliation(): Promise<void> {
     await job.onTick();
 }
 
-// round 2's 06 §F18: a payment the buyer never approved stayed CREATED for good, with nothing asking
+// a payment the buyer never approved stayed CREATED for good, with nothing asking
 // PayPal what became of it
 describe('PaymentReconciliationCronJob', () => {
     beforeAll(async () => {

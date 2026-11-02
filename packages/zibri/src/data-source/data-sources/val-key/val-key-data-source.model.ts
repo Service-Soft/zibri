@@ -49,10 +49,10 @@ import { ResolvedPropertyConversion } from '../../models/resolved-property-conve
 import { Repository, UNBOUNDED_FIND_ALL_LIMIT } from '../../repository/repository';
 import { RepositoryClass } from '../../repository/repository-class.type';
 import { RepositoryForUtilities } from '../../repository/repository-for.utilities';
+import { OpenTransactions } from '../../transaction/open-transactions.model';
 import { RunInTransactionOptions } from '../../transaction/run-in-transaction-options.model';
 import { TransactionDeadlockError } from '../../transaction/transaction-deadlock.error';
 import { Transaction } from '../../transaction/transaction.model';
-import { OpenTransactions } from '../../transaction/open-transactions.model';
 import { TransactionUtilities } from '../../transaction/transaction.utilities';
 import { ValKeyTransaction, ValKeyTransactionGrants } from '../../transaction/val-key-transaction.model';
 import { ValueConversionUtilities } from '../../value-conversion.utilities';
@@ -463,7 +463,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         }
 
         // eslint-disable-next-line unusedImports/no-unused-vars
-        const { host, port, keyPrefix, ...clientOptions } = this.fullOptions;
+        const { host = 'localhost', port = 6379, keyPrefix, ...clientOptions } = this.fullOptions;
         await this.validateOptions(this.fullOptions);
 
         for (const entityClass of this.entities) {
@@ -473,7 +473,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
 
         const client: GlideClient = await valKeyGlide().GlideClient.createClient({
             ...clientOptions,
-            addresses: [{ host: host ?? 'localhost', port: port ?? 6379 }]
+            addresses: [{ host, port }]
         });
         await this.validateServerIsStandalone(client);
         this.client = client;
@@ -568,7 +568,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
                     // glide reconnects a dropped connection and subscribes it again by itself; what
                     // rejects here is a client that was closed, and a closed one never opens again.
                     // Returning used to leave this instance publishing to the others while hearing
-                    // none of them (round-2 02 §S11, 03 §H18)
+                    // none of them
                     this.logger.error(new InternalError('a subscription to valkey failed, subscribing again', { cause: error }));
                     subscriber.close();
                     subscriber = await this.resolveSubscriberAgain(namespacedChannel, closing.signal);
@@ -593,13 +593,13 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
      */
     private async resolveSubscriber(namespacedChannel: string): Promise<GlideClient> {
         // eslint-disable-next-line unusedImports/no-unused-vars
-        const { host, port, keyPrefix, ...clientOptions } = this.fullOptions;
+        const { host = 'localhost', port = 6379, keyPrefix, ...clientOptions } = this.fullOptions;
 
         // its own client: a connection that is subscribed is not a connection that should also be
         // answering commands, and the data source's one is busy doing exactly that
         const subscriber: GlideClient = await valKeyGlide().GlideClient.createClient({
             ...clientOptions,
-            addresses: [{ host: host ?? 'localhost', port: port ?? 6379 }]
+            addresses: [{ host, port }]
         });
         // the blocking form: the lazy one returns before the server confirmed, and a message published
         // in between never arrives
@@ -683,7 +683,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
      */
     private async releaseLocks(client: GlideClient, lockKeys: string[], token: string): Promise<void> {
         // conditional on the token, so a holder whose key had already lapsed cannot free the lock
-        // that replaced it - see evaluation/10-leases-and-claims.md 10.1
+        // that replaced it
         await PromiseUtilities.allChunked(
             PromiseUtilities.resolveChunks(lockKeys, LOCKS_PER_SCRIPT),
             async keys => await client.invokeScript(releaseLockScript(), { keys, args: [token] })
@@ -1021,10 +1021,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             : null;
 
         await this.updateStoredRows(MigratedEntityUtilities.resolveEntityClass(input.entity, this.entities), input.transaction, row => {
-            if (name in row) {
-                return undefined;
-            }
-            return { values: { [name]: JsonUtilities.stringify(value) } };
+            return name in row ? undefined : { values: { [name]: JsonUtilities.stringify(value) } };
         });
     }
 

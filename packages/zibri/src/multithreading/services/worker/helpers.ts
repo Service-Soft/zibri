@@ -115,11 +115,10 @@ export function getThreadJobId(): string | undefined {
  */
 export function getThreadJobCheckpoint<State>(): ThreadJobCheckpoint<State> | undefined {
     const data: unknown = workerData;
-    if (typeof data !== 'object' || data == undefined || !(THREAD_JOB_CHECKPOINT_KEY in data)) {
-        return undefined;
-    }
-    // stored as the job reported it, and the job says what its state is
-    return data[THREAD_JOB_CHECKPOINT_KEY] as ThreadJobCheckpoint<State> | undefined;
+    return typeof data !== 'object' || data == undefined || !(THREAD_JOB_CHECKPOINT_KEY in data)
+        ? undefined
+        // stored as the job reported it, and the job says what its state is
+        : data[THREAD_JOB_CHECKPOINT_KEY] as ThreadJobCheckpoint<State> | undefined;
 }
 
 /**

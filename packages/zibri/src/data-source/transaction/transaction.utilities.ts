@@ -1,10 +1,10 @@
+import { type RepositoryTransaction } from './repository-transaction.type';
 import { RunInTransactionOptions } from './run-in-transaction-options.model';
 import { TransactionConflictError } from './transaction-conflict.error';
 import { Transaction } from './transaction.model';
 import { AlsUtilities } from '../../context/als.utilities';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { type RepositoryTransaction } from './repository-transaction.type';
 import { type BaseEntity } from '../../entity/base-entity.model';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
 import { ChainUtilities } from '../chain/chain.utilities';
 import { DataSourceInterface } from '../data-sources/data-source.interface';

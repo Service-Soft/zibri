@@ -16,11 +16,13 @@ import { JsonUtilities } from '../../utilities/json.utilities';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../authenticators/password/password-credentials.model';
 import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy';
 
+type CurrentUserBody = { id: string, email: string };
+
 @Controller('/current-user-test')
 class CurrentUserTestController {
     @Get('/required')
     @Auth.isLoggedIn([JwtAuthStrategy])
-    requiredUser(@CurrentUser() user: JwtUser): { id: string, email: string } {
+    requiredUser(@CurrentUser() user: JwtUser): CurrentUserBody {
         return { id: user.id, email: user.email };
     }
 
@@ -88,7 +90,7 @@ describe('CurrentUser decorator — real HTTP flow', () => {
 
         expect(res.status).toBe(200);
         // eslint-disable-next-line typescript/no-unsafe-assignment
-        const body: { id: string, email: string } = await res.json();
+        const body: CurrentUserBody = await res.json();
         expect(body.email).toBe(email);
     });
 

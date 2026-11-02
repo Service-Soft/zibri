@@ -41,10 +41,7 @@ const SECRET_VARIABLE: RegExp = /^([\dA-Z_]+)={{secret}}$/gm;
 function resolveAuthor(): string {
     const name: string | undefined = CPUtilities.output('git config user.name');
     const email: string | undefined = CPUtilities.output('git config user.email');
-    if (name != undefined && email != undefined) {
-        return `${name} <${email}>`;
-    }
-    return name ?? email ?? userInfo().username;
+    return name != undefined && email != undefined ? `${name} <${email}>` : name ?? email ?? userInfo().username;
 }
 
 /**
@@ -191,10 +188,7 @@ export class NewCommand extends BaseCommand<ScaffoldAnswers> {
      * and for the workflow of a continuous integration the project did not choose.
      */
     private isRendered(relativePath: string, configuration: ScaffoldAnswers): boolean {
-        if (relativePath === PACKAGE_JSON) {
-            return false;
-        }
-        return !relativePath.startsWith('.github/') || configuration.ci === 'github';
+        return relativePath !== PACKAGE_JSON && (!relativePath.startsWith('.github/') || configuration.ci === 'github');
     }
 
     private async createFile(filePath: Path, data: string): Promise<void> {

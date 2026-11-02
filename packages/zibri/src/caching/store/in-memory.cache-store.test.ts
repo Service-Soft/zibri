@@ -46,7 +46,7 @@ describe('InMemoryCacheStore', () => {
         expect(store.has('missing')).toBe(false);
     });
 
-    // part of round 2's code review 04 §Q5: a store keyed by something other than the active tenant had
+    // a store keyed by something other than the active tenant had
     // to be reached with the tenant switched around every access
     describe('per tenant', () => {
         const tenantA: string = UUIDUtilities.generate();

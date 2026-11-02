@@ -12,7 +12,7 @@ import { testFileFolder } from '../__testing__/constants';
 import { waitUntil } from '../__testing__/wait-until.function';
 
 /**
- * The build a generated project runs (round-2 07 §T5).
+ * The build a generated project runs.
  *
  * It used to be written into every project by `zi new`, so a fix to it reached only the projects
  * generated after the fix. Shipped from here, `npm update` is what brings it.
@@ -92,21 +92,28 @@ function steppedCompiler(): SteppedCompiler {
 describe('resolveWebpackConfiguration', () => {
 
     it('is a configuration webpack accepts', () => {
-        const configuration: Configuration = resolveWebpackConfiguration({ root: sandboxDir });
+        const configuration: Configuration = resolveWebpackConfiguration({ root: sandboxDir, sourceMap: 'with-sources' });
 
         expect(() => validate(configuration)).not.toThrow();
     });
 
     it('builds the project it is given, wherever webpack was started from', () => {
-        const configuration: Configuration = resolveWebpackConfiguration({ root: sandboxDir });
+        const configuration: Configuration = resolveWebpackConfiguration({ root: sandboxDir, sourceMap: 'with-sources' });
 
         // `npm run build -w api` starts webpack in the repository root of a monorepo
         expect(configuration.context).toBe(sandboxDir);
         expect(configuration.output?.path).toBe(path.join(sandboxDir, 'dist'));
     });
 
+    // the sources are two thirds of the map, and only an editor opens them from it. A deployment
+    // keeps the rest, so that a stack trace names the source file and line
+    it('writes the map with the sources for an editor, and without them for a deployment', () => {
+        expect(resolveWebpackConfiguration({ root: sandboxDir, sourceMap: 'with-sources' }).devtool).toBe('source-map');
+        expect(resolveWebpackConfiguration({ root: sandboxDir, sourceMap: 'file-and-line' }).devtool).toBe('nosources-source-map');
+    });
+
     it('copies only folders a generated project has', () => {
-        const configuration: Configuration = resolveWebpackConfiguration({ root: sandboxDir });
+        const configuration: Configuration = resolveWebpackConfiguration({ root: sandboxDir, sourceMap: 'with-sources' });
         const copied: string[] = (configuration.plugins ?? []).flatMap(plugin => copiedFolders(plugin));
 
         expect(copied.length).toBeGreaterThan(0);
@@ -115,7 +122,7 @@ describe('resolveWebpackConfiguration', () => {
         expect(copied.filter(from => !existsSync(from))).toEqual([]);
     });
 
-    // round-2 08 §X14: a project generated without pages has no stylesheet, and none of the packages
+    // a project generated without pages has no stylesheet, and none of the packages
     // that build one
     describe('for a project without a stylesheet', () => {
         const root: string = path.join(testFileFolder, 'webpack-without-stylesheet');
@@ -132,14 +139,14 @@ describe('resolveWebpackConfiguration', () => {
         });
 
         it('bundles the application alone, and is a configuration webpack accepts', () => {
-            const configuration: Configuration = resolveWebpackConfiguration({ root });
+            const configuration: Configuration = resolveWebpackConfiguration({ root, sourceMap: 'with-sources' });
 
             expect(configuration.entry).toEqual({ bundle: './src/index.ts' });
             expect(() => validate(configuration)).not.toThrow();
         });
 
         it('has no rule and no plugin for a stylesheet', () => {
-            const configuration: Configuration = resolveWebpackConfiguration({ root });
+            const configuration: Configuration = resolveWebpackConfiguration({ root, sourceMap: 'with-sources' });
 
             const tests: string[] = (configuration.module?.rules ?? [])
                 .flatMap(rule => typeof rule === 'object' && rule != undefined && rule.test instanceof RegExp ? [rule.test.source] : []);
@@ -202,7 +209,7 @@ describe('RestartServerOnBuildPlugin', () => {
     // its own, and the one holding the previous generation is stopped, so nothing is ever imported a
     // second time into the arrays a first import filled. Started only once the one before has exited:
     // a server still closing holds its port. It ran through a shell before, which a kill reached
-    // in place of the server on a shell that does not exec its last command (round-2 11 §W1)
+    // in place of the server on a shell that does not exec its last command
     it('starts the built application as a new process after every build, once the one before has stopped', async () => {
         const { compiler, finishBuild }: SteppedCompiler = steppedCompiler();
         new RestartServerOnBuildPlugin(root).apply(compiler);

@@ -423,10 +423,9 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
     }
 
     private getCustomerName(invoice: Invoice): string {
-        if (invoice.customerAddressData.company && invoice.customerAddressData.companyName) {
-            return invoice.customerAddressData.companyName;
-        }
-        return `${invoice.customerAddressData.firstName} ${invoice.customerAddressData.lastName}`;
+        return invoice.customerAddressData.company && invoice.customerAddressData.companyName
+            ? invoice.customerAddressData.companyName
+            : `${invoice.customerAddressData.firstName} ${invoice.customerAddressData.lastName}`;
     }
 
     /**
@@ -439,10 +438,7 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
         if (companyAddressLine.length > 85) {
             return 4;
         }
-        if (companyAddressLine.length > 65) {
-            return 6;
-        }
-        return 8;
+        return companyAddressLine.length > 65 ? 6 : 8;
     }
 
     /**

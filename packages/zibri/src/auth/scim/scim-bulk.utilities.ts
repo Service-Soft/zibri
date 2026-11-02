@@ -436,12 +436,11 @@ export abstract class ScimBulkUtilities {
         if (Array.isArray(value)) {
             return value.filter(item => !refers(item)).map(item => this.withoutReferences(item, bulkIds));
         }
-        if (ScimFilterUtilities.isRecord(value)) {
-            return Object.fromEntries(Object.entries(value)
+        return ScimFilterUtilities.isRecord(value)
+            ? Object.fromEntries(Object.entries(value)
                 .filter(([, item]) => !(typeof item === 'string' && refers(item)))
-                .map(([key, item]) => [key, this.withoutReferences(item, bulkIds)]));
-        }
-        return value;
+                .map(([key, item]) => [key, this.withoutReferences(item, bulkIds)]))
+            : value;
     }
 
     /**
@@ -459,10 +458,9 @@ export abstract class ScimBulkUtilities {
         if (Array.isArray(value)) {
             return value.map(item => this.replaceBulkIds(item, created));
         }
-        if (ScimFilterUtilities.isRecord(value)) {
-            return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, this.replaceBulkIds(item, created)]));
-        }
-        return value;
+        return ScimFilterUtilities.isRecord(value)
+            ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, this.replaceBulkIds(item, created)]))
+            : value;
     }
 
     private static findAttribute(record: Record<string, unknown>, name: string): unknown {

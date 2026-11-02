@@ -135,11 +135,10 @@ export abstract class CronFailurePolicyUtilities {
         resolveNextRuns: (count: number) => Date[]
     ): Date | null {
         const skipped: number = Math.min((2 ** failures) - 1, backOff.maxSkippedSlots);
-        if (skipped <= 0) {
+        return skipped <= 0
             // eslint-disable-next-line unicorn/no-null
-            return null;
-        }
-        // eslint-disable-next-line unicorn/no-null
-        return resolveNextRuns(skipped + 1)[skipped] ?? null;
+            ? null
+            // eslint-disable-next-line unicorn/no-null
+            : resolveNextRuns(skipped + 1)[skipped] ?? null;
     }
 }

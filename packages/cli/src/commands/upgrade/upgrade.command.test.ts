@@ -17,7 +17,7 @@ import { Path } from '../../utilities';
 import { NewCommand } from '../new/new.command';
 
 /**
- * How a project gets from one release of the generator to the next (round-2 07 §T5).
+ * How a project gets from one release of the generator to the next.
  *
  * Every case starts from a project `zi new` generated and committed, then makes one of its files
  * look like an older generator wrote it: the file, its id in the manifest and the commit all say

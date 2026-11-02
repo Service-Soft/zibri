@@ -137,7 +137,7 @@ class DeclaredUserController {
 /**
  * A response declares the class it answers with, and is written with what that class declares: a
  * handler returning the stored user under a declaration of what may leave the server sent every
- * column it held, the password hash included (08 §X22).
+ * column it held, the password hash included.
  */
 describe('Router - answering with what the response declares', () => {
     let server: StartedTestServer;

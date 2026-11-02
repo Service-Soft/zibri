@@ -99,7 +99,7 @@ afterAll(async () => {
     await FsUtilities.rm(failingFolder);
 }, TestTimeouts.inMemory.shutdown);
 
-// part of evaluation round 2, 02 §S16: a failed backup left what it had stored on the transports,
+// a failed backup left what it had stored on the transports,
 // where nothing would ever restore it, until somebody deleted the backup
 describe('BackupService - a backup that failed', () => {
     it('removes what it stored from every transport, and keeps its record with why it failed', async () => {

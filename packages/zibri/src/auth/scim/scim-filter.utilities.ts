@@ -215,10 +215,9 @@ export abstract class ScimFilterUtilities {
         if (expected == undefined) {
             return actual == undefined;
         }
-        if (typeof actual === 'string' && typeof expected === 'string') {
-            return actual.toLowerCase() === expected.toLowerCase();
-        }
-        return actual === expected;
+        return typeof actual === 'string' && typeof expected === 'string'
+            ? actual.toLowerCase() === expected.toLowerCase()
+            : actual === expected;
     }
 
     private static compareText(left: string, operator: 'co' | 'sw' | 'ew', right: string): boolean {
@@ -428,10 +427,7 @@ export abstract class ScimFilterUtilities {
         if (piece === '(' || piece === ')' || piece === '[' || piece === ']') {
             return { kind: piece };
         }
-        if (piece.startsWith('"')) {
-            return { kind: 'string', value: this.parseString(piece) };
-        }
-        return { kind: 'word', text: piece };
+        return piece.startsWith('"') ? { kind: 'string', value: this.parseString(piece) } : { kind: 'word', text: piece };
     }
 
     /**

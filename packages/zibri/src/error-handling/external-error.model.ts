@@ -17,11 +17,12 @@ export abstract class ExternalError extends Error {
      */
     paragraphs: TranslatedString[];
 
-    constructor(message: TranslatedString | TranslatedString[], title: TranslatedString, options?: ErrorOptions) {
-        const singleString: string = typeof message === 'string' ? message : message.join('\n');
+    // not named "message": an array of paragraphs is joined into the message, never handed over as one
+    constructor(paragraphs: TranslatedString | TranslatedString[], title: TranslatedString, options?: ErrorOptions) {
+        const singleString: string = typeof paragraphs === 'string' ? paragraphs : paragraphs.join('\n');
         super(singleString, options);
         this.name = 'ExternalError';
-        this.paragraphs = typeof message === 'string' ? [message] : message;
+        this.paragraphs = typeof paragraphs === 'string' ? [paragraphs] : paragraphs;
         this.title = title;
     }
 }

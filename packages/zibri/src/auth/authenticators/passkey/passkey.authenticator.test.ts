@@ -330,7 +330,7 @@ describe('PasskeyAuthenticator — logging in to cookies', () => {
         expect((await read<CookieAuthData<string>>(res)).userId).toBe(registered.userId);
     });
 
-    // evaluation/round-2/12-hardcoded-values.md §A2: the browser was given the library's 60 seconds
+    // the browser was given the library's 60 seconds
     // while the challenge lived 5 minutes
     it('gives the browser as long to answer as the challenge lives, in every ceremony', async () => {
         const browser: TestBrowser = new TestBrowser(baseUrl, undefined);

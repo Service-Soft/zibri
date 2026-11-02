@@ -18,7 +18,7 @@ import { StoredValueTypeMismatchError } from '../../stored-value-type-mismatch.e
 import { Gauge, GaugeReading } from '../../tests/mistyped-values.cases';
 import { UniqueConstraintViolationError } from '../../unique-constraint-violation.error';
 
-// evaluation/round-2/02-data-layer-stores.md S4: what a refused write collided on, and what a json
+// what a refused write collided on, and what a json
 // column was found holding, were read out of the server's english messages
 
 /**

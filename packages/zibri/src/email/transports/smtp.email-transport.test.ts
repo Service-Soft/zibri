@@ -3,6 +3,7 @@ import { AddressInfo, createServer, Server } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { createFakeKeyPair, FakeKeyPair } from 'zibri-testing';
 
+import { EmailSendResult } from './email-transport.interface';
 import { SmtpEmailTransport } from './smtp.email-transport';
 import { CapturingSmtpServer } from '../../__testing__/capturing-smtp-server.model';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
@@ -54,13 +55,13 @@ function queuedEmail(data: Pick<Email, 'listUnsubscribeUrl' | 'attachments'>): E
  * @param message - The message.
  * @returns Its headers, unfolded.
  */
-function headersOf(message: string | undefined): string[] {
-    const [head] = (message ?? '').split('\r\n\r\n');
-    return (head ?? '').replaceAll(/\r\n[\t ]+/g, ' ').split('\r\n');
+function headersOf(message: string = ''): string[] {
+    const [head = ''] = message.split('\r\n\r\n');
+    return head.replaceAll(/\r\n[\t ]+/g, ' ').split('\r\n');
 }
 
 describe('SmtpEmailTransport', () => {
-    // 08 §X25: an unset port read as 0 and an unset host as '', and the transport was built with
+    // an unset port read as 0 and an unset host as '', and the transport was built with
     // both, so the application started and every mail failed when it was sent
     it.each([
         ['an empty host', { host: '', port: 587 }, /host/],
@@ -79,7 +80,7 @@ describe('SmtpEmailTransport', () => {
         expect(headers).toContain('List-Unsubscribe-Post: List-Unsubscribe=One-Click');
     });
 
-    // 09 §Q5: a send retried after the server took it gave the copy a new Message-ID, so nothing
+    // a send retried after the server took it gave the copy a new Message-ID, so nothing
     // downstream could tell it was the same mail
     it('names the message by the mail, the same on every attempt', async () => {
         const email: Email = queuedEmail({});
@@ -106,6 +107,21 @@ describe('SmtpEmailTransport', () => {
         const message: string = smtp.messages[0] ?? '';
         expect(message).toContain('filename=invoice.pdf');
         expect(message).toContain(base64Content);
+    });
+
+    // a server routinely takes some recipients of one message and refuses others, and the service
+    // records the mail as failed by the ones the transport reports
+    it('reports the recipients the server refused, and sends to the others', async () => {
+        smtp.refusedRecipients.add('nobody@example.com');
+        try {
+            const sent: EmailSendResult = await transport.send({ ...queuedEmail({}), recipients: ['recipient@example.com', 'nobody@example.com'] });
+
+            expect(sent.rejectedRecipients).toEqual(['nobody@example.com']);
+            expect(smtp.messages).toHaveLength(1);
+        }
+        finally {
+            smtp.refusedRecipients.clear();
+        }
     });
 
     it('refuses a server that offers no STARTTLS, unless told not to', async () => {

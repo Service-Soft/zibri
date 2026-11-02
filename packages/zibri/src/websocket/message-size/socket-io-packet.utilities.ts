@@ -54,7 +54,7 @@ export abstract class SocketIoPacketUtilities {
         if (prefix.length === 0) {
             return { complete: false };
         }
-        if (prefix[0] !== ENGINE_MESSAGE_TYPE) {
+        if (!prefix.startsWith(ENGINE_MESSAGE_TYPE)) {
             return { complete: true, event: undefined, attachments: 0 };
         }
         if (prefix.length < 2) {
@@ -82,10 +82,9 @@ export abstract class SocketIoPacketUtilities {
         for (let char: string | undefined = prefix[index]; char != undefined && char >= '0' && char <= '9'; char = prefix[index]) {
             index++;
         }
-        if (!EVENT_TYPES.has(type)) {
-            return { complete: true, event: undefined, attachments };
-        }
-        return this.resolveEventName(prefix, index, attachments);
+        return EVENT_TYPES.has(type)
+            ? this.resolveEventName(prefix, index, attachments)
+            : { complete: true, event: undefined, attachments };
     }
 
     /**

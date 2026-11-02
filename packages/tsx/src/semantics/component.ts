@@ -68,10 +68,9 @@ export function isJsxExpression(node: ts.Expression): boolean {
     if (ts.isBinaryExpression(expression) && LOGICAL_OPERATORS.has(expression.operatorToken.kind)) {
         return isJsxExpression(expression.left) || isJsxExpression(expression.right);
     }
-    if (ts.isBinaryExpression(expression) && expression.operatorToken.kind === ts.SyntaxKind.CommaToken) {
-        return isJsxExpression(expression.right);
-    }
-    return false;
+    return ts.isBinaryExpression(expression) && expression.operatorToken.kind === ts.SyntaxKind.CommaToken
+        ? isJsxExpression(expression.right)
+        : false;
 }
 
 /**
@@ -84,10 +83,7 @@ export function returnsJsx(fn: ComponentFunction): boolean {
     if (fn.body == undefined) {
         return false;
     }
-    if (!ts.isBlock(fn.body)) {
-        return isJsxExpression(fn.body);
-    }
-    return statementsReturnJsx(fn.body.statements);
+    return !ts.isBlock(fn.body) ? isJsxExpression(fn.body) : statementsReturnJsx(fn.body.statements);
 }
 
 /**
@@ -106,10 +102,9 @@ function statementsReturnJsx(statements: readonly ts.Statement[]): boolean {
  * @returns True when a JSX return is found.
  */
 function statementReturnsJsx(statement: ts.Statement): boolean {
-    if (ts.isReturnStatement(statement)) {
-        return statement.expression != undefined && isJsxExpression(statement.expression);
-    }
-    return statementsReturnJsx(nestedStatements(statement));
+    return ts.isReturnStatement(statement)
+        ? statement.expression != undefined && isJsxExpression(statement.expression)
+        : statementsReturnJsx(nestedStatements(statement));
 }
 
 /**
@@ -137,10 +132,7 @@ export function nestedStatements(statement: ts.Statement): ts.Statement[] {
             ...statement.finallyBlock == undefined ? [] : [statement.finallyBlock]
         ];
     }
-    if (ts.isSwitchStatement(statement)) {
-        return statement.caseBlock.clauses.flatMap(clause => [...clause.statements]);
-    }
-    return [];
+    return ts.isSwitchStatement(statement) ? statement.caseBlock.clauses.flatMap(clause => [...clause.statements]) : [];
 }
 
 /**
@@ -171,10 +163,9 @@ export function findComponents(file: ts.SourceFile): ComponentInfo[] {
 function componentsOf(statement: ts.Statement): ComponentInfo[] {
     if (ts.isExportAssignment(statement)) {
         const expression: ts.Expression = unwrapTypeSyntax(statement.expression);
-        if (statement.isExportEquals === true || !isComponentFunction(expression) || !returnsJsx(expression)) {
-            return [];
-        }
-        return [{ name: 'default', fn: expression, exported: true, isDefault: true }];
+        return statement.isExportEquals === true || !isComponentFunction(expression) || !returnsJsx(expression)
+            ? []
+            : [{ name: 'default', fn: expression, exported: true, isDefault: true }];
     }
     const exported: boolean = hasModifier(statement, ts.SyntaxKind.ExportKeyword);
     if (ts.isFunctionDeclaration(statement)) {

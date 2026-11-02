@@ -62,10 +62,7 @@ export abstract class AuditUtilities {
         if ('email' in credentials && typeof credentials.email === 'string') {
             return credentials.email;
         }
-        if ('username' in credentials && typeof credentials.username === 'string') {
-            return credentials.username;
-        }
-        return undefined;
+        return 'username' in credentials && typeof credentials.username === 'string' ? credentials.username : undefined;
     }
 
     /**

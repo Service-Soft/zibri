@@ -162,12 +162,11 @@ export abstract class WriteBudget<T> {
      */
     private resolveAdmitted(entries: T[]): Set<T> {
         const left: number = Math.max(this.maxEntriesPerMinute - this.written, 0);
-        if (entries.length <= left) {
-            return new Set(entries);
-        }
-        // most important first, so an error in a batch of info lines keeps its row. The sort is
-        // stable, so among equals the earlier entry does
-        return new Set([...entries].sort((a, b) => this.resolveImportance(b) - this.resolveImportance(a)).slice(0, left));
+        return entries.length <= left
+            ? new Set(entries)
+            // most important first, so an error in a batch of info lines keeps its row. The sort is
+            // stable, so among equals the earlier entry does
+            : new Set([...entries].sort((a, b) => this.resolveImportance(b) - this.resolveImportance(a)).slice(0, left));
     }
 
     /**

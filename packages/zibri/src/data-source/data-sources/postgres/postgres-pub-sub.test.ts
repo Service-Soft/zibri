@@ -71,8 +71,8 @@ describe('PostgresDataSource — publish and subscribe', () => {
     });
 
     it('listens again after the last subscriber left and a new one came', async () => {
-        const gone: { received: string[], subscription: DataSourceSubscription } = await collect('pub-sub.again');
-        await gone.subscription.unsubscribe();
+        const gone: DataSourceSubscription = (await collect('pub-sub.again')).subscription;
+        await gone.unsubscribe();
         const back: { received: string[], subscription: DataSourceSubscription } = await collect('pub-sub.again');
         try {
             await inject(dataSourceClass).publish('pub-sub.again', 'welcome back');

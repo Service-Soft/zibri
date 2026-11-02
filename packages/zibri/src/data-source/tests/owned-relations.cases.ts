@@ -495,7 +495,7 @@ export function describeOwnedRelations(dataSourceName: string, repositoriesOf: (
             expect(await repositoriesOf().stops.count({ where: { id: paris?.id }, deleted: 'only' })).toBe(1);
         });
 
-        // 01 §D12: a soft deleted row given by its id answered a 404 that named no reason
+        // a soft deleted row given by its id answered a 404 that named no reason
         it('refuses a soft deleted row given by its id, naming it, and writes nothing of the save', async () => {
             const trip: Trip = await repositoriesOf().trips.create({ name: 'refused', stops: [{ name: 'Rome' }, { name: 'Paris' }] });
             const rome: Stop | undefined = trip.stops.find(s => s.name === 'Rome');

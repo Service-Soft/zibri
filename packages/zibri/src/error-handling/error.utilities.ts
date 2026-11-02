@@ -18,10 +18,7 @@ export abstract class ErrorUtilities {
      * @returns Value if it was a http error, a new internal server error otherwise.
      */
     static toHttpError(value: unknown): HttpError {
-        if (this.isHttpError(value)) {
-            return value;
-        }
-        return new InternalServerError($ts`Internal Server Error`);
+        return this.isHttpError(value) ? value : new InternalServerError($ts`Internal Server Error`);
     }
 
     /**
@@ -90,9 +87,6 @@ export abstract class ErrorUtilities {
      * @returns Error.message if it was a error, stringified error otherwise.
      */
     static unknownToErrorString(error: unknown): string {
-        if (this.isError(error)) {
-            return error.message;
-        }
-        return JsonUtilities.stringify(error);
+        return this.isError(error) ? error.message : JsonUtilities.stringify(error);
     }
 }

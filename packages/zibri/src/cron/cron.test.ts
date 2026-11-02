@@ -780,7 +780,7 @@ describe('CronService / CronJob — real server', () => {
             const job: CronJob = makeCronJob({ name: 'update-test', syncToDataSource: true, runOnInit: false });
             await cronService.schedule(job);
 
-            // the class declares what update would change, and each start takes it back from there (04 §2.15)
+            // the class declares what update would change, and each start takes it back from there
             await expect(cronService.update('update-test', { runOnInit: true })).rejects.toThrow('is declared in code');
 
             const entity: CronJobEntity | undefined = await cronJobRepo.findOne({ where: { name: 'update-test' }, required: false });

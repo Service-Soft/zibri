@@ -25,11 +25,10 @@ import { type RepositoryTransaction } from './transaction/repository-transaction
  * @param heldUntil - The transaction the grant is held until, if any.
  * @returns Whatever the work returned.
  */
-// the shape of evaluation/10-leases-and-claims.md 10.4, which is why the guard exists at all
 export async function runInLeaseScope<T>(name: string, fn: () => Promise<T>, heldUntil?: RepositoryTransaction): Promise<T> {
     const scope: LeaseScopeResult<T> = await AlsUtilities.runInLeaseScope(fn);
 
-    const escaping: RepositoryTransaction[] =scope.transactions.filter(t => !t.isFinished && t !== heldUntil);
+    const escaping: RepositoryTransaction[] = scope.transactions.filter(t => !t.isFinished && t !== heldUntil);
     if (escaping.length) {
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
         logger.warn([

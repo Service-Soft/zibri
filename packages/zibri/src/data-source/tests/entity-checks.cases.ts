@@ -148,7 +148,7 @@ export function describeEntityChecks(dataSourceName: string, choresOf: () => Rep
                 .rejects.toThrow(CheckConstraintViolationError);
         });
 
-        // 01 §D19: a check compared a property with a value only, and refused a date as that value
+        // a check compared a property with a value only, and refused a date as that value
         it('refuses a row whose one property breaks a comparison with another, naming both', async () => {
             const startsAt: Date = new Date('2026-05-01T08:00:00.000Z');
             const chore: Chore = await choresOf().create({
@@ -185,7 +185,7 @@ export function describeEntityChecks(dataSourceName: string, choresOf: () => Rep
             expect((await choresOf().findById(chore.id)).startsAt).toEqual(new Date(EARLIEST_START));
         });
 
-        // 01 §D20: a write the data source refused answered with the filter alone, without the
+        // a write the data source refused answered with the filter alone, without the
         // code and message the check was declared with
         it('answers a refused write with the code and message of the check it breaks, under the body', async () => {
             const chore: Chore = await choresOf().create({ code: freshCode(), status: 'open', estimate: 2 });

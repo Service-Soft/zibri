@@ -29,7 +29,7 @@ const providers: DiProvider<unknown>[] = [
 
 // the harness's reInit inherited the options of the running application, cron jobs the framework
 // added while it started included, so a job a feature registered outlived the feature. Held by the
-// password reset token's cleanup job until that job went with 05 §Q3, by the audit checkpoints now
+// password reset token's cleanup job until that job went, by the audit checkpoints now
 describe('a test server, after a reInit without the feature that registered a cron job', () => {
     let server: StartedTestServer;
     let ranBefore: boolean;

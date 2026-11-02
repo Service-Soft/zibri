@@ -167,10 +167,7 @@ function narrowPropertyCondition(condition: unknown, metadata: PropertyMetadata 
     if (UUIDUtilities.declaresUuidFormat(metadata)) {
         return narrowCondition(condition, path, UUID);
     }
-    if (metadata?.type === 'number' && metadata.format === 'integer') {
-        return narrowCondition(condition, path, WHOLE_NUMBER);
-    }
-    return condition;
+    return metadata?.type === 'number' && metadata.format === 'integer' ? narrowCondition(condition, path, WHOLE_NUMBER) : condition;
 }
 
 /**
@@ -201,10 +198,7 @@ function narrowToOneRelationCondition(
 
     validateNegationsArePossible(condition, isImpossibleEntityId, `${path}.id`);
     const compared: Record<string, unknown> | typeof IMPOSSIBLE = narrowEntityComparisons(condition);
-    if (compared === IMPOSSIBLE) {
-        return IMPOSSIBLE;
-    }
-    return narrowRelationWhere(compared, metadata, path);
+    return compared === IMPOSSIBLE ? IMPOSSIBLE : narrowRelationWhere(compared, metadata, path);
 }
 
 /**
@@ -327,10 +321,7 @@ function narrowRelationCondition(condition: unknown): unknown | typeof IMPOSSIBL
     const possible: unknown[] = res['isIncludedIn'].filter(e => !isImpossibleEntityId(e));
     // a row has to have related rows, and all of them allowed, so an allow list left with nothing to
     // allow is a requirement nothing satisfies - as an empty one is answered on every store
-    if (!possible.length) {
-        return IMPOSSIBLE;
-    }
-    return { ...res, isIncludedIn: possible };
+    return !possible.length ? IMPOSSIBLE : { ...res, isIncludedIn: possible };
 }
 
 /**
@@ -352,10 +343,7 @@ function canonicalEntityId(entity: unknown): unknown {
  * @returns True if no row could be that entity, false if one might.
  */
 function isImpossibleEntityId(entity: unknown): boolean {
-    if (typeof entity !== 'object' || entity == undefined || !('id' in entity)) {
-        return false;
-    }
-    return UUID.isImpossible(entity.id);
+    return typeof entity === 'object' && entity != undefined && 'id' in entity && UUID.isImpossible(entity.id);
 }
 
 /**
@@ -385,10 +373,7 @@ function narrowCondition(condition: unknown, path: string, format: DeclaredForma
             return res;
         }
         const possible: unknown[] = res['oneOf'].filter(v => !format.isImpossible(v));
-        if (!possible.length) {
-            return IMPOSSIBLE;
-        }
-        return { ...res, oneOf: possible };
+        return !possible.length ? IMPOSSIBLE : { ...res, oneOf: possible };
     }
 
     if (Array.isArray(condition)) {
@@ -401,10 +386,7 @@ function narrowCondition(condition: unknown, path: string, format: DeclaredForma
                 possible.push(narrowed);
             }
         }
-        if (!possible.length) {
-            return IMPOSSIBLE;
-        }
-        return possible;
+        return !possible.length ? IMPOSSIBLE : possible;
     }
 
     return format.isImpossible(condition) ? IMPOSSIBLE : format.canonicalValue(condition);

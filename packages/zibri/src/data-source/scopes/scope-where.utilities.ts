@@ -174,10 +174,7 @@ export abstract class ScopeWhereUtilities {
      * @returns True when the scope reads it.
      */
     static isReadByScope<T extends BaseEntity>(scope: Where<T> | DenyAll | undefined, key: Extract<keyof T, string>): boolean {
-        if (scope == undefined || scope === denyAll) {
-            return false;
-        }
-        return this.branchesOf(scope).some(branch => key in branch);
+        return scope != undefined && scope !== denyAll && this.branchesOf(scope).some(branch => key in branch);
     }
 
     /**
@@ -449,16 +446,13 @@ export abstract class ScopeWhereUtilities {
         if (metadata?.type === 'array' && metadata.items.type === 'object') {
             return MetadataUtilities.getModelProperties(metadata.items.cls());
         }
-        if (
-            metadata?.type === Relation.HAS_ONE
+        return metadata?.type === Relation.HAS_ONE
             || metadata?.type === Relation.BELONGS_TO_ONE
             || metadata?.type === Relation.MANY_TO_ONE
             || metadata?.type === Relation.ONE_TO_MANY
             || metadata?.type === Relation.MANY_TO_MANY
-        ) {
-            return MetadataUtilities.getModelProperties(metadata.target());
-        }
-        return undefined;
+            ? MetadataUtilities.getModelProperties(metadata.target())
+            : undefined;
     }
 
     /**
@@ -474,11 +468,10 @@ export abstract class ScopeWhereUtilities {
         }
         const name: string | undefined = Object.keys(metadata.shapes)
             .find(n => OneOfWhereFilterUtilities.filterKey(n) === shape);
-        if (name == undefined) {
-            return undefined;
-        }
-        // the shapes hold what a property of that kind holds, minus what only a property has
-        return { ...metadata.shapes[name] } as PropertyMetadata;
+        return name == undefined
+            ? undefined
+            // the shapes hold what a property of that kind holds, minus what only a property has
+            : { ...metadata.shapes[name] } as PropertyMetadata;
     }
 
     /**
@@ -520,10 +513,7 @@ export abstract class ScopeWhereUtilities {
      * @returns The condition as an object.
      */
     private static toConditionObject(condition: unknown): ConditionObject {
-        if (this.isConditionObject(condition)) {
-            return condition;
-        }
-        return { oneOf: [condition] };
+        return this.isConditionObject(condition) ? condition : { oneOf: [condition] };
     }
 
     /**
@@ -534,11 +524,9 @@ export abstract class ScopeWhereUtilities {
      * @returns True when the condition also says the value is not allowed.
      */
     private static isExcluded(value: unknown, condition: ConditionObject, context: MergeContext): boolean {
-        if ('not' in condition && WhereValueUtilities.equals(value, condition['not'], context.metadata)) {
-            return true;
-        }
-        return Array.isArray(condition['notOneOf'])
-            && condition['notOneOf'].some(v => WhereValueUtilities.equals(value, v, context.metadata));
+        return ('not' in condition && WhereValueUtilities.equals(value, condition['not'], context.metadata))
+            || (Array.isArray(condition['notOneOf'])
+                && condition['notOneOf'].some(v => WhereValueUtilities.equals(value, v, context.metadata)));
     }
 
     /**

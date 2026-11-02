@@ -409,7 +409,7 @@ export namespace Property {
  * @returns The same metadata, as it is stored and read back.
  */
 function toStoredStringPropertyMetadata(declared: AnyStrategyStringPropertyMetadata): StoredStringPropertyMetadata {
-    // the one place the declared types are let go of (05 §M3). A strategy's key type sits in a return
+    // the one place the declared types are let go of. A strategy's key type sits in a return
     // position and in a parameter position of the strategy, so no type is a supertype of a strategy for
     // every key - TypeScript cannot say "some strategy, and that strategy's options", which is what the
     // declaration checks and what is stored. The decorators check each string against its own strategy

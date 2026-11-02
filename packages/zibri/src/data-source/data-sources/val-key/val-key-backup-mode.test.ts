@@ -43,7 +43,7 @@ import { Repository } from '../../repository/repository';
 import { RepositoryClass } from '../../repository/repository-class.type';
 import { Transaction } from '../../transaction/transaction.model';
 
-// evaluation/round-2/02-data-layer-stores.md S6: a backup walked the keys while transactions committed
+// a backup walked the keys while transactions committed
 // in between, and a restore swapped in whatever the walk saw with nothing bringing a row and its
 // index entries back in line
 

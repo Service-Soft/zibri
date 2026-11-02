@@ -2,19 +2,30 @@ import assert from 'node:assert';
 
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
+import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
 import { Auth } from './decorators/auth.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { RouteAuthServiceInterface } from './route-auth-service.interface';
-import { TestPermissions } from '../__testing__/mocks/entities/test-permissions.model';
+import { JwtTestAuthController } from '../__testing__/mocks/controllers/jwt-test-auth.controller';
+import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
+import { Roles } from '../__testing__/mocks/entities/roles.enum';
+import { TestPermissions, TestPlatformPermissions } from '../__testing__/mocks/entities/test-permissions.model';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { Repository } from '../data-source/repository/repository';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
+import { HttpMethod } from '../http/http-method.enum';
+import { AuditAction, AuditOutcome, AuditReason } from '../logging/audit-event.model';
+import { Log } from '../logging/log.model';
 import { LoggerInterface } from '../logging/logger.interface';
 import { OpenApiDefinition, OpenApiOperation, OpenApiSecurityRequirementObject } from '../open-api/open-api.model';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
+import { type RouterInterface } from '../routing/router.interface';
+import { JsonUtilities } from '../utilities/json.utilities';
 
 /**
  * The `'isLoggedIn'` half of `defaultAuth`.
@@ -91,6 +102,8 @@ class LoginSkippedController {
     }
 }
 
+const PASSWORD: string = 'secure123';
+
 let server: StartedTestServer;
 let baseUrl: string;
 
@@ -105,25 +118,129 @@ function routeAuthService(): RouteAuthServiceInterface {
     return inject(ZIBRI_DI_TOKENS.ROUTE_AUTH_SERVICE);
 }
 
+let userToken: string;
+let adminToken: string;
+
+/**
+ * Creates a user with the given roles and logs in as them.
+ * @param email - The address of the account.
+ * @param roles - What the account may do.
+ * @returns The access token a client sends.
+ */
+async function createAndLogIn(email: string, roles: Roles[]): Promise<string> {
+    const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email, roles });
+    await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
+        .create({ password: PASSWORD, userId: user.id });
+    const res: Response = await fetch(`${baseUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JsonUtilities.stringify({ email, password: PASSWORD })
+    });
+    expect(res.status).toBe(200);
+    return (await res.json() as { accessToken: { value: string } }).accessToken.value;
+}
+
+/**
+ * Calls a route.
+ * @param route - The route.
+ * @param token - The access token to send, if any.
+ * @returns The status it was answered with.
+ */
+async function call(route: string, token?: string): Promise<number> {
+    return (await fetch(`${baseUrl}${route}`, { headers: token == undefined ? {} : { authorization: `Bearer ${token}` } })).status;
+}
+
 beforeAll(async () => {
     server = await startTestServer({
-        controllers: [DefaultAuthController, PublicControllerWithOneGuardedRoute, LoginSkippedController],
+        controllers: [DefaultAuthController, PublicControllerWithOneGuardedRoute, LoginSkippedController, JwtTestAuthController],
         defaultAuth: 'isLoggedIn',
         // the document open to everyone, which the spec cases below read anonymously
         providers: [...defaultTestServerProviders, defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_AUTH, useValue: { skip: true } })]
     });
     baseUrl = await server.start();
+
+    // registered once the application runs, the way a plugin does
+    const router: RouterInterface = inject(ZIBRI_DI_TOKENS.ROUTER);
+    router.registerRoute({ httpMethod: HttpMethod.GET, route: '/manual/inherits', openApi: { useInOpenApi: false }, handler: () => 'inherits' });
+    router.registerRoute({
+        httpMethod: HttpMethod.GET,
+        route: '/manual/public',
+        openApi: { useInOpenApi: false },
+        auth: { skip: true },
+        handler: () => 'public'
+    });
+    router.registerRoute({
+        httpMethod: HttpMethod.GET,
+        route: '/manual/admin',
+        openApi: { useInOpenApi: false },
+        auth: { hasPlatformPermission: { permission: TestPlatformPermissions.ADMIN } },
+        handler: () => 'admin'
+    });
+    router.registerRoute({
+        httpMethod: HttpMethod.GET,
+        route: '/manual/second-factor',
+        openApi: { useInOpenApi: false },
+        auth: { require2fa: {} },
+        handler: () => 'second factor'
+    });
+    userToken = await createAndLogIn('manual-user@example.com', [Roles.USER]);
+    adminToken = await createAndLogIn('manual-admin@example.com', [Roles.ADMIN]);
 }, 60000);
 
 afterAll(async () => {
     await server.shutdown();
 }, 30000);
 
+// a route registered without a controller ran its handler for anybody, since only the controller
+// handler checked access - the framework's own routes among them
+describe('defaultAuth: isLoggedIn, on a route registered without a controller', () => {
+    it('refuses an anonymous caller on a route that states nothing, and serves a logged in one', async () => {
+        expect(await call('/manual/inherits')).toBe(401);
+        expect(await call('/manual/inherits', userToken)).toBe(200);
+    });
+
+    it('serves a route that states it is public to an anonymous caller', async () => {
+        expect(await call('/manual/public')).toBe(200);
+    });
+
+    it('refuses a caller without the permission the route asks for, and serves one who has it', async () => {
+        expect(await call('/manual/admin', userToken)).toBe(403);
+        expect(await call('/manual/admin', adminToken)).toBe(200);
+    });
+
+    it('refuses a caller who presented no second factor, and an anonymous one before asking about it', async () => {
+        expect(await call('/manual/second-factor', userToken)).toBe(401);
+        expect(await call('/manual/second-factor')).toBe(401);
+    });
+
+    // a browser asks for a favicon on its own, before any login exists to send
+    it('serves the favicon without a login', async () => {
+        expect(await call('/favicon.ico')).not.toBe(401);
+    });
+});
+
 describe('defaultAuth: isLoggedIn', () => {
     it('refuses a route that carries no auth decorators', async () => {
         const res: Response = await fetch(`${baseUrl}/default-auth/undecorated`);
 
         expect(res.status).toBe(401);
+    });
+
+    // an access review asks who was refused what. Denials only: a line per allowed request would be
+    // an access log, and burying these in one defeats the purpose
+    it('records that a route refused an anonymous caller, and why', async () => {
+        const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+        await logger.flush();
+        await inject(repositoryTokenFor(Log)).deleteAll({});
+
+        expect(await call('/default-auth/undecorated')).toBe(401);
+
+        await logger.flush();
+        expect((await inject(repositoryTokenFor(Log)).findAll({})).map(l => l.context.metadata?.['audit'])).toContainEqual({
+            action: AuditAction.AUTHORIZATION,
+            outcome: AuditOutcome.FAILURE,
+            reason: AuditReason.NOT_LOGGED_IN
+        });
     });
 
     it('serves a route that skips auth explicitly', async () => {
@@ -151,7 +268,7 @@ describe('defaultAuth: isLoggedIn', () => {
         expect(res.status).toBe(401);
     });
 
-    // 08 §X22: `@CurrentUser({ required: false })` says what the handler is given, not who may call
+    // `@CurrentUser({ required: false })` says what the handler is given, not who may call
     // it, so under this default an anonymous caller is refused until the route says it is public
     it('refuses an anonymous caller of a route whose user is optional, until the route skips auth', async () => {
         const optional: Response = await fetch(`${baseUrl}/default-auth/optional-user`);

@@ -57,7 +57,7 @@ function twoFactorService(): TwoFactorServiceInterface {
     return inject(ZIBRI_DI_TOKENS.TWO_FACTOR_SERVICE);
 }
 
-// 04 §A15: how many recovery codes a set holds, how long they are, and how long an authenticator app's
+// how many recovery codes a set holds, how long they are, and how long an authenticator app's
 // code is shown for were constants, where a bank commonly wants others
 describe('Two factor methods - what a deployment sets', () => {
     afterAll(async () => {

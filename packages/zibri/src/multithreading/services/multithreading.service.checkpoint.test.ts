@@ -23,7 +23,7 @@ import { ThreadJobCheckpoint } from '../models/thread-job-checkpoint.model';
 import { ThreadJobEntity } from '../models/thread-job-entity.model';
 import { ThreadJobStatus } from '../models/thread-job-status.enum';
 
-// evaluation/round-2/code-review/06-infrastructure.md Q8: a job taken over ran again from the
+// a job taken over ran again from the
 // beginning, with nothing of how far it had got kept
 
 /**

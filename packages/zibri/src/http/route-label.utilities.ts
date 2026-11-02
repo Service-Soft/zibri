@@ -48,10 +48,7 @@ export abstract class RouteLabelUtilities {
             return unmatchedRouteLabel;
         }
         const path: unknown = matched.path;
-        if (typeof path !== 'string') {
-            return unmatchedRouteLabel;
-        }
-        return `${req.baseUrl}${path}`;
+        return typeof path !== 'string' ? unmatchedRouteLabel : `${req.baseUrl}${path}`;
     }
 
     /**

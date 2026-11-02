@@ -34,7 +34,12 @@ export interface UserRepositoryInterface<RoleType extends string, UserType exten
     /**
      * Stores the email of a user, and when it was verified, or null while it is not.
      */
-    updateEmail(id: UserType['id'], email: string, emailVerifiedAt: Date | null, transaction: RepositoryTransaction | undefined): Promise<void>
+    updateEmail(
+        id: UserType['id'],
+        email: string,
+        emailVerifiedAt: Date | null,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<void>
 }
 /* eslint-enable typescript/method-signature-style */
 

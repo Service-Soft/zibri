@@ -57,10 +57,7 @@ export abstract class OtpUtilities {
         // exact, because the window is a whole number of periods, which the method checks at start
         const window: number = windowInMs / (periodInSeconds * 1000);
         const delta: number | null = totp.validate({ token, window });
-        if (delta == undefined) {
-            return undefined;
-        }
-        return Math.floor(Date.now() / (periodInSeconds * 1000)) + delta;
+        return delta == undefined ? undefined : Math.floor(Date.now() / (periodInSeconds * 1000)) + delta;
     }
 
     /**

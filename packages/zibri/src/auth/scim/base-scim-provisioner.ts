@@ -59,7 +59,11 @@ export abstract class BaseScimProvisioner<
      * members of others.
      * @param transaction - The transaction the groups are changed in.
      */
-    abstract resolveGroupMembership(membership: MembershipType, groups: ScimGroupResource[], transaction: RepositoryTransaction): Promise<void>;
+    abstract resolveGroupMembership(
+        membership: MembershipType,
+        groups: ScimGroupResource[],
+        transaction: RepositoryTransaction
+    ): Promise<void>;
 
     /**
      * Deletes a user the tenant owns after the identity provider deleted them, or keeps them

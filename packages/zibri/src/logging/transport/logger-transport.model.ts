@@ -175,8 +175,8 @@ export class LoggerTransport<T extends BaseLoggerTransportConfig> {
      * @returns The newly created transport.
      */
     static db(level: LogLevel, options: DbLoggerTransportOptions = {}): LoggerTransport<BaseLoggerTransportConfig> {
-        // evaluation/03-auth-and-security G3: without a budget a caller filled the log table at request
-        // rate. Per transport, for the reason the email transport keeps its throttle per transport
+        // without a budget a caller fills the log table at request rate. Per transport, for the
+        // reason the email transport keeps its throttle per transport
         const budget: LogBudget = new LogBudget(options.maxEntriesPerMinute ?? 1000, logToDb);
         return this.create<BaseLoggerTransportConfig>(
             { level, name: 'DbLoggerTransport', register: 'afterStartup', levelsByOrigin: options.levelsByOrigin },

@@ -16,8 +16,5 @@ export function textContent(children: unknown, $ssr: RenderServerRuntime): strin
         return String(children);
     }
     // `Order for {customer}` arrives as an array, whose parts are text just the same
-    if (Array.isArray(children)) {
-        return children.map(child => textContent(child, $ssr)).join('');
-    }
-    return $ssr.child(children);
+    return Array.isArray(children) ? children.map(child => textContent(child, $ssr)).join('') : $ssr.child(children);
 }

@@ -92,7 +92,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, TestTimeouts.inMemory.shutdown);
 
-// part of evaluation round 2, 02 §S14: reverting went by version alone, which every commit of a
+// reverting went by version alone, which every commit of a
 // release shares, so going back to an earlier commit of the same release had no way to say how far
 describe('reverting the migrations applied after one of them', () => {
     it('refuses a migration the database has not recorded', async () => {

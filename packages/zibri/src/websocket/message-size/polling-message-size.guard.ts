@@ -69,7 +69,9 @@ export abstract class PollingMessageSizeGuard {
             const scanner: PollingPayloadScanner = new PollingPayloadScanner(sizes);
             // eslint-disable-next-line typescript/typedef
             const onData = (chunk: Buffer | string): void => {
-                const refusal: WebsocketMessageRefusal | undefined = scanner.push(typeof chunk === 'string' ? chunk : chunk.toString('utf8'));
+                const refusal: WebsocketMessageRefusal | undefined = scanner.push(
+                    typeof chunk === 'string' ? chunk : chunk.toString('utf8')
+                );
                 if (refusal == undefined) {
                     return;
                 }
@@ -106,7 +108,7 @@ export abstract class PollingMessageSizeGuard {
         path: Route,
         sessions: Map<string, WebsocketMessageSizeScanner>
     ): WebsocketMessageSizeScanner | undefined {
-        if (req.method !== HttpMethod.POST || req.url == undefined || !req.url.startsWith(`${path}/`)) {
+        if (req.method !== HttpMethod.POST || req.url?.startsWith(`${path}/`) !== true) {
             return undefined;
         }
         // binary bodies are the older protocol's, which the websocket server refuses
@@ -114,9 +116,6 @@ export abstract class PollingMessageSizeGuard {
             return undefined;
         }
         const query: URLSearchParams = new URL(req.url, 'http://localhost').searchParams;
-        if (query.get('transport') !== 'polling') {
-            return undefined;
-        }
-        return sessions.get(query.get('sid') ?? '');
+        return query.get('transport') !== 'polling' ? undefined : sessions.get(query.get('sid') ?? '');
     }
 }

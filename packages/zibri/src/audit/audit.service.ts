@@ -18,9 +18,9 @@ import { WebsocketRequestContext } from '../context/request/websocket-request.co
 import { type ChainServiceInterface } from '../data-source/chain/chain-service.interface';
 import { ChainVerification } from '../data-source/chain/chain-verification.model';
 import { ChainUtilities } from '../data-source/chain/chain.utilities';
-import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 import { WhereFilter } from '../data-source/models/where/where-filter.model';
 import { Repository } from '../data-source/repository/repository';
+import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';

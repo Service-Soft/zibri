@@ -138,7 +138,7 @@ describe('AuditService - at startup', () => {
     }, TestTimeouts.inMemory.start);
 });
 
-// evaluation/round-2/06-infrastructure F25: the trail rode the log pipeline, whose buffer drops the
+// the trail rode the log pipeline, whose buffer drops the
 // least important entry, whose db budget collapses past 1000 a minute, and whose retention is the level's
 describe('AuditService', () => {
     beforeAll(async () => {
@@ -289,7 +289,7 @@ describe('AuditService', () => {
         expect(await auditService.resolveVerification(tenantId)).toMatchObject({ intact: true, newestSequence: 2 });
     });
 
-    // 12 §O3: the five minutes before an entry could be sealed were fixed
+    // the five minutes before an entry could be sealed were fixed
     it('seals what was stored up to the delay it is given before it runs', async () => {
         const tenantId: string = UUIDUtilities.generate();
         // past everything the cases before it stored and sealed

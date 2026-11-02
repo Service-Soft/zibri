@@ -326,7 +326,7 @@ describe('a socket whose login has ended', () => {
         expect(await isClosedWithin(socket, 2000)).toBe(true);
     });
 
-    // 09 §Q6: a login ends with the rows it lives in, however they are removed. Only the auth service
+    // a login ends with the rows it lives in, however they are removed. Only the auth service
     // and the strategies said so to the websocket service
     it('is closed when the application removes the refresh tokens of its login itself', async () => {
         const login: LoggedIn = await logIn(await createUser());

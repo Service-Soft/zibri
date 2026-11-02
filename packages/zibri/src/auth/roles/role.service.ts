@@ -127,7 +127,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
      */
     // keyed by the tenant rather than per tenant: kept per tenant, the tenant had to be made active
     // around every access, and a check in the tenant and an invalidation from outside every tenant
-    // only met by that (round 2's code review 04 §Q5)
+    // only met by that
     private readonly tenantIndexes: InMemoryCacheStore<string, TenantRoleIndex> = new InMemoryCacheStore({ perTenant: false });
 
     /**
@@ -472,7 +472,11 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async createRole<T extends BaseRole>(caller: CurrentUser, data: RoleCreateData<T>, transaction: RepositoryTransaction | undefined): Promise<T> {
+    async createRole<T extends BaseRole>(
+        caller: CurrentUser,
+        data: RoleCreateData<T>,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<T> {
         return await this.audited(AuditAction.ROLE_CREATED, caller, data.name, undefined, transaction, async () => {
             // a tenant's own role is checked against the caller's permissions in the tenant the request
             // acts in, and the data layer refuses one naming any other tenant

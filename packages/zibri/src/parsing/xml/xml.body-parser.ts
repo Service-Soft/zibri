@@ -37,10 +37,7 @@ export class XmlBodyParser implements BodyParserInterface<MimeType.XML> {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     parseFromHttpClientResponse(res: HttpClientResponse, metadata: XmlBodyMetadata): unknown {
-        if (res.body !== undefined) {
-            return res.body;
-        }
-        return this.parseXml(res.rawBody, metadata);
+        return res.body ?? this.parseXml(res.rawBody, metadata);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -70,10 +67,7 @@ export class XmlBodyParser implements BodyParserInterface<MimeType.XML> {
         try {
             const root: XmlElementNode = XmlReaderUtilities.resolveRootElement(xml);
             // read all the same, so a raw body is as well formed as any other
-            if (metadata.raw) {
-                return xml;
-            }
-            return parseShape(XmlReaderUtilities.readShape(root, metadata.shape), metadata.shape);
+            return metadata.raw ? xml : parseShape(XmlReaderUtilities.readShape(root, metadata.shape), metadata.shape);
         }
         catch {
             throw new BadRequestError($ts`invalid XML in body`);

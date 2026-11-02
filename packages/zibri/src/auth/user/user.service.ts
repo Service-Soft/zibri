@@ -84,7 +84,7 @@ export class UserService implements UserServiceInterface, OnAppInit {
             }
             this.userRepositories.push(repo);
             this.userEntityRepositories.push(repo);
-            // given the role service here rather than resolving it per write (01 §Q3)
+            // given the role service here rather than resolving it per write
             inject(EntityWriteObserverRegistry).register(repo.entityClass, new UserWriteObserver(inject(ZIBRI_DI_TOKENS.ROLE_SERVICE)));
             // only when the application named one, since each costs the writes of its kind an event
             if (names.userDeleted != undefined || names.userDeactivated != undefined || names.userReactivated != undefined) {
@@ -174,7 +174,12 @@ export class UserService implements UserServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async updateEmail(id: string, email: string, emailVerifiedAt: Date | null, transaction: RepositoryTransaction | undefined): Promise<void> {
+    async updateEmail(
+        id: string,
+        email: string,
+        emailVerifiedAt: Date | null,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<void> {
         // asked of every repository, for the reason updateDeactivatedAt gives
         const written: true | undefined = await this.resolveFromAnyRepository(
             this.userRepositories.map(async r => {

@@ -84,10 +84,10 @@ const frameworkDataSourceClass: Newable<PostgresDataSource> = createTestDataSour
  */
 @DataSource()
 class CountedPostgresDataSource extends createTestDataSource({
-    entities: [MigrationEntity, CostGroup, CostItem],
-    roundTrips: postgresRoundTrips,
-    allowOrphan: true
-}) {}
+        entities: [MigrationEntity, CostGroup, CostItem],
+        roundTrips: postgresRoundTrips,
+        allowOrphan: true
+    }) {}
 
 const postgresDataSourceClass: Newable<PostgresDataSource> = CountedPostgresDataSource;
 

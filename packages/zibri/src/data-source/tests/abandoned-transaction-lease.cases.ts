@@ -86,7 +86,7 @@ export function describeAbandonedTransactionLease(dataSourceName: string, dataSo
             await expect(transaction.rollback()).resolves.toBeUndefined();
         }, 15000);
 
-        // found with evaluation/round-2/12-hardcoded-values.md §D4: in memory and on valkey the idle
+        // in memory and on valkey the idle
         // clock started with the first thing a transaction did, so one that did nothing was never ended
         it('is rolled back when it did nothing at all', async () => {
             const transaction: Transaction = await dataSourceOf().startTransaction({ idleTimeoutInMs: IDLE_TIMEOUT_IN_MS });

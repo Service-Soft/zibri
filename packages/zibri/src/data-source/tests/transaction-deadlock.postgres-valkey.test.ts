@@ -13,9 +13,9 @@ import { MigrationEntity } from '../migration/migration-entity.model';
 import { Repository } from '../repository/repository';
 
 /**
- * Executable form of evaluation/10-leases-and-claims.md 10.6, beside postgres: a cycle of valkey
- * transactions ran every one of them into the lock timeout, ten seconds later, where postgres fails
- * one of them within a second and the other commits.
+ * A deadlock on valkey, beside postgres: a cycle of valkey transactions ran every one of them into
+ * the lock timeout, ten seconds later, where postgres fails one of them within a second and the
+ * other commits.
  */
 
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({

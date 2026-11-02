@@ -250,7 +250,11 @@ export abstract class InMemoryDataSource implements DataSourceInterface, PubSubD
                 + ` "${options.isolationLevel}" is ignored.`
             );
         }
-        const transaction: InMemoryTransaction = new InMemoryTransaction(this.store, options?.idleTimeoutInMs ?? this.transactionIdleTimeoutInMs, this.logger);
+        const transaction: InMemoryTransaction = new InMemoryTransaction(
+            this.store,
+            options?.idleTimeoutInMs ?? this.transactionIdleTimeoutInMs,
+            this.logger
+        );
         this.openTransactions.add(transaction);
         return transaction;
     }
@@ -280,10 +284,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface, PubSubD
             : null;
 
         this.updateStoredRows(MigratedEntityUtilities.resolveEntityClass(input.entity, this.entities), input.transaction, row => {
-            if (name in row) {
-                return undefined;
-            }
-            return { values: { [name]: JsonUtilities.stringify(value) } };
+            return name in row ? undefined : { values: { [name]: JsonUtilities.stringify(value) } };
         });
     }
 

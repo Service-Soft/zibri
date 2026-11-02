@@ -245,10 +245,7 @@ function placeElement(
     }
     // A host element in a content slot stays transparent, so email components buried in HTML are still
     // caught; anywhere else its children are no longer judged. A user component is always opaque.
-    if (tag.kind === 'host' && slot?.kind === 'content') {
-        return slot;
-    }
-    return undefined;
+    return tag.kind === 'host' && slot?.kind === 'content' ? slot : undefined;
 }
 
 /**

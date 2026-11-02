@@ -139,10 +139,7 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
     private getTempFileName(mimetype: string): string {
         const id: string = UUIDUtilities.generate();
         const ext: FileExtension | undefined = MimeTypeUtilities.resolveFileExtension(mimetype);
-        if (ext) {
-            return `${id}${ext}`;
-        }
-        return id;
+        return ext ? `${id}${ext}` : id;
     }
 
     private async removeTempFolder(tempFolder: FsPath): Promise<void> {

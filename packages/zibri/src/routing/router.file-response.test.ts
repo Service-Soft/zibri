@@ -59,7 +59,7 @@ async function dispositionOf(path: string): Promise<string | null> {
     return res.headers.get(KnownHeader.CONTENT_DISPOSITION);
 }
 
-// part of evaluation round 2, 03 §H6: the name was percent-encoded into the plain filename, which no
+// the name was percent-encoded into the plain filename, which no
 // browser decodes, and every file was a download
 describe('the content disposition a file is answered with', () => {
     it('names a file outside ASCII in UTF-8, beside a name every client reads', async () => {

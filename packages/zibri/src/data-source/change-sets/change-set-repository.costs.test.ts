@@ -119,7 +119,7 @@ describe('what the writes of an entity recording change sets cost', () => {
         );
     });
 
-    // 01 §D10: the rows a soft delete takes along were marked one owner at a time, a whole update with
+    // the rows a soft delete takes along were marked one owner at a time, a whole update with
     // its change sets for every project
     it('soft deletes rows and the rows they take along for what one costs, however many there are', async () => {
         const seeded: (name: string, count: number) => Promise<CostProject[]> = async (name, count) => await projects.createAll(

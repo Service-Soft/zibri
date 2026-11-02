@@ -103,10 +103,7 @@ function withVendorTags(html: string, vendorTags: string): string {
         return html;
     }
     // A function replacer keeps `$` sequences in the tags literal.
-    if (html.includes('</head>')) {
-        return html.replace('</head>', () => `${vendorTags}\n</head>`);
-    }
-    return `${vendorTags}\n${html}`;
+    return html.includes('</head>') ? html.replace('</head>', () => `${vendorTags}\n</head>`) : `${vendorTags}\n${html}`;
 }
 
 /**
@@ -290,10 +287,9 @@ function narrowTranslations(translations: unknown, entries: ClientInstanceEntry[
  * @returns True when the table can be narrowed.
  */
 function isTranslationTable(value: unknown): value is Record<string, Record<string, string> | undefined> {
-    if (typeof value !== 'object' || value === null) {
-        return false;
-    }
-    return Object.values(value).every(bySource => bySource == undefined || typeof bySource === 'object');
+    return typeof value === 'object'
+        && value !== null
+        && Object.values(value).every(bySource => bySource == undefined || typeof bySource === 'object');
 }
 
 /**

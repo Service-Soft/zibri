@@ -473,11 +473,10 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
         if (basic != undefined && credentials.client_id != undefined && credentials.client_id !== basic.clientId) {
             throw new OAuth2Error(OAuth2ErrorCode.INVALID_REQUEST, $ts`The client_id differs from the client in the authorization header.`);
         }
-        if (presented[0] == undefined && credentials.client_id != undefined) {
+        return presented[0] == undefined && credentials.client_id != undefined
             // an id and nothing else to prove it: a client authenticating with its certificate
-            return { method: 'certificate', clientId: credentials.client_id, proof: undefined };
-        }
-        return presented[0];
+            ? { method: 'certificate', clientId: credentials.client_id, proof: undefined }
+            : presented[0];
     }
 
     /**
@@ -487,11 +486,11 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
      * @throws An OAuth2Error when it holds basic credentials that cannot be read.
      */
     private findBasicCredentials(authorization: string | undefined): PresentedClient | undefined {
-        const [scheme, encoded] = authorization?.split(' ') ?? [];
+        const [scheme, encoded = ''] = authorization?.split(' ') ?? [];
         if (scheme?.toLowerCase() !== 'basic') {
             return undefined;
         }
-        const decoded: string = Buffer.from(encoded ?? '', 'base64').toString('utf8');
+        const decoded: string = Buffer.from(encoded, 'base64').toString('utf8');
         const separator: number = decoded.indexOf(':');
         if (separator < 1) {
             throw new OAuth2Error(

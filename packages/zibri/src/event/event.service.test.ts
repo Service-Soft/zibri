@@ -311,7 +311,7 @@ describe('EventService', () => {
         // was, which is no better than the row that used to say it had succeeded
         expect(run.error?.paragraphs.join('\n')).toContain('always fails');
 
-        // the whole of the finding: a subscriber that never succeeded used to leave the event
+        // the whole point: a subscriber that never succeeded used to leave the event
         // FINISHED, which is the one status the cleanup job deletes - so the record of work that
         // was owed and never done was thrown away a day later.
         //

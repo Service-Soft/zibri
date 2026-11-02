@@ -41,19 +41,18 @@ export const RequestsPerSecondChart: TsxComponent<Props> = ({ secondary, classNa
         const seriesClientError: DataPoint[] = [];
         const seriesServerError: DataPoint[] = [];
 
-        // eslint-disable-next-line unicorn/no-array-for-each
-        snaps.forEach((snap, i, all) => {
+        for (const [i, snap] of snaps.entries()) {
             const t: Date = new Date(snap.timestamp);
             if (i === 0) {
                 seriesSuccess.push({ x: t, y: 0 });
                 seriesClientError.push({ x: t, y: 0 });
                 seriesServerError.push({ x: t, y: 0 });
-                return;
+                continue;
             }
 
-            const intervalSec: number = (new Date(snap.timestamp).getTime() - new Date(all[i - 1].timestamp).getTime()) / 1000;
+            const intervalSec: number = (new Date(snap.timestamp).getTime() - new Date(snaps[i - 1].timestamp).getTime()) / 1000;
 
-            const prev: Metric[] = all[i - 1].metrics;
+            const prev: Metric[] = snaps[i - 1].metrics;
             const curr: Metric[] = snap.metrics;
             // sum counts by class
             const sum: (statusClass: StatusClass) => number = (statusClass: StatusClass) => {
@@ -62,7 +61,7 @@ export const RequestsPerSecondChart: TsxComponent<Props> = ({ secondary, classNa
             seriesSuccess.push({ x: t, y: sum('success') });
             seriesClientError.push({ x: t, y: sum('client') });
             seriesServerError.push({ x: t, y: sum('server') });
-        });
+        }
 
         // build event‑loop lag series (in ms)
         const lagSeries: DataPoint[] = snaps.map(snap => {

@@ -11,13 +11,14 @@ describe('ProjectTemplateUtilities', () => {
     });
 
     it('keeps a section alone on its lines with them when its flag is set, and leaves out the lines when it is not', async () => {
-        await expect(ProjectTemplateUtilities.resolveFile('src/controllers/index.ts', { pages: true })).resolves.toBe([
+        await expect(ProjectTemplateUtilities.resolveFile('src/controllers/index.ts', { pages: true, mailingList: true })).resolves.toBe([
             'export * from \'./auth.controller\';',
             'export * from \'./health.controller\';',
             'export * from \'./page.controller\';',
+            'export * from \'./mailing-list.controller\';',
             ''
         ].join('\n'));
-        await expect(ProjectTemplateUtilities.resolveFile('src/controllers/index.ts', { pages: false })).resolves.toBe([
+        await expect(ProjectTemplateUtilities.resolveFile('src/controllers/index.ts', { pages: false, mailingList: false })).resolves.toBe([
             'export * from \'./auth.controller\';',
             'export * from \'./health.controller\';',
             ''

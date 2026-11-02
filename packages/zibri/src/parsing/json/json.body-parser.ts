@@ -24,10 +24,7 @@ export class JsonBodyParser implements BodyParserInterface<MimeType.JSON> {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     parseFromHttpClientResponse(res: HttpClientResponse, metadata: JsonBodyMetadata): unknown {
-        if (res.body !== undefined) {
-            return res.body;
-        }
-        return parseShape(res.rawBody, metadata.shape);
+        return res.body ?? parseShape(res.rawBody, metadata.shape);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -46,13 +43,11 @@ export class JsonBodyParser implements BodyParserInterface<MimeType.JSON> {
         );
 
         try {
-            if (!raw.length) {
-                return undefined;
-            }
-
-            // read as json before it is read as a shape: a shape that is text would otherwise take
-            // the json text itself as its value
-            return parseShape(JsonUtilities.parse<unknown>(raw.toString('utf8')), metadata.shape);
+            return !raw.length
+                ? undefined
+                // read as json before it is read as a shape: a shape that is text would otherwise take
+                // the json text itself as its value
+                : parseShape(JsonUtilities.parse<unknown>(raw.toString('utf8')), metadata.shape);
         }
         catch {
             throw new BadRequestError($ts`invalid JSON in request body`);

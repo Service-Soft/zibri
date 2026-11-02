@@ -60,7 +60,7 @@ async function create(...args: string[]): Promise<void> {
     await quietly(async () => new MigrateCommand().start(['migrate', 'create', ...args]));
 }
 
-// part of evaluation round 2, 02 §S14: every migration was written by hand, and added to the data source
+// every migration was written by hand, and added to the data source
 // by hand, with nothing comparing it to what the entities declare
 describe('MigrateCommand', () => {
 

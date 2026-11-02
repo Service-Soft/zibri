@@ -54,7 +54,7 @@ describe('validateEntitiesRegistered', () => {
             plugins: [new ScratchValidatePlugin('FirstPlugin'), new ScratchValidatePlugin('SecondPlugin'), new ScratchValidatePlugin('ThirdPlugin')]
         });
 
-        const error: unknown = await start.catch((e: unknown) => e);
+        const error: unknown = await start.catch((error_: unknown) => error_);
         expect(error).toBeInstanceOf(MissingEntitiesError);
         const message: string = error instanceof Error ? error.message : '';
         expect(message).toMatch(missingEntityPattern('Lease', 'LeaseService'));

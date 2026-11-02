@@ -16,13 +16,13 @@ export function findWorkflowCommands(workflow: string): string[] {
         if (match == undefined) {
             continue;
         }
-        const [, indent, command]: (string | undefined)[] = match;
+        const [, indent = '', command = '']: (string | undefined)[] = match;
         if (command !== '|') {
-            commands.push(command ?? '');
+            commands.push(command);
             continue;
         }
         const block: string[] = [];
-        while (index + 1 < lines.length && leadingSpaces(lines[index + 1] ?? '') > (indent ?? '').length) {
+        while (index + 1 < lines.length && leadingSpaces(lines[index + 1] ?? '') > indent.length) {
             index++;
             block.push(lines[index] ?? '');
         }

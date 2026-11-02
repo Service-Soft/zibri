@@ -18,6 +18,8 @@ this file takes a reader.
 
 # Table of Contents
 
+- [Documentation style](#documentation-style)
+- [Table of Contents](#table-of-contents)
 - [The reader](#the-reader)
 - [The voice](#the-voice)
   - [What stays out of a page](#what-stays-out-of-a-page)
@@ -79,7 +81,7 @@ runs the schedule. Name a concrete implementation only as an example of what to 
 ever matters to the reader which store is underneath, the abstraction leaks, and that is the bug.
 `costs.md` is the one page that names stores, in a table of measured numbers.
 
-**References into the repository.** No evaluation finding, no test file, no source path ("see
+**References into the repository.** No bug finding, no test file, no source path ("see
 `PasswordCredentials` in the auth module"). Link to a page, or name the export.
 
 **What a feature is not**, phrased as a negative. A limit is stated as what is, see

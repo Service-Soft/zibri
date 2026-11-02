@@ -20,9 +20,8 @@ export type HeldLease = {
      * logs it, and tells the work through its signal once the grant is lost for certain.
      */
     renew: () => Promise<void>,
-    // releasing unconditionally is what turned one lost exclusion into a permanent one in
-    // evaluation/10-leases-and-claims.md 10.1, because a lapsed holder freed the lock that had
-    // replaced its own
+    // releasing unconditionally turns one lost exclusion into a permanent one, because a lapsed
+    // holder frees the lock that replaced its own
     /**
      * Hands the grant back.
      *

@@ -387,10 +387,7 @@ function objectPatternShape(
  */
 function propertyKeyOf(element: ts.BindingElement): string | undefined {
     const property: ts.PropertyName | ts.BindingName = element.propertyName ?? element.name;
-    if (ts.isIdentifier(property) || ts.isStringLiteral(property) || ts.isNumericLiteral(property)) {
-        return property.text;
-    }
-    return undefined;
+    return ts.isIdentifier(property) || ts.isStringLiteral(property) || ts.isNumericLiteral(property) ? property.text : undefined;
 }
 
 /**
@@ -575,10 +572,9 @@ function isRelevant(statement: ts.Statement, selection: Selection): boolean {
         return containsClientCode(statement, selection.serverOnly)
             || nestedStatements(statement).some(nested => isRelevant(nested, selection));
     }
-    if (ts.isVariableStatement(statement)) {
-        return statement.declarationList.declarations.some(declaration => isDeclarationNeeded(declaration, selection));
-    }
-    return containsClientCode(statement, selection.serverOnly) || providesNeededVariable(statement, selection.needed);
+    return ts.isVariableStatement(statement)
+        ? statement.declarationList.declarations.some(declaration => isDeclarationNeeded(declaration, selection))
+        : containsClientCode(statement, selection.serverOnly) || providesNeededVariable(statement, selection.needed);
 }
 
 /**
@@ -913,10 +909,7 @@ function neutralizeLoop(loop: ts.IterationStatement, nested: (child: ts.Statemen
     if (ts.isWhileStatement(loop)) {
         return factory.updateWhileStatement(loop, loop.expression, nested(loop.statement));
     }
-    if (ts.isDoStatement(loop)) {
-        return factory.updateDoStatement(loop, nested(loop.statement), loop.expression);
-    }
-    return loop;
+    return ts.isDoStatement(loop) ? factory.updateDoStatement(loop, nested(loop.statement), loop.expression) : loop;
 }
 
 /**

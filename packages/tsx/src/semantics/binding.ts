@@ -11,10 +11,9 @@ import { walk } from './walk';
  */
 export function isBindingIdentifier(node: ts.Identifier): boolean {
     const parent: ts.Node = node.parent;
-    if (ts.isVariableDeclaration(parent) || ts.isParameter(parent) || ts.isBindingElement(parent)) {
-        return parent.name === node;
-    }
-    return ts.isForOfStatement(parent) && parent.initializer === node;
+    return ts.isVariableDeclaration(parent) || ts.isParameter(parent) || ts.isBindingElement(parent)
+        ? parent.name === node
+        : ts.isForOfStatement(parent) && parent.initializer === node;
 }
 
 /**
@@ -217,10 +216,7 @@ export function declaredSymbols(statement: ts.Statement | ts.VariableDeclaration
     if (ts.isVariableStatement(statement)) {
         return statement.declarationList.declarations.flatMap(declaredSymbols);
     }
-    if (ts.isVariableDeclaration(statement)) {
-        return symbolsOf(collectPatternBindings(statement.name));
-    }
-    return [];
+    return ts.isVariableDeclaration(statement) ? symbolsOf(collectPatternBindings(statement.name)) : [];
 }
 
 /**

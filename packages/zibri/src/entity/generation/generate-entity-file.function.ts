@@ -132,10 +132,7 @@ function mapSchemaToTsType(
             if (schema.enum) {
                 return { type: schema.enum.map(v => JsonUtilities.stringify(v).replaceAll('"', '\'')).join(' | '), isRef: false };
             }
-            if (schema.format === 'date-time') {
-                return { type: 'Date', isRef: false };
-            }
-            return { type: 'string', isRef: false };
+            return { type: schema.format === 'date-time' ? 'Date' : 'string', isRef: false };
         }
         case 'integer':
         case 'number': {
@@ -155,10 +152,9 @@ function mapSchemaToTsType(
             return { type: `${type}[]`, isRef, schema: s };
         }
         case 'object': {
-            if (!schema.properties) {
-                return { type: 'Record<string, unknown>', isRef: false };
-            }
-            return { type: schema.title ?? propName, isRef: true, schema: schema };
+            return schema.properties
+                ? { type: schema.title ?? propName, isRef: true, schema: schema }
+                : { type: 'Record<string, unknown>', isRef: false };
         }
         case undefined: {
             return { type: 'undefined', isRef: false };
@@ -188,32 +184,20 @@ function mapSchemaToDecoratorLines(
     switch (schema.type) {
         case 'string': {
             if (schema.format === 'date-time') {
-                if (isRequired) {
-                    return ['    @Property.date()'];
-                }
-                return ['    @Property.date({ required: false })'];
+                return [isRequired ? '    @Property.date()' : '    @Property.date({ required: false })'];
             }
             // TODO handle enums in entity generation
             // if (schema.enum) {
             //     return { type: schema.enum.map(v => JsonUtilities.stringify(v)).join(' | '), isRef: false };
             // }
-            if (isRequired) {
-                return ['    @Property.string()'];
-            }
-            return ['    @Property.string({ required: false })'];
+            return [isRequired ? '    @Property.string()' : '    @Property.string({ required: false })'];
         }
         case 'integer':
         case 'number': {
-            if (isRequired) {
-                return ['    @Property.number()'];
-            }
-            return ['    @Property.number({ required: false })'];
+            return [isRequired ? '    @Property.number()' : '    @Property.number({ required: false })'];
         }
         case 'boolean': {
-            if (isRequired) {
-                return ['    @Property.boolean()'];
-            }
-            return ['    @Property.boolean({ required: false })'];
+            return [isRequired ? '    @Property.boolean()' : '    @Property.boolean({ required: false })'];
         }
         case 'array': {
             if (!schema.items) {
@@ -235,10 +219,7 @@ function mapSchemaToDecoratorLines(
         }
         case 'object':
         default: {
-            if (isRequired) {
-                return ['    @Property.unknown()'];
-            }
-            return ['    @Property.unknown({ required: false })'];
+            return [isRequired ? '    @Property.unknown()' : '    @Property.unknown({ required: false })'];
         }
     }
 }

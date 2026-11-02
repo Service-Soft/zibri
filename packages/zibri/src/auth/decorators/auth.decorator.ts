@@ -56,13 +56,13 @@ export namespace Auth {
     export function skip(options: Partial<SkipAuthMetadata> = {}): MethodDecorator & ClassDecorator {
         const fullMetadata: SkipAuthMetadata = { allowRedundant: false, ...options };
 
-        return ((target: Object, propertyKey?: string | symbol) => {
+        return (target: Object, propertyKey?: string | symbol) => {
             if (propertyKey !== undefined) {
                 MetadataUtilities.setRouteSkipAuth(target.constructor, fullMetadata, propertyKey as string);
             }
             else {
                 MetadataUtilities.setControllerSkipAuth(target as Function, fullMetadata);
             }
-        }) as MethodDecorator & ClassDecorator;
+        };
     }
 }

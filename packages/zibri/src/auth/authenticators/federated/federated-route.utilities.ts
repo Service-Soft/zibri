@@ -384,13 +384,12 @@ export abstract class FederatedRouteUtilities {
         if (error instanceof ForbiddenError) {
             return FederatedLoginFailure.REFUSED;
         }
-        // a code, a ticket or its proof that is no longer good, which starting over fixes
-        if (error instanceof UnauthorizedError) {
-            return FederatedLoginFailure.EXPIRED;
-        }
-        // too many attempts, or a hook that could not take the request: starting over would fail the
-        // same way, which `expired` would have told the user to do
-        return FederatedLoginFailure.FAILED;
+        return error instanceof UnauthorizedError
+            // a code, a ticket or its proof that is no longer good, which starting over fixes
+            ? FederatedLoginFailure.EXPIRED
+            // too many attempts, or a hook that could not take the request: starting over would fail the
+            // same way, which `expired` would have told the user to do
+            : FederatedLoginFailure.FAILED;
     }
 
     /**

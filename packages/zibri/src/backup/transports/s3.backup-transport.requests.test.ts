@@ -19,7 +19,7 @@ import { BackupEntity } from '../backup-entity.model';
 import { BackupResourceEntity } from '../backup-resource-entity.model';
 import { BackupTransport } from '../decorators/backup-transport.decorator';
 
-// evaluation/round-2/02-data-layer-stores.md S8: the transport signed with a static access key and its
+// the transport signed with a static access key and its
 // secret alone, which is what a workload with expiring credentials does not have, asked for no
 // encryption, and sent no digest of what it uploaded, which a bucket with object lock refuses
 
@@ -261,7 +261,7 @@ describe('BaseS3BackupTransport — what it sends', () => {
         expect(received[0]?.headers['x-amz-server-side-encryption']).toBeUndefined();
     }, 15000);
 
-    // evaluation/round-2/12-hardcoded-values.md §D5: every request was tried three times, whatever the
+    // every request was tried three times, whatever the
     // application's own retries of a resource
     it('tries a request as often as it is told, three times by default', async () => {
         const unavailable: BackupEntity = Object.assign(new BackupEntity(), { name: 'unavailable' });

@@ -120,9 +120,10 @@ describe('errorHandler', () => {
         expect(res.headers.get(KnownHeader.CONTENT_TYPE)).toContain('application/json');
 
         // eslint-disable-next-line typescript/no-unsafe-assignment
-        const body: { status: number, name: string, message: string, paragraphs: string[] } = await res.json();
+        const body: ErrorResponseBody = await res.json();
         expect(body.status).toBe(404);
         expect(body.name).toBe('NotFoundError');
+        expect(body.message).toBe('nothing here');
         expect(body.paragraphs).toEqual(['nothing here']);
     });
 

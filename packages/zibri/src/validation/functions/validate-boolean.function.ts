@@ -50,8 +50,5 @@ export async function validateBoolean(
  * @returns All validation problems found.
  */
 export function booleanValueProblems(fullKey: string, property: unknown): ValidationProblem[] {
-    if (typeof property !== 'boolean') {
-        return [new TypeMismatchValidationProblem(fullKey, 'boolean')];
-    }
-    return [];
+    return typeof property !== 'boolean' ? [new TypeMismatchValidationProblem(fullKey, 'boolean')] : [];
 }

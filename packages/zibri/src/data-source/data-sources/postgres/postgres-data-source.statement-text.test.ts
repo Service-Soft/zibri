@@ -22,6 +22,12 @@ class PriceTag extends BaseEntity {
 
     @Property.string({ default: 'costs $1', required: false })
     label?: string;
+
+    /**
+     * A default that is a function of when the row is written, which a column cannot run.
+     */
+    @Property.date({ default: () => new Date(), required: false })
+    printedAt?: Date;
 }
 
 const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
@@ -48,5 +54,18 @@ describe('the text of a statement the data source writes', () => {
         );
 
         expect(String(column?.['column_default'])).toContain('\'costs $1\'');
+    });
+
+    // a constant default reaches the column, for the writes the application never runs. One that is a
+    // function of the moment a row is written cannot, and declaring the moment the class was evaluated
+    // instead would be a wrong answer looking like a right one
+    it('leaves a default the column cannot hold to the application', async () => {
+        const [column] = await queryPostgres(
+            inject(dataSourceClass),
+            'SELECT column_default FROM information_schema.columns WHERE table_name = $1 AND column_name = $2',
+            ['price_tag', 'printedAt']
+        );
+
+        expect(column?.['column_default'] ?? undefined).toBeUndefined();
     });
 });

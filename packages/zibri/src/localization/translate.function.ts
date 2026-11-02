@@ -62,7 +62,7 @@ export function $t(
             if (entry != undefined) {
                 // an object with one key names the placeholder. Extraction reads the same name off an
                 // inline object only, so a variable holding such an object is named here and numbered
-                // in source.xlf (round-2 11 §L7, documented in localization.md)
+                // in source.xlf, as localization.md documents
                 const [name, val] = entry;
                 key = name;
                 params[key] = val;

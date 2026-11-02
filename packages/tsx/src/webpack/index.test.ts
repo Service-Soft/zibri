@@ -42,7 +42,7 @@ describe('zibri-tsx webpack loader', () => {
         expect(handed.code).toContain('function __render$Home($ssr, { title })');
     });
 
-    // 07 §T11: webpack composes the map a loader hands it into the bundle's, so a stack frame of a
+    // webpack composes the map a loader hands it into the bundle's, so a stack frame of a
     // template names the template rather than a line of the compiled module
     it('hands webpack the source map of the module, naming the template', () => {
         const handed: Handed = { code: undefined, map: undefined };

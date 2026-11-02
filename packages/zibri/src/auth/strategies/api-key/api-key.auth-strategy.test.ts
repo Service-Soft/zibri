@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
 import { ApiKeyCleanupCronJob } from './api-key-cleanup.cron-job';
+import { type ApiKeyCreateData } from './api-key-create-data.model';
 import { ApiKeyOptions } from './api-key-options.model';
 import { ApiKeyAuthStrategy } from './api-key.auth-strategy';
 import { ApiKey, ApiKeyCreateDto } from './api-key.model';
@@ -11,6 +12,7 @@ import { missingEntityPattern } from '../../../__testing__/missing-entity-patter
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { MemberRoles } from '../../../__testing__/mocks/entities/member-roles.enum';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
+import { TestMembership } from '../../../__testing__/mocks/entities/test-membership.entity';
 import { TestPermissions, TestPlatformPermissions } from '../../../__testing__/mocks/entities/test-permissions.model';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { DefaultTestServerMembershipRepository } from '../../../__testing__/test-server/membership-repository';
@@ -257,7 +259,7 @@ describe('ApiKeyAuthStrategy — starting', () => {
             .rejects.toThrow('API_KEY_OPTIONS.deleteExpiredAfterInMs must be a whole number of milliseconds, got 1.5.');
     }, TestTimeouts.inMemory.start);
 
-    // part of evaluation round 2, 03 §H19 and 05 §I11: node hands every header name over lowercased, so
+    // node hands every header name over lowercased, so
     // a header provided as it is usually written never matched
     it('reads the key from a header provided in any spelling', async () => {
         const started: StartedTestServer = await startApp(
@@ -327,7 +329,7 @@ describe('ApiKeyAuthStrategy', () => {
 
         expect(res.status).toBe(200);
         expect(await res.json()).toEqual({ id: user.id, platformPermissions: [TestPlatformPermissions.USER] });
-        // 05 §I11: the scheme is case-insensitive (RFC 9110 §11.1), as a client or a proxy may spell it
+        // the scheme is case-insensitive (RFC 9110 §11.1), as a client or a proxy may spell it
         expect((await fetch(`${baseUrl}/machine/me`, { headers: { authorization: `bearer ${key}` } })).status).toBe(200);
         // a key in both places is still one credential of one strategy, and a jwt beside it two
         expect((await fetch(`${baseUrl}/machine/me`, { headers: { authorization: 'Bearer zibri_unknown' } })).status).toBe(401);
@@ -359,6 +361,21 @@ describe('ApiKeyAuthStrategy', () => {
         await users().updateById(admin.id, { roles: [Roles.USER] });
 
         expect((await callWithKey('/admin', key)).status).toBe(403);
+    });
+
+    it('takes a permission from the keys once the role carrying it is taken from the membership', async () => {
+        const member: JwtUser = await createUser('demoted-member', [Roles.USER]);
+        const tenantId: string = await createMembership(member, [MemberRoles.USER, MemberRoles.ADMIN]);
+        const { key }: CreatedApiKey = await createKey(member, [TestPlatformPermissions.USER, TestPermissions.MEMBER_ADMIN]);
+        expect((await callInTenant('/tenant-admin', key, tenantId)).status).toBe(200);
+
+        await inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(tenantId, async () => {
+            const memberships: DefaultTestServerMembershipRepository = inject(DefaultTestServerMembershipRepository);
+            const membership: TestMembership = await memberships.findOne({ where: { userId: member.id } });
+            await memberships.updateById(membership.id, { roles: [MemberRoles.USER] });
+        });
+
+        expect((await callInTenant('/tenant-admin', key, tenantId)).status).toBe(403);
     });
 
     it('holds the permissions of its user\'s membership in the tenant the request is for, as far as the key may use them', async () => {
@@ -455,6 +472,23 @@ describe('ApiKeyAuthStrategy', () => {
 
         await expect(createKey(user, [TestPlatformPermissions.USER, TestPlatformPermissions.ADMIN])).rejects.toThrow(`The roles of the user do not carry the permissions ${TestPlatformPermissions.ADMIN}.`);
         expect(await authService().findApiKeys(user.id, undefined)).toEqual([]);
+    });
+
+    it('refuses to create a key with a permission that is not declared, as the caller\'s mistake', async () => {
+        const user: JwtUser = await createUser('typo', [Roles.USER]);
+
+        // @ts-expect-error - a plain string is no permission, so a typo is refused by the compiler first
+        const created: Promise<CreatedApiKey> = createKey(user, ['test.reed']);
+
+        await expect(created).rejects.toThrow(BadRequestError);
+        await expect(created).rejects.toThrow('The permission \'test.reed\' is not declared.');
+    });
+
+    it('lists permissions, not roles', () => {
+        // @ts-expect-error - a key is limited by what it may do, not by the roles that carry it
+        const withRoles: ApiKeyCreateData<undefined> = { name: 'ci', permissions: [], roles: [MemberRoles.ADMIN], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false };
+
+        expect(withRoles).toBeDefined();
     });
 
     it('refuses to create a key without a name, or one that has expired already', async () => {
@@ -632,7 +666,7 @@ describe('ApiKeyAuthStrategy — with API_KEY_OPTIONS', () => {
     });
 });
 
-// 04 §A15: a deployment scanning its repositories for leaked secrets looks for a prefix of its own
+// a deployment scanning its repositories for leaked secrets looks for a prefix of its own
 describe('ApiKeyAuthStrategy — keys with a prefix of the application\'s own', () => {
     beforeAll(async () => {
         server = await startApp([JwtAuthStrategy, ApiKeyAuthStrategy], [apiKeyOptions({ prefix: 'acme_' })]);

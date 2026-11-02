@@ -51,11 +51,22 @@ class CreateAllButOneMigration extends Migration {
     }
 }
 
+// each data source of this file is booted by one case alone, and a declared data source a boot leaves
+// out refuses that boot unless it may be an orphan
 const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
     entities: [...defaultTestServerEntities, CreatedShelf, ForgottenCrate],
     repositories: defaultTestServerRepositories,
     schemaManagement: 'migrations',
-    migrations: [CreateAllButOneMigration]
+    migrations: [CreateAllButOneMigration],
+    allowOrphan: true
+});
+
+const withoutMigrationsClass: Newable<PostgresDataSource> = createTestDataSource({
+    entities: defaultTestServerEntities,
+    repositories: defaultTestServerRepositories,
+    schemaManagement: 'migrations',
+    migrations: [],
+    allowOrphan: true
 });
 
 /**
@@ -67,11 +78,17 @@ function getDataSourceClass(): Newable<PostgresDataSource> {
     return dataSourceClass;
 }
 
-// evaluation round 2, 02 §S14: an entity whose createEntity was forgotten was found by whatever read its
-// table first - an index built on it at boot, with postgres' "relation does not exist", or, for one
-// declaring no key and nothing searchable, the first request using it
 describe('a data source whose migrations manage the schema', () => {
+    // refused at boot, rather than found by whatever reads the table first: an index built on it at
+    // boot, with postgres' "relation does not exist", or, for an entity declaring no key and nothing
+    // searchable, the first request using it
     it('refuses to start when no migration created the table of an entity, naming the entity', async () => {
         await expect(startTestServer({ dataSources: [dataSourceClass] })).rejects.toThrow(/ForgottenCrate/);
+    }, TestTimeouts.postgres.start);
+
+    // with nothing synchronizing and nothing to migrate, no table is ever created, and the first query
+    // is where anybody would find out. 'external' is what says an empty migration list is deliberate
+    it('refuses to start when it declares no migration at all', async () => {
+        await expect(startTestServer({ dataSources: [withoutMigrationsClass] })).rejects.toThrow(/no migrations/);
     }, TestTimeouts.postgres.start);
 });

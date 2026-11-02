@@ -1,10 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';
-import { DataSourceInterface } from '../data-sources/data-source.interface';
 
 /**
  * Two data sources of one kind, and the repository of the same entity in each.

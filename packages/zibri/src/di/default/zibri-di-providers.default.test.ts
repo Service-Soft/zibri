@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
+import { ZIBRI_DI_PROVIDERS } from './zibri-di-providers.default';
 import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -18,11 +19,14 @@ import { ThreadJobEntity } from '../../multithreading/models/thread-job-entity.m
 import { MultithreadingService } from '../../multithreading/services/multithreading.service';
 import { RateLimiterInterface } from '../../rate-limiting/limiter/rate-limiter.interface';
 import { BaseRateLimitState } from '../../rate-limiting/stores/rate-limiter-store.interface';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
+import { Ms } from '../../utilities/ms';
+import { resolveAppRoot } from '../../utilities/resolve-app-root.function';
 import { inject } from '../inject.function';
-import { defineProvider, DiProvider } from '../models/di-provider.model';
+import { defineProvider, DiProvider, type DiProviderWithoutToken } from '../models/di-provider.model';
 import { DiToken } from '../models/di-token.model';
 
-// evaluation/round-2 08 §X17: email, events and thread jobs are building blocks every application
+// email, events and thread jobs are building blocks every application
 // sets up, so that plugins can rely on them. An application doing without one replaces its service,
 // and then provides neither its options nor its entities
 
@@ -95,11 +99,42 @@ describe('the default providers', () => {
 
     it('limit the mails of an application sending them, with the email rate limiter it starts', async () => {
         const server: StartedTestServer = await startTestServer({
-            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })]
+            // orphans allowed, since each case of this file starts an application with a data source of its own
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })]
         });
         try {
             const limiters: RateLimiterInterface<BaseRateLimitState>[] = inject(ZIBRI_DI_TOKENS.RATE_LIMITING_SERVICE).limiters;
             expect(limiters).toContain(inject(ZIBRI_DI_TOKENS.EMAIL_RATE_LIMITER));
+        }
+        finally {
+            await server.shutdown();
+        }
+    }, TestTimeouts.inMemory.start);
+
+    // read off the provider rather than injected, since the harness points the token at a scratch
+    // folder of its own. A folder beside the framework is node_modules/zibri/dist/cjs/di/default/temp
+    // in a real install: read-only in an image, and wiped by `npm ci` everywhere else
+    it('put uploads in a folder of the running application, not of the installed package', () => {
+        const provider: DiProviderWithoutToken<FsPath> = ZIBRI_DI_PROVIDERS.FILE_UPLOAD_TEMP_FOLDER;
+        // a value would be resolved when the module loads, which is what put the folder next to the
+        // framework in the first place
+        expect(provider.useFactory).toBeDefined();
+        const tempFolder: FsPath | undefined = provider.useFactory?.();
+
+        expect(tempFolder?.startsWith(FsUtilities.getPath(__dirname, '..', '..'))).toBe(false);
+        expect(tempFolder?.startsWith(resolveAppRoot())).toBe(true);
+    });
+
+    // a refresh token is a live login for as long as it lasts, and docs nobody reads would not tell
+    // a team that it ships a third of a year of it
+    it('keep a login refreshable for at most 30 days, with the jwt and the cookie strategy', async () => {
+        const server: StartedTestServer = await startTestServer({
+            // orphans allowed, since each case of this file starts an application with a data source of its own
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })]
+        });
+        try {
+            expect(inject(ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS).refreshTokenExpiresInMs).toBeLessThanOrEqual(30 * Ms.DAY);
+            expect(inject(ZIBRI_DI_TOKENS.COOKIE_AUTH_REFRESH_SESSION_EXPIRES_IN_MS)).toBeLessThanOrEqual(30 * Ms.DAY);
         }
         finally {
             await server.shutdown();

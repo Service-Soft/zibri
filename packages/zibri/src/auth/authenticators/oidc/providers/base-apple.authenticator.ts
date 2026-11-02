@@ -143,9 +143,6 @@ export abstract class BaseAppleAuthenticator<
         if (value === true || value === 'true') {
             return true;
         }
-        if (value === false || value === 'false') {
-            return false;
-        }
-        return undefined;
+        return value === false || value === 'false' ? false : undefined;
     }
 }

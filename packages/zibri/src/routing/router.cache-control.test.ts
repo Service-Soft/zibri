@@ -107,7 +107,7 @@ async function cacheControlOf(path: string, loggedIn: boolean = true): Promise<s
     return res.headers.get(KnownHeader.CACHE_CONTROL);
 }
 
-// part of evaluation round 2, 03 §H11: an answer that depends on who asked carried no cache directive,
+// an answer that depends on who asked carried no cache directive,
 // so a shared cache in front of a cookie login could keep one user's answer for the next, and a file
 // was answered `public`
 describe('the cache directive of an answer', () => {

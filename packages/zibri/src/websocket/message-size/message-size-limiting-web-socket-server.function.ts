@@ -1,4 +1,5 @@
 import { IncomingMessage } from 'node:http';
+import { Socket } from 'node:net';
 import { Duplex } from 'node:stream';
 
 import type { Server as WebSocketServer, ServerOptions as WebSocketServerOptions, WebSocket } from 'ws';
@@ -35,7 +36,7 @@ export type WebSocketServerClass = new (options?: WebSocketServerOptions) => Web
 /**
  * The socket a connection is given, with its frames measured on the way in.
  *
- * ws reads the connection through this rather than through the socket itself, so what the scanner
+ * Ws reads the connection through this rather than through the socket itself, so what the scanner
  * refuses never reaches it: a message that is over its size is not parsed, let alone handled, and the
  * connection is closed underneath ws with the frame it closes with itself for a message over the
  * server's limit. What ws writes goes to the socket as it is.
@@ -67,11 +68,11 @@ class MeasuredSocket extends Duplex {
     }
 
     /**
-     * How long the socket may stay silent. ws sets it to never.
+     * How long the socket may stay silent. Ws sets it to never.
      * @param timeoutInMs - The time.
      */
     setTimeout(timeoutInMs: number): void {
-        if ('setTimeout' in this.socket && typeof this.socket.setTimeout === 'function') {
+        if (this.socket instanceof Socket) {
             this.socket.setTimeout(timeoutInMs);
         }
     }
@@ -80,7 +81,7 @@ class MeasuredSocket extends Duplex {
      * Sends every frame as soon as it is written, as ws asks a socket to.
      */
     setNoDelay(): void {
-        if ('setNoDelay' in this.socket && typeof this.socket.setNoDelay === 'function') {
+        if (this.socket instanceof Socket) {
             this.socket.setNoDelay();
         }
     }
@@ -89,16 +90,20 @@ class MeasuredSocket extends Duplex {
         this.socket.resume();
     }
 
+    // eslint-disable-next-line promise/prefer-await-to-callbacks -- the signature Duplex calls it with
     override _write(chunk: Buffer, encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
         this.socket.write(chunk, encoding, callback);
     }
 
+    // eslint-disable-next-line promise/prefer-await-to-callbacks -- the signature Duplex calls it with
     override _final(callback: (error?: Error | null) => void): void {
         this.socket.end(callback);
     }
 
+    // eslint-disable-next-line promise/prefer-await-to-callbacks -- the signature Duplex calls it with
     override _destroy(error: Error | null, callback: (error: Error | null) => void): void {
         this.socket.destroy();
+        // eslint-disable-next-line promise/prefer-await-to-callbacks -- Duplex waits for it
         callback(error);
     }
 
@@ -146,6 +151,7 @@ export function messageSizeLimitingWebSocketServerClass(
             request: IncomingMessage,
             socket: Duplex,
             upgradeHead: Buffer,
+            // eslint-disable-next-line promise/prefer-await-to-callbacks -- the signature of the ws method it overrides
             callback: (client: WebSocket, request: IncomingMessage) => void
         ): void {
             const measured: MeasuredSocket = new MeasuredSocket(

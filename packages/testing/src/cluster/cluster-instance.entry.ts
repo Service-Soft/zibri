@@ -23,7 +23,8 @@ import { StartTestServerOptions } from '../start-test-server-options.model';
  *
  * This is what makes the cluster tests possible at all: GlobalRegistry is static and
  * markAppAsCreated() throws on a second ZibriApplication, so a second replica cannot exist in the
- * jest process. That constraint is itself a finding - see evaluation/02-http-runtime-core.md C7.
+ * jest process. Separate processes are also what makes the replicas independent: two applications
+ * sharing one module registry would share every `@Entity` and `@Injectable` in it.
  *
  * Nothing is stubbed here. The instance boots the real application against the same data sources
  * every other instance is pointed at, which is the entire point.

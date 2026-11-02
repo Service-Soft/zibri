@@ -74,10 +74,7 @@ export function declaredValueNames(statement: ts.Statement): string[] {
     if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name != undefined) {
         return [statement.name.text];
     }
-    if (ts.isModuleDeclaration(statement) && ts.isIdentifier(statement.name) && holdsValues(statement)) {
-        return [statement.name.text];
-    }
-    return [];
+    return ts.isModuleDeclaration(statement) && ts.isIdentifier(statement.name) && holdsValues(statement) ? [statement.name.text] : [];
 }
 
 /**
@@ -90,8 +87,7 @@ function holdsValues(declaration: ts.ModuleDeclaration): boolean {
     if (body == undefined) {
         return false;
     }
-    if (ts.isModuleDeclaration(body)) {
-        return holdsValues(body);
-    }
-    return ts.isModuleBlock(body) && body.statements.some(statement => declaredValueNames(statement).length > 0);
+    return ts.isModuleDeclaration(body)
+        ? holdsValues(body)
+        : ts.isModuleBlock(body) && body.statements.some(statement => declaredValueNames(statement).length > 0);
 }

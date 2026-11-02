@@ -399,12 +399,10 @@ export abstract class BaseOidcAuthenticator<
      */
     private isUnreachable(error: unknown): boolean {
         const client: OpenIdClient = this.resolveOpenIdClient();
-        if (!(error instanceof client.ClientError)) {
-            return true;
-        }
-        // the answer openid-client found wrong rides along: a server error is an outage, any other
-        // answer is a provider saying something about the url, such as a 404 for a wrong issuer
-        return error.code === 'OAUTH_RESPONSE_IS_NOT_CONFORM' && error.cause instanceof Response && error.cause.status >= 500;
+        return !(error instanceof client.ClientError)
+            // the answer openid-client found wrong rides along: a server error is an outage, any other
+            // answer is a provider saying something about the url, such as a 404 for a wrong issuer
+            || (error.code === 'OAUTH_RESPONSE_IS_NOT_CONFORM' && error.cause instanceof Response && error.cause.status >= 500);
     }
 
     /**
@@ -512,10 +510,7 @@ export abstract class BaseOidcAuthenticator<
         // judged here rather than by the library's own max_age check, which refuses: a provider that
         // ignored max_age is asked for a fresh login with the prompt instead, so the user logs in
         // once more and lands where they wanted
-        if (Date.now() - authenticatedAt.getTime() > exchange.maxAgeInSeconds * Ms.SECOND) {
-            return { reauthenticate: true };
-        }
-        return authenticatedAt;
+        return Date.now() - authenticatedAt.getTime() > exchange.maxAgeInSeconds * Ms.SECOND ? { reauthenticate: true } : authenticatedAt;
     }
 
     /**

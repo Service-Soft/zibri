@@ -93,8 +93,8 @@ class CompanyActiveDirectory extends BaseActiveDirectoryAuthenticator<string, Jw
 
     async resolveFirstLogin(entry: LdapEntry, transaction: Transaction | undefined): Promise<JwtUser> {
         firstLogins.push(entry);
-        const [email] = entry.attributes['userprincipalname'] ?? [];
-        return await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).create({ email: email ?? '', roles: [Roles.USER] }, { transaction });
+        const [email = ''] = entry.attributes['userprincipalname'] ?? [];
+        return await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] }, { transaction });
     }
 
     async resolveLogin(_entry: LdapEntry, user: JwtUser): Promise<JwtUser> {
@@ -259,7 +259,6 @@ describe('BaseActiveDirectoryAuthenticator', () => {
         ]);
     });
 
-    // evaluation/03-auth-and-security H22
     it('finds an account by its objectGUID on a refresh, and refuses it once its userAccountControl marks it disabled', async () => {
         // bytes that are not text, so only the objectGUID as Active Directory holds it finds the account
         const dora: FakeLdapEntry = account('dora', Buffer.from('d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f', 'hex'));

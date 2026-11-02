@@ -476,16 +476,15 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     // eslint-disable-next-line jsdoc/require-jsdoc
     async deleteExpiredJobs(): Promise<number> {
         const retentionInMs: RetentionInMs | undefined = inject(ZIBRI_DI_TOKENS.THREAD_JOB_RETENTION_IN_MS);
-        if (retentionInMs == undefined || retentionInMs === 'forever') {
-            return 0;
-        }
-        // counted from when the job was queued, which no row lacks, and only once it is over: a job
-        // still queued or running is owed, however long ago it was queued
-        return await this.threadJobEntityRepository.deleteAll(
-            { status: { oneOf: TERMINAL_STATUSES }, queuedAtMs: { lesserThan: Date.now() - retentionInMs } },
-            // the queue is every tenant's, for the reason the pool reads it that way
-            { acrossTenants: true }
-        );
+        return retentionInMs == undefined || retentionInMs === 'forever'
+            ? 0
+            // counted from when the job was queued, which no row lacks, and only once it is over: a job
+            // still queued or running is owed, however long ago it was queued
+            : await this.threadJobEntityRepository.deleteAll(
+                { status: { oneOf: TERMINAL_STATUSES }, queuedAtMs: { lesserThan: Date.now() - retentionInMs } },
+                // the queue is every tenant's, for the reason the pool reads it that way
+                { acrossTenants: true }
+            );
     }
 
     private async validateInputs(): Promise<void> {
@@ -632,7 +631,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         };
 
         const threadJob: ThreadJob<BaseFunctionThreadJobWorkerData<InputType>, ResultType> = new ThreadJob(entityData, 'function');
-        this.localQueue.push(threadJob as ThreadJob<BaseFunctionThreadJobWorkerData<unknown>, unknown>);
+        this.localQueue.push(threadJob);
         await this.startQueuedJobs();
         const finishedJob: ThreadJobEntity<BaseFunctionThreadJobWorkerData<InputType>, ResultType>
             = await this.waitForThreadJob(threadJob.id);
@@ -1565,9 +1564,6 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     private findRunCondition(
         job: ThreadJob<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown>
     ): Where<ThreadJobEntity<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown>> | undefined {
-        if (job.startedAtMs == undefined) {
-            return undefined;
-        }
-        return { attempts: job.attempts, startedAtMs: job.startedAtMs };
+        return job.startedAtMs == undefined ? undefined : { attempts: job.attempts, startedAtMs: job.startedAtMs };
     }
 }

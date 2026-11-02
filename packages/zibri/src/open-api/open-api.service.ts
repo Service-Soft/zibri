@@ -394,11 +394,10 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
             }
         }
 
-        if (!scoped.length) {
-            return undefined;
-        }
-        return `Restricted to what the caller is allowed to see. A ${scoped.join(' or ')} outside that is absent `
-            + 'from a list and answered with a 404 when named directly.';
+        return !scoped.length
+            ? undefined
+            : `Restricted to what the caller is allowed to see. A ${scoped.join(' or ')} outside that is absent `
+                + 'from a list and answered with a 404 when named directly.';
     }
 
     private async resolveOperationSecurity(
@@ -427,9 +426,8 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
      * @returns One requirement per strategy, or undefined when the route answers anonymous callers.
      */
     private resolveRouteSecurity(auth: RouteAuthConfiguration | undefined): OpenApiSecurityRequirementObject[] | undefined {
-        if (!this.routeAuthService.requiresRouteAuthentication(auth)) {
-            return undefined;
-        }
-        return this.authService.strategies.map(s => ({ [inject(s).name]: [] }));
+        return !this.routeAuthService.requiresRouteAuthentication(auth)
+            ? undefined
+            : this.authService.strategies.map(s => ({ [inject(s).name]: [] }));
     }
 }

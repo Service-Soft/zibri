@@ -1,5 +1,4 @@
 import { randomBytes } from 'node:crypto';
-import { setTimeout as wait } from 'node:timers/promises';
 
 import { ChangePasswordData } from './change-password-data.model';
 import { ConfirmPasswordResetData } from './confirm-password-reset-data.model';
@@ -59,7 +58,6 @@ export class PasswordAuthenticator<
     private readonly confirmPasswordResetUrl: string;
     private readonly PasswordResetEmail: PasswordResetEmailTemplate<RoleType, UserType>;
     private dummyPasswordHashPromise: Promise<HashString> | undefined;
-    private standInDurationInMsPromise: Promise<number> | undefined;
     private failureLimit: PasswordFailureLimit = false;
 
     // read when used rather than injected, so that an application without the entities is told which
@@ -122,7 +120,10 @@ export class PasswordAuthenticator<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async authenticate(credentials: PasswordCredentialsDto, transaction: RepositoryTransaction | undefined): Promise<Authentication<UserType>> {
+    async authenticate(
+        credentials: PasswordCredentialsDto,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<Authentication<UserType>> {
         try {
             const foundUser: UserType | undefined = await this.userService.findByEmail(credentials.email, { required: false });
             // a user can exist without a password - created by an admin, or logged in some other way -
@@ -138,12 +139,17 @@ export class PasswordAuthenticator<
             // one waited for a full scrypt, which made the response time an account existence oracle
             // - readable from anywhere, and unaffected by the messages being identical.
             const standIn: HashString = await this.resolveDummyPasswordHash();
-            const started: number = performance.now();
-            const passwordMatched: boolean = await this.hashService.equal(credentials.password, storedPassword ?? standIn);
             // and never quicker than the stand-in: a hash keeps the cost it was made at, so a user who
             // has not logged in since the cost was raised holds one that answers sooner than an
-            // address nobody has
-            await this.waitForStandInDuration(performance.now() - started);
+            // address nobody has. Compared against the stand-in as well, on the machine as it is at
+            // this moment: a wait padding to a duration recorded at a quieter one fell short of a
+            // comparison made under load, and the account was readable from the response time again.
+            // The second derivation is paid until the next right password upgrades the hash
+            const comparisons: (boolean | Promise<boolean>)[] = [this.hashService.equal(credentials.password, storedPassword ?? standIn)];
+            if (storedPassword != undefined && await this.hashService.needsRehash(storedPassword)) {
+                comparisons.push(this.hashService.equal(credentials.password, standIn));
+            }
+            const [passwordMatched = false] = await Promise.all(comparisons);
             if (foundUser == undefined || stored == undefined || storedPassword == undefined || !passwordMatched) {
                 if (foundUser != undefined) {
                     await this.recordWrongPassword(foundUser.id);
@@ -413,10 +419,7 @@ export class PasswordAuthenticator<
      * @returns The streak.
      */
     private async findFailureStreak(userId: string): Promise<PasswordFailureStreak | undefined> {
-        if (this.failureLimit === false) {
-            return undefined;
-        }
-        return await this.failureStreakRepository.findOne({ where: { userId }, required: false });
+        return this.failureLimit === false ? undefined : await this.failureStreakRepository.findOne({ where: { userId }, required: false });
     }
 
     /**
@@ -492,10 +495,8 @@ export class PasswordAuthenticator<
      */
     private async isRefusedOutdatedPassword(password: string): Promise<boolean> {
         // asked only when it decides something, since the policy's own check may be a request elsewhere
-        if (inject(ZIBRI_DI_TOKENS.PASSWORD_POLICY)?.outdatedPasswords !== 'requireChange') {
-            return false;
-        }
-        return !await this.isAllowedByPolicy(password);
+        return inject(ZIBRI_DI_TOKENS.PASSWORD_POLICY)?.outdatedPasswords === 'requireChange'
+            && !await this.isAllowedByPolicy(password);
     }
 
     /**
@@ -529,29 +530,6 @@ export class PasswordAuthenticator<
     private async resolveDummyPasswordHash(): Promise<HashString> {
         this.dummyPasswordHashPromise ??= Promise.resolve(this.hashService.hash(randomBytes(32).toString('hex')));
         return await this.dummyPasswordHashPromise;
-    }
-
-    /**
-     * Waits until a comparison has taken as long as one against the stand-in takes.
-     * @param elapsedInMs - How long the comparison took.
-     */
-    private async waitForStandInDuration(elapsedInMs: number): Promise<void> {
-        this.standInDurationInMsPromise ??= this.resolveStandInDurationInMs();
-        const remainingInMs: number = await this.standInDurationInMsPromise - elapsedInMs;
-        if (remainingInMs > 0) {
-            await wait(remainingInMs);
-        }
-    }
-
-    /**
-     * Measures how long a comparison against the stand-in takes, once.
-     * @returns The duration in milliseconds.
-     */
-    private async resolveStandInDurationInMs(): Promise<number> {
-        const standIn: HashString = await this.resolveDummyPasswordHash();
-        const started: number = performance.now();
-        await this.hashService.equal(randomBytes(32).toString('hex'), standIn);
-        return performance.now() - started;
     }
 
     private async activePasswordResetTokenAlreadyExists(user: BaseUser<RoleType>, transaction: RepositoryTransaction): Promise<boolean> {

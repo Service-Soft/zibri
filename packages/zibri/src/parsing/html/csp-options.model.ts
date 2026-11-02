@@ -112,10 +112,7 @@ export function buildCspHeaders(options: CspOptions, nonce: string | undefined):
         : { ...options, scriptSrc: [...options.scriptSrc, `'nonce-${nonce}'`] };
     return ObjectUtilities.entries(withNonce)
         .map(([key, value]) => {
-            if (!value?.length) {
-                return undefined;
-            }
-            return `${toKebabCase(key)} ${value.join(' ')}`;
+            return !value?.length ? undefined : `${toKebabCase(key)} ${value.join(' ')}`;
         })
         .filter(Boolean)
         .join('; ');

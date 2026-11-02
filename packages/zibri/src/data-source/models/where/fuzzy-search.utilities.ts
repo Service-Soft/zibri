@@ -162,12 +162,11 @@ export class FuzzySearchUtilities {
         if (meaningless != undefined) {
             return meaningless;
         }
-        if (metadata?.type === 'string' && !metadata.fuzzySearchable) {
-            return 'no trigram index is kept for it, so the search would read every row. Either it'
-                + ' declares "fuzzySearchable: false", or it is a value inside an array, which is'
-                + ' never indexed on its own.';
-        }
-        return undefined;
+        return metadata?.type === 'string' && !metadata.fuzzySearchable
+            ? 'no trigram index is kept for it, so the search would read every row. Either it'
+            + ' declares "fuzzySearchable: false", or it is a value inside an array, which is'
+            + ' never indexed on its own.'
+            : undefined;
     }
 
     /**
@@ -195,9 +194,8 @@ export class FuzzySearchUtilities {
             return 'it is stored hashed, and a hash is built so that similar values hash to unrelated'
                 + ' digests. Compare the value through the hash service instead.';
         }
-        if (metadata.encryption !== false) {
-            return 'it is stored encrypted, so the stored value is similar to nothing the caller has.';
-        }
-        return undefined;
+        return metadata.encryption !== false
+            ? 'it is stored encrypted, so the stored value is similar to nothing the caller has.'
+            : undefined;
     }
 }

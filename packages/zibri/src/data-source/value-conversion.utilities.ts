@@ -133,10 +133,8 @@ export abstract class ValueConversionUtilities {
             return current.items?.type === changed.items?.type
                 && numberFormatOf(current.items) === numberFormatOf(changed.items);
         }
-        if (current.type === changed.type) {
-            return true;
-        }
-        return (current.type === 'number' || current.type === 'string') && (changed.type === 'number' || changed.type === 'string');
+        return current.type === changed.type
+            || ((current.type === 'number' || current.type === 'string') && (changed.type === 'number' || changed.type === 'string'));
     }
 
     /**
@@ -241,15 +239,11 @@ export abstract class ValueConversionUtilities {
      * no longer than the property's length.
      */
     private static fitsString(text: string, into: StoredStringPropertyMetadata): boolean {
-        if ((into.format === 'uuid' || into.primary) && !UUIDUtilities.STRICT_SHAPE.test(text)) {
-            return false;
-        }
-        if (into.enum != undefined && !ObjectUtilities.values(into.enum).includes(text)) {
-            return false;
-        }
-        // in characters rather than utf-16 code units, which is what a length of text counts in a
-        // database too
-        return into.maxLength == undefined || [...text].length <= into.maxLength;
+        return (!(into.format === 'uuid' || into.primary) || UUIDUtilities.STRICT_SHAPE.test(text))
+            && (into.enum == undefined || ObjectUtilities.values(into.enum).includes(text))
+            // in characters rather than utf-16 code units, which is what a length of text counts in a
+            // database too
+            && (into.maxLength == undefined || [...text].length <= into.maxLength);
     }
 
     /**

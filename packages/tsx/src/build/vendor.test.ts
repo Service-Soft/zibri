@@ -78,7 +78,7 @@ describe('generateVendorBundles', () => {
         })).rejects.toThrow(/no browser distribution/);
     });
 
-    // 07 §T10: the page loads the file with a classic script tag, so a module is a file every
+    // the page loads the file with a classic script tag, so a module is a file every
     // browser refuses with "Cannot use import statement outside a module". Refused at build instead,
     // naming the package
     it('refuses a package whose only browser build is an ES module, naming it', async () => {

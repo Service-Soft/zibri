@@ -156,10 +156,9 @@ export abstract class WriteDataUtilities {
      * @returns The class of the object property, or undefined when the value is written as given.
      */
     static findMergedClass(value: unknown, metadata: PropertyMetadata): Newable<unknown> | undefined {
-        if (metadata.type !== 'object' || value == undefined || typeof value !== 'object' || Array.isArray(value)) {
-            return undefined;
-        }
-        return metadata.cls();
+        return metadata.type !== 'object' || value == undefined || typeof value !== 'object' || Array.isArray(value)
+            ? undefined
+            : metadata.cls();
     }
 
     /**

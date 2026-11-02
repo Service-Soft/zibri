@@ -360,7 +360,7 @@ export function describeKeyReconciliation(dataSourceName: string, reconciled: Re
         return;
     }
 
-    // evaluation/round-2/02-data-layer-stores.md S2: every index whose name merely looked like one
+    // every index whose name merely looked like one
     // the data source creates was dropped at the next boot, without a word
     describe(`the indexes of ${dataSourceName} somebody else created`, () => {
         let server: ReconciledServer;

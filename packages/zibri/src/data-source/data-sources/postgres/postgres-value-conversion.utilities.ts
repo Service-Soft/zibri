@@ -117,10 +117,9 @@ export abstract class PostgresValueConversionUtilities {
         }
         // through its text, because postgres turns a double into a numeric by fifteen digits rather
         // than by the decimal it stands for
-        if (from.type === 'number' && from.format === 'number' && into.type === 'number' && into.format === 'bignumber') {
-            return `CAST(CAST(${current.name} AS text) AS ${changed.type})`;
-        }
-        return `CAST(${current.name} AS ${changed.type})`;
+        return from.type === 'number' && from.format === 'number' && into.type === 'number' && into.format === 'bignumber'
+            ? `CAST(CAST(${current.name} AS text) AS ${changed.type})`
+            : `CAST(${current.name} AS ${changed.type})`;
     }
 
     /**
@@ -302,9 +301,8 @@ export abstract class PostgresValueConversionUtilities {
             return `CAST(ARRAY(SELECT item FROM jsonb_array_elements_text(CAST(${literalToSql(JsonUtilities.stringify(value))} AS jsonb))`
                 + ` WITH ORDINALITY AS items(item, position) ORDER BY position) AS ${column.type})`;
         }
-        if (column.stored.type === 'jsonb') {
-            return `CAST(${literalToSql(JsonUtilities.stringify(value))} AS jsonb)`;
-        }
-        return `CAST(${literalToSql(value)} AS ${column.type})`;
+        return column.stored.type === 'jsonb'
+            ? `CAST(${literalToSql(JsonUtilities.stringify(value))} AS jsonb)`
+            : `CAST(${literalToSql(value)} AS ${column.type})`;
     }
 }

@@ -83,8 +83,8 @@ export class RestartServerOnBuildPlugin {
         });
     }
 
-    // round-2 11 §W1: the next application was started the moment this one was told to stop, while it
-    // still held its port
+    // waits for the exit: started the moment this one was told to stop, the next application found
+    // its port still held
     private async stop(): Promise<void> {
         const running: ChildProcess | undefined = this.serverProcess;
         if (running == undefined || running.exitCode != undefined || running.signalCode != undefined) {

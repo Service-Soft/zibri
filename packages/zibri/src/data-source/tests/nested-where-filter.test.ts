@@ -186,7 +186,7 @@ describe('Where filters – deeply nested (object → array → object)', () => 
     });
 
     // ===== Array of objects: includes (contains) =====
-    // round-2 11 §S5: an object listed is one value, found only where an item equals it as a whole.
+    // an object listed is one value, found only where an item equals it as a whole.
     // This case used to find Alice by part of her address
     it('array includes (contains all specified objects, each as a whole)', async () => {
         const whole: Customer[] = await customerRepo.findAll({

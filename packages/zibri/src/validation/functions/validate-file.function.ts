@@ -58,8 +58,7 @@ export function fileValueProblems(fullKey: string, property: unknown, metadata: 
     if (NumberUtilities.new(property.size).isGreaterThan(fileSizeToBytes(metadata.maxSize))) {
         return [new MaxFileSizeValidationProblem(fullKey, metadata.maxSize)];
     }
-    if (metadata.allowedMimeTypes !== 'all' && !metadata.allowedMimeTypes.includes(property.mimetype as MimeType)) {
-        return [new MimeTypeMismatchValidationProblem(fullKey, metadata.allowedMimeTypes)];
-    }
-    return [];
+    return metadata.allowedMimeTypes !== 'all' && !metadata.allowedMimeTypes.includes(property.mimetype as MimeType)
+        ? [new MimeTypeMismatchValidationProblem(fullKey, metadata.allowedMimeTypes)]
+        : [];
 }

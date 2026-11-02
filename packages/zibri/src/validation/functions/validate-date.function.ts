@@ -40,10 +40,7 @@ export async function validateDate(
         }
     }
     const problems: ValidationProblem[] = dateValueProblems(fullKey, property);
-    if (problems.length || !(property instanceof Date)) {
-        return problems;
-    }
-    return dateBoundProblems(fullKey, property, meta, entity, context);
+    return problems.length || !(property instanceof Date) ? problems : dateBoundProblems(fullKey, property, meta, entity, context);
 }
 
 /**
@@ -57,10 +54,7 @@ export async function validateDate(
  * @returns All validation problems found.
  */
 export function dateValueProblems(fullKey: string, property: unknown): ValidationProblem[] {
-    if (!(property instanceof Date)) {
-        return [new TypeMismatchValidationProblem(fullKey, 'date')];
-    }
-    return [];
+    return !(property instanceof Date) ? [new TypeMismatchValidationProblem(fullKey, 'date')] : [];
 }
 
 /**
@@ -84,8 +78,7 @@ function dateBoundProblems(
         return [{ key: fullKey, code: ValidationProblemCode.BEFORE, message: $ts`should be before "${$f.dateTime(before)}"` }];
     }
     const after: Date | undefined = meta.after?.(entity, context);
-    if (after != undefined && property.getTime() <= after.getTime()) {
-        return [{ key: fullKey, code: ValidationProblemCode.AFTER, message: $ts`should be after "${$f.dateTime(after)}"` }];
-    }
-    return [];
+    return after != undefined && property.getTime() <= after.getTime()
+        ? [{ key: fullKey, code: ValidationProblemCode.AFTER, message: $ts`should be after "${$f.dateTime(after)}"` }]
+        : [];
 }

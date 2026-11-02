@@ -95,10 +95,9 @@ export abstract class DataSourceTimeUtilities {
         if (this.isDataSourceTime(where)) {
             return true;
         }
-        if (Array.isArray(where)) {
-            return where.some(item => this.isNamedInWhere(item));
-        }
-        return this.isPlainObject(where) && Object.values(where).some(value => this.isNamedInWhere(value));
+        return Array.isArray(where)
+            ? where.some(item => this.isNamedInWhere(item))
+            : this.isPlainObject(where) && Object.values(where).some(value => this.isNamedInWhere(value));
     }
 
     /**

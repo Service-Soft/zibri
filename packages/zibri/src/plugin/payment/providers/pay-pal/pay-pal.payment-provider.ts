@@ -621,11 +621,10 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         if (authorization?.status === 'CREATED') {
             return { status: PaymentStatus.RESERVED, data: { ...payment.data, authorizationId: authorization.id } };
         }
-        if (authorization?.status === 'PENDING') {
-            return undefined;
-        }
-        // nothing captured and nothing held: no money moved, and the window to approve it has passed
-        return { status: PaymentStatus.CANCELLED, data: payment.data };
+        return authorization?.status === 'PENDING'
+            ? undefined
+            // nothing captured and nothing held: no money moved, and the window to approve it has passed
+            : { status: PaymentStatus.CANCELLED, data: payment.data };
     }
 
     /**

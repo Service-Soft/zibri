@@ -55,10 +55,7 @@ function directionOf(value: unknown): 'ASC' | 'DESC' | undefined {
     if (value === 'ASC' || value === 'asc' || value === 1) {
         return 'ASC';
     }
-    if (value === 'DESC' || value === 'desc' || value === -1) {
-        return 'DESC';
-    }
-    return undefined;
+    return value === 'DESC' || value === 'desc' || value === -1 ? 'DESC' : undefined;
 }
 
 /**

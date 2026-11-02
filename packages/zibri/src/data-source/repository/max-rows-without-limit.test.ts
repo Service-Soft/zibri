@@ -15,7 +15,7 @@ import { Newable } from '../../types/newable.type';
 import { DataSource } from '../decorators/data-source.decorator';
 import { UnboundedReturnError } from '../unbounded-return.error';
 
-// evaluation/round-2/12-hardcoded-values.md §D3: the most rows a call without a limit hands back was
+// the most rows a call without a limit hands back was
 // 10,000 on every data source
 
 /**

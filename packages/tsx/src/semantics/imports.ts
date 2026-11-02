@@ -23,10 +23,7 @@ type ClientQuerySplit = {
  * @returns The bare source and whether the client marker was present.
  */
 function stripClientQuery(raw: string): ClientQuerySplit {
-    if (raw.endsWith('?client')) {
-        return { source: raw.slice(0, -'?client'.length), client: true };
-    }
-    return { source: raw, client: false };
+    return raw.endsWith('?client') ? { source: raw.slice(0, -'?client'.length), client: true } : { source: raw, client: false };
 }
 
 /**

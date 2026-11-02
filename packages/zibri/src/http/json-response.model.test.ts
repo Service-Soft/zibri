@@ -94,7 +94,7 @@ describe('JsonResponse', () => {
         expect((await revalidate('W/"0"')).status).toBe(HttpStatus.OK);
     });
 
-    // part of evaluation round 2, 03 §H12: the status came from the declaration the value matched, so
+    // the status came from the declaration the value matched, so
     // two outcomes of one route answering the same class could not be told apart
     it('answers in the status the handler chose', async () => {
         const replaced: globalThis.Response = await fetch(`${baseUrl}/resources/a`, { method: 'PUT' });

@@ -19,9 +19,8 @@ import { type OnAppInit } from '../global/on-app-init.interface';
 import { Newable } from '../types/newable.type';
 
 /**
- * Executable form of evaluation/round-2/07-di-packaging-tooling.md §T4: an application's
- * asynchronous providers are registered after its classes, and a class reaching for one anywhere
- * but a constructor parameter failed the boot.
+ * An application's asynchronous providers are registered after its classes, and a class reaching
+ * for one anywhere but a constructor parameter failed the boot.
  */
 
 const vaultSecret: InjectionToken<string> = new InjectionToken<string>('vault-secret');

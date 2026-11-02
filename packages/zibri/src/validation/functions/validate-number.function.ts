@@ -79,7 +79,7 @@ export function numberValueProblems(
         return [{ key: fullKey, code: ValidationProblemCode.FORMAT, message: $ts`needs to be in format "${meta.format}"` }];
     }
     // compared by value rather than with `===` or `<`: a BigNumber compares by reference against a
-    // plain number, and read as a double it is rounded onto a bound it is past (round-2 11 §V1)
+    // plain number, and read as a double it is rounded onto a bound it is past
     if (meta.enum && !ObjectUtilities.values(meta.enum).some(v => isNumber(v) && NumberUtilities.compare(property, v) === 0)) {
         return [
             {
@@ -92,10 +92,9 @@ export function numberValueProblems(
     if (meta.min != undefined && NumberUtilities.compare(property, meta.min) < 0) {
         return [{ key: fullKey, code: ValidationProblemCode.MIN, message: $ts`needs to be at least ${meta.min}` }];
     }
-    if (meta.max != undefined && NumberUtilities.compare(property, meta.max) > 0) {
-        return [{ key: fullKey, code: ValidationProblemCode.MAX, message: $ts`needs to be at most ${meta.max}` }];
-    }
-    return [];
+    return meta.max != undefined && NumberUtilities.compare(property, meta.max) > 0
+        ? [{ key: fullKey, code: ValidationProblemCode.MAX, message: $ts`needs to be at most ${meta.max}` }]
+        : [];
 }
 
 /**

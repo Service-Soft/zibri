@@ -77,7 +77,7 @@ export function dataSourceWebsocketAdapterClass(): DataSourceWebsocketAdapterCon
 
     // with heartbeats rather than the plain ClusterAdapter, whose count of instances is always one:
     // fetching sockets and a server side emit waiting for answers then never looked past this
-    // instance (04 §1.13)
+    // instance
     const base: typeof ClusterAdapterWithHeartbeat = optionalPeer<typeof import('socket.io-adapter')>(
         'socket.io-adapter',
         'Carrying websocket broadcasts between instances'

@@ -127,7 +127,7 @@ async function findMailedToken(address: string): Promise<string> {
     return token ?? '';
 }
 
-// 04 §A11: an address was never verified, so a reset link or a second factor by email went to whatever
+// an address was never verified, so a reset link or a second factor by email went to whatever
 // a user typed, and changing it was the application's to write
 describe('Verifying the email address of a user', () => {
     beforeAll(async () => {

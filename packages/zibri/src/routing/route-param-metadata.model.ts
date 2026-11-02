@@ -84,7 +84,7 @@ export function resolveRouteParamMetadata(controllerClass: Newable<unknown>, con
         + (currentUser ? 1 : 0)
         + (currentWebsocketConnection ? 1 : 0);
     // here, while the route is registered, rather than on every request: the method is known now,
-    // and a parameter nothing fills is a declaration nothing can satisfy (03 §H9)
+    // and a parameter nothing fills is a declaration nothing can satisfy
     const prototype: unknown = controllerClass.prototype;
     const handler: unknown = typeof prototype === 'object' && prototype != undefined ? Reflect.get(prototype, controllerMethod) : undefined;
     const takenParamCount: number = typeof handler === 'function' ? handler.length : 0;

@@ -9,7 +9,6 @@ import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { RelatedNarrowing } from '../models/related-narrowing.model';
-import { Where } from '../models/where/where-filter.model';
 import { RelatedNarrowingUtilities } from '../scopes/related-narrowing.utilities';
 import { ScopedWhere } from '../scopes/scope-where.utilities';
 import { Transaction } from '../transaction/transaction.model';
@@ -200,7 +199,7 @@ export abstract class RelationResolutionUtilities {
         }
         const byOwner: Map<string, BaseEntity[]> = new Map(entities.map(e => [String(e.id), []]));
         const narrowed: ScopedWhere<BaseEntity> = RelatedNarrowingUtilities.narrow(
-            { [foreignKeyColumn]: { oneOf: entities.map(e => e.id) } } as Where<BaseEntity>,
+            { [foreignKeyColumn]: { oneOf: entities.map(e => e.id) } },
             target,
             related
         );

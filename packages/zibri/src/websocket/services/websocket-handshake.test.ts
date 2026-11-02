@@ -48,7 +48,7 @@ const clients: Socket[] = [];
 /**
  * Opens a connection and reports how it ended, refusing to wait forever.
  *
- * The timeout is the actual assertion of the finding. Socket.io does not catch a rejection thrown by
+ * The timeout is the actual assertion. Socket.io does not catch a rejection thrown by
  * an async middleware, so before the fix next() was simply never called and the client sat there
  * until its own connect timeout - twenty seconds - with no error to react to. Three seconds is long
  * enough for a real handshake and far short of that, so a hang shows up as a failure here rather

@@ -14,7 +14,7 @@ import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { Ms } from '../utilities/ms';
 
-// evaluation/round-2/12-hardcoded-values.md §D6: every run started up to a second after its slot, at
+// every run started up to a second after its slot, at
 // random, with no way to turn it off
 
 /**
@@ -81,4 +81,5 @@ describe('A cron job without the random delay', () => {
 
     it('starts every run on its slot', () => {
         expect(job.delaysInMs.slice(0, RUNS).every(delay => delay < ON_TIME_IN_MS)).toBe(true);
-    });});
+    });
+});

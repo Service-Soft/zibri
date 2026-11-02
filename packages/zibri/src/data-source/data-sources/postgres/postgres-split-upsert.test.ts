@@ -58,7 +58,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, TestTimeouts.postgres.shutdown);
 
-// found 2026-10-28 in the heavy run after 09 §Q2: the statements of a split upsert were all handed to the
+// found 2026-10-28 in the heavy run after typeorm went: the statements of a split upsert were all handed to the
 // connection of their transaction at once, which the driver queues today and stops doing in pg 9
 describe('an upsert split into several statements', () => {
     it('runs them on its transaction one after the other', async () => {

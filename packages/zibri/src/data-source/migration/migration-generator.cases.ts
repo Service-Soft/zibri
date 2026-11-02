@@ -295,7 +295,7 @@ type GeneratedMigrationsTarget = {
  * @param target - The data source, and how to start it as either version.
  */
 export function describeGeneratedMigrations(dataSourceName: string, target: GeneratedMigrationsTarget): void {
-    // part of evaluation round 2, 02 §S14: a migration was written by hand for every change of an entity,
+    // a migration was written by hand for every change of an entity,
     // with nothing comparing what it says to what the entities declare
     describe(`migrations generated from two versions of the entities, on ${dataSourceName}`, () => {
         it('create the first version, whose relations hold', async () => {

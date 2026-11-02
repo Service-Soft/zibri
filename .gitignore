@@ -11,3 +11,4 @@ file-output
 .env
 packages/cli/sandbox
 packages/cli/src/__testing__/recorded-sandbox-diffs.json
+*.baseline.json

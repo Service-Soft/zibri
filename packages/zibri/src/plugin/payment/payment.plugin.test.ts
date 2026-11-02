@@ -4,7 +4,7 @@ import { KnownPaymentMethod, PaymentMethod } from './models/payment-method.model
 import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model';
 import { Payment } from './models/payment.model';
 import { ZibriPaymentPlugin } from './payment.plugin';
-import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
+import { ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
 import { AnyPaymentProviderInterface } from './providers/payment-provider.interface';
 import { TestTimeouts } from '../../__testing__/constants';
 import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
@@ -63,7 +63,7 @@ async function startWith(
                         paymentProviders,
                         providerNameForMethod
                     };
-                    return res as PaymentPluginOptionsInput<PaymentMethod[], DefaultPaymentProviderArray>;
+                    return res;
                 }
             })
         ]
@@ -87,7 +87,7 @@ describe('ZibriPaymentPlugin — starting', () => {
                             paymentProviders: [provider],
                             providerNameForMethod
                         };
-                        return res as PaymentPluginOptionsInput<PaymentMethod[], DefaultPaymentProviderArray>;
+                        return res;
                     }
                 })
             ]

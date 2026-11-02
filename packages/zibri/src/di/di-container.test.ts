@@ -6,6 +6,7 @@ import { DiContainer } from './di-container';
 import { CapturedRequestScopeError } from './errors/captured-request-scope.error';
 import { CircularDependencyError } from './errors/circular-dependency.error';
 import { InjectInsideAsyncFactoryError } from './errors/inject-inside-async-factory.error';
+import { NoProviderError } from './errors/no-provider.error';
 import { OutsideRequestScopeError } from './errors/outside-request-scope.error';
 import { UninjectableParameterError } from './errors/uninjectable-parameter.error';
 import { UnresolvedAsyncProviderError } from './errors/unresolved-async-provider.error';
@@ -62,7 +63,7 @@ describe('DiContainer', () => {
     });
 
     describe('the registered tokens', () => {
-        // 07 §T17: the identity of a value provider was its value, so two tokens worth 0 were one entry
+        // the identity of a value provider was its value, so two tokens worth 0 were one entry
         it('lists two value providers that happen to share a primitive value', () => {
             const waitInMs: InjectionToken<number> = new InjectionToken<number>('wait-in-ms');
             const retries: InjectionToken<number> = new InjectionToken<number>('retries');
@@ -84,6 +85,30 @@ describe('DiContainer', () => {
             const tokens: DiToken<unknown>[] = DiContainer.getInstance().getAllRegisteredTokens();
 
             expect(tokens.filter(token => token === alias || token === Shared)).toHaveLength(1);
+        });
+
+        it('answers nothing for a token that was unregistered', () => {
+            @Injectable()
+            class Dropped {}
+            DiContainer.getInstance().register(defineProvider({ token: Dropped, useClass: Dropped }));
+
+            DiContainer.getInstance().unregister(Dropped);
+
+            expect(() => inject(Dropped)).toThrow(NoProviderError);
+        });
+
+        // injected first on purpose: inject reads the built instances before the providers, so deleting
+        // the provider alone would leave anything already built live and injectable forever. The
+        // application relies on this when it drops the orphan controllers it was not given
+        it('evicts an instance that was already built when its token is unregistered', () => {
+            @Injectable()
+            class Built {}
+            DiContainer.getInstance().register(defineProvider({ token: Built, useClass: Built }));
+            expect(inject(Built)).toBeInstanceOf(Built);
+
+            DiContainer.getInstance().unregister(Built);
+
+            expect(() => inject(Built)).toThrow(NoProviderError);
         });
     });
 
@@ -349,7 +374,7 @@ describe('DiContainer', () => {
             expect(await DiContainer.getInstance().injectAsync(token)).toBe('hunter2');
         });
 
-        // evaluation/round-2/07-di-packaging-tooling.md §T4: the walk sees constructor parameters and
+        // the walk sees constructor parameters and
         // `deps` only, so a value reached for anywhere else worked or failed by registration order
         it('awaits a value a class reaches for in a field initializer', async () => {
             @Injectable()
@@ -621,6 +646,43 @@ describe('DiContainer', () => {
             DiContainer.getInstance().register(defineProvider({ token, useValue: 'configured' }));
 
             expect(inject(token)).toBe('configured');
+        });
+    });
+
+    describe('resolving', () => {
+        // a cycle used to recurse until the stack overflowed, with a trace made of inject frames
+        // naming neither class
+        it('names a cycle of synchronous providers instead of overflowing the stack', () => {
+            class CycleA {}
+            class CycleB {}
+            // through factories rather than constructor parameters, because two classes referencing
+            // each other in one module hit the TDZ on the emitted parameter metadata first
+            DiContainer.getInstance().register(defineProvider({
+                token: CycleA,
+                useFactory: () => {
+                    inject(CycleB);
+                    return new CycleA();
+                }
+            }));
+            DiContainer.getInstance().register(defineProvider({
+                token: CycleB,
+                useFactory: () => {
+                    inject(CycleA);
+                    return new CycleB();
+                }
+            }));
+
+            expect(() => inject(CycleA)).toThrow(CircularDependencyError);
+            expect(() => inject(CycleA)).toThrow(/CycleA/);
+        });
+
+        // anything loaded lazily - a plugin, a module required on demand, a path read from
+        // configuration - is decorated after the container was initialized
+        it('resolves a class decorated after the container was initialized, without blaming the decorator', () => {
+            @Injectable()
+            class LateInjectable {}
+
+            expect(inject(LateInjectable)).toBeInstanceOf(LateInjectable);
         });
     });
 });

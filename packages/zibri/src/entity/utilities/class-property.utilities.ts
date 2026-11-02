@@ -78,7 +78,7 @@ export abstract class ClassPropertyUtilities {
         const baseRoutes: ControllerRouteConfiguration[] = MetadataUtilities
             .getControllerRoutes(SourceClass)
             .filter(r => allKeys.includes(r.controllerMethod as keyof S));
-        // 01 §Q4: a route the target holds for a method the source defines was the route of the
+        // a route the target holds for a method the source defines was the route of the
         // implementation replaced above. Kept, it registered that route a second time, on the
         // method that just took its place
         const existingRoutes: ControllerRouteConfiguration[] = MetadataUtilities

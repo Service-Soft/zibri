@@ -17,7 +17,7 @@ afterAll(async () => {
     await container?.stop();
 }, TestTimeouts.postgres.shutdown);
 
-// round 2's 06 §F16: the default worker pool is sized from os.availableParallelism(), which was
+// the default worker pool is sized from os.availableParallelism(), which was
 // filed as reading the cpus of the machine rather than the cpu limit of the container. Since libuv
 // 1.49 it reads the limit, and node 24 ships a later one - this holds the default to that
 describe('the default size of the worker pool', () => {

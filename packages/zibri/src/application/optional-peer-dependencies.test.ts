@@ -198,7 +198,7 @@ describe('ts-node', () => {
         expect(optionalPeers()).toContain('ts-node');
     });
 
-    // 07 §T9: the startup check answered for ts-node alone, and ts-node compiles nothing without
+    // the startup check answered for ts-node alone, and ts-node compiles nothing without
     // typescript - which a production image prunes with its devDependencies. The first job naming
     // a .ts file then failed with a bare "Cannot find module 'typescript'", days after a startup
     // check that was written to catch exactly that
@@ -376,7 +376,7 @@ describe('typescript', () => {
         expect(res.message).toContain('npm i typescript');
     });
 
-    // round-2 07 §T6: the extractor runs on the application's own TypeScript, so every major the peer
+    // the extractor runs on the application's own TypeScript, so every major the peer
     // range admits is one it reads the sources with. TypeScript 6 is installed here as `typescript-6`
     describe('on every major the peer range admits', () => {
         let extractions: Extraction[];
@@ -592,6 +592,41 @@ describe('every optional peer', () => {
     });
 });
 
+describe('the optional peers', () => {
+
+    // each declared by something an application may not use - the invoicing plugin, a websocket
+    // controller, the otp method - and checked while that starts, so a plain REST API installs none
+    it('include those of the features a plain api does without', () => {
+        expect(optionalPeers()).toEqual(expect.arrayContaining(['pdfmake', 'socket.io', 'socket.io-adapter', 'otpauth', 'saxes', 'ts-node']));
+    });
+
+    // refused only where the framework's own files ask, since that is the whole of what optional
+    // claims: what another package requires arrives with that package either way, and refusing it
+    // everywhere would measure that package rather than this one
+    it('are not needed to load the framework, all of them at once', () => {
+        const res: { loaded: boolean } = inConsumerProcess(`
+            import Module from 'node:module';
+            const hidden = ${JsonUtilities.stringify(optionalPeers())};
+            const ownFiles = process.cwd() + '/dist';
+            const resolve = Module._resolveFilename;
+            Module._resolveFilename = function (request, parent, ...rest) {
+                if (hidden.includes(request) && parent?.filename?.startsWith(ownFiles)) {
+                    const error = new Error('Cannot find module ' + request);
+                    error.code = 'MODULE_NOT_FOUND';
+                    throw error;
+                }
+                return resolve.call(this, request, parent, ...rest);
+            };
+            const { createRequire } = await import('node:module');
+            const require = createRequire(process.cwd() + '/index.cjs');
+            const zibri = require('zibri');
+            console.log(JSON.stringify({ loaded: typeof zibri.ZibriApplication === 'function' }));
+        `);
+
+        expect(res.loaded).toBe(true);
+    });
+});
+
 describe('socket.io-parser', () => {
 
     it('is an optional peer dependency', () => {
@@ -639,7 +674,7 @@ describe('the test harness', () => {
     it('declares ts-node as an optional peer', () => {
         // every cluster instance is forked with `-r ts-node/register`, and the harness's manifest did
         // not name it: a cluster started in a generated project only because the scaffold installs
-        // it for the application (round-2 07 §T2)
+        // it for the application
         expect(optionalPeers(harnessDir)).toContain('ts-node');
     });
 
@@ -654,7 +689,7 @@ describe('the test harness', () => {
 
         // `zi new` installs the harness alone and writes a first test against an in-memory data
         // source, and npm installs no optional peer - so a top level import of one failed that test
-        // before it ran, in every generated project (round-2 07 §T2). Nothing else here sees it: every
+        // before it ran, in every generated project. Nothing else here sees it: every
         // other suite runs in this workspace, where all of them are installed
         expect(res.loaded).toBe(true);
     });

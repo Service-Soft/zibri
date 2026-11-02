@@ -7,6 +7,7 @@ import { PostgresPooler } from './postgres-pooler.model';
 import { queryPostgres } from '../../../__testing__/query-postgres.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
+import { OperationLimitUtilities } from '../../../context/operation-limit.utilities';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -118,8 +119,20 @@ class TimedDataSource extends PostgresDataSource {
     protected override readonly statementTimeoutInMs: number = 200;
 }
 
+@Entity({ tenant: 'shared', allowOrphan: true })
+class WaitingRow extends BaseEntity {
+    @Property.string()
+    value!: string;
+}
+
 /**
- * Holds a single connection, which the schema setup and every later statement have to share.
+ * How a call waiting for a connection ended, or that it had not ended yet.
+ */
+type WaitOutcome = 'answered' | 'gave up' | 'still waiting';
+
+/**
+ * Holds a single connection, which the schema setup and every later statement have to share, and
+ * which a transaction left open takes from everyone.
  */
 @DataSource()
 class SingleConnectionDataSource extends PostgresDataSource {
@@ -129,10 +142,11 @@ class SingleConnectionDataSource extends PostgresDataSource {
         password: 'password',
         database: 'db',
         ssl: false,
-        poolSize: 1
+        poolSize: 1,
+        connectTimeoutInMs: 1000
     };
 
-    entities: Newable<BaseEntity>[] = [MigrationEntity];
+    entities: Newable<BaseEntity>[] = [MigrationEntity, WaitingRow];
 
     readonly repositories: RepositoryClass[] = [];
 
@@ -316,4 +330,76 @@ describe('a data source with a single connection', () => {
         expect(lockTimeout[0]?.['lock_timeout']).toBe('0');
         expect(statementTimeout[0]?.['statement_timeout']).toBe('30s');
     });
+
+    // the statement timeout starts with the statement, so nothing else bounds the wait for a connection
+    describe('waiting for its connection', () => {
+        let waitingRows: Repository<WaitingRow>;
+
+        beforeAll(() => {
+            waitingRows = inject(repositoryTokenFor(WaitingRow));
+        });
+
+        it('gives up once the call has run out of the timeoutInMs it was given', async () => {
+            const holder: Transaction = await inject(SingleConnectionDataSource).startTransaction();
+            try {
+                // under the pool's own wait, so only the call's limit can have ended it
+                expect(await answerWithin(waitingRows.findAll({ timeoutInMs: 200 }), 900)).toBe('gave up');
+            }
+            finally {
+                // hands the connection back, which the call still waiting takes
+                await holder.rollback();
+            }
+            // the connection the call that gave up was handed once it came free went back to the pool
+            await expect(answerWithin(waitingRows.findAll({}), 2000)).resolves.toBe('answered');
+        });
+
+        it('starts no transaction once the work it belongs to has run out of time', async () => {
+            const holder: Transaction = await inject(SingleConnectionDataSource).startTransaction();
+            try {
+                const waiting: Promise<WaitOutcome> = OperationLimitUtilities.runWithin(
+                    200,
+                    'start',
+                    async () => await inject(SingleConnectionDataSource).startTransaction()
+                // eslint-disable-next-line promise/prefer-await-to-then
+                ).then(async (started: Transaction): Promise<WaitOutcome> => {
+                    await started.rollback();
+                    return 'answered';
+                }, (): WaitOutcome => 'gave up');
+
+                expect(await answerWithin(waiting, 900)).toBe('gave up');
+            }
+            finally {
+                await holder.rollback();
+            }
+            await expect(answerWithin(waitingRows.findAll({}), 2000)).resolves.toBe('answered');
+        });
+
+        it('gives up a call without a limit of its own once the pool has kept it waiting for connectTimeoutInMs', async () => {
+            const holder: Transaction = await inject(SingleConnectionDataSource).startTransaction();
+            try {
+                // eslint-disable-next-line promise/prefer-await-to-then
+                const waiting: Promise<WaitOutcome> = waitingRows.findAll({}).then((): WaitOutcome => 'answered', (): WaitOutcome => 'gave up');
+
+                expect(await answerWithin(waiting, 3000)).toBe('gave up');
+            }
+            finally {
+                await holder.rollback();
+            }
+        });
+    });
 });
+
+/**
+ * How a call ended within the given time, or that it had not.
+ * @param waiting - The call, or how it ended.
+ * @param withinMs - How long to wait for it.
+ * @returns How it ended.
+ */
+async function answerWithin(waiting: Promise<unknown>, withinMs: number): Promise<WaitOutcome> {
+    // eslint-disable-next-line promise/prefer-await-to-then
+    const ended: Promise<WaitOutcome> = waiting.then(
+        (outcome: unknown): WaitOutcome => outcome === 'gave up' ? 'gave up' : 'answered',
+        (): WaitOutcome => 'gave up'
+    );
+    return await Promise.race([ended, sleep(withinMs).then((): WaitOutcome => 'still waiting')]);
+}

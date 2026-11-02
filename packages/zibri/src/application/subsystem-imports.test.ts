@@ -33,7 +33,7 @@ const BELOW_THE_DATA_LAYER: string[] = [
 ];
 
 describe('imports between subsystems', () => {
-    // 09 §Q6: auth and tenancy called the websocket service wherever a login ended or a membership
+    // auth and tenancy called the websocket service wherever a login ended or a membership
     // changed, and a login the application ended through a repository closed no socket
     it('lets nothing in auth or tenancy call the websocket service', () => {
         const importing: SourceImport[] = [...SourceImportUtilities.findSourceImports('auth'), ...SourceImportUtilities.findSourceImports('tenancy')]
@@ -46,19 +46,19 @@ describe('imports between subsystems', () => {
         expect(injecting).toEqual([]);
     });
 
-    // 09 §Q9: the data layer imported auth, tenancy, change sets, open api, backup and leases, so
+    // the data layer imported auth, tenancy, change sets, open api, backup and leases, so
     // that a cycle ran through it from every subsystem built on it
     it('lets the data layer import at runtime only what sits below it', () => {
         expect(SourceImportUtilities.findRuntimeImportsOutside(['data-source', 'entity'], BELOW_THE_DATA_LAYER)).toEqual([]);
     });
 
-    // 09 §Q15: MetadataUtilities imported the metadata shapes of auth, routing, websocket, backup and
+    // MetadataUtilities imported the metadata shapes of auth, routing, websocket, backup and
     // open api as values, so everything importing utilities sat in a cycle with all of them
     it('lets utilities import at runtime none of the subsystems built on it', () => {
         expect(SourceImportUtilities.findRuntimeImportsOutside(['utilities'], [...BELOW_THE_DATA_LAYER, 'validation', 'versioning'])).toEqual([]);
     });
 
-    // 09 §Q16: error-handling and http import each other. The errors need the status, header and mime
+    // error-handling and http import each other. The errors need the status, header and mime
     // type enums of http, and a file that imports nothing at runtime cannot be part of a cycle, so
     // those are what error-handling may take from http
     it('lets error-handling import at runtime only files of http that import nothing themselves', () => {

@@ -143,7 +143,12 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
                 labelWithOp,
                 [1, 5, 10, 25, 50, 100, 250, 500, 1000]
             ),
-            storeDuration: DurationHistogram.resolve(this.metricsService, 'cache_store_duration_seconds', labelWithOp, [1, 5, 10, 25, 50, 100, 250, 500])
+            storeDuration: DurationHistogram.resolve(
+                this.metricsService,
+                'cache_store_duration_seconds',
+                labelWithOp,
+                [1, 5, 10, 25, 50, 100, 250, 500]
+            )
         };
     }
 
@@ -240,10 +245,7 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
         if (!provider) {
             return [];
         }
-        if (typeof provider === 'function') {
-            return await provider(result, ...args);
-        }
-        return provider;
+        return typeof provider === 'function' ? await provider(result, ...args) : provider;
     }
 
     /**
@@ -259,10 +261,7 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
         if (!provider) {
             return [];
         }
-        if (typeof provider === 'function') {
-            return await provider(...args);
-        }
-        return provider;
+        return typeof provider === 'function' ? await provider(...args) : provider;
     }
 
     /**
@@ -278,15 +277,9 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
         args: TArgs
     ): Promise<number | undefined> {
         if (provider == undefined) {
-            if (typeof this.defaultTtlInMs === 'function') {
-                return await this.defaultTtlInMs();
-            }
-            return this.defaultTtlInMs;
+            return typeof this.defaultTtlInMs === 'function' ? await this.defaultTtlInMs() : this.defaultTtlInMs;
         }
-        if (typeof provider === 'function') {
-            return await provider(result, ...args);
-        }
-        return provider;
+        return typeof provider === 'function' ? await provider(result, ...args) : provider;
     }
 
     /**
@@ -300,15 +293,9 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
         args: TArgs
     ): Promise<number | undefined> {
         if (provider == undefined) {
-            if (typeof this.defaultTtlInMs === 'function') {
-                return await this.defaultTtlInMs();
-            }
-            return this.defaultTtlInMs;
+            return typeof this.defaultTtlInMs === 'function' ? await this.defaultTtlInMs() : this.defaultTtlInMs;
         }
-        if (typeof provider === 'function') {
-            return await provider(...args);
-        }
-        return provider;
+        return typeof provider === 'function' ? await provider(...args) : provider;
     }
 
     /**

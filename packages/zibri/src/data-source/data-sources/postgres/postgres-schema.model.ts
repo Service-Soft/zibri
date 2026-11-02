@@ -369,10 +369,7 @@ export class PostgresSchema {
         // eslint-disable-next-line unicorn/no-null
         const to: (value: unknown) => unknown = value => value instanceof BigNumber ? value.toFixed() : value ?? null;
         const from: (value: unknown) => unknown = value => {
-            if (typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint') {
-                return readNumber(value, format);
-            }
-            return value;
+            return typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint' ? readNumber(value, format) : value;
         };
         return isArray
             ? {

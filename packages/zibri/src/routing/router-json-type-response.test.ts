@@ -3,10 +3,14 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { Controller } from './decorators/controller.decorator';
 import { Get } from './decorators/get.decorator';
+import { type RouterInterface } from './router.interface';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
 import { Property } from '../entity/decorators/property.decorator';
+import { HttpMethod } from '../http/http-method.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { Response } from '../open-api/decorators/response.decorator';
@@ -60,11 +64,43 @@ describe('Router - answering with a json type of its own', () => {
         expect(await json.json()).toEqual({ id: 'a' });
     });
 
-    it('answers in the first type the route names when the request names none', async () => {
-        expect((await find(undefined)).headers.get(KnownHeader.CONTENT_TYPE)).toMatch(/^application\/scim\+json/);
+    // every client that never thought about the header sends one of these two
+    it('answers in the first type the route names when the request names none, or any', async () => {
+        const silent: globalThis.Response = await find(undefined);
+        const wildcard: globalThis.Response = await find('*/*');
+
+        expect([silent.status, wildcard.status]).toEqual([200, 200]);
+        expect(silent.headers.get(KnownHeader.CONTENT_TYPE)).toMatch(/^application\/scim\+json/);
     });
 
     it('answers 406 when the request accepts none of them', async () => {
         expect((await find('application/xml')).status).toBe(406);
+    });
+
+    // refusing here would turn a route whose author never documented a response into one that
+    // rejects callers: a documentation gap becoming a runtime failure
+    it('leaves a route that declared nothing answerable by anybody', async () => {
+        inject<RouterInterface>(ZIBRI_DI_TOKENS.ROUTER).registerRoute({
+            httpMethod: HttpMethod.GET,
+            route: '/negotiation/undeclared',
+            openApi: { useInOpenApi: false },
+            handler: () => ({ declared: false })
+        });
+
+        expect((await fetch(`${baseUrl}/negotiation/undeclared`, { headers: { [KnownHeader.ACCEPT]: 'application/xml' } })).status).toBe(200);
+    });
+
+    // `@RateLimited({ reserveIfUnavailable: true })` documents the reservation it may answer with, and
+    // a route carrying only that has said nothing about what it produces: counting it would let a rate
+    // limit switch on content negotiation
+    it('does not let a response the framework added decide what a route produces', async () => {
+        inject<RouterInterface>(ZIBRI_DI_TOKENS.ROUTER).registerRoute({
+            httpMethod: HttpMethod.GET,
+            route: '/negotiation/implicit-only',
+            openApi: { useInOpenApi: true, responses: [{ type: 'json', implicit: true }], tags: [] },
+            handler: () => ({ declared: false })
+        });
+
+        expect((await fetch(`${baseUrl}/negotiation/implicit-only`, { headers: { [KnownHeader.ACCEPT]: 'application/xml' } })).status).toBe(200);
     });
 });

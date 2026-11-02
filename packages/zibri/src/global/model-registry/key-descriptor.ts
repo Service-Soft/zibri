@@ -52,10 +52,9 @@ export function keyGroupsOf(entityClass: Newable<unknown>): KeyGroups {
     res.indexes.push(...entityMetadata?.indexes ?? []);
 
     const tenant: EntityTenant | undefined = entityMetadata?.tenant;
-    if (tenant == undefined || tenant === 'shared') {
-        return res;
-    }
-    return withinTenant(res, tenant.property, properties[tenant.property]?.required === true);
+    return tenant == undefined || tenant === 'shared'
+        ? res
+        : withinTenant(res, tenant.property, properties[tenant.property]?.required === true);
 }
 
 /**
@@ -81,13 +80,12 @@ function withinTenant(groups: KeyGroups, tenantProperty: string, tenantRequired:
     const indexes: string[][] = groups.indexes.map(lead);
     const uniques: UniqueGroup[] = groups.uniques.flatMap(group => {
         const led: UniqueGroup = { ...group, properties: lead(group.properties) };
-        if (tenantRequired || group.properties.includes(tenantProperty)) {
-            return [led];
-        }
-        // a row of no tenant holds null for the tenant, and no store compares a null in a unique,
-        // so the led group lets any number of them hold the same value. The rows of no tenant get
-        // a group of their own, unique among themselves the way each tenant's rows are
-        return [led, { properties: group.properties, where: withNoTenant(group.where, tenantProperty) }];
+        return tenantRequired || group.properties.includes(tenantProperty)
+            ? [led]
+            // a row of no tenant holds null for the tenant, and no store compares a null in a unique,
+            // so the led group lets any number of them hold the same value. The rows of no tenant get
+            // a group of their own, unique among themselves the way each tenant's rows are
+            : [led, { properties: group.properties, where: withNoTenant(group.where, tenantProperty) }];
     });
     // asked of by every read. An index answers a lookup by any leading part of itself, so every index
     // and every unique over all rows answers it already, each being led by the tenant; an entity

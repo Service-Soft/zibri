@@ -442,14 +442,14 @@ describe('InMemoryDataSource', () => {
 
         const inserted: EventSubscriberRegistration = await registrations.upsert(
             identity,
-            { ...identity, expiresAt: first } as EventSubscriberRegistration,
+            { ...identity, expiresAt: first },
             { expiresAt: { set: first } }
         );
         expect(inserted.expiresAt.getTime()).toBe(first.getTime());
 
         const updated: EventSubscriberRegistration = await registrations.upsert(
             identity,
-            { ...identity, expiresAt: second } as EventSubscriberRegistration,
+            { ...identity, expiresAt: second },
             { expiresAt: { set: second } }
         );
 

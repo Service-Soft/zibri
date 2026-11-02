@@ -9,8 +9,5 @@ export function isNumeric(value: unknown): value is number | string {
     if (typeof value === 'number') {
         return !Number.isNaN(value);
     }
-    if (typeof value === 'string') {
-        return NUMERIC_REGEX.test(value);
-    }
-    return false;
+    return typeof value === 'string' ? NUMERIC_REGEX.test(value) : false;
 }

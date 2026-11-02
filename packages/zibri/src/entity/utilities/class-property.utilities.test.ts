@@ -226,7 +226,7 @@ describe('ClassPropertyUtilities (via OmitClass/PickClass/PartialClass/Intersect
             expect(combined instanceof OtherBase).toBe(false);
         });
 
-        // 01 §Q4: the routes of the bases were concatenated, so a method two bases share was
+        // the routes of the bases were concatenated, so a method two bases share was
         // registered under the route of each, the last base's implementation answering the first
         // base's path as well
         it('serves a method two bases share from the last base naming it, under its route alone', async () => {

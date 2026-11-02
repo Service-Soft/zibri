@@ -583,10 +583,9 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
         // the browser's word, which the device does not sign. It only tells the user which of their
         // passkeys log in, and grants nothing
         const properties: unknown = response.clientExtensionResults['credProps'];
-        if (typeof properties !== 'object' || properties == undefined || !('rk' in properties) || typeof properties.rk !== 'boolean') {
-            return undefined;
-        }
-        return properties.rk;
+        return typeof properties !== 'object' || properties == undefined || !('rk' in properties) || typeof properties.rk !== 'boolean'
+            ? undefined
+            : properties.rk;
     }
 
     private async claim(spend: () => Promise<unknown>): Promise<void> {

@@ -151,22 +151,18 @@ export function renderStyle(value: unknown): string {
     if (typeof value === 'string') {
         return value;
     }
-    if (typeof value !== 'object' || value === null) {
-        return '';
-    }
-    return Object.entries(value)
-        .filter(([, v]) => v != undefined && v !== false)
-        .map(([k, v]) => `${kebabCase(k)}:${String(v)}`)
-        .join(';');
+    return typeof value !== 'object' || value === null
+        ? ''
+        : Object.entries(value)
+            .filter(([, v]) => v != undefined && v !== false)
+            .map(([k, v]) => `${kebabCase(k)}:${String(v)}`)
+            .join(';');
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 function kebabCase(name: string): string {
     // Preserve CSS custom properties (--var) as-is.
-    if (name.startsWith('--')) {
-        return name;
-    }
-    return name.replaceAll(/[A-Z]/g, m => `-${m.toLowerCase()}`);
+    return name.startsWith('--') ? name : name.replaceAll(/[A-Z]/g, m => `-${m.toLowerCase()}`);
 }
 
 /**
@@ -200,10 +196,7 @@ export function attr(name: string, value: unknown): string {
         return ` style="${escapeAttribute(renderStyle(value))}"`;
     }
     const text: string = primitiveToString(value);
-    if (URL_ATTRIBUTES.has(mapped.toLowerCase()) && isScriptUrl(text)) {
-        return '';
-    }
-    return ` ${mapped}="${escapeAttribute(text)}"`;
+    return URL_ATTRIBUTES.has(mapped.toLowerCase()) && isScriptUrl(text) ? '' : ` ${mapped}="${escapeAttribute(text)}"`;
 }
 
 /**
@@ -225,11 +218,10 @@ export function isScriptUrl(url: string): boolean {
  * @returns The concatenated attributes.
  */
 export function spreadAttributes(props: unknown): string {
-    if (typeof props !== 'object' || props === null) {
-        return '';
-    }
-    return Object.entries(props).map(([k, v]) => attr(k, v))
-        .join('');
+    return typeof props !== 'object' || props === null
+        ? ''
+        : Object.entries(props).map(([k, v]) => attr(k, v))
+            .join('');
 }
 
 /**
@@ -251,11 +243,10 @@ export function renderChild(value: unknown): string {
     if (typeof value === 'number' || typeof value === 'bigint') {
         return String(value);
     }
-    if (Array.isArray(value)) {
-        return value.map(renderChild).join('');
-    }
-    // Objects/functions/symbols cannot be rendered as content.
-    return '';
+    return Array.isArray(value)
+        ? value.map(renderChild).join('')
+        // Objects/functions/symbols cannot be rendered as content.
+        : '';
 }
 
 /**
@@ -267,10 +258,9 @@ function primitiveToString(value: unknown): string {
     if (typeof value === 'symbol') {
         return value.toString();
     }
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') {
-        return String(value);
-    }
-    return '';
+    return typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean'
+        ? String(value)
+        : '';
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -485,10 +475,9 @@ function renderDynamicElement(
     }
 
     const stamp: string = on(specs);
-    if (VOID_ELEMENTS.has(tag)) {
-        return raw(`<${tag}${attributes}${stamp}>`);
-    }
-    return raw(`<${tag}${attributes}${stamp}>${renderChild(props['children'])}</${tag}>`);
+    return VOID_ELEMENTS.has(tag)
+        ? raw(`<${tag}${attributes}${stamp}>`)
+        : raw(`<${tag}${attributes}${stamp}>${renderChild(props['children'])}</${tag}>`);
 }
 
 /**
@@ -779,7 +768,7 @@ export function createServerRuntime(): RenderServerRuntime {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     function provideContext<T>(context: RenderContext<T>, value: T): void {
-        contextStack.push({ context: context as RenderContext<unknown>, value });
+        contextStack.push({ context: context, value });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

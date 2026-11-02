@@ -12,8 +12,8 @@ import { Newable } from '../types/newable.type';
 /**
  * The second copy loaded below counts itself into a slot the whole realm shares, and nothing takes
  * it back out - so the duplicate test has to be the last one in this file. Jest gives every test
- * file its own realm, so it reaches no further than that. The constraint is the finding restated as
- * a property of the suite: what a copy of the framework does to a process cannot be undone from
+ * file its own realm, so it reaches no further than that. The constraint is what is tested here,
+ * restated as a property of the suite: what a copy of the framework does to a process cannot be undone from
  * inside it.
  */
 
@@ -43,7 +43,7 @@ describe('framework copies', () => {
         expect(() => initDiContainer()).toThrow(/^2 copies of zibri/);
         // and the message has to point at the install, because nothing in the application is wrong
         expect(() => initDiContainer()).toThrow(/npm ls zibri/);
-        // 07 §T7: a module registry reset in a test is the other way to get here, and the install
+        // a module registry reset in a test is the other way to get here, and the install
         // diagnosis alone sends that reader to the wrong place
         expect(() => initDiContainer()).toThrow(/jest\.resetModules/);
         // which is what a consumer's test sees when it boots after the reset

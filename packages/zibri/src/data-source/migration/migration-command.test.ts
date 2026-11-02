@@ -108,7 +108,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, TestTimeouts.inMemory.shutdown);
 
-// part of evaluation round 2, 02 §S14: going back was a method to call from code of one's own, which
+// going back was a method to call from code of one's own, which
 // a deployment - a bundle, without the framework's cli - had no way to run
 describe('the migration commands of an application', () => {
     it('leave a process started without one to start the application', async () => {

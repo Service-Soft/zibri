@@ -85,7 +85,7 @@ describe('the runtime entry point', () => {
 
             // what `"module": "commonjs"` resolves by, zibri's own build among them: it reads `types`
             // and `typesVersions` and never `exports`, so a subpath it cannot find is a package whose
-            // types are `any` to it (round-2 07 §T5, where zibri/webpack was the first to import one)
+            // types are `any` to it, as they were to zibri/webpack, the first to import one
             expect(resolved?.resolvedFileName).toMatch(/\.d\.ts$/);
         }
     );
@@ -97,7 +97,7 @@ describe('the runtime entry point', () => {
 
         // the compiler runs on the application's own TypeScript, and this suite runs once per major
         // (jest.typescript-6.config.mjs). A major it passes on and the range refuses is an application
-        // npm will not install beside it (round-2 07 §T6)
+        // npm will not install beside it
         expect(majors).toContain(ts.version.split('.')[0]);
     });
 

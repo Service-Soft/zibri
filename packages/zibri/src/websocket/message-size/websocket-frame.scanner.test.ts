@@ -33,7 +33,7 @@ type FrameInput = {
  */
 function frame(input: FrameInput): Buffer {
     const length: number = input.declaredLength ?? input.payload.length;
-    const first: number = ((input.fin ?? true) ? 0x80 : 0) | (input.compressed === true ? 0x40 : 0) | input.opcode;
+    const first: number = (input.fin ?? true ? 0x80 : 0) | (input.compressed === true ? 0x40 : 0) | input.opcode;
     let header: Buffer;
     if (length < 126) {
         header = Buffer.from([first, 0x80 | length]);

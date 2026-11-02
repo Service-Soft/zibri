@@ -204,7 +204,7 @@ export class FakeLdapDirectory {
      * Starts listening on two free ports of the loopback interface.
      */
     async listen(): Promise<void> {
-        const [plain, tls] = await Promise.all([this.plainServer, this.tlsServer].map(async server => {
+        const [plain = 0, tls = 0] = await Promise.all([this.plainServer, this.tlsServer].map(async server => {
             await new Promise<void>(resolve => server.listen(0, HOST, resolve));
             const address: AddressInfo | string | null = server.address();
             if (address == undefined || typeof address === 'string') {
@@ -212,7 +212,7 @@ export class FakeLdapDirectory {
             }
             return address.port;
         }));
-        this.ports = { plain: plain ?? 0, tls: tls ?? 0 };
+        this.ports = { plain, tls };
     }
 
     /**
@@ -351,10 +351,9 @@ export class FakeLdapDirectory {
             const locked: Refusal = LOCKED_ANSWERS[entry.lockedWith];
             return refuse(locked.code, locked.message);
         }
-        if (entry?.password !== request.password) {
-            return refuse(ResultCode.INVALID_CREDENTIALS, 'AcceptSecurityContext error, data 52e');
-        }
-        return succeed(entry.dn);
+        return entry?.password !== request.password
+            ? refuse(ResultCode.INVALID_CREDENTIALS, 'AcceptSecurityContext error, data 52e')
+            : succeed(entry.dn);
     }
 
     private search(connection: Connection, request: SearchRequest): Buffer {
@@ -424,10 +423,9 @@ export class FakeLdapDirectory {
             const pattern: RegExp = new RegExp(`^${parts.join('.*')}$`, 'i');
             return FakeLdapDirectory.valuesOf(entry, filter.attribute).some(value => pattern.test(value));
         }
-        if (filter instanceof ldap.ExtensibleFilter && filter.rule === IN_CHAIN_RULE) {
-            return this.isMemberInChain(entry, filter.matchType, FakeLdapDirectory.normalize(filter.value), new Set());
-        }
-        return false;
+        return filter instanceof ldap.ExtensibleFilter
+            && filter.rule === IN_CHAIN_RULE
+            && this.isMemberInChain(entry, filter.matchType, FakeLdapDirectory.normalize(filter.value), new Set());
     }
 
     /**

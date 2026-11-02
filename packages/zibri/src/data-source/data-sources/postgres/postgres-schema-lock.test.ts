@@ -81,7 +81,7 @@ function createLockHolder(schema?: string): LockHoldingDataSource {
     return holder;
 }
 
-// the cluster run of evaluation 01 C2 hung on this: the instance setting the schema up built an index
+// migration.cluster.test.ts hung on this: the instance setting the schema up built an index
 // concurrently, which waits for every transaction holding an older snapshot, and the instances
 // waiting for the schema lock each held one for as long as they waited - for the instance holding it.
 // Postgres sees no deadlock in that, since the instance holding the lock waits in the application
@@ -115,7 +115,7 @@ describe('instances waiting for the schema setup of another', () => {
     }, timeouts.restart + BUILD_TIMEOUT_IN_MS);
 });
 
-// evaluation round 2, 02 §S12: the lock was one per database, so an application in a schema of its
+// the lock was one per database, so an application in a schema of its
 // own waited for every other one setting up its schema, and gave up after the schema lock timeout
 describe('applications sharing a database, each in a schema of its own', () => {
     it('set their schemas up without waiting for each other', async () => {

@@ -42,7 +42,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, timeouts.shutdown);
 
-// part of evaluation round 2, 02 §S19: typeorm began a transaction with START TRANSACTION and SET
+// typeorm began a transaction with START TRANSACTION and SET
 // TRANSACTION ISOLATION LEVEL, and the data source and the deadline added a statement each, so every
 // transaction paid three to four round trips before its first real statement
 describe('a postgres transaction', () => {
@@ -65,4 +65,22 @@ describe('a postgres transaction', () => {
         expect(read).toMatch(/^SELECT /);
         expect(rest).toStrictEqual(['ROLLBACK']);
     }, timeouts.restart);
+
+    // postgres runs it as READ COMMITTED and valkey runs no isolation level at all, so a caller asking
+    // for it got something else on every store
+    it('offers no isolation level no store runs as itself', () => {
+        // @ts-expect-error - READ UNCOMMITTED is not an isolation level a transaction can ask for
+        expect(IsolationLevel.READ_UNCOMMITTED).toBeUndefined();
+    });
+});
+
+describe('the connections of a postgres data source', () => {
+    // per process, and a deployment is many: a hundred per process times twenty pods is two thousand
+    // connections against a stock max_connections of a hundred, so the first scale-out takes the
+    // database down. This test data source names no pool size, so this is the framework's default
+    it('pools no more of them by default than a cluster of replicas can afford', () => {
+        const dataSource: PostgresDataSource = inject(dataSourceClass);
+
+        expect(Number(dataSource['resolveConnectionConfig'](dataSource.options, true)['max'])).toBeLessThanOrEqual(20);
+    });
 });

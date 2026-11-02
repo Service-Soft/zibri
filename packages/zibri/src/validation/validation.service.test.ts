@@ -381,7 +381,7 @@ describe('ValidationService', () => {
                 )).resolves.toBeUndefined();
             });
 
-            // 01 §D19: a check comparing two properties of the body
+            // a check comparing two properties of the body
             it('answers a body whose one property breaks a comparison with another, and leaves an update lacking either to the data source', async () => {
                 const startsAt: Date = new Date('2026-05-01T08:00:00.000Z');
                 await expect(validationService.validateBody(

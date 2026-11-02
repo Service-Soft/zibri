@@ -497,8 +497,8 @@ async function postLogout(browser: TestBrowser, form: FakeSamlLogoutForm, at: Fa
 function readAutoPostedForm(html: string): FakeSamlLogoutForm {
     const action: string = /<form[^>]*action="([^"]*)"/.exec(html)?.[1] ?? '';
     const fields: URLSearchParams = new URLSearchParams();
-    for (const [, name, value] of html.matchAll(/<input[^>]*name="([^"]*)"[^>]*value="([^"]*)"/g)) {
-        fields.set(name ?? '', (value ?? '').replaceAll('&quot;', '"')
+    for (const [, name = '', value = ''] of html.matchAll(/<input[^>]*name="([^"]*)"[^>]*value="([^"]*)"/g)) {
+        fields.set(name, value.replaceAll('&quot;', '"')
             .replaceAll('&lt;', '<')
             .replaceAll('&gt;', '>')
             .replaceAll('&amp;', '&'));
@@ -612,7 +612,7 @@ describe('BaseSamlAuthenticator', () => {
         expect(errorOf((await logInAtProvider(newBrowser(), authorizeUrl('company'))).landing)).toBe('invalid');
     });
 
-    // 05 §I9: an identity provider whose clock drifted past the one minute in code refused every answer,
+    // an identity provider whose clock drifted past the one minute in code refused every answer,
     // with no member to widen it
     it('takes an answer of a provider whose clock runs ahead within acceptedClockSkewInMs, one minute by default', async () => {
         await createLinkedUser();
@@ -855,14 +855,14 @@ describe('BaseSamlAuthenticator', () => {
         const browser: TestBrowser = newBrowser();
         await logInAtProvider(browser, authorizeUrl('strict'), strictIdp);
 
-        const { providerLogoutUrl } = await logOut(browser);
-        const landing: string = await browser.follow(await browser.follow(providerLogoutUrl ?? ''));
+        const { providerLogoutUrl = '' } = await logOut(browser);
+        const landing: string = await browser.follow(await browser.follow(providerLogoutUrl));
 
         expect(strictIdp.logoutRequests.at(-1)?.signed).toBe(true);
         expect(landing).toBe(LOGGED_OUT_URL);
     });
 
-    // evaluation/03-auth-and-security H23: the metadata named the logout url for posted messages only,
+    // the metadata named the logout url for posted messages only,
     // and the route took none; logout requests sent server to server had no route at all
     describe('logout through the post and SOAP bindings', () => {
         it('publishes its logout url for redirected and posted messages, and its SOAP logout url', async () => {
@@ -918,9 +918,9 @@ describe('BaseSamlAuthenticator', () => {
             await createLinkedUser(postAnsweringIdp);
             const browser: TestBrowser = newBrowser();
             await logInAtProvider(browser, authorizeUrl('post-answering'), postAnsweringIdp);
-            const { providerLogoutUrl } = await logOut(browser);
+            const { providerLogoutUrl = '' } = await logOut(browser);
 
-            await browser.open(providerLogoutUrl ?? '');
+            await browser.open(providerLogoutUrl);
             const posted: FakeSamlLogoutForm | undefined = postAnsweringIdp.logoutAnswers.at(-1);
             const res: Response = await postLogout(browser, posted ?? { url: '', fields: new URLSearchParams() }, postAnsweringIdp);
 

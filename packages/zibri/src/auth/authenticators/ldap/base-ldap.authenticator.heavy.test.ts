@@ -78,8 +78,8 @@ abstract class TestDirectory extends BaseLdapAuthenticator<string, JwtUser> {
 
     async resolveFirstLogin(entry: LdapEntry, transaction: Transaction | undefined): Promise<JwtUser> {
         firstLogins.push(entry);
-        const [email] = entry.attributes['mail'] ?? [];
-        return await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).create({ email: email ?? '', roles: [Roles.USER] }, { transaction });
+        const [email = ''] = entry.attributes['mail'] ?? [];
+        return await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] }, { transaction });
     }
 
     async resolveLogin(entry: LdapEntry, user: JwtUser, transaction: Transaction | undefined): Promise<JwtUser> {
@@ -343,7 +343,6 @@ describe('BaseLdapAuthenticator against 389 Directory Server', () => {
         expect(roles).toStrictEqual([Roles.ADMIN]);
     });
 
-    // evaluation/03-auth-and-security H22
     it('finds an entry by its nsUniqueId on a refresh, and refuses it once an administrator inactivated it', async () => {
         await addPerson('erin');
         const loggedIn: JwtAuthData<string> = await authDataOf(await logIn({ username: 'erin', password: 'erin-secret' }));

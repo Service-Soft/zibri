@@ -186,7 +186,8 @@ export function createTestDataSource({
         readonly repositories: RepositoryClass[] = repositories;
         override migrations: Newable<Migration>[] = migrations;
         // a suite that ships no migrations and needs tables synchronizes, which is the one
-        // deployment shape that is actually right for. It used to be implicit, which is the finding
+        // deployment shape that is actually right for. Said here, because implicit it was a default
+        // nobody had chosen
         schemaManagement: SchemaManagement = schemaManagement;
         readonly pooler: PostgresPooler = 'none';
 

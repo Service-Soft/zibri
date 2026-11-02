@@ -482,7 +482,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             try {
                 // no offset is a client with nothing to catch up on, the way socket.io documents
                 // connecting. One that was sent is the seq of the last message the client saw, and
-                // anything else is said at once rather than read as some other offset (02 §M18)
+                // anything else is said at once rather than read as some other offset
                 const offset: unknown = socket.handshake.auth['offset'];
                 if (offset !== undefined && !(typeof offset === 'number' && Number.isInteger(offset) && offset >= 0)) {
                     next(new BadRequestError($ts`The offset has to be a whole number of at least 0.`));
@@ -491,7 +491,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 const request: WebsocketRequest = {
                     headers: socket.handshake.headers as Partial<Record<KnownHeader, string | undefined>>,
                     body: undefined,
-                    query: socket.handshake.query as Partial<Record<string, string | undefined>>,
+                    query: socket.handshake.query,
                     params: {}
                 };
                 const context: WebsocketRequestContext = new WebsocketRequestContext(request, undefined, undefined, undefined);

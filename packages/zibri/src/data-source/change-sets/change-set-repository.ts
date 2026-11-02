@@ -293,7 +293,7 @@ export class ChangeSetRepository<
         // the before state of every row, read once, and their change sets written together - in the
         // transaction of the write, for the reason updateAll takes one
         return await this.inTransaction(options, async transaction => {
-            const inTransaction: BaseRepositoryOptions<T> ={ ...options, transaction };
+            const inTransaction: BaseRepositoryOptions<T> = { ...options, transaction };
             const original: T[] = await this.findAll({
                 ...inTransaction,
                 where: { id: { oneOf: rows.map(r => r.id) } } as Where<T>,
@@ -391,7 +391,7 @@ export class ChangeSetRepository<
         // undone a second time
         const name: string = 'resetSingleChangeSet';
         return await this.withinTimeout(options, name, async () => await this.inTransaction(options, async transaction => {
-            const inTransaction: BaseRepositoryOptions<T> ={ ...options, transaction };
+            const inTransaction: BaseRepositoryOptions<T> = { ...options, transaction };
             const changeSet: ChangeSet = await this.changeSetRepository.findById(
                 changeSetId,
                 { relations: ['changes'], ...inTransaction }
@@ -538,7 +538,7 @@ export class ChangeSetRepository<
         // not leave the row at a state it was never in - between two of the change sets it is
         // undoing, which is not a state anything recorded
         return await this.withinTimeout(options, 'rollbackToTimestamp', async () => await this.inTransaction(options, async transaction => {
-            const inTransaction: BaseRepositoryOptions<T> ={ ...options, transaction };
+            const inTransaction: BaseRepositoryOptions<T> = { ...options, transaction };
             const changeSets: ChangeSet[] = await this.changeSetRepository.findAll({
                 // every change since the timestamp, because a rollback that skipped some would land
                 // the row somewhere it never was
@@ -614,7 +614,7 @@ export class ChangeSetRepository<
         // filter, and nothing afterwards says which half it got to
         const name: string = 'rollbackAllToTimestamp';
         return await this.withinTimeout(options, name, async () => await this.inTransaction(options, async transaction => {
-            const inTransaction: BaseRepositoryOptions<T> ={ ...options, transaction };
+            const inTransaction: BaseRepositoryOptions<T> = { ...options, transaction };
             // a rollback covers everything the filter matches or it is not a rollback of that filter -
             // of the rows it may change, which inside a tenant leaves out the ones of no tenant
             const reach: ScopedWhere<T> = this.resolveWriteWhere(where, inTransaction);

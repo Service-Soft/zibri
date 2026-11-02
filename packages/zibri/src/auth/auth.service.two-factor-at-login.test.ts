@@ -300,7 +300,7 @@ describe('AuthService - a second factor at login', () => {
             expect(await loginsOf(user)).toBe(1);
         });
 
-        // 09 §Q7: the lifetime was a constant of the service, while every other lifetime of a login is a token
+        // the lifetime was a constant of the service, while every other lifetime of a login is a token
         it('issues a ticket that lasts as long as the application says', async () => {
             const user: JwtUser = await createUser('ticket-lifetime');
             await enrollOtp(user);

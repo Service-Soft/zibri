@@ -470,10 +470,7 @@ export abstract class BaseSamlAuthenticator<
         catch (error) {
             throw new UnauthorizedError($ts`The logout could not be verified.`, { cause: error });
         }
-        if (!isRequest) {
-            return undefined;
-        }
-        return this.validateLogoutRequest(profile);
+        return !isRequest ? undefined : this.validateLogoutRequest(profile);
     }
 
     /**
@@ -566,16 +563,15 @@ export abstract class BaseSamlAuthenticator<
      * @returns The response, signed.
      */
     private signLogoutResponse(response: string): string {
-        if (this.signingKey == undefined) {
-            return response;
-        }
-        return this.resolveNodeSamlXml().signXml(
-            response,
-            LOGOUT_RESPONSE_PATH,
-            // right after the issuer, which is where SAML has a signature go
-            { reference: LOGOUT_RESPONSE_ISSUER_PATH, action: 'after' },
-            { privateKey: this.signingKey.privateKey, publicCert: this.signingKey.certificate, signatureAlgorithm: 'sha256' }
-        );
+        return this.signingKey == undefined
+            ? response
+            : this.resolveNodeSamlXml().signXml(
+                response,
+                LOGOUT_RESPONSE_PATH,
+                // right after the issuer, which is where SAML has a signature go
+                { reference: LOGOUT_RESPONSE_ISSUER_PATH, action: 'after' },
+                { privateKey: this.signingKey.privateKey, publicCert: this.signingKey.certificate, signatureAlgorithm: 'sha256' }
+            );
     }
 
     /**

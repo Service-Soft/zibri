@@ -51,7 +51,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, timeouts.shutdown);
 
-// found with evaluation round 2, 02 §S13: a transaction that may sit idle for as long as it likes,
+// a transaction that may sit idle for as long as it likes,
 // which is what a migration's is, set no limit of its own, and so got whatever the database set
 describe('a transaction that may sit idle for as long as it likes', () => {
     it('outlasts an idle limit the database sets', async () => {

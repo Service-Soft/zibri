@@ -16,7 +16,7 @@ class UndecoratedParamController {
     }
 }
 
-// part of evaluation round 2, 03 §H9: the parameters were counted against the method on every request,
+// the parameters were counted against the method on every request,
 // so the application started and the route answered 500 to whoever called it first
 describe('a route with a parameter no decorator declares', () => {
     it('keeps the application from starting, naming the route', async () => {

@@ -56,7 +56,7 @@ async function resolveTokensResolvedBy(work: () => Promise<unknown>): Promise<st
     }
 }
 
-// 01 §Q3: a write resolved its services from the container per call. A repository keeps what it
+// a write resolved its services from the container per call. A repository keeps what it
 // needs once it has it, and an observer is given what it needs when it is registered
 describe('what a write resolves from the container', () => {
     it('resolves nothing for a delete of a row of an entity nobody observes', async () => {

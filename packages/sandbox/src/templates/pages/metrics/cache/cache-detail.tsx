@@ -106,7 +106,7 @@ export const CacheDetail: TsxComponent<Props> = ({ name, primary, secondary }) =
                         const operations: string[] = [
                             ...new Set(
                                 latest.metrics
-                                    .filter(m => (m.name === 'cache_source_duration_seconds_sum' || m.name === 'cache_store_duration_seconds_sum')
+                                    .filter(m => ['cache_source_duration_seconds_sum', 'cache_store_duration_seconds_sum'].includes(m.name)
                                         && m.labels['cache'] === name
                                         && m.labels['operation'] != undefined)
                                     .map(m => m.labels['operation'] as string)

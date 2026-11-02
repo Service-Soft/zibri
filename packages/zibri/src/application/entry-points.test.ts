@@ -31,9 +31,9 @@ describe('the entry points', () => {
         expect({ onBoth, onNeither }).toEqual({ onBoth: [], onNeither: [] });
     }, 120_000);
 
-    // 08 §X21: a developer guesses a name they have not read only when every subsystem spells it the
-    // same way, so a duration says `InMs`, a point in time `AtMs`, and nothing leaves the unit out;
-    // the few durations in seconds (09 §Q11) say `InSeconds`
+    // a developer guesses a name they have not read only when every subsystem spells it the same way,
+    // so a duration says `InMs`, a point in time `AtMs`, and nothing leaves the unit out; the few
+    // durations in seconds say `InSeconds`
     it('name every duration and every point in time with its unit', () => {
         const unitless: RegExp = /(Ms|MS|Seconds|SECONDS|(^|[_a-z])(ttl|Ttl|TTL|timeout|Timeout|TIMEOUT))$/;
         const withUnit: RegExp = /(InMs|AtMs|InSeconds|_IN_MS|_AT_MS|_IN_SECONDS)$/;

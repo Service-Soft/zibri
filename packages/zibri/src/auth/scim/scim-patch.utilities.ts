@@ -330,15 +330,12 @@ export abstract class ScimPatchUtilities {
             const right: Record<string, unknown> | undefined = this.resolveItemOf(filter.right);
             return left == undefined || right == undefined ? undefined : { ...left, ...right };
         }
-        if (
-            filter.type === 'comparison'
+        return filter.type === 'comparison'
             && filter.operator === 'eq'
             && filter.path.uri == undefined
             && filter.path.subAttribute == undefined
-        ) {
-            return { [filter.path.attribute]: filter.value };
-        }
-        return undefined;
+            ? { [filter.path.attribute]: filter.value }
+            : undefined;
     }
 
     /**
@@ -351,9 +348,8 @@ export abstract class ScimPatchUtilities {
     private static isSameItem(left: unknown, right: unknown): boolean {
         const leftValue: unknown = ScimFilterUtilities.isRecord(left) ? left['value'] : undefined;
         const rightValue: unknown = ScimFilterUtilities.isRecord(right) ? right['value'] : undefined;
-        if (leftValue != undefined && rightValue != undefined) {
-            return leftValue === rightValue;
-        }
-        return JsonUtilities.stringify(left) === JsonUtilities.stringify(right);
+        return leftValue != undefined && rightValue != undefined
+            ? leftValue === rightValue
+            : JsonUtilities.stringify(left) === JsonUtilities.stringify(right);
     }
 }

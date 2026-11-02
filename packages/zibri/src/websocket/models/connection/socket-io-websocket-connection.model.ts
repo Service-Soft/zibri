@@ -32,7 +32,7 @@ export class SocketIOWebsocketConnection implements BaseWebsocketConnection {
         return {
             headers: this.socket.handshake.headers as Partial<Record<KnownHeader, string | undefined>>,
             body: undefined,
-            query: this.socket.handshake.query as Partial<Record<string, string | undefined>>,
+            query: this.socket.handshake.query,
             params: {}
         };
     }

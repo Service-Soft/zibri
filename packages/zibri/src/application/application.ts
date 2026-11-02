@@ -65,8 +65,8 @@ import { OmitStrict } from '../types/omit-strict.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { Ms } from '../utilities/ms';
 import { NumberUtilities } from '../utilities/number.utilities';
-import { RequiredEntities } from '../utilities/required-entities.model';
 import { PromiseUtilities } from '../utilities/promise.utilities';
+import { RequiredEntities } from '../utilities/required-entities.model';
 
 /**
  * The options of a built application, with every default filled in.
@@ -748,13 +748,11 @@ export class ZibriApplication {
         // `unknown` because a construct signature declares no members, so this reads as `any` - and
         // every predicate below takes `unknown`, so nothing needs it to be narrower than it is
         const prototype: unknown = declaredClass.prototype;
-        if (declaresLifecycleHook(prototype)) {
-            return true;
-        }
-        // the kinds `validateInjectables` judges by what it was handed: one of these is reported by
-        // being built, so not building it takes the report away. `@DataSource` is the one that
-        // matters, because it carries no hook of its own and an undeclared one is named here.
-        return MetadataUtilities.getDataSourceMetadata(declaredClass) != undefined
+        return declaresLifecycleHook(prototype)
+            // the kinds `validateInjectables` judges by what it was handed: one of these is reported by
+            // being built, so not building it takes the report away. `@DataSource` is the one that
+            // matters, because it carries no hook of its own and an undeclared one is named here.
+            || MetadataUtilities.getDataSourceMetadata(declaredClass) != undefined
             || MetadataUtilities.getControllerData(declaredClass) != undefined
             || prototype instanceof ZibriPlugin
             || prototype instanceof CronJob;
@@ -1092,10 +1090,8 @@ export class ZibriApplication {
      */
     private isOrphanedDataSource(dataSource: object): boolean {
         const dataSourceClass: Function = dataSource.constructor;
-        if (this.options.dataSources.some(ds => ds === dataSourceClass)) {
-            return false;
-        }
-        return !(MetadataUtilities.getDataSourceMetadata(dataSourceClass)?.allowOrphan ?? false);
+        return !this.options.dataSources.some(ds => ds === dataSourceClass)
+            && !(MetadataUtilities.getDataSourceMetadata(dataSourceClass)?.allowOrphan ?? false);
     }
 
     /**
@@ -1227,7 +1223,7 @@ export class ZibriApplication {
         }
     }
 
-    // logged and survived, for as long as the application runs - decided, not overlooked (06 §C4).
+    // logged and survived, for as long as the application runs - decided, not overlooked.
     // The framework's own fire-and-forget work catches its own failures, so what reaches here is a
     // promise application code started and never awaited, and one of those is not worth every
     // request in flight. A failed boot is not decided here: the generated entry point catches

@@ -77,12 +77,11 @@ export class DpopService implements DpopServiceInterface {
         token: AuthorizationToken,
         keyThumbprint: string | undefined
     ): Promise<boolean> {
-        if (keyThumbprint == undefined) {
+        return keyThumbprint == undefined
             // a bearer token sent with the DPoP scheme would be taken for one bound to a key (RFC 9449, 7.1)
-            return token.scheme === 'Bearer';
-        }
-        // and a bound one sent as a bearer token is the downgrade the binding is there to refuse
-        return token.scheme === 'DPoP' && await this.resolveProofThumbprint(context, token.value) === keyThumbprint;
+            ? token.scheme === 'Bearer'
+            // and a bound one sent as a bearer token is the downgrade the binding is there to refuse
+            : token.scheme === 'DPoP' && await this.resolveProofThumbprint(context, token.value) === keyThumbprint;
     }
 
     /**
@@ -162,11 +161,9 @@ export class DpopService implements DpopServiceInterface {
         // the normalizing parsing does, without query and fragment (RFC 9449, 4.3)
         const expected: URL = new URL(`${this.jwtService.issuer}${context.request.originalUrl.split('?')[0] ?? ''}`);
         const actual: URL = new URL(url);
-        if (`${actual.origin}${actual.pathname}` !== `${expected.origin}${expected.pathname}`) {
-            return false;
-        }
-        return accessToken == undefined || proof.payload['ath'] === createHash('sha256').update(accessToken)
-            .digest('base64url');
+        return `${actual.origin}${actual.pathname}` === `${expected.origin}${expected.pathname}`
+            && (accessToken == undefined || proof.payload['ath'] === createHash('sha256').update(accessToken)
+                .digest('base64url'));
     }
 
     /**

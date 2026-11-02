@@ -138,7 +138,7 @@ describe('a translation, from the code through source.xlf and de.xlf to the runn
         expect($t`Hello ${{ firstName: user.firstName }}`.getValue('de')).toBe('Hallo Ada');
     });
 
-    // round-2 11 §L6: a placeholder the translator misspelled or left out was served as the text
+    // a placeholder the translator misspelled or left out was served as the text
     // around it, and nothing said so
     it('warns at boot about a translation that leaves out a placeholder of its source', () => {
         expect(warn).toHaveBeenCalledWith('The "de" translation of "Welcome {firstName}" leaves out {firstName} (src/greeting.ts:3)');

@@ -64,7 +64,7 @@ class LedgerRow extends BaseEntity {
     amount!: BigNumber;
 }
 
-// 01 §D9: a bigint or an exact decimal was refused as a cursor value, and read back through Number
+// a bigint or an exact decimal was refused as a cursor value, and read back through Number
 describe('a cursor over numbers past what a double holds', () => {
     beforeAll(() => {
         initDiContainer();

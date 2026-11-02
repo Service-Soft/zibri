@@ -188,10 +188,7 @@ function rawChildrenOf(node: ts.Node): ts.Node[] {
                 : [...clause.statements])
         ];
     }
-    if (ts.isLabeledStatement(node)) {
-        return [node.statement];
-    }
-    return expressionChildren(node);
+    return ts.isLabeledStatement(node) ? [node.statement] : expressionChildren(node);
 }
 
 /**
@@ -294,10 +291,11 @@ export class UnhandledSyntaxError extends Error {
     /**
      * Creates the error for a node.
      * @param node - The node the walk has no case for.
+     * @param options - The cause, if there is one.
      */
-    constructor(node: ts.Node) {
+    constructor(node: ts.Node, options?: ErrorOptions) {
         const kind: string = syntaxKindName(node.kind);
-        super(`The compiler has no analysis for syntax of kind '${kind}'.`);
+        super(`The compiler has no analysis for syntax of kind '${kind}'.`, options);
         this.name = 'UnhandledSyntaxError';
         this.kind = kind;
         this.span = { start: node.getStart(), end: node.getEnd() };

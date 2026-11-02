@@ -128,7 +128,7 @@ async function runRetries(backup: BackupEntity): Promise<void> {
     await backupService.runQueuedBackups();
 }
 
-// 09 §Q5: a backup ran inside the call that asked for it, and one whose instance stopped halfway
+// a backup ran inside the call that asked for it, and one whose instance stopped halfway
 // was abandoned, with nothing retrying a resource whose transport failed
 describe('BackupService - a backup as queued work', () => {
     it('queues a backup and returns it running, and is told once every resource is stored', async () => {

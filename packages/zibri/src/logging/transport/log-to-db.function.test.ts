@@ -54,7 +54,7 @@ describe('logToDb', () => {
 
         await logToDb(logs);
 
-        // one statement rather than twenty five, which is the finding - and the ids have to survive
+        // one statement rather than twenty five - and the ids have to survive
         // it, because the transport is the only writer that brings its own
         const persisted: Log[] = await Promise.all(logs.map(async l => await logRepository.findById(l.id)));
         expect(persisted.map(p => p.message)).toEqual(logs.map(l => l.message));

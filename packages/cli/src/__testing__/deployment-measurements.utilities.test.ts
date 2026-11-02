@@ -28,7 +28,7 @@ afterAll(async () => {
     await FsUtilities.rm(workDir);
 });
 
-// 07 §T14: what a built deployment weighs and how long it takes to answer, reported against a
+// what a built deployment weighs and how long it takes to answer, reported against a
 // baseline the way the benchmark job reports timings, and never gated
 describe('DeploymentMeasurementUtilities', () => {
     it('reports every measurement without a baseline, and records one when asked', async () => {

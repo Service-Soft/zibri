@@ -42,12 +42,11 @@ export function diffFileContents(generated: Buffer, sandbox: Buffer): string {
     if (generated.equals(sandbox)) {
         return '';
     }
-    if (!isProbablyText(generated) || !isProbablyText(sandbox)) {
-        return `binary content differs (generated: ${generated.length} bytes, sandbox: ${sandbox.length} bytes)`;
-    }
-    return diffStringsUnified(
-        generated.toString('utf8'),
-        sandbox.toString('utf8'),
-        DIFF_OPTIONS
-    ) ?? '';
+    return !isProbablyText(generated) || !isProbablyText(sandbox)
+        ? `binary content differs (generated: ${generated.length} bytes, sandbox: ${sandbox.length} bytes)`
+        : diffStringsUnified(
+            generated.toString('utf8'),
+            sandbox.toString('utf8'),
+            DIFF_OPTIONS
+        ) ?? '';
 }

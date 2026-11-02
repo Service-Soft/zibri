@@ -7,8 +7,9 @@ export class InternalError extends Error {
      */
     readonly isInternal: true = true;
 
-    constructor(message: string | string[], options?: ErrorOptions) {
-        const singleString: string = typeof message === 'string' ? message : message.join('\n');
+    // not named "message": an array of lines is joined into the message, never handed over as one
+    constructor(lines: string | string[], options?: ErrorOptions) {
+        const singleString: string = typeof lines === 'string' ? lines : lines.join('\n');
         super(singleString, options);
         this.name = 'InternalError';
     }

@@ -113,10 +113,7 @@ export abstract class EntityOrderUtilities {
             if (aSimilarity == undefined) {
                 return bSimilarity == undefined ? 0 : 1;
             }
-            if (bSimilarity == undefined) {
-                return -1;
-            }
-            return bSimilarity - aSimilarity;
+            return bSimilarity == undefined ? -1 : bSimilarity - aSimilarity;
         };
     }
 

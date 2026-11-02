@@ -141,10 +141,7 @@ export abstract class FsUtilities {
     static getPath(...paths: string[]): FsPath {
         try {
             const basePath: string = path.join(...paths);
-            if (path.isAbsolute(basePath)) {
-                return basePath as FsPath;
-            }
-            return path.join('', basePath) as FsPath;
+            return path.isAbsolute(basePath) ? (basePath as FsPath) : (path.join('', basePath) as FsPath);
         }
         catch (error) {
             throw new InternalError(`Error trying to get the path ${paths.join()}`, { cause: error });

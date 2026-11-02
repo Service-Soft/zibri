@@ -171,12 +171,12 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
         const changes: Map<string, StoredRowChange[] | 'whole'> = this.changesOf(tableName);
         const recorded: StoredRowChange[] | 'whole' | undefined = changes.get(id);
         // read before the overlay holds the row: a row nothing stored yet is one this creates
-        if (change == undefined || recorded === 'whole' || (recorded == undefined && this.readRow(tableName, id) == undefined)) {
-            changes.set(id, 'whole');
-        }
-        else {
-            changes.set(id, [...recorded ?? [], change]);
-        }
+        changes.set(
+            id,
+            change == undefined || recorded === 'whole' || (recorded == undefined && this.readRow(tableName, id) == undefined)
+                ? 'whole'
+                : [...recorded ?? [], change]
+        );
         this.overlayOf(tableName).set(id, row);
     }
 
@@ -277,8 +277,8 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
                     this.store.writeRow(tableName, id, row);
                     continue;
                 }
-                // round-2 11 §S12: the row this transaction read is not necessarily the row there is
-                // now, and writing back the one it read undid what other writers committed to it
+                // the row this transaction read is not necessarily the row there is now, and writing
+                // back the one it read would undo what other writers committed to it
                 const current: StoredRow | undefined = this.store.readRow(tableName, id);
                 if (current != undefined) {
                     this.store.writeRow(tableName, id, changes.reduce((res, change) => this.applyChange(res, change), current));

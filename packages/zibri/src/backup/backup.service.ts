@@ -1114,7 +1114,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
      */
     private async putBackFrom(resource: BackupResourceInterface, snapshotPath: FsPath, written: BackupDigest): Promise<void> {
         // a snapshot cut short is what the resource held with its end missing, and putting it back
-        // would take what is there and leave less. Checked the way a fetched archive is (02 §S17)
+        // would take what is there and leave less. Checked the way a fetched archive is
         const found: BackupDigest = await resolveStagedDigest(snapshotPath);
         if (found.checksum !== written.checksum || found.size !== written.size) {
             throw new InternalError(
@@ -1299,10 +1299,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
     async resolveRecordedBackups(): Promise<BackupEntity[]> {
         // an application that backs nothing up is not asked to declare the backup entities, so there
         // is no table to read
-        if (!this.backupResources.length) {
-            return [];
-        }
-        return await this.backupRepository.findAll({ limit: 'all' });
+        return !this.backupResources.length ? [] : await this.backupRepository.findAll({ limit: 'all' });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1335,13 +1332,11 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
     }
 
     private resolveTransportsFromMetadata(metadata: BackupResourceMetadata): BackupTransportInterface[] {
-        if (metadata.transports === 'all') {
-            return getRegisteredProvidersOfVariant(DiVariants.BACKUP_TRANSPORT)
+        return metadata.transports === 'all'
+            ? getRegisteredProvidersOfVariant(DiVariants.BACKUP_TRANSPORT)
                 .map(t => inject(t.token))
-                .filter(isBackupTransport);
-        }
-
-        return metadata.transports.map(t => inject(t));
+                .filter(isBackupTransport)
+            : metadata.transports.map(t => inject(t));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

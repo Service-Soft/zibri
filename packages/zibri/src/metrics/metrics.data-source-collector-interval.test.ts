@@ -33,7 +33,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, TestTimeouts.inMemory.shutdown);
 
-// 12 §O3: what every instance's metrics cost the shared data source was fixed at a count every 30 seconds
+// what every instance's metrics cost the shared data source was fixed at a count every 30 seconds
 describe('a collector reading the data source', () => {
     it('runs at most once in the interval it is given', async () => {
         const metricsService: MetricsServiceInterface = inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);

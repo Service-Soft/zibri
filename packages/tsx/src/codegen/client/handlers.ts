@@ -131,10 +131,9 @@ export function propScope(fn: ComponentFunction): PropScope {
         return { names: new Set<string>(), bare: undefined };
     }
     const param: ts.ParameterDeclaration = fn.parameters[0];
-    if (ts.isIdentifier(param.name) && param.initializer == undefined && param.dotDotDotToken == undefined) {
-        return { names: new Set<string>(), bare: param.name.text };
-    }
-    return { names: new Set(collectPatternNames(param)), bare: undefined };
+    return ts.isIdentifier(param.name) && param.initializer == undefined && param.dotDotDotToken == undefined
+        ? { names: new Set<string>(), bare: param.name.text }
+        : { names: new Set(collectPatternNames(param)), bare: undefined };
 }
 
 /**
@@ -264,10 +263,7 @@ export function scopeFrameFor(node: ts.Node): ScopeFrame | undefined {
     if (ts.isCaseBlock(node)) {
         return new Set(node.clauses.flatMap(clause => clause.statements.flatMap(declaredSymbols)));
     }
-    if (ts.isCatchClause(node) && node.variableDeclaration != undefined) {
-        return new Set(declaredSymbols(node.variableDeclaration));
-    }
-    return undefined;
+    return ts.isCatchClause(node) && node.variableDeclaration != undefined ? new Set(declaredSymbols(node.variableDeclaration)) : undefined;
 }
 
 /**

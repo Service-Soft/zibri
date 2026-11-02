@@ -342,12 +342,11 @@ export abstract class ResponseWriterUtilities {
         const candidate: OpenApiResponse | undefined = candidates.length === 1 ? candidates[0] : undefined;
         const status: HttpStatus | undefined = candidate?.status;
 
-        if (result == undefined) {
+        return result == undefined
             // nothing to send, and 204 says so. A 200 with an empty body leaves every client to find
             // that out by trying to parse one.
-            return status ?? HttpStatus.NO_CONTENT;
-        }
-        return status;
+            ? status ?? HttpStatus.NO_CONTENT
+            : status;
     }
 
     /**

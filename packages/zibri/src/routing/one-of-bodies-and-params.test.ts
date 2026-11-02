@@ -322,7 +322,7 @@ describe('bodies and parameters that take one of several shapes', () => {
             await expect(optional.json()).resolves.toEqual({ received: false });
         });
 
-        // part of evaluation round 2, 03 §H5: a request with nothing on the wire names no content type,
+        // a request with nothing on the wire names no content type,
         // which is what `curl -X POST` and most clients send, and it was answered 415
         it('takes a request carrying no body and no content type as a missing body', async () => {
             const optional: Response = await fetch(`${baseUrl}/shapes/optional`, { method: 'POST' });

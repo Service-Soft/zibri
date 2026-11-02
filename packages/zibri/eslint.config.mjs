@@ -22,7 +22,9 @@ export default [
         }
     },
     {
-        files: ['**/__testing__/**/*.ts'],
+        // what a cluster suite boots its instances with is test material like the rest of __testing__,
+        // kept beside the suite rather than in it
+        files: ['**/__testing__/**/*.ts', '**/*.instance-options.ts'],
         rules: {
             'jsdoc/require-jsdoc': 'off'
         }

@@ -292,15 +292,15 @@ export function Entity<
             // against the class by its keys, because the class is not known until the line below;
             // what is stored is stated in terms of the entity, because everything reading it back has
             // one. They describe the same thing and neither is expressible as the other here
-            defaultOrder: defaultOrder as EntityMetadata['defaultOrder'],
-            defaultRelations: defaultRelations as EntityMetadata['defaultRelations'],
+            defaultOrder: defaultOrder,
+            defaultRelations: defaultRelations,
             uniques: chained ? [...uniqueGroups ?? [], ...resolveChainUniques(tenant)] : uniqueGroups,
             indexes,
             checks: entityChecks,
             scope,
             tenant
         };
-        MetadataUtilities.setEntityMetadata(target as unknown as Newable<BaseEntity>, metadata);
+        MetadataUtilities.setEntityMetadata(target, metadata);
         GlobalRegistry.entityClasses.push(target as unknown as Newable<BaseEntity>);
     };
 }
@@ -454,10 +454,7 @@ function resolveTenantPropertyProblem(metadata: PropertyMetadata): string | unde
         return 'is hashed';
     }
     // decided per row, a tenant that a row needs or not would depend on the row it is deciding for
-    if (typeof metadata.required !== 'boolean') {
-        return 'decides per row whether it is required';
-    }
-    return undefined;
+    return typeof metadata.required !== 'boolean' ? 'decides per row whether it is required' : undefined;
 }
 
 /**
@@ -809,10 +806,9 @@ function describeShorterGroup(kept: string[]): string {
     if (kept.length === 0) {
         return 'Drop the group.';
     }
-    if (kept.length === 1) {
-        return `Declare "index" on "${kept[0]}" instead of the group.`;
-    }
-    return `Declare the group as (${kept.join(', ')}) instead.`;
+    return kept.length === 1
+        ? `Declare "index" on "${kept[0]}" instead of the group.`
+        : `Declare the group as (${kept.join(', ')}) instead.`;
 }
 
 /**
@@ -821,10 +817,7 @@ function describeShorterGroup(kept: string[]): string {
  * @returns True when the property is the primary key or declares itself unique.
  */
 function isUnique(metadata: PropertyMetadata | undefined): boolean {
-    if (metadata == undefined) {
-        return false;
-    }
-    return isPrimary(metadata) || ('unique' in metadata && declaresUnique(metadata.unique));
+    return metadata != undefined && (isPrimary(metadata) || ('unique' in metadata && declaresUnique(metadata.unique)));
 }
 
 /**
@@ -836,10 +829,7 @@ function isUnique(metadata: PropertyMetadata | undefined): boolean {
  * @returns True when the property is the primary key, or unique with no filter narrowing it.
  */
 function isUniqueEverywhere(metadata: PropertyMetadata | undefined): boolean {
-    if (metadata == undefined) {
-        return false;
-    }
-    return isPrimary(metadata) || ('unique' in metadata && metadata.unique === true);
+    return metadata != undefined && (isPrimary(metadata) || ('unique' in metadata && metadata.unique === true));
 }
 
 /**

@@ -12,7 +12,7 @@ import { initDiContainer } from '../di/init-di-container.function';
  * An instance is a plain node process, so a bare `zibri` in it resolves through `node_modules` to
  * the built package - while the options module it boots from reaches the framework however its own
  * imports say, which in this repository is the source tree beside it. That is two copies in one
- * process, and the framework refuses the second one by design (05 D7), so every cluster suite fails
+ * process, and the framework refuses the second one by design, so every cluster suite fails
  * at boot rather than at what it asserts.
  *
  * Nothing container-free can start an instance, so this covers the half that decides the outcome:

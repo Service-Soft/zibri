@@ -15,8 +15,8 @@ describe('AesGcmEncryptionStrategy', () => {
     // in four billion tries rather than never
     it('refuses a value whose authentication tag is shorter than the one it writes', () => {
         const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(strategy.encrypt('secret', { key, keyId: 'k' }));
-        const [iv, tag, ...rest] = content.encryptedValue.split('.');
-        const shortTag: string = Buffer.from(tag ?? '', 'base64').subarray(0, 4)
+        const [iv, tag = '', ...rest] = content.encryptedValue.split('.');
+        const shortTag: string = Buffer.from(tag, 'base64').subarray(0, 4)
             .toString('base64');
         const truncated: EncryptionString = EncryptionUtilities.contentToEncryptionString({
             ...content,

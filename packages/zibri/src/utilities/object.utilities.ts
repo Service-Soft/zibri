@@ -47,10 +47,9 @@ export abstract class ObjectUtilities {
             return value;
         }
         const prototype: unknown = Object.getPrototypeOf(value);
-        if (prototype !== Object.prototype && prototype !== null) {
-            return value;
-        }
-        // built from entries, so a key named `__proto__` is a property of the copy rather than its prototype
-        return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, this.copyDeep<unknown>(item)])) as T;
+        return prototype !== Object.prototype && prototype !== null
+            ? value
+            // built from entries, so a key named `__proto__` is a property of the copy rather than its prototype
+            : Object.fromEntries(Object.entries(value).map(([key, item]) => [key, this.copyDeep<unknown>(item)])) as T;
     }
 }

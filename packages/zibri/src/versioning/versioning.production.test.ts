@@ -23,7 +23,7 @@ afterAll(() => {
     rmSync(emptyVersions, { recursive: true, force: true });
 });
 
-// part of evaluation round 2, 03 §H14: the record was written wherever the application ran, so an
+// the record was written wherever the application ran, so an
 // empty folder mounted where it belongs in a read-only image was taken for a project that had never
 // released anything, and every check against the versions before was dropped
 describe('a production application whose versions folder does not record its version', () => {

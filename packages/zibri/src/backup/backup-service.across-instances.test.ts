@@ -118,7 +118,7 @@ function getBackupService(): BackupServiceInterface {
     return inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
 }
 
-// round 2's 06 §F19: whether a backup or a restore was running was known to the process running it
+// whether a backup or a restore was running was known to the process running it
 // and to no other, so two instances restored at once, or one backed up what another was replacing
 describe('BackupService — backups and restores across instances', () => {
     let server: StartedTestServer | undefined;

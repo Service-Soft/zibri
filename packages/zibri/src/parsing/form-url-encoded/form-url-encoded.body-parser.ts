@@ -41,10 +41,7 @@ export class FormUrlEncodedBodyParser implements BodyParserInterface<MimeType.FO
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     parseFromHttpClientResponse(res: HttpClientResponse, metadata: FormUrlEncodedBodyMetadata): unknown {
-        if (res.body !== undefined) {
-            return res.body;
-        }
-        return this.parseForm(res.rawBody, metadata.shape);
+        return res.body ?? this.parseForm(res.rawBody, metadata.shape);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

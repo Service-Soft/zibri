@@ -68,10 +68,9 @@ export abstract class RelatedNarrowingUtilities {
         related: RelatedNarrowing | undefined
     ): ScopedWhere<E> {
         const narrowing: Where<E> | DenyAll | undefined = this.narrowingFor(target, related);
-        if (narrowing === denyAll) {
-            return { matchesNothing: true, where: undefined };
-        }
-        return ScopeWhereUtilities.applyToWhere(where, narrowing, MetadataUtilities.getModelProperties(target));
+        return narrowing === denyAll
+            ? { matchesNothing: true, where: undefined }
+            : ScopeWhereUtilities.applyToWhere(where, narrowing, MetadataUtilities.getModelProperties(target));
     }
 
     /**
@@ -143,7 +142,7 @@ export abstract class RelatedNarrowingUtilities {
                 continue;
             }
             const target: Newable<BaseEntity> = metadata.target();
-            const below: ScopedWhere<BaseEntity> = this.narrowFilter(nested as Where<BaseEntity>, target, related);
+            const below: ScopedWhere<BaseEntity> = this.narrowFilter(nested, target, related);
             const narrowed: ScopedWhere<BaseEntity> = below.matchesNothing
                 ? below
                 : this.narrow(below.where, target, related);

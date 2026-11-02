@@ -267,7 +267,7 @@ export function describeMovedEntities(dataSourceName: string, dataSourceOf: () =
                 .create({ name: 'first' })).rejects.toThrow();
         });
 
-        // part of evaluation round 2, 02 §S14: what reverts a rename names the table the entity had,
+        // what reverts a rename names the table the entity had,
         // which no entity declares any more - and moved its rows without the relations they hold
         it('keeps the relations of an entity moved back to a table name no entity declares, and forward again', async () => {
             const dataSource: DataSourceInterface = dataSourceOf();

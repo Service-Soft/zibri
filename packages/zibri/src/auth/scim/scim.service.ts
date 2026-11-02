@@ -304,11 +304,10 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         if (where?.length === 0) {
             return ScimPagingUtilities.toListBody([], 0, startIndex);
         }
-        if ('paths' in order) {
-            return await ScimPagingUtilities
-                .resolveValueSortedPage(this.toUserPages(endpoint, query), query, endpoint.maxResults, where, order);
-        }
-        return await ScimPagingUtilities.resolveUserPage(this.toUserPages(endpoint, query), query, endpoint.maxResults, where, order);
+        return 'paths' in order
+            ? await ScimPagingUtilities
+                .resolveValueSortedPage(this.toUserPages(endpoint, query), query, endpoint.maxResults, where, order)
+            : await ScimPagingUtilities.resolveUserPage(this.toUserPages(endpoint, query), query, endpoint.maxResults, where, order);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -679,7 +678,12 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
      * @param active - Whether the identity provider has them active now.
      * @param transaction - The transaction of the request.
      */
-    private async updateActive(scimUser: ScimUser, user: BaseUser<string>, active: boolean, transaction: RepositoryTransaction): Promise<void> {
+    private async updateActive(
+        scimUser: ScimUser,
+        user: BaseUser<string>,
+        active: boolean,
+        transaction: RepositoryTransaction
+    ): Promise<void> {
         if (scimUser.ownsUser) {
             await (active ? this.authService.reactivateUser(user.id, transaction) : this.authService.deactivateUser(user.id, transaction));
             return;
@@ -790,7 +794,10 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
      * @param transaction - The transaction of the request, if any.
      * @returns The groups, by the id of the user: those they are a direct member of first.
      */
-    private async resolveGroupsOfUsers(scimUserIds: string[], transaction: RepositoryTransaction | undefined): Promise<Map<string, ScimUserGroup[]>> {
+    private async resolveGroupsOfUsers(
+        scimUserIds: string[],
+        transaction: RepositoryTransaction | undefined
+    ): Promise<Map<string, ScimUserGroup[]>> {
         if (!scimUserIds.length) {
             return new Map();
         }
@@ -1328,7 +1335,11 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         return { id: group.id, body: this.project(body, query), version, location };
     }
 
-    private async resolveMemberBodies(endpoint: ScimEndpoint, groupId: string, transaction: RepositoryTransaction | undefined): Promise<ScimBody[]> {
+    private async resolveMemberBodies(
+        endpoint: ScimEndpoint,
+        groupId: string,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<ScimBody[]> {
         const memberships: ScimGroupMember[] = await this.members.findAll({ where: { groupId }, limit: 'all', transaction });
         const userIds: string[] = memberships.filter(m => m.memberType === ScimMemberType.USER).map(m => m.memberId);
         const groupIds: string[] = memberships.filter(m => m.memberType === ScimMemberType.GROUP).map(m => m.memberId);
@@ -1375,13 +1386,12 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
     }
 
     private isAnswered(attribute: string, query: Pick<ScimListQuery, 'attributes' | 'excludedAttributes'>): boolean {
-        const names: (list: string | undefined) => string[] = list => (list ?? '').split(',').map(name => name.trim().toLowerCase())
+        const names: (list: string | undefined) => string[] = (list = '') => list.split(',').map(name => name.trim().toLowerCase())
             .filter(name => name !== '');
         const attributes: string[] = names(query.attributes);
-        if (attributes.length) {
-            return attributes.includes(attribute.toLowerCase());
-        }
-        return !names(query.excludedAttributes).includes(attribute.toLowerCase());
+        return attributes.length
+            ? attributes.includes(attribute.toLowerCase())
+            : !names(query.excludedAttributes).includes(attribute.toLowerCase());
     }
 
     /**

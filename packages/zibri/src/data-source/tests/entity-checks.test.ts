@@ -49,7 +49,7 @@ afterAll(async () => {
 
 describeEntityChecks('the in memory data source', () => chores);
 
-// 01 §D20: a check the data source refused was answered without its code
+// a check the data source refused was answered without its code
 describe('a check the data source refuses', () => {
     it('is answered over http with the code and message of the check', async () => {
         const chore: Chore = await chores.create({ code: 'chore-over-http', status: 'open', estimate: 2 });

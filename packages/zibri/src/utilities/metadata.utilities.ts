@@ -250,13 +250,12 @@ export abstract class MetadataUtilities {
 
     static getInjectParamTokens(target: Object): Record<number, DiToken<unknown>> {
         const ownInjectParamTokens: unknown = ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.DI_INJECT_PARAM_TOKENS, target);
-        if (ownInjectParamTokens != undefined) {
-            return ownInjectParamTokens as Record<number, DiToken<unknown>>;
-        }
-        return MetadataUtilities.ensureInheritedReflectMetadata<Record<number, DiToken<unknown>>>(
-            MetadataInjectionKeys.DI_INJECT_PARAM_TOKENS,
-            target as Function
-        ) ?? {};
+        return ownInjectParamTokens != undefined
+            ? (ownInjectParamTokens as Record<number, DiToken<unknown>>)
+            : MetadataUtilities.ensureInheritedReflectMetadata<Record<number, DiToken<unknown>>>(
+                MetadataInjectionKeys.DI_INJECT_PARAM_TOKENS,
+                target as Function
+            ) ?? {};
     }
 
     // ---------- controller routes ----------
@@ -621,7 +620,7 @@ export abstract class MetadataUtilities {
         for (const metadata of Object.values(properties)) {
             MetadataUtilities.freezeMetadata(metadata);
         }
-        modelPropertiesStore.set(ctor as unknown as Function, { ...properties });
+        modelPropertiesStore.set(ctor, { ...properties });
     }
 
     static getModelProperties<T extends Newable<unknown>>(ctor: T): Record<string, PropertyMetadata> {
@@ -630,7 +629,7 @@ export abstract class MetadataUtilities {
 
     // ---------- xml properties (WeakMap store, inherit) ----------
     static setXmlProperties<T extends Newable<unknown>>(ctor: T, properties: Record<string, XmlPropertyMetadata>): void {
-        xmlPropertiesStore.set(ctor as unknown as Function, { ...properties });
+        xmlPropertiesStore.set(ctor, { ...properties });
     }
 
     static getXmlProperties<T extends Newable<unknown>>(ctor: T): Record<string, XmlPropertyMetadata> {
@@ -668,10 +667,7 @@ export abstract class MetadataUtilities {
             return undefined;
         }
         const parentCtor: Newable<unknown> | undefined = (proto as { constructor?: Function }).constructor as Newable<unknown> | undefined;
-        if (parentCtor == undefined || parentCtor === Object) {
-            return undefined;
-        }
-        return parentCtor;
+        return parentCtor == undefined || parentCtor === Object ? undefined : parentCtor;
     }
 
     // ---------- entity metadata ----------

@@ -63,6 +63,7 @@ export class WebsocketMessageSizeScanner {
 
     /**
      * Whether the message's first bytes are still needed to know its limit.
+     * @returns True until the limit of the message is known.
      */
     get needsPrefix(): boolean {
         return this.allowance == undefined;
@@ -115,7 +116,8 @@ export class WebsocketMessageSizeScanner {
         this.prefixBytes += bytes.length;
         // the first kilobyte alone, however much arrived at once
         const parsed: SocketIoPacketPrefix = SocketIoPacketUtilities.resolvePrefix(
-            Buffer.concat(this.prefix).subarray(0, MAX_PREFIX_BYTES).toString('utf8')
+            Buffer.concat(this.prefix).subarray(0, MAX_PREFIX_BYTES)
+                .toString('utf8')
         );
         if (parsed.complete) {
             this.bound(parsed.event);
@@ -167,9 +169,8 @@ export class WebsocketMessageSizeScanner {
     }
 
     private resolveRefusal(): WebsocketMessageRefusal | undefined {
-        if (this.allowance == undefined || this.maxBytes == undefined || this.bytes <= this.allowance) {
-            return undefined;
-        }
-        return { event: this.event, bytes: this.bytes, maxBytes: this.maxBytes };
+        return this.allowance == undefined || this.maxBytes == undefined || this.bytes <= this.allowance
+            ? undefined
+            : { event: this.event, bytes: this.bytes, maxBytes: this.maxBytes };
     }
 }

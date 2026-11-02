@@ -11,7 +11,7 @@ import ts from 'typescript';
  * rot silently: the framework moves, the snippet stays, and the first person to find out is whoever
  * copied it. `docs/events.md` carried an example that produced TS2322 on its first line for long
  * enough to be written up as a finding rather than fixed, and `docs/caching.md` an import with no
- * `from` in it - see [07](../../../evaluation/07-documentation-vs-code.md).
+ * `from` in it.
  *
  * **A page is the unit the compiler sees, a block is the unit for imports.** Many blocks build on
  * what came before them - an entity declared above, a provider added to a list the page already

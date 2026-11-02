@@ -59,10 +59,9 @@ export class PropertyReferenceUtilities {
         if (Array.isArray(condition)) {
             return condition.flatMap(option => this.resolveReferenced(option));
         }
-        if (!this.isConditionObject(condition)) {
-            return [];
-        }
-        return Object.entries(condition).flatMap(([key, value]) => this.isReferenceUnder(key, value) ? [value.property] : []);
+        return this.isConditionObject(condition)
+            ? Object.entries(condition).flatMap(([key, value]) => this.isReferenceUnder(key, value) ? [value.property] : [])
+            : [];
     }
 
     /**
@@ -156,10 +155,7 @@ export class PropertyReferenceUtilities {
      * @returns 'date' or 'number', undefined for any other.
      */
     private static resolveComparableKind(metadata: PropertyMetadata | undefined): 'date' | 'number' | undefined {
-        if (metadata?.type === 'date' || metadata?.type === 'number') {
-            return metadata.type;
-        }
-        return undefined;
+        return metadata?.type === 'date' || metadata?.type === 'number' ? metadata.type : undefined;
     }
 
     /**

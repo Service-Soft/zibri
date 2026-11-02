@@ -604,7 +604,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveDataSourceTime(): Promise<Date> {
         // filters are judged in this process, so the time they compare by is the server's, as the data
-        // source follows it. Reading it off the server before every call cost a round trip each (02 §S21)
+        // source follows it. Reading it off the server before every call cost a round trip each
         return await this.dataSource.resolveServerTime();
     }
 
@@ -640,10 +640,9 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         // a transaction of its own - but only when there is something to enforce, so an entity
         // without one keeps writing directly. What this version declares decides it up front, and the
         // save switches to a transaction once it has read that the store keeps a unique all the same
-        if (!this.uniqueGroups.length) {
-            return await this.saveThrough(data, this.toValKeyTransaction(transaction), reload, undefined, inserting);
-        }
-        return await this.inTransaction(transaction, async own => await this.saveThrough(data, own, reload, undefined, inserting));
+        return this.uniqueGroups.length
+            ? await this.inTransaction(transaction, async own => await this.saveThrough(data, own, reload, undefined, inserting))
+            : await this.saveThrough(data, this.toValKeyTransaction(transaction), reload, undefined, inserting);
     }
 
     /**
@@ -1077,10 +1076,9 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async count(options: DriverFindOptions<T>): Promise<number> {
-        if (!options.where) {
-            return (await this.readIds(this.toValKeyTransaction(options.transaction))).length;
-        }
-        return (await this.find({ where: options.where, related: options.related, transaction: options.transaction })).length;
+        return options.where
+            ? (await this.find({ where: options.where, related: options.related, transaction: options.transaction })).length
+            : (await this.readIds(this.toValKeyTransaction(options.transaction))).length;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1458,10 +1456,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             const within: string[] = (await this.holdRowsMatching(reach.where, reach.related, valKeyTransaction)).entities
                 .map(row => String(row.id))
                 .filter(id => wanted.has(id));
-            if (reach.wholly && within.length < ids.length) {
-                return [];
-            }
-            return await this.removeByIds(within, valKeyTransaction, undefined);
+            return reach.wholly && within.length < ids.length ? [] : await this.removeByIds(within, valKeyTransaction, undefined);
         });
     }
 
@@ -1552,7 +1547,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             if (await this.isHeldByTransaction(writes)) {
                 // waited for in a transaction of its own, which holds the rows before it reads them,
                 // as one holding a row it changed would apply that change over the removal when it
-                // commits (round-2/11 S14)
+                // commits
                 return await this.inTransaction(undefined, async own => await this.removeByIds(ids, own, reach));
             }
         }
@@ -2071,10 +2066,9 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * @returns True when the declaration applies to this row.
      */
     private coveredBy(group: UniqueGroup, fields: Record<string, string>): boolean {
-        if (group.where == undefined || coversEveryRow(group.where)) {
-            return true;
-        }
-        return this.evaluator.matches(this.fromFields(fields), group.where as Where<T>, this.entityClass);
+        return group.where == undefined
+            || coversEveryRow(group.where)
+            || this.evaluator.matches(this.fromFields(fields), group.where as Where<T>, this.entityClass);
     }
 
     /**
@@ -2545,10 +2539,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         // whether each index is built, and what it holds, in one round trip
         const read: SetsWithRows = await this.readSetsWithRows([this.builtKey(), ...entryKeys], 1, transaction, readAlong);
         const [built = [], ...entries]: string[][] = read.members;
-        if ([...named].some(identity => !built.includes(identity))) {
-            return undefined;
-        }
-        return { ids: [...new Set(entries.flat())], rows: read.rows };
+        return [...named].some(identity => !built.includes(identity)) ? undefined : { ids: [...new Set(entries.flat())], rows: read.rows };
     }
 
     /**
@@ -2558,7 +2549,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * values. A declaration of one property may also be named by a `oneOf` of plain values.
      */
     private indexLookupForFilter(filter: WhereFilter<T>): IndexLookup | undefined {
-        const conditions: Record<string, unknown> = filter as Record<string, unknown>;
+        const conditions: Record<string, unknown> = filter;
         for (const group of this.indexGroups) {
             const [only] = group;
             const listed: unknown[] | undefined = group.length === 1 && only != undefined
@@ -2596,7 +2587,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         if (metadata == undefined) {
             return JsonUtilities.stringify(toJsonValue(value));
         }
-        // 11 §S6: an exact decimal may be named by any number equal to it, and a write stores it as the
+        // an exact decimal may be named by any number equal to it, and a write stores it as the
         // decimal it is: `10` names the entry of `BigNumber(10)` only once it is one
         const declared: unknown = metadata.type === 'number' && metadata.format === 'bignumber'
             && (typeof value === 'number' || typeof value === 'bigint')
@@ -2856,11 +2847,10 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         let next: number = 0;
         return memberLists.map(members => members.map(member => {
             const id: unknown = (member as DeepPartial<BaseEntity>).id;
-            if (id != undefined) {
+            return id != undefined
                 // eslint-disable-next-line typescript/no-base-to-string
-                return String(id);
-            }
-            return String(saved[next++]?.id);
+                ? String(id)
+                : String(saved[next++]?.id);
         }));
     }
 
@@ -2881,10 +2871,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     }
 
     private hasCascadeFlag(cascade: RelationMetadata<BaseEntity>['cascade']): boolean {
-        if (cascade === true) {
-            return true;
-        }
-        return Array.isArray(cascade) && cascade.includes('insert');
+        return cascade === true || (Array.isArray(cascade) && cascade.includes('insert'));
     }
 
     /**
@@ -2982,10 +2969,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * @returns What json is given.
      */
     private toStorableValue(value: unknown, metadata: PropertyMetadata): unknown {
-        if (metadata.type === 'file' && Buffer.isBuffer(value)) {
-            return value.toString('base64');
-        }
-        return toJsonValue(value);
+        return metadata.type === 'file' && Buffer.isBuffer(value) ? value.toString('base64') : toJsonValue(value);
     }
 
     private fromFields(row: Record<string, string>): T {
@@ -3141,14 +3125,13 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         if (typeof a === 'boolean' && typeof b === 'boolean') {
             return Number(a) - Number(b);
         }
-        // by value: written out, `10` sorts before `9`
-        if (NumberUtilities.isBigNumber(a) && NumberUtilities.isBigNumber(b)) {
-            return NumberUtilities.compare(a, b);
-        }
-        // ordering text is the application's answer rather than this driver's, so that a sort done
-        // here and a sort done by a database agree - see LocalizeServiceInterface.compareText
-        // eslint-disable-next-line typescript/no-base-to-string
-        return inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).compareText(String(a), String(b));
+        return NumberUtilities.isBigNumber(a) && NumberUtilities.isBigNumber(b)
+            // by value: written out, `10` sorts before `9`
+            ? NumberUtilities.compare(a, b)
+            // ordering text is the application's answer rather than this driver's, so that a sort done
+            // here and a sort done by a database agree - see LocalizeServiceInterface.compareText
+            // eslint-disable-next-line typescript/no-base-to-string
+            : inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).compareText(String(a), String(b));
     }
 
     private async generateId(): Promise<string> {
@@ -3156,10 +3139,9 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             .entries(this.properties)
             .find(([, m]) => 'primary' in m && m.primary);
 
-        if (primary?.[1].type === 'number') {
-            return (await this.client.incr(`${this.keyPrefix}:${this.tableName}:sequence`)).toString();
-        }
-        return UUIDUtilities.generate();
+        return primary?.[1].type === 'number'
+            ? (await this.client.incr(`${this.keyPrefix}:${this.tableName}:sequence`)).toString()
+            : UUIDUtilities.generate();
     }
 
     /**
@@ -3256,10 +3238,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         // read together rather than one after another: the branches of an or are independent, and an
         // upsert of a batch names one branch per row
         const read: SetsWithRows = await this.readSetsWithRows(keys, 0, transaction, readAlong);
-        if (read.members.some(ids => !ids.length)) {
-            return undefined;
-        }
-        return { ids: read.members.flat(), rows: read.rows };
+        return read.members.some(ids => !ids.length) ? undefined : { ids: read.members.flat(), rows: read.rows };
     }
 
     /**
@@ -3268,7 +3247,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * @returns The key, or undefined when no group is pinned by plain values.
      */
     private uniqueKeyForFilter(filter: WhereFilter<T>): string | undefined {
-        const conditions: Record<string, unknown> = filter as Record<string, unknown>;
+        const conditions: Record<string, unknown> = filter;
 
         for (const group of this.uniqueGroups) {
             // a key covering part of the table indexes part of the table: a row it leaves out is
@@ -3508,7 +3487,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     ): Promise<boolean> {
         // a held key has to stay as its transaction read it until that commits: it applies what it
         // worked out from that read, so a write landing in between would be written over by it, or a
-        // removal undone (round-2/11 S14). A lock key is missing while nobody holds it
+        // removal undone. A lock key is missing while nobody holds it
         const values: Map<string, string> = new Map([
             [this.keysKey(), keys.stored],
             ...this.resolveGrantKeys(writes).map((grantKey): [string, string] => [grantKey, ''])
@@ -3610,10 +3589,9 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      */
     private toRowOfFieldList(reply: GlideReturnType): Record<string, string> | undefined {
         const list: string[] = this.toReplyStrings(reply);
-        if (!list.length) {
-            return undefined;
-        }
-        return Object.fromEntries(PromiseUtilities.resolveChunks(list, 2).map(([field = '', value = '']) => [field, value]));
+        return list.length
+            ? Object.fromEntries(PromiseUtilities.resolveChunks(list, 2).map(([field = '', value = '']) => [field, value]))
+            : undefined;
     }
 
     private isReplyRecord(reply: GlideReturnType): reply is Record<string, GlideReturnType> {

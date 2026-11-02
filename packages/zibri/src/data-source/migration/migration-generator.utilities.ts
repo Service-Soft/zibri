@@ -520,12 +520,15 @@ export abstract class MigrationGeneratorUtilities {
     private static writeMethod(method: 'up' | 'down', statements: string[], placeholder: string): string[] {
         const indent: string = ' '.repeat(STATEMENT_INDENT);
         const body: string[] = (statements.length ? statements : [placeholder]).flatMap(s => s.split('\n').map(line => `${indent}${line}`));
-        // without the transaction when nothing is handed it, which leaves nothing to await either
-        if (!statements.some(s => s.startsWith('await '))) {
-            // eslint-disable-next-line stylistic/max-len
-            return ['    // eslint-disable-next-line typescript/require-await', `    override async ${method}(): Promise<void> {`, ...body, '    }'];
-        }
-        return [`    override async ${method}(transaction: Transaction): Promise<void> {`, ...body, '    }'];
+        return statements.some(s => s.startsWith('await '))
+            ? [`    override async ${method}(transaction: Transaction): Promise<void> {`, ...body, '    }']
+            // without the transaction when nothing is handed it, which leaves nothing to await either
+            : [
+                '    // eslint-disable-next-line typescript/require-await',
+                `    override async ${method}(): Promise<void> {`,
+                ...body,
+                '    }'
+            ];
     }
 
     /**

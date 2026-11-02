@@ -71,12 +71,18 @@ export type DriverFindOptions<T extends BaseEntity, X extends RepositoryTransact
  * The resolved options for streaming, which are the find options minus the window a stream has no
  * answer for. See {@link StreamOptions} for why.
  */
-export type DriverStreamOptions<T extends BaseEntity, X extends RepositoryTransaction = Transaction> = OmitStrict<DriverFindOptions<T, X>, 'limit' | 'offset'>;
+export type DriverStreamOptions<
+    T extends BaseEntity,
+    X extends RepositoryTransaction = Transaction
+> = OmitStrict<DriverFindOptions<T, X>, 'limit' | 'offset'>;
 
 /**
  * The resolved options for taking a value over the rows a filter matches.
  */
-export type DriverAggregateOptions<T extends BaseEntity, X extends RepositoryTransaction = Transaction> = Pick<DriverFindOptions<T, X>, 'where' | 'related' | 'transaction'> & {
+export type DriverAggregateOptions<
+    T extends BaseEntity,
+    X extends RepositoryTransaction = Transaction
+> = Pick<DriverFindOptions<T, X>, 'where' | 'related' | 'transaction'> & {
     /**
      * What is taken over the rows.
      */

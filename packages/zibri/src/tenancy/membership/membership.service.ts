@@ -80,7 +80,7 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
             this.entityRepository = repository;
             inject(EntityWriteObserverRegistry).register(
                 repository.entityClass,
-                // given the role service here rather than resolving it per write (01 §Q3)
+                // given the role service here rather than resolving it per write
                 new MembershipWriteObserver(this.tenantService, inject(ZIBRI_DI_TOKENS.ROLE_SERVICE))
             );
             // only when the application named one, since each costs every write to memberships a read

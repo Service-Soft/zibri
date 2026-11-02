@@ -46,7 +46,9 @@ export function describeTransactionOpenAtShutdown(dataSourceName: string, setup:
             await server.shutdown();
 
             expect(transaction.isFinished).toBe(true);
-            expect(logged).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/1 transaction .* still open .* rolled back/) }));
+            expect(logged).toHaveBeenCalledWith(expect.objectContaining({
+                message: expect.stringMatching(/1 transaction .* still open .* rolled back/)
+            }));
         }, setup.timeouts.start + setup.timeouts.shutdown);
     });
 }

@@ -49,7 +49,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, TestTimeouts.inMemory.shutdown);
 
-// part of evaluation round 2, 03 §H19: node hands every header name over lowercased, and a name was
+// node hands every header name over lowercased, and a name was
 // looked up as it was written, so a header declared or configured with capitals was never found
 describe('a header named with capitals', () => {
     it('is handed to the parameter that declares it', async () => {

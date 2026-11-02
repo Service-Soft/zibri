@@ -24,15 +24,27 @@ class Widget extends BaseEntity {
     stock!: number;
 }
 
+/**
+ * Every column optional on purpose: an update that missed its row and fell back to an insert would
+ * break no constraint, and leave no trace.
+ */
+@Entity({ tenant: 'shared' })
+class Note extends BaseEntity {
+    @Property.string({ required: false })
+    body: string | undefined | null;
+}
+
 describe('Repository error handling', () => {
     let server: StartedTestServer;
     let widgetRepo: Repository<Widget>;
+    let noteRepo: Repository<Note>;
 
     beforeAll(async () => {
         server = await startTestServer({
-            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Widget], repositories: defaultTestServerRepositories })]
+            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Widget, Note], repositories: defaultTestServerRepositories })]
         });
         widgetRepo = inject(repositoryTokenFor(Widget));
+        noteRepo = inject(repositoryTokenFor(Note));
     }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
@@ -54,6 +66,16 @@ describe('Repository error handling', () => {
             ).rejects.toThrow(NotFoundError);
         });
 
+        // with nothing to break, an update handed to an upserting save would insert the row and bring it
+        // back carrying only what this call set - with nothing raised anywhere
+        it('updateById does not bring back a deleted row whose columns are all optional', async () => {
+            const created: Note = await noteRepo.create({ body: 'deleted under us' });
+            await noteRepo.deleteById(created.id);
+
+            await expect(noteRepo.updateById(created.id, { body: 'edited' })).rejects.toThrow(NotFoundError);
+            expect(await noteRepo.findAll({ where: { id: created.id } })).toEqual([]);
+        });
+
         it('deleteById throws NotFoundError for a missing id', async () => {
             await expect(
                 widgetRepo.deleteById('00000000-0000-4000-8000-000000000000')
@@ -66,6 +88,16 @@ describe('Repository error handling', () => {
 
         it('findOne with required=false returns undefined instead of throwing', async () => {
             await expect(widgetRepo.findOne({ where: { name: 'does-not-exist' }, required: false })).resolves.toBeUndefined();
+        });
+
+        // an empty table is the case a caller asks this for: seeding a database on its first start,
+        // refusing a migration that already ran
+        it('exists answers false for a table holding nothing, and true once it holds a row', async () => {
+            await expect(widgetRepo.exists()).resolves.toBe(false);
+
+            await widgetRepo.create({ name: 'first', stock: 1 });
+
+            await expect(widgetRepo.exists()).resolves.toBe(true);
         });
     });
 
@@ -102,7 +134,7 @@ describe('Repository error handling', () => {
 
             try {
                 const suppliedId: string = '11111111-1111-4111-8111-111111111111';
-                const created: Widget = await widgetRepo.create({ id: suppliedId, name: 'stripped', stock: 1 } as Partial<Widget> as Widget);
+                const created: Widget = await widgetRepo.create({ id: suppliedId, name: 'stripped', stock: 1 });
 
                 expect(created.id).not.toBe(suppliedId);
                 expect(warnSpy).toHaveBeenCalledWith('Found an id on the create data, it will be ignored.');
@@ -115,7 +147,7 @@ describe('Repository error handling', () => {
         it('honors a client-supplied id when allowId is true', async () => {
             const suppliedId: string = '22222222-2222-4222-8222-222222222222';
             const created: Widget = await widgetRepo.create(
-                { id: suppliedId, name: 'allowed-id', stock: 1 } as Partial<Widget> as Widget,
+                { id: suppliedId, name: 'allowed-id', stock: 1 },
                 { allowId: true }
             );
 

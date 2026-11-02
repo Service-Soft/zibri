@@ -108,7 +108,7 @@ export abstract class TsxUtilities {
         if (typeof value !== 'object' || value === null) {
             return false;
         }
-        const candidate: Partial<CompiledPage> = value as Partial<CompiledPage>;
+        const candidate: Partial<CompiledPage> = value;
         return typeof candidate.name === 'string'
             && typeof candidate.render === 'function'
             && typeof candidate.client === 'object';
@@ -120,10 +120,7 @@ export abstract class TsxUtilities {
      * @returns The component name, or a placeholder when it has none.
      */
     private static nameOf(component: unknown): string {
-        if (typeof component === 'function') {
-            return component.name || 'anonymous';
-        }
-        return 'unknown';
+        return typeof component === 'function' ? component.name || 'anonymous' : 'unknown';
     }
 
     /**
@@ -133,6 +130,6 @@ export abstract class TsxUtilities {
      * @returns The props as a record.
      */
     private static toPropsRecord<T>(props: T | undefined): Record<string, unknown> {
-        return (props ?? {}) as Record<string, unknown>;
+        return props ?? {};
     }
 }

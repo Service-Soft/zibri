@@ -33,7 +33,7 @@ const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMem
     repositories: [...defaultTestServerRepositories, RefusingEventRepository]
 });
 
-// round 2's 06 §F11: onTick caught every error and did nothing with it, so a cleanup failing every
+// onTick caught every error and did nothing with it, so a cleanup failing every
 // night left the table growing with nothing on the job's row to show for it
 describe('An event cleanup the store refuses', () => {
     let server: StartedTestServer;

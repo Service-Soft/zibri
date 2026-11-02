@@ -12,7 +12,7 @@ import { TransactionSerializationError } from '../../transaction/transaction-ser
 import { Transaction } from '../../transaction/transaction.model';
 import { IsolationLevel } from '../data-source.interface';
 
-// evaluation/round-2/02-data-layer-stores.md S5: a serializable transaction that lost to another one
+// a serializable transaction that lost to another one
 // failed with the bare query error, which nothing could tell from any other failed statement
 
 const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({

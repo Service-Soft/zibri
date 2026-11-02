@@ -308,13 +308,12 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
         if (foundSubscriber == undefined) {
             return await this.subscriberRepository.create({ email: foundToken.email, name: foundToken.name, mailingLists: [mailingList] });
         }
-        if (subscribed) {
-            return foundSubscriber;
-        }
-        return await this.subscriberRepository.updateById(
-            foundSubscriber.id,
-            { mailingLists: [...foundSubscriber.mailingLists, mailingList] }
-        );
+        return subscribed
+            ? foundSubscriber
+            : await this.subscriberRepository.updateById(
+                foundSubscriber.id,
+                { mailingLists: [...foundSubscriber.mailingLists, mailingList] }
+            );
     }
 
     /**

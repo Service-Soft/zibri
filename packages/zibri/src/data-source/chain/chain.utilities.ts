@@ -115,11 +115,10 @@ export class ChainUtilities {
         if (Array.isArray(value)) {
             return value.map(item => this.normalize(item));
         }
-        if (typeof value === 'object' && value.constructor === Object) {
-            return Object.keys(value).sort()
-                .map(key => [key, this.normalize(Reflect.get(value, key))]);
-        }
-        return value;
+        return typeof value === 'object' && value.constructor === Object
+            ? Object.keys(value).sort()
+                .map(key => [key, this.normalize(Reflect.get(value, key))])
+            : value;
     }
 
     private static resolveMac(key: Buffer, parts: unknown[]): string {

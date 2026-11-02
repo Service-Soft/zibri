@@ -164,10 +164,9 @@ export class MigrateCommand extends BaseCommand<MigrateInput> {
             return await exitWithError(`Write the migrations of what the entities changed with ${USAGE}.`);
         }
         const names: string[] = rest.filter((arg): arg is string => arg != undefined && arg !== '--empty');
-        if (names.length > 1) {
-            return await exitWithError('Name the migration once, as "zi migrate create [name] [--empty]".');
-        }
-        return { action: 'create', projectPath: getPath('.'), name: names[0], empty: rest.includes('--empty') };
+        return names.length > 1
+            ? await exitWithError('Name the migration once, as "zi migrate create [name] [--empty]".')
+            : { action: 'create', projectPath: getPath('.'), name: names[0], empty: rest.includes('--empty') };
     }
 
     protected override async run(input: MigrateInput): Promise<void> {
@@ -318,10 +317,7 @@ export class MigrateCommand extends BaseCommand<MigrateInput> {
      */
     private async findDataSource(dataSources: ProjectDataSource[], className: string): Promise<ProjectDataSource> {
         const dataSource: ProjectDataSource | undefined = dataSources.find(d => d.className === className);
-        if (dataSource == undefined) {
-            return await exitWithError(`The application wrote for "${className}", which no file of the project declares.`);
-        }
-        return dataSource;
+        return dataSource ?? await exitWithError(`The application wrote for "${className}", which no file of the project declares.`);
     }
 
     /**

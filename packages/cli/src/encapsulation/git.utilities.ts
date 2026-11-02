@@ -87,10 +87,9 @@ export abstract class GitUtilities {
             );
             // the number of conflicts, capped at 127, or a negative number when it failed - which an
             // exit code carries as one above that
-            if (result.status == undefined || result.status > 127) {
-                return undefined;
-            }
-            return { content: result.stdout, conflicted: result.status > 0 };
+            return result.status == undefined || result.status > 127
+                ? undefined
+                : { content: result.stdout, conflicted: result.status > 0 };
         }
         finally {
             await FsUtilities.rm(directory);

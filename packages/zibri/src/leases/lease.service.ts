@@ -57,7 +57,7 @@ const RENEWALS_PER_LEASE: number = 3;
 type LeaseWorkOutcome = 'unfinished' | 'completed' | 'threw';
 
 // Without renewal, "the work must be faster than the lease" is an unwritten precondition that
-// nothing enforces, which is the whole of evaluation/10-leases-and-claims.md.
+// nothing enforces.
 /**
  * Holds the grants that let one replica do a piece of work the others must not.
  *
@@ -121,10 +121,9 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         if (!taken) {
             return undefined;
         }
-        if (options.heldUntil != undefined && !options.heldUntil.isFinished) {
-            return await this.runHoldingUntil(taken, options, options.heldUntil, fn);
-        }
-        return await this.runHolding([taken], options, options.key, fn);
+        return options.heldUntil != undefined && !options.heldUntil.isFinished
+            ? await this.runHoldingUntil(taken, options, options.heldUntil, fn)
+            : await this.runHolding([taken], options, options.key, fn);
     }
 
     /**
@@ -205,10 +204,9 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         );
         const taken: Lease[] = results.filter((l): l is Lease => l != undefined);
 
-        if (!taken.length) {
-            return undefined;
-        }
-        return await this.runHolding(taken, options, this.nameFor(taken), async lost => await fn(taken.map(l => l.key), lost));
+        return !taken.length
+            ? undefined
+            : await this.runHolding(taken, options, this.nameFor(taken), async lost => await fn(taken.map(l => l.key), lost));
     }
 
     /**
@@ -365,8 +363,8 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
                     { expiresAt: dataSourceNow(options.leaseInMs) }
                 );
                 // a row that is gone is one this instance no longer holds. Throwing is what makes
-                // that reach a log line and the work at all - see evaluation/10-leases-and-claims.md
-                // 10.2a for what it cost when losing a grant was silent.
+                // that reach a log line and the work at all: a grant lost silently let a slow
+                // subscriber run again on another replica while it was still working.
                 if (renewed !== ids.length) {
                     throw new LeaseLostError(
                         name,

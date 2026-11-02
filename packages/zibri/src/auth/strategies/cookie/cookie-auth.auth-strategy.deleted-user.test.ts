@@ -145,7 +145,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, TestTimeouts.inMemory.shutdown);
 
-// 04 §A10: the strategy looked the user up as required, so the cookies of a user who is gone made
+// the strategy looked the user up as required, so the cookies of a user who is gone made
 // every route answer 404 with the user's id, where every other strategy answers as for no login
 describe('CookieAuthStrategy - the cookies of a deleted user', () => {
     it('answers a route that needs a login as for no login', async () => {

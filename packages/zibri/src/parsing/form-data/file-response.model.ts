@@ -132,10 +132,7 @@ export class FileResponse implements SelfDescribing {
     }
 
     private static getDefaultCsp(mimeType: string): boolean | CspOptions {
-        if (mimeType === MimeType.SVG) {
-            return inject(ZIBRI_DI_TOKENS.DEFAULT_CSP_OPTIONS);
-        }
-        return false;
+        return mimeType === MimeType.SVG ? inject(ZIBRI_DI_TOKENS.DEFAULT_CSP_OPTIONS) : false;
     }
 }
 

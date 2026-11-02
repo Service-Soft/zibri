@@ -147,7 +147,7 @@ beforeAll(async () => {
 
     changeSetRepo = inject(repositoryTokenFor(ChangeSet));
     changeRepo = inject(repositoryTokenFor(Change));
-    taskRepo = inject(repositoryTokenFor(Task)) as SoftDeleteRepository<Task>;
+    taskRepo = inject(repositoryTokenFor(Task));
 
     const userRepo: DefaultTestServerUserRepository = inject(DefaultTestServerUserRepository);
     const credentialsRepo: Repository<PasswordCredentials, PasswordCredentialsCreateData> = inject(repositoryTokenFor(PasswordCredentials));
@@ -284,7 +284,7 @@ describe('SoftDeleteRepository behavior', () => {
 
     describe('upsert', () => {
         it('records the change set of what it creates and of what it updates', async () => {
-            const badges: SoftDeleteRepository<Badge> = inject(repositoryTokenFor(Badge)) as SoftDeleteRepository<Badge>;
+            const badges: SoftDeleteRepository<Badge> = inject(repositoryTokenFor(Badge));
             await badges.upsert({ code: 'recorded' }, { code: 'recorded', count: 1 }, { count: { increment: 1 } });
             const badge: Badge = await badges.upsert({ code: 'recorded' }, { code: 'recorded', count: 1 }, { count: { increment: 1 } });
 
@@ -293,7 +293,7 @@ describe('SoftDeleteRepository behavior', () => {
         });
 
         it('refuses an identity a soft deleted row holds, as creating it would', async () => {
-            const badges: SoftDeleteRepository<Badge> = inject(repositoryTokenFor(Badge)) as SoftDeleteRepository<Badge>;
+            const badges: SoftDeleteRepository<Badge> = inject(repositoryTokenFor(Badge));
             const badge: Badge = await badges.create({ code: 'deleted', count: 1 });
             await badges.deleteById(badge.id);
 
@@ -352,7 +352,7 @@ describe('SoftDeleteRepository behavior', () => {
         });
     });
 
-    // 01 §Q7: the delete by id went its own way through the read, the update and the change set,
+    // the delete by id went its own way through the read, the update and the change set,
     // beside the one the bulk delete takes. These hold what the by id path answers while it goes
     // through the bulk one
     describe('conditional deleteById', () => {

@@ -25,9 +25,7 @@ export type JwtRefreshTokenPayload<Role extends string, T extends BaseUser<Role>
 export function isJwtRefreshTokenPayload<Role extends string>(
     payload: unknown
 ): payload is JwtRefreshTokenPayload<Role, BaseUser<Role>> {
-    if (typeof payload !== 'object' || payload == undefined) {
-        return false;
-    }
-    return 'userId' in payload && typeof payload.userId === 'string'
+    return typeof payload === 'object' && payload != undefined
+        && 'userId' in payload && typeof payload.userId === 'string'
         && 'auth_time' in payload && typeof payload.auth_time === 'number';
 }

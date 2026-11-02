@@ -65,7 +65,7 @@ export function CrudController<
     options: CrudControllerOptions = {}
 ): Newable<CrudControllerInterface<T, CreateData, UpdateData>> {
     // the page size comes from whoever sends the request, so it is bounded here: the repository takes
-    // a limit named in code as meant, however large (01 §M41)
+    // a limit named in code as meant, however large
     const maxLimit: number = options.maxLimit ?? DEFAULT_MAX_LIMIT;
     // eslint-disable-next-line jsdoc/require-jsdoc
     class Temp implements CrudControllerInterface<T, CreateData, UpdateData> {

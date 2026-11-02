@@ -275,10 +275,9 @@ export abstract class HttpClientBodyUtilities {
 
     private static getErrorMessage(message: string, data: HttpClientErrorOptions): string {
         if (!data.responseData) {
-            if (data.requestData) {
-                return `No response received for ${data.requestData.method.toUpperCase()} ${data.requestData.url}:\n${message}`;
-            }
-            return `Could not send the request:\n${message}`;
+            return data.requestData
+                ? `No response received for ${data.requestData.method.toUpperCase()} ${data.requestData.url}:\n${message}`
+                : `Could not send the request:\n${message}`;
         }
 
         if (!data.requestData) {

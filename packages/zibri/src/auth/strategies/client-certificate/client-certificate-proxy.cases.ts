@@ -181,10 +181,9 @@ export function describeBehindProxy(proxyName: string, proxy: ClientCertificateP
             // eslint-disable-next-line jsdoc/require-jsdoc
             async resolveUserByCertificate(certificate: X509Certificate): Promise<JwtUser | undefined> {
                 const email: string | undefined = /^CN=(.+)$/m.exec(certificate.subject)?.[1];
-                if (email == undefined) {
-                    return undefined;
-                }
-                return await inject(repositoryTokenFor(JwtUser)).findOne({ where: { email }, required: false });
+                return email == undefined
+                    ? undefined
+                    : await inject(repositoryTokenFor(JwtUser)).findOne({ where: { email }, required: false });
             }
         }
 

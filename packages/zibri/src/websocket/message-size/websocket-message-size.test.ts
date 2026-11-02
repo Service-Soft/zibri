@@ -14,6 +14,7 @@ import { defineProvider } from '../../di/models/di-provider.model';
 import { Property } from '../../entity/decorators/property.decorator';
 import { HttpServerLimits } from '../../http/http-server-limits.model';
 import { Route } from '../../routing/controller-route-configuration.model';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { Ms } from '../../utilities/ms';
 import { WebsocketBody } from '../decorators/websocket-body.decorator';
 import { WebsocketController } from '../decorators/websocket-controller.decorator';
@@ -82,17 +83,23 @@ class SizeWsController {
  * The event the test sends, and what it is answered with.
  */
 type SentEvents = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     // a text, or a buffer the client sends as a binary attachment
     'size:note': (request: { body: { text: string | Buffer } }, answer: (message: WebsocketMessage) => void) => void,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     'size:memo': (request: { body: Note }, answer: (message: WebsocketMessage) => void) => void,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     'size:ping': (request: { body: unknown }, answer: (message: WebsocketMessage) => void) => void
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
 type Client = Socket<Record<string, never>, SentEvents>;
+
+/**
+ * What the engine answers the request that opens a polling session with.
+ */
+type PollingHandshake = {
+    sid: string
+};
 
 /**
  * What a client learns when the server closes its connection.
@@ -163,7 +170,7 @@ async function waitForDisconnect(socket: Client): Promise<Disconnection> {
  * @returns The code, or undefined when there is none.
  */
 function resolveCloseCode(details: DisconnectDescription | undefined): number | undefined {
-    if (details == undefined || details instanceof Error || typeof details.context !== 'object' || details.context == null) {
+    if (details == undefined || details instanceof Error || typeof details.context !== 'object' || details.context == undefined) {
         return undefined;
     }
     return 'code' in details.context && typeof details.context.code === 'number' ? details.context.code : undefined;
@@ -237,7 +244,8 @@ describe.each(['websocket', 'polling'] as const)('a message over %s', transport 
     it('is taken when it is within the size its event declares', async () => {
         const socket: Client = await connectClient(transport);
 
-        const answer: WebsocketMessage = await socket.timeout(5000).emitWithAck('size:note', { body: { text: 'x'.repeat(500) } });
+        // unknown, since socket.io-client types the answer of an acknowledgement with a timeout as any
+        const answer: unknown = await socket.timeout(5000).emitWithAck('size:note', { body: { text: 'x'.repeat(500) } });
 
         expect(answer).toMatchObject({ ok: true, data: 500 });
         expect(handled.get('size:note')).toBe(1);
@@ -258,7 +266,7 @@ describe.each(['websocket', 'polling'] as const)('a message over %s', transport 
     it('is bounded by the size of a message alone when its event has no body', async () => {
         const socket: Client = await connectClient(transport);
 
-        const answer: WebsocketMessage = await socket.timeout(10_000).emitWithAck('size:ping', { body: 'x'.repeat(MB + 100 * KB) });
+        const answer: unknown = await socket.timeout(10_000).emitWithAck('size:ping', { body: 'x'.repeat(MB + (100 * KB)) });
 
         expect(answer).toMatchObject({ ok: true, data: 'pong' });
     }, 20_000);
@@ -348,7 +356,7 @@ describe('a polling request whose bytes never arrive in full', () => {
     it('is answered 413 once what has arrived is over the size, before the rest of the body', async () => {
         const url: URL = new URL(baseUrl);
         const open: string = await (await fetch(`${baseUrl}${PATH}/?EIO=4&transport=polling`)).text();
-        const sid: string = JSON.parse(open.slice(1)).sid;
+        const { sid }: PollingHandshake = JsonUtilities.parse<PollingHandshake>(open.slice(1));
         const session: string = `${PATH}/?EIO=4&transport=polling&sid=${sid}`;
         expect(await (await fetch(`${baseUrl}${session}`, { method: 'POST', body: '40' })).text()).toBe('ok');
         await (await fetch(`${baseUrl}${session}`)).text();
@@ -376,7 +384,7 @@ describe('a polling request whose bytes never arrive in full', () => {
             notePacket('size:note', '').slice(0, 30) + 'x'.repeat(4 * KB)
         ].join('\r\n'));
 
-        expect(await Promise.race([response, new Promise<string>((_, reject) => setTimeout(() => reject(new Error('no answer in 2 s')), 2000))]))
+        expect(await Promise.race([response, new Promise<string>((_resolve, reject) => setTimeout(() => reject(new Error('no answer in 2 s')), 2000))]))
             .toMatch(/^HTTP\/1\.1 413 /);
         expect(handled.get('size:note')).toBeUndefined();
     }, 15_000);

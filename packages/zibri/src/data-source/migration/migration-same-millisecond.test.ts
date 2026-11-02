@@ -71,7 +71,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, TestTimeouts.inMemory.shutdown);
 
-// part of evaluation round 2, 02 §S14: a build is ahead of the database by the migrations it does not
+// a build is ahead of the database by the migrations it does not
 // carry that ran after its own, and two migrations applied within one millisecond were recorded as
 // having run at the same moment - so the later one did not count as after
 describe('an older build starting against migrations a newer one applied within one millisecond', () => {

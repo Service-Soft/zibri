@@ -9,7 +9,7 @@ import express from 'express';
 import NodeFormData from 'form-data';
 
 import { CircuitOpenError } from './circuit-open.error';
-import { HttpClientOptionsInput } from './http-client-options.model';
+import { HttpClientDispatcher, HttpClientOptionsInput } from './http-client-options.model';
 import { HttpClientResponse } from './http-client-response.model';
 import { HttpClientError } from './http-client.error';
 import { HttpClientInterface } from './http-client.interface';
@@ -707,5 +707,221 @@ describe('circuit breaker', () => {
             expect(await failureOf(http.get(`${downUrl}/status`))).toMatchObject({ responseData: { status: 503 } });
         }
         expect(downRequests).toBe(8);
+    });
+});
+
+describe('retries, body reads and the dispatcher', () => {
+    let server: Server;
+    let baseUrl: string;
+    /**
+     * The method of every request the server was sent, in order.
+     */
+    const received: string[] = [];
+    /**
+     * The status the server answers with, set per case.
+     */
+    let responseStatus: number = 200;
+    /**
+     * The Retry-After the server names, in seconds, or undefined to send none.
+     */
+    let retryAfterSeconds: number | undefined = undefined;
+    /**
+     * Comfortably over the 10mb the client allows a body it was told nothing about.
+     */
+    const oversizedBodyBytes: number = 12 * 1024 * 1024;
+
+    beforeAll(async () => {
+        server = createServer((req, res) => {
+            received.push(req.method ?? '');
+            if (req.url === '/oversized-body') {
+                // chunked, with no content-length, which is the case counting the body exists for:
+                // an upstream is free to omit the length or to lie about it
+                res.writeHead(200, { 'content-type': 'application/json' });
+                res.end(`"${'x'.repeat(oversizedBodyBytes)}"`);
+                return;
+            }
+            if (req.url === '/oversized-declared-body') {
+                res.writeHead(200, { 'content-type': 'application/json', 'content-length': String(oversizedBodyBytes) });
+                res.end(`"${'x'.repeat(oversizedBodyBytes - 2)}"`);
+                return;
+            }
+            if (req.url === '/slow-body') {
+                // the head arrives at once, the body never finishes: a slow upstream, or one that
+                // died after flushing its head
+                res.writeHead(200, { 'content-type': 'application/json' });
+                res.write('{"partial":');
+                return;
+            }
+            res.writeHead(responseStatus, {
+                'content-type': 'application/json',
+                ...retryAfterSeconds == undefined ? {} : { 'retry-after': String(retryAfterSeconds) }
+            });
+            res.end('{}');
+        });
+        await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+        baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    });
+
+    afterAll(async () => {
+        server.closeAllConnections();
+        await new Promise<void>(resolve => server.close(() => resolve()));
+    });
+
+    beforeEach(() => {
+        received.length = 0;
+        retryAfterSeconds = undefined;
+    });
+
+    // off, because every case is about what one request does against one origin answering 5xx on
+    // purpose: the breaker would carry the failures of one case into the next
+    const withoutBreaker: () => HttpClientInterface = () => clientWith({ circuitBreaker: false });
+
+    it('does not retry a GET that came back as a client error', async () => {
+        responseStatus = 400;
+
+        await expect(withoutBreaker().get(`${baseUrl}/bad-request`, { attempts: 3 })).rejects.toThrow();
+
+        // a 400 never becomes a 200 however often it is asked
+        expect(received).toHaveLength(1);
+    });
+
+    it('does not re-submit a POST that came back as a conflict', async () => {
+        responseStatus = 409;
+
+        await expect(withoutBreaker().post(`${baseUrl}/payments`, { amount: 100 }, { attempts: 3 })).rejects.toThrow();
+
+        // retrying a POST the server already rejected as a duplicate would charge the customer again
+        expect(received).toEqual(['POST']);
+    });
+
+    it('still retries a server error, which is the case retries exist for', async () => {
+        responseStatus = 503;
+
+        await expect(withoutBreaker().get(`${baseUrl}/unavailable`, { attempts: 3 })).rejects.toThrow();
+
+        // the control for the two above: retrying is classified, not switched off
+        expect(received).toHaveLength(3);
+    });
+
+    it('re-sends a POST the server refused to look at', async () => {
+        responseStatus = 429;
+
+        await expect(withoutBreaker().post(`${baseUrl}/payments`, { amount: 100 }, { attempts: 3 })).rejects.toThrow();
+
+        // a 429 counted the request and refused it, so it cannot have charged anything: the one case
+        // where repeating a non-idempotent request is safe
+        expect(received).toEqual(['POST', 'POST', 'POST']);
+    });
+
+    it('waits between attempts instead of firing them back to back', async () => {
+        responseStatus = 503;
+        const startedAt: number = Date.now();
+
+        await expect(withoutBreaker().get(`${baseUrl}/unavailable`, { attempts: 4 })).rejects.toThrow();
+
+        // three waits over a doubling window, each at least half of it: 125 + 250 + 500. Only half
+        // the window is random so that this floor exists - a delay that can roll near zero is a
+        // backoff that sometimes does not back off
+        expect(received).toHaveLength(4);
+        expect(Date.now() - startedAt).toBeGreaterThanOrEqual(875);
+    }, 30000);
+
+    it('waits as long as the server asked rather than guessing', async () => {
+        responseStatus = 503;
+        retryAfterSeconds = 1;
+        const startedAt: number = Date.now();
+
+        await expect(withoutBreaker().get(`${baseUrl}/unavailable`, { attempts: 2 })).rejects.toThrow();
+
+        expect(received).toHaveLength(2);
+        expect(Date.now() - startedAt).toBeGreaterThanOrEqual(1000);
+    }, 30000);
+
+    // the deadline covers the whole answer: one cleared once the head arrived would leave the body
+    // read without any, and a dribbling or hung upstream holding the call open
+    it('gives up on a response whose body never arrives', async () => {
+        const startedAt: number = Date.now();
+
+        await expect(withoutBreaker().get(`${baseUrl}/slow-body`, { timeoutInMs: 500 })).rejects.toThrow();
+
+        expect(Date.now() - startedAt).toBeLessThan(5000);
+    }, 15000);
+
+    it('refuses a body larger than it is willing to hold, counted as it arrives', async () => {
+        await expect(withoutBreaker().get(`${baseUrl}/oversized-body`)).rejects.toThrow('Could not read the response body');
+    }, 30000);
+
+    it('refuses a body that announces itself as too large before reading it', async () => {
+        await expect(withoutBreaker().get(`${baseUrl}/oversized-declared-body`)).rejects.toThrow('Could not read the response body');
+    }, 30000);
+
+    /**
+     * A dispatcher that refuses to connect, saying who it was.
+     *
+     * Stands in for a `ProxyAgent`, or an `Agent` carrying a CA bundle or a client certificate. One
+     * that cannot connect proves a request went *through* it rather than around it, because the
+     * server records nothing; one delegating to node's own would have reached the server either way.
+     * @param name - What it calls itself when it refuses.
+     * @returns The dispatcher.
+     */
+    function refusingDispatcher(name: string): HttpClientDispatcher {
+        // only `dispatch` is on the path a fetch takes; writing the other twenty methods of
+        // undici's Dispatcher would be mocking an interface this test does not own
+        return {
+            dispatch: () => {
+                throw new Error(`refused by ${name}`);
+            }
+        };
+    }
+
+    /**
+     * Every message in the chain of an error, joined.
+     *
+     * Fetch reports a failure on the connection path as `TypeError: fetch failed` with the reason on
+     * `cause`, and the client wraps that again. `instanceof Error` cannot walk it: the TypeError is
+     * built in node's realm, and jest runs a test file in a context of its own.
+     * @param error - The error the client rejected with.
+     * @returns The messages.
+     */
+    function causeChain(error: unknown): string {
+        const messages: string[] = [];
+        let current: unknown = error;
+        while (typeof current === 'object' && current != undefined && 'message' in current) {
+            messages.push(String(current.message));
+            current = 'cause' in current ? current.cause : undefined;
+        }
+        return messages.join(' | ');
+    }
+
+    it('sends through the dispatcher the application configured', async () => {
+        responseStatus = 200;
+        const http: HttpClientInterface = clientWith({ circuitBreaker: false, dispatcher: refusingDispatcher('the corporate proxy') });
+
+        const error: unknown = await http.get(`${baseUrl}/through-a-proxy`).catch((error_: unknown) => error_);
+
+        expect(causeChain(error)).toContain('refused by the corporate proxy');
+        expect(received).toHaveLength(0);
+    });
+
+    // mutual tls to one partner is a property of that destination rather than of the deployment, so
+    // the request's dispatcher replaces the application's rather than layering over it
+    it('lets one request go out through a different dispatcher than the rest', async () => {
+        const http: HttpClientInterface = clientWith({ circuitBreaker: false, dispatcher: refusingDispatcher('the corporate proxy') });
+
+        const error: unknown = await http
+            .get(`${baseUrl}/mtls-partner`, { dispatcher: refusingDispatcher('the partner certificate') })
+            .catch((error_: unknown) => error_);
+
+        expect(causeChain(error)).toContain('refused by the partner certificate');
+        expect(causeChain(error)).not.toContain('refused by the corporate proxy');
+    });
+
+    it('still sends when no dispatcher was named anywhere', async () => {
+        responseStatus = 200;
+
+        const res: HttpClientResponse = await clientWith({ circuitBreaker: false }).get(`${baseUrl}/no-dispatcher`);
+
+        expect(res.status).toBe(200);
+        expect(received).toHaveLength(1);
     });
 });

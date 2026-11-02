@@ -10,6 +10,7 @@ import { StartedTestServer, startTestServer } from '../../__testing__/test-serve
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { Ms } from '../../utilities/ms';
 import { BigNumber } from '../../utilities/number.utilities';
 import { WebsocketController } from '../decorators/websocket-controller.decorator';
@@ -209,4 +210,76 @@ describe('what a websocket client receives', () => {
 
         expect((await broadcast).data).toEqual(received);
     }, 15000);
+});
+
+// written to json and back by the service and then written again by socket.io, a message cost three
+// passes over it. What a client receives is the same either way, so this measures a duration
+describe('what sending a websocket message costs', () => {
+    /**
+     * Large enough that writing it is what sending it costs. Many small values with a bigint in each,
+     * since a bigint is what socket.io's own json encoder throws on.
+     */
+    const largePayload: { rows: { id: string, name: string, amount: bigint, active: boolean, tags: string[] }[] } = {
+        rows: Array.from({ length: 20000 }, (_, i) => ({
+            id: `row-${i}`,
+            name: `a name that is long enough to be worth writing out ${i}`,
+            amount: BigInt(i) * 1000n,
+            active: i % 2 === 0,
+            tags: ['alpha', 'beta', 'gamma']
+        }))
+    };
+
+    /**
+     * How long a broadcast of each kind takes, the quickest of three. Each is received before the
+     * next is sent, so no send is timed while the client in the same process still takes the last one
+     * apart. The kinds take turns, so a machine that gets busier or quieter meanwhile slows all of
+     * them alike.
+     * @param socket - The client receiving them.
+     * @param resolveDataOfEach - What each kind of message carries, resolved inside the timed send.
+     * @returns The duration of each kind in milliseconds, in the order given.
+     */
+    async function resolveFastestBroadcastsInMs(socket: Socket, resolveDataOfEach: (() => unknown)[]): Promise<number[]> {
+        const durations: number[][] = resolveDataOfEach.map(() => []);
+        for (let attempt: number = 0; attempt < 3; attempt++) {
+            for (const [index, resolveData] of resolveDataOfEach.entries()) {
+                const arrived: Promise<WebsocketMessage> = waitForMessage(socket, 'payload:large');
+                const start: number = performance.now();
+                await websocketService.sendToAll({
+                    event: 'payload:large',
+                    message: { ok: true, data: resolveData(), senderUserId: undefined, senderConnectionId: undefined },
+                    expectResponse: false,
+                    persist: false
+                });
+                durations[index]?.push(performance.now() - start);
+                await arrived;
+            }
+        }
+        return durations.map(d => Math.min(...d));
+    }
+
+    // against the other candidate measured here and now, as a send under the same load, so this says
+    // something about the framework rather than about the machine. Measured in process, the
+    // serializing alone was slowed less by a busy machine than a send is, and the comparison read as
+    // a regression
+    it('writes a message once', async () => {
+        const socket: Socket = await connectClient();
+        const sends: (() => unknown)[] = [
+            // what a send with nothing to write costs, a constant of the machine
+            () => ({}),
+            () => largePayload,
+            // the round trip the service used to make before socket.io wrote the message once more
+            () => JsonUtilities.parse(JsonUtilities.stringify(largePayload))
+        ];
+        // a first round of its own, so no measured send pays for compiling what it runs
+        await resolveFastestBroadcastsInMs(socket, sends);
+
+        const [overhead = 0, onePass = 0, threePasses = 0] = await resolveFastestBroadcastsInMs(socket, sends);
+
+        // sendToAll writes the message synchronously for every client, so its time is the write's. The
+        // third send differs from the second by the round trip alone, whatever the service does, so
+        // it is a bar the service cannot move: about two passes, a parse costing nearly what a
+        // stringify does. One pass stays under it and three go over it. A ratio of the two sends
+        // could not tell them apart, since a service writing three times adds the same to both
+        expect(onePass - overhead).toBeLessThan(threePasses - onePass);
+    }, 60000);
 });

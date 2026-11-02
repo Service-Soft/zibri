@@ -365,7 +365,7 @@ async function appliedMigrations(dataSourceClass: Newable<DataSourceInterface>):
  */
 export function resolveMigrationRepository(dataSourceClass: Newable<DataSourceInterface>): Repository<MigrationEntity> {
     // asked here, where every reader of the records goes through: without it the boot failed on a
-    // repository provider that is missing, naming neither the entity nor what to do (03 §H13)
+    // repository provider that is missing, naming neither the entity nor what to do
     if (!inject(dataSourceClass).entities.includes(MigrationEntity)) {
         throw new InternalError([
             `The data source "${dataSourceClass.name}" keeps the migrations it applied,`,

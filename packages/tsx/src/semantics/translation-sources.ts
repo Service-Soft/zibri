@@ -122,10 +122,7 @@ function singleKeyOf(expression: ts.ObjectLiteralExpression): string | undefined
         return undefined;
     }
     const name: ts.PropertyName = property.name;
-    if (ts.isIdentifier(name) || ts.isStringLiteral(name)) {
-        return name.text;
-    }
-    return undefined;
+    return ts.isIdentifier(name) || ts.isStringLiteral(name) ? name.text : undefined;
 }
 
 /**

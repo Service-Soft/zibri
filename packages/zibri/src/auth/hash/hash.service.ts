@@ -163,12 +163,10 @@ export class HashService implements HashServiceInterface, OnAppInit {
         const strategy: HashStrategyInterface<Record<string, unknown>> | undefined = this.strategies.find(
             s => s.name === strategyName && s.version === version
         );
-        if (!strategy) {
-            return false;
-        }
-        // a strategy that cannot identify its own output is taken at its word, which is the weaker
-        // answer but never a wrong one for a value this application actually produced
-        return strategy.isHashedValue?.(hashedValue) ?? true;
+        return strategy != undefined
+            // a strategy that cannot identify its own output is taken at its word, which is the weaker
+            // answer but never a wrong one for a value this application actually produced
+            && (strategy.isHashedValue?.(hashedValue) ?? true);
     }
 
     private findStrategy(name: string, version: string): HashStrategyInterface<Record<string, unknown>> {

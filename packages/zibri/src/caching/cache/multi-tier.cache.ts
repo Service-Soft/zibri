@@ -327,10 +327,7 @@ export abstract class MultiTierCache<
      * is how tag invalidation came to skip multi tier caches entirely.
      */
     get tags(): 'all' | readonly CacheTagMatcher[] {
-        if (this.tiers.some(t => t.tags === 'all')) {
-            return 'all';
-        }
-        return this.tiers.flatMap(t => [...t.tags as readonly CacheTagMatcher[]]);
+        return this.tiers.some(t => t.tags === 'all') ? 'all' : this.tiers.flatMap(t => [...t.tags as readonly CacheTagMatcher[]]);
     }
 
     // goes to the tier stores directly rather than back through the cache service, which is what

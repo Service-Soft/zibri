@@ -76,6 +76,27 @@ function expectUntouched(data: Pick<ProfileData, 'contact' | 'previous'>): void 
     expect({ ...data.previous?.[0] }).toEqual({ phone: '+49 2' });
 }
 
+describe('what a write leaves of the top level of the data it was given', () => {
+    // a write taking the id out of the caller's own object would be a side effect on data they still
+    // hold and may write again
+    it('leaves an id the caller put on the data of a create', async () => {
+        const data: ProfileData & { id: string } = { ...freshData(), id: 'caller-supplied' };
+
+        await profiles.create(data);
+
+        expect(data.id).toBe('caller-supplied');
+    });
+
+    it('adds nothing to the change of an update', async () => {
+        const created: Profile = await profiles.create(freshData());
+        const change: Pick<ProfileData, 'handle'> = { handle: `renamed-${UUIDUtilities.generate()}` };
+
+        await profiles.updateById(created.id, change);
+
+        expect(Object.keys(change)).toEqual(['handle']);
+    });
+});
+
 describe('what a write leaves of the nested objects it was given', () => {
     it('leaves them as they were on create, and stores what they said', async () => {
         const data: ProfileData = freshData();

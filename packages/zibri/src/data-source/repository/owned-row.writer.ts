@@ -128,7 +128,7 @@ export class OwnedRowWriter<T extends BaseEntity> {
                 res.set(ownerId, owned);
             }
             // pushed onto each owner's list rather than copying it per row, which is the square of
-            // the rows of one owner (evaluation/01-data-layer M43)
+            // the rows of one owner
             for (const row of written) {
                 res.get(String(Reflect.get(row, relation.foreignKey)))
                     ?.get(relation.key)

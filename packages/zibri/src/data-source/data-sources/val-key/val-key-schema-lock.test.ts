@@ -34,8 +34,8 @@ class LockHoldingDataSource extends createTestValKeyDataSource({ allowOrphan: tr
      * repositories of the data source, which an application that has started takes no more of.
      */
     async connect(): Promise<void> {
-        const { host, port, useTLS } = this.options;
-        this.client = await valKeyGlide().GlideClient.createClient({ addresses: [{ host: host ?? 'localhost', port }], useTLS });
+        const { host = 'localhost', port, useTLS } = this.options;
+        this.client = await valKeyGlide().GlideClient.createClient({ addresses: [{ host, port }], useTLS });
     }
 
     /**
@@ -57,7 +57,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, timeouts.shutdown);
 
-// evaluation round 2, 02 §S12: the lock was one per server, so an application with a key prefix of
+// the lock was one per server, so an application with a key prefix of
 // its own waited for every other one setting up its schema, and gave up after the schema lock timeout
 describe('applications sharing a server, each under a key prefix of its own', () => {
     it('set their schemas up without waiting for each other', async () => {

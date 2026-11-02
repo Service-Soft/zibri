@@ -22,10 +22,9 @@ export class UserEventWriteObserver implements EntityWriteObserver {
      * @returns True when an event the application named can come of it.
      */
     followsBefore(write: EntityWrite): boolean {
-        if (write.operation === 'remove') {
-            return this.names.userDeleted != undefined;
-        }
-        return write.operation !== 'insert' && this.isWritingDeactivation(write);
+        return write.operation === 'remove'
+            ? this.names.userDeleted != undefined
+            : write.operation !== 'insert' && this.isWritingDeactivation(write);
     }
 
     /**

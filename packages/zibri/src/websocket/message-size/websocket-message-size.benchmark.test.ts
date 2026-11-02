@@ -32,7 +32,8 @@ import { WebsocketOptionsInput } from '../models/websocket-options.model';
  * the numbers - see `BenchmarkUtilities`.
  *
  * `npm run test:benchmark` runs it. Setting `ZIBRI_BENCHMARK_UPDATE_BASELINE=1` makes the run the new
- * baseline.
+ * baseline of this machine; the file is not committed. `npm run test:benchmark:compare` sets it against
+ * the release instead, which is what CI fails a slower operation on.
  */
 
 /**
@@ -75,7 +76,7 @@ class BenchmarkWsController {
  * The event the test sends, and what it is answered with.
  */
 type SentEvents = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     'bench:note': (request: { body: Note }, answer: (message: WebsocketMessage) => void) => void
 };
 
@@ -147,8 +148,9 @@ describe('measuring websocket messages against their events', () => {
         expect(socket).toBeDefined();
         if (socket != undefined) {
             timings.push(await BenchmarkUtilities.resolveTiming('a round trip of a 1 kb message', ROUND_TRIPS, async () => {
-                const answer: WebsocketMessage = await socket.timeout(5000).emitWithAck('bench:note', { body: { text: 'x'.repeat(1024) } });
-                expect(answer.ok).toBe(true);
+                // unknown, since socket.io-client types the answer of an acknowledgement with a timeout as any
+                const answer: unknown = await socket.timeout(5000).emitWithAck('bench:note', { body: { text: 'x'.repeat(1024) } });
+                expect(answer).toMatchObject({ ok: true });
             }));
         }
 

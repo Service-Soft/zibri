@@ -38,7 +38,7 @@ import { WebsocketMessage } from '../websocket/models/websocket-message.model';
 import { WebsocketOptionsInput } from '../websocket/models/websocket-options.model';
 import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 
-// round-2 08 §X15: the tenant property from the base class, the way an application declares most entities
+// the tenant property from the base class, the way an application declares most entities
 @Entity()
 class TenancyNote extends BaseTenantEntity() {
     @Property.string()
@@ -116,6 +116,14 @@ const websocketOptions: WebsocketOptionsInput = {
     isAllowedToConnect: () => true
 };
 
+/**
+ * A user who can log in, and their access token.
+ */
+type LoggedInUser = {
+    user: JwtUser,
+    accessToken: string
+};
+
 let server: StartedTestServer | undefined;
 let baseUrl: string = '';
 const clients: Socket[] = [];
@@ -155,7 +163,7 @@ async function createNote(tenantId: string, title: string): Promise<void> {
  * @param name - What sets the user's email apart.
  * @returns The user and their access token.
  */
-async function logIn(name: string): Promise<{ user: JwtUser, accessToken: string }> {
+async function logIn(name: string): Promise<LoggedInUser> {
     const email: string = `${name}@tenancy.test`;
     const user: JwtUser = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] });
     await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
@@ -259,7 +267,7 @@ describe('the tenant of a request', () => {
     });
 
     it('refuses a logged in user in a tenant they are no member of, also on a route asking for no login', async () => {
-        const { user, accessToken }: { user: JwtUser, accessToken: string } = await logIn('outsider');
+        const { user, accessToken }: LoggedInUser = await logIn('outsider');
         await inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
             acme,
             async () => await inject(DefaultTestServerMembershipRepository).create({ tenantId: acme, userId: user.id, roles: [MemberRoles.USER] })
@@ -319,7 +327,7 @@ describe('an application reading the tenant of a request its own way', () => {
     });
 });
 
-// round-2 08 §X15: the shortest path for an application serving one customer, as docs/tenancy.md shows it
+// the shortest path for an application serving one customer, as docs/tenancy.md shows it
 describe('an application with one tenant', () => {
     let onlyTenant: string;
 
@@ -355,8 +363,8 @@ describe('an application with one tenant', () => {
     });
 
     it('lets a user in through their membership in the tenant, and refuses one without', async () => {
-        const member: { user: JwtUser, accessToken: string } = await logIn('member');
-        const stranger: { user: JwtUser, accessToken: string } = await logIn('stranger');
+        const member: LoggedInUser = await logIn('member');
+        const stranger: LoggedInUser = await logIn('stranger');
         await tenantService().runAs(
             onlyTenant,
             async () => await inject(DefaultTestServerMembershipRepository).resolveMembership(member.user.id, undefined)

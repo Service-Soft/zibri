@@ -28,10 +28,7 @@ const maxThreads: number = Math.max(2, availableThreads - 1);
 const maxPriorityThreads: number = availableThreads <= 1 ? 0 : 1;
 
 function fib(n: number): number {
-    if (n < 2) {
-        return n;
-    }
-    return fib(n - 1) + fib(n - 2);
+    return n < 2 ? n : fib(n - 1) + fib(n - 2);
 }
 
 const n: number = 40; // fib input (tune this up if your machine is very fast/slow)

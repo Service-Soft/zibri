@@ -12,7 +12,7 @@ import { Entity } from '../../entity/decorators/entity.decorator';
 
 /**
  * A membership that soft deletes, declared through the base alone: the base extended `BaseEntity`,
- * so a soft deleting membership declared its columns and the mark by hand (08 §X28).
+ * so a soft deleting membership declared its columns and the mark by hand.
  */
 @Entity({ allowOrphan: true })
 class ArchivedMembership extends BaseMembershipEntity(SoftDeleteEntity) {}

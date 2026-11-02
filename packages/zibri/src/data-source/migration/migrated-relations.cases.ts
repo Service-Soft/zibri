@@ -185,7 +185,7 @@ type MigratedRelationsTarget = {
  * @param target - The data source, and how to start it again.
  */
 export function describeMigratedRelations(dataSourceName: string, target: MigratedRelationsTarget): void {
-    // part of evaluation round 2, 02 §S14: a migration that writes out what it creates, as a generated
+    // a migration that writes out what it creates, as a generated
     // one does, created no relations - only creating an entity from what it declares did
     describe(`the relations of entities a migration created from written-out properties, on ${dataSourceName}`, () => {
         it('are stored and read from both sides', async () => {

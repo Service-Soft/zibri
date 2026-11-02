@@ -96,7 +96,7 @@ beforeAll(async () => {
     baseUrl = await server.start();
 
     const users: Repository<JwtUser> = inject(repositoryTokenFor(JwtUser));
-    const user: JwtUser = await users.create({ email: 'locked@example.com', roles: [] } as unknown as JwtUser);
+    const user: JwtUser = await users.create({ email: 'locked@example.com', roles: [] });
     lockedUserId = user.id;
 }, 120000);
 
@@ -146,7 +146,7 @@ describe('a statement whose request runs out of time', () => {
     }, 60000);
 });
 
-// 01 §D18: a query built by hand ran on a connection the request's deadline knew nothing about, so it
+// a query built by hand ran on a connection the request's deadline knew nothing about, so it
 // went on after the caller had been answered
 describe('a query built by hand', () => {
 

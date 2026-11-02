@@ -134,10 +134,7 @@ export abstract class BaseClientCertificateAuthStrategy<
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveUser(context: HttpRequestContext | WebsocketRequestContext): Promise<UserType | undefined> {
         const certificate: X509Certificate | undefined = this.findClientCertificate(context);
-        if (certificate == undefined || !this.isTrusted(certificate)) {
-            return undefined;
-        }
-        return await this.resolveUserByCertificate(certificate);
+        return certificate == undefined || !this.isTrusted(certificate) ? undefined : await this.resolveUserByCertificate(certificate);
     }
 
     /**
@@ -159,11 +156,10 @@ export abstract class BaseClientCertificateAuthStrategy<
      * @returns True when it may identify a caller.
      */
     isTrusted(certificate: X509Certificate): boolean {
-        if (!ClientCertificateUtilities.isWithinValidity(certificate) || !this.isForClient(certificate)) {
-            return false;
-        }
-        // the names and key ids, and then the signature, which is what proves the authority signed it
-        return this.authorities.some(authority => certificate.checkIssued(authority) && certificate.verify(authority.publicKey));
+        return ClientCertificateUtilities.isWithinValidity(certificate)
+            && this.isForClient(certificate)
+            // the names and key ids, and then the signature, which is what proves the authority signed it
+            && this.authorities.some(authority => certificate.checkIssued(authority) && certificate.verify(authority.publicKey));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

@@ -186,7 +186,12 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
                 userId: user.id,
                 priority: EmailPriority.HIGH
             });
-            this.auditService.record({ action: AuditAction.EMAIL_CHANGED, outcome: AuditOutcome.SUCCESS, subject: found.email, userId }, transaction);
+            this.auditService.record({
+                action: AuditAction.EMAIL_CHANGED,
+                outcome: AuditOutcome.SUCCESS,
+                subject: found.email,
+                userId
+            }, transaction);
         }
         catch (error) {
             this.auditService.record({

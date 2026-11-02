@@ -14,8 +14,8 @@ import { Newable } from '../../types/newable.type';
 export class EntityWriteObserverRegistry {
     // a provider of each application rather than a static registry: an observer belongs to the
     // service instances of the application that registered it. Not behind a token: it is how the
-    // framework's subsystems follow each other's writes (09 §Q6), and what an application hears of
-    // writes is 06 §Q4's question
+    // framework's subsystems follow each other's writes, and what an application hears of writes
+    // are the framework events it names
     private readonly observers: Map<Newable<BaseEntity>, EntityWriteObserver[]> = new Map();
 
     /**

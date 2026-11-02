@@ -87,9 +87,8 @@ export abstract class CPUtilities {
      */
     static resolveResult(file: string, args: string[], cwd: string): ProcessResult {
         const result: SpawnSyncReturns<Buffer> = spawnSync(file, args, { cwd, stdio: ['ignore', 'pipe', 'ignore'] });
-        if (result.error != undefined) {
-            return { status: undefined, stdout: Buffer.alloc(0) };
-        }
-        return { status: result.status ?? undefined, stdout: result.stdout };
+        return result.error != undefined
+            ? { status: undefined, stdout: Buffer.alloc(0) }
+            : { status: result.status ?? undefined, stdout: result.stdout };
     }
 }

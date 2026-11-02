@@ -384,7 +384,7 @@ describe('WhereFilterEvaluator', () => {
                 id: 'c1',
                 name: 'Food',
                 products: [product({ name: 'Kibble' }), product({ name: 'Ball' })]
-            } as EvaluatorCategory;
+            };
             expect(evaluator.matches(category, { products: { where: { name: 'Ball' } } }, EvaluatorCategory)).toBe(true);
             expect(evaluator.matches(category, { products: { where: { name: 'Bone' } } }, EvaluatorCategory)).toBe(false);
             expect(evaluator.matches(category, { products: { length: 2 } }, EvaluatorCategory)).toBe(true);
@@ -418,7 +418,7 @@ describe('WhereFilterEvaluator', () => {
         });
 
         it('throws for an empty filter object on a property', () => {
-            expect(() => matches({ name: 'Alpha' }, { name: {} } as unknown as Where<EvaluatorProduct>))
+            expect(() => matches({ name: 'Alpha' }, { name: {} }))
                 .toThrow(/Empty where filter/);
         });
     });

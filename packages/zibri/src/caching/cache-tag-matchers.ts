@@ -24,8 +24,5 @@ export function matchesTag(matcher: CacheTagMatcher, tag: string): boolean {
     if (typeof matcher === 'string') {
         return matcher === tag;
     }
-    if (matcher instanceof RegExp) {
-        return matcher.test(tag);
-    }
-    return matcher(tag);
+    return matcher instanceof RegExp ? matcher.test(tag) : matcher(tag);
 }

@@ -73,17 +73,24 @@ function requireFromApplication<T>(root: string, name: string): T {
  * The stylesheet is run through PostCSS, so an application with one installs `css-loader`,
  * `postcss-loader` and `mini-css-extract-plugin`.
  *
+ * A map is written beside the bundle: with the sources in it for an editor, or with the file and
+ * line of every frame alone for a deployment, which starts the application with
+ * `node --enable-source-maps` so that its stack traces name them.
+ *
  * Use it as the whole config, or change what it returns, like this.
  * ```js
  * const { resolveWebpackConfiguration } = require('zibri/webpack');
  *
- * module.exports = resolveWebpackConfiguration({ root: __dirname });
+ * module.exports = env => resolveWebpackConfiguration({
+ *     root: __dirname,
+ *     sourceMap: env.deployment ? 'file-and-line' : 'with-sources'
+ * });
  * ```
- * @param options - Where the application is.
+ * @param options - Where the application is, and what its map carries.
  * @returns The configuration.
  */
 export function resolveWebpackConfiguration(options: WebpackConfigurationOptions): Configuration {
-    const { root } = options;
+    const { root, sourceMap } = options;
     const CopyPlugin: typeof CopyWebpackPlugin = requireFromApplication(root, 'copy-webpack-plugin');
     const ReplacementPlugin: typeof NormalModuleReplacementPlugin = requireFromApplication<WebpackModule>(root, 'webpack')
         .NormalModuleReplacementPlugin;
@@ -120,7 +127,9 @@ export function resolveWebpackConfiguration(options: WebpackConfigurationOptions
             },
             clean: true
         },
-        devtool: 'source-map',
+        // the sources are two thirds of the map, and node reads only the mappings: the image is
+        // served without them, and a trace still names src/env.ts:34
+        devtool: sourceMap === 'with-sources' ? 'source-map' : 'nosources-source-map',
         // what the framework's dependencies reach for only when a feature asks, or never on node: the
         // optional native add-ons, the pdf stack. Bundled, a package that is not installed fails the
         // build; external, it is required at runtime by the feature that wants it, like every optional peer

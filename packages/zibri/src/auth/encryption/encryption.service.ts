@@ -362,10 +362,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         const entity: EncryptionStrategyEntity = await this.resolveStrategyEntity(strategy);
         const existing: EncryptionKey | undefined = entity.keys.find(k => k.status === EncryptionKeyStatus.DEFAULT)
             ?? entity.keys.at(0);
-        if (existing) {
-            return existing;
-        }
-        return await this.createDefaultKeyEntity(entity, await this.generateEncryptedKey(strategy));
+        return existing ?? await this.createDefaultKeyEntity(entity, await this.generateEncryptedKey(strategy));
     }
 
     /**

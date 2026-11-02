@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
+import { LogLevel } from './log-level.enum';
 import { Log } from './log.model';
 import { LoggerInterface } from './logger.interface';
 import { compileTsxTemplate } from '../__testing__/compile-tsx-template.function';
@@ -49,6 +50,14 @@ class LinkController {
 @Controller('/mailing-lists', { versions: 'all' })
 class AppMailingListController extends MailingListController {}
 
+@Controller('/failing')
+class FailingController {
+    @Get('/boom')
+    boom(): string {
+        throw new Error('a distinctive failure');
+    }
+}
+
 let server: StartedTestServer | undefined;
 let baseUrl: string = '';
 let logRepository: Repository<Log>;
@@ -74,8 +83,11 @@ function carries(log: Log, text: string): boolean {
 
 beforeAll(async () => {
     server = await startTestServer({
-        controllers: [AppMailingListController, LinkController],
+        controllers: [AppMailingListController, LinkController, FailingController],
         plugins: [new ZibriMailingListPlugin()],
+        // the client address case is about the option working: trusting a forwarded header from anyone
+        // is not the default, and a server that left it unset would assert that the safe default is a bug
+        security: { trustProxy: 1 },
         dataSources: [
             createInMemoryDataSource({
                 entities: [...defaultTestServerEntities, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken],
@@ -142,5 +154,57 @@ describe('Logger — the url of a request', () => {
         expect(ofRequest.length).toBeGreaterThanOrEqual(2);
         expect(ofRequest.some(log => log.message === 'GET /links/open 200')).toBe(true);
         expect(logs.filter(log => carries(log, TOKEN))).toEqual([]);
+    });
+});
+
+describe('Logger — the request a line belongs to', () => {
+    // 32 hex characters, since a traceparent that does not parse counts as none having arrived
+    const callerTraceId: string = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
+    const oneRequestTraceId: string = '0f1e2d3c4b5a69788796a5b4c3d2e1f0';
+
+    // behind a load balancer, the socket address is the balancer's for every request
+    it('records the client address a trusted proxy forwarded', async () => {
+        await fetch(`${baseUrl}/failing/boom`, { headers: { 'x-forwarded-for': '203.0.113.7' } });
+
+        expect((await persistedLogs()).some(l => l.context.request?.clientIp === '203.0.113.7')).toBe(true);
+    });
+
+    // an access line rather than a warning: a missing icon is routinely no concern, and the client
+    // errors that are security events reach the audit trail instead
+    it('records a client error as a line of the access log, with how long it took', async () => {
+        expect((await fetch(`${baseUrl}/not-a-route`)).status).toBe(404);
+
+        const lines: Log[] = (await persistedLogs()).filter(l => l.context.request?.url === '/not-a-route');
+        expect(lines.length).toBeGreaterThan(0);
+        expect(lines.every(l => l.level === LogLevel.INFO && l.context.request?.status === 404)).toBe(true);
+        // known only once the response closed, which is why the access log is the line carrying it
+        expect(lines.every(l => (l.context.request?.durationInMs ?? -1) >= 0)).toBe(true);
+    });
+
+    it('records the trace the caller sent', async () => {
+        await fetch(`${baseUrl}/not-a-route`, { headers: { traceparent: `00-${callerTraceId}-0000000000000001-01` } });
+
+        expect((await persistedLogs()).some(l => l.context.request?.traceId === callerTraceId)).toBe(true);
+    });
+
+    // a trace only an upstream service supplies is missing where a request arrived from outside
+    it('gives a request that brought none a trace of its own', async () => {
+        await fetch(`${baseUrl}/not-a-route?own-trace`);
+
+        const ids: (string | undefined | null)[] = (await persistedLogs())
+            .filter(l => l.context.request?.url === '/not-a-route' && l.context.request.traceId !== callerTraceId)
+            .map(l => l.context.request?.traceId);
+        expect(ids.length).toBeGreaterThan(0);
+        expect(ids.every(id => id != undefined && id !== '')).toBe(true);
+    });
+
+    // the error and the line saying the request happened are one story, joined without reading two clocks
+    it('gives every line of one request the same trace', async () => {
+        const res: Response = await fetch(`${baseUrl}/failing/boom`, { headers: { traceparent: `00-${oneRequestTraceId}-0000000000000001-01` } });
+        expect(res.status).toBe(500);
+
+        const lines: Log[] = (await persistedLogs()).filter(l => l.context.request?.traceId === oneRequestTraceId);
+        expect(lines.some(l => l.level === LogLevel.ERROR)).toBe(true);
+        expect(lines.some(l => l.context.request?.durationInMs != undefined)).toBe(true);
     });
 });

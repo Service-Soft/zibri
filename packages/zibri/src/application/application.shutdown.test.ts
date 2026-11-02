@@ -88,6 +88,7 @@ describe('shutting an application down', () => {
     let directlyAtExit: string[] = [];
     let afterStartupAtExit: string[] = [];
     let listenersBefore: NodeJS.UncaughtExceptionListener[] = [];
+    let rejectionListenersBefore: NodeJS.UnhandledRejectionListener[] = [];
 
     beforeEach(async () => {
         failShutdown = false;
@@ -102,6 +103,7 @@ describe('shutting an application down', () => {
             return undefined as never;
         });
         listenersBefore = process.listeners('uncaughtException');
+        rejectionListenersBefore = process.listeners('unhandledRejection');
         server = await startTestServer({
             dataSources: [dataSourceClass],
             providers: [
@@ -185,6 +187,12 @@ describe('shutting an application down', () => {
         expect(directlyAtExit).toContain('the late teardown of this service failed');
         // the data sources closed in that phase, so the transport writing to one has nowhere to write
         expect(afterStartupAtExit).not.toContain('the late teardown of this service failed');
+    });
+
+    // socket.io middleware awaits outside its try/catch, so a malformed token during a websocket
+    // handshake is a rejection nothing handles, and node's default for one is to end the process
+    it('installs a listener for a rejected promise nothing handled', () => {
+        expect(process.listeners('unhandledRejection').filter(listener => !rejectionListenersBefore.includes(listener))).toHaveLength(1);
     });
 
     it('writes an uncaught exception before the process ends on it', async () => {

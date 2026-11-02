@@ -38,7 +38,7 @@ class DroppedSettingsDataSource extends PostgresDataSource {
     }
 }
 
-// 02 §S3: of the settings a connection asks for at startup, only the search similarity was checked,
+// of the settings a connection asks for at startup, only the search similarity was checked,
 // and only with a warning, so a connection without its statement timeout ran every statement unlimited
 describe('a postgres data source whose connections lost their startup settings', () => {
     it('refuses to start, naming the statement timeout it asked for', async () => {

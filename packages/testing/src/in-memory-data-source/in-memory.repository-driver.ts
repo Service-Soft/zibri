@@ -164,13 +164,12 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             relationsById.set(id, this.providedKeyRelations(entry));
         }
 
-        if (!reload) {
-            return [];
-        }
-        // with the relations each row's data wrote, as they were stored, so a caller gets the ids of
-        // the rows it references. The rows of a one to many or has one relation are the repository's
-        // to write, through the repository of their own entity
-        return this.loadRows(ids, {}, scope, relationsById);
+        return reload
+            // with the relations each row's data wrote, as they were stored, so a caller gets the ids of
+            // the rows it references. The rows of a one to many or has one relation are the repository's
+            // to write, through the repository of their own entity
+            ? this.loadRows(ids, {}, scope, relationsById)
+            : [];
     }
 
     /**
@@ -315,10 +314,9 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
     async count(options: DriverFindOptions<T>): Promise<number> {
         const scope: InMemoryScope = this.scope(options.transaction);
-        if (!options.where) {
-            return scope.ids(this.tableName).length;
-        }
-        return this.findRows({ where: options.where, related: options.related }, scope).length;
+        return options.where
+            ? this.findRows({ where: options.where, related: options.related }, scope).length
+            : scope.ids(this.tableName).length;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
@@ -785,10 +783,9 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * @returns True when the declaration applies to this row.
      */
     private coveredBy(group: UniqueGroup, row: StoredRow): boolean {
-        if (group.where == undefined || coversEveryRow(group.where)) {
-            return true;
-        }
-        return this.evaluator.matches(this.fromFields(row), group.where as Where<T>, this.entityClass);
+        return group.where == undefined
+            || coversEveryRow(group.where)
+            || this.evaluator.matches(this.fromFields(row), group.where as Where<T>, this.entityClass);
     }
 
     /**
@@ -932,17 +929,16 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             case Relation.MANY_TO_ONE:
             case Relation.BELONGS_TO_ONE: {
                 const foreignKey: unknown = (entity as Record<string, unknown>)[this.resolveJoinColumn(metadata, key)];
-                if (foreignKey == undefined) {
-                    return undefined;
-                }
-                // eslint-disable-next-line typescript/no-base-to-string
-                return targetDriver.narrowedRows([String(foreignKey)], options, scope).at(0);
+                return foreignKey == undefined
+                    ? undefined
+                    // eslint-disable-next-line typescript/no-base-to-string
+                    : targetDriver.narrowedRows([String(foreignKey)], options, scope).at(0);
             }
             case Relation.ONE_TO_MANY:
             case Relation.HAS_ONE: {
                 const foreignKeyColumn: string = this.requireInverseJoinColumn(metadata, key);
                 const narrowed: ScopedWhere<BaseEntity> = RelatedNarrowingUtilities.narrow(
-                    { [foreignKeyColumn]: entity.id } as Where<BaseEntity>,
+                    { [foreignKeyColumn]: entity.id },
                     targetClass,
                     related
                 );
@@ -1123,10 +1119,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * @returns True when it cascades inserts.
      */
     private hasCascadeFlag(cascade: RelationMetadata<BaseEntity>['cascade']): boolean {
-        if (cascade === true) {
-            return true;
-        }
-        return Array.isArray(cascade) && cascade.includes('insert');
+        return cascade === true || (Array.isArray(cascade) && cascade.includes('insert'));
     }
 
     /**
@@ -1196,10 +1189,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         if (typeof value === 'bigint') {
             return value.toString();
         }
-        if (Buffer.isBuffer(value)) {
-            return value.toString('base64');
-        }
-        return value;
+        return Buffer.isBuffer(value) ? value.toString('base64') : value;
     }
 
     /**
@@ -1332,13 +1322,12 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         if (typeof a === 'boolean' && typeof b === 'boolean') {
             return Number(a) - Number(b);
         }
-        // by value: written out, `10` sorts before `9`
-        if (NumberUtilities.isBigNumber(a) && NumberUtilities.isBigNumber(b)) {
-            return NumberUtilities.compare(a, b);
-        }
-        // ordering text is the application's answer, as it is for the stores this one stands in for
-        // eslint-disable-next-line typescript/no-base-to-string
-        return inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).compareText(String(a), String(b));
+        return NumberUtilities.isBigNumber(a) && NumberUtilities.isBigNumber(b)
+            // by value: written out, `10` sorts before `9`
+            ? NumberUtilities.compare(a, b)
+            // ordering text is the application's answer, as it is for the stores this one stands in for
+            // eslint-disable-next-line typescript/no-base-to-string
+            : inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).compareText(String(a), String(b));
     }
 
     /**
@@ -1351,10 +1340,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             .entries(this.properties)
             .find(([, m]) => 'primary' in m && m.primary);
 
-        if (primary?.[1].type === 'number') {
-            return scope.nextSequenceValue(this.tableName).toString();
-        }
-        return UUIDUtilities.generate();
+        return primary?.[1].type === 'number' ? scope.nextSequenceValue(this.tableName).toString() : UUIDUtilities.generate();
     }
 
     /**

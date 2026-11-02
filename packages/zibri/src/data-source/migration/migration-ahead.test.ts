@@ -71,7 +71,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, TestTimeouts.inMemory.shutdown);
 
-// part of evaluation round 2, 02 §S14: whether the database is ahead of a build was read off the
+// whether the database is ahead of a build was read off the
 // versions alone, so going back to an earlier commit of the same release booted against a schema it
 // did not know
 describe('a build starting against a database that recorded migrations it does not carry', () => {

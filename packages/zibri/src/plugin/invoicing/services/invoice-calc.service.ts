@@ -101,10 +101,7 @@ export class InvoiceCalcService implements InvoiceCalcServiceInterface<Invoice> 
 
     private getItemsForTaxGroup<Invoice extends BaseInvoice>(invoice: Invoice, group: Vat, groupOnlyByRate: boolean): InvoiceItem[] {
         const itemsInTaxGroup: InvoiceItem[] = invoice.items.filter(item => {
-            if (groupOnlyByRate) {
-                return item.vat.rate === group.rate;
-            }
-            return item.vat.categoryCode === group.categoryCode && item.vat.rate === group.rate;
+            return item.vat.rate === group.rate && (groupOnlyByRate || item.vat.categoryCode === group.categoryCode);
         });
         return itemsInTaxGroup;
     }

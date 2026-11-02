@@ -37,6 +37,14 @@ type Login = {
 };
 
 /**
+ * The cookie header and the csrf token of a login with cookies.
+ */
+type CookieLogin = {
+    cookie: string,
+    csrfToken: string
+};
+
+/**
  * A login as `GET /auth/logins` lists it.
  */
 type ListedLogin = {
@@ -138,7 +146,7 @@ async function findLogins(loggedIn: Login): Promise<ListedLogin[]> {
     return await res.json() as ListedLogin[];
 }
 
-// 04 §A11: a user could not see where they are logged in, end one of those logins, end all of them,
+// a user could not see where they are logged in, end one of those logins, end all of them,
 // or change their password, and every application wrote these again
 describe('AuthController - the logins of a user', () => {
     beforeAll(async () => {
@@ -262,7 +270,7 @@ describe('AuthController - the logins of a user, with cookies', () => {
      * @param client - What the client sends as its `User-Agent`.
      * @returns The cookie header and the csrf token of the login.
      */
-    async function loginWithCookies(email: string, client: string): Promise<{ cookie: string, csrfToken: string }> {
+    async function loginWithCookies(email: string, client: string): Promise<CookieLogin> {
         const res: Response = await fetch(`${baseUrl}/auth/login`, {
             method: 'POST',
             headers: { [KnownHeader.CONTENT_TYPE]: MimeType.JSON, [KnownHeader.USER_AGENT]: client },
@@ -293,8 +301,8 @@ describe('AuthController - the logins of a user, with cookies', () => {
 
     it('lists the logins of the user, and ends one', async () => {
         const email: string = await createUser();
-        const laptop: { cookie: string, csrfToken: string } = await loginWithCookies(email, 'Laptop Browser');
-        const phone: { cookie: string, csrfToken: string } = await loginWithCookies(email, 'Phone Browser');
+        const laptop: CookieLogin = await loginWithCookies(email, 'Laptop Browser');
+        const phone: CookieLogin = await loginWithCookies(email, 'Phone Browser');
 
         const listed: Response = await fetch(`${baseUrl}/auth/logins`, { headers: { cookie: laptop.cookie } });
         expect(listed.status).toBe(200);

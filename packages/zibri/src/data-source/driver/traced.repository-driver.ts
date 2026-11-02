@@ -229,7 +229,7 @@ export class TracedRepositoryDriver<T extends BaseEntity> extends ForwardingRepo
      * @returns The tracer.
      */
     private resolveTracer(): TracerInterface {
-        // on the first span rather than when the driver is built (01 §Q3): a repository is built
+        // on the first span rather than when the driver is built: a repository is built
         // while its data source initializes, before every provider is there to resolve
         this.tracer ??= inject(ZIBRI_DI_TOKENS.TRACER);
         return this.tracer;

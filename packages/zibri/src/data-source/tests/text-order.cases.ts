@@ -6,7 +6,7 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { Repository } from '../repository/repository';
 
-// evaluation/round-2/11-unread-code-review.md S8: the in memory data source ordered text by the
+// the in memory data source ordered text by the
 // machine's locale rather than by the application's default locale. S10: postgres compared a text
 // inside a json value by the database's collation rather than by the one its text columns have
 

@@ -142,7 +142,10 @@ export class PasskeyAuthenticator<
      * @returns The name the device lists the account under, and the device.
      * @throws UnauthorizedError when the ticket is unknown, spent or expired.
      */
-    async resolveRegistration(credentials: PasskeyTicketCredentials, transaction: RepositoryTransaction | undefined): Promise<PasskeyRegistration> {
+    async resolveRegistration(
+        credentials: PasskeyTicketCredentials,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<PasskeyRegistration> {
         const ticket: PasskeyRegistrationTicket = await this.passkeyService.findRegistrationTicket(credentials.ticket, transaction);
         return { name: ticket.userName, aaguid: ticket.aaguid, synced: ticket.synced };
     }
@@ -155,7 +158,11 @@ export class PasskeyAuthenticator<
      * @param transaction - The transaction the registration runs in, if any.
      * @throws UnauthorizedError when the ticket is unknown, spent, expired or added to a user already.
      */
-    async linkTicketIdentity(credentials: PasskeyTicketCredentials, userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+    async linkTicketIdentity(
+        credentials: PasskeyTicketCredentials,
+        userId: string,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<void> {
         await this.passkeyService.linkRegistrationTicket(credentials.ticket, userId, transaction);
     }
 

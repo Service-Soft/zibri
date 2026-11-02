@@ -71,6 +71,34 @@ export function describeBoundedReturns(dataSourceName: string, rowsOf: () => Rep
             expect(await rowsOf().count({ where: { batch } })).toBe(UNBOUNDED_FIND_ALL_LIMIT + 1);
         }, SEED_TIMEOUT_IN_MS);
 
+        // refused rather than trimmed: a limit's worth of a larger table would have every caller looping
+        // over the result quietly do part of its work. The bound is on calls naming no limit, not on how
+        // much may be read, and how large the table is stays answerable past it
+        it('refuses a read naming no limit, and answers one naming a limit past the bound, and the count', async () => {
+            await expect(rowsOf().findAll({ where: { batch } })).rejects.toThrow();
+
+            expect(await rowsOf().findAll({ where: { batch }, limit: UNBOUNDED_FIND_ALL_LIMIT + 1 }))
+                .toHaveLength(UNBOUNDED_FIND_ALL_LIMIT + 1);
+            expect(await rowsOf().count({ where: { batch } })).toBe(UNBOUNDED_FIND_ALL_LIMIT + 1);
+        }, SEED_TIMEOUT_IN_MS);
+
+        it('streams past the bound a read naming no limit is refused at, without holding the result', async () => {
+            const seen: Set<string> = new Set();
+            for await (const row of rowsOf().stream({ where: { batch } })) {
+                seen.add(row.id);
+            }
+
+            expect(seen.size).toBe(UNBOUNDED_FIND_ALL_LIMIT + 1);
+        }, SEED_TIMEOUT_IN_MS);
+
+        // asking for everything is right whenever everything is small, which has to keep working
+        it('reads a match that fits without being asked for a limit', async () => {
+            const small: string = UUIDUtilities.generate();
+            await rowsOf().createAll(Array.from({ length: 250 }, () => ({ batch: small })));
+
+            expect(await rowsOf().findAll({ where: { batch: small } })).toHaveLength(250);
+        }, SEED_TIMEOUT_IN_MS);
+
         it('hands back as many rows as fit', async () => {
             const [extra] = await rowsOf().findAll({ where: { batch }, limit: 1 });
             await rowsOf().deleteById(extra?.id ?? '');

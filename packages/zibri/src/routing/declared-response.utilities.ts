@@ -25,10 +25,9 @@ export abstract class DeclaredResponseUtilities {
      * @returns The value, without what the classes do not declare.
      */
     static resolveDeclaredValue(value: unknown, classes: Newable<unknown>[]): unknown {
-        if (!DeclaredResponseUtilities.isRecord(value)) {
-            return value;
-        }
-        return DeclaredResponseUtilities.resolveModelValue(value, DeclaredResponseUtilities.resolveProperties(classes), false);
+        return DeclaredResponseUtilities.isRecord(value)
+            ? DeclaredResponseUtilities.resolveModelValue(value, DeclaredResponseUtilities.resolveProperties(classes), false)
+            : value;
     }
 
     private static resolveModelValue(

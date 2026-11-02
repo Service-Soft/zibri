@@ -99,7 +99,7 @@ describe('ErrorUtilities', () => {
         });
     });
 
-    // 03 §Q8: the http handler and the websocket service each decided this on their own, so a fix
+    // the http handler and the websocket service each decided this on their own, so a fix
     // to one of them had to be found again in the other
     describe('reportToLog', () => {
         let logger: LoggerInterface;

@@ -36,7 +36,8 @@ import { StartedTestServer, startTestServer } from '../test-server/start-test-se
  * against a recorded baseline, and nothing here fails on them - see `BenchmarkUtilities`.
  *
  * `npm run test:benchmark` runs it. Setting `ZIBRI_BENCHMARK_UPDATE_BASELINE=1` makes the run the new
- * baseline, which is worth doing on the machine that compares against it.
+ * baseline of this machine; the file is not committed. `npm run test:benchmark:compare` sets it against
+ * the release instead, which is what CI fails a slower operation on.
  */
 
 const RUNS: number = 500;
@@ -48,7 +49,7 @@ const LISTED_ROWS: number = 100;
  */
 const PASSWORD_RUNS: number = 20;
 
-const baselinePath: FsPath = FsUtilities.getPath(__dirname, 'baseline.json');
+const baselinePath: FsPath = FsUtilities.getPath(__dirname, 'framework-overhead.baseline.json');
 
 const reportPath: FsPath = FsUtilities.getPath(testFileFolder, 'benchmark-report.json');
 

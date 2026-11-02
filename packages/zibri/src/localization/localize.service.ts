@@ -123,8 +123,8 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         this.warnAboutLeftOutPlaceholders(supportedLocales, translationStrings);
     }
 
-    // round-2 11 §L6: a translation reads `{name}` as a placeholder only where its source has one of
-    // that name, and anything else in braces as text. A placeholder the translator misspelled is
+    // a translation reads `{name}` as a placeholder only where its source has one of that name, and
+    // anything else in braces as text. A placeholder the translator misspelled is
     // therefore served as text and its value as nothing, which only this says
     private warnAboutLeftOutPlaceholders(
         supportedLocales: LocaleCode[],

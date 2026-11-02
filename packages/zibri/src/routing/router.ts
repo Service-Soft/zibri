@@ -246,13 +246,12 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
     }
 
     private async resolveOrigins(options: AcceptCrossSitePostsOptions, pathParams: Request['params']): Promise<string[]> {
-        if (typeof options.acceptedOrigins !== 'function') {
-            return options.acceptedOrigins;
-        }
-        // a wildcard segment arrives as its parts, which are one value of the path to the route
-        return await options.acceptedOrigins(Object.fromEntries(Object.entries(pathParams).map(
-            ([name, value]): [string, string] => [name, Array.isArray(value) ? value.join('/') : value]
-        )));
+        return typeof options.acceptedOrigins === 'function'
+            // a wildcard segment arrives as its parts, which are one value of the path to the route
+            ? await options.acceptedOrigins(Object.fromEntries(Object.entries(pathParams).map(
+                ([name, value]): [string, string] => [name, Array.isArray(value) ? value.join('/') : value]
+            )))
+            : options.acceptedOrigins;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -582,7 +581,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         const producible: MimeType[] | undefined = this.producibleMediaTypes(responses);
         // the declarations in the shape a controller route is served from, so that both kinds of
         // route are parsed and validated by the same code and a rule fixed for one holds for the
-        // other (round 2's code review 03 §Q7). The body was put at position 0 when the route was
+        // other. The body was put at position 0 when the route was
         // registered, so the parameters follow it
         const pathParams: PathParamMetadata[] = Object.values(route.pathParams);
         const queryParams: QueryParamMetadata[] = Object.values(route.queryParams);

@@ -649,7 +649,7 @@ describe('the pages in docs/', () => {
         expect(wrong).toEqual([]);
     });
 
-    // 08 §X27: whoever approves the schema asks of each table how large it grows and what deletes its
+    // whoever approves the schema asks of each table how large it grows and what deletes its
     // rows, which the feature pages answered for some tables and not for others
     it('says of every entity the framework stores rows in how its table grows and what ends its rows', () => {
         const entities: Set<string> = new Set(GlobalRegistry.entityClasses
@@ -679,7 +679,7 @@ describe('the pages in docs/', () => {
         expect(wrong).toEqual([]);
     });
 
-    // 08 §X7: a reader entering on any one page meets the terms of the others, so DOCS_STYLE has a
+    // a reader entering on any one page meets the terms of the others, so DOCS_STYLE has a
     // page link a term to the glossary where it first uses it
     it('links each term of the glossary the first time a page uses it', () => {
         const glossary: Page | undefined = pages.find(page => page.name === GLOSSARY_PAGE);

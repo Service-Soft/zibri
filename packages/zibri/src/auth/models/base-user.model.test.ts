@@ -12,7 +12,7 @@ import { keyGroupsOf } from '../../global/model-registry/key-descriptor';
 /**
  * A user that soft deletes, declared through the base alone: a user entity that soft deleted had to
  * declare its columns and the user mark by hand, since the base extended `BaseEntity` and nothing
- * outside it could say whether a deleted user keeps their address (08 §X28).
+ * outside it could say whether a deleted user keeps their address.
  */
 @Entity({ tenant: 'shared', allowOrphan: true })
 class ArchivedAccount extends BaseUserEntity(SoftDeleteEntity, { deletedUserKeepsEmail: false }) {}

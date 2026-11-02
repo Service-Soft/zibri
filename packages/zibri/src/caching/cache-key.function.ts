@@ -38,10 +38,7 @@ export function cacheKeyOf(key: unknown, perTenant: boolean = true): string {
     // same key read in two tenants would otherwise answer one tenant with what another cached
     const tenantId: string | undefined = perTenant ? AlsUtilities.getCurrentTenant() : undefined;
     const tenant: string = tenantId == undefined ? '' : `${TENANT_KEY_MARK}${tenantId}${TENANT_KEY_MARK}`;
-    if (typeof key === 'string') {
-        return `${tenant}${key}`;
-    }
-    return `${tenant}${SERIALIZED_KEY_MARK}${JsonUtilities.stringify(canonical(key))}`;
+    return typeof key === 'string' ? `${tenant}${key}` : `${tenant}${SERIALIZED_KEY_MARK}${JsonUtilities.stringify(canonical(key))}`;
 }
 
 /**
@@ -62,16 +59,15 @@ function canonical(value: unknown): unknown {
     if (Array.isArray(value)) {
         return value.map(entry => canonical(entry));
     }
-    if (!isPlainObject(value)) {
+    return isPlainObject(value)
+        ? Object.fromEntries(
+            Object.keys(value).sort()
+                .map(key => [key, canonical(value[key])])
+        )
         // a Date, a class instance, a primitive - left to the serializer, which is what decides how
         // they are written. Reordering these would mean reading properties they do not keep their
         // value in, and an empty object is what a Date would come out as
-        return value;
-    }
-    return Object.fromEntries(
-        Object.keys(value).sort()
-            .map(key => [key, canonical(value[key])])
-    );
+        : value;
 }
 
 /**

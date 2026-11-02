@@ -448,7 +448,7 @@ export function describeMigrationHelpers(dataSourceName: string, targetOf: () =>
             await expect(badges.create({ code: 'first' })).rejects.toThrow();
         });
 
-        // part of evaluation round 2, 02 §S14: a migration named an entity by its class alone, which a
+        // a migration named an entity by its class alone, which a
         // generated one cannot - the class changes after it, and may be gone when the migration runs
         it('changes, removes and adds a property of an entity named by its table, keeping its index in step', async () => {
             await migrate(async (dataSource, transaction) => {

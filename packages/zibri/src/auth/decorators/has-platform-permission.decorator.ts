@@ -28,7 +28,7 @@ export const hasPlatformPermissionDecorator: HasPermissionFn<PlatformPermission>
         return decorator;
     }
 ) as HasPermissionFn<PlatformPermission>;
-hasPlatformPermissionDecorator.skip = () => ((
+hasPlatformPermissionDecorator.skip = () => (
     target: Object,
     propertyKey?: string | symbol
 ) => {
@@ -38,4 +38,4 @@ hasPlatformPermissionDecorator.skip = () => ((
     else {
         MetadataUtilities.setControllerSkipHasPlatformPermission(target as Function, {});
     }
-}) as MethodDecorator & ClassDecorator;
+};

@@ -73,7 +73,7 @@ export function describeDeleteScope(dataSourceName: string, notesOf: () => Repos
         await notesOf().updateById(id, { owner: 'grace' }, { unscoped: true });
     }
 
-    // 01 §D8: the rows were read under the scope and removed by id afterwards, so a row another caller
+    // the rows were read under the scope and removed by id afterwards, so a row another caller
     // handed to somebody else in between was deleted by a caller who could no longer see it
     describe(`a delete whose rows leave the caller's reach after they were read, on ${dataSourceName}`, () => {
         afterEach(() => {
@@ -97,7 +97,7 @@ export function describeDeleteScope(dataSourceName: string, notesOf: () => Repos
             expect((await notesOf().findById(note.id, { unscoped: true })).owner).toBe('grace');
         });
 
-        // 01 §D13: the condition of a deleteById is checked by the read before the hook, and again by
+        // the condition of a deleteById is checked by the read before the hook, and again by
         // the store as it removes the row - which is what this one is about
         it('refuses to delete a row whose condition stopped holding after it was read, and keeps it', async () => {
             const tag: string = UUIDUtilities.generate();

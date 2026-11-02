@@ -68,7 +68,8 @@ jobs:
             # merging two of them: its heavy tests need --runInBand anyway
             - run: npm run test:ci -w zibri-cli
             # what the generated deployment weighs and how long it takes to answer, measured by the
-            # cli's docker suite against the baseline beside it. Reported like the benchmark, not gated
+            # cli's docker suite. Its sizes are held to deployment-size-limits.ts there; the image, which
+            # its base image grows, and the time, which is the runner's, are only reported
             - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               with:
                 name: deployment-report-node-${{ matrix.node }}
@@ -105,10 +106,11 @@ jobs:
             # the fast suite only, because the cli's heavy ones build and run container images - which
             # is the same reason the container-backed suites above cannot join this job
             - run: npm run test:normal -w zibri-cli
-    # what the framework costs in time, set against the baseline in the repository and kept as an
-    # artifact. Reported rather than gated: a hosted runner shares its machine, so a threshold that
-    # fails a build is either loose enough to catch nothing or tight enough to fail at random. What a
-    # call costs in round trips is counted by the test job and does fail it.
+    # what the framework costs in time, against the release this would replace: both are built and run
+    # here, in turns, so that the runner weighs on both sides alike and an operation that got slower
+    # fails the build. packages/zibri/benchmark-allowances.json lets a slowdown that is worth it through,
+    # for as long as that release is the one compared with. What a call costs in round trips is counted
+    # by the test job.
     benchmark:
         runs-on: ubuntu-latest
         steps:
@@ -119,11 +121,15 @@ jobs:
             - run: npm ci
             - run: npm run build -w zibri-tsx
             - run: npm run build:prod -w zibri
-            - run: npm run test:benchmark -w zibri
-            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+            - run: git fetch --depth=1 origin +release:refs/remotes/origin/release
+            - run: npm run test:benchmark:compare -w zibri
+            - if: always()
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               with:
                 name: benchmark-report
-                path: packages/zibri/src/__testing__/file-output/benchmark-report.json
+                path: |
+                    packages/zibri/src/__testing__/file-output/*benchmark-report.json
+                    packages/zibri/src/__testing__/file-output/benchmark-comparison.json
     # what the framework installs on a consumer's behalf, which is most of what it installs: its
     # licenses against .github/license-policy.json, and its high and critical advisories. Only that
     # tree: a high advisory in a build tool is worth knowing and is not worth failing every branch

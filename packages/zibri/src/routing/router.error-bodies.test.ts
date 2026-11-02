@@ -56,7 +56,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, TestTimeouts.inMemory.shutdown);
 
-// part of evaluation round 2, 03 §H7: error bodies told every caller about the application's classes
+// error bodies told every caller about the application's classes
 // and its explorer, which belongs to whoever writes the application
 describe('the body of an error a caller is answered with', () => {
     it('says that a relation cannot be written, and names no class', async () => {

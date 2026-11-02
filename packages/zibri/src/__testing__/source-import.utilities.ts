@@ -22,7 +22,10 @@ export abstract class SourceImportUtilities {
      * @returns The files, relative to `src`.
      */
     static findSourceFiles(dir: string): string[] {
-        return this.findFiles(srcDir, dir, file => file.endsWith('.ts') && !file.endsWith('.test.ts') && !file.endsWith('.cases.ts'));
+        return this.findFiles(srcDir, dir, file => file.endsWith('.ts')
+            && !file.endsWith('.test.ts')
+            && !file.endsWith('.cases.ts')
+            && !file.endsWith('.instance-options.ts'));
     }
 
     /**
@@ -112,12 +115,10 @@ export abstract class SourceImportUtilities {
      */
     private static isTypeOnlyClause(clause: string): boolean {
         const trimmed: string = clause.trim();
-        if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
-            return false;
-        }
-        return trimmed.slice(1, -1).split(',')
-            .map(name => name.trim())
-            .filter(name => name.length)
-            .every(name => name.startsWith('type '));
+        return trimmed.startsWith('{') && trimmed.endsWith('}')
+            && trimmed.slice(1, -1).split(',')
+                .map(name => name.trim())
+                .filter(name => name.length)
+                .every(name => name.startsWith('type '));
     }
 }

@@ -443,7 +443,7 @@ describe('ProviderTokenAuthStrategy — reading a provider\'s tokens', () => {
         expect((await callWith('/me', token)).status).toBe(401);
     });
 
-    // evaluation/round-2/12-hardcoded-values.md §A1: a provider's clock a second ahead of the
+    // a provider's clock a second ahead of the
     // application's refused its tokens
     it('takes a token the provider\'s clock calls valid within the accepted skew, and refuses one past it', async () => {
         const user: JwtUser = await createLinkedUser(strictProvider);

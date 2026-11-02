@@ -23,7 +23,7 @@ const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMem
  */
 const SKEW_IN_MS: number = 40 * Ms.SECOND;
 
-// round 2's 06 §F13: a grant's expiry was written and judged by the clock of whichever instance
+// a grant's expiry was written and judged by the clock of whichever instance
 // touched it, so two instances whose clocks are further apart than a lease disagreed on who holds it
 describe('A lease, between instances whose clocks are apart', () => {
     let server: StartedTestServer;

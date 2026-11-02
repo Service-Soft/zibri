@@ -10,7 +10,7 @@ import { $ts } from '../../localization/translate.function';
 export class UnmatchedRouteError extends NotFoundError {
     constructor(originalUrl: string, options?: ErrorOptions) {
         // the route alone: the explorer is the application's to point at, and an error page that links
-        // it does so itself (03 §H7)
+        // it does so itself
         super($ts`The route at "${originalUrl}" does not exist.`, options);
         this.name = 'UnmatchedRouteError';
     }

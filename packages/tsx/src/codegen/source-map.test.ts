@@ -59,7 +59,7 @@ describe('the mappings of a source map', () => {
     });
 });
 
-// 07 §T11: the loader and the transformer handed over code without a map, so a stack frame of a
+// the loader and the transformer handed over code without a map, so a stack frame of a
 // template pointed at a generated line of a file nobody has seen
 describe.each(['esm', 'cjs'] as const)('the source map of a template compiled as %s', format => {
     function compiled(): { code: string, lines: MappingSegment[][], sources: string[], sourcesContent: string[] } {

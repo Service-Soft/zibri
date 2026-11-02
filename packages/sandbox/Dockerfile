@@ -9,7 +9,10 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+# the map beside the bundle without the sources in it, which only an editor opens and which
+# weigh twice what the rest of dist does. What stays names the source file and line of every
+# stack trace, read by the --enable-source-maps the CMD below starts node with
+RUN npm run build -- --env deployment
 
 # what running needs, out of what building needed. Pruning here rather than installing a
 # second time in the stage below keeps one resolution of the dependency tree, so what the
@@ -50,5 +53,6 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=20s CMD \
     node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # the exec form rather than a shell, so that the signal a stop sends arrives at node itself
-# and the application shuts down in the orderly way it knows how to
-CMD ["node", "dist/bundle.js"]
+# and the application shuts down in the orderly way it knows how to. --enable-source-maps is what
+# makes a stack trace name src/env.ts:34 rather than a line of the bundle
+CMD ["node", "--enable-source-maps", "dist/bundle.js"]

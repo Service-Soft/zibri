@@ -102,11 +102,10 @@ export abstract class ScaffoldUtilities {
      * @returns The continuous integration. Exits naming the valid ones when what was passed names none.
      */
     static async resolveContinuousIntegration(value: string | undefined): Promise<ContinuousIntegration> {
-        if (value == undefined) {
-            return (await InquirerUtilities.prompt<Pick<ScaffoldAnswers, 'ci'>>({ ci: scaffoldQuestions.ci })).ci;
-        }
-        return CONTINUOUS_INTEGRATIONS.find(ci => ci === value)
-            ?? await exitWithError(`Unknown ci "${value}", expected one of: ${CONTINUOUS_INTEGRATIONS.join(', ')}`);
+        return value == undefined
+            ? (await InquirerUtilities.prompt<Pick<ScaffoldAnswers, 'ci'>>({ ci: scaffoldQuestions.ci })).ci
+            : CONTINUOUS_INTEGRATIONS.find(ci => ci === value)
+                ?? await exitWithError(`Unknown ci "${value}", expected one of: ${CONTINUOUS_INTEGRATIONS.join(', ')}`);
     }
 
     /**

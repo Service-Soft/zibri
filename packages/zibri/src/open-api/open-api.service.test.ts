@@ -668,7 +668,7 @@ describe('OpenApiService', () => {
         });
     });
 
-    // part of evaluation round 2, 03 §H8: validation takes null for a property that may be left out, and
+    // validation takes null for a property that may be left out, and
     // a read answers with it, while the document said the type alone - so a generated client refused it
     it('says that a property which may be left out may be null as well', () => {
         const operation: OpenApiOperation = op('/items/', 'post');
@@ -694,7 +694,7 @@ describe('OpenApiService', () => {
         expect(schema.properties?.['quantity']).toMatchObject({ type: ['number', 'null'] });
     });
 
-    // part of evaluation round 2, 03 §H8: a discriminator without a mapping is defined for named schemas
+    // a discriminator without a mapping is defined for named schemas
     // only, and generators that read it rejected the inline ones
     it('names no discriminator, each shape being told apart by the one name it allows', () => {
         expect(JSON.stringify(spec)).not.toContain('discriminator');
@@ -873,7 +873,7 @@ describe('OpenApiService extended under a route of its own', () => {
         expect((await fetch(`${baseUrl}/explorer`)).status).toBe(404);
     });
 });
-// part of evaluation round 2, 03 §H16: the explorer and the document answered everyone whatever the
+// the explorer and the document answered everyone whatever the
 // application's default said, the permission names of every route included
 describe('OpenApiService in an application that requires a login by default', () => {
     /**
@@ -908,7 +908,7 @@ describe('OpenApiService in an application that requires a login by default', ()
     }, TestTimeouts.inMemory.start);
 });
 
-// part of round 2's code review 03 §Q3: the explorer's scripts were string arrays in the service, and
+// the explorer's scripts were string arrays in the service, and
 // the name of the application was written into one of them as it was, so a quote in it broke the script
 describe('OpenApiService explorer of an application whose name needs escaping', () => {
     const name: string = 'Ada\'s "Tasks" </script><b>';

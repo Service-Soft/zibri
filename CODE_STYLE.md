@@ -76,6 +76,7 @@ thing it is:
 | `.type.ts` | A standalone type alias |
 | `.test.ts` | Tests for the file of the same name |
 | `.cases.ts` | Test cases shared by several `.test.ts` files |
+| `.instance-options.ts` | What every instance of the `.cluster.test.ts` beside it boots with |
 
 `.cron-job.ts`, `.cache.ts`, `.rate-limiter.ts`, `.middleware.ts`, `.worker.ts` and `.registry.ts`
 follow the same idea for their own kinds.
@@ -144,7 +145,7 @@ These are two different audiences and the split is strict.
 
 **JSDoc is published.** Typedoc emits it for every exported symbol, and the people reading it have
 never seen this repository. It states what the thing does and what a caller gets. It never names a
-finding, an evaluation section, a past bug, or how a specific data source implements something.
+finding, a past bug, or how a specific data source implements something.
 
 **Inline `//` comments are not published, and are where the reasoning goes.** Why this approach and
 not the obvious one, what was tried and failed, which invariant a line is holding up. Write them for
@@ -179,12 +180,30 @@ that is never red is not a suite that is passing. Leave it red and report it.
 | Script | Covers |
 |---|---|
 | `test:normal` | Everything except the below |
-| `test:evaluation` | `*.evaluation.test.ts`, red while their findings are open |
 | `test:cluster` | `*.cluster.test.ts`, in band |
-| `test:benchmark` | `*.benchmark.test.ts`, in band: timings reported against `src/__testing__/benchmark/baseline.json`, never failing |
+| `test:benchmark` | `*.benchmark.test.ts`, in band: timings reported against a `*.baseline.json` beside each suite, never failing |
+| `test:benchmark:compare` | `test:benchmark` on your checkout and on `release`, in turns; fails on an operation that got slower |
 | `test:heavy` | Long-running suites, in band |
 
-CI runs every one of them: `test:ci` runs all but `test:benchmark`, which has a job of its own.
+CI runs every one of them: `test:ci` runs all but the benchmarks, which a job of its own runs through
+`test:benchmark:compare`.
+
+**A slower operation fails the build, measured against the release.** `test:benchmark:compare`
+builds `origin/release` in a worktree beside your checkout and runs the benchmarks on both, four
+times each, in turns on the same machine. An operation whose median is more than 1.3× the release's
+fails it. Run `git fetch origin release` first. When a slowdown is worth it, add it to
+`packages/zibri/benchmark-allowances.json` as `{ "against": "<release version>", "name": "<operation>",
+"ratio": 1.6, "reason": "..." }`. It counts until that release is replaced, and the comparison names
+the allowances that no longer apply.
+
+**What a deployment weighs is held to a limit.** The cli's docker suite fails when the generated
+project's bundle, `dist` or pruned `node_modules` outgrows
+`packages/cli/src/__testing__/deployment-size-limits.ts`. Raise the limit in the change that makes it
+grow, and say why beside it.
+
+**Recorded baselines are your own machine's, never committed.** `ZIBRI_BENCHMARK_UPDATE_BASELINE=1`
+(or `ZIBRI_DEPLOYMENT_UPDATE_BASELINE=1` for the deployment) records the run as your `*.baseline.json`,
+which later runs are reported against.
 
 **Most suites need a container runtime.** `startTestServer()` starts Postgres and ValKey through
 testcontainers, so they need Docker or Podman running.

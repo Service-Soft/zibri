@@ -28,7 +28,7 @@ type Handshake = {
  * The event the test sends, and what it is answered with.
  */
 type SentEvents = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     'options:ping': (request: { body: string }, answer: (message: WebsocketMessage) => void) => void
 };
 
@@ -89,8 +89,9 @@ describe('the websocket server options', () => {
             pingTimeout: 4000,
             maxPayload: fileSizeToBytes('2mb').toNumber()
         });
-        // over socket.io's own megabyte, and still answered
-        const answer: WebsocketMessage = await socket.timeout(5000).emitWithAck(
+        // over socket.io's own megabyte, and still answered. Unknown, since socket.io-client types the
+        // answer of an acknowledgement with a timeout as any
+        const answer: unknown = await socket.timeout(5000).emitWithAck(
             'options:ping',
             { body: 'x'.repeat(fileSizeToBytes('1mb').toNumber() + 1024) }
         );

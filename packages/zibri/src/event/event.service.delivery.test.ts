@@ -121,7 +121,7 @@ async function dispatchRetries(): Promise<void> {
     await eventService.dispatchPending();
 }
 
-// 09 §Q5: a hook ran at least once with nothing to tell its attempts apart, and nothing else
+// a hook ran at least once with nothing to tell its attempts apart, and nothing else
 describe('EventService - how a subscriber is delivered an event', () => {
     it('hands the hook a run id that stays the same on every attempt', async () => {
         const handed: QueuedWorkRun[] = [];

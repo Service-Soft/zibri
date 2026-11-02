@@ -190,7 +190,7 @@ function allowedOrigin(req: Request, options: CorsOptions): string | undefined {
     }
     const origin: string | undefined = req.headers[KnownHeader.ORIGIN];
     // a browser sends the origin lowercase and compares the answer with what it sent, so a configured
-    // origin is matched in any spelling and answered as the browser wrote it (03 §H19)
+    // origin is matched in any spelling and answered as the browser wrote it
     const matches: boolean = origin != undefined && options.origins.some(o => o.toLowerCase() === origin.toLowerCase());
     return matches ? origin : undefined;
 }

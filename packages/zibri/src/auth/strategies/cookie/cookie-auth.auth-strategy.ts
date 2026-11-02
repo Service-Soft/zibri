@@ -223,25 +223,21 @@ export class CookieAuthStrategy<
         // Presence rather than validity on purpose. Whether the session behind it is any good is
         // what resolving decides; answering false for an expired one would let a request pairing a
         // stale cookie with someone else's token quietly resolve as that token.
-        if (!(context instanceof HttpRequestContext)) {
-            // cookies are an http thing, and resolveSession says the same
-            return false;
-        }
-        return [this.sessionOptions.name, this.refreshSessionOptions.name].some(
-            // eslint-disable-next-line typescript/no-unsafe-member-access
-            name => context.request.signedCookies?.[name] != undefined
-        );
+        // cookies are an http thing, and resolveSession says the same
+        return context instanceof HttpRequestContext
+            && [this.sessionOptions.name, this.refreshSessionOptions.name].some(
+                // eslint-disable-next-line typescript/no-unsafe-member-access
+                name => context.request.signedCookies?.[name] != undefined
+            );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveUser(context: HttpRequestContext | WebsocketRequestContext): Promise<UserType | undefined> {
         const sessions: SessionPair | undefined = await this.resolveAndValidateSessions(context, undefined);
-        if (!sessions) {
-            return undefined;
-        }
-
-        // not required: the cookies of a user who is gone are no login, as for every other strategy
-        return await this.userService.findById<RoleType, UserType, false>(sessions.session.userId, { required: false });
+        return sessions == undefined
+            ? undefined
+            // not required: the cookies of a user who is gone are no login, as for every other strategy
+            : await this.userService.findById<RoleType, UserType, false>(sessions.session.userId, { required: false });
     }
 
     /**
@@ -265,10 +261,9 @@ export class CookieAuthStrategy<
         // login as reuse. A blacklisted row is therefore not refused here: inside this request it is
         // the one the rotation just replaced, and it carries the same login time as its successor
         const refreshSession: CookieAuthRefreshSession | undefined = (await this.resolveRefreshSession(context, undefined))?.refreshSession;
-        if (!refreshSession || new Date(refreshSession.expirationDate).getTime() <= Date.now()) {
-            return undefined;
-        }
-        return new Date(refreshSession.authenticatedAt);
+        return !refreshSession || new Date(refreshSession.expirationDate).getTime() <= Date.now()
+            ? undefined
+            : new Date(refreshSession.authenticatedAt);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -277,10 +272,9 @@ export class CookieAuthStrategy<
     ): Promise<ProviderAuthentication | undefined> {
         // the refresh session's, read without validating for the reason resolveAuthenticatedAt gives
         const refreshSession: CookieAuthRefreshSession | undefined = (await this.resolveRefreshSession(context, undefined))?.refreshSession;
-        if (!refreshSession || new Date(refreshSession.expirationDate).getTime() <= Date.now()) {
-            return undefined;
-        }
-        return refreshSession.providerAuthentication ?? undefined;
+        return !refreshSession || new Date(refreshSession.expirationDate).getTime() <= Date.now()
+            ? undefined
+            : refreshSession.providerAuthentication ?? undefined;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -292,7 +286,10 @@ export class CookieAuthStrategy<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startLogin(authentication: Authentication<UserType>, transaction: RepositoryTransaction | undefined): Promise<CookieAuthData<RoleType>> {
+    async startLogin(
+        authentication: Authentication<UserType>,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<CookieAuthData<RoleType>> {
         // the tokens exist here and in the cookies only, the rows hold their hashes
         const refreshToken: string = this.generateToken();
         const refreshSession: CookieAuthRefreshSession = await this.createRefreshSession(
@@ -604,10 +601,9 @@ export class CookieAuthStrategy<
         transaction: RepositoryTransaction | undefined
     ): Promise<CookieAuthSession | undefined> {
         const token: string | undefined = this.findCookieToken(context, this.sessionOptions);
-        if (token == undefined) {
-            return undefined;
-        }
-        return await this.sessionRepository.findOne({ where: { token: await this.resolveTokenHash(token) }, transaction, required: false });
+        return token == undefined
+            ? undefined
+            : await this.sessionRepository.findOne({ where: { token: await this.resolveTokenHash(token) }, transaction, required: false });
     }
 
     private async resolveAndValidateSessions(
@@ -649,19 +645,16 @@ export class CookieAuthStrategy<
             : new Date(session.expirationDate).getTime() <= Date.now();
         if (lapsed) {
             // a refresh like any other, so the authenticators have their say before anything rotates
-            if (await this.findRefreshUser(refreshSession.userId, transaction) == undefined) {
-                return undefined;
-            }
-            // the new csrf token reaches this caller through the response header, since this renewal
-            // happens inside somebody else's request and there is no body of ours to put it in
-            return await this.rotateSessions(refreshSession, transaction);
+            return await this.findRefreshUser(refreshSession.userId, transaction) == undefined
+                ? undefined
+                // the new csrf token reaches this caller through the response header, since this renewal
+                // happens inside somebody else's request and there is no body of ours to put it in
+                : await this.rotateSessions(refreshSession, transaction);
         }
 
-        if (session?.familyId !== refreshSession.familyId || session.userId !== refreshSession.userId) {
-            return undefined;
-        }
-
-        return { session, refreshSession, csrfToken: this.resolveCsrfTokenFor(presented.token) };
+        return session?.familyId !== refreshSession.familyId || session.userId !== refreshSession.userId
+            ? undefined
+            : { session, refreshSession, csrfToken: this.resolveCsrfTokenFor(presented.token) };
     }
 
     /**
@@ -696,10 +689,7 @@ export class CookieAuthStrategy<
         // mismatch - the length itself is not a secret.
         const provided: Buffer = Buffer.from(csrfToken);
         const expected: Buffer = Buffer.from(this.resolveCsrfTokenFor(refreshToken));
-        if (provided.length !== expected.length) {
-            return false;
-        }
-        return timingSafeEqual(provided, expected);
+        return provided.length === expected.length && timingSafeEqual(provided, expected);
     }
 
     /**
@@ -739,11 +729,9 @@ export class CookieAuthStrategy<
             return undefined;
         }
         // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
-        const token: string | undefined = context.request.signedCookies?.[options.name];
-        if (!token) {
-            return undefined;
-        }
-        return token;
+        const token: string | false | undefined = context.request.signedCookies?.[options.name];
+        // a cookie whose signature does not match reads as false, and an empty one carries no token either
+        return token === false || token === '' ? undefined : token;
     }
 
     // what the rows hold in place of a token, and what they are found by
@@ -796,10 +784,7 @@ export class CookieAuthStrategy<
     }
 
     private resolveCsrfTokenFromHeader(context: HttpRequestContext | WebsocketRequestContext): string | undefined {
-        if (!(context instanceof HttpRequestContext)) {
-            return undefined;
-        }
-        return context.request.headers[this.csrfTokenHeader as KnownHeader];
+        return !(context instanceof HttpRequestContext) ? undefined : context.request.headers[this.csrfTokenHeader as KnownHeader];
     }
 
     private clearCookies(): void {

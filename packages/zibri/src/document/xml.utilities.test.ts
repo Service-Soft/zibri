@@ -297,7 +297,7 @@ describe('XmlUtilities.parseFrom', () => {
         await expect(XmlUtilities.parseFrom(Greeting, '<Greeting>Hello <y/></Greeting>')).rejects.toThrow(InternalError);
     });
 
-    // evaluation/02-http-runtime-core M21: each element was added to its group by copying the group,
+    // each element was added to its group by copying the group,
     // which took 13 s for these 50,000 - read before validation refuses them, so anyone could send them
     it('reads many elements of one name in time linear in how many there are', async () => {
         const xml: string = `<CompletedPart>${'<a/>'.repeat(50_000)}</CompletedPart>`;

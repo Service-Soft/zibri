@@ -90,7 +90,7 @@ export const errorHandler: GlobalErrorHandler = async (error: unknown, req: Http
 
     const template: ErrorPageTemplate | undefined = inject(ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE);
     // said once, when the application mounts this handler, rather than per request: a scan of unknown
-    // urls wrote three warnings each (03 §H15)
+    // urls wrote three warnings each
     if (!template) {
         res.status(httpError.status).json(body);
         return;

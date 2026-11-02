@@ -133,7 +133,7 @@ export interface DataSourceInterface extends BackupResourceInterface {
     // The named lock a data source used to expose here is now protected, reachable only by schema
     // setup - see the `schemaLock` declaration on the base data sources. Everything else that needs
     // exclusion across instances takes a lease, which is one shared mechanism rather than one per
-    // store. See evaluation/10-leases-and-claims.md.
+    // store.
 
     /**
      * Shuts down the data source.

@@ -554,17 +554,11 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
         const model: Newable<unknown> = this.model as Newable<unknown>;
         // an array is what a cached read of several rows is, and the shape declared is the shape of
         // one of them - so it is read over the items rather than over the array
-        if (Array.isArray(value)) {
-            return value.map(item => parseObject(item, model)) as V;
-        }
-        return parseObject(value, model) as V;
+        return Array.isArray(value) ? (value.map(item => parseObject(item, model)) as V) : (parseObject(value, model) as V);
     }
 
     private toTtlMs(value: CachedValue<V>): number | undefined {
-        if (value.expiresAt == undefined) {
-            return undefined;
-        }
-        return new Date(value.expiresAt).getTime() - Date.now();
+        return value.expiresAt == undefined ? undefined : new Date(value.expiresAt).getTime() - Date.now();
     }
 
     private toKey(key: K): string {

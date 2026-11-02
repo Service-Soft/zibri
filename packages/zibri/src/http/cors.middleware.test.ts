@@ -13,8 +13,6 @@ import { Get } from '../routing/decorators/get.decorator';
  * Cors decides what a browser lets one origin do with a user's credentials, so what is worth
  * asserting is the headers that come back over http rather than that a function called setHeader.
  * These go through a real server for that reason.
- *
- * Executable form of evaluation/02-http-runtime-core.md C1.
  */
 
 const allowedOrigin: CorsOrigin = 'https://app.example.com';
@@ -120,7 +118,7 @@ describe('corsMiddleware', () => {
         expect(res.headers.get(KnownHeader.VARY)?.toLowerCase()).toContain('origin');
     });
 
-    // part of evaluation round 2, 03 §H10: without it a browser keeps a preflight for five seconds, and
+    // without it a browser keeps a preflight for five seconds, and
     // every call the framework's clients make needs one
     it('lets a browser keep the answer to a preflight for two hours', async () => {
         const res: Response = await fetch(`${baseUrl}/cors-test`, {

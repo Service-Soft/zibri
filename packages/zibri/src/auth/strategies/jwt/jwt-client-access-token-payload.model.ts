@@ -46,10 +46,8 @@ export type JwtClientAccessTokenPayload = {
  * @returns Whether it can be read as such.
  */
 export function isJwtClientAccessTokenPayload(payload: unknown): payload is JwtClientAccessTokenPayload {
-    if (typeof payload !== 'object' || payload == undefined) {
-        return false;
-    }
-    return 'sub' in payload && typeof payload.sub === 'string'
+    return typeof payload === 'object' && payload != undefined
+        && 'sub' in payload && typeof payload.sub === 'string'
         && 'scope' in payload && typeof payload.scope === 'string'
         && 'roles' in payload && Array.isArray(payload.roles) && payload.roles.every(r => typeof r === 'string')
         && 'client_id' in payload && typeof payload.client_id === 'string'

@@ -129,10 +129,7 @@ export abstract class WebsocketReplayUtilities {
         // deleted. Messages the client could not have read count as well: telling a client to reload
         // when it did not have to costs a reload, the other way round costs what it never receives
         const [oldest] = await this.messageRepository.findAll({ order: { seq: 'ASC' }, limit: 1, acrossTenants: true });
-        if (oldest != undefined) {
-            return oldest.seq > offset + 1;
-        }
-        return await this.resolveNewestSeq() > offset;
+        return oldest != undefined ? oldest.seq > offset + 1 : await this.resolveNewestSeq() > offset;
     }
 
     /**

@@ -26,8 +26,10 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
 import { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { BaseUserEntity } from '../models/base-user.model';
 import { BaseUserRepository } from '../user/base-user-repository.model';
 import { OtpTwoFactorMethod } from './methods/otp/otp.two-factor-method';
@@ -141,6 +143,24 @@ describe('TwoFactorService (contract via OTP method)', () => {
         expect(credentials).toHaveLength(1);
         expect(credentials[0]?.secret).toBeTruthy();
         expect(credentials[0]?.confirmed).toBe(false);
+    });
+
+    // an abandoned enrollment must not leave a valid-looking secret behind for as long as the account
+    // exists, however often setup is started
+    it('requestTwoFactorRegistration keeps one unconfirmed credential when setup is started twice', async () => {
+        await twoFactorService.requestTwoFactorRegistration(user, otpMethod, undefined);
+        await twoFactorService.requestTwoFactorRegistration(user, otpMethod, undefined);
+
+        const credentials: OtpCredentials[] = await otpCredentialsRepo.findAll({ where: { userId: user.id } });
+        expect(credentials.filter(c => !c.confirmed)).toHaveLength(1);
+    });
+
+    // the seed is the second factor, so a database read would reproduce it indefinitely
+    it('keeps the secret of an otp credential encrypted', () => {
+        const props: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(OtpCredentials);
+
+        expect(props['secret']).toMatchObject({ encryption: expect.anything() });
+        expect(props['secret']).not.toMatchObject({ encryption: false });
     });
 
     it('confirmTwoFactorRegistration with a valid token should mark the credential as confirmed', async () => {

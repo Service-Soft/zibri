@@ -100,15 +100,9 @@ function toBounds(value: string): VersionBounds | undefined {
         if (major !== 0) {
             return { min, max: [major + 1, 0, 0] };
         }
-        if (minor !== 0) {
-            return { min, max: [0, minor + 1, 0] };
-        }
-        return { min, max: [0, 0, patch + 1] };
+        return { min, max: minor !== 0 ? [0, minor + 1, 0] : [0, 0, patch + 1] };
     }
-    if (prefix === '~') {
-        return { min, max: [major, minor + 1, 0] };
-    }
-    return { min, max: [major, minor, patch + 1] };
+    return { min, max: prefix === '~' ? [major, minor + 1, 0] : [major, minor, patch + 1] };
 }
 
 /**

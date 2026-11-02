@@ -91,7 +91,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, TestTimeouts.inMemory.shutdown);
 
-// part of evaluation round 2, 03 §H13: a plugin carried providers, controllers, cron jobs, body
+// a plugin carried providers, controllers, cron jobs, body
 // parsers, auth strategies and authenticators, and an application registered the rest by hand
 describe('a plugin', () => {
     it('ships websocket controllers and data sources, which the application uses without naming them', async () => {

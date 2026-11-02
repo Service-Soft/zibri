@@ -8,6 +8,7 @@ import { version } from '../../../package.json';
 import { testFileFolder } from '../../__testing__/constants';
 import { DeploymentMeasurement } from '../../__testing__/deployment-measurement.model';
 import { DeploymentMeasurementUtilities } from '../../__testing__/deployment-measurements.utilities';
+import { DEPLOYMENT_SIZE_LIMITS } from '../../__testing__/deployment-size-limits';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
 import { EVERY_FEATURE } from '../../__testing__/generated-file-paths';
 import { quietly } from '../../__testing__/quietly.function';
@@ -105,11 +106,11 @@ const PROJECT_TESTS_TIMEOUT_MS: number = 300_000;
 const POLL_INTERVAL_MS: number = 250;
 
 /**
- * What the last recorded deployment measured, beside the suite: the image, the bundle, the pruned
- * dependency tree and the time to the first ready answer. Replaced by a run with
- * `ZIBRI_DEPLOYMENT_UPDATE_BASELINE=1`, which is worth doing on the machine that compares against it.
+ * What the last recorded deployment measured: the image, the bundle, the pruned dependency tree and
+ * the time to the first ready answer. Replaced by a run with `ZIBRI_DEPLOYMENT_UPDATE_BASELINE=1`, on
+ * the machine that compares with it; the file is not committed.
  */
-const BASELINE_PATH: Path = getPath(__dirname, '..', '..', '__testing__', 'deployment-baseline.json');
+const BASELINE_PATH: Path = getPath(__dirname, '..', '..', '__testing__', 'deployment.baseline.json');
 
 const REPORT_PATH: Path = getPath(testFileFolder, 'deployment-report.json');
 
@@ -481,7 +482,7 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
 
         // what a developer does before the first release: start the application once in development,
         // which records the version in "versions", and build again from that folder. A production
-        // application only reads the record (03 §H14), so an image built from the empty folder "zi new"
+        // application only reads the record, so an image built from the empty folder "zi new"
         // writes refuses to start. The image stands in for "npm start" here, with the project's own
         // folder mounted, as the user owning it, so the record lands where it would be committed
         const developmentEnvPath: Path = path.join(workDir, 'development.env') as Path;
@@ -626,17 +627,17 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         }, APPLICATION_TIMEOUT_MS);
     });
 
-    // 07 §T14: what a deployment weighs and how long it takes to answer, read off the image and the
-    // container that were just built and started. Reported against the baseline beside the suite,
-    // the way the benchmark job reports timings, and never gated: the numbers are the machine's as
-    // much as the framework's
-    it('reports what it weighs and how long it takes to answer, against the baseline', async () => {
+    // what a deployment weighs and how long it takes to answer, read off the image and the
+    // container that were just built and started. Reported against this machine's baseline; only the
+    // sizes are held to a limit, since the image grows with its base image and the time is the machine's
+    // as much as the framework's
+    it('reports what it weighs and how long it takes to answer, and holds its sizes to their limits', async () => {
         const bytesOf: (command: string) => number = command => Number.parseInt(run(command).trim()
             .split(/\s/)[0] ?? '', 10);
         const measurements: DeploymentMeasurement[] = [
             { name: 'image', value: bytesOf(`docker image inspect -f '{{.Size}}' ${IMAGE_TAG}`), unit: 'bytes' },
             { name: 'bundle', value: bytesOf(`docker exec ${APPLICATION_CONTAINER} stat -c %s /app/dist/bundle.js`), unit: 'bytes' },
-            { name: 'dist, maps and assets included', value: bytesOf(`docker exec ${APPLICATION_CONTAINER} du -sb /app/dist`), unit: 'bytes' },
+            { name: 'dist, assets included', value: bytesOf(`docker exec ${APPLICATION_CONTAINER} du -sb /app/dist`), unit: 'bytes' },
             { name: 'node_modules, pruned', value: bytesOf(`docker exec ${APPLICATION_CONTAINER} du -sb /app/node_modules`), unit: 'bytes' },
             { name: 'time to ready, first boot', value: timeToReadyMs, unit: 'ms' }
         ];
@@ -650,6 +651,28 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         process.stdout.write(`\n${report}\n\n`);
 
         expect(measurements.every(measurement => Number.isFinite(measurement.value) && measurement.value > 0)).toBe(true);
+        // a limit whose measurement is gone or renamed counts as exceeded, so it cannot stop holding unseen
+        const exceeded: string[] = Object.entries(DEPLOYMENT_SIZE_LIMITS)
+            .filter(([name, limit]) => !((measurements.find(measurement => measurement.name === name)?.value ?? Infinity) <= limit))
+            .map(([name, limit]) => `${name}: ${measurements.find(measurement => measurement.name === name)?.value} bytes, limit ${limit}`);
+        expect(exceeded).toStrictEqual([]);
+    });
+
+    // the image's own command, started with a variable the application cannot run without left
+    // empty: the first thing it does is throw from src/env.ts, before anything listens or connects.
+    // The map it reads holds the file and line of every frame and not the sources, which only an
+    // editor opens and which weigh twice what the rest of dist does
+    it('names the source file and line in a stack trace', () => {
+        const output: string = run(
+            `docker run --rm --env-file "${containerEnvPath}" -e ENVIRONMENT= ${IMAGE_TAG} 2>&1 || true`
+        );
+
+        expect(output).toContain('The environment variable "ENVIRONMENT" is not set.');
+        // node prints the file url the map holds as a path
+        expect(output).toMatch(/at requireEnv \(\/app\/src\/env\.ts:\d+:\d+\)/);
+        // the stylesheet's entry and the stylesheet get a map of a few kilobytes each beside the bundle's
+        expect(run(`docker exec ${APPLICATION_CONTAINER} find /app/dist -name '*.map'`)).toContain('/app/dist/bundle.js.map');
+        expect(run(`docker exec ${APPLICATION_CONTAINER} grep -rl sourcesContent /app/dist --include='*.map' || true`).trim()).toBe('');
     });
 
     it('leaves the secrets it was generated with out of the image', () => {
@@ -663,7 +686,7 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         // inside the base image, on the node_modules the registry install above wrote. The heavy suite
         // that runs these tests otherwise installs the harness as a `file:` link into this repository,
         // where every optional peer resolves through the workspace - so a harness that cannot load
-        // without one passed there and failed every generated project (round-2 07 §T2)
+        // without one passed there and failed every generated project
         const output: string = run(
             `docker run --rm --user ${process.getuid?.() ?? 0}:${process.getgid?.() ?? 0}`
             + ` -e HOME=/tmp -v "${appDir}":/app -w /app ${BASE_IMAGE} npm test 2>&1`

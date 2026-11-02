@@ -178,6 +178,17 @@ describe('validateString', () => {
         await expect(validateString('code', '123ab', meta({ regex: digitsOnly }), undefined, undefined)).resolves.toHaveLength(1);
     });
 
+    // a backtracking engine tries every way of splitting the a's between the two quantifiers before
+    // giving up on the `!`: 2^27 attempts for 27 of them, seconds in which the process answers nothing
+    // else. A linear one is done in microseconds, so the margin is a thousand times what it needs
+    it('checks a value against a pattern in time linear to the value', async () => {
+        const start: number = performance.now();
+        const problems: ValidationProblem[] = await validateString('code', `${'a'.repeat(27)}!`, meta({ regex: /^(a+)+$/ }), undefined, undefined);
+
+        expect(problems).toHaveLength(1);
+        expect(performance.now() - start).toBeLessThan(100);
+    });
+
     describe('enum', () => {
         it('accepts a value matching one of the enum values', async () => {
             const problems: ValidationProblem[] = await validateString('role', Role.ADMIN, meta({ enum: Role }), undefined, undefined);

@@ -21,7 +21,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, TestTimeouts.inMemory.shutdown);
 
-// round 2's 06 §F22: the prometheus client hands some values over without their labels, which a
+// the prometheus client hands some values over without their labels, which a
 // reader of a snapshot keying on a label then fails on
 describe('PrometheusMetricsService - a snapshot', () => {
     it('hands every metric its labels, an empty set for one that has none', async () => {

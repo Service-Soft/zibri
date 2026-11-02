@@ -567,10 +567,7 @@ export class PostgresRepositoryDriver<T extends BaseEntity> implements Repositor
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
-        if (!data.length) {
-            return [];
-        }
-        return await this.write(data, transaction, 'insert');
+        return !data.length ? [] : await this.write(data, transaction, 'insert');
     }
 
     /**

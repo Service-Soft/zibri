@@ -84,10 +84,7 @@ export abstract class AggregateUtilities {
         if (value == undefined) {
             return undefined;
         }
-        if (fn === 'count' || property == undefined) {
-            return Number(value);
-        }
-        return this.resolvePropertyValue(property, value, entityClass);
+        return fn === 'count' || property == undefined ? Number(value) : this.resolvePropertyValue(property, value, entityClass);
     }
 
     /**
@@ -132,10 +129,7 @@ export abstract class AggregateUtilities {
         if (metadata?.type === 'date') {
             return value instanceof Date ? value : new Date(String(value));
         }
-        if (metadata?.type === 'number') {
-            return Number(value);
-        }
-        return value;
+        return metadata?.type === 'number' ? Number(value) : value;
     }
 
     private static resolveGroups(rows: object[], groupBy: string[]): GroupOfRows[] {

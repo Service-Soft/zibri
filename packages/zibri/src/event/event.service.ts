@@ -682,7 +682,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
             claimedPer: 'item',
             // doubling from the configured base. No jitter, because the lease already decides which
             // replica runs an event - what a spread would buy here is between *events* that failed
-            // together, which is a concern of the fan out (evaluation/04 2.5) rather than of this
+            // together, which is a concern of the fan out rather than of this
             firstRetryDelayInMs: inject(ZIBRI_DI_TOKENS.EVENT_RETRY_DELAY_IN_MS),
             findRunId: item => `${item.event.id}:${subscriberId}`,
             // the count lives on the row because the attempts are spread across polls and restarts,
@@ -1019,13 +1019,8 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
     private owesRun(event: Event<ZibriEventMap[keyof ZibriEventMap]>, subscriberId: string): boolean {
         const run: EventSubscriberRun<unknown> | undefined = event.eventSubscriberRuns
             .find(r => r.subscriberId === subscriberId);
-        if (run == undefined) {
-            return true;
-        }
-        if (run.status !== EventSubscriberRunStatus.PENDING_RETRY) {
-            return false;
-        }
-        return (run.nextAttemptAt?.getTime() ?? 0) <= Date.now();
+        return run == undefined
+            || (run.status === EventSubscriberRunStatus.PENDING_RETRY && (run.nextAttemptAt?.getTime() ?? 0) <= Date.now());
     }
 
     private findSubscriptionForEventById(event: string, subscriberId: string): EventSubscription | undefined {

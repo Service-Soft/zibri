@@ -46,9 +46,7 @@ export interface PubSubDataSourceInterface {
  * @returns True when it implements {@link PubSubDataSourceInterface}.
  */
 export function isPubSubDataSource(value: unknown): value is PubSubDataSourceInterface {
-    if (typeof value !== 'object' || value == undefined) {
-        return false;
-    }
-    return 'publish' in value && typeof value.publish === 'function'
+    return typeof value === 'object' && value != undefined
+        && 'publish' in value && typeof value.publish === 'function'
         && 'subscribe' in value && typeof value.subscribe === 'function';
 }

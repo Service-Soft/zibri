@@ -47,9 +47,7 @@ export function resolveLocaleCode(requested: LocaleCode, available: LocaleCode[]
         }
     }
 
-    if (available.includes(language as LocaleCode)) {
-        return language as LocaleCode;
-    }
-
-    return available.find((locale) => locale.startsWith(`${language}-`));
+    return available.includes(language as LocaleCode)
+        ? language as LocaleCode
+        : available.find((locale) => locale.startsWith(`${language}-`));
 }

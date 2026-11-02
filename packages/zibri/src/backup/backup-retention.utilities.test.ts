@@ -44,7 +44,7 @@ function findKept(backups: RetainedBackup[], retention: BackupRetention, now: st
         .reverse();
 }
 
-// part of evaluation round 2, 02 §S16: there was no retention, so every application wrote its own
+// there was no retention, so every application wrote its own
 describe('BackupRetentionUtilities', () => {
     it('keeps the newest backup of as many days, weeks and months as asked, a period used once counting once', () => {
         // 2026-03-31 is a Tuesday: its week and the one before end on days the daily rule keeps

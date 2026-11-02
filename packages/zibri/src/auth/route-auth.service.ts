@@ -294,10 +294,7 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
         if (routeCheck) {
             return routeCheck;
         }
-        if (controllerSkipCheck) {
-            return undefined;
-        }
-        return controllerCheck;
+        return controllerSkipCheck ? undefined : controllerCheck;
     }
 
     /**
@@ -417,19 +414,12 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
      * @returns Whether a caller has to be logged in.
      */
     private requiresLoginGiven(metadata: ResolvedAuthMetadata, defaultApplies: boolean): boolean {
-        if (
-            metadata.isLoggedIn
-            || metadata.hasPermission
-            || metadata.hasPlatformPermission
-            || metadata.require2fa
-        ) {
-            return true;
-        }
-        if (metadata.isNotLoggedIn) {
-            // it says the opposite, and it says it itself - a route only reachable while logged out
-            // is not one the default requirement applies to
-            return false;
-        }
-        return defaultApplies;
+        return metadata.isLoggedIn != undefined
+            || metadata.hasPermission != undefined
+            || metadata.hasPlatformPermission != undefined
+            || metadata.require2fa != undefined
+            // the default, unless it says the opposite, and says it itself - a route only reachable
+            // while logged out is not one the default requirement applies to
+            || (metadata.isNotLoggedIn == undefined && defaultApplies);
     }
 }

@@ -58,7 +58,7 @@ let failingLogins: boolean = false;
  * The jwt strategy, failing a login after its refresh token is written while `failingLogins` is set.
  */
 class FailingJwtAuthStrategy extends JwtAuthStrategy<string, JwtUser> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     override async startLogin(authentication: Authentication<JwtUser>, transaction: RepositoryTransaction | undefined): Promise<JwtAuthData<string>> {
         const authData: JwtAuthData<string> = await super.startLogin(authentication, transaction);
         if (failingLogins) {
@@ -155,7 +155,8 @@ async function passwordChangeTicketOf(user: JwtUser, password: string): Promise<
  * @returns How many.
  */
 async function loginsOf(user: JwtUser): Promise<number> {
-    return (await inject(SessionsDataSource).getRepository(JwtRefreshToken).findAll({ where: { userId: user.id } })).length;
+    return (await inject(SessionsDataSource).getRepository(JwtRefreshToken)
+        .findAll({ where: { userId: user.id } })).length;
 }
 
 describe('AuthController - logins kept in another data source than the passwords', () => {

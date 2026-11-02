@@ -1353,7 +1353,11 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             // in every strategy rather than the one whose controller took the request: whoever the
             // reset is meant to lock out may hold a login of any of them
             await this.endLogins(userId, data.transaction);
-            this.auditService.record({ action: AuditAction.PASSWORD_RESET_CONFIRMED, outcome: AuditOutcome.SUCCESS, userId }, data.transaction);
+            this.auditService.record({
+                action: AuditAction.PASSWORD_RESET_CONFIRMED,
+                outcome: AuditOutcome.SUCCESS,
+                userId
+            }, data.transaction);
         }
         catch (error) {
             // no subject: the request carries a reset token and a new password, and nothing that
@@ -1663,11 +1667,9 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
         }
         const presented: ProviderAuthentication | undefined = await this.strategyFor(context, this.strategies)
             ?.resolveProviderAuthentication?.(context);
-        if (presented == undefined) {
-            return false;
-        }
-        return presented.methods.some(method => factors.methods?.includes(method) === true)
-            || (presented.contextClass != undefined && factors.contextClasses?.includes(presented.contextClass) === true);
+        return presented != undefined
+            && (presented.methods.some(method => factors.methods?.includes(method) === true)
+                || (presented.contextClass != undefined && factors.contextClasses?.includes(presented.contextClass) === true));
     }
 
     /**
@@ -1742,10 +1744,9 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             this.resolveCheckedMembership(context, allowedStrategies),
             this.resolveCredentialLimits(context, allowedStrategies)
         ]);
-        if (membership == undefined || !(limits?.permissions.includes(permission) ?? true)) {
-            return false;
-        }
-        return (await this.roleService.resolvePermissionsOf(membership.roles, membership.tenantId)).includes(permission);
+        return membership != undefined
+            && (limits?.permissions.includes(permission) ?? true)
+            && (await this.roleService.resolvePermissionsOf(membership.roles, membership.tenantId)).includes(permission);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1863,15 +1864,11 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
      * a member of the tenant through the credential they sent.
      */
     private async isMemberOfActiveTenant(context: HttpRequestContext | WebsocketRequestContext): Promise<boolean> {
-        if (this.tenantService.getActiveTenantId() == undefined) {
-            return true;
-        }
-        // every strategy rather than the ones the route names: whoever the request carries a
-        // credential of acts in the tenant, whichever of them the route goes on to accept
-        if (await this.resolvePrincipal(context, this.strategies) == undefined) {
-            return true;
-        }
-        return await this.resolveCheckedMembership(context, this.strategies) != undefined;
+        return this.tenantService.getActiveTenantId() == undefined
+            // every strategy rather than the ones the route names: whoever the request carries a
+            // credential of acts in the tenant, whichever of them the route goes on to accept
+            || await this.resolvePrincipal(context, this.strategies) == undefined
+            || await this.resolveCheckedMembership(context, this.strategies) != undefined;
     }
 
     /**
@@ -1937,12 +1934,11 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             return undefined;
         }
         const limits: CredentialLimits | undefined = await this.resolveCredentialLimits(context, allowedStrategies);
-        if (limits?.tenantId != undefined && limits.tenantId !== tenantId) {
-            return undefined;
-        }
-        // the roles as the membership holds them: what the credential may use of them is a matter of
-        // permissions, and narrowed where those are resolved
-        return await this.membershipService.findActiveMembership(principal.id, tenantId);
+        return limits?.tenantId != undefined && limits.tenantId !== tenantId
+            ? undefined
+            // the roles as the membership holds them: what the credential may use of them is a matter of
+            // permissions, and narrowed where those are resolved
+            : await this.membershipService.findActiveMembership(principal.id, tenantId);
     }
 
     /**
@@ -1982,19 +1978,18 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
         context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies
     ): Promise<ClaimedUser<string> | undefined> {
-        // the account, unless this deployment said it would rather trust the credential: the same
-        // answer resolveCurrentUser reads, so a handler taking the current user does not pay for it twice
-        if (this.revalidateUsers) {
-            return await this.resolveCurrentAccount(context, allowedStrategies);
-        }
-        // a claimed principal is a different value than a resolved one, so the two never share an
-        // entry - only the checks may take the claimed one, and resolveCurrentUser must not
-        return await this.memoizedIn(
-            this.claims,
-            context,
-            allowedStrategies.map(s => s.name).join(','),
-            async () => await this.readClaimedPrincipal(context, allowedStrategies)
-        );
+        return this.revalidateUsers
+            // the account, unless this deployment said it would rather trust the credential: the same
+            // answer resolveCurrentUser reads, so a handler taking the current user does not pay for it twice
+            ? await this.resolveCurrentAccount(context, allowedStrategies)
+            // a claimed principal is a different value than a resolved one, so the two never share an
+            // entry - only the checks may take the claimed one, and resolveCurrentUser must not
+            : await this.memoizedIn(
+                this.claims,
+                context,
+                allowedStrategies.map(s => s.name).join(','),
+                async () => await this.readClaimedPrincipal(context, allowedStrategies)
+            );
     }
 
     /**
@@ -2047,15 +2042,14 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
         if (!strategy) {
             return undefined;
         }
-        // a strategy that cannot name a caller without reading does not offer a claim, and stays
-        // authoritative whatever the setting says
-        if (strategy.resolveClaimedUser == undefined) {
-            return this.withoutDeactivated(await this.resolveUserOf(strategy, context));
-        }
-        // a claim carries no deactivation, so a deactivated user's access token works until it
-        // expires when the deployment trusts the credential; their logins have ended, so it is not
-        // refreshed
-        return await strategy.resolveClaimedUser(context);
+        return strategy.resolveClaimedUser == undefined
+            // a strategy that cannot name a caller without reading does not offer a claim, and stays
+            // authoritative whatever the setting says
+            ? this.withoutDeactivated(await this.resolveUserOf(strategy, context))
+            // a claim carries no deactivation, so a deactivated user's access token works until it
+            // expires when the deployment trusts the credential; their logins have ended, so it is not
+            // refreshed
+            : await strategy.resolveClaimedUser(context);
     }
 
     private async readResolvedUser(

@@ -28,8 +28,8 @@ import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
-import { AfterAppShutdown } from '../global/after-app-shutdown.interface';
 import { BaseEntity } from '../entity/base-entity.model';
+import { AfterAppShutdown } from '../global/after-app-shutdown.interface';
 import { Newable } from '../types/newable.type';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { Ms } from '../utilities/ms';
@@ -210,7 +210,7 @@ beforeAll(async () => {
     await FsUtilities.rm(backupFolder);
 });
 
-// 09 §Q5: a backup stopped by a shutdown was deleted, and one whose instance died was abandoned
+// a backup stopped by a shutdown was deleted, and one whose instance died was abandoned
 describe('BackupService — a backup when the application stops', () => {
     let server: StartedTestServer | undefined;
 
@@ -268,7 +268,7 @@ describe('BackupService — a backup when the application stops', () => {
         expect((await findBackup(running.backup.id)).status).toBe(BackupStatus.RUNNING);
     }, TestTimeouts.inMemory.start);
 
-    // evaluation/round-2/12-hardcoded-values.md §D5: stopping was given 30 seconds, whatever putting
+    // stopping was given 30 seconds, whatever putting
     // back what a large restore applied takes
     it('is given BACKUP_SHUTDOWN_WAIT_IN_MS and then BACKUP_STOPPING_TIMEOUT_IN_MS when the application stops', async () => {
         server = await startServer(Ms.SECOND, Ms.MINUTE * 5);
@@ -403,7 +403,7 @@ describe('BackupService — a restore the process was killed in', () => {
         expect(await FsUtilities.glob(FsUtilities.getPath(stagingFolder, '*.restore-journal.json'))).toEqual([]);
     }, 60000);
 
-    // found with evaluation round 2, 02 §S17: a snapshot was put back as it was found, and one a host
+    // a snapshot was put back as it was found, and one a host
     // going down left short is the resource's data with the end missing
     it('puts back no snapshot that is not what the restore wrote, and keeps it for the next start', async () => {
         server = await startServer();

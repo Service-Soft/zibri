@@ -14,16 +14,15 @@ import { LogLevel } from '../log-level.enum';
 import { Log } from '../log.model';
 
 /**
- * Executable form of evaluation/04-infrastructure-subsystems.md 3.4 - a log storm becoming a mail
- * storm.
+ * A log storm becoming a mail storm.
  *
  * The transport queued one email per log entry, so a dependency failing at ten thousand errors a
  * minute queued ten thousand mails - each of which the mail cron then drains a handful at a time
  * against an hourly token bucket. The queue is the casualty: the storm is over long before the
  * backlog is, and every ordinary mail behind it waits.
  *
- * Driven against the real mail queue rather than a stub, because what the finding is about is how
- * many rows end up in it.
+ * Driven against the real mail queue rather than a stub, because what matters is how many rows end
+ * up in it.
  */
 
 const template: LogEmailTemplate = compileTsxTemplate<LogEmailTemplate>(
@@ -57,7 +56,7 @@ beforeEach(async () => {
     await emailRepository.deleteAll({});
 });
 
-describe('evaluation/04-infrastructure-subsystems 3.4 - a log storm must not become a mail storm', () => {
+describe('a log storm must not become a mail storm', () => {
 
     it('queues one email for a whole batch rather than one per entry', async () => {
         const transport: LoggerTransport<EmailLoggerTransportConfig> = LoggerTransport.email({

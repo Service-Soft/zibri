@@ -11,11 +11,10 @@
 export function toScriptJson(value: unknown): string {
     // undefined for undefined, which json has no form for and javascript does
     const json: string | undefined = JSON.stringify(value);
-    if (json === undefined) {
-        return 'undefined';
-    }
-    return json
-        .replaceAll('<', String.raw`<`)
-        .replaceAll('', String.raw``)
-        .replaceAll('', String.raw``);
+    return json === undefined
+        ? 'undefined'
+        : json
+            .replaceAll('<', String.raw`<`)
+            .replaceAll('', String.raw``)
+            .replaceAll('', String.raw``);
 }

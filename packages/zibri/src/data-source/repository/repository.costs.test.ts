@@ -177,3 +177,11 @@ describe('what repository writes cost', () => {
             .toEqual(['CostFolder.find', 'CostFile.insert']);
     });
 });
+
+describe('what repository reads cost', () => {
+    // the id declares format uuid, so no row can carry this value: the answer is known before the
+    // store is asked, and asking a store typing its column would only have it refuse the query
+    it('answers an id no row can hold without asking the store', async () => {
+        expect(await resolveCallsOf(async () => await orders.findById('not-a-uuid', { required: false }))).toEqual([]);
+    });
+});

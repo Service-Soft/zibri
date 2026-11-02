@@ -409,7 +409,11 @@ export class Repository<
             // the spanning transaction resolved inside the observers, so that what they do once a
             // write is committed waits for every data source it spans, and outside the tracing, so
             // that the reads of the rows as they were before a write are spans of their own
-            const spanning: SpanningTransactionRepositoryDriver<T> = new SpanningTransactionRepositoryDriver(traced, entityClass, this._dataSource);
+            const spanning: SpanningTransactionRepositoryDriver<T> = new SpanningTransactionRepositoryDriver(
+                traced,
+                entityClass,
+                this._dataSource
+            );
             this.driver = new DeadlineAwareRepositoryDriver(new WriteObservingRepositoryDriver(spanning, entityClass, this.logger));
         }
         ModelRegistry.get(this.entityClass);
@@ -500,7 +504,7 @@ export class Repository<
      * @returns The hooks and the services the default ones use.
      */
     private resolveHookServices(): RepositoryHookServices {
-        // on first use rather than when the repository is built (01 §Q3): it is built while its
+        // on first use rather than when the repository is built: it is built while its
         // data source initializes, and a service that reads through a repository of its own is not
         // there to resolve yet
         this.hookServices ??= {
@@ -532,7 +536,7 @@ export class Repository<
         options: FindAllOptions<T, S> | FindOneOptions<T, boolean, S> | undefined,
         where: Where<T> | undefined
     ): Promise<DriverFindOptions<T, RepositoryTransaction>> {
-        const allOptions: FindAllOptions<T, S> | undefined = options as FindAllOptions<T, S> | undefined;
+        const allOptions: FindAllOptions<T, S> | undefined = options;
         // 'all' is the absence of a limit as far as the store is concerned. The difference
         // between saying it and saying nothing is handled by findAll, which is where it matters
         const limit: number | undefined = allOptions?.limit === 'all' ? undefined : allOptions?.limit;
@@ -623,7 +627,7 @@ export class Repository<
      */
     private validateCount(name: string, value: number | undefined, min: number): void {
         // refused here rather than handed to the store, where each answers it its own way: postgres
-        // refuses a negative OFFSET or LIMIT, and a slice counts a negative one from the end (01 §M41)
+        // refuses a negative OFFSET or LIMIT, and a slice counts a negative one from the end
         if (value != undefined && (!Number.isInteger(value) || value < min)) {
             throw new InternalError(
                 `${this.entityClass.name}: the ${name} of a read has to be a whole number of at least ${min}, not ${value}.`
@@ -649,14 +653,13 @@ export class Repository<
      * @returns An order that decides every position, when the read needs one.
      */
     private totalOrder(order: FindAllOptions<T>['order'], bounded: boolean): FindAllOptions<T>['order'] {
-        if (!bounded || (order != undefined && 'id' in order)) {
-            return order;
-        }
-        // the last key rather than the only one: what the caller asked to be ordered by still
-        // decides the order, this only decides what the caller's order left open.
-        // Stated rather than inferred, because an order is mapped over the entity and an unresolved
-        // one has no keys to map - so nothing can be shown to be one of them, `id` included
-        return { ...order, id: 'ASC' } as EntityOrder<T>;
+        return !bounded || (order != undefined && 'id' in order)
+            ? order
+            // the last key rather than the only one: what the caller asked to be ordered by still
+            // decides the order, this only decides what the caller's order left open.
+            // Stated rather than inferred, because an order is mapped over the entity and an unresolved
+            // one has no keys to map - so nothing can be shown to be one of them, `id` included
+            : { ...order, id: 'ASC' } as EntityOrder<T>;
     }
 
     /**
@@ -1297,7 +1300,10 @@ export class Repository<
         for (let attempt: number = 1; ; attempt++) {
             try {
                 return await this.inTransaction(options, async transaction => {
-                    TransactionUtilities.validateNotSpanning(transaction, `${entityClass.name} is chained, and a row of a chain cannot be restored`);
+                    TransactionUtilities.validateNotSpanning(
+                        transaction,
+                        `${entityClass.name} is chained, and a row of a chain cannot be restored`
+                    );
                     const links: ChainLink[] = await chainService.resolveLinks(entityClass, rows, transaction);
                     const res: T[] = await this.driver.insert(rows.map((row, i) => ({ ...row, ...links[i] })), transaction);
                     this.recordWrittenRows(res, transaction);
@@ -1433,10 +1439,7 @@ export class Repository<
      */
     private narrowToSelection(rows: T[], select: EntitySelection<T> | undefined): T[] {
         const tree: SelectionTree | undefined = EntitySelectionUtilities.resolveTree(select);
-        if (tree == undefined) {
-            return rows;
-        }
-        return rows.map(row => EntitySelectionUtilities.project(row, tree, this.entityClass));
+        return tree == undefined ? rows : rows.map(row => EntitySelectionUtilities.project(row, tree, this.entityClass));
     }
 
     /**
@@ -1651,7 +1654,10 @@ export class Repository<
             // resolved before the cursor is read, because the cursor is only valid for this order and
             // this filter - and because an order that cannot be continued through is the caller's
             // mistake whether or not they passed a cursor
-            const driverOptions: DriverFindOptions<T, RepositoryTransaction> = await this.toDriverFindOptions({ ...options, limit }, scoped.where);
+            const driverOptions: DriverFindOptions<T, RepositoryTransaction> = await this.toDriverFindOptions(
+                { ...options, limit },
+                scoped.where
+            );
             const keys: KeysetOrderKey[] = resolveKeysetOrder(this.entityClass, driverOptions.order);
             const fingerprint: string = keysetFingerprint(keys, scoped.where);
             if (driverOptions.select != undefined) {
@@ -1839,10 +1845,9 @@ export class Repository<
             const value: unknown = AggregateUtilities.resolveValue(fn, property, row?.value, this.entityClass);
             return fn === 'sum' || fn === 'count' ? value ?? 0 : value;
         };
-        if (options?.groupBy == undefined) {
-            return valueOf(rows[0]);
-        }
-        return rows.map(row => ({ ...AggregateUtilities.resolveGroup(row.group, this.entityClass), [fn]: valueOf(row) }));
+        return options?.groupBy == undefined
+            ? valueOf(rows[0])
+            : rows.map(row => ({ ...AggregateUtilities.resolveGroup(row.group, this.entityClass), [fn]: valueOf(row) }));
     }
 
     /**
@@ -2364,12 +2369,11 @@ export class Repository<
             for (const entity of written) {
                 this.validateWithinScope(entity, judgedAfter, scope);
             }
-            if (!returnUpdated) {
-                return written;
-            }
-            // inside the transaction the write ran in, because rows that are not committed yet are
-            // not rows anything outside it can read
-            return await this.writtenEntities(written, { ...options, transaction });
+            return returnUpdated
+                // inside the transaction the write ran in, because rows that are not committed yet are
+                // not rows anything outside it can read
+                ? await this.writtenEntities(written, { ...options, transaction })
+                : written;
         });
         // one change for every row here, the values being the same for all of them and the amounts
         // landing as what each row holds now. A copy each, because whoever records it may write to it.
@@ -2652,14 +2656,13 @@ export class Repository<
         method: string,
         fn: () => Promise<R>
     ): Promise<R> {
-        if (options?.timeoutInMs == undefined) {
-            return await this.resolvingRestrictionsOnce(fn);
-        }
-        return await OperationLimitUtilities.runWithin(
-            options.timeoutInMs,
-            `${this.entityClass.name}.${method}`,
-            async () => await this.resolvingRestrictionsOnce(fn)
-        );
+        return options?.timeoutInMs == undefined
+            ? await this.resolvingRestrictionsOnce(fn)
+            : await OperationLimitUtilities.runWithin(
+                options.timeoutInMs,
+                `${this.entityClass.name}.${method}`,
+                async () => await this.resolvingRestrictionsOnce(fn)
+            );
     }
 
     /**
@@ -2775,15 +2778,14 @@ export class Repository<
     async prune(where: Where<T>): Promise<number> {
         AppendOnlyUtilities.validatePrunable(this.entityClass);
         const entityClass: Newable<T> = this.entityClass;
-        if (ChainUtilities.isChained(entityClass)) {
+        return ChainUtilities.isChained(entityClass)
             // checked against the entity here, and read by the chain service through the base every
-            // chain is kept on: a filter of a generic entity widens to no other, so this is said once
-            return await inject(ZIBRI_DI_TOKENS.CHAIN_SERVICE).pruneChains(entityClass, where as Where<BaseChainedEntity>);
-        }
-        return await AppendOnlyUtilities.runPruning(
-            entityClass,
-            async () => await this.deleteAll(where, { acrossTenants: true, unscoped: true })
-        );
+            // chain is kept on
+            ? await inject(ZIBRI_DI_TOKENS.CHAIN_SERVICE).pruneChains(entityClass, where)
+            : await AppendOnlyUtilities.runPruning(
+                entityClass,
+                async () => await this.deleteAll(where, { acrossTenants: true, unscoped: true })
+            );
     }
 
     /**
@@ -2961,10 +2963,9 @@ export class Repository<
     ): Promise<RemovalReach<T> | undefined> {
         const writable: ScopedWhere<T> = this.resolveWriteWhere(where, options);
         const scoped: ScopedWhere<T> = writable.matchesNothing ? writable : await this.scopedWhere(writable.where, options);
-        if (scoped.where == undefined) {
-            return undefined;
-        }
-        return { where: scoped.where, related: await this.resolveRelated(scoped.where, undefined, options), wholly };
+        return scoped.where == undefined
+            ? undefined
+            : { where: scoped.where, related: await this.resolveRelated(scoped.where, undefined, options), wholly };
     }
 
 }

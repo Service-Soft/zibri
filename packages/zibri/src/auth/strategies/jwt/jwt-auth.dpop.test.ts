@@ -201,7 +201,7 @@ describe('JwtAuthStrategy — DPoP, by default', () => {
     it('binds only the logins that send a proof, which carries no nonce', async () => {
         const bearer: Tokens = tokensOf(await login(await createUser('default-bearer'), undefined));
         expect((await send('GET', '/dpop-test/me', { authorization: `Bearer ${bearer.accessToken}` })).status).toBe(200);
-        // 05 §I11: the scheme is case-insensitive (RFC 9110 §11.1)
+        // the scheme is case-insensitive (RFC 9110 §11.1)
         expect((await send('GET', '/dpop-test/me', { authorization: `bearer ${bearer.accessToken}` })).status).toBe(200);
 
         const key: FakeDpopKey = new FakeDpopKey();
@@ -312,7 +312,7 @@ describe('JwtAuthStrategy — DPoP proofs taken for longer', () => {
         await server?.shutdown();
     });
 
-    // 04 §A15: five minutes was a constant, and clocks across an enterprise drift further than that
+    // five minutes was a constant, and clocks across an enterprise drift further than that
     it('takes a proof as old as ZIBRI_DI_TOKENS.DPOP_PROOF_MAX_AGE_IN_MS allows, five minutes by default', async () => {
         server = await startApp(bindingLogins(false, false));
         baseUrl = await server.start();

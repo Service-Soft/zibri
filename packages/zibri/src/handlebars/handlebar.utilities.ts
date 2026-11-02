@@ -72,11 +72,10 @@ export abstract class HandlebarUtilities {
                 return args.every(Boolean) ? opts.fn(this) : opts.inverse(this);
             });
         this.registerHelper('mask', (value: unknown) => {
-            if (typeof value !== 'string') {
-                return '';
-            }
-            // a plain string, which `{{ }}` escapes: what the mask keeps of the value is the value's own
-            return MaskUtilities.mask(value);
+            return typeof value === 'string'
+                // a plain string, which `{{ }}` escapes: what the mask keeps of the value is the value's own
+                ? MaskUtilities.mask(value)
+                : '';
         });
 
         const componentsDir: string = options.componentsDir
@@ -98,10 +97,7 @@ export abstract class HandlebarUtilities {
      * @returns The compiled template function.
      */
     static render<T>(input: string, options?: CompileOptions): HandlebarsTemplateDelegate<T> {
-        if (typeof this.H?.compile !== 'function') {
-            return this.compiler().compile(input, options);
-        }
-        return this.H.compile(input, options);
+        return typeof this.H?.compile !== 'function' ? this.compiler().compile(input, options) : this.H.compile(input, options);
     }
 
     /**

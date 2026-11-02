@@ -106,7 +106,7 @@ function countMembershipReads(): number {
     return roundTrips.trips.filter(trip => trip.statement.startsWith(`${TestMembership.name}.`)).length;
 }
 
-// 04 §A14: trusting the credential saved the read of the user, and every request in a tenant still read
+// trusting the credential saved the read of the user, and every request in a tenant still read
 // the membership, so the option saved no round trip where most requests of a multi-tenant application are
 describe('AuthService - checks that trust the credential, in a tenant', () => {
     beforeAll(async () => {

@@ -144,10 +144,9 @@ export class LocalPayPalServer {
             return await this.capture(capture[1]);
         }
         const lookup: RegExpMatchArray | null = url.match(/^\/v2\/checkout\/orders\/([^/]+)$/);
-        if (method === 'GET' && lookup?.[1] != undefined) {
-            return this.lookUp(lookup[1]);
-        }
-        return { status: 404, body: { name: 'RESOURCE_NOT_FOUND' } };
+        return method === 'GET' && lookup?.[1] != undefined
+            ? this.lookUp(lookup[1])
+            : { status: 404, body: { name: 'RESOURCE_NOT_FOUND' } };
     }
 
     private async capture(orderId: string): Promise<LocalAnswer> {
@@ -161,10 +160,9 @@ export class LocalPayPalServer {
             return { status: 422, body: { name: 'UNPROCESSABLE_ENTITY', details: [{ issue: 'ORDER_ALREADY_CAPTURED' }] } };
         }
         order.captureId = UUIDUtilities.generate();
-        if (this.losesCaptureAnswers) {
-            return { status: 500, body: { name: 'INTERNAL_SERVER_ERROR' } };
-        }
-        return { status: 201, body: this.toOrderBody(order) };
+        return this.losesCaptureAnswers
+            ? { status: 500, body: { name: 'INTERNAL_SERVER_ERROR' } }
+            : { status: 201, body: this.toOrderBody(order) };
     }
 
     private lookUp(orderId: string): LocalAnswer {

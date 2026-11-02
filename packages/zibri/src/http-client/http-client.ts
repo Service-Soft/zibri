@@ -655,7 +655,7 @@ export class HttpClient implements HttpClientInterface {
 
         const res: HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray> = {
             rawBody,
-            body: undefined as unknown as T,
+            body: undefined,
             status: fetchResponse.status,
             statusText: fetchResponse.statusText,
             headers: responseHeaders
@@ -739,10 +739,9 @@ export class HttpClient implements HttpClientInterface {
      * @returns The size the declared body allows, or the deployment's ceiling without one.
      */
     private resolveMaxResponseSize(metadata: BodyMetadata | undefined): BigNumber {
-        if (metadata == undefined) {
-            return fileSizeToBytes(this.clientOptions.defaultMaxResponseSize);
-        }
-        return resolveMaxBodySize(metadata, this.clientOptions.maxBodySizes);
+        return metadata == undefined
+            ? fileSizeToBytes(this.clientOptions.defaultMaxResponseSize)
+            : resolveMaxBodySize(metadata, this.clientOptions.maxBodySizes);
     }
 
     /**
@@ -788,10 +787,9 @@ export class HttpClient implements HttpClientInterface {
         if (key === true) {
             return [KnownHeader.IDEMPOTENCY_KEY, UUIDUtilities.generate()];
         }
-        if (typeof key === 'string') {
-            return [KnownHeader.IDEMPOTENCY_KEY, key];
-        }
-        return [key.header ?? KnownHeader.IDEMPOTENCY_KEY, key.value ?? UUIDUtilities.generate()];
+        return typeof key === 'string'
+            ? [KnownHeader.IDEMPOTENCY_KEY, key]
+            : [key.header ?? KnownHeader.IDEMPOTENCY_KEY, key.value ?? UUIDUtilities.generate()];
     }
 
     /**
@@ -808,10 +806,9 @@ export class HttpClient implements HttpClientInterface {
     private withTraceContext(headers: Record<string, HttpClientHeaderValue> | undefined): Record<string, string> | undefined {
         const context: TraceSpanContext | undefined = TracingUtilities.getCurrentTraceContext();
 
-        if (context == undefined || headers?.[KnownHeader.TRACEPARENT] != undefined) {
-            return headers as Record<string, string> | undefined;
-        }
-        return { ...headers as Record<string, string> | undefined, ...TraceContextUtilities.resolveHeaders(context) };
+        return context == undefined || headers?.[KnownHeader.TRACEPARENT] != undefined
+            ? headers as Record<string, string> | undefined
+            : { ...headers as Record<string, string> | undefined, ...TraceContextUtilities.resolveHeaders(context) };
     }
 
     private buildRequestInit(
@@ -835,7 +832,7 @@ export class HttpClient implements HttpClientInterface {
         const serialization: RequestBodySerialization = requestBodySerializationForMimeType[requestBodyType];
 
         if ((serialization === 'json' || serialization === 'xml') && isPreEncoded) {
-            throw new InternalError(`Cannot send a ${(body as object).constructor.name} body with request body type "${requestBodyType}".`);
+            throw new InternalError(`Cannot send a ${body.constructor.name} body with request body type "${requestBodyType}".`);
         }
         if (serialization === 'raw' && typeof body !== 'string' && !isPreEncoded) {
             throw new InternalError(`Cannot send a plain object body with request body type "${requestBodyType}".`);
@@ -896,10 +893,9 @@ export class HttpClient implements HttpClientInterface {
         if (body instanceof FormData) {
             return MimeType.FORM_DATA;
         }
-        if (body instanceof Blob || body instanceof ArrayBuffer || body instanceof ReadableStream) {
-            return MimeType.OCTET_STREAM;
-        }
-        return MimeType.JSON;
+        return body instanceof Blob || body instanceof ArrayBuffer || body instanceof ReadableStream
+            ? MimeType.OCTET_STREAM
+            : MimeType.JSON;
     }
 
     /**
@@ -973,10 +969,7 @@ export class HttpClient implements HttpClientInterface {
             return Math.max(0, seconds * Ms.SECOND);
         }
         const date: number = Date.parse(String(header));
-        if (Number.isNaN(date)) {
-            return undefined;
-        }
-        return Math.max(0, date - Date.now());
+        return Number.isNaN(date) ? undefined : Math.max(0, date - Date.now());
     }
 
     /**
@@ -1077,10 +1070,7 @@ export class HttpClient implements HttpClientInterface {
         }
         // what was sent encrypted is not sent on in the clear, where anyone on the way can read it
         // and change the answer
-        if (from.protocol === 'https:' && to.protocol === 'http:') {
-            return 'it leads from https to http';
-        }
-        return undefined;
+        return from.protocol === 'https:' && to.protocol === 'http:' ? 'it leads from https to http' : undefined;
     }
 
     /**

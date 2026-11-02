@@ -129,10 +129,9 @@ export abstract class TenantUtilities {
         const tenantId: string | undefined = AlsUtilities.getCurrentTenant();
         // a required tenant already narrows a read to the tenant's rows alone, and outside every
         // tenant a read reaches the rows of none, which is where they are changed
-        if (ownership == undefined || ownership.required || acrossTenants === true || tenantId == undefined) {
-            return undefined;
-        }
-        return { [ownership.property]: tenantId } as Where<T>;
+        return ownership == undefined || ownership.required || acrossTenants === true || tenantId == undefined
+            ? undefined
+            : ({ [ownership.property]: tenantId } as Where<T>);
     }
 
     /**
@@ -187,10 +186,9 @@ export abstract class TenantUtilities {
      * and a NoActiveTenantError anywhere else, where the code running forgot to name one.
      */
     private static resolveMissingTenantError(entityClass: Newable<unknown>): Error {
-        if (AlsUtilities.getCurrentRequestContext() != undefined) {
-            return new BadRequestError($ts`This request names no tenant.`);
-        }
-        return new NoActiveTenantError(entityClass);
+        return AlsUtilities.getCurrentRequestContext() != undefined
+            ? new BadRequestError($ts`This request names no tenant.`)
+            : new NoActiveTenantError(entityClass);
     }
 
     /**

@@ -82,7 +82,7 @@ describe('NewCommand', () => {
         const dockerfile: string = await FsUtilities.readFile(path.join(workDir, 'api', 'Dockerfile') as Path);
         // the target of every line handing something to the run user. The bundle and its dependencies
         // stay the build's, so the process cannot change the code it runs. "versions" is only read in
-        // production (03 §H14), so it stays the build's too
+        // production, so it stays the build's too
         const owned: string[] = dockerfile.split('\n')
             .filter(line => line.includes('chown'))
             .map(line => line.trim().split(/\s+/)
@@ -147,7 +147,7 @@ describe('NewCommand', () => {
         );
     });
 
-    // round-2 08 §X14: a JSON API behind a gateway has no pages, and paid for them in every project
+    // a JSON API behind a gateway has no pages, and paid for them in every project
     describe('without features', () => {
         let appDir: Path;
 
@@ -283,7 +283,7 @@ describe('NewCommand', () => {
         expect(await FsUtilities.exists(path.join(workDir, 'api') as Path)).toBe(false);
     });
 
-    // round-2 07 §T5: what the build, the tests and the compiler need from the framework is the
+    // what the build, the tests and the compiler need from the framework is the
     // framework's to ship. Written into the project, a fix to any of it reached only the projects
     // generated after it, and an existing one learned of it by diffing a fresh scaffold by hand.
     it('takes its build from zibri, so upgrading the package upgrades the build', async () => {
@@ -293,7 +293,7 @@ describe('NewCommand', () => {
         const config: string = await FsUtilities.readFile(path.join(appDir, 'webpack.config.js') as Path);
         // the file as webpack loads it, with the factory replaced by one that says what it was asked.
         // Anything else it requires is build knowledge of its own, which is what this is about
-        const loaded: { exports: unknown } = { exports: undefined };
+        const loaded: { exports: ((env: Record<string, boolean>) => unknown) | undefined } = { exports: undefined };
         runInNewContext(config, {
             module: loaded,
             __dirname: appDir,
@@ -305,7 +305,9 @@ describe('NewCommand', () => {
             }
         });
 
-        expect(loaded.exports).toEqual({ resolvedFor: { root: appDir } });
+        // what "npm run build" and the Dockerfile's "npm run build -- --env deployment" ask for
+        expect(loaded.exports?.({})).toEqual({ resolvedFor: { root: appDir, sourceMap: 'with-sources' } });
+        expect(loaded.exports?.({ deployment: true })).toEqual({ resolvedFor: { root: appDir, sourceMap: 'file-and-line' } });
     });
 
     it('takes its test configuration from zibri-testing', async () => {
@@ -391,7 +393,7 @@ describe('NewCommand', () => {
         expect(/node-version: '(\d+)'/.exec(workflow)?.[1]).toBe(/FROM node:(\d+)/.exec(dockerfile)?.[1]);
     });
 
-    // 08 §X25: in development every mail is logged, so a new project runs before it has a mail
+    // in development every mail is logged, so a new project runs before it has a mail
     // server; a deployment names its environment rather than inheriting one that logs its mails
     it('runs in development where it was generated, and leaves a deployment to name its environment', async () => {
         await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
@@ -406,7 +408,7 @@ describe('NewCommand', () => {
         expect(providers).toContain('new LoggingEmailTransport()');
     });
 
-    // part of evaluation round 2, 03 §H16: the explorer follows defaultAuth, which for a project
+    // the explorer follows defaultAuth, which for a project
     // requiring a login left it closed to the browser that opens it, in every environment
     it('opens the OpenAPI explorer to everyone, whatever defaultAuth and the environment are', async () => {
         await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));

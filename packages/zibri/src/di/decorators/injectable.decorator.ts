@@ -98,8 +98,5 @@ function findExistingProvider<T>(target: Newable<T>): FoundProvider<T> | undefin
         return { provider: found as DiProvider<T>, register: 'immediately' };
     }
     const foundLazy: DiProvider<unknown> | undefined = GlobalRegistry.lazyInjectables.find(p => p.useClass === target);
-    if (foundLazy) {
-        return { provider: foundLazy as DiProvider<T>, register: 'onUse' };
-    }
-    return undefined;
+    return foundLazy ? { provider: foundLazy as DiProvider<T>, register: 'onUse' } : undefined;
 }

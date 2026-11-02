@@ -54,7 +54,7 @@ function makeQueueData(overrides: Partial<QueueEmailData> = {}): QueueEmailData 
         subject: 'Test subject',
         recipients: ['recipient@example.com'],
         ...overrides
-    } as QueueEmailData;
+    };
 }
 
 // ---------- Tests ----------
@@ -197,6 +197,30 @@ describe('EmailService', () => {
             // read off the row rather than off the transport's answer, so this covers the write the
             // subclass this file used to carry had quietly stopped doing
             expect(emails[0]?.rejectedRecipients).toEqual(['recipient@example.com']);
+        });
+
+        // persist decides what becomes of a mail that was sent. A rejected one is kept either way, or
+        // a rejected password reset leaves nothing to answer "did it go out" with
+        it('keeps a rejected mail as FAILED although it is not persisted', async () => {
+            mockSend.mockResolvedValue({ rejectedRecipients: ['recipient@example.com'] });
+            await emailService.queue(makeQueueData({ persist: false }));
+
+            await emailService.sendQueuedEmails();
+
+            const emails: Email[] = await emailRepo.findAll({});
+            expect(emails.map(e => [e.status, e.rejectedRecipients])).toEqual([[EmailStatus.FAILED, ['recipient@example.com']]]);
+        });
+
+        // the kept row is a record rather than a retry, so it never becomes a mail attempted forever
+        it('does not send a rejected mail again', async () => {
+            mockSend.mockResolvedValue({ rejectedRecipients: ['recipient@example.com'] });
+            await emailService.queue(makeQueueData({ persist: false }));
+            await emailService.sendQueuedEmails();
+            mockSend.mockClear();
+
+            await emailService.sendQueuedEmails();
+
+            expect(mockSend).not.toHaveBeenCalled();
         });
 
         it('sends HIGH priority emails before NORMAL and LOW', async () => {

@@ -53,7 +53,7 @@ async function countOn(store: RepositoryRateLimiterStore<CountingState>, key: st
     return res.value.count;
 }
 
-// evaluation/03-auth-and-security H21, found on the way: every limiter's state was kept under the bare
+// every limiter's state was kept under the bare
 // key in one table, so two limiters keyed by user id counted on the same row
 describe('RepositoryRateLimiterStore', () => {
     beforeAll(async () => {

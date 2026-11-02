@@ -39,6 +39,10 @@ const EMAIL: string = 'auth-controller@example.com';
 const PASSWORD: string = 'secure123';
 const PIN: string = '4711';
 
+type RefreshTokenBody = {
+    refreshToken: { value: string }
+};
+
 class PinCredentials {
     @Property.string({ minLength: 4, maxLength: 4 })
     pin!: string;
@@ -289,12 +293,12 @@ describe('AuthController — a login of several strategies and authenticators', 
     it('refreshes and logs out with the strategy the request names', async () => {
         const login: Response = await post('/auth/login?authenticator=password&strategy=jwt', { email: EMAIL, password: PASSWORD });
         // eslint-disable-next-line typescript/no-unsafe-assignment
-        const { refreshToken }: { refreshToken: { value: string } } = await login.json();
+        const { refreshToken }: RefreshTokenBody = await login.json();
 
         const refreshed: Response = await post('/auth/refresh-login?strategy=jwt', { refreshToken: refreshToken.value });
         expect(refreshed.status).toBe(200);
         // eslint-disable-next-line typescript/no-unsafe-assignment
-        const next: { refreshToken: { value: string } } = await refreshed.json();
+        const next: RefreshTokenBody = await refreshed.json();
         expect((await post('/auth/logout?strategy=jwt', { refreshToken: next.refreshToken.value })).status).toBe(200);
         expect((await post('/auth/refresh-login?strategy=jwt', { refreshToken: next.refreshToken.value })).status).toBe(401);
     });

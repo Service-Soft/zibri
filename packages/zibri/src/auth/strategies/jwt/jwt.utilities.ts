@@ -338,10 +338,9 @@ export abstract class JwtUtilities {
             // proof of twice the age passed, and was remembered as presented for only as long as the
             // age it was meant to have
             const ageInMs: number = Date.now() - ((verified.payload.iat ?? 0) * Ms.SECOND);
-            if (ageInMs > maxAgeInMs || ageInMs < -maxAgeInMs) {
-                return undefined;
-            }
-            return { payload: verified.payload, jwkThumbprint: await jose.calculateJwkThumbprint(jwk, 'sha256') };
+            return ageInMs > maxAgeInMs || ageInMs < -maxAgeInMs
+                ? undefined
+                : { payload: verified.payload, jwkThumbprint: await jose.calculateJwkThumbprint(jwk, 'sha256') };
         }
         catch {
             return undefined;
@@ -452,10 +451,7 @@ export abstract class JwtUtilities {
         if (exported.kty === 'EC') {
             return { crv: exported.crv, x: exported.x, y: exported.y };
         }
-        if (exported.kty === 'OKP') {
-            return { crv: exported.crv, x: exported.x };
-        }
-        return { n: exported.n, e: exported.e };
+        return exported.kty === 'OKP' ? { crv: exported.crv, x: exported.x } : { n: exported.n, e: exported.e };
     }
 
     /**
@@ -519,9 +515,8 @@ export abstract class JwtUtilities {
         if (exported.kty === 'EC') {
             return { crv: exported.crv, kty: exported.kty, x: exported.x, y: exported.y };
         }
-        if (exported.kty === 'OKP') {
-            return { crv: exported.crv, kty: exported.kty, x: exported.x };
-        }
-        return { e: exported.e, kty: exported.kty, n: exported.n };
+        return exported.kty === 'OKP'
+            ? { crv: exported.crv, kty: exported.kty, x: exported.x }
+            : { e: exported.e, kty: exported.kty, n: exported.n };
     }
 }

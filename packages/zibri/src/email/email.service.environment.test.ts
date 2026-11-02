@@ -40,7 +40,7 @@ const providers: DiProvider<unknown>[] = [
 /**
  * An application that names no mail server: in development it logs every mail, with the links in
  * it, so a project runs before it has one; in production it does not start. An unset host and port
- * were read as '' and 0, and the application started and failed every mail it sent (08 §X25).
+ * were read as '' and 0, and the application started and failed every mail it sent.
  */
 describe('the email transport of an application that provides none', () => {
 

@@ -51,7 +51,7 @@ async function countRoundTrips(call: () => Promise<unknown>): Promise<number> {
     return roundTrips.trips.length;
 }
 
-// round 2's 02 §S21: valkey judges a filter in this process, so a call naming the time of the data
+// valkey judges a filter in this process, so a call naming the time of the data
 // source reads the server's clock in a round trip of its own before the call's own ones
 describe('the time of the data source on valkey', () => {
     it('costs a filter no round trip more than a date does', async () => {

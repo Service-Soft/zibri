@@ -8,7 +8,7 @@ import { Repository } from '../repository/repository';
 import { TransactionConflictError } from '../transaction/transaction-conflict.error';
 import { TransactionDeadlockError } from '../transaction/transaction-deadlock.error';
 
-// evaluation/round-2/02-data-layer-stores.md S5: a conflict that ended a transaction left re-running
+// a conflict that ended a transaction left re-running
 // the whole unit of work to every caller, by hand
 
 /**

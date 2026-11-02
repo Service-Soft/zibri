@@ -1,20 +1,29 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { io, Socket } from 'socket.io-client';
+import { createInMemoryDataSource } from 'zibri-testing';
 
 import { type WebsocketServiceInterface } from './websocket-service.interface';
 import { TestTimeouts } from '../../__testing__/constants';
 import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
 import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
+import { Auth } from '../../auth/decorators/auth.decorator';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
+import { defineProvider } from '../../di/models/di-provider.model';
 import { type LoggerInterface } from '../../logging/logger.interface';
+import { Response } from '../../open-api/decorators/response.decorator';
+import { Controller } from '../../routing/decorators/controller.decorator';
+import { Post } from '../../routing/decorators/post.decorator';
 import { JsonUtilities } from '../../utilities/json.utilities';
+import { Ms } from '../../utilities/ms';
 import { WebsocketController } from '../decorators/websocket-controller.decorator';
 import { WebsocketRoute } from '../decorators/websocket-route.decorator';
 import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model';
@@ -29,6 +38,23 @@ class TestWsController {
     @WebsocketRoute('echo')
     echo(): { handler: string } {
         return { handler: 'echo' };
+    }
+}
+
+const NOTIFICATION_EVENT: string = 'notification';
+
+@Controller('/notifications', { allowOrphan: true })
+class NotificationController {
+    @Response.empty()
+    @Auth.skip()
+    @Post('/')
+    async notify(): Promise<void> {
+        await inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE).sendToAll({
+            event: NOTIFICATION_EVENT,
+            message: { ok: true, data: 'hello', senderUserId: undefined, senderConnectionId: undefined },
+            expectResponse: false,
+            persist: false
+        });
     }
 }
 
@@ -112,6 +138,35 @@ describe('WebsocketService — starting', () => {
 
     it('starts without its entities when nothing declares websockets', async () => {
         await expect(startAndStopTestServerWithout([WebsocketChannel, WebsocketMessage])).resolves.toBeUndefined();
+    }, TestTimeouts.inMemory.start);
+
+    // an application that only pushes - clients listening, its http routes broadcasting - declares no
+    // websocket controller and no adapter data source on a single instance, which left its clients
+    // nothing to connect to
+    it('starts a server when told to without a websocket controller, and its clients receive what an http route sends', async () => {
+        const pushing: StartedTestServer = await startTestServer({
+            controllers: [NotificationController],
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
+            providers: [
+                ...defaultTestServerProviders,
+                defineProvider({ token: ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT, useValue: { messageRetentionInMs: Ms.DAY, startServer: 'always' } })
+            ]
+        });
+        try {
+            const url: string = await pushing.start();
+            const client: Socket = await connectClient(url);
+            const received: Promise<WebsocketMessage> = waitForEvent(client, NOTIFICATION_EVENT);
+
+            expect((await fetch(`${url}/notifications`, { method: 'POST' })).status).toBe(204);
+
+            expect((await received).data).toBe('hello');
+        }
+        finally {
+            for (const client of clients.splice(0)) {
+                client.disconnect();
+            }
+            await pushing.shutdown();
+        }
     }, TestTimeouts.inMemory.start);
 });
 

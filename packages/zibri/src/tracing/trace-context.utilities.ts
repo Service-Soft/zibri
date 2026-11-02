@@ -121,10 +121,9 @@ export abstract class TraceContextUtilities {
      */
     static resolveHeaders(context: TraceSpanContext): Record<string, string> {
         const traceparent: string = this.resolveTraceparent(context);
-        if (context.traceState == undefined) {
-            return { [KnownHeader.TRACEPARENT]: traceparent };
-        }
-        return { [KnownHeader.TRACEPARENT]: traceparent, [KnownHeader.TRACESTATE]: context.traceState };
+        return context.traceState == undefined
+            ? { [KnownHeader.TRACEPARENT]: traceparent }
+            : { [KnownHeader.TRACEPARENT]: traceparent, [KnownHeader.TRACESTATE]: context.traceState };
     }
 
     /**

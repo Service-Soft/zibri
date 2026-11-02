@@ -25,10 +25,7 @@ export abstract class EntitySelectionUtilities {
      * @returns The tree, or undefined for a read that selects nothing and so hands back whole rows.
      */
     static resolveTree<T>(selection: EntitySelection<T> | undefined): SelectionTree | undefined {
-        if (selection == undefined) {
-            return undefined;
-        }
-        return this.treeOf(selection);
+        return selection == undefined ? undefined : this.treeOf(selection);
     }
 
     /**
@@ -220,10 +217,7 @@ export abstract class EntitySelectionUtilities {
         if (metadata.type === 'object') {
             return metadata.cls();
         }
-        if (metadata.type === 'array' && metadata.items.type === 'object') {
-            return metadata.items.cls();
-        }
-        return undefined;
+        return metadata.type === 'array' && metadata.items.type === 'object' ? metadata.items.cls() : undefined;
     }
 
     /**

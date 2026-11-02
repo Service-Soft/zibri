@@ -57,7 +57,7 @@ type Methods = [KnownPaymentMethod.PAY_PAL, KnownPaymentMethod.CREDIT_CARD];
  */
 type Providers = [PayPalPaymentProvider, CardPaymentProvider];
 
-// 06 §Q6: what keeps the payment plugin worth its generics is that each method is typed by the
+// what keeps the payment plugin worth its generics is that each method is typed by the
 // provider that takes it, so a payment through one vendor cannot be made with another's data
 describe('the types of a payment, by the provider of its method', () => {
     it('take the options of several providers, each for its own methods', () => {

@@ -31,7 +31,10 @@ export type AggregateFunction = 'sum' | 'average' | 'minimum' | 'maximum' | 'cou
 /**
  * Options for adding up what rows hold.
  */
-export type AggregateOptions<T extends BaseEntity, G extends readonly GroupKeysOf<T>[] | undefined = undefined> = BaseRepositoryOptions<T> & {
+export type AggregateOptions<
+    T extends BaseEntity,
+    G extends readonly GroupKeysOf<T>[] | undefined = undefined
+> = BaseRepositoryOptions<T> & {
     /**
      * The filter the rows are taken from.
      */

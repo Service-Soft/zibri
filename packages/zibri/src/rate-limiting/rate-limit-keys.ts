@@ -67,10 +67,7 @@ export abstract class RateLimitKeys {
         if (isIPv4(unmapped)) {
             return unmapped;
         }
-        if (!isIPv6(ip)) {
-            return ip;
-        }
-        return `${RateLimitKeys.leadingGroupsOf(ip, 4).join(':')}::/64`;
+        return !isIPv6(ip) ? ip : `${RateLimitKeys.leadingGroupsOf(ip, 4).join(':')}::/64`;
     }
 
     /**

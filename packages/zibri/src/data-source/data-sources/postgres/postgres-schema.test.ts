@@ -155,7 +155,7 @@ beforeAll(async () => {
 });
 
 describe('PostgresSchema', () => {
-    // 09 §Q2: the tables were built by typeorm from a second description of every entity. Named the
+    // the tables were built by typeorm from a second description of every entity. Named the
     // way typeorm named them, a database it created keeps its keys when the schema takes over. What
     // typeorm built was recorded while it still built them, and is what a database of 2.x holds
     it.each([

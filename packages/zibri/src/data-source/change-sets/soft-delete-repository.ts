@@ -395,7 +395,7 @@ export class SoftDeleteRepository<
         id: T['id'],
         findOptions: SoftDeleteFindByIdOptions<T>
     ): Promise<void> {
-        // 01 §D12: a row given by its id to a relation of another row is written through updateEach,
+        // a row given by its id to a relation of another row is written through updateEach,
         // which leaves soft deleted rows out, and a 404 gave the caller no reason. Read only once the
         // update missed, and under the caller's scope, so it tells them nothing they could not read
         const reachedDeleted: boolean = (findOptions.deleted ?? 'exclude') !== 'exclude';
@@ -431,7 +431,7 @@ export class SoftDeleteRepository<
                 // row that is not there for the caller from one that no longer meets the condition,
                 // and from one that is not theirs to change
                 await this.resolveRowToDelete(id, { ...options, transaction });
-                // then marked the way a bulk delete marks its rows (01 §Q7), the condition judged
+                // then marked the way a bulk delete marks its rows, the condition judged
                 // again as the row is written. The change set is written from the row as marked
                 // rather than as read: it records the delete and no change, so the two are the same
                 const { where, ...rest }: SoftDeleteByIdOptions<T> = options ?? {};
@@ -611,10 +611,7 @@ export class SoftDeleteRepository<
         if (where == undefined) {
             return { deleted } as Where<T>;
         }
-        if (Array.isArray(where)) {
-            return where.map(f => this.withDeletedCondition(f, deleted));
-        }
-        return this.withDeletedCondition(where, deleted);
+        return Array.isArray(where) ? where.map(f => this.withDeletedCondition(f, deleted)) : this.withDeletedCondition(where, deleted);
     }
 
     protected override async createChangeSet(

@@ -12,9 +12,11 @@ import { TestTimeouts } from '../../__testing__/constants';
 import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
 import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
+import { MemberRoles } from '../../__testing__/mocks/entities/member-roles.enum';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
-import { TestPlatformPermissions } from '../../__testing__/mocks/entities/test-permissions.model';
+import { TestPermissions, TestPlatformPermissions } from '../../__testing__/mocks/entities/test-permissions.model';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
+import { DefaultTestServerMembershipRepository } from '../../__testing__/test-server/membership-repository';
 import { defaultTestServerPermissions, defaultTestServerProviders, defaultTestServerRoles, rolesAndPermissionsProviders, TestServerRole } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { HttpRequestContext } from '../../context/request/http-request.context';
@@ -29,9 +31,11 @@ import { GlobalRegistry } from '../../global/global-registry';
 import { OpenApiSecuritySchemeObject } from '../../open-api/open-api.model';
 import { Controller } from '../../routing/decorators/controller.decorator';
 import { Get } from '../../routing/decorators/get.decorator';
+import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { Ms } from '../../utilities/ms';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { type AuthServiceInterface } from '../auth-service.interface';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../authenticators/password/password-credentials.model';
 import { PasswordAuthenticator } from '../authenticators/password/password.authenticator';
@@ -99,6 +103,12 @@ class MachineController {
         return { ok: true };
     }
 
+    @Auth.hasPermission(TestPermissions.MEMBER_USER)
+    @Get('/member')
+    member(): { ok: boolean } {
+        return { ok: true };
+    }
+
     // a route for people only, which a client's token cannot reach whatever it may do
     @Auth.isLoggedIn([JwtAuthStrategy])
     @Get('/people-only')
@@ -124,10 +134,10 @@ class TestAuthorizationServerController extends AuthorizationServerController({ 
 
 @Controller('/oauth2', { allowOrphan: true })
 class ShortLivedAuthorizationServerController extends AuthorizationServerController({
-    introspectionPermission: TOKENS_INTROSPECT,
-    resources: [REPORTS],
-    accessTokenExpiresInMs: Ms.MINUTE * 5
-}) {}
+        introspectionPermission: TOKENS_INTROSPECT,
+        resources: [REPORTS],
+        accessTokenExpiresInMs: Ms.MINUTE * 5
+    }) {}
 
 /**
  * The authority client certificates are issued by, made before any application starts.
@@ -577,7 +587,7 @@ describe('AuthorizationServerController — starting', () => {
         }
     }, TestTimeouts.inMemory.start);
 
-    // evaluation/round-2/12-hardcoded-values.md §A3: a client's token lasted as long as a login's
+    // a client's token lasted as long as a login's
     it('issues tokens that last as long as the authorization server says, apart from the tokens of logins', async () => {
         server = await startApp([], [ApiKey], ALL_STRATEGIES, [], ShortLivedAuthorizationServerController);
         try {
@@ -585,7 +595,7 @@ describe('AuthorizationServerController — starting', () => {
             const res: Response = await requestToken(await createKey(await createUser('short-lived')));
             const answer: OAuth2Answer = await body(res);
             const payload: unknown = JwtUtilities.findUnverifiedPayload(String(answer['access_token']));
-            const lifetimeInSeconds: number | undefined = typeof payload === 'object' && payload != null && 'exp' in payload && 'iat' in payload
+            const lifetimeInSeconds: number | undefined = typeof payload === 'object' && payload != undefined && 'exp' in payload && 'iat' in payload
                 && typeof payload.exp === 'number' && typeof payload.iat === 'number'
                 ? payload.exp - payload.iat
                 : undefined;
@@ -806,6 +816,24 @@ describe('AuthorizationServerController — access tokens that work until they e
         expect(await body(unknown)).toMatchObject({ error: 'invalid_scope' });
     });
 
+    it('issues a token for permissions of both levels, holding a tenant permission in the tenant of its key', async () => {
+        const user: JwtUser = await createUser('member-client');
+        const tenantId: string = UUIDUtilities.generate();
+        await inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE)
+            .runAs(tenantId, async () => await inject(DefaultTestServerMembershipRepository).create({ tenantId, userId: user.id, roles: [MemberRoles.USER] }));
+        const key: CreatedApiKey = await authService().createApiKey(
+            user.id,
+            { name: 'member client', permissions: [TestPlatformPermissions.USER, TestPermissions.MEMBER_USER], expiresAt: undefined, tenantId, clientAuthentication: undefined, requireDpop: false },
+            undefined
+        );
+
+        const all: OAuth2Answer = await body(await requestToken(key));
+        expect(String(all['scope']).split(' ')
+            .sort()).toEqual([TestPermissions.MEMBER_USER, TestPlatformPermissions.USER].sort());
+        expect((await callWith('/member', await issueToken(key, [['scope', TestPermissions.MEMBER_USER]]))).status).toBe(200);
+        expect((await callWith('/member', await issueToken(key, [['scope', TestPlatformPermissions.USER]]))).status).toBe(403);
+    });
+
     it('takes a role from a client\'s tokens when it is taken from the user', async () => {
         const user: JwtUser = await createUser('demoted', [Roles.USER, Roles.ADMIN]);
         const token: string = await issueToken(await createKey(user, [TestPlatformPermissions.USER, TestPlatformPermissions.ADMIN]));
@@ -864,7 +892,7 @@ describe('AuthorizationServerController — access tokens that work until they e
         expect((await requestTokenWithAssertion(await signAssertion(privateKey, secretKey.apiKey.id, issuer()))).status).toBe(401);
     });
 
-    // evaluation/round-2/12-hardcoded-values.md §A1: a client's clock a second behind the application's
+    // a client's clock a second behind the application's
     // had its jwts refused
     it('takes a jwt the client\'s clock calls valid within the accepted skew, and refuses one past it', async () => {
         const user: JwtUser = await createUser('skewed');

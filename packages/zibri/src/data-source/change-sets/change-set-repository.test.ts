@@ -150,7 +150,7 @@ beforeAll(async () => {
     // Inject repository instances
     changeSetRepo = inject(repositoryTokenFor(ChangeSet));
     changeRepo = inject(repositoryTokenFor(Change));
-    widgetRepo = inject(repositoryTokenFor(Widget)) as ChangeSetRepository<Widget>;
+    widgetRepo = inject(repositoryTokenFor(Widget));
 
     // Create a user and login to get a token
     const userRepo: DefaultTestServerUserRepository = inject(DefaultTestServerUserRepository);

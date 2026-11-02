@@ -82,7 +82,11 @@ export function BaseUserRepository<T extends BaseUser<string>>(
             emailVerifiedAt: Date | null,
             transaction: RepositoryTransaction | undefined
         ): Promise<void> {
-            await this.updateById(id, { email, emailVerifiedAt } as DeepPartial<T>, { transaction: this.resolveRepositoryTransaction(transaction) });
+            await this.updateById(
+                id,
+                { email, emailVerifiedAt } as DeepPartial<T>,
+                { transaction: this.resolveRepositoryTransaction(transaction) }
+            );
         }
     }
 

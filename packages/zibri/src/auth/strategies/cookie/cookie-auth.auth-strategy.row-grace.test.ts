@@ -25,7 +25,7 @@ const PASSWORD: string = 'correct horse battery staple';
 let server: StartedTestServer | undefined;
 let baseUrl: string;
 
-// 04 §A15: how long a row outlives its cookie was five minutes in code, for clocks that run behind
+// how long a row outlives its cookie was five minutes in code, for clocks that run behind
 describe('CookieAuthStrategy - the rows outliving their cookies', () => {
     beforeAll(async () => {
         server = await startTestServer({

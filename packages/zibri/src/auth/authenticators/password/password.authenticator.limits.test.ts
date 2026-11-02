@@ -122,6 +122,24 @@ describe('PasswordAuthenticator - what bounds the guessing', () => {
         expect(await loginAs(first, PASSWORD, '203.0.113.2')).toBe(429);
     });
 
+    // the subject is what makes the record usable: one client against many accounts and many clients
+    // against one account are different attacks, and neither shows without it
+    it('records a failed login, naming the account that was tried', async () => {
+        const res: Response = await fetch(`${baseUrl}/auth/login`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.9' },
+            body: JsonUtilities.stringify({ email: 'nobody@limits.test', password: WRONG_PASSWORD })
+        });
+        expect(res.status).toBe(401);
+
+        expect(await eventsOf(AuditAction.LOGIN)).toContainEqual({
+            action: AuditAction.LOGIN,
+            outcome: AuditOutcome.FAILURE,
+            reason: AuditReason.REFUSED,
+            subject: 'nobody@limits.test'
+        });
+    });
+
     it('locks an account after too many wrong passwords in a row, and refuses the right one like a wrong one until the lock passes', async () => {
         const user: JwtUser = await createUser('locked');
 

@@ -67,7 +67,7 @@ describe('NewCommand (real npm install)', () => {
         await runWorkflowOnCheckout(path.join(workDir, 'api') as Path);
     }, CI_WORKFLOW_TIMEOUT_MS);
 
-    // round-2 08 §X14: the JSON API builds without the stylesheet's packages, which it never installed
+    // the JSON API builds without the stylesheet's packages, which it never installed
     it('builds and tests a project without features, which installs nothing for a stylesheet', async () => {
         await quietly(async () => new NewCommand().start(['n', 'api', 'github', 'isLoggedIn', 'none']));
         const appDir: Path = path.join(workDir, 'api') as Path;

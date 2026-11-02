@@ -228,14 +228,14 @@ export class DiContainer {
      * constructed would otherwise keep resolving forever. The entry keyed by the class goes too,
      * because it exists only as an alias of this provider's instance (see `inject`).
      *
-     * Nothing is torn down here. The exported `unregister` is reachable only before the application
-     * is initialized, so no lifecycle hook has run against what is being dropped.
+     * Nothing is torn down here: the application drops what it drops while it is created, before any
+     * lifecycle hook has run against it.
      * @param token - The token to unregister.
      */
     unregister<T>(token: DiToken<T>): void {
         const provider: DiProvider<unknown> | undefined = this.providers.get(token);
         if (provider?.useClass) {
-            this.instances.delete(provider.useClass as unknown as DiToken<unknown>);
+            this.instances.delete(provider.useClass);
         }
         this.instances.delete(token);
         this.providers.delete(token);
@@ -350,8 +350,8 @@ export class DiContainer {
         }
 
         // If useClass, check if we already have an instance of that class cached under the class itself
-        if (provider.useClass && this.instances.has(provider.useClass as unknown as DiToken<unknown>)) {
-            const existing: T = this.instances.get(provider.useClass as unknown as DiToken<unknown>) as T;
+        if (provider.useClass && this.instances.has(provider.useClass)) {
+            const existing: T = this.instances.get(provider.useClass) as T;
             this.instances.set(token, existing); // cache under this token too for next time
             return existing;
         }
@@ -368,7 +368,7 @@ export class DiContainer {
             this.instances.set(provider.token, instance);
 
             if (provider.useClass) {
-                this.instances.set(provider.useClass as unknown as DiToken<unknown>, instance);
+                this.instances.set(provider.useClass, instance);
             }
         }
 
@@ -481,10 +481,7 @@ export class DiContainer {
      * @returns The tokens it needs.
      */
     private dependenciesOf(provider: DiProvider<unknown> | undefined): DiToken<unknown>[] {
-        if (provider?.useClass == undefined) {
-            return [];
-        }
-        return this.parameterTokensOf(provider.useClass);
+        return provider?.useClass == undefined ? [] : this.parameterTokensOf(provider.useClass);
     }
 
     /**
@@ -531,7 +528,7 @@ export class DiContainer {
      * @throws A {@link CircularDependencyError} when what it needs is already being built further up.
      */
     private construct<T>(provider: DiProvider<T>): T {
-        const target: Function | undefined = (provider.useClass ?? provider.useFactory) as Function | undefined;
+        const target: Function | undefined = provider.useClass ?? provider.useFactory;
         if (target) {
             // an instance is kept only once its provider has returned, so a target already being
             // constructed can neither be answered from a cache nor built again - asking for it is

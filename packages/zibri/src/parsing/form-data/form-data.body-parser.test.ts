@@ -115,6 +115,41 @@ describe('FormDataBodyParser', () => {
         expect(res.status).toBe(413);
     });
 
+    // big enough that the refusal lands while the body is still arriving, the case that reset: the
+    // parser destroyed the request stream, so the caller got an ECONNRESET it could not tell from a
+    // dropped network, and retried
+    it('answers a body far over the budget with 413 rather than resetting the connection', async () => {
+        const form: FormData = new FormData();
+        form.append('file', new Blob(['x'.repeat(4 * 1024 * 1024)], { type: 'text/plain' }), 'big.txt');
+
+        const res: Response = await fetch(`${baseUrl}/upload/tiny-budget`, { method: 'POST', body: form });
+
+        expect(res.status).toBe(413);
+    }, 30000);
+
+    // a byte counter is no guard against forty one-byte files, which weigh nothing: each opens a
+    // write stream while it arrives, so enough of them is EMFILE and a process that can no longer
+    // accept a socket, all under any size limit
+    it('refuses a body carrying more files than it will hold open', async () => {
+        const form: FormData = new FormData();
+        form.append('label', 'many files');
+        for (let i: number = 0; i < 40; i++) {
+            form.append(`file-${i}`, new Blob(['x'], { type: 'text/plain' }), `f-${i}.txt`);
+        }
+
+        expect((await fetch(`${baseUrl}/upload`, { method: 'POST', body: form })).status).toBe(413);
+    });
+
+    // the same shape without touching the disk: parsing work that costs the server and weighs nothing
+    it('refuses a body carrying more fields than it will parse', async () => {
+        const form: FormData = new FormData();
+        for (let i: number = 0; i < 600; i++) {
+            form.append(`field-${i}`, 'x');
+        }
+
+        expect((await fetch(`${baseUrl}/upload`, { method: 'POST', body: form })).status).toBe(413);
+    });
+
     it('answers 400 for a text field the model does not declare, rather than failing to handle it', async () => {
         const form: FormData = new FormData();
         form.append('label', 'hello');

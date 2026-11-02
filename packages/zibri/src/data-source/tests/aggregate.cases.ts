@@ -144,6 +144,31 @@ export function describeAggregates(dataSourceName: string, repositoryOf: () => R
             expect(await repositoryOf().count({ where: { batch }, groupBy: ['region'] })).toEqual([{ region: 'south', count: 2 }]);
         });
 
+        // a count taken from the caller's filter alone reports how many rows exist rather than how many
+        // they may see, which on a per-tenant scope is a row count of somebody else's data
+        it('counts and answers whether anything matches through the scope, unless told not to', async () => {
+            const batch: string = await storeSales();
+            visibleRegion = 'south';
+
+            expect(await repositoryOf().count({ where: { batch } })).toBe(2);
+            expect(await repositoryOf().count({ where: { batch }, unscoped: true })).toBe(4);
+            expect(await repositoryOf().exists({ where: { batch, region: 'north' } })).toBe(false);
+            expect(await repositoryOf().exists({ where: { batch, region: 'north' }, unscoped: true })).toBe(true);
+        });
+
+        // a read walking the whole table is exactly the one a scope must not be missing from
+        it('streams only the rows the caller may see', async () => {
+            const batch: string = await storeSales();
+            visibleRegion = 'south';
+
+            const streamed: Sale[] = [];
+            for await (const sale of repositoryOf().stream({ where: { batch } })) {
+                streamed.push(sale);
+            }
+
+            expect(streamed.map(s => s.region)).toEqual(['south', 'south']);
+        });
+
         it('refuses to add up what holds no number', async () => {
             const batch: string = await storeSales();
 

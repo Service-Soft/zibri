@@ -102,12 +102,10 @@ export class LogBuffer {
             }
         }
 
-        if (index !== -1) {
-            return index;
-        }
-
-        // nothing held is less important than the incoming entry. It still gets in if something
-        // matches its level, in which case the oldest of those makes way
-        return this.entries.findIndex(e => e.level === incoming);
+        return index !== -1
+            ? index
+            // nothing held is less important than the incoming entry. It still gets in if something
+            // matches its level, in which case the oldest of those makes way
+            : this.entries.findIndex(e => e.level === incoming);
     }
 }

@@ -30,7 +30,7 @@ import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy';
  * The jwt strategy, failing every login once its refresh token is written.
  */
 class FailingJwtAuthStrategy extends JwtAuthStrategy<string, JwtUser> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     override async startLogin(authentication: Authentication<JwtUser>, transaction: RepositoryTransaction | undefined): Promise<JwtAuthData<string>> {
         await super.startLogin(authentication, transaction);
         throw new Error('The login could not be stored.');
@@ -63,7 +63,7 @@ async function post(path: string, body: object, headers: Record<string, string> 
     });
 }
 
-// 12 §B10: the trail was written as each step happened, beside the transaction, so a step its
+// the trail was written as each step happened, beside the transaction, so a step its
 // rollback undid stayed recorded as done
 describe('AuthController - the audit trail of a password change at login that is rolled back', () => {
     beforeAll(async () => {

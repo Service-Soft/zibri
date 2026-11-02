@@ -20,7 +20,7 @@ import { EmailSendResult, EmailTransportInterface } from '../email/transports/em
 import { Newable } from '../types/newable.type';
 import { Ms } from '../utilities/ms';
 
-// evaluation/round-2/12-hardcoded-values.md §D2: an idle poll waited up to 30 seconds, whatever the
+// an idle poll waited up to 30 seconds, whatever the
 // application needed
 
 /**

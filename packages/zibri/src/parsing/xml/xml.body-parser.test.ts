@@ -208,7 +208,7 @@ describe('XmlBodyParser', () => {
     });
 
     describe('declared raw', () => {
-        // evaluation/03-auth-and-security H23: a signature over xml is checked over the document as it
+        // a signature over xml is checked over the document as it
         // arrived, which a model read out of it no longer is
         const signed: string = [
             '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">',

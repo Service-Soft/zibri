@@ -126,7 +126,8 @@ function resolveJestPatternsRunBy(script: string): (RegExp | undefined)[] {
         .split('&&')
         .map(part => part.trim())
         .flatMap(part => {
-            const called: string | undefined = /^npm run ([\w:-]+)/.exec(part)?.[1];
+            // the comparison runs the script it is given, on this checkout and on the release
+            const called: string | undefined = /^(?:npm run|node scripts\/compare-benchmarks\.mjs) ([\w:-]+)/.exec(part)?.[1];
             if (called != undefined) {
                 return resolveJestPatternsRunBy(called);
             }
@@ -180,10 +181,7 @@ function isAtLeast(version: [number, number, number], floor: [number, number, nu
     if (major !== floorMajor) {
         return major > floorMajor;
     }
-    if (minor !== floorMinor) {
-        return minor > floorMinor;
-    }
-    return patch >= floorPatch;
+    return minor !== floorMinor ? minor > floorMinor : patch >= floorPatch;
 }
 
 /**
@@ -272,7 +270,7 @@ describe('the ci workflows', () => {
     it('resolves the versions it tests instead of listing them', () => {
         const content: string = workflow('ci.yml');
 
-        // the finding this closes is not "the matrix is wrong today" - it is that a matrix written
+        // what this guards is not "the matrix is wrong today" - it is that a matrix written
         // down by hand goes stale the moment `engines` promises a version that did not exist when
         // somebody last edited this file.
         expect(existsSync(resolverPath)).toBe(true);
@@ -337,7 +335,7 @@ describe('the ci workflows', () => {
         expect(workflow('dependency-review.yml')).toContain('.github/license-policy.json');
     });
 
-    // 07 §T12: a major tag moves with every release of the action, so what runs with the repository's
+    // a major tag moves with every release of the action, so what runs with the repository's
     // token is whatever the action's owner pushed last. A commit does not move, and the comment says
     // which release it is
     it('pins every action it uses to a commit, with the release the commit is', () => {
@@ -357,6 +355,15 @@ describe('the ci workflows', () => {
         }
     });
 
+    // every other suite imports TypeScript through ts-jest and sees nothing of what is published:
+    // the suite loading the built package only means something after a build
+    it('builds the package the way it is published before running its suites', () => {
+        const ci: string = workflow('ci.yml');
+
+        expect(ci).toMatch(/npm run build:prod -w zibri/);
+        expect(ci.indexOf('npm run build:prod -w zibri')).toBeLessThan(ci.indexOf('npm run test:ci -w zibri'));
+    });
+
     it('runs on pull requests, not only on pushes', () => {
         const trigger: string = workflow('ci.yml').slice(0, workflow('ci.yml').indexOf('permissions:'));
 
@@ -370,11 +377,26 @@ describe('the ci workflows', () => {
             .filter(file => !patterns.some(pattern => pattern == undefined || pattern.test(file)))
             .map(file => path.relative(packagesDir, file));
 
-        // the cluster and evaluation suites are where coordination across replicas, the schema lock
-        // and the lease fold are held (round-2 07 §T1). A suite that only runs when somebody types its
-        // script lets a change that breaks one of them through the build
+        // the cluster suites are where coordination across replicas, the schema lock and the lease fold
+        // are held. A suite that only runs when somebody types its script lets a change that breaks one
+        // of them through the build
         expect(patterns.length).toBeGreaterThan(0);
         expect(notRun).toStrictEqual([]);
+    });
+
+    // a timing says as much about the machine as about the change. The benchmarks are compared with the
+    // release they would replace, run in turns on the same runner, and a recorded number - taken on
+    // whichever machine recorded it - is never what a build is held to
+    it('compares the benchmarks with the release, and commits no baseline', () => {
+        const ci: string = workflow('ci.yml');
+        const committed: string[] = execFileSync('git', ['ls-files', '*.baseline.json'], { cwd: repoRoot, encoding: 'utf8' })
+            .split('\n')
+            .filter(line => line !== '');
+
+        expect(committed).toStrictEqual([]);
+        expect(ci).toContain('git fetch --depth=1 origin +release:refs/remotes/origin/release');
+        expect(ci).toMatch(/npm run test:benchmark:compare -w zibri$/m);
+        expect(ci.indexOf('origin +release')).toBeLessThan(ci.indexOf('npm run test:benchmark:compare'));
     });
 });
 
@@ -592,9 +614,72 @@ describe('the workspace manifests', () => {
         // consumers, and every check would be about a combination nobody can install
         expect(outsidePeerRange).toStrictEqual({});
     });
+
+    // noUncheckedIndexedAccess is the one that matters most: an index read off a split line, the
+    // first of a list of samples and a relation's inverse side were each a defect it would have been
+    // a build failure for. exactOptionalPropertyTypes is left out on purpose: it is a decision about
+    // every optional property of the public api rather than a check on the code
+    it('compiles the framework with the checks that turn its likeliest defects into build failures', () => {
+        const tsconfig: string = readFileSync(path.join(packagesDir, 'zibri', 'tsconfig.base.json'), 'utf8');
+
+        for (const option of [
+            'noUncheckedIndexedAccess',
+            'noImplicitOverride',
+            'noUnusedLocals',
+            'noPropertyAccessFromIndexSignature',
+            'noFallthroughCasesInSwitch',
+            'noImplicitReturns'
+        ]) {
+            expect(tsconfig).toContain(option);
+        }
+    });
+
+    // naming undici-types means naming a version, which a consumer's @types/node decides: one major's
+    // Dispatcher is not assignable to another's, so any version chosen refuses the very ProxyAgent the
+    // option exists to accept, for somebody. The type is described in http-client-options.model.ts
+    it('depends on no copy of undici-types for the http client\'s dispatcher', () => {
+        const manifest: WorkspaceManifest | undefined = workspaceManifests()['zibri'];
+
+        expect(manifest).toBeDefined();
+        expect({ ...manifest?.dependencies, ...manifest?.devDependencies, ...manifest?.peerDependencies }['undici-types']).toBeUndefined();
+    });
+
+    // a subpath of the framework would have made testcontainers an optional peer of it; a package of
+    // its own keeps those plain dependencies of something installed as a devDependency. A peer
+    // rather than a dependency, so the harness drives the consumer's copy of the framework, and not
+    // the other way round, which would put testcontainers in every production install
+    it('keeps the test harness a package of its own, driving the consumer\'s copy of the framework', () => {
+        const manifests: Record<string, WorkspaceManifest> = workspaceManifests();
+
+        expect(manifests['testing']?.name).toBe('zibri-testing');
+        expect(Object.keys(manifests['testing']?.peerDependencies ?? {})).toContain('zibri');
+        expect(Object.keys(manifests['zibri']?.dependencies ?? {})).not.toContain('zibri-testing');
+    });
 });
 
 describe('the release workflow', () => {
+
+    // `npm i` resolves against ranges, so the artifact reaching npm would be built from a tree that
+    // was never tested
+    it('installs from the lockfile', () => {
+        expect(workflow('cd.yml')).not.toMatch(/^\s*-\s*run:\s*npm i(nstall)?\s*$/m);
+    });
+
+    // what gates a release is the branch protection on `release`, which lives in the repository's
+    // settings rather than in it. What this file holds is the other half: a merged pull request into
+    // that branch is the only thing that publishes, since a dispatch or a push trigger would be a
+    // second door the rule does not cover
+    it('has no entrance other than a pull request into the protected branch', () => {
+        const cd: string = workflow('cd.yml');
+
+        expect(cd).toMatch(/^\s*pull_request:/m);
+        expect(cd).not.toMatch(/^\s*workflow_dispatch:/m);
+        expect(cd).not.toMatch(/^\s*push:/m);
+    });
+
+    it('publishes with provenance', () => {
+        expect(workflow('cd.yml')).toContain('--provenance');
+    });
 
     it('builds every package before it publishes any of them', () => {
         const steps: string[] = deploySteps();
@@ -878,7 +963,7 @@ describe('the release workflow', () => {
 
 });
 
-// 08 §X26: the pages are written for a developer and for the assistant that developer asks, and an
+// the pages are written for a developer and for the assistant that developer asks, and an
 // assistant finds a site's pages through llms.txt, and all of them at once in llms-full.txt
 describe('the docs build', () => {
     const zibriDir: string = path.join(repoRoot, 'packages', 'zibri');

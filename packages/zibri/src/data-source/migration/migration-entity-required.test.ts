@@ -26,7 +26,7 @@ class RemindersDataSource extends InMemoryDataSource {
     override readonly repositories: RepositoryClass[] = [];
 }
 
-// found with evaluation round 2, 03 §H13: a data source that runs migrations without declaring
+// a data source that runs migrations without declaring
 // MigrationEntity failed to start on a missing repository provider, naming neither
 describe('a data source keeping its migrations without MigrationEntity', () => {
     it('keeps the application from starting, naming the data source and the entity', async () => {

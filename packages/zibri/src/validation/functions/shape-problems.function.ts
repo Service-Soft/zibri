@@ -54,17 +54,15 @@ export function shapeProblems(fullKey: string, value: unknown, metadata: ArrayPr
             return objectShapeProblems(fullKey, value, metadata);
         }
         case 'array': {
-            if (!Array.isArray(value)) {
-                return [new TypeMismatchValidationProblem(fullKey, 'array')];
-            }
-            return value.flatMap((item, i) => shapeProblems(joinKey(fullKey, String(i)), item, metadata.items));
+            return Array.isArray(value)
+                ? value.flatMap((item, i) => shapeProblems(joinKey(fullKey, String(i)), item, metadata.items))
+                : [new TypeMismatchValidationProblem(fullKey, 'array')];
         }
         case 'oneOf': {
             const named: NamedShape = namedShapeOf(fullKey, value, metadata);
-            if (named.shape == undefined) {
-                return named.problems;
-            }
-            return [...named.problems, ...shapeProblems(joinKey(fullKey, 'value'), named.value, named.shape)];
+            return named.shape == undefined
+                ? named.problems
+                : [...named.problems, ...shapeProblems(joinKey(fullKey, 'value'), named.value, named.shape)];
         }
     }
 }
@@ -116,10 +114,7 @@ export function namedShapeOf(fullKey: string, value: unknown, metadata: Pick<One
  * @returns True when the property is required without a function deciding it, and has no default.
  */
 function isCertainlyRequired(metadata: ArrayPropertyItemMetadata): boolean {
-    if (metadata.required !== true) {
-        return false;
-    }
-    return !('default' in metadata) || metadata.default == undefined;
+    return metadata.required === true && (!('default' in metadata) || metadata.default == undefined);
 }
 
 /**

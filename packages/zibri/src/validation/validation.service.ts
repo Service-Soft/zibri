@@ -350,10 +350,9 @@ export class ValidationService implements ValidationServiceInterface {
         }
 
         const named: NamedShape = namedShapeOf(fullKey, property, metadata);
-        if (named.shape == undefined) {
-            return named.problems;
-        }
-        return [...named.problems, ...await this.validateProperty('value', named.value, named.shape, fullKey || undefined, entity)];
+        return named.shape == undefined
+            ? named.problems
+            : [...named.problems, ...await this.validateProperty('value', named.value, named.shape, fullKey || undefined, entity)];
     }
 
     /**
@@ -383,10 +382,9 @@ export class ValidationService implements ValidationServiceInterface {
         }
 
         const choice: ShapeChoice = chooseShape(value, metadata);
-        if (!choice.fits) {
-            return [new NoShapeFitsValidationProblem(fullKey, choice.attempts)];
-        }
-        return await this.validateProperty(key, value, choice.shape, parentKey, entity);
+        return !choice.fits
+            ? [new NoShapeFitsValidationProblem(fullKey, choice.attempts)]
+            : await this.validateProperty(key, value, choice.shape, parentKey, entity);
     }
 
     private async validateAnyOfParam(

@@ -2,7 +2,7 @@ import { InternalError } from '../error-handling/internal-error.model';
 
 // It has to be raised rather than reported: a caller that asked to queue has said its work cannot
 // proceed without the grant, so returning quietly would let it carry on as if the work had been
-// done. That is the exact failure this whole area is about - see evaluation/10-leases-and-claims.md.
+// done, which is the exact failure a grant exists to prevent.
 /**
  * Thrown when waiting for a grant ran out of patience.
  *

@@ -64,8 +64,7 @@ function emitComponentBody(body: ts.ConciseBody | undefined, stamps: StampSites,
     if (body == undefined) {
         return { lines: [], origins: [] };
     }
-    if (ts.isBlock(body)) {
-        return concatLines(body.statements.map(statement => emitLines(printNode(statement, stamps), resolveOrigin(statement, file))));
-    }
-    return emitLines(`return ${printNode(body, stamps)};`, resolveOrigin(body, file));
+    return ts.isBlock(body)
+        ? concatLines(body.statements.map(statement => emitLines(printNode(statement, stamps), resolveOrigin(statement, file))))
+        : emitLines(`return ${printNode(body, stamps)};`, resolveOrigin(body, file));
 }

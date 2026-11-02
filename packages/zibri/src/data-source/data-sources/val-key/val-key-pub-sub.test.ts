@@ -16,9 +16,7 @@ import { PostgresDataSource } from '../postgres/postgres-data-source.model';
 import { DataSourceSubscription } from '../pub-sub-data-source.interface';
 
 /**
- * Executable form of evaluation/round-2/02-data-layer-stores.md §S11 and
- * evaluation/round-2/03-http-runtime-core.md §H18: a subscription whose client failed once
- * delivered nothing for the rest of the process.
+ * A subscription whose client failed once delivered nothing for the rest of the process.
  */
 
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource();

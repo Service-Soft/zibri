@@ -66,7 +66,7 @@ async function chainOf(tenantId: string): Promise<ChainedAuditEntry[]> {
     return await entries.findAll({ where: { tenantId }, order: { chainSequence: 'ASC' }, acrossTenants: true });
 }
 
-// evaluation/round-2/06-infrastructure F26: the trail kept as a chain, for an application choosing it
+// the trail kept as a chain, for an application choosing it
 describe('an audit trail kept as a chain', () => {
     it('chains the entries of each tenant, and writes no checkpoints', async () => {
         const team: string = UUIDUtilities.generate();

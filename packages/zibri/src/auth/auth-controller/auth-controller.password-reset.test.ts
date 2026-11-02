@@ -15,12 +15,14 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
 import { Email } from '../../email/models/email.model';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { KnownHeader } from '../../http/known-header.enum';
 import { MimeType } from '../../http/mime-type.enum';
 import { LeaseOptions } from '../../leases/lease-options.model';
 import { LeaseService } from '../../leases/lease.service';
 import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model';
 import { JsonUtilities } from '../../utilities/json.utilities';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { PasswordResetToken } from '../models/password-reset-token.model';
 
 let releaseReset: () => void = () => undefined;
@@ -180,4 +182,15 @@ describe('POST /auth/request-password-reset — shutting down', () => {
         await shutdown;
         expect(resetsMade).toBe(1);
     }, TestTimeouts.inMemory.start + TestTimeouts.inMemory.shutdown);
+});
+
+describe('PasswordResetToken', () => {
+    // a read replica leak or an over-privileged support query would otherwise yield a live reset
+    // token for every pending reset, which is account takeover with no cracking required
+    it('keeps its value hashed', () => {
+        const props: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(PasswordResetToken);
+
+        expect(props['value']).toMatchObject({ hash: expect.anything() });
+        expect(props['value']).not.toMatchObject({ hash: false });
+    });
 });

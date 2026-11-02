@@ -70,12 +70,11 @@ export class ApiKeyAuthStrategy<
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveUser(context: HttpRequestContext | WebsocketRequestContext): Promise<UserType | undefined> {
         const apiKey: ApiKey | undefined = await this.findRequestKey(context);
-        if (apiKey == undefined) {
-            return undefined;
-        }
-        // the user with their current roles, whose permissions are narrowed to what the key lists where
-        // they are resolved, so that a role taken from the user is taken from their keys
-        return await this.userService.findById<RoleType, UserType, false>(apiKey.userId, { required: false });
+        return apiKey == undefined
+            ? undefined
+            // the user with their current roles, whose permissions are narrowed to what the key lists where
+            // they are resolved, so that a role taken from the user is taken from their keys
+            : await this.userService.findById<RoleType, UserType, false>(apiKey.userId, { required: false });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

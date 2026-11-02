@@ -2,8 +2,9 @@ import { Readable } from 'node:stream';
 import { text } from 'node:stream/consumers';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { Body, Controller, JsonBodyParser, MimeType, Post, Property, Response, StreamBodyParser, ZibriApplicationOptions } from 'zibri';
 import { createInMemoryDataSource, defaultTestProviders, StartedTestServer, startTestServer } from 'zibri-testing';
+
+import { Body, Controller, JsonBodyParser, MimeType, Post, Property, Response, StreamBodyParser, ZibriApplicationOptions } from 'zibri';
 
 import { TestTimeouts } from '../../__testing__/constants';
 

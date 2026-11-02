@@ -29,7 +29,7 @@ import { type TenantServiceInterface } from '../../tenancy/tenant-service.interf
 import { Newable } from '../../types/newable.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 
-// evaluation/round-2/12-hardcoded-values.md §P3: the links in the emails named /mailing-lists, wherever
+// the links in the emails named /mailing-lists, wherever
 // the application served the routes, and could not point at pages of a frontend
 
 const TENANT: string = UUIDUtilities.generate();

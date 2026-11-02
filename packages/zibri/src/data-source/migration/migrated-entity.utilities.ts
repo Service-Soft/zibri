@@ -116,12 +116,11 @@ export abstract class MigratedEntityUtilities {
         entity: Newable<T> | MigrationTableReference,
         entities: Newable<BaseEntity>[]
     ): Newable<BaseEntity> {
-        if (isNewable(entity)) {
-            return entity;
-        }
-        // the entity declared now, so that what is kept about its rows - its indexes, its relations -
-        // is kept for the rows a migration rewrites as for every other row
-        return this.findEntityStoredIn(entity.tableName, entities) ?? this.defineEntity(entity.tableName, {});
+        return isNewable(entity)
+            ? entity
+            // the entity declared now, so that what is kept about its rows - its indexes, its relations -
+            // is kept for the rows a migration rewrites as for every other row
+            : this.findEntityStoredIn(entity.tableName, entities) ?? this.defineEntity(entity.tableName, {});
     }
 
     /**

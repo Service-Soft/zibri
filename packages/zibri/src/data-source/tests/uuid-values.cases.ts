@@ -4,6 +4,7 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
+import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { Repository } from '../repository/repository';
 import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
@@ -161,6 +162,26 @@ export function describeUuidValues(dataSourceName: string, repositoriesOf: () =>
                 .rejects.toThrow(BadRequestError);
             await expect(repositoriesOf().items.count({ where: { ownerId: { notOneOf: [UUIDUtilities.generate(), 'garbage'] } } }))
                 .rejects.toThrow(BadRequestError);
+        });
+
+        // `GET /items/not-a-uuid` is the reachable form: no row can carry the value, so the answer is the
+        // one an unknown id gets, rather than a client's typo coming back as a store's refusal and a 500
+        it('answers an id no row can hold as a missing row, on every read and write by id', async () => {
+            const id: string = 'not-a-uuid';
+
+            await expect(repositoriesOf().items.findById(id)).rejects.toThrow(NotFoundError);
+            await expect(repositoriesOf().items.findById(id, { required: false })).resolves.toBeUndefined();
+            await expect(repositoriesOf().items.updateById(id, { label: 'changed' })).rejects.toThrow(NotFoundError);
+            await expect(repositoriesOf().items.deleteById(id)).rejects.toThrow(NotFoundError);
+        });
+
+        // the check is looser than the one applied to incoming values: this id is in the table, so
+        // recognizing only the versions `generate` produces would answer that a stored row is missing
+        it('finds a row whose id is a uuid version this framework does not generate', async () => {
+            const id: string = '01912d68-783e-7000-8000-1f9b0a2c4d5e';
+            await repositoriesOf().items.create({ id, label: 'externally generated' }, { allowId: true });
+
+            expect(await repositoriesOf().items.findById(id)).toHaveProperty('id', id);
         });
 
         it('finds nothing through a relation filter naming an id no row can have', async () => {

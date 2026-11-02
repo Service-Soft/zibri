@@ -248,10 +248,9 @@ export class Parser implements ParserInterface, OnAppInit {
         if (isHttpClientResponse(req)) {
             return await parser.parseFromHttpClientResponse(req, metadata);
         }
-        if (isHttpRequest(req)) {
-            return await parser.parseFromHttpRequest(req, metadata);
-        }
-        return await parser.parseFromWebsocketRequest(req, metadata);
+        return isHttpRequest(req)
+            ? await parser.parseFromHttpRequest(req, metadata)
+            : await parser.parseFromWebsocketRequest(req, metadata);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

@@ -6,8 +6,8 @@ import { JsonUtilities } from '../../utilities/json.utilities';
 
 /**
  * How much slower than its baseline a timing may be before the report calls it slower. Wide on
- * purpose: a baseline is taken on one machine and compared on another, so only a change that costs
- * a multiple of what it did stands out from the difference between the two.
+ * purpose: a baseline is recorded on the machine that compares with it, but at another time and under
+ * whatever else the machine was doing then, so only a change that costs a multiple stands out.
  */
 const SLOWER_FROM_RATIO: number = 1.5;
 
@@ -23,8 +23,9 @@ type BenchmarkComparison = {
  * Times operations and compares the timings with a recorded baseline.
  *
  * What it reports is never a failure. Timings depend on the machine and on whatever else it is doing,
- * so a threshold that fails a run is either loose enough to catch nothing or tight enough to fail at
- * random - what a call costs in round trips is what the counted suites gate on instead.
+ * so a threshold against a recorded number is either loose enough to catch nothing or tight enough to
+ * fail at random. What fails a slower operation is `scripts/compare-benchmarks.mjs`, which runs the
+ * release beside the change on one machine, in turns.
  */
 export class BenchmarkUtilities {
     /**

@@ -93,7 +93,7 @@ describe('the published package', () => {
         expect(files).toContain('dist/cjs/index.js');
         expect(files).toContain('dist/cjs/index.d.ts');
         expect(files).toContain('package.json');
-        // what a generated project's webpack config and tsconfig name (round-2 07 §T5)
+        // what a generated project's webpack config and tsconfig name
         expect(files).toContain('dist/cjs/webpack/index.js');
         expect(files).toContain('dist/cjs/webpack/index.d.ts');
         expect(files).toContain('tsconfig.application.json');
@@ -133,11 +133,16 @@ describe('the published package', () => {
         // gitignored, and 37 of the tarball's 50MB - along with every test beside it. Only a `!`
         // entry in `files` itself carves anything back out; `.npmignore` and `.gitignore` are both
         // inert here, and each was measured saying so.
+        // a json under src is a fixture or a recorded baseline: the sources cannot import one, since
+        // nothing but the application's tsconfig resolves json modules
         const testMaterial: string[] = files.filter(f => f.includes('__testing__')
             || f.endsWith('.test.ts')
             || f.endsWith('.cases.ts')
+            || f.endsWith('.instance-options.ts')
             || f.includes('.test.worker.')
-            || f.includes('/test/'));
+            || f.includes('/test/')
+            || f.startsWith('src/jest.')
+            || (f.startsWith('src/') && f.endsWith('.json')));
 
         expect(testMaterial).toEqual([]);
     });
@@ -145,9 +150,11 @@ describe('the published package', () => {
     it('installs at a size a consumer would accept', () => {
         const megabytes: number = packed().unpackedSize / 1024 / 1024;
 
-        // `dist` is 8.7MB and the sources behind it 5.3MB, 14.05 all told, and the ceiling sits just above
-        // that: growing past it is a reason to look at what grew, which once found test cases, fonts
-        // twice over and comments in code that runs. The number this was first written against is 50MB.
+        // measured 2026-11-01: `dist` is 10.9MB, of which 4 is the code that runs and the rest its
+        // declarations and the maps of both, and the sources the maps lead into are 6.8MB, 17.7 all
+        // told. The ceiling sits just above that: growing past it is a reason to look at what grew,
+        // which once found test cases, fonts twice over and comments in code that runs, and once the
+        // postgres layer that replaced typeorm. The number this was first written against is 50MB.
         expect(megabytes).toBeLessThan(18);
     });
 
@@ -186,7 +193,7 @@ describe('the published package', () => {
         `);
 
         // nothing has loaded the main entry point first in that process, and the decorators of the
-        // framework classes the build reaches for need what it loads (round-2 07 §T5)
+        // framework classes the build reaches for need what it loads
         expect(res.typeofFactory).toBe('function');
     }, 60000);
 
@@ -234,7 +241,7 @@ describe('the published package', () => {
 });
 
 describe('the packages released together', () => {
-    // 08 §X6: npm shows a package's README as its page, and the repository's README links each one,
+    // npm shows a package's README as its page, and the repository's README links each one,
     // so an empty one is the first thing a reader of the package meets
     it.each(['zibri', 'cli', 'tsx', 'testing'])('give %s a README saying how to install it and where its documentation is', name => {
         const readme: string = readFileSync(path.join(repoRoot, 'packages', name, 'README.md'), 'utf8');

@@ -59,7 +59,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, TestTimeouts.inMemory.shutdown);
 
-// 04 §A10: a refresh looked its user up as required, so the refresh token a soft deleted user keeps
+// a refresh looked its user up as required, so the refresh token a soft deleted user keeps
 // answered 404 with the user's id instead of the refusal any other spent login gets
 describe('JwtAuthStrategy - the refresh token of a deleted user', () => {
     it('refuses a refresh', async () => {

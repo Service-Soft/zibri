@@ -37,11 +37,7 @@ export abstract class SemVerUtilities {
      */
     static isSemVerVersion(value: string): value is SemVerVersion {
         const parts: string[] = value.split('.');
-        if (parts.length !== 3) {
-            return false;
-        }
-
-        return parts.every(isNumeric);
+        return parts.length === 3 && parts.every(isNumeric);
     }
 
     /**
@@ -55,10 +51,7 @@ export abstract class SemVerUtilities {
         if (result > 0) {
             return 'bigger';
         }
-        if (result < 0) {
-            return 'smaller';
-        }
-        return 'equal';
+        return result < 0 ? 'smaller' : 'equal';
     }
 
     /**
@@ -225,11 +218,7 @@ export abstract class SemVerUtilities {
         if (a[2] > b[2]) {
             return 1;
         }
-        if (a[2] < b[2]) {
-            return -1;
-        }
-
-        return 0;
+        return a[2] < b[2] ? -1 : 0;
     }
 
     private static intersect(a: SemVerRangeBounds, b: SemVerRangeBounds): SemVerRangeBounds {

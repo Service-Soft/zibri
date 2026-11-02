@@ -27,7 +27,7 @@ afterEach(async () => {
 }, TestTimeouts.inMemory.shutdown);
 
 describe('MULTITHREADING_OPTIONS', () => {
-    // 07 §T9: a worker file that is TypeScript at runtime needs a compiler in the image, which a
+    // a worker file that is TypeScript at runtime needs a compiler in the image, which a
     // deployment that ships compiled files never has - so an application that says nothing does
     // not load one, and does not have to install one
     it('runs no TypeScript worker files unless the application says so', async () => {

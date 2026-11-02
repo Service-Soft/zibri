@@ -40,7 +40,7 @@ export const hasPermissionDecorator: HasPermissionFn<Permission> = (
         return decorator;
     }
 ) as HasPermissionFn<Permission>;
-hasPermissionDecorator.skip = () => ((
+hasPermissionDecorator.skip = () => (
     target: Object,
     propertyKey?: string | symbol
 ) => {
@@ -50,4 +50,4 @@ hasPermissionDecorator.skip = () => ((
     else {
         MetadataUtilities.setControllerSkipHasPermission(target as Function, {});
     }
-}) as MethodDecorator & ClassDecorator;
+};

@@ -232,7 +232,10 @@ implements AuthControllerStrategyInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startLogin(authentication: Authentication<UserType>, transaction: RepositoryTransaction | undefined): Promise<JwtAuthData<RoleType>> {
+    async startLogin(
+        authentication: Authentication<UserType>,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<JwtAuthData<RoleType>> {
         const { user, authenticatedAt, federatedSession, providerAuthentication } = authentication;
         // every token of this login carries the time from here on, refreshes included, and so does
         // the family its refresh tokens share, which the access tokens name as the login
@@ -406,7 +409,10 @@ implements AuthControllerStrategyInterface<
         };
     }
 
-    private async verifyAndResolveRefreshToken(tokenValue: string, transaction: RepositoryTransaction): Promise<RotatedRefreshToken<UserType>> {
+    private async verifyAndResolveRefreshToken(
+        tokenValue: string,
+        transaction: RepositoryTransaction
+    ): Promise<RotatedRefreshToken<UserType>> {
         const encoded: EncodedJwt | undefined = await this.verifyRefreshToken(tokenValue);
         // the payload was read as an access token's here, which is the shape it never has. Nothing
         // happened to look at it, so the mistake was invisible - checking it is what keeps a token
@@ -561,13 +567,12 @@ implements AuthControllerStrategyInterface<
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveClaimedUser(context: HttpRequestContext | WebsocketRequestContext): Promise<ClaimedUser<RoleType> | undefined> {
         const token: LoginAccessToken<RoleType> | undefined = await this.findRequestLoginToken(context);
-        if (token == undefined) {
-            return undefined;
-        }
-        // everything a check needs is already in the payload - an id, roles, and the roles in each
-        // tenant. What it cannot carry is the rest of the application's own user entity, which is why
-        // this is not the type resolveUser returns and why the current user never comes from here.
-        return { id: token.payload.id, roles: token.payload.roles, tenantRoles: token.payload.tenant_roles };
+        return token == undefined
+            ? undefined
+            // everything a check needs is already in the payload - an id, roles, and the roles in each
+            // tenant. What it cannot carry is the rest of the application's own user entity, which is why
+            // this is not the type resolveUser returns and why the current user never comes from here.
+            : { id: token.payload.id, roles: token.payload.roles, tenantRoles: token.payload.tenant_roles };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -581,10 +586,9 @@ implements AuthControllerStrategyInterface<
         context: HttpRequestContext | WebsocketRequestContext
     ): Promise<ProviderAuthentication | undefined> {
         const token: LoginAccessToken<RoleType> | undefined = await this.findRequestLoginToken(context);
-        if (token == undefined || (token.payload.amr == undefined && token.payload.acr == undefined)) {
-            return undefined;
-        }
-        return { methods: token.payload.amr ?? [], contextClass: token.payload.acr };
+        return token == undefined || (token.payload.amr == undefined && token.payload.acr == undefined)
+            ? undefined
+            : { methods: token.payload.amr ?? [], contextClass: token.payload.acr };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -660,11 +664,9 @@ implements AuthControllerStrategyInterface<
      * @returns True while the token may still be used.
      */
     private async isLoginLive(payload: JwtAccessTokenPayload<string, BaseUser<string>>): Promise<boolean> {
-        if (this.accessTokenRevocation === 'onExpiry') {
-            return true;
-        }
-        // a logout, ended logins and a spent token reused all delete the family, and rotating it keeps it
-        return await this.refreshTokenRepository.findOne({ where: { familyId: payload.sid }, required: false }) != undefined;
+        return this.accessTokenRevocation === 'onExpiry'
+            // a logout, ended logins and a spent token reused all delete the family, and rotating it keeps it
+            || await this.refreshTokenRepository.findOne({ where: { familyId: payload.sid }, required: false }) != undefined;
     }
 
     /**
@@ -707,14 +709,11 @@ implements AuthControllerStrategyInterface<
             where: { value: await this.hashService.hash(token, { strategy: Sha256HashStrategy }) },
             required: false
         });
-        if (
-            refreshToken == undefined
+        return refreshToken == undefined
             || (refreshToken.blacklisted && !this.isWithinReuseGrace(refreshToken))
             || new Date(refreshToken.expirationDate).getTime() <= Date.now()
-        ) {
-            return undefined;
-        }
-        return refreshToken;
+            ? undefined
+            : refreshToken;
     }
 
     /**

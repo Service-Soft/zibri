@@ -10,7 +10,7 @@ import { CPUtilities, FsUtilities } from '../../encapsulation';
 import { Path } from '../../utilities';
 
 /**
- * Removing a feature from a project generated with it (round-2 08 §X14): what the project never
+ * Removing a feature from a project generated with it: what the project never
  * changed goes, what it changed stays, and the feature's lines are merged out of the shared files.
  */
 

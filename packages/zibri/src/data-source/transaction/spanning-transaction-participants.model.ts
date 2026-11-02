@@ -136,6 +136,7 @@ export class SpanningTransactionParticipants {
      * Records how to undo a write that was made in the transaction of a data source.
      * @param dataSource - The data source the write was made in.
      * @param step - What undoes it.
+     * @throws {InternalError} When the spanning transaction never reached the data source.
      */
     recordUndo(dataSource: DataSourceInterface, step: SpanningUndoStep): void {
         const participant: Participant | undefined = this.participants.get(dataSource);
@@ -219,7 +220,7 @@ export class SpanningTransactionParticipants {
                 await transaction.rollback();
             }
         }));
-        return results.flatMap(result => result.status === 'rejected' ? [result.reason] : []);
+        return results.flatMap((result): unknown[] => result.status === 'rejected' ? [result.reason] : []);
     }
 
     /**

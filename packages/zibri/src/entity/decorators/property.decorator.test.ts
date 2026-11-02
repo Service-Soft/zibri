@@ -6,6 +6,7 @@ import { BaseEncryptOptions, EncryptionStrategyInterface } from '../../auth/encr
 import { BcryptHashStrategy } from '../../auth/hash/strategies/bcrypt.hash-strategy';
 import { ScryptHashStrategy } from '../../auth/hash/strategies/scrypt.hash-strategy';
 import { InternalError } from '../../error-handling/internal-error.model';
+import { File } from '../../parsing/form-data/file.model';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { BaseEntity } from '../base-entity.model';
 import { type OneOf } from '../models/one-of.model';
@@ -264,7 +265,7 @@ describe('a password', () => {
     });
 });
 
-// round-2 08 §X15: every store refuses a to one relation without the column of its foreign key, and
+// every store refuses a to one relation without the column of its foreign key, and
 // the type let one through
 describe('a to one relation', () => {
     it('names the property of its class that holds the foreign key, while compiling', () => {
@@ -305,5 +306,22 @@ describe('a to one relation', () => {
 
         const team: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(Seat)['team'];
         expect(team?.type === Relation.MANY_TO_ONE ? team.joinColumn : undefined).toBe('teamId');
+    });
+});
+
+describe('a file property', () => {
+    // it warned and then took every file type, so a forgotten list read exactly like a decision to
+    // accept anything
+    it('names the types of file it takes, or says it takes all of them', () => {
+        class Upload {
+            // @ts-expect-error - a file property names its mime types, or 'all'
+            @Property.file({ maxSize: '1mb' })
+            attachment!: File;
+
+            @Property.file({ allowedMimeTypes: 'all' })
+            anything!: File;
+        }
+
+        expect(MetadataUtilities.getModelProperties(Upload)['anything']).toHaveProperty('allowedMimeTypes', 'all');
     });
 });

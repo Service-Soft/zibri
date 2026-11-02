@@ -280,7 +280,7 @@ describe('BaseOidcAuthenticator - logging out', () => {
         expect(await postLogoutToken(token)).toBe(401);
     });
 
-    // 09 §Q7: the age was a constant of the module, which no provider could be given more of
+    // the age was a constant of the module, which no provider could be given more of
     it('takes a logout token as old as the authenticator allows, and refuses an older one', async () => {
         await createLinkedUser();
         const browser: TestBrowser = newBrowser();

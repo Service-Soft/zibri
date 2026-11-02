@@ -171,7 +171,7 @@ export function describeAuditIntegrity(
             expect((await checkpointsOf(team)).map(c => c.entryCount)).toEqual([1]);
         });
 
-        // 12 §O3: a checkpoint sealed whole hours only, so running the job more often sealed nothing sooner
+        // a checkpoint sealed whole hours only, so running the job more often sealed nothing sooner
         it('seals what was stored up to five minutes before it runs, however soon after the checkpoint before', async () => {
             const ahead: number = takeHours();
             const team: string = UUIDUtilities.generate();

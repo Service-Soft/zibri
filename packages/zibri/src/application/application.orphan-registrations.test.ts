@@ -1,13 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
-import { createInMemoryDataSource, StartedTestServer, startTestServer } from 'zibri-testing';
+import { createInMemoryDataSource, InMemoryDataSource, StartedTestServer, startTestServer } from 'zibri-testing';
 
 import { TestTimeouts } from '../__testing__/constants';
+import { DataSource } from '../data-source/decorators/data-source.decorator';
+import { RepositoryClass } from '../data-source/repository/repository-class.type';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { MissedLifecycleHooksError } from '../di/errors/missed-lifecycle-hooks.error';
 import { inject } from '../di/inject.function';
+import { BaseEntity } from '../entity/base-entity.model';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
+import { Newable } from '../types/newable.type';
 
 /**
  * What an application that merely imports the package gets, and what it does not.
@@ -370,5 +374,36 @@ describe('an application that imports the package', () => {
         // time on the way out, to be handed a shutdown it has no state for. The branch that handles
         // a failed init already argued this and the one below it did the opposite.
         expect(events).not.toContain('QuietService constructed');
+    }, TestTimeouts.inMemory.start);
+});
+
+// last in the file, and its cases in this order: @DataSource registers when the class is declared
+// and nothing takes it back, so the second case's data source refuses every application after it
+describe('an application beside a data source it does not list', () => {
+    // a shared module exporting a data source alongside anything else declares it in every
+    // application that imports the module for the unrelated export
+    it('starts beside one that says it may go unused', async () => {
+        @DataSource({ allowOrphan: true })
+        class UnusedDataSource extends InMemoryDataSource {
+            readonly entities: Newable<BaseEntity>[] = [];
+            readonly repositories: RepositoryClass[] = [];
+        }
+        expect(UnusedDataSource).toBeDefined();
+
+        const server: StartedTestServer = await startTestServer({ dataSources: [dataSourceClass] });
+        await server.shutdown();
+    }, TestTimeouts.inMemory.start);
+
+    // a data source the application meant to use and forgot to list connects to nothing, and the
+    // first query is where anybody would find out
+    it('refuses to start beside one that does not say so, and names it', async () => {
+        @DataSource()
+        class ForgottenDataSource extends InMemoryDataSource {
+            readonly entities: Newable<BaseEntity>[] = [];
+            readonly repositories: RepositoryClass[] = [];
+        }
+        expect(ForgottenDataSource).toBeDefined();
+
+        await expect(startTestServer({ dataSources: [dataSourceClass] })).rejects.toThrow(/ForgottenDataSource/);
     }, TestTimeouts.inMemory.start);
 });

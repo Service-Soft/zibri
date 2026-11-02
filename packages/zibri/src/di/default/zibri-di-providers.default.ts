@@ -143,8 +143,8 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     OPEN_API_SERVICE: { useClass: OpenApiService },
     // the explorer, its scripts and the spec, behind `defaultAuth` like every route that says nothing
     // of its own: the document is every route, model and permission name, which an application
-    // requiring a login by default does not hand to everyone (03 §H16, which reversed 02 §M13's
-    // `{ skip: true }`). A browser navigating to the explorer carries no Authorization header, so an
+    // requiring a login by default does not hand to everyone, which a default of `{ skip: true }`
+    // did. A browser navigating to the explorer carries no Authorization header, so an
     // application that wants it open says so here, `{ skip: true }`, independent of its default
     OPEN_API_AUTH: { useFactory: (): RouteAuthConfiguration => ({}) },
     PARSER: { useClass: Parser },
@@ -179,7 +179,7 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
             headersTimeoutInMs: Ms.SECOND * 15,
             // nginx's own idle timeout towards an upstream, which is the longest of the common ones
             // short of GCP's ten minutes: a proxy keeping a connection longer than the server reuses
-            // one the server just closed, and answers 502 (03 §H17)
+            // one the server just closed, and answers 502
             keepAliveTimeoutInMs: Ms.SECOND * 75,
             handlerTimeoutInMs: Ms.SECOND * 30,
             maxHeaderCount: 100,
@@ -426,7 +426,7 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     EVENT_HOOK_TIMEOUT_IN_MS: { useFactory: () => Ms.SECOND * 30 },
     EVENT_FINISHED_RETENTION_IN_MS: { useFactory: () => Ms.DAY },
     // none: the framework needs none of them, and each one costs every write of its kind a read and
-    // a row, so an application names the ones it subscribes to (06 §Q4)
+    // a row, so an application names the ones it subscribes to
     FRAMEWORK_EVENT_NAMES: { useFactory: () => ({}) },
     // no default: keeping every failed event and deleting them after a while are both legitimate,
     // so only the application can say which. Undefined rather than refused here, so that the event

@@ -167,9 +167,6 @@ export abstract class ScimPagingUtilities {
             holders.length ? { id: { notOneOf: holders } } : undefined,
             MetadataUtilities.getModelProperties(ScimUser)
         );
-        if (without.matchesNothing) {
-            return [];
-        }
-        return await pages.users.findAll({ where: without.where, order: { id: 'ASC' }, offset, limit });
+        return without.matchesNothing ? [] : await pages.users.findAll({ where: without.where, order: { id: 'ASC' }, offset, limit });
     }
 }

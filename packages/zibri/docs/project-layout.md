@@ -30,7 +30,7 @@ Most changes start in four places:
 |---|---|
 | `package.json` | The dependencies, and the `start`, `build` and `test` scripts |
 | `tsconfig.json` | Extends `zibri/tsconfig.application.json`, see [build toolchains](./getting-started.md#build-toolchains) |
-| `webpack.config.js` | The build `zibri/webpack` ships. It bundles `src/index.ts` and the stylesheet into `dist` |
+| `webpack.config.js` | The build `zibri/webpack` ships. It bundles `src/index.ts` and the stylesheet into `dist`, with a map beside the bundle, see [deployment](./deployment.md#what-a-deployment-is) |
 | `postcss.config.js` | Runs Tailwind and autoprefixer over the stylesheet |
 | `tailwind.config.js` | The colors and shadows of the pages and emails |
 | `src/tsx.d.ts` | Declares the `chart.js?client` import the metrics charts run in the browser, see [running code in the browser](./templating.md#running-code-in-the-browser) |
@@ -72,6 +72,7 @@ Most changes start in four places:
 | `src/controllers/auth.controller.ts` | The login, logout, password reset and [second factor](./glossary.md#second-factor) routes under `/auth`, see [auth routes](./auth-routes.md) |
 | `src/controllers/health.controller.ts` | `/health/live` and `/health/ready`, see [health endpoints](./deployment.md#health-endpoints) |
 | `src/controllers/page.controller.ts` | The home page at `/` and the assets explorer at `/assets` |
+| `src/controllers/mailing-list.controller.ts` | The confirmation, unsubscribe and preference routes of the mailing lists under `/mailing-lists`, see [setting up the mailing list plugin](./mailing-list-plugin.md#setting-it-up) |
 | `src/controllers/index.ts` | Exports the controllers |
 | `src/cron/index.ts` | Your cron jobs, see [cron](./cron.md). Empty |
 | `src/services/index.ts` | Your services, see [dependency injection](./di.md). Empty |

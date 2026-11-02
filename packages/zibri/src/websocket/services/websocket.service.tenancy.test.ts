@@ -389,7 +389,7 @@ describe('websockets across tenants', () => {
         expect(await askChannel(lobby, 'asked-after-closing')).toEqual([]);
     }, 15000);
 
-    // 01 §D11: such a write read each membership back for the users and tenants it belongs to
+    // such a write read each membership back for the users and tenants it belongs to
     it('moves the connections of both users when a write to every membership a filter matches moves memberships between them', async () => {
         const tenantA: string = UUIDUtilities.generate();
         const from: { user: JwtUser, accessToken: string } = await logIn('moved-from');

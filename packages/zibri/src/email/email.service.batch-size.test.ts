@@ -45,7 +45,7 @@ function resolveProviders(config: EmailConfigInput): DiProvider<unknown>[] {
     ];
 }
 
-// round 2's 06 §F17: a pass asks the rate limiter for its whole batch at once, and a bucket holding
+// a pass asks the rate limiter for its whole batch at once, and a bucket holding
 // fewer tokens than that never grants it - so the queue was refused on every pass, for good
 describe('EmailService - a batch larger than the hourly limit', () => {
     describe('with the default batch', () => {

@@ -948,7 +948,7 @@ describe('BaseLdapAuthenticator', () => {
         }));
     });
 
-    // evaluation/03-auth-and-security H22: a login started before its entry was disabled in the
+    // a login started before its entry was disabled in the
     // directory lived as long as its refresh credential, with the roles it had
     describe('an entry that changes after its user logged in', () => {
         it('refuses the refresh of a user whose entry was disabled, ends their logins and api keys, and keeps the user active', async () => {

@@ -419,10 +419,7 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
      * @returns The default to declare on the column, or undefined when there is none to declare.
      */
     protected databaseDefaultFor(metadata: ColumnPropertyMetadata): string | number | boolean | Date | undefined {
-        if (!('default' in metadata) || typeof metadata.default === 'function') {
-            return undefined;
-        }
-        return metadata.default;
+        return !('default' in metadata) || typeof metadata.default === 'function' ? undefined : metadata.default;
     }
 
     /**
@@ -1424,7 +1421,7 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
             };
         }
         // one per time the listener connects, and ended with it: the listener connects again only after
-        // the one it had failed, and the session that failed is no use to listen on (round-2 02 §S3)
+        // the one it had failed, and the session that failed is no use to listen on
         const session: PgSessionClient = await this.openSession();
         return { client: session, release: async () => await session.end() };
     }

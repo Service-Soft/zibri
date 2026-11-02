@@ -24,7 +24,7 @@ class Comment {
 
 /**
  * A declaration says what a route answers with, and the method's return type says the same thing a
- * second time. A declaration the method cannot return is a compile error (08 §X22), checked by
+ * second time. A declaration the method cannot return is a compile error, checked by
  * `npm run typecheck`: the `@ts-expect-error` lines below fail it when the declaration is accepted.
  */
 

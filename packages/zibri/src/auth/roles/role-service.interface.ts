@@ -95,7 +95,11 @@ export interface RoleServiceInterface {
      * @throws A ForbiddenError when the caller may not, or names another tenant than the one the
      * request acts in, a BadRequestError when the role cannot exist.
      */
-    createRole: <T extends BaseRole>(caller: CurrentUser, data: RoleCreateData<T>, transaction: RepositoryTransaction | undefined) => Promise<T>,
+    createRole: <T extends BaseRole>(
+        caller: CurrentUser,
+        data: RoleCreateData<T>,
+        transaction: RepositoryTransaction | undefined
+    ) => Promise<T>,
     /**
      * Changes a role, but not its name, level or tenant. The caller needs `auth.update_role`,
      * `auth.update_platform_role` or `auth.update_tenant_role`, checked as for creating it, against

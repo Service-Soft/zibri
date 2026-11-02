@@ -128,12 +128,12 @@ export function describeLargeBatches(dataSourceName: string, repositoriesOf: () 
                 { key: UUIDUtilities.generate(), label: 'two', ownerId: few.id }
             ]);
             const unknown: string[] = Array.from({ length: ROWS }, () => UUIDUtilities.generate());
-            const [first, second] = rows.map(r => r.id);
+            const [first = '', second = ''] = rows.map(r => r.id);
 
             expect(await repositoriesOf().rows.count({ where: { id: { oneOf: [...unknown, ...rows.map(r => r.id)] } } })).toBe(2);
-            expect(await repositoriesOf().rows.count({ where: { ownerId: few.id, id: { notOneOf: [...unknown, first ?? ''] } } }))
+            expect(await repositoriesOf().rows.count({ where: { ownerId: few.id, id: { notOneOf: [...unknown, first] } } }))
                 .toBe(1);
-            expect(await repositoriesOf().rows.count({ where: { ownerId: few.id, id: { notOneOf: [...unknown, second ?? ''] } } }))
+            expect(await repositoriesOf().rows.count({ where: { ownerId: few.id, id: { notOneOf: [...unknown, second] } } }))
                 .toBe(1);
         }, TIMEOUT_IN_MS);
 
@@ -152,7 +152,7 @@ export function describeLargeBatches(dataSourceName: string, repositoriesOf: () 
             expect(await repositoriesOf().rows.count({ where: { ownerId: owner.id } })).toBe(ROWS);
         }, TIMEOUT_IN_MS);
 
-        // evaluation/01-data-layer M43: the valkey driver hands the saved children back to their owner
+        // the valkey driver hands the saved children back to their owner
         // by copying the owner's list with each child added, which is the square of the children of one
         // owner. The same writes as the case above, so a save that is linear takes about as long
         it('creates an owner together with more rows than one statement binds values for, about as fast as the rows alone', async () => {

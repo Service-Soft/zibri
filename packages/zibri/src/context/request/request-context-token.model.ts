@@ -104,10 +104,7 @@ export const ZIBRI_REQUEST_CONTEXT_TOKENS = {
             // presented is a fact about the request and the user, and a route that accepts only
             // some of the methods states so with `@Auth.require2fa`, which checks them itself.
             const user: CurrentUser | undefined = await ctx.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_USER);
-            if (!user) {
-                return false;
-            }
-            return await twoFactorService.has2fa(user, ctx);
+            return user != undefined && await twoFactorService.has2fa(user, ctx);
         }
     ),
     CURRENT_VERSION: new RequestContextToken(

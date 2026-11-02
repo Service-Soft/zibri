@@ -115,16 +115,15 @@ export class SlidingWindowLogRateLimiter extends BaseRateLimiter<SlidingWindowLo
         // The timestamps array is sorted ascending.
         // The needToExpire‑th entry (1‑based) will expire at timestamp + interval.
         const oldestToExpire: number | undefined = relevant[needToExpire - 1];
-        if (oldestToExpire == undefined) {
+        return oldestToExpire == undefined
             // more slots are wanted than the window is holding - reserved ones count towards the
             // ask but are not timestamps, so there is no entry whose expiry frees the last of them.
             // A full interval from now is when everything currently in the window has gone, which
             // is the earliest time worth coming back at and what consume() reports for this case.
             // Reading the missing entry made this NaN, and NaN loses every comparison it is put in:
             // the horizon check refused the reservation and reported a wait of NaN.
-            return now + this.intervalInMs;
-        }
-        return Math.max(now, oldestToExpire + this.intervalInMs);
+            ? now + this.intervalInMs
+            : Math.max(now, oldestToExpire + this.intervalInMs);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

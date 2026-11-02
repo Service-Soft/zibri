@@ -365,10 +365,9 @@ export class UpsertWriter<T extends BaseEntity, CreateData extends DeepPartial<T
         const changed: [string, unknown][] = Object.entries(
             UUIDUtilities.resolveCanonicalChanges(this.resolveConflictSets(onConflict), this.entityClass)
         );
-        if (!changed.length) {
-            return onConflict;
-        }
-        return Object.assign({ ...onConflict }, Object.fromEntries(changed.map(([key, value]) => [key, { set: value }])));
+        return changed.length
+            ? Object.assign({ ...onConflict }, Object.fromEntries(changed.map(([key, value]) => [key, { set: value }])))
+            : onConflict;
     }
 
     /**

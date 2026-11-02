@@ -10,9 +10,10 @@ export class ProcessExitError extends Error {
     /**
      * Creates the error.
      * @param code - The exit code the process would have exited with.
+     * @param options - The cause, if there is one.
      */
-    constructor(readonly code: number) {
-        super(`process would exit with code ${code}`);
+    constructor(readonly code: number, options?: ErrorOptions) {
+        super(`process would exit with code ${code}`, options);
         this.name = 'ProcessExitError';
     }
 }

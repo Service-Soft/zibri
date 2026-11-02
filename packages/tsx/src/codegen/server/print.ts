@@ -120,10 +120,9 @@ class JsxLowering {
                 )
             );
         }
-        if (ts.isNewExpression(node) && node.arguments == undefined) {
-            return this.factory.createNewExpression(this.expression(node.expression), node.typeArguments, []);
-        }
-        return ts.visitEachChild(node, this.visit, this.context);
+        return ts.isNewExpression(node) && node.arguments == undefined
+            ? this.factory.createNewExpression(this.expression(node.expression), node.typeArguments, [])
+            : ts.visitEachChild(node, this.visit, this.context);
     };
 
     /**
@@ -286,12 +285,9 @@ class JsxLowering {
     private lowerComponentElement(element: JsxElementLike): ts.Expression {
         const entries: ts.ObjectLiteralElementLike[] = [];
         for (const attribute of attributesOf(element)) {
-            if (ts.isJsxSpreadAttribute(attribute)) {
-                entries.push(this.factory.createSpreadAssignment(this.expression(attribute.expression)));
-            }
-            else {
-                entries.push(this.componentPropEntry(attribute));
-            }
+            entries.push(ts.isJsxSpreadAttribute(attribute)
+                ? this.factory.createSpreadAssignment(this.expression(attribute.expression))
+                : this.componentPropEntry(attribute));
         }
         const children: readonly ts.JsxChild[] = this.childrenOf(element);
         const childrenValue: ts.Expression | undefined = this.childrenValue(children);
@@ -374,10 +370,7 @@ class JsxLowering {
      */
     private handlerPropValue(handler: ts.Expression): ts.Expression {
         const site: HandlerSite | undefined = this.stamps?.handlers.get(handler);
-        if (site !== undefined) {
-            return this.runtimeCall('mark', [this.quote(site.id), this.capturedValues(site)]);
-        }
-        return this.expression(handler);
+        return site !== undefined ? this.runtimeCall('mark', [this.quote(site.id), this.capturedValues(site)]) : this.expression(handler);
     }
 
     /**
@@ -406,10 +399,7 @@ class JsxLowering {
         if (ts.isJsxExpression(child)) {
             return child.expression == undefined ? [] : [this.expression(child.expression)];
         }
-        if (ts.isJsxFragment(child)) {
-            return [this.lowerFragment(child)];
-        }
-        return [this.lowerElement(child)];
+        return [ts.isJsxFragment(child) ? this.lowerFragment(child) : this.lowerElement(child)];
     }
 
     /**
@@ -435,10 +425,7 @@ class JsxLowering {
         if (ts.isJsxExpression(child)) {
             return child.expression == undefined ? [] : [this.runtimeCall('child', [this.expression(child.expression)])];
         }
-        if (ts.isJsxFragment(child)) {
-            return [this.runtimeCall('child', [this.lowerFragment(child)])];
-        }
-        return [this.runtimeCall('child', [this.lowerElement(child)])];
+        return [this.runtimeCall('child', [ts.isJsxFragment(child) ? this.lowerFragment(child) : this.lowerElement(child)])];
     }
 
     /**
@@ -541,8 +528,5 @@ function mapAttributeName(name: string): string {
     if (name === 'className') {
         return 'class';
     }
-    if (name === 'htmlFor') {
-        return 'for';
-    }
-    return name;
+    return name === 'htmlFor' ? 'for' : name;
 }

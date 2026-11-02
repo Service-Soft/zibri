@@ -150,7 +150,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, TestTimeouts.postgres.shutdown);
 
-// 02 §S3: the data source took a session to be its own. Behind a transaction pooler the startup
+// the data source took a session to be its own. Behind a transaction pooler the startup
 // settings were refused, a limit set on the session reached somebody else's statement, a cancel named
 // a backend the pooler made up, and a subscription listened on a connection nobody kept
 describe('a data source behind a transaction pooler', () => {

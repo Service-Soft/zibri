@@ -77,6 +77,7 @@ export class RawWebsocketClient {
 
     /**
      * How many bytes were handed to the operating system to send.
+     * @returns The number of bytes.
      */
     get bytesWritten(): number {
         return this.socket.bytesWritten;
@@ -84,6 +85,7 @@ export class RawWebsocketClient {
 
     /**
      * Whether the connection is still open on this side.
+     * @returns True while it is open.
      */
     get isOpen(): boolean {
         return !this.socket.destroyed && this.close == undefined;
@@ -196,10 +198,7 @@ export class RawWebsocketClient {
      */
     async nextMessage(): Promise<string> {
         const message: string | undefined = this.messages.shift();
-        if (message != undefined) {
-            return message;
-        }
-        return await new Promise<string>(resolve => this.waiting.push(resolve));
+        return message ?? await new Promise<string>(resolve => this.waiting.push(resolve));
     }
 
     /**
@@ -213,7 +212,10 @@ export class RawWebsocketClient {
             return this.close;
         }
         return await new Promise<RawWebsocketClose>((resolve, reject) => {
-            const timer: NodeJS.Timeout = setTimeout(() => reject(new Error(`The connection stayed open for ${timeoutInMs} ms.`)), timeoutInMs);
+            const timer: NodeJS.Timeout = setTimeout(
+                () => reject(new Error(`The connection stayed open for ${timeoutInMs} ms.`)),
+                timeoutInMs
+            );
             this.closeWaiting.push(close => {
                 clearTimeout(timer);
                 resolve(close);

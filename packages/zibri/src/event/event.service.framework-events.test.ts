@@ -135,7 +135,7 @@ async function receivedAbout(count: number, about: string): Promise<ReceivedEven
     return of().sort((a, b) => a.type.localeCompare(b.type));
 }
 
-// 06 §Q4: a user deleted, a membership ended or a role changed told no application subscriber
+// a user deleted, a membership ended or a role changed told no application subscriber
 describe('the writes of the framework, as the events an application names', () => {
     it('emits a user removed from the store, outside every tenant', async () => {
         const user: JwtUser = await createUser('deleted');

@@ -1079,10 +1079,7 @@ function bodyOf(models: ModelResolver[], required: boolean): ParameterDecorator 
         return () => undefined;
     }
     const only: ModelResolver | undefined = models.length === 1 ? models[0] : undefined;
-    if (only != undefined) {
-        return Body(only, { required });
-    }
-    return Body.oneOf({ shapes: models.map(cls => ({ type: 'object', cls })), required });
+    return only != undefined ? Body(only, { required }) : Body.oneOf({ shapes: models.map(cls => ({ type: 'object', cls })), required });
 }
 
 /**

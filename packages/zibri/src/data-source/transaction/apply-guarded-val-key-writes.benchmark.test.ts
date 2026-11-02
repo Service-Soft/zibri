@@ -20,16 +20,17 @@ import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function';
 
 /**
  * What a valkey transaction costs to commit through the guard script, against committing the same
- * writes as an atomic batch: round 2's code review 02 §Q6 asked whether handing every write to the
- * script as one json argument costs a large transaction more than the batch an unguarded one was sent
- * as. It measured half, so every commit goes through the script; this keeps the comparison in view.
+ * writes as an atomic batch: whether handing every write to the script as one json argument costs a
+ * large transaction more than the batch an unguarded one was sent as. It measured half, so every
+ * commit goes through the script; this keeps the comparison in view.
  *
  * The same writes both ways, timed on their own rather than through a repository, since a repository
  * write that brings a guard also reads and checks the keys it declares, which would be timed with it.
  * Nothing here fails on the numbers - see `BenchmarkUtilities`.
  *
  * `npm run test:benchmark` runs it. Setting `ZIBRI_BENCHMARK_UPDATE_BASELINE=1` makes the run the new
- * baseline.
+ * baseline of this machine; the file is not committed. `npm run test:benchmark:compare` sets it against
+ * the release instead, which is what CI fails a slower operation on.
  */
 
 /**

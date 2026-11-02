@@ -12,7 +12,7 @@ import { Newable } from '../../types/newable.type';
 import { DataSource } from '../decorators/data-source.decorator';
 import { RepositoryClass } from '../repository/repository-class.type';
 
-// evaluation/round-2/12-hardcoded-values.md §D4: every transaction got ten seconds unless the call
+// every transaction got ten seconds unless the call
 // starting it said otherwise, with no default of the data source's own
 
 /**

@@ -46,15 +46,14 @@ export abstract class WhereValueUtilities {
             return this.compare(value, filterValue) === 0;
         }
         if (Array.isArray(value) || Array.isArray(filterValue)) {
-            if (!Array.isArray(value) || !Array.isArray(filterValue) || value.length !== filterValue.length) {
-                return false;
-            }
-            return value.every((v, i) => this.equals(v, filterValue[i], this.itemMetadata(metadata)));
+            return Array.isArray(value)
+                && Array.isArray(filterValue)
+                && value.length === filterValue.length
+                && value.every((v, i) => this.equals(v, filterValue[i], this.itemMetadata(metadata)));
         }
-        if (typeof value === 'object' && typeof filterValue === 'object') {
-            return this.deepEquals(value as Record<string, unknown>, filterValue as Record<string, unknown>);
-        }
-        return value === filterValue;
+        return typeof value === 'object' && typeof filterValue === 'object'
+            ? this.deepEquals(value as Record<string, unknown>, filterValue as Record<string, unknown>)
+            : value === filterValue;
     }
 
     /**
@@ -84,15 +83,14 @@ export abstract class WhereValueUtilities {
 
         const left: AnyNumber | string = this.toComparable(value);
         const right: AnyNumber | string = this.toComparable(filterValue);
-        if (typeof left === 'string' || typeof right === 'string') {
+        return typeof left === 'string' || typeof right === 'string'
             // which text sorts after which is a question about a language, so the application
             // answers it - and answers it for the database as well, through the collation its text
             // columns are created with
-            return inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).compareText(String(left), String(right));
-        }
-        // through the numbers themselves rather than through the operators, which cannot compare
-        // the three shapes a number takes against each other - see NumberUtilities.compare
-        return NumberUtilities.compare(left, right);
+            ? inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).compareText(String(left), String(right))
+            // through the numbers themselves rather than through the operators, which cannot compare
+            // the three shapes a number takes against each other - see NumberUtilities.compare
+            : NumberUtilities.compare(left, right);
     }
 
     /**
@@ -102,16 +100,13 @@ export abstract class WhereValueUtilities {
      * @returns The id of the entity for to one relations, the unchanged value otherwise.
      */
     static unwrapRelation(filterValue: unknown, metadata: PropertyMetadata | undefined): unknown {
-        if (
-            (metadata?.type === Relation.MANY_TO_ONE || metadata?.type === Relation.BELONGS_TO_ONE)
+        return (metadata?.type === Relation.MANY_TO_ONE || metadata?.type === Relation.BELONGS_TO_ONE)
             && typeof filterValue === 'object'
             && filterValue !== null
             && !Array.isArray(filterValue)
             && 'id' in filterValue
-        ) {
-            return filterValue.id;
-        }
-        return filterValue;
+            ? filterValue.id
+            : filterValue;
     }
 
     /**
@@ -120,19 +115,13 @@ export abstract class WhereValueUtilities {
      * @returns The metadata of its items, or undefined when it holds no array.
      */
     static itemMetadata(metadata: PropertyMetadata | undefined): PropertyMetadata | undefined {
-        if (metadata?.type !== 'array') {
-            return undefined;
-        }
-        return { ...metadata.items } as PropertyMetadata;
+        return metadata?.type !== 'array' ? undefined : { ...metadata.items };
     }
 
     private static deepEquals(value: Record<string, unknown>, filterValue: Record<string, unknown>): boolean {
         const valueKeys: string[] = ObjectUtilities.keys(value);
         const filterKeys: string[] = ObjectUtilities.keys(filterValue);
-        if (valueKeys.length !== filterKeys.length) {
-            return false;
-        }
-        return valueKeys.every(k => this.equals(value[k], filterValue[k], undefined));
+        return valueKeys.length === filterKeys.length && valueKeys.every(k => this.equals(value[k], filterValue[k], undefined));
     }
 
     private static toTime(value: unknown): number {

@@ -11,6 +11,7 @@ import { defaultTestServerProviders } from '../../../__testing__/test-server/pro
 import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../data-source/repository/repository';
+import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
@@ -268,5 +269,55 @@ describe('generateInvoiceNumber', () => {
         expect(number).toEqual(`${currentYear}-GREATC-0001`);
         // a number another tenant holds already is free in this one
         await inTenant(async () => await invoiceRepo.create(companyInvoice(number)), otherTenant);
+    });
+
+    // an invoice number is a legal identifier. Read, incremented and written back as separate steps,
+    // two callers interleave even inside one process, and two invoices carry the same number
+    it('gives every concurrent caller its own number', async () => {
+        // the counter exists already, so every caller increments it rather than creating it
+        await inTenant(async () => await invoiceNumberService.generateInvoiceNumber('concurrent-recipient', companyData, undefined, 'CONCUR'));
+
+        const numbers: string[] = await inTenant(async () => await Promise.all([
+            invoiceNumberService.generateInvoiceNumber('concurrent-recipient', companyData, undefined, 'CONCUR'),
+            invoiceNumberService.generateInvoiceNumber('concurrent-recipient', companyData, undefined, 'CONCUR'),
+            invoiceNumberService.generateInvoiceNumber('concurrent-recipient', companyData, undefined, 'CONCUR')
+        ]));
+
+        expect(new Set(numbers).size).toBe(numbers.length);
+    });
+
+    // concurrent first callers of a recipient each created a counter of their own, every one at 1
+    it('counts every issued number exactly once', async () => {
+        await inTenant(async () => await Promise.all([
+            invoiceNumberService.generateInvoiceNumber('counted-recipient', companyData, undefined, 'COUNTE'),
+            invoiceNumberService.generateInvoiceNumber('counted-recipient', companyData, undefined, 'COUNTE'),
+            invoiceNumberService.generateInvoiceNumber('counted-recipient', companyData, undefined, 'COUNTE')
+        ]));
+
+        const counters: NumberInvoices[] = await inTenant(async () => await inject(repositoryTokenFor(NumberInvoices)).findAll({
+            where: { recipientId: 'counted-recipient' }
+        }));
+        expect(counters).toHaveLength(1);
+        expect(counters[0]?.number).toBe(3);
+    });
+
+    // the increment becomes visible on the caller's commit, so anything held only until the number is
+    // claimed - a lock released at the end of its body - lets the next caller read the same counter
+    it('gives every caller its own number when each one runs inside its own transaction', async () => {
+        await inTenant(async () => await invoiceNumberService.generateInvoiceNumber('transactional-recipient', companyData, undefined, 'TRANSA'));
+
+        /**
+         * Issues a number inside a transaction of its own, committed as soon as the number comes back.
+         * @returns The number.
+         */
+        async function issueNumber(): Promise<string> {
+            const transaction: Transaction = await invoiceRepo.dataSource.startTransaction();
+            const number: string = await invoiceNumberService.generateInvoiceNumber('transactional-recipient', companyData, transaction, 'TRANSA');
+            await transaction.commit();
+            return number;
+        }
+        const numbers: string[] = await inTenant(async () => await Promise.all([issueNumber(), issueNumber(), issueNumber()]));
+
+        expect(new Set(numbers).size).toBe(numbers.length);
     });
 });

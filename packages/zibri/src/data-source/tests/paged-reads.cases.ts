@@ -235,7 +235,7 @@ export function describePagedReads(dataSourceName: string, reposOf: () => PagedR
         return res;
     }
 
-    // 01 §D13: a stream had no order on any data source, because one of them could not give it
+    // a stream had no order on any data source, because one of them could not give it
     describe(`a stream in an order, on ${dataSourceName}`, () => {
         it('hands out the rows in the order asked for, with the related rows they come with', async () => {
             const { batch }: StoredOrders = await storeOrders();
@@ -272,5 +272,72 @@ export function describePagedReads(dataSourceName: string, reposOf: () => PagedR
 
             expect(streamed.map(o => o.position)).toEqual([...positions].reverse());
         });
+
+        // `break` has to end the read rather than leave a cursor and its connection open behind it,
+        // which the pool would be short of for good
+        it('stops reading when the caller stops', async () => {
+            const batch: string = UUIDUtilities.generate();
+            await reposOf().orders.createAll(Array.from({ length: 50 }, (_, i) => ({ batch, position: i })));
+
+            let read: number = 0;
+            for await (const order of reposOf().orders.stream({ where: { batch } })) {
+                expect(order.batch).toBe(batch);
+                read++;
+                break;
+            }
+
+            expect(read).toBe(1);
+        });
+    });
+
+    // `defaultOrder` is optional and most entities declare none, so this is what pagination does by
+    // default
+    describe(`a walk over an entity that declares no order, on ${dataSourceName}`, () => {
+        // an ordinary write in the middle of an ordinary walk: postgres writes an updated row anew and
+        // leaves the old version behind, so a read naming no order finds the rows in another order on
+        // every page - which is how OFFSET skips rows nobody deleted
+        it('hands each row out exactly once, though rows are written between the pages', async () => {
+            const batch: string = UUIDUtilities.generate();
+            await reposOf().orders.createAll(Array.from({ length: 12 }, (_, i) => ({ batch, position: i })));
+
+            const seen: string[] = [];
+            for (let page: number = 1; page <= 6; page++) {
+                const res: PaginationResult<PagedOrder> = await reposOf().orders.findAllPaginated(page, 2, { where: { batch } });
+                seen.push(...res.items.map(o => o.id));
+                // guarded rather than indexed: a walk gone wrong runs out of rows early
+                const edited: PagedOrder | undefined = res.items.at(0);
+                if (edited) {
+                    await reposOf().orders.updateById(edited.id, { position: 100 + page });
+                }
+            }
+
+            expect(new Set(seen).size).toBe(12);
+        });
+
+        // a page and a count taken as two statements answer the same question at two moments, and
+        // disagree whenever a row came or went in between
+        it('reports a total the page it came with agrees with, while another writer adds and removes rows', async () => {
+            const batch: string = UUIDUtilities.generate();
+            await reposOf().orders.createAll(Array.from({ length: 20 }, (_, i) => ({ batch, position: i })));
+
+            let churning: boolean = true;
+            const churn: Promise<void> = (async () => {
+                while (churning) {
+                    const extra: PagedOrder = await reposOf().orders.create({ batch, position: -1 });
+                    await reposOf().orders.deleteById(extra.id);
+                }
+            })();
+            try {
+                for (let i: number = 0; i < 100; i++) {
+                    // a page holding the whole match, so the two numbers answer one question
+                    const res: PaginationResult<PagedOrder> = await reposOf().orders.findAllPaginated(1, 30, { where: { batch } });
+                    expect(res.items).toHaveLength(res.totalAmount);
+                }
+            }
+            finally {
+                churning = false;
+                await churn;
+            }
+        }, 60000);
     });
 }

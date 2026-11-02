@@ -7,6 +7,7 @@ import { InternalError } from '../internal-error.model';
  */
 export class MissingEntitiesError extends InternalError {
     /**
+     * Creates the error.
      * @param requiredBy - Each entity no data source declares, with the names of everything that requires it.
      * @param options - The cause, if there is one.
      */

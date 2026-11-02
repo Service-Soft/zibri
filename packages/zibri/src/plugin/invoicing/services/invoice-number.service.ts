@@ -228,10 +228,9 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     getSuggestedNameAbbreviation(invoiceAddress: InvoiceAddress): string {
-        if (invoiceAddress.company && invoiceAddress.companyName) {
-            return this.getCompanyNameAbbreviation(invoiceAddress.companyName);
-        }
-        return this.getPrivateCustomerAbbreviation(invoiceAddress);
+        return invoiceAddress.company && invoiceAddress.companyName
+            ? this.getCompanyNameAbbreviation(invoiceAddress.companyName)
+            : this.getPrivateCustomerAbbreviation(invoiceAddress);
     }
 
     private getPrivateCustomerAbbreviation(invoiceAddress: InvoiceAddress): string {

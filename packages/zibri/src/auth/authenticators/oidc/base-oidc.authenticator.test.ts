@@ -270,6 +270,13 @@ function newSubject(): string {
 }
 
 /**
+ * The access token a login answers with.
+ */
+type AccessTokenBody = {
+    accessToken: { value: string }
+};
+
+/**
  * A user logged in to cookies.
  */
 type LoggedIn = {
@@ -613,7 +620,7 @@ describe('BaseOidcAuthenticator — logging in to cookies', () => {
         expect(landing).toBe(`${ERROR_URL}?error=cancelled`);
     });
 
-    // 05 §I6: an outage at the token endpoint read like a forged answer, on the user's screen and in the
+    // an outage at the token endpoint read like a forged answer, on the user's screen and in the
     // trail, and was logged nowhere
     it('goes to the error url as a provider error, and logs it, when the provider cannot exchange the code', async () => {
         provider.failNextTokenRequest(503);
@@ -638,7 +645,7 @@ describe('BaseOidcAuthenticator — logging in to cookies', () => {
         expect(landing).toBe(`${ERROR_URL}?error=invalid`);
     });
 
-    // evaluation/round-2/12-hardcoded-values.md §A1: the ID token got openid-client's 30 seconds, the
+    // the ID token got openid-client's 30 seconds, the
     // provider's other tokens none
     it('takes an ID token the provider\'s clock calls valid within the accepted skew, and refuses one past it', async () => {
         const subject: string = newSubject();
@@ -1224,7 +1231,7 @@ describe('BaseOidcAuthenticator — connecting a provider to a jwt account', () 
             body: JsonUtilities.stringify({ code: new URL(landing).searchParams.get('code'), codeVerifier: verifier })
         });
         // eslint-disable-next-line typescript/no-unsafe-assignment
-        const { accessToken }: { accessToken: { value: string } } = await tokens.json();
+        const { accessToken }: AccessTokenBody = await tokens.json();
 
         // the frontend asks with its token, and sends the browser on: a browser that holds no session
         // of its own, which the connection does not need

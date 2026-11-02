@@ -2,13 +2,13 @@ import { findUpsertTargets } from './find-upsert-targets.function';
 import { RemovalReach } from './removal-reach.model';
 import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
-import { isRelationMetadata } from '../../entity/models/is-relation-metadata.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
+import { isRelationMetadata } from '../../entity/models/is-relation-metadata.function';
 import { Relation } from '../../entity/models/relation.enum';
 import { InternalError } from '../../error-handling/internal-error.model';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ChainUtilities } from '../chain/chain.utilities';
 import { type DataSourceInterface } from '../data-sources/data-source.interface';
 import { AggregateRow } from '../models/aggregate.model';
@@ -63,7 +63,7 @@ export class SpanningTransactionRepositoryDriver<T extends BaseEntity> implement
         const properties: [string, PropertyMetadata][] = Object.entries(MetadataUtilities.getModelProperties(entityClass));
         this.columns = properties.filter(([, metadata]) => !isRelationMetadata(metadata)).map(([key]) => key);
         this.manyToMany = properties
-            .filter(([, metadata]) => isRelationMetadata(metadata) && metadata.type === Relation.MANY_TO_MANY && metadata.persistence !== false)
+            .filter(([, metadata]) => isRelationMetadata(metadata) && metadata.type === Relation.MANY_TO_MANY && metadata.persistence)
             .map(([key]) => key);
     }
 
@@ -314,7 +314,7 @@ export class SpanningTransactionRepositoryDriver<T extends BaseEntity> implement
                 relations: new Map(this.manyToMany.map(relation => [relation, new Map()])),
                 transaction
             })).map(row => [row.id, row]))
-            : new Map();
+            : new Map<string, T>();
         return rows.map(row => this.resolveBeforeImage(row, withSets.get(row.id)));
     }
 
@@ -339,6 +339,8 @@ export class SpanningTransactionRepositoryDriver<T extends BaseEntity> implement
         // milliseconds, where the store may have kept more
         for (const column of this.columns) {
             if (Reflect.get(row, column) === undefined) {
+                // null rather than undefined: a write leaves out what is undefined, null clears the column
+                // eslint-disable-next-line unicorn/no-null
                 Reflect.set(before, column, null);
             }
         }

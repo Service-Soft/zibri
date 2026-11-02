@@ -37,7 +37,7 @@ describe('extractTranslationStrings', () => {
         expect(extracted[0]?.source).toBe('Hello world');
     });
 
-    // 07 §T22: the placeholder has to be the one $t builds at runtime, which numbers every
+    // the placeholder has to be the one $t builds at runtime, which numbers every
     // expression it is not handed as a single key object. A name derived from the expression text
     // was never what $t looked up
     it('numbers the placeholder of a property access by its position', async () => {

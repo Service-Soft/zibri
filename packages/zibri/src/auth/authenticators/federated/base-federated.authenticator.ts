@@ -471,7 +471,10 @@ export abstract class BaseFederatedAuthenticator<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async authenticate(credentials: FederatedCredentials, transaction: RepositoryTransaction | undefined): Promise<Authentication<UserType>> {
+    async authenticate(
+        credentials: FederatedCredentials,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<Authentication<UserType>> {
         if ('code' in credentials) {
             const handover: FederatedHandoverCode = await this.findHandoverCode(credentials.code, credentials.codeVerifier, transaction);
             await this.claim(async () => await this.handoverCodeRepository.updateById(
@@ -551,7 +554,11 @@ export abstract class BaseFederatedAuthenticator<
      * @param transaction - The transaction the registration runs in, if any.
      * @throws When the ticket is unknown, spent or expired, or the proof is missing.
      */
-    async linkTicketIdentity(credentials: FederatedTicketCredentials, userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+    async linkTicketIdentity(
+        credentials: FederatedTicketCredentials,
+        userId: string,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<void> {
         const ticket: FederatedRegistrationTicket = await this.findRegistrationTicket(credentials, transaction);
         const identity: FederatedIdentity = await this.identityRepository.create(
             { issuer: ticket.issuer, subject: ticket.subject, userId, forLogin: true, grantedScopes: [] },
@@ -802,7 +809,11 @@ export abstract class BaseFederatedAuthenticator<
      * @returns The identity.
      * @throws NotFoundError when the user has no identity of that id at the provider.
      */
-    protected async findOwnIdentity(userId: string, identityId: string, transaction: RepositoryTransaction | undefined): Promise<FederatedIdentity> {
+    protected async findOwnIdentity(
+        userId: string,
+        identityId: string,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<FederatedIdentity> {
         const identity: FederatedIdentity | undefined = await this.identityRepository.findOne({
             where: { id: identityId, userId },
             transaction,

@@ -636,7 +636,7 @@ export abstract class OpenApiSchemaUtilities {
                             required: ['shape', 'value']
                         }))
                         // no discriminator: one without a mapping is defined for named schemas only, and
-                        // the enum of each shape's name tells them apart already (03 §H8)
+                        // the enum of each shape's name tells them apart already
                     };
                     continue;
                 }
@@ -649,7 +649,7 @@ export abstract class OpenApiSchemaUtilities {
         visited.delete(entity);
         this.annotateXml(properties, entity);
         // validation takes null for a property that may be left out, and a read answers with it for one
-        // that holds nothing, so the document says so (03 §H8)
+        // that holds nothing, so the document says so
         for (const [key, meta] of ObjectUtilities.entries(propMeta)) {
             const schema: OpenApiSchemaObject | undefined = properties[key];
             // a property a partial model may leave out takes no null when given, as its base does not

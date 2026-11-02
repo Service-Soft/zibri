@@ -61,14 +61,12 @@ export abstract class EntitySnapshotUtilities {
      * @returns True when it has the shape of a snapshot.
      */
     static isSnapshot(value: unknown): value is EntitySnapshot {
-        if (!this.isRecord(value) || typeof value['dataSource'] !== 'string' || !this.isRecord(value['entities'])) {
-            return false;
-        }
-        return Object.values(value['entities']).every(entity => this.isRecord(entity)
-            && typeof entity['className'] === 'string'
-            && this.isRecord(entity['properties'])
-            && Object.values(entity['properties']).every(p => this.isSnapshotRelation(p) || this.isSnapshotColumn(p))
-            && (entity['keys'] == undefined || this.isSnapshotKeys(entity['keys'])));
+        return this.isRecord(value) && typeof value['dataSource'] === 'string' && this.isRecord(value['entities'])
+            && Object.values(value['entities']).every(entity => this.isRecord(entity)
+                && typeof entity['className'] === 'string'
+                && this.isRecord(entity['properties'])
+                && Object.values(entity['properties']).every(p => this.isSnapshotRelation(p) || this.isSnapshotColumn(p))
+                && (entity['keys'] == undefined || this.isSnapshotKeys(entity['keys'])));
     }
 
     /**

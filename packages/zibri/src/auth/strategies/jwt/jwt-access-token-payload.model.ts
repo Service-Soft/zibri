@@ -65,10 +65,8 @@ export type JwtAccessTokenPayload<Role extends string, T extends BaseUser<Role>>
 export function isJwtAccessTokenPayload<Role extends string>(
     payload: unknown
 ): payload is JwtAccessTokenPayload<Role, BaseUser<Role>> {
-    if (typeof payload !== 'object' || payload == undefined) {
-        return false;
-    }
-    return 'id' in payload && typeof payload.id === 'string'
+    return typeof payload === 'object' && payload != undefined
+        && 'id' in payload && typeof payload.id === 'string'
         && 'roles' in payload && Array.isArray(payload.roles) && payload.roles.every(r => typeof r === 'string')
         && (!('tenant_roles' in payload) || isTenantRoles(payload.tenant_roles))
         && 'auth_time' in payload && typeof payload.auth_time === 'number'

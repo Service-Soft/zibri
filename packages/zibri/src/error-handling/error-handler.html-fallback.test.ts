@@ -30,7 +30,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, TestTimeouts.inMemory.shutdown);
 
-// part of evaluation round 2, 03 §H15: every error answered to a browser wrote three warnings, so a
+// every error answered to a browser wrote three warnings, so a
 // scan of unknown urls filled the log with them
 describe('an application without an error page', () => {
     it('says so once, and answers a browser with the error as json', async () => {

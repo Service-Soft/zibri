@@ -13,8 +13,7 @@ import { Ms } from '../utilities/ms';
  *
  * The logger buffers, so it already holds a batch by the time anything is written - and used to
  * unpack it and call every transport once per entry. That is one INSERT per log line on the db
- * transport and one queued mail per line on the email one, which is what
- * evaluation/04-infrastructure-subsystems.md 3.3 and 3.4 are about.
+ * transport and one queued mail per line on the email one.
  *
  * Driven through the real Logger against transports that record what they were handed. No server
  * and no container: what is being asserted is the shape of the call, and the buffer is in process.

@@ -119,7 +119,7 @@ describe('ExpiredRowsCleanupCronJob', () => {
         expect(left).toEqual(open.map(invitation => invitation.id).sort());
     });
 
-    // what PasswordResetTokenCleanupCronJob held (08 §X27): an expired, unused reset token was kept
+    // what PasswordResetTokenCleanupCronJob held: an expired, unused reset token was kept
     // for good, since nothing deleted it but the next reset its user asked for
     it('deletes the reset tokens that expired, and keeps the ones that did not', async () => {
         const tokens: Repository<PasswordResetToken, PasswordResetTokenCreateData> = inject(repositoryTokenFor(PasswordResetToken));

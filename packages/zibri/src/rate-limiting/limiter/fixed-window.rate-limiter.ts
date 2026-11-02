@@ -86,12 +86,10 @@ export class FixedWindowRateLimiter extends BaseRateLimiter<FixedWindowState> {
         // already equals capacityAfterReset (currentCount is 0) when it's true,
         // and that case is handled by the check above.
         const capacityAfterReset: number = this.config.capacity - state.reservedCount;
-        if (capacityAfterReset >= count) {
-            return windowStart + this.intervalInMs;
-        }
-
-        // Even after count reset, not enough capacity – reservation can never be fulfilled
-        return Number.MAX_SAFE_INTEGER;
+        return capacityAfterReset >= count
+            ? windowStart + this.intervalInMs
+            // Even after count reset, not enough capacity – reservation can never be fulfilled
+            : Number.MAX_SAFE_INTEGER;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

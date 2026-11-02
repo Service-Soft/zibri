@@ -616,7 +616,7 @@ describe('Where filters', () => {
         });
 
         it('rejects an empty where filter object', async () => {
-            const where: WhereFilter<Product> = { name: {} } as unknown as WhereFilter<Product>;
+            const where: WhereFilter<Product> = { name: {} };
             await expect(productRepo.findAll({ where })).rejects.toThrow('Empty where filter');
         });
 
@@ -675,13 +675,13 @@ describe('Where filters', () => {
         it('rejects a JSONB filter value that cannot be bound', async () => {
             // there is no such thing as a sql literal here any more - values are bound - so what is
             // refused is a value no column could hold rather than one that could not be escaped. An
-            // object is no such value: it is compared as a whole json document (round-2/11 S5)
+            // object is no such value: it is compared as a whole json document
             const where: WhereFilter<Product> = { metadata: { where: { color: { oneOf: [() => undefined] } } } } as unknown as WhereFilter<Product>;
             await expect(productRepo.findAll({ where })).rejects.toThrow(/Cannot use a value of type "function"/);
         });
 
         it('rejects a JSONB filter value of an unsupported runtime type (eg. a function)', async () => {
-            const where: WhereFilter<Product> = { metadata: { where: { color: (() => undefined) as unknown as string } } } as unknown as WhereFilter<Product>;
+            const where: WhereFilter<Product> = { metadata: { where: { color: (() => undefined) as unknown as string } } };
             await expect(productRepo.findAll({ where })).rejects.toThrow(/Unexpected JSONB filter value/);
         });
     });

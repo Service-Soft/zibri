@@ -9,7 +9,13 @@ import { StartedTestServer, startTestServer } from '../__testing__/test-server/s
 import { Auth } from '../auth/decorators/auth.decorator';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
 import { RepositoryClass } from '../data-source/repository/repository-class.type';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
+import { AuditAction, AuditOutcome, AuditReason } from '../logging/audit-event.model';
+import { Log } from '../logging/log.model';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { AcceptCrossSitePosts } from '../routing/decorators/accept-cross-site-posts.decorator';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
@@ -115,6 +121,28 @@ describe('crossOriginCookieMiddleware', () => {
         })).toBe(403);
     });
 
+    // a route that never asks who the caller is resolves no session, so the cookie strategy's own
+    // csrf check never runs for it: this refusal is the only thing standing between the browser's
+    // cookies and the write, and an access review needs to find it
+    it('records the refusal in the audit trail', async () => {
+        const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+        await logger.flush();
+        await inject(repositoryTokenFor(Log)).deleteAll({});
+
+        expect(await resolveStatus('POST', {
+            [KnownHeader.SEC_FETCH_SITE]: 'cross-site',
+            [KnownHeader.ORIGIN]: foreignOrigin,
+            [KnownHeader.COOKIE]: cookie
+        })).toBe(403);
+
+        await logger.flush();
+        expect((await inject(repositoryTokenFor(Log)).findAll({})).map(l => l.context.metadata?.['audit'])).toContainEqual({
+            action: AuditAction.AUTHORIZATION,
+            outcome: AuditOutcome.FAILURE,
+            reason: AuditReason.CROSS_ORIGIN
+        });
+    });
+
     it('refuses a write a sibling subdomain sent with cookies', async () => {
         expect(await resolveStatus('POST', {
             [KnownHeader.SEC_FETCH_SITE]: 'same-site',
@@ -201,5 +229,20 @@ describe('crossOriginCookieMiddleware — a route accepting cross site posts', (
             [KnownHeader.ORIGIN]: providerOrigin,
             [KnownHeader.COOKIE]: cookie
         })).toBe(403);
+    });
+});
+
+// the parser's own cases are in ./cookie.middleware.test.ts; this is the application it runs in
+describe('a cookie header that does not decode', () => {
+    // an error logged per request would let an anonymous client fill the log table at request rate
+    it('is answered without an error, and writes no log', async () => {
+        const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+        await logger.flush();
+        await inject(repositoryTokenFor(Log)).deleteAll({});
+
+        expect(await resolveStatus('GET', { [KnownHeader.COOKIE]: 'broken=%' })).toBe(200);
+
+        await logger.flush();
+        expect(await inject(repositoryTokenFor(Log)).findAll({})).toEqual([]);
     });
 });

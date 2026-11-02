@@ -242,8 +242,8 @@ function textedCode(): string {
  * @param message - The message.
  * @returns The code in it.
  */
-function readCode(message: string | undefined): string {
-    const code: string | undefined = /\d{6}/.exec(message ?? '')?.[0];
+function readCode(message: string = ''): string {
+    const code: string | undefined = /\d{6}/.exec(message)?.[0];
     expect(code).toBeDefined();
     return code ?? '';
 }
@@ -311,7 +311,7 @@ describe('Two factor codes — starting', () => {
         await expect(start).rejects.toThrow(/sms_service/);
     }, TestTimeouts.inMemory.start);
 
-    // evaluation/03-auth-and-security H21: a text message is the one channel that costs money, and
+    // a text message is the one channel that costs money, and
     // nothing bounded how many any caller could have sent, or where to
     it('refuses to start the sms method without limits on what its text messages cost', async () => {
         const dataSourceClass: new () => InMemoryDataSource = createInMemoryDataSource({

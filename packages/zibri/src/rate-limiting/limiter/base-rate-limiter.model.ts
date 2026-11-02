@@ -477,10 +477,8 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
      * @returns Whether the candidate ready time is within the allowed wait.
      */
     protected isWithinReservationHorizon(candidateReadyAtMs: number, now: number): boolean {
-        if (!Number.isFinite(candidateReadyAtMs)) {
-            return false;
-        }
-        return this.config.maxReservationWaitInMs === undefined || candidateReadyAtMs - now <= this.config.maxReservationWaitInMs;
+        return Number.isFinite(candidateReadyAtMs)
+            && (this.config.maxReservationWaitInMs === undefined || candidateReadyAtMs - now <= this.config.maxReservationWaitInMs);
     }
 
     /**
@@ -608,19 +606,13 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
         options: RateLimitWrapOptions<TArgs> | undefined,
         args: TArgs
     ): Promise<string> {
-        if (typeof options?.keyFn === 'function') {
-            return await options.keyFn(...args);
-        }
-        return options?.keyFn ?? RateLimitKeys.resolveConnectionKey();
+        return typeof options?.keyFn === 'function' ? await options.keyFn(...args) : options?.keyFn ?? RateLimitKeys.resolveConnectionKey();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async getReservation(id: string, key: string = defaultKey): Promise<RateLimitReservation | undefined> {
         const state: TState | undefined = await this.config.store.get(key);
-        if (!state) {
-            return undefined;
-        }
-        return state.reservations.find(r => r.id === id);
+        return !state ? undefined : state.reservations.find(r => r.id === id);
     }
 
     /**

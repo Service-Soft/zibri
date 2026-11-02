@@ -19,6 +19,15 @@ export default [
         }
     },
     {
-        ignores: ['.zibri/uploads']
+        // "__testing__" is where every package keeps what its tests share, beside the code they test.
+        // Read as the root of the path below it, so the folders inside are still held to kebab case
+        files: ['**/*.ts', '**/*.tsx'],
+        rules: {
+            'unicorn/filename-case': ['warn', { directoryRoots: [/(^|\/)__testing__$/u] }]
+        }
+    },
+    {
+        // a baseline is recorded by a run on one machine and never committed, see CODE_STYLE.md
+        ignores: ['.zibri/uploads', '**/*.baseline.json']
     }
 ];

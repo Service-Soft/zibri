@@ -23,6 +23,11 @@ started from.
 `dist` carries the bundle together with the assets, the compiled templates and the translations,
 which the bundle reads from inside it. Copy the one folder.
 
+With `bundle.js.map` beside the bundle, a stack trace names the source file and line of every frame.
+The Dockerfile builds it with `npm run build -- --env deployment`, which leaves the sources themselves
+out of it, and starts the application with `node --enable-source-maps`. A deployment of your own does
+both.
+
 `versions` sits beside `dist`: each release records the routes it serves, and the release after it is
 checked against that record. A release is recorded when the application starts in development. Commit
 the folder to version control, and copy it into every deployment, where the application only reads it

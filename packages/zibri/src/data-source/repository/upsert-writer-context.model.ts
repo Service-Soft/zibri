@@ -32,5 +32,8 @@ export type UpsertWriterContext<T extends BaseEntity> = {
     /**
      * Runs work in the caller's transaction, or in one taken out for it.
      */
-    inTransaction: <R>(options: BaseRepositoryOptions<T> | undefined, fn: (transaction: RepositoryTransaction<T>) => Promise<R>) => Promise<R>
+    inTransaction: <R>(
+        options: BaseRepositoryOptions<T> | undefined,
+        fn: (transaction: RepositoryTransaction<T>) => Promise<R>
+    ) => Promise<R>
 };

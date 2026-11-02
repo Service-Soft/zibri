@@ -132,3 +132,63 @@ describe('levels by origin', () => {
         expect(add).not.toHaveBeenCalled();
     });
 });
+
+// the origin is read from where the logger was called, which a stack trace is the only way to know
+describe('the origin of an entry', () => {
+    const iterations: number = 2000;
+
+    /**
+     * How long a loop takes per iteration, in microseconds.
+     * @param fn - The body to run.
+     * @returns The microseconds one iteration cost.
+     */
+    function perCallMicroseconds(fn: (i: number) => void): number {
+        const startedAt: bigint = process.hrtime.bigint();
+        for (let i: number = 0; i < iterations; i++) {
+            fn(i);
+        }
+        return Number(process.hrtime.bigint() - startedAt) / iterations / 1000;
+    }
+
+    // turning stack traces off is a normal production tuning, and an origin read from a trace that is
+    // not there made every log call throw
+    it('logs while stack traces are turned off', async () => {
+        const received: Received = recordingTransport(LogLevel.INFO);
+        const logger: Logger = loggerWith(received.transport);
+        const limit: number = Error.stackTraceLimit;
+
+        Error.stackTraceLimit = 0;
+        try {
+            expect(() => logger.info('found the project')).not.toThrow();
+        }
+        finally {
+            Error.stackTraceLimit = limit;
+        }
+        await logger.flush();
+
+        expect(received.messages).toEqual(['found the project']);
+    });
+
+    it('costs a call less than twice what capturing a stack trace does', () => {
+        const logger: Logger = loggerWith(recordingTransport(LogLevel.INFO).transport);
+
+        // both warmed first, so neither pays for the first compile of what it runs
+        let sink: string | undefined = undefined;
+        perCallMicroseconds(() => {
+            sink = new Error('a stack').stack;
+        });
+        perCallMicroseconds(i => logger.info(`warming up ${i}`));
+        expect(sink).toBeDefined();
+
+        // measured here rather than written down: what formatting a stack costs depends on the
+        // machine, and a fixed bar is only right for the one it was written on. A log call does more
+        // than capture a stack, so it may cost more than one - formatting a whole stack on top of the
+        // rest cost about twice this bar
+        const captureCost: number = perCallMicroseconds(() => {
+            sink = new Error('a stack').stack;
+        });
+        const logCost: number = perCallMicroseconds(i => logger.info(`found project ${i}`));
+
+        expect(logCost).toBeLessThan(captureCost * 2);
+    }, 60000);
+});

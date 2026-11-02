@@ -16,7 +16,7 @@ import { JsonUtilities } from '../utilities/json.utilities';
 
 // the line counts against the typeorm side were dropped once the replacement had paid for itself:
 // what the data layer gained since (the migration generator, relation reconciliation) is new
-// functionality, and comparing it to what typeorm weighed said nothing about it (02 §S14)
+// functionality, and comparing it to what typeorm weighed said nothing about it
 
 const packagesDir: string = path.resolve(__dirname, '..', '..', '..');
 
@@ -30,7 +30,7 @@ function findTypeScriptFiles(dir: string): string[] {
 }
 
 describe('the data layer', () => {
-    // 09 §Q2: typeorm described every property a second time and was bypassed for every guarantee a
+    // typeorm described every property a second time and was bypassed for every guarantee a
     // store gives
     it('imports no ORM, in any package', () => {
         const importing: string[] = ['zibri/src', 'testing/src', 'sandbox/src', 'cli/src']
@@ -56,7 +56,7 @@ describe('the data layer', () => {
         expect(listing).toEqual([]);
     });
 
-    // 09 §Q4: every data source built its repositories and declared its stream batch and idle timeout
+    // every data source built its repositories and declared its stream batch and idle timeout
     // itself, and the in-memory driver's batch had drifted from the others' once already
     it('builds the repositories of every data source, and declares their defaults, in one place', () => {
         const sources: [string, string][] = ['zibri/src', 'testing/src']

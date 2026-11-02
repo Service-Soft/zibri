@@ -28,7 +28,7 @@ type OmitValues = typeof omitValues[number];
 // indexed as the pool reads it: the takeable rows of a priority class, oldest first.
 //
 // On the columns every queue shares, but not on its run: a job counts its starts rather than its
-// outcomes, holds its claim for the whole run, and is not retried when it throws (09 §Q5)
+// outcomes, holds its claim for the whole run, and is not retried when it throws
 @Entity({ allowOrphan: true, indexes: [['status', 'priority', 'queuedAtMs']] })
 export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, ResultType>
     extends QueuedWorkEntity

@@ -34,7 +34,7 @@ describe('GenerateSourcesOnBuildPlugin', () => {
         await FsUtilities.rm(root);
     });
 
-    // 07 §T8: the framework's strings come from the source.xlf it ships, so a build scans the project
+    // the framework's strings come from the source.xlf it ships, so a build scans the project
     // and nothing else
     it('writes the translation source of the project from its own files and the shipped source.xlf of the framework', async () => {
         const globSpy: jest.SpiedFunction<typeof FsUtilities.glob> = jest.spyOn(FsUtilities, 'glob');

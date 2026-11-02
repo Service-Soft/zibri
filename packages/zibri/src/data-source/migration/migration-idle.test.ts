@@ -69,7 +69,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, TestTimeouts.inMemory.shutdown);
 
-// evaluation round 2, 02 §S13: a migration's transaction was rolled back after ten idle seconds,
+// a migration's transaction was rolled back after ten idle seconds,
 // whatever the migration's own limit said, so a migration waiting on something slow failed
 describe('a migration waiting between two of its writes', () => {
     it('keeps its transaction for as long as the migration may take', async () => {

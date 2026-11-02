@@ -9,8 +9,6 @@ import { compile, CompileResult } from 'zibri-tsx/compiler';
 import { JsonUtilities } from '../utilities/json.utilities';
 
 /**
- * Executable form of evaluation/06-tooling-ci-and-testing.md X7.
- *
  * `zibri`, `zibri-tsx` and `zibri-testing` publish CommonJS, and an application whose package says
  * `"type": "module"` reaches them through node's interop. That the package answers an `import` at all
  * is checked beside this, in `published-package.test.ts`. This builds an application that is an es
@@ -147,7 +145,7 @@ function compilePage(source: string): string {
 
 let probe: EsmApplicationProbe;
 
-describe('evaluation/06-tooling-ci-and-testing X7 - an application that is itself an es module', () => {
+describe('an application that is itself an es module', () => {
 
     beforeAll(() => {
         // emptied rather than only created, so a killed run cannot leave a stale build behind

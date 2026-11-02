@@ -150,7 +150,7 @@ export class RelationsNotAllowedValidationProblem implements ValidationProblem {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly message: TranslatedString;
     // the caller is told what is wrong with what it sent and nothing more: how to write a model that
-    // takes a relation is for whoever writes the application, and is in models.md (03 §H7)
+    // takes a relation is for whoever writes the application, and is in models.md
     constructor(readonly key: string) {
         this.message = $ts`relations are not allowed as part of create or update data.`;
     }

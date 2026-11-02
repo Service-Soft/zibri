@@ -268,10 +268,10 @@ const JSX_ENTITIES: ReadonlyMap<string, number> = new Map<string, number>(Object
  * @returns The text it stands for.
  */
 export function decodeJsxEntities(raw: string): string {
-    return raw.replaceAll(/&(?:#(\d+)|#x([\dA-Fa-f]+)|(\w+));/g, (match: string, decimal?: string, hex?: string, name?: string) => {
+    return raw.replaceAll(/&(?:#(\d+)|#x([\dA-Fa-f]+)|(\w+));/g, (match: string, decimal?: string, hex?: string, name: string = '') => {
         const codePoint: number | undefined = decimal != undefined
             ? Number.parseInt(decimal, 10)
-            : hex == undefined ? JSX_ENTITIES.get(name ?? '') : Number.parseInt(hex, 16);
+            : hex == undefined ? JSX_ENTITIES.get(name) : Number.parseInt(hex, 16);
         return codePoint == undefined || codePoint > 0x10_FF_FF ? match : String.fromCodePoint(codePoint);
     });
 }

@@ -102,7 +102,7 @@ function hasJsonValue(path: string): string {
  *
  * Equality rather than containment: `@>` also finds a value holding more than the one named, an
  * object with a property beside the ones named or a list with items beside them, where a filter
- * names one value (round-2 11 §S5).
+ * names one value.
  * @param value - The value.
  * @returns Whether it is an object or a list.
  */
@@ -229,10 +229,9 @@ export class PostgresWhereFilterConverter {
             if (isJsonDocument(value)) {
                 return `${jsonPath} = ${this.toJsonbParameter(value, parameters)}`;
             }
-            if (typeof value === 'bigint' || value instanceof BigNumber) {
-                return `${castPath} = ${parameters.add(toJsonComparand(value))}`;
-            }
-            return `${jsonPath} @> ${this.toJsonbParameter(value as object, parameters)}`;
+            return typeof value === 'bigint' || value instanceof BigNumber
+                ? `${castPath} = ${parameters.add(toJsonComparand(value))}`
+                : `${jsonPath} @> ${this.toJsonbParameter(value as object, parameters)}`;
         },
         not: ({ jsonPath, castPath, value, parameters }) => {
             if (value === null) {
@@ -241,10 +240,9 @@ export class PostgresWhereFilterConverter {
                 return hasJsonValue(jsonPath);
             }
             // a value that is not there is not the value named either, as it is on a column
-            if (isJsonDocument(value)) {
-                return `(NOT ${hasJsonValue(jsonPath)} OR ${jsonPath} <> ${this.toJsonbParameter(value, parameters)})`;
-            }
-            return `(NOT ${hasJsonValue(jsonPath)} OR ${castPath} != ${parameters.add(toJsonComparand(value))})`;
+            return isJsonDocument(value)
+                ? `(NOT ${hasJsonValue(jsonPath)} OR ${jsonPath} <> ${this.toJsonbParameter(value, parameters)})`
+                : `(NOT ${hasJsonValue(jsonPath)} OR ${castPath} != ${parameters.add(toJsonComparand(value))})`;
         },
         oneOf: ({ jsonPath, castPath, value, fieldKey, parameters }) => {
             const all: unknown[] = this.toJsonbList(value, 'oneOf', fieldKey);
@@ -536,10 +534,9 @@ export class PostgresWhereFilterConverter {
         }
         const keys: Record<string, unknown> = { ...condition };
         const res: string[] = this.convertRelatedRowsKeys(keys, join, metadata, entityClass, alias, parameters);
-        if (!ObjectUtilities.keys(keys).length) {
-            return res;
-        }
-        return [...res, this.convertRelationValue(key, keys, join, metadata, entityClass, alias, parameters)];
+        return ObjectUtilities.keys(keys).length
+            ? [...res, this.convertRelationValue(key, keys, join, metadata, entityClass, alias, parameters)]
+            : res;
     }
 
     /**
@@ -583,7 +580,7 @@ export class PostgresWhereFilterConverter {
             }
         }
         if (keys['where'] != undefined) {
-            res.push(this.convertRelationWhere(join, metadata, entityClass, alias, keys['where'] as Where<BaseEntity>, parameters));
+            res.push(this.convertRelationWhere(join, metadata, entityClass, alias, keys['where'], parameters));
             Reflect.deleteProperty(keys, 'where');
         }
         return res;
@@ -652,10 +649,9 @@ export class PostgresWhereFilterConverter {
      * @returns The sql condition.
      */
     private convertProperty(condition: unknown, context: ColumnContext): string {
-        if (Array.isArray(condition) && context.metadata.type !== 'array') {
-            return this.or(condition.map(alternative => this.convertSingle(alternative, context)));
-        }
-        return this.convertSingle(condition, context);
+        return Array.isArray(condition) && context.metadata.type !== 'array'
+            ? this.or(condition.map(alternative => this.convertSingle(alternative, context)))
+            : this.convertSingle(condition, context);
     }
 
     /**
@@ -829,11 +825,10 @@ export class PostgresWhereFilterConverter {
      * @returns The sql.
      */
     private comparand(value: unknown, context: ColumnContext): string {
-        if (!PropertyReferenceUtilities.isReference(value)) {
-            return context.parameters.add(context.column.toColumn(value));
-        }
-        // a row holding no value in either column matches no comparison, which is what sql answers
-        return PostgresSqlUtilities.qualify(context.alias, this.schema.getColumn(context.entityClass, value.property).name);
+        return PropertyReferenceUtilities.isReference(value)
+            // a row holding no value in either column matches no comparison, which is what sql answers
+            ? PostgresSqlUtilities.qualify(context.alias, this.schema.getColumn(context.entityClass, value.property).name)
+            : context.parameters.add(context.column.toColumn(value));
     }
 
     private convertFuzzyLike(value: unknown, context: ColumnContext): string {
@@ -882,10 +877,9 @@ export class PostgresWhereFilterConverter {
         if (typeof value === 'bigint') {
             return value.toString();
         }
-        if (typeof value === 'object' && value !== null && !(value instanceof Date) && !Buffer.isBuffer(value)) {
-            return JsonUtilities.stringify(value);
-        }
-        return value;
+        return typeof value === 'object' && value !== null && !(value instanceof Date) && !Buffer.isBuffer(value)
+            ? JsonUtilities.stringify(value)
+            : value;
     }
 
     private toList(value: unknown, key: string, fieldKey: string): unknown[] {
@@ -1145,7 +1139,7 @@ export class PostgresWhereFilterConverter {
                 jsonPath,
                 'value',
                 shapeFilter,
-                { ...shape } as PropertyMetadata,
+                { ...shape },
                 parameters,
                 `${path}.${name}`,
                 undefined
@@ -1357,10 +1351,9 @@ export class PostgresWhereFilterConverter {
     private equalsAnyJson(jsonPath: string, castPath: string, listed: unknown[], parameters: PostgresParameters): string {
         // an object or a list is compared as a whole json document, which a list of them bound as an
         // array cannot carry
-        if (listed.some(isJsonDocument)) {
-            return `(${jsonPath} IN (SELECT jsonb_array_elements(${this.toJsonbParameter(listed, parameters)})))`;
-        }
-        return `(${castPath} = ANY(${parameters.addList(listed.map(toJsonComparand))}))`;
+        return listed.some(isJsonDocument)
+            ? `(${jsonPath} IN (SELECT jsonb_array_elements(${this.toJsonbParameter(listed, parameters)})))`
+            : `(${castPath} = ANY(${parameters.addList(listed.map(toJsonComparand))}))`;
     }
 
     /**
@@ -1418,7 +1411,7 @@ export class PostgresWhereFilterConverter {
                 return `::boolean${castMarker(path, propMeta.type)}`;
             }
             case 'string': {
-                // 11 §S10: a text read out of json takes the database's collation, and a text column the
+                // a text read out of json takes the database's collation, and a text column the
                 // application's. Compared by the same one, `after` agrees with the column and the evaluator
                 return ` COLLATE ${PostgresSqlUtilities.escapeIdentifier(this.schema.getTextCollation())}`;
             }

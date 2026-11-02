@@ -120,7 +120,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         }
         // the record is written in development and shipped with the build; a production application
         // only reads it. Writing it there took an empty folder mounted in a read-only image for a project
-        // that had never released anything, and dropped every check against the versions before (03 §H14)
+        // that had never released anything, and dropped every check against the versions before
         if (app.options.environment === 'production') {
             throw new InitVersioningServiceError([
                 // eslint-disable-next-line stylistic/max-len
@@ -437,11 +437,9 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
             }
 
             const previousRoute: RouteWithVersionData | undefined = previousRoutesByKey.get(r.key);
-            if (!previousRoute || previousRoute.versions === 'all') {
-                return true;
-            }
-
-            return !this.routeSupportsVersion(previousRoute, previousLatest.value, previousLatest.value);
+            return !previousRoute
+                || previousRoute.versions === 'all'
+                || !this.routeSupportsVersion(previousRoute, previousLatest.value, previousLatest.value);
         });
 
         if (routesThatNeedUpdate.length) {
@@ -525,11 +523,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         if (version === '^latest') {
             return `^${currentLatest}`;
         }
-        if (version === '~latest') {
-            return `~${currentLatest}`;
-        }
-
-        return version;
+        return version === '~latest' ? `~${currentLatest}` : version;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

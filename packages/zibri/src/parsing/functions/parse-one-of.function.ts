@@ -68,10 +68,12 @@ export type NamedValue = {
  * @returns True when it has a text `shape`, maybe a `value`, and no other key.
  */
 export function isNamedValue(value: unknown): value is NamedValue {
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-        return false;
-    }
-    return 'shape' in value && typeof value.shape === 'string' && Object.keys(value).every(key => key === 'shape' || key === 'value');
+    return typeof value === 'object'
+        && value !== null
+        && !Array.isArray(value)
+        && 'shape' in value
+        && typeof value.shape === 'string'
+        && Object.keys(value).every(key => key === 'shape' || key === 'value');
 }
 
 /**
@@ -97,10 +99,7 @@ export function parseOneOf(rawValue: unknown, metadata: Pick<OneOfPropertyMetada
         return rawValue;
     }
     const shape: OneOfShapeMetadata | undefined = metadata.shapes[value.shape];
-    if (shape == undefined) {
-        return rawValue;
-    }
-    return { shape: value.shape, value: parseShape(value.value, shape) };
+    return shape == undefined ? rawValue : { shape: value.shape, value: parseShape(value.value, shape) };
 }
 
 /**

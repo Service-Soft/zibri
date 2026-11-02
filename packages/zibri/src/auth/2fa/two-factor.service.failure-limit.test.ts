@@ -34,6 +34,11 @@ import { PasswordAuthenticator } from '../authenticators/password/password.authe
 import { Auth } from '../decorators/auth.decorator';
 import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy';
 
+type LoginTokens = {
+    accessToken: { value: string },
+    refreshToken: { value: string }
+};
+
 const EMAIL: string = 'failure-limit@example.com';
 const PASSWORD: string = 'secure123';
 const LOCKED_MESSAGE: string = 'Your second factor is locked after too many wrong codes. Use a recovery code, or have it reset.';
@@ -284,7 +289,7 @@ for (const lock of locks) {
                 const res: Response = await logIn();
                 expect(res.status).toBe(200);
                 // eslint-disable-next-line typescript/no-unsafe-assignment
-                const { accessToken: access, refreshToken }: { accessToken: { value: string }, refreshToken: { value: string } } = await res.json();
+                const { accessToken: access, refreshToken }: LoginTokens = await res.json();
 
                 await guessUntilLocked(access.value);
 

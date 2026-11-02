@@ -145,7 +145,7 @@ export function describeNumberFormats(dataSourceName: string, repositoryOf: () =
             expect(await repository.findAll({ where: { price: { lesserThan: 11n } } })).toHaveLength(1);
         }, 30000);
 
-        // 11 §S6: a store looking an indexed exact decimal up named the entry of the number as it was
+        // a store looking an indexed exact decimal up named the entry of the number as it was
         // written in the filter, which is not the entry of the decimal it equals
         it('finds an exact decimal by any number that equals it, through its index too', async () => {
             const repository: Repository<Measurement> = repositoryOf();
@@ -178,7 +178,7 @@ export function describeNumberFormats(dataSourceName: string, repositoryOf: () =
         }, 30000);
     });
 
-    // 01 §D9: the cursor carried only strings, numbers and booleans, so the first full page of a walk
+    // the cursor carried only strings, numbers and booleans, so the first full page of a walk
     // ordered by a bigint or an exact decimal ended in an error - and read back through Number, a
     // cursor past what a double holds would have named a different row
     describe(`a keyset walk ordered by a number past what a double holds, on ${dataSourceName}`, () => {

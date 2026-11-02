@@ -24,6 +24,7 @@ import { BaseRateLimitState, RateLimiterStoreUpdateResult } from '../../../rate-
 import { RepositoryRateLimiterStore } from '../../../rate-limiting/stores/repository.rate-limiter-store';
 import { ValKeyRateLimiterLock } from '../../../rate-limiting/stores/val-key.rate-limiter-lock';
 import { Newable } from '../../../types/newable.type';
+import { Bytes } from '../../../utilities/bytes';
 import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { MigrationEntity } from '../../migration/migration-entity.model';
@@ -34,7 +35,6 @@ import { KeyDeclarationsChangedError } from '../../transaction/key-declarations-
 import { Transaction } from '../../transaction/transaction.model';
 import { ValKeyTransaction } from '../../transaction/val-key-transaction.model';
 import { UniqueConstraintViolationError } from '../../unique-constraint-violation.error';
-import { PostgresDataSource } from '../postgres/postgres-data-source.model';
 
 // ---------- Test entities ----------
 
@@ -140,6 +140,72 @@ class ValKeyRoutedItem extends BaseEntity {
     name!: string;
 }
 
+/**
+ * A row a restore and a renaming migration are interrupted on.
+ */
+@Entity({ tenant: 'shared', allowOrphan: true })
+class ValKeyDoc extends BaseEntity {
+    @Property.string({ required: false })
+    title: string | undefined | null;
+
+    @Property.string({ required: false })
+    heading: string | undefined | null;
+}
+
+/**
+ * The single property form of a unique declaration.
+ */
+@Entity({ tenant: 'shared', allowOrphan: true })
+class ValKeyAccount extends BaseEntity {
+    @Property.string({ unique: true })
+    email!: string;
+
+    @Property.number({ required: false })
+    logins: number | undefined | null;
+}
+
+/**
+ * The multi property form, which is a different declaration rather than the same one repeated: only
+ * the combination names at most one row, so either half on its own may repeat.
+ */
+@Entity({ tenant: 'shared', allowOrphan: true, uniques: [['tenant', 'name']] })
+class ValKeyProject extends BaseEntity {
+    @Property.string()
+    tenant!: string;
+
+    @Property.string()
+    name!: string;
+}
+
+/**
+ * A rate limit state whose algorithm specific part counts the updates it went through.
+ */
+type CountedRateLimitState = BaseRateLimitState & {
+    /**
+     * How many updates the state went through.
+     */
+    count?: number
+};
+
+/**
+ * A stream that hands over the given lines and then fails, the way a cut connection does.
+ * @param lines - The lines to produce before failing.
+ * @returns The stream.
+ */
+function streamThatFailsAfter(lines: string[]): Readable {
+    let index: number = 0;
+    return new Readable({
+        read(): void {
+            if (index < lines.length) {
+                this.push(lines[index]);
+                index++;
+                return;
+            }
+            this.destroy(new Error('the backup stream was cut'));
+        }
+    });
+}
+
 let server: StartedTestServer;
 let dataSource: ValKeyDataSource;
 let stockRepo: Repository<ValKeyStock>;
@@ -151,14 +217,26 @@ const postgresDataSourceClass: Newable<DataSourceInterface> = createTestDataSour
 
 const valKeyDataSourceClass: Newable<ValKeyDataSource> = createTestValKeyDataSource({
     // MigrationEntity is duplicated across data sources on purpose, every one tracks its own migrations
-    entities: [MigrationEntity, RateLimitStateEntity, ValKeyProduct, ValKeyCategory, ValKeyTag, ValKeyStock, ValKeyShelvedItem, ValKeyRoutedItem]
+    entities: [
+        MigrationEntity,
+        RateLimitStateEntity,
+        ValKeyProduct,
+        ValKeyCategory,
+        ValKeyTag,
+        ValKeyStock,
+        ValKeyShelvedItem,
+        ValKeyRoutedItem,
+        ValKeyDoc,
+        ValKeyAccount,
+        ValKeyProject
+    ]
 });
 
 beforeAll(async () => {
     server = await startTestServer({
         // the postgres data source keeps the framework entities (users, logs, ...) working,
         // the valkey data source is the one under test here
-        dataSources: [postgresDataSourceClass as Newable<PostgresDataSource>, valKeyDataSourceClass]
+        dataSources: [postgresDataSourceClass, valKeyDataSourceClass]
     });
     dataSource = inject(valKeyDataSourceClass);
     productRepo = inject(repositoryTokenFor(ValKeyProduct));
@@ -1031,15 +1109,15 @@ describe('ValKeyDataSource', () => {
             await store.atomicUpdate('concurrent', () => ({ expiresAtMs: future, reservations: [], count: 0 } as BaseRateLimitState));
 
             await Promise.all(
-                Array.from({ length: 10 }, () => store.atomicUpdate('concurrent', current => ({
+                Array.from({ length: 10 }, () => store.atomicUpdate('concurrent', (current: CountedRateLimitState | undefined) => ({
                     ...current,
                     expiresAtMs: future,
                     reservations: [],
-                    count: ((current as BaseRateLimitState & { count?: number } | undefined)?.count ?? 0) + 1
+                    count: (current?.count ?? 0) + 1
                 } as BaseRateLimitState)))
             );
 
-            const res: BaseRateLimitState & { count?: number } | undefined = await store.get('concurrent');
+            const res: CountedRateLimitState | undefined = await store.get('concurrent');
             expect(res?.count).toBe(10);
             await store.delete('concurrent');
         });
@@ -1056,19 +1134,43 @@ describe('ValKeyDataSource', () => {
             await unlocked.atomicUpdate('unlocked', () => ({ expiresAtMs: future, reservations: [], count: 0 } as BaseRateLimitState));
 
             await Promise.all(
-                Array.from({ length: 10 }, () => unlocked.atomicUpdate('unlocked', current => ({
+                Array.from({ length: 10 }, () => unlocked.atomicUpdate('unlocked', (current: CountedRateLimitState | undefined) => ({
                     ...current,
                     expiresAtMs: future,
                     reservations: [],
-                    count: ((current as BaseRateLimitState & { count?: number } | undefined)?.count ?? 0) + 1
+                    count: (current?.count ?? 0) + 1
                 } as BaseRateLimitState)))
             );
 
             // without the version on the row this is where updates go missing: everyone reads the
             // same count and everyone writes it back plus one
-            const res: BaseRateLimitState & { count?: number } | undefined = await unlocked.get('unlocked');
+            const res: CountedRateLimitState | undefined = await unlocked.get('unlocked');
             expect(res?.count).toBe(10);
             await unlocked.delete('unlocked');
+        });
+
+        it('keeps one row for a key whose first updates race without the lock', async () => {
+            // the store takes a failing create for "somebody else created this key", which is only
+            // true where the key is enforced unique. An insert has no row yet to carry a version, so
+            // this is the case the version above cannot cover
+            const unlocked: RepositoryRateLimiterStore<BaseRateLimitState> = new RepositoryRateLimiterStore(
+                inject(repositoryTokenFor(RateLimitStateEntity, valKeyDataSourceClass)),
+                { withLock: async (_key, run) => await run() },
+                'unlocked-first-rate-limits'
+            );
+
+            await Promise.all(Array.from({ length: 3 }, () => unlocked.atomicUpdate('user:42', (current: CountedRateLimitState | undefined) => ({
+                ...current,
+                expiresAtMs: future,
+                reservations: [],
+                count: (current?.count ?? 0) + 1
+            } as BaseRateLimitState))));
+
+            // two rows for one key would count the limit twice and enforce it once, letting a caller
+            // through during a burst, the only time it matters
+            expect(await inject(repositoryTokenFor(RateLimitStateEntity, valKeyDataSourceClass)).findAll({ where: { key: 'user:42' } })).toHaveLength(1);
+            const state: CountedRateLimitState | undefined = await unlocked.get('user:42');
+            expect(state?.count).toBe(3);
         });
 
         it('deletes everything that expired in one operation', async () => {
@@ -1103,5 +1205,265 @@ describe('ValKeyDataSource', () => {
                 await store.delete(key);
             }
         });
+    });
+});
+
+// an operation meant to be all or nothing must not do part of its work where nothing can take it
+// back. Neither shows in a run that succeeds, which is why both cases interrupt one; each is paired
+// with a control, so that breaking the accepted case cannot make the refused one pass
+describe('ValKeyDataSource, interrupted', () => {
+    let docRepository: Repository<ValKeyDoc>;
+
+    beforeAll(() => {
+        docRepository = inject(repositoryTokenFor(ValKeyDoc));
+    });
+
+    beforeEach(async () => {
+        await docRepository.deleteAll({});
+    });
+
+    /**
+     * Reads a full backup of the valkey data source into its lines.
+     * @returns One string per backed up key.
+     */
+    async function backupLines(): Promise<string[]> {
+        const chunks: string[] = [];
+        for await (const chunk of dataSource.createBackupData()) {
+            chunks.push(String(chunk));
+        }
+        return chunks;
+    }
+
+    it('restores the state the backup was created in', async () => {
+        await docRepository.create({ title: 'Alpha' });
+        const lines: string[] = await backupLines();
+
+        await docRepository.deleteAll({});
+        await dataSource.restoreBackup(Readable.from(lines));
+
+        expect((await docRepository.findAll()).map(d => d.title)).toEqual(['Alpha']);
+    });
+
+    it('leaves the store as it was when the backup stream fails part way through', async () => {
+        await docRepository.create({ title: 'Alpha' });
+        await docRepository.create({ title: 'Beta' });
+        const lines: string[] = await backupLines();
+        // a backup worth restoring has more than one key in it, or there is nothing to be partial about
+        expect(lines.length).toBeGreaterThan(1);
+
+        await expect(dataSource.restoreBackup(streamThatFailsAfter(lines.slice(0, 1)))).rejects.toThrow();
+
+        // deleting before the replacement is known to be good would leave a truncated stream, a
+        // malformed line or a network blip with the store wiped and half filled
+        expect((await docRepository.findAll()).map(d => d.title).sort()).toEqual(['Alpha', 'Beta']);
+    });
+
+    it('renames a property when the migration commits', async () => {
+        const created: ValKeyDoc = await docRepository.create({ title: 'the original value' });
+        const transaction: Transaction = dataSource.startTransaction();
+
+        await dataSource.changePropertyOfEntity({
+            entity: ValKeyDoc,
+            currentProperty: { name: 'title', type: 'string', required: false },
+            property: { name: 'heading', type: 'string', required: false },
+            transaction
+        });
+        await transaction.commit();
+
+        expect((await docRepository.findById(created.id)).heading).toBe('the original value');
+    });
+
+    it('keeps the old property when the migration is rolled back', async () => {
+        const created: ValKeyDoc = await docRepository.create({ title: 'the original value' });
+        const transaction: Transaction = dataSource.startTransaction();
+
+        await dataSource.changePropertyOfEntity({
+            entity: ValKeyDoc,
+            currentProperty: { name: 'title', type: 'string', required: false },
+            property: { name: 'heading', type: 'string', required: false },
+            transaction
+        });
+        await transaction.rollback();
+
+        // a removal of the old field issued straight away rather than with the transaction would
+        // leave the value under neither name once the write of the new one is rolled back
+        expect((await docRepository.findById(created.id)).title).toBe('the original value');
+    });
+});
+
+// `unique` is declared on the entity, so what it means cannot depend on the store the entity is in
+describe('ValKeyDataSource, a unique declaration', () => {
+    let accountRepository: Repository<ValKeyAccount>;
+    let projectRepository: Repository<ValKeyProject>;
+
+    beforeAll(() => {
+        accountRepository = inject(repositoryTokenFor(ValKeyAccount));
+        projectRepository = inject(repositoryTokenFor(ValKeyProject));
+    });
+
+    beforeEach(async () => {
+        await accountRepository.deleteAll({});
+        await projectRepository.deleteAll({});
+    });
+
+    it('refuses a second row carrying a value the first one holds, naming the property, and leaves the first as it was', async () => {
+        // the control: writing a row carrying a unique property at all works
+        const first: ValKeyAccount = await accountRepository.create({ email: 'taken@example.com', logins: 1 });
+
+        await expect(accountRepository.create({ email: 'taken@example.com', logins: 2 })).rejects.toThrow(UniqueConstraintViolationError);
+        // the same answer a sql store gives
+        await expect(accountRepository.create({ email: 'taken@example.com' })).rejects.toMatchObject({ properties: ['email'] });
+
+        const stored: ValKeyAccount[] = await accountRepository.findAll();
+        expect(stored.map(a => [a.id, a.logins])).toEqual([[first.id, 1]]);
+    });
+
+    it('lets a row be written again while it keeps the value it already holds', async () => {
+        const created: ValKeyAccount = await accountRepository.create({ email: 'mine@example.com', logins: 1 });
+
+        // its own id is what the index points at, and a row is not a duplicate of itself
+        await accountRepository.updateById(created.id, { logins: 2 });
+
+        expect((await accountRepository.findById(created.id)).logins).toBe(2);
+    });
+
+    it('frees a value once the row holding it moved to another one, or is deleted', async () => {
+        const moved: ValKeyAccount = await accountRepository.create({ email: 'before@example.com' });
+        await accountRepository.updateById(moved.id, { email: 'after@example.com' });
+        const deleted: ValKeyAccount = await accountRepository.create({ email: 'gone@example.com' });
+        await accountRepository.deleteById(deleted.id);
+
+        await expect(accountRepository.create({ email: 'before@example.com' })).resolves.toBeDefined();
+        await expect(accountRepository.create({ email: 'gone@example.com' })).resolves.toBeDefined();
+    });
+
+    it('refuses two rows of one save that carry the same value', async () => {
+        // the rows of a save are written together, so neither is stored yet when the other is
+        // checked: what answers has to be what the save already took, not only what the server holds
+        await expect(accountRepository.createAll([
+            { email: 'both@example.com' },
+            { email: 'both@example.com' }
+        ])).rejects.toThrow(UniqueConstraintViolationError);
+
+        expect(await accountRepository.findAll()).toHaveLength(0);
+    });
+
+    it('refuses a group only once every property of it repeats', async () => {
+        await projectRepository.create({ tenant: 'acme', name: 'website' });
+
+        // either half on its own is free, which is what makes a group a declaration of its own rather
+        // than two single ones
+        await expect(projectRepository.create({ tenant: 'acme', name: 'intranet' })).resolves.toBeDefined();
+        await expect(projectRepository.create({ tenant: 'other', name: 'website' })).resolves.toBeDefined();
+
+        await expect(projectRepository.create({ tenant: 'acme', name: 'website' })).rejects.toThrow(UniqueConstraintViolationError);
+    });
+});
+
+// two stores over one valkey are what two instances of an application are: the values and the
+// bookkeeping keys all live on the server, and both write to them
+describe('ValKeyCacheStore, shared by two instances', () => {
+    /**
+     * Far more than the stores below write, so that what removes an entry is what each case is about
+     * rather than the limit.
+     */
+    const roomToSpare: number = Bytes.KB * 100;
+
+    /**
+     * A store over the shared valkey. Every store built on one data source shares its key prefix,
+     * which is how two instances see one cache - and it makes them one store across cases too.
+     * @returns The store.
+     */
+    function storeOverTheSharedValKey<K>(): ValKeyCacheStore<K, string> {
+        return new ValKeyCacheStore(dataSource, { model: 'plain', maxBytes: roomToSpare, maxEntries: 1000 });
+    }
+
+    /**
+     * A cached value with no expiry, so that nothing but the byte budget can remove it.
+     * @param value - The value to cache.
+     * @returns The cached value.
+     */
+    function permanent(value: string): CachedValue<string> {
+        return { value, tags: [], createdAt: new Date() };
+    }
+
+    beforeEach(async () => {
+        await storeOverTheSharedValKey<string>().clear();
+    });
+
+    it('keys an entry the way the in memory store keys it', async () => {
+        const store: ValKeyCacheStore<{ userId: string, tenantId: string } | number | string, string> = storeOverTheSharedValKey();
+
+        // an object key written as it came would make two call sites building the same key in
+        // another order read each other's entries as misses
+        await store.set({ userId: 'u3', tenantId: 't1' }, permanent('found'));
+        expect((await store.get({ tenantId: 't1', userId: 'u3' }))?.value).toBe('found');
+
+        // and the number and the string of the same digits are two keys
+        await store.set(42, permanent('number'));
+        await store.set('42', permanent('string'));
+        expect((await store.get(42))?.value).toBe('number');
+    });
+
+    // a counter read and then increased by the difference lets both instances add the whole new
+    // size: the store would then be over budget forever by what the losers of those races added,
+    // evicting everything as fast as it is written
+    it('keeps counting right when both instances write the same key at once', async () => {
+        const first: ValKeyCacheStore<string, string> = storeOverTheSharedValKey();
+        const second: ValKeyCacheStore<string, string> = storeOverTheSharedValKey();
+
+        await Promise.all(Array.from({ length: 20 }, (_, i) => i).flatMap(i => [
+            first.set('contended', permanent(`from-first-${i}`)),
+            second.set('contended', permanent(`from-second-${i}`))
+        ]));
+
+        expect(await first.size()).toBe(1);
+        for (let i: number = 0; i < 5; i++) {
+            await first.set(`after-${i}`, permanent('still fits'));
+        }
+        for (let i: number = 0; i < 5; i++) {
+            expect((await first.get(`after-${i}`))?.value).toBe('still fits');
+        }
+    });
+
+    // subtracting a size twice would leave the counter below what the store holds, which turns the
+    // budget off rather than tightening it
+    it('keeps counting right when both instances remove the same key at once', async () => {
+        const first: ValKeyCacheStore<string, string> = storeOverTheSharedValKey();
+        const second: ValKeyCacheStore<string, string> = storeOverTheSharedValKey();
+
+        await first.set('doomed', permanent('value'));
+        await Promise.all([first.delete('doomed'), second.delete('doomed')]);
+
+        await first.set('kept', permanent('value'));
+        expect(await first.size()).toBe(1);
+        expect((await first.get('kept'))?.value).toBe('value');
+    });
+
+    // the server drops a value when its time to live runs out and knows nothing of the index, the
+    // sizes or the counter: without a sweep the entry takes up budget until its key is read again,
+    // which for most keys is never
+    it('gives back the room an expired entry held without waiting to be asked for it again', async () => {
+        const store: ValKeyCacheStore<string, string> = storeOverTheSharedValKey();
+        for (let i: number = 0; i < 5; i++) {
+            await store.set(`short-lived-${i}`, { ...permanent('value'), expiresAt: new Date(Date.now() + 100) });
+        }
+        expect(await store.size()).toBe(5);
+
+        await new Promise<void>(resolve => setTimeout(resolve, 300));
+
+        expect(await store.removeExpired()).toBe(5);
+        expect(await store.size()).toBe(0);
+    });
+
+    // whichever of the two finds it first, one entry expired: a number counting only the sweeps
+    // would read near zero on exactly the caches whose keys are read often
+    it('reports an expired entry a read already removed rather than losing it', async () => {
+        const store: ValKeyCacheStore<string, string> = storeOverTheSharedValKey();
+        await store.set('read-first', { ...permanent('value'), expiresAt: new Date(Date.now() + 100) });
+        await new Promise<void>(resolve => setTimeout(resolve, 300));
+
+        expect(await store.get('read-first')).toBeUndefined();
+        expect(await store.removeExpired()).toBe(1);
     });
 });

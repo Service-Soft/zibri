@@ -77,7 +77,7 @@ describe('S3SignatureUtilities', () => {
         expect(headers['authorization']).toContain('Signature=34b48302e7b5fa45bde8084f4b7868a86f0a534bc59db6670ed5711ef69dc6f7');
     });
 
-    // evaluation/round-2/02-data-layer-stores.md S8: temporary credentials could not be signed with
+    // temporary credentials could not be signed with
     it('signs the session token of temporary credentials', () => {
         const signWith: (sessionToken: string) => Record<string, string> = sessionToken => S3SignatureUtilities.resolveHeaders({
             method: 'GET',

@@ -75,8 +75,8 @@ abstract class TestDomain extends BaseActiveDirectoryAuthenticator<string, JwtUs
 
     async resolveFirstLogin(entry: LdapEntry, transaction: Transaction | undefined): Promise<JwtUser> {
         firstLogins.push(entry);
-        const [email] = entry.attributes['userprincipalname'] ?? [];
-        return await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).create({ email: email ?? '', roles: [Roles.USER] }, { transaction });
+        const [email = ''] = entry.attributes['userprincipalname'] ?? [];
+        return await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] }, { transaction });
     }
 
     async resolveLogin(entry: LdapEntry, user: JwtUser, transaction: Transaction | undefined): Promise<JwtUser> {
@@ -311,7 +311,6 @@ describe('BaseActiveDirectoryAuthenticator against a Samba domain controller', (
         expect(roles).toStrictEqual([Roles.ADMIN]);
     });
 
-    // evaluation/03-auth-and-security H22
     it('finds an account by its objectGUID on a refresh, and refuses it once the domain disabled it', async () => {
         await sambaTool('user', 'create', 'frank', FRANK_PASSWORD);
         const loggedIn: JwtAuthData<string> = await authDataOf(await logIn({ username: 'frank', password: FRANK_PASSWORD }));

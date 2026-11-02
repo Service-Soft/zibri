@@ -82,7 +82,7 @@ async function takeBackup(name: string): Promise<void> {
     await firstValueFrom(backupService.isCreatingBackup.pipe(first(creating => !creating)));
 }
 
-// part of evaluation round 2, 02 §S16: every backup was kept until the application deleted it
+// every backup was kept until the application deleted it
 describe('BackupService - a retention', () => {
     it('deletes the backups it keeps no longer once a backup completes, from the transports and the database', async () => {
         await takeBackup('first');

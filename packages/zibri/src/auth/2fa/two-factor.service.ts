@@ -332,7 +332,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         // costs 2^(n-1) times the delay, so a guesser gets a few dozen codes a year while a typo costs
         // a second. The optional hard limit on top caps the total chance of a hit rather than its rate
         // (NIST 800-63B allows disabling the factor after at most 100 in a row); with the doubling it is
-        // only ever reached at small values, see evaluation/03 §C3.
+        // only ever reached at small values.
         const retryAt: Date = new Date(Date.now() + (this.failureDelayInMs * (2 ** (count - 1))));
         const locks: boolean = this.failureLimit !== false && streak?.lockedAt == undefined && count >= this.failureLimit.maxFailures;
         // null rather than undefined, so an update that does not lock keeps the column as it is

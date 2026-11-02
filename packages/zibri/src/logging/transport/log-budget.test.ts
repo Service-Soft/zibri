@@ -79,7 +79,7 @@ function logRefusedLogin(logger: Logger, subject: string): void {
     logger.warn('auth.login failure (refused)', { metadata: { audit: refusedLoginOf(subject) } });
 }
 
-// evaluation/03-auth-and-security G3: the db transport wrote whatever arrived, so a caller could fill
+// the db transport wrote whatever arrived, so a caller could fill
 // the log table at request rate - an error row per bad input, an audit row per refused login
 describe('the db logger transport\'s budget', () => {
     beforeAll(async () => {

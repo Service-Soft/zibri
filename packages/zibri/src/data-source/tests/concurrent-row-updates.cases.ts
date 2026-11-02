@@ -9,7 +9,7 @@ import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';
 
-// evaluation/round-2/11-unread-code-review.md S12: the in memory transaction wrote back the whole row
+// the in memory transaction wrote back the whole row
 // it had read, over what another writer committed to the same row meanwhile
 
 /**

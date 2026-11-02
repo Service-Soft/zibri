@@ -149,7 +149,7 @@ describe('BackupService — a backup of several resources', () => {
         expect(inject(SettingsStore).value).toBe('backed up');
     }, 15000);
 
-    // found with round 2's 06 §F19: the data source holding the records of the backups restored them
+    // the data source holding the records of the backups restored them
     // as they were when its data was read - forgetting every backup taken since, and bringing back the
     // one being taken then as still running, which the queue stored again over its finished archive
     it('keeps the record of every backup across a restore of the data source holding it', async () => {
@@ -210,7 +210,7 @@ describe('BackupService — a backup of several resources', () => {
         expect(inject(SettingsStore).value).toBe('current');
     }, 15000);
 
-    // evaluation/round-2/02-data-layer-stores.md S7: a backup a newer release took was applied as it
+    // a backup a newer release took was applied as it
     // was, and the next boot refused to start on it
     it('puts back every resource it applied when the data source refuses a backup a newer release took', async () => {
         const migrations: Repository<MigrationEntity> = inject(repositoryTokenFor(MigrationEntity));

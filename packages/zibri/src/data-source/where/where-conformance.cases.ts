@@ -755,7 +755,7 @@ export function describeWhereConformance(dataSourceName: string, repositoriesOf:
          * @returns Every branch of it, with the batch.
          */
         function withBatch<E extends Batched>(filter: Where<E>): WhereFilter<E>[] {
-            return (Array.isArray(filter) ? filter : [filter]).map(branch => ({ ...branch, batch }) as WhereFilter<E>);
+            return (Array.isArray(filter) ? filter : [filter]).map(branch => ({ ...branch, batch }));
         }
 
         /**
@@ -896,7 +896,7 @@ export function describeWhereConformance(dataSourceName: string, repositoriesOf:
             expect(await mismatchesOf(DATE_CONDITIONS.map(when => ({ when })))).toStrictEqual([]);
         });
 
-        // 01 §D19: a filter compared a property with a value only, never with another property of the row
+        // a filter compared a property with a value only, never with another property of the row
         it('compares two properties of a row the same way', async () => {
             expect(await mismatchesOf([
                 { when: { after: propertyOf('until') } },
@@ -957,7 +957,7 @@ export function describeWhereConformance(dataSourceName: string, repositoriesOf:
             expect(await mismatchesOf(PART_CONDITIONS.map(parts => ({ parts })))).toStrictEqual([]);
         });
 
-        // 11 §S5: inside a json value, a store matched part of an object or a list where the
+        // inside a json value, a store matched part of an object or a list where the
         // evaluator compares the whole, and refused the values the evaluator answers
         it('reads a list, an object and the large numbers inside a json value the same way', async () => {
             expect(await mismatchesOf([

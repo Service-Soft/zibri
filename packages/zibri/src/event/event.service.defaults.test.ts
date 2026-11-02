@@ -15,7 +15,7 @@ import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { Ms } from '../utilities/ms';
 
-// evaluation/round-2/12-hardcoded-values.md §D1: a finished event was kept a day and a hook given 30
+// a finished event was kept a day and a hook given 30
 // seconds unless each emit and each subscriber said otherwise, so the framework's own events could not
 
 declare module './event-service.interface' {

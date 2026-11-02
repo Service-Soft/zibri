@@ -44,7 +44,7 @@ async function findHolderOfGrant(key: string): Promise<string | undefined> {
     });
 }
 
-// round 2's 06 §F12: every replica of a deployment shares its application name, which was all a
+// every replica of a deployment shares its application name, which was all a
 // grant recorded about its holder
 describe('The instance an application runs as', () => {
     describe('when the deployment names it', () => {

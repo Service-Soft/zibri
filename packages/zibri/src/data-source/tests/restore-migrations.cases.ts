@@ -24,7 +24,7 @@ import { Migration } from '../migration/migration.model';
 import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';
 
-// evaluation/round-2/02-data-layer-stores.md S7: a restore put back the schema, the migration records
+// a restore put back the schema, the migration records
 // and the indexes of whichever release took the backup, under instances built for another one
 
 /**

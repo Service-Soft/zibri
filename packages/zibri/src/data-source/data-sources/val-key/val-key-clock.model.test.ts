@@ -17,7 +17,7 @@ class ServerClock {
     };
 }
 
-// round 2's 02 §S21: the valkey data source read the server's clock before every call naming the
+// the valkey data source read the server's clock before every call naming the
 // time of the data source, a round trip each
 describe('ValKeyClock', () => {
     let server: ServerClock;

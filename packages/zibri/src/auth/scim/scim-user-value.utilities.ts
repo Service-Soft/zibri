@@ -38,11 +38,10 @@ export abstract class ScimUserValueUtilities {
     private static toAttributeValues(scimUserId: string, attribute: string, value: unknown): ScimUserValueInput[] {
         const elements: unknown[] = Array.isArray(value) ? value : [value];
         return elements.flatMap((element, index): ScimUserValueInput[] => {
-            if (!ScimFilterUtilities.isRecord(element)) {
-                return this.toValue(scimUserId, attribute, attribute, index, element);
-            }
-            return Object.entries(element)
-                .flatMap(([name, item]) => this.toValue(scimUserId, attribute, `${attribute}.${name.toLowerCase()}`, index, item));
+            return !ScimFilterUtilities.isRecord(element)
+                ? this.toValue(scimUserId, attribute, attribute, index, element)
+                : Object.entries(element)
+                    .flatMap(([name, item]) => this.toValue(scimUserId, attribute, `${attribute}.${name.toLowerCase()}`, index, item));
         });
     }
 
@@ -60,10 +59,7 @@ export abstract class ScimUserValueUtilities {
         if (typeof value === 'number' && Number.isFinite(value)) {
             return [{ ...base, text: undefined, number: value, boolean: undefined }];
         }
-        if (typeof value === 'boolean') {
-            return [{ ...base, text: undefined, number: undefined, boolean: value }];
-        }
-        return [];
+        return typeof value === 'boolean' ? [{ ...base, text: undefined, number: undefined, boolean: value }] : [];
     }
 
     /**

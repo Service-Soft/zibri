@@ -178,10 +178,9 @@ export class WhereFilterEvaluator {
      */
     private matchesAt<T extends object>(item: T, filter: Where<T>, cls: Newable<T>, path: string): boolean {
         const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(cls);
-        if (Array.isArray(filter)) {
-            return filter.some(f => this.matchesSingleFilter(item, f, properties, path));
-        }
-        return this.matchesSingleFilter(item, filter, properties, path);
+        return Array.isArray(filter)
+            ? filter.some(f => this.matchesSingleFilter(item, f, properties, path))
+            : this.matchesSingleFilter(item, filter, properties, path);
     }
 
     private matchesSingleFilter<T extends object>(
@@ -212,10 +211,9 @@ export class WhereFilterEvaluator {
 
     private matchesProperty(value: unknown, filterProperty: unknown, metadata: PropertyMetadata | undefined, path: string): boolean {
         // an array of filters means "or", unless the property itself holds an array, in which case it is the value to compare against
-        if (Array.isArray(filterProperty) && metadata?.type !== 'array') {
-            return filterProperty.some(f => this.matchesSingleProperty(value, f, metadata, path));
-        }
-        return this.matchesSingleProperty(value, filterProperty, metadata, path);
+        return Array.isArray(filterProperty) && metadata?.type !== 'array'
+            ? filterProperty.some(f => this.matchesSingleProperty(value, f, metadata, path))
+            : this.matchesSingleProperty(value, filterProperty, metadata, path);
     }
 
     private matchesSingleProperty(value: unknown, filterProperty: unknown, metadata: PropertyMetadata | undefined, path: string): boolean {
@@ -285,10 +283,8 @@ export class WhereFilterEvaluator {
             return false;
         }
         const shapeFilter: unknown = shapeFilters.get(value.shape);
-        if (OneOfWhereFilterUtilities.matchesEveryValue(shapeFilter)) {
-            return true;
-        }
-        return this.matchesProperty(value.value, shapeFilter, { ...shape } as PropertyMetadata, path);
+        return OneOfWhereFilterUtilities.matchesEveryValue(shapeFilter)
+            || this.matchesProperty(value.value, shapeFilter, { ...shape }, path);
     }
 
     private matchesNestedWhere(value: unknown, filterValue: unknown, metadata: PropertyMetadata | undefined, path: string): boolean {
@@ -297,11 +293,11 @@ export class WhereFilterEvaluator {
         }
         if (metadata.type === 'object') {
             return value != undefined
-                && this.matchesAt(value as object, filterValue as Where<object>, metadata.cls() as Newable<object>, path);
+                && this.matchesAt(value, filterValue as Where<object>, metadata.cls() as Newable<object>, path);
         }
         if (metadata.type === 'array') {
             if (metadata.items.type !== 'object') {
-                const itemMetadata: PropertyMetadata = { ...metadata.items } as PropertyMetadata;
+                const itemMetadata: PropertyMetadata = { ...metadata.items };
                 return this.toItems(value).some(i => this.matchesProperty(i, filterValue, itemMetadata, path));
             }
             const itemClass: Newable<object> = metadata.items.cls() as Newable<object>;
@@ -309,11 +305,10 @@ export class WhereFilterEvaluator {
         }
         if (this.isRelation(metadata)) {
             const targetClass: Newable<BaseEntity> = metadata.target();
-            if (metadata.type === Relation.ONE_TO_MANY || metadata.type === Relation.MANY_TO_MANY) {
-                return this.toItems(value)
-                    .some(i => this.matchesAt(i as BaseEntity, filterValue as Where<BaseEntity>, targetClass, path));
-            }
-            return value != undefined && this.matchesAt(value as BaseEntity, filterValue as Where<BaseEntity>, targetClass, path);
+            return metadata.type === Relation.ONE_TO_MANY || metadata.type === Relation.MANY_TO_MANY
+                ? this.toItems(value)
+                    .some(i => this.matchesAt(i as BaseEntity, filterValue as Where<BaseEntity>, targetClass, path))
+                : value != undefined && this.matchesAt(value as BaseEntity, filterValue as Where<BaseEntity>, targetClass, path);
         }
         throw new InternalError('The "where" operator was used on a property that is not an object, array or relation.');
     }
@@ -493,10 +488,9 @@ export class WhereFilterEvaluator {
      */
     private listedOf(filterValue: unknown, key: WhereFilterKeys, metadata: PropertyMetadata | undefined): unknown[] {
         const list: unknown[] = this.toArray(filterValue, key);
-        if (metadata?.type !== Relation.MANY_TO_ONE && metadata?.type !== Relation.BELONGS_TO_ONE) {
-            return list;
-        }
-        return list.map(v => WhereValueUtilities.unwrapRelation(v, metadata));
+        return metadata?.type !== Relation.MANY_TO_ONE && metadata?.type !== Relation.BELONGS_TO_ONE
+            ? list
+            : list.map(v => WhereValueUtilities.unwrapRelation(v, metadata));
     }
 
     private isListed(value: unknown, list: unknown[], metadata: PropertyMetadata | undefined): boolean {
@@ -505,10 +499,9 @@ export class WhereFilterEvaluator {
         // once per row: a read of every row a batch just wrote lists all of their ids, and asking
         // each row about each id was the square of the batch. NaN is the one value `===` and a set
         // disagree on
-        if (listed != undefined && this.isComparedByIdentity(value) && !Number.isNaN(value)) {
-            return listed.has(value);
-        }
-        return list.some(v => v !== null && WhereValueUtilities.equals(value, v, metadata));
+        return listed != undefined && this.isComparedByIdentity(value) && !Number.isNaN(value)
+            ? listed.has(value)
+            : list.some(v => v !== null && WhereValueUtilities.equals(value, v, metadata));
     }
 
     /**

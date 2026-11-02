@@ -18,7 +18,7 @@ async function render(doc: PdfDocument): Promise<string> {
 }
 
 describe('PdfUtilities', () => {
-    // 07 §T15: a string handed as `src` is read as a file path, so the type asks for the path brand
+    // a string handed as `src` is read as a file path, so the type asks for the path brand
     // the rest of the framework resolves one with, rather than for any string a request carried
     it('attaches a file by a resolved path, raw content, or nothing a plain string could be', async () => {
         const definition: PdfAttachmentDefinition[] = [

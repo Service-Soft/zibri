@@ -306,11 +306,10 @@ function vendorGlobals(item: TemplateImport): string[] {
  * @returns The names.
  */
 function ambientNames(statement: ts.Statement): string[] {
-    if (ts.isModuleDeclaration(statement) && ts.isIdentifier(statement.name) && statement.name.text === 'global'
-        && statement.body != undefined && ts.isModuleBlock(statement.body)) {
-        return statement.body.statements.flatMap(ambientNames);
-    }
-    return declaredValueNames(statement);
+    return ts.isModuleDeclaration(statement) && ts.isIdentifier(statement.name) && statement.name.text === 'global'
+        && statement.body != undefined && ts.isModuleBlock(statement.body)
+        ? statement.body.statements.flatMap(ambientNames)
+        : declaredValueNames(statement);
 }
 
 /**

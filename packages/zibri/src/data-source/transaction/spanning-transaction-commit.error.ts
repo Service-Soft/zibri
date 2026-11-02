@@ -22,7 +22,8 @@ export class SpanningTransactionCommitError extends InternalError {
     ) {
         super([
             `The spanning transaction could not commit in the data source "${dataSourceName}", so it was undone in every data source.`,
-            ...restoreFailures.map(failure => `  - restoring "${failure.dataSourceName}" failed, its rows stay as the transaction wrote them: ${String(failure.error)}`)
+            ...restoreFailures.map(failure => `  - restoring "${failure.dataSourceName}" failed,`
+                + ` its rows stay as the transaction wrote them: ${String(failure.error)}`)
         ], options);
         this.name = 'SpanningTransactionCommitError';
     }

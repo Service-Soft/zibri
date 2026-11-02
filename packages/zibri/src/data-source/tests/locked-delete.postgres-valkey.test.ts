@@ -1,6 +1,6 @@
 import { afterAll, beforeAll } from '@jest/globals';
 
-import { describeLockedDelete, LockedArchive, LockedCompany, lockedDeleteEntities, LockedDeleteRepositories, LockedOffice } from './locked-delete.cases';
+import { describeLockedDelete, LockedArchive, LockedCompany, lockedDeleteEntities, LockedDeleteRepositories, LockedNotice, LockedOffice } from './locked-delete.cases';
 import { TestTimeouts } from '../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
@@ -34,7 +34,8 @@ function repositoriesOf(dataSource: DataSourceInterface): LockedDeleteRepositori
     return {
         companies: dataSource.getRepository(LockedCompany),
         offices: dataSource.getRepository(LockedOffice),
-        archives: dataSource.getRepository(LockedArchive)
+        archives: dataSource.getRepository(LockedArchive),
+        notices: dataSource.getRepository(LockedNotice)
     };
 }
 

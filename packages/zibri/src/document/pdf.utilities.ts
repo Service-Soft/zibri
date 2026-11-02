@@ -136,7 +136,11 @@ export abstract class PdfUtilities {
         // nothing to look at when nothing stands in, which is every application that registered no fallback
         const definition: PdfDocumentDefinition = fonts.fallbacks.length === 0
             ? documentDefinition
-            : PdfFontFallbackUtilities.apply(documentDefinition, { coverage: setup.coverage, fallbacks: fonts.fallbacks, styles: undefined });
+            : PdfFontFallbackUtilities.apply(documentDefinition, {
+                coverage: setup.coverage,
+                fallbacks: fonts.fallbacks,
+                styles: undefined
+            });
         const doc: PdfDocument = setup.printer.createPdfKitDocument(definition, options);
         for (const attachment of documentDefinition.attachments) {
             doc.file(attachment.src, attachment.options);
@@ -149,7 +153,9 @@ export abstract class PdfUtilities {
      * @returns Its fonts, or none besides Roboto when no application has registered any, such as in a script.
      */
     private static resolveFontOptions(): PdfFontOptions {
-        return getAllRegisteredTokens().includes(ZIBRI_DI_TOKENS.PDF_FONT_OPTIONS) ? inject(ZIBRI_DI_TOKENS.PDF_FONT_OPTIONS) : ROBOTO_ALONE;
+        return getAllRegisteredTokens().includes(ZIBRI_DI_TOKENS.PDF_FONT_OPTIONS)
+            ? inject(ZIBRI_DI_TOKENS.PDF_FONT_OPTIONS)
+            : ROBOTO_ALONE;
     }
 
     /**
@@ -179,7 +185,6 @@ export abstract class PdfUtilities {
                 normal: this.resolveShippedFont(shipped, 'Roboto-Regular.ttf'),
                 bold: this.resolveShippedFont(shipped, 'Roboto-Medium.ttf'),
                 italics: this.resolveShippedFont(shipped, 'Roboto-Italic.ttf'),
-                // eslint-disable-next-line cspell/spellchecker
                 bolditalics: this.resolveShippedFont(shipped, 'Roboto-MediumItalic.ttf')
             },
             ...fonts.families
@@ -216,14 +221,20 @@ export abstract class PdfUtilities {
      */
     private static resolveCoverage(families: Record<string, PdfFontFamily>): ReadonlyMap<string, PdfGlyphCoverage> {
         // the fontkit pdfmake draws with, so the characters a family is said to have are the ones it draws
-        const fontkit: Fontkit = optionalPeerDependency<Fontkit>(['pdfmake', '@foliojs-fork/pdfkit'], '@foliojs-fork/fontkit', 'Font fallbacks in a pdf');
+        const fontkit: Fontkit = optionalPeerDependency<Fontkit>(
+            ['pdfmake', '@foliojs-fork/pdfkit'],
+            '@foliojs-fork/fontkit',
+            'Font fallbacks in a pdf'
+        );
         const coverage: Map<string, PdfGlyphCoverage> = new Map();
         for (const [name, family] of Object.entries(families)) {
             const file: PdfFontFile = family.normal;
             const font: Partial<PdfGlyphCoverage> = fontkit.create(Buffer.isBuffer(file) ? file : readFileSync(file));
             const hasGlyphForCodePoint: ((codePoint: number) => boolean) | undefined = font.hasGlyphForCodePoint?.bind(font);
             if (hasGlyphForCodePoint == undefined) {
-                throw new InternalError(`The pdf font family "${name}" is a collection of fonts. Give it the file of one font, such as an .otf or .ttf file.`);
+                throw new InternalError(
+                    `The pdf font family "${name}" is a collection of fonts. Give it the file of one font, such as an .otf or .ttf file.`
+                );
             }
             coverage.set(name, { hasGlyphForCodePoint });
         }

@@ -155,6 +155,7 @@ export abstract class CronJob {
     // eslint-disable-next-line jsdoc/require-returns
     /**
      * The name of the cron job.
+     * @throws When the cron job has not been initialized yet.
      */
     get name(): string {
         if (!this.entity) {
@@ -194,6 +195,7 @@ export abstract class CronJob {
     // eslint-disable-next-line jsdoc/require-returns
     /**
      * Whether the cron job is on the schedule, and when it is not, why not.
+     * @throws When the cron job has not been initialized yet.
      */
     get state(): CronJobState {
         if (!this.entity) {
@@ -205,6 +207,7 @@ export abstract class CronJob {
     // eslint-disable-next-line jsdoc/require-returns
     /**
      * When this job last ran, or undefined if it never has.
+     * @throws When the cron job has not been initialized yet.
      */
     get lastRun(): Date | undefined {
         if (!this.entity) {
@@ -217,6 +220,7 @@ export abstract class CronJob {
     /**
      * How far back a start looks for a scheduled time this job owed and nothing ran, and how late a
      * running process may reach a scheduled time and still run it.
+     * @throws When the cron job has not been initialized yet.
      */
     get catchUpWithinInMs(): number | undefined {
         if (!this.entity) {
@@ -441,10 +445,7 @@ export abstract class CronJob {
             where: { name: this.fullInitialConfig.name },
             required: false
         });
-        if (!existing) {
-            return await this.cronJobRepository.create(initial);
-        }
-        return await this.reconcileOnBoot(existing);
+        return !existing ? await this.cronJobRepository.create(initial) : await this.reconcileOnBoot(existing);
     }
 
     /**
@@ -613,7 +614,7 @@ export abstract class CronJob {
             return true;
         }
         // changes made on another instance reach this one only through the row, and a tick that went
-        // by it ran a job that was disabled, stopped or moved everywhere else (04 §2.15)
+        // by it ran a job that was disabled, stopped or moved everywhere else
         const stored: CronJobEntity | undefined = await this.cronJobRepository.findOne({
             where: { name: this.fullInitialConfig.name },
             required: false
@@ -840,7 +841,7 @@ export abstract class CronJob {
             throw new CronJobNotInitializedError();
         }
         // the class declares everything update could change, and each start takes it back from the
-        // class anyway; a new name also left every later write of the job reaching no row (04 §2.15)
+        // class anyway; a new name also left every later write of the job reaching no row
         if (CronJobEntityUtilities.isDeclaredInCode(this.entity)) {
             throw new BadRequestError(
                 $ts`The cron job "${this.entity.name}" is declared in code, so only enable, disable and changeCron change it at runtime.`

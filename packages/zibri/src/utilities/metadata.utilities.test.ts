@@ -47,6 +47,42 @@ describe('MetadataUtilities — the file a class is declared in', () => {
         expect(MetadataUtilities.getFilePath(declare())).toBe(__filename);
     });
 
+    // every decorator rendered the whole stack to text to find one file name, which is the same for
+    // every decorator of a class. Both ways of reading a stack are counted - rendering one through
+    // prepareStackTrace and collecting its frames - so this measures reads, not one way of doing them
+    it('reads the stack once per class, however many decorators it has', () => {
+        let reads: number = 0;
+        const originalPrepareStackTrace: typeof Error.prepareStackTrace = Error.prepareStackTrace;
+        const originalCaptureStackTrace: typeof Error.captureStackTrace = Error.captureStackTrace;
+        Error.prepareStackTrace = (error, callSites): unknown => {
+            reads++;
+            return originalPrepareStackTrace === undefined ? `${error}` : originalPrepareStackTrace(error, callSites);
+        };
+        Error.captureStackTrace = (target, constructorOpt) => {
+            reads++;
+            originalCaptureStackTrace(target, constructorOpt);
+        };
+        try {
+            class ManyProperties {
+                @Property.string()
+                first!: string;
+
+                @Property.string()
+                second!: string;
+
+                @Property.number()
+                third!: number;
+            }
+            expect(Object.keys(MetadataUtilities.getModelProperties(ManyProperties))).toHaveLength(3);
+        }
+        finally {
+            Error.prepareStackTrace = originalPrepareStackTrace;
+            Error.captureStackTrace = originalCaptureStackTrace;
+        }
+
+        expect(reads).toBe(1);
+    });
+
     it('answers unknown when it was not called from a decorator', () => {
         class Undecorated {}
         MetadataUtilities.setFilePath(Undecorated);

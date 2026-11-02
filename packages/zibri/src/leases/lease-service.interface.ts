@@ -8,7 +8,7 @@ export interface LeaseServiceInterface {
     // the whole cycle in one call, because every part of it has been got wrong separately: acquiring
     // without renewing loses the grant under long work, renewing without releasing conditionally
     // frees somebody else's, and releasing before the work has finished is what a lock scoped to a
-    // callback does. See evaluation/10-leases-and-claims.md
+    // callback does
     /**
      * Takes the named grant, runs the work while keeping it alive, and hands it back afterwards.
      *

@@ -6,6 +6,20 @@ import type { Column, Content, ContentText, DynamicContent, OrderedListElement, 
 type PdfElement = Exclude<Content, string | number | Content[]>;
 
 /**
+ * A piece of a text whose characters are all set in the same font.
+ */
+type PdfFontRun = {
+    /**
+     * The characters of the run.
+     */
+    text: string,
+    /**
+     * The font they are set in.
+     */
+    font: string
+};
+
+/**
  * Whether a table cell is the empty one a row or column span covers.
  * @param cell - The cell.
  * @returns True for an empty cell.
@@ -105,10 +119,9 @@ export abstract class PdfFontFallbackUtilities {
         if (typeof content === 'number') {
             return content;
         }
-        if (Array.isArray(content)) {
-            return content.map(item => this.applyToContent(item, font, context));
-        }
-        return this.applyToElement(content, font, context);
+        return Array.isArray(content)
+            ? content.map(item => this.applyToContent(item, font, context))
+            : this.applyToElement(content, font, context);
     }
 
     /**
@@ -143,7 +156,9 @@ export abstract class PdfFontFallbackUtilities {
         }
         const table: Table | undefined = element.table;
         if (table !== undefined) {
-            const body: TableCell[][] = table.body.map(row => row.map(cell => isSpannedCell(cell) ? cell : this.applyToNested(cell, own, context)));
+            const body: TableCell[][] = table.body.map(row => row.map(cell => isSpannedCell(cell)
+                ? cell
+                : this.applyToNested(cell, own, context)));
             return { ...element, table: { ...table, body } };
         }
         return element;
@@ -158,10 +173,9 @@ export abstract class PdfFontFallbackUtilities {
      * @returns The content with its texts split, and its properties kept.
      */
     private static applyToNested<C extends Content>(content: C, font: string, context: PdfFontFallbackContext): C | Content {
-        if (typeof content !== 'object' || Array.isArray(content)) {
-            return this.applyToContent(content, font, context);
-        }
-        return this.applyToElement(content, font, context);
+        return typeof content !== 'object' || Array.isArray(content)
+            ? this.applyToContent(content, font, context)
+            : this.applyToElement(content, font, context);
     }
 
     /**
@@ -172,9 +186,9 @@ export abstract class PdfFontFallbackUtilities {
      * @returns The text as it is when its own font draws all of it, and otherwise its runs.
      */
     private static applyToText(text: string, font: string, context: PdfFontFallbackContext): Content {
-        const runs: { text: string, font: string }[] = [];
+        const runs: PdfFontRun[] = [];
         for (const char of text) {
-            const previous: { text: string, font: string } | undefined = runs.at(-1);
+            const previous: PdfFontRun | undefined = runs.at(-1);
             const chosen: string = previous != undefined && RUN_NEUTRAL.test(char)
                 ? previous.font
                 : this.resolveFontFor(char.codePointAt(0) ?? 0, font, context);
@@ -201,10 +215,9 @@ export abstract class PdfFontFallbackUtilities {
      * otherwise, and the text's own when none can.
      */
     private static resolveFontFor(codePoint: number, font: string, context: PdfFontFallbackContext): string {
-        if (this.draws(font, codePoint, context)) {
-            return font;
-        }
-        return context.fallbacks.find(fallback => fallback !== font && this.draws(fallback, codePoint, context)) ?? font;
+        return this.draws(font, codePoint, context)
+            ? font
+            : context.fallbacks.find(fallback => fallback !== font && this.draws(fallback, codePoint, context)) ?? font;
     }
 
     private static draws(font: string, codePoint: number, context: PdfFontFallbackContext): boolean {

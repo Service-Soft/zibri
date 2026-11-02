@@ -362,7 +362,7 @@ describe('the electronic invoices, checked by the KoSIT validator', () => {
             // every error, with the rule it broke, so a failure says what to fix
             const errors: string[] = [...report.matchAll(/<rep:message\b([^>]*)>([\S\s]*?)<\/rep:message>/g)]
                 .filter(([, attributes]) => attributes?.includes('level="error"') === true)
-                .map(([, attributes, text]) => `${/code="([^"]*)"/.exec(attributes ?? '')?.[1] ?? 'no code'}: ${text?.trim() ?? ''}`);
+                .map(([, attributes = '', text]) => `${/code="([^"]*)"/.exec(attributes)?.[1] ?? 'no code'}: ${text?.trim() ?? ''}`);
             expect({ accepted: /<rep:accept\b/.test(report), errors }).toEqual({ accepted: true, errors: [] });
         });
     });

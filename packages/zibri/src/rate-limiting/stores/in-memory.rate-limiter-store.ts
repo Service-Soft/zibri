@@ -120,10 +120,7 @@ export class InMemoryRateLimiterStore<TState extends BaseRateLimitState> impleme
     // eslint-disable-next-line jsdoc/require-jsdoc
     get(key: string): TState | undefined {
         const entry: TState | undefined = this.internalEntries.get(key);
-        if (!entry || entry.expiresAtMs <= Date.now()) {
-            return undefined;
-        }
-        return entry;
+        return !entry || entry.expiresAtMs <= Date.now() ? undefined : entry;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

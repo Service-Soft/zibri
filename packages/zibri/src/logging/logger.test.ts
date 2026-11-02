@@ -81,11 +81,11 @@ describe('Logger', () => {
         const warnConfig: BaseLoggerTransportConfig = { name: 'WarnTransport', level: LogLevel.WARN, register: 'directly' };
         const infoTransport: LoggerTransport<BaseLoggerTransportConfig> = LoggerTransport.create(
             infoConfig,
-            infoTransportSend as unknown as (logs: Log[], config: BaseLoggerTransportConfig) => void
+            infoTransportSend
         );
         const warnTransport: LoggerTransport<BaseLoggerTransportConfig> = LoggerTransport.create(
             warnConfig,
-            warnTransportSend as unknown as (logs: Log[], config: BaseLoggerTransportConfig) => void
+            warnTransportSend
         );
 
         logger = new Logger([infoTransport, warnTransport], {

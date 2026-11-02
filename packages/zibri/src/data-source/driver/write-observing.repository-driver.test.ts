@@ -66,10 +66,10 @@ async function resolveCallsOf(work: () => Promise<unknown>): Promise<string[]> {
     return roundTrips.trips.map(t => t.statement);
 }
 
-// 01 §D11: a write to every membership a filter matches read each of them back, for the sake of the
+// a write to every membership a filter matches read each of them back, for the sake of the
 // users and tenants they belong to. What follows them is the websockets', whose suite reads them as pairs
 describe('what a write to every membership a filter matches reads', () => {
-    // 09 §Q6: the membership service read them for the websocket service, in an application with none
+    // the membership service read them for the websocket service, in an application with none
     it('moves memberships between users without reading them first, in an application without websockets', async () => {
         const from: JwtUser = await createMember('moved-from', 20);
         const to: JwtUser = await createMember('moved-to', 0);
@@ -103,7 +103,7 @@ describe('what a write to every membership a filter matches reads', () => {
             { acrossTenants: true }
         ));
 
-        // 09 §Q1: once, for the check and the report alike
+        // once, for the check and the report alike
         expect(calls).toEqual(['TestMembership.aggregate', 'TestMembership.updateAll']);
         await expect(inject(DefaultTestServerMembershipRepository).updateAll(
             { userId: member.id },
@@ -123,7 +123,7 @@ async function createSharedRole(name: string): Promise<TestRole> {
     return await inject(DefaultTestServerRoleRepository).create({ name, level: 'tenant', permissions: [], tenantId: null }, { acrossTenants: true });
 }
 
-// 09 §Q1: the check of a write to roles and the report of it each read the roles it changes
+// the check of a write to roles and the report of it each read the roles it changes
 describe('what a write to roles reads before it writes', () => {
     it('reads the role an update changes once', async () => {
         const role: TestRole = await createSharedRole('updated-once');

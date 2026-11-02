@@ -117,7 +117,7 @@ async function queueWork(label: string): Promise<TestWork> {
     return await works.create({ status: TestWorkStatus.QUEUED, label, attempts: 0 });
 }
 
-// 09 §Q5: mail, thread jobs and event runs each claimed, counted, backed off and gave up on their
+// mail, thread jobs and event runs each claimed, counted, backed off and gave up on their
 // own, the same way three times
 describe('QueueUtilities', () => {
     it('runs a due row once and records it done', async () => {

@@ -636,10 +636,9 @@ export abstract class BaseLdapAuthenticator<
      * @returns The entry with its groups.
      */
     private async resolveWithGroups(client: Client, entry: LdapEntry): Promise<LdapEntry> {
-        if (this.groupSearchBase == undefined) {
-            return entry;
-        }
-        return { ...entry, groups: await this.resolveGroups(client, entry.dn, this.groupSearchBase) };
+        return this.groupSearchBase == undefined
+            ? entry
+            : { ...entry, groups: await this.resolveGroups(client, entry.dn, this.groupSearchBase) };
     }
 
     /**
@@ -933,7 +932,7 @@ export abstract class BaseLdapAuthenticator<
         }
         // two first logins as the same entry at once would each create a user, and only one of them
         // could be linked. The second waits, and finds the link the first made - held until the
-        // login's transaction ends, since the link only becomes visible once it commits (10 §10.5)
+        // login's transaction ends, since the link only becomes visible once it commits
         const user: UserType | undefined = await this.leaseService.withLease(
             {
                 key: `ldap-first-login:${this.name}:${entry.id}`,

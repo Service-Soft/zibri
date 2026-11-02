@@ -87,7 +87,7 @@ afterAll(async () => {
     await server?.shutdown();
 }, TestTimeouts.inMemory.shutdown);
 
-// 01 §D7: the scope was asked once per row of a batch, and up to three times by a single update
+// the scope was asked once per row of a batch, and up to three times by a single update
 describe('the scope of an entity', () => {
     let existing: CountedNote;
 

@@ -31,7 +31,7 @@ const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMem
     repositories: defaultTestServerRepositories
 });
 
-// round 2's 06 §F15: events.md promises no order, and this holds what that means for a retry - the
+// events.md promises no order, and this holds what that means for a retry - the
 // events of one type are handled in no order of their emits
 describe('EventService - the order hooks run in', () => {
     let server: StartedTestServer;

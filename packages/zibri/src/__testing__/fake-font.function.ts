@@ -68,7 +68,7 @@ function boxGlyph(): Buffer {
  * @returns The table.
  */
 function cmapTable(codePoints: number[]): Buffer {
-    const subtableLength: number = 16 + 12 * codePoints.length;
+    const subtableLength: number = 16 + (12 * codePoints.length);
     const table: Buffer = Buffer.alloc(12 + subtableLength);
     table.writeUInt16BE(0, 0);
     table.writeUInt16BE(1, 2);
@@ -82,7 +82,7 @@ function cmapTable(codePoints: number[]): Buffer {
     table.writeUInt32BE(0, 20);
     table.writeUInt32BE(codePoints.length, 24);
     for (const [index, codePoint] of codePoints.entries()) {
-        const offset: number = 28 + 12 * index;
+        const offset: number = 28 + (12 * index);
         table.writeUInt32BE(codePoint, offset);
         table.writeUInt32BE(codePoint, offset + 4);
         table.writeUInt32BE(index + 1, offset + 8);
@@ -90,7 +90,6 @@ function cmapTable(codePoints: number[]): Buffer {
     return table;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
 function headTable(): Buffer {
     const table: Buffer = Buffer.alloc(54);
     table.writeUInt32BE(0x0001_0000, 0);
@@ -109,7 +108,6 @@ function headTable(): Buffer {
     return table;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
 function hheaTable(glyphCount: number): Buffer {
     const table: Buffer = Buffer.alloc(36);
     table.writeUInt32BE(0x0001_0000, 0);
@@ -122,17 +120,15 @@ function hheaTable(glyphCount: number): Buffer {
     return table;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
 function hmtxTable(glyphCount: number): Buffer {
     const table: Buffer = Buffer.alloc(4 * glyphCount);
     for (let glyph: number = 0; glyph < glyphCount; glyph++) {
         table.writeUInt16BE(UNITS_PER_EM, 4 * glyph);
-        table.writeInt16BE(glyph === 0 ? 0 : 100, 4 * glyph + 2);
+        table.writeInt16BE(glyph === 0 ? 0 : 100, (4 * glyph) + 2);
     }
     return table;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
 function maxpTable(glyphCount: number): Buffer {
     const table: Buffer = Buffer.alloc(32);
     table.writeUInt32BE(0x0001_0000, 0);
@@ -151,13 +147,13 @@ function maxpTable(glyphCount: number): Buffer {
 function nameTable(postscriptName: string): Buffer {
     const names: [number, string][] = [[1, postscriptName], [2, 'Regular'], [4, postscriptName], [6, postscriptName]];
     const strings: Buffer[] = names.map(([, value]) => Buffer.from(value, 'utf16le').swap16());
-    const header: Buffer = Buffer.alloc(6 + 12 * names.length);
+    const header: Buffer = Buffer.alloc(6 + (12 * names.length));
     header.writeUInt16BE(0, 0);
     header.writeUInt16BE(names.length, 2);
     header.writeUInt16BE(header.length, 4);
     let stringOffset: number = 0;
     for (const [index, [nameId]] of names.entries()) {
-        const record: number = 6 + 12 * index;
+        const record: number = 6 + (12 * index);
         const length: number = strings[index]?.length ?? 0;
         header.writeUInt16BE(3, record);
         header.writeUInt16BE(1, record + 2);
@@ -170,7 +166,6 @@ function nameTable(postscriptName: string): Buffer {
     return Buffer.concat([header, ...strings]);
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
 function postTable(): Buffer {
     const table: Buffer = Buffer.alloc(32);
     // version 3: no glyph names
@@ -188,20 +183,20 @@ function postTable(): Buffer {
 function assemble(tables: Record<string, Buffer>): Buffer {
     const tags: string[] = Object.keys(tables).sort();
     const entrySelector: number = Math.floor(Math.log2(tags.length));
-    const searchRange: number = 16 * 2 ** entrySelector;
-    const directory: Buffer = Buffer.alloc(12 + 16 * tags.length);
+    const searchRange: number = 16 * (2 ** entrySelector);
+    const directory: Buffer = Buffer.alloc(12 + (16 * tags.length));
     directory.writeUInt32BE(0x0001_0000, 0);
     directory.writeUInt16BE(tags.length, 4);
     directory.writeUInt16BE(searchRange, 6);
     directory.writeUInt16BE(entrySelector, 8);
-    directory.writeUInt16BE(16 * tags.length - searchRange, 10);
+    directory.writeUInt16BE((16 * tags.length) - searchRange, 10);
 
     const bodies: Buffer[] = [];
     let offset: number = directory.length;
     for (const [index, tag] of tags.entries()) {
         const table: Buffer = tables[tag] ?? Buffer.alloc(0);
         const padded: Buffer = Buffer.concat([table, Buffer.alloc((4 - (table.length % 4)) % 4)]);
-        const record: number = 12 + 16 * index;
+        const record: number = 12 + (16 * index);
         directory.write(tag.padEnd(4, ' '), record, 'latin1');
         directory.writeUInt32BE(checksumOf(padded), record + 4);
         directory.writeUInt32BE(offset, record + 8);

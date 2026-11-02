@@ -131,10 +131,8 @@ export class ScryptHashStrategy implements HashStrategyInterface<ScryptHashOptio
      */
     needsRehash(hash: HashString): boolean {
         const parsed: ParsedScryptHash | undefined = this.parse(HashUtilities.hashToContent(hash).hashedValue);
-        if (!parsed) {
-            return true;
-        }
-        return parsed.cost.n < this.defaultCost.n
+        return parsed == undefined
+            || parsed.cost.n < this.defaultCost.n
             || parsed.cost.r < this.defaultCost.r
             || parsed.cost.p < this.defaultCost.p;
     }

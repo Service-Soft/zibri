@@ -128,12 +128,24 @@ describe('the headers a request may carry, by default', () => {
         expect(await resolveStatus(baseUrl, headersOf(101))).toBe(HttpStatus.REQUEST_HEADER_FIELDS_TOO_LARGE);
     });
 
-    // part of evaluation round 2, 03 §H17: five seconds, below the idle timeout of every proxy in
+    // five seconds, below the idle timeout of every proxy in
     // front of an application, which then reused a connection the server had just closed
     it('keeps an idle connection open longer than nginx keeps one to it', () => {
         const httpServer: Server | undefined = server?.['app'].server;
 
         expect(httpServer?.keepAliveTimeout).toBe(75_000);
+    });
+
+    // node defaults these to 300000 and 60000, so a check of `> 0` would pass without the framework
+    // touching either: below them is what bounds a client holding a socket open with a byte every
+    // few seconds. The headers have to run out first, or the narrower of the two never fires
+    it('narrows how long a request and its headers may take to arrive', () => {
+        const httpServer: Server | undefined = server?.['app'].server;
+
+        expect(httpServer?.requestTimeout).toBeGreaterThan(0);
+        expect(httpServer?.requestTimeout).toBeLessThan(300_000);
+        expect(httpServer?.headersTimeout).toBeLessThan(60_000);
+        expect(httpServer?.headersTimeout).toBeLessThanOrEqual(httpServer?.requestTimeout ?? 0);
     });
 });
 

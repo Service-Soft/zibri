@@ -8,14 +8,28 @@ import { Get } from './decorators/get.decorator';
 import { Param } from './decorators/param.decorator';
 import { Post } from './decorators/post.decorator';
 import { Put } from './decorators/put.decorator';
+import { type RouterInterface } from './router.interface';
 import { UndeclaredResultError } from './undeclared-result.error';
 import { TestTimeouts } from '../__testing__/constants';
+import { JwtTestAuthController } from '../__testing__/mocks/controllers/jwt-test-auth.controller';
+import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
+import { Roles } from '../__testing__/mocks/entities/roles.enum';
+import { TestPlatformPermissions } from '../__testing__/mocks/entities/test-permissions.model';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../auth/authenticators/password/password-credentials.model';
+import { Auth } from '../auth/decorators/auth.decorator';
+import { HasPermissionMetadata } from '../auth/models/has-permission-metadata.model';
+import { ApiKeyAuthStrategy } from '../auth/strategies/api-key/api-key.auth-strategy';
+import { JwtAuthStrategy } from '../auth/strategies/jwt/jwt.auth-strategy';
+import { Repository } from '../data-source/repository/repository';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { Property } from '../entity/decorators/property.decorator';
 import { ConflictError } from '../error-handling/errors/conflict.error';
+import { InvalidDecoratorCombinationError } from '../error-handling/errors/invalid-decorator-combination.error';
+import { HttpMethod } from '../http/http-method.enum';
 import { HttpStatus } from '../http/http-status.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { RedirectResponse } from '../http/redirect-response.model';
@@ -26,6 +40,7 @@ import { FileResponse } from '../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
+import { MetadataUtilities } from '../utilities/metadata.utilities';
 
 class Greeting {
     @Property.string()
@@ -236,7 +251,98 @@ class StatusController {
     }
 }
 
-// one server for both describes below, and both controllers on it: a decorated controller that no
+@Controller('/route-metadata')
+class RouteMetadataController {
+    // what the caller of these cases holds, accepted only from a strategy their login is not one of
+    @Auth.hasPlatformPermission(TestPlatformPermissions.USER, [ApiKeyAuthStrategy])
+    @Get('/keys-only')
+    keysOnly(): { ok: boolean } {
+        return { ok: true };
+    }
+
+    // carries no declaration at all, so anything that appears on it after boot appeared after the
+    // route was registered
+    @Get('/plain')
+    plain(): { ok: boolean } {
+        return { ok: true };
+    }
+}
+
+// an orphan for every case but the last one, which is the only place an application is asked to
+// register it
+@Controller('/impossible', { allowOrphan: true })
+class ImpossibleController {
+    // says both "a caller has to be logged in" and "check nothing", which no request could be served under
+    @Auth.isLoggedIn()
+    @Auth.skip()
+    @Get('/both')
+    both(): { ok: boolean } {
+        return { ok: true };
+    }
+}
+
+const PASSWORD: string = 'secure123';
+
+/**
+ * A json result large enough that serializing it is what the request costs. Many small values
+ * rather than a few big ones, because the replacer turning a bigint into a string is a callback V8
+ * makes for every key it writes, and the bigint is why that replacer exists.
+ */
+const largeJsonPayload: { rows: { id: string, name: string, amount: bigint, active: boolean, tags: string[] }[] } = {
+    rows: Array.from({ length: 20000 }, (_, i) => ({
+        id: `row-${i}`,
+        name: `a name that is long enough to be worth writing out ${i}`,
+        amount: BigInt(i) * 1000n,
+        active: i % 2 === 0,
+        tags: ['alpha', 'beta', 'gamma']
+    }))
+};
+
+/**
+ * How long a route takes to produce the first byte of its answer.
+ *
+ * A json answer is written in one piece, so its first byte leaves only once it is serialized in full:
+ * that puts the whole of the work on this side of the clock and none of the transfer, which costs
+ * about what serializing did. The rest is drained, so the connection stays reusable.
+ * @param url - The route to ask.
+ * @returns The duration in milliseconds.
+ */
+async function timeToFirstByte(url: string): Promise<number> {
+    const start: number = performance.now();
+    // no encoding, since an encoder in front of the answer would be a second thing to measure
+    const res: globalThis.Response = await fetch(url, { headers: { [KnownHeader.ACCEPT_ENCODING]: 'identity' } });
+    if (!res.body) {
+        throw new Error(`${url} answered without a body`);
+    }
+    const reader: ReadableStreamDefaultReader<Uint8Array> = res.body.getReader();
+    await reader.read();
+    const duration: number = performance.now() - start;
+    let done: boolean = false;
+    while (!done) {
+        done = (await reader.read()).done;
+    }
+    return duration;
+}
+
+/**
+ * How long each route takes to its first byte, the quickest of three. The quickest rather than the
+ * average: every request does the same deterministic work, so a slower one only means something else
+ * happened. The routes take turns, so a machine that gets busier or quieter meanwhile slows all of
+ * them alike.
+ * @param urls - The routes to ask.
+ * @returns The duration of each in milliseconds, in the order of the routes.
+ */
+async function resolveFastestRequestsInMs(urls: string[]): Promise<number[]> {
+    const durations: number[][] = urls.map(() => []);
+    for (let attempt: number = 0; attempt < 3; attempt++) {
+        for (const [index, url] of urls.entries()) {
+            durations[index]?.push(await timeToFirstByte(url));
+        }
+    }
+    return durations.map(d => Math.min(...d));
+}
+
+// one server for every describe below, and every controller on it: a decorated controller that no
 // running application registers is an orphan, so a second server booting with only its own would
 // fail on the other one before any test ran
 let server: StartedTestServer;
@@ -246,7 +352,8 @@ beforeAll(async () => {
     // routing reads and writes no rows, so the data source is the in memory one
     server = await startTestServer({
         dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })],
-        controllers: [GreetController, StatusController]
+        controllers: [GreetController, StatusController, RouteMetadataController, JwtTestAuthController],
+        authStrategies: [JwtAuthStrategy]
     });
     baseUrl = await server.start();
 }, TestTimeouts.inMemory.start);
@@ -480,4 +587,179 @@ describe('Router — response status', () => {
     it('still lets the error handler decide the status when the handler throws', async () => {
         expect(await statusOf('/throws')).toBe(409);
     });
+});
+
+describe('Router — the method a request arrived with, and what a path allows', () => {
+    // the same answer every time, so the validator express generates is the same on both requests
+    beforeAll(() => {
+        const router: RouterInterface = inject(ZIBRI_DI_TOKENS.ROUTER);
+        // one path under two methods, so that a third is a verb this path does not answer rather than
+        // a path that does not exist
+        router.registerRoute({ httpMethod: HttpMethod.GET, route: '/methods/thing', openApi: { useInOpenApi: false }, handler: () => ({ read: true }) });
+        router.registerRoute({ httpMethod: HttpMethod.POST, route: '/methods/thing', openApi: { useInOpenApi: false }, handler: () => ({ written: true }) });
+        router.registerRoute({ httpMethod: HttpMethod.GET, route: '/json/large', openApi: { useInOpenApi: false }, handler: () => largeJsonPayload });
+        // the same route with nothing to serialize, so what a request costs before the body is a
+        // measurement rather than an allowance
+        router.registerRoute({ httpMethod: HttpMethod.GET, route: '/json/empty', openApi: { useInOpenApi: false }, handler: () => ({ rows: [] }) });
+        // the same answer, with the round trip res.json used to make done in the handler: what the
+        // framework's one pass is measured against, as a request under the same load
+        router.registerRoute({
+            httpMethod: HttpMethod.GET,
+            route: '/json/large-three-passes',
+            openApi: { useInOpenApi: false },
+            handler: () => JsonUtilities.parse(JsonUtilities.stringify(largeJsonPayload))
+        });
+    });
+
+    // the distinction a 404 cannot draw: this one is worth retrying with another verb, and a route
+    // that does not exist never is
+    it('answers a path it has with a method it does not with 405, naming the methods that would have worked', async () => {
+        const res: globalThis.Response = await fetch(`${baseUrl}/methods/thing`, { method: 'DELETE' });
+
+        expect(res.status).toBe(405);
+        const allow: string = res.headers.get(KnownHeader.ALLOW) ?? '';
+        expect(allow).toContain('GET');
+        expect(allow).toContain('POST');
+        // never declared, and answered all the same: express serves a HEAD from the GET handler
+        expect(allow).toContain('HEAD');
+        expect(allow).not.toContain('DELETE');
+    });
+
+    // the control that keeps the case above about the method rather than about every unmatched
+    // request having become a 405
+    it('still answers 404 for a path that does not exist, whatever the method', async () => {
+        expect((await fetch(`${baseUrl}/methods/nothing-here`, { method: 'DELETE' })).status).toBe(404);
+        // only a real preflight is answered by the cors middleware, and only a path the router knows
+        // by the one reporting what a path allows
+        expect((await fetch(`${baseUrl}/definitely-not-a-route`, { method: 'OPTIONS' })).status).toBe(404);
+    });
+
+    // one rule produces both: express generates an Allow of its own for any path some layer matched,
+    // and two rules answering one question is how they come to disagree
+    it('answers OPTIONS for a path it has with what that path allows, the same list a 405 carries', async () => {
+        const options: globalThis.Response = await fetch(`${baseUrl}/methods/thing`, { method: 'OPTIONS' });
+        const refused: globalThis.Response = await fetch(`${baseUrl}/methods/thing`, { method: 'DELETE' });
+
+        expect(options.status).toBe(204);
+        expect(options.headers.get(KnownHeader.ALLOW) ?? '').toContain('POST');
+        expect(options.headers.get(KnownHeader.ALLOW)).toBe(refused.headers.get(KnownHeader.ALLOW));
+    });
+
+    // http method names are uppercase and case sensitive, and express compares against literals:
+    // `'GET' !== method` is the whole of its freshness check, so a router rewriting the method sent
+    // the validator, had it sent back, and downloaded the whole body again on every revalidation
+    it('answers a conditional request to a route that set no validator of its own with a 304', async () => {
+        const first: globalThis.Response = await fetch(`${baseUrl}/methods/thing`);
+        const etag: string | null = first.headers.get(KnownHeader.ETAG);
+        await first.arrayBuffer();
+        expect(etag).toBeTruthy();
+
+        const second: globalThis.Response = await fetch(`${baseUrl}/methods/thing`, {
+            // node's fetch adds `cache-control: no-cache` to any request carrying a conditional
+            // header, and a server answering that with 304 would be wrong; a browser revalidating
+            // sends this
+            headers: { [KnownHeader.IF_NONE_MATCH]: etag ?? '', [KnownHeader.CACHE_CONTROL]: 'max-age=0' }
+        });
+
+        expect(second.status).toBe(304);
+        expect((await second.text()).length).toBe(0);
+    });
+
+    // express decides whether to write the body with `req.method === 'HEAD'`, so a client asking for
+    // the size of something got the whole of it
+    it('answers a HEAD with the headers of the answer and none of its body', async () => {
+        const res: globalThis.Response = await fetch(`${baseUrl}/methods/thing`, { method: 'HEAD' });
+
+        expect(res.status).toBe(200);
+        expect((await res.text()).length).toBe(0);
+    });
+
+    // written directly rather than through res.json, which has to keep the content type and the body
+    // it used to send - a bigint arriving as a string included, the reason the framework serializes
+    // with a replacer of its own
+    it('answers a json result with what one pass over it produces', async () => {
+        const res: globalThis.Response = await fetch(`${baseUrl}/json/large`, { headers: { [KnownHeader.ACCEPT_ENCODING]: 'identity' } });
+
+        expect(res.headers.get(KnownHeader.CONTENT_TYPE)).toBe('application/json; charset=utf-8');
+        expect(await res.text()).toBe(JsonUtilities.stringify(largeJsonPayload));
+    }, 30000);
+
+    // against the other candidate measured here and now, as a request under the same load, so this
+    // says something about the framework rather than about the machine: one pass, and the round
+    // trip res.json used to make. Measured in process, the serializing alone was slowed less by a
+    // busy machine than a request is, and the comparison read as a regression
+    it('costs one serializing pass over a json result rather than three', async () => {
+        // warmed first, or the measured request pays for compiling everything on the way
+        for (const route of ['/json/large', '/json/large-three-passes', '/json/empty']) {
+            await timeToFirstByte(`${baseUrl}${route}`);
+        }
+
+        // a connection, express, the middleware and the router: a constant of the machine, which
+        // left in would compare a round trip against two function calls
+        const [overhead = 0, onePass = 0, threePasses = 0] = await resolveFastestRequestsInMs(
+            ['/json/empty', '/json/large', '/json/large-three-passes'].map(route => `${baseUrl}${route}`)
+        );
+
+        // the third route differs from the second by the round trip alone, whatever the router does,
+        // so it is a bar the router cannot move: about two passes, a parse costing nearly what a
+        // stringify does. One pass stays under it and three go over it. A ratio of the two routes
+        // could not tell them apart, since a router writing three times adds the same to both
+        expect(onePass - overhead).toBeLessThan(threePasses - onePass);
+    }, 60000);
+});
+
+// what a route declared is decided when its module loads, so it is read once, when the route is
+// registered: reading it per request cost a copy each time, and caught a declaration nothing can
+// satisfy only on whoever called the route first
+describe('Router — what a route declares', () => {
+    let accessToken: string;
+
+    beforeAll(async () => {
+        // logged in through a strategy the route does not accept, the one vantage point from which a
+        // widened set of strategies is visible
+        const email: string = 'route-metadata@example.com';
+        const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] });
+        await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
+            .create({ password: PASSWORD, userId: user.id });
+        const res: globalThis.Response = await fetch(`${baseUrl}/auth/login`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JsonUtilities.stringify({ email, password: PASSWORD })
+        });
+        accessToken = (await res.json() as { accessToken: { value: string } }).accessToken.value;
+    });
+
+    it('refuses a caller logged in through a strategy the route does not accept', async () => {
+        const res: globalThis.Response = await fetch(`${baseUrl}/route-metadata/keys-only`, { headers: { authorization: `Bearer ${accessToken}` } });
+
+        expect(res.status).toBe(403);
+    });
+
+    it('does not hand out the route\'s own declaration by reference', async () => {
+        const handedOut: HasPermissionMetadata | undefined = MetadataUtilities.getRouteHasPlatformPermission(RouteMetadataController, 'keysOnly');
+        expect(handedOut?.allowedStrategies).toEqual([ApiKeyAuthStrategy]);
+
+        handedOut?.allowedStrategies?.push(JwtAuthStrategy);
+
+        // a shallow copy hands out the route's own array, and writing to it rewrites what the route accepts
+        expect(MetadataUtilities.getRouteHasPlatformPermission(RouteMetadataController, 'keysOnly')?.allowedStrategies)
+            .toEqual([ApiKeyAuthStrategy]);
+        const res: globalThis.Response = await fetch(`${baseUrl}/route-metadata/keys-only`, { headers: { authorization: `Bearer ${accessToken}` } });
+        expect(res.status).toBe(403);
+    });
+
+    it('does not read the declaration again while serving a request', async () => {
+        expect((await fetch(`${baseUrl}/route-metadata/plain`)).status).toBe(200);
+
+        // a login requirement that did not exist when the route was registered. Nothing legitimate
+        // writes one after boot, so this asks "is the declaration still read" the only way a caller can
+        MetadataUtilities.setRouteIsLoggedIn(RouteMetadataController, { allowedStrategies: undefined }, 'plain');
+
+        expect((await fetch(`${baseUrl}/route-metadata/plain`)).status).toBe(200);
+    });
+
+    // last in the file: it replaces the running application with one that refuses to start
+    it('refuses an impossible declaration while registering the route, not while serving it', async () => {
+        await expect(server.reInit({ controllers: [ImpossibleController] })).rejects.toThrow(InvalidDecoratorCombinationError);
+    }, TestTimeouts.inMemory.start);
 });

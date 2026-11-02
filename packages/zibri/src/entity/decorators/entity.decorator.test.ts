@@ -297,7 +297,7 @@ describe('declaring the checks of an entity', () => {
         }).toThrow(/Ticket\.state: The filter of a unique or check declaration can only compare a property/);
     });
 
-    // 01 §D19: a date was refused as the value of a check, and a check could not name another property
+    // a date was refused as the value of a check, and a check could not name another property
     it('takes a check that compares a date with a date, or with another property of the row', () => {
         @Entity({
             tenant: 'shared',
@@ -353,7 +353,7 @@ describe('declaring the checks of an entity', () => {
     });
 });
 
-// 05 §Q3, 06 §Q9, 09 §Q8: every entity whose rows expire had a cleanup job of its own, the same few
+// every entity whose rows expire had a cleanup job of its own, the same few
 // lines each, registered by whichever service remembered to
 describe('declaring when the rows of an entity expire', () => {
     it('keeps the date property a row expires by', () => {

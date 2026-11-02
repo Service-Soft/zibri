@@ -107,7 +107,7 @@ function onServer(link: string): string {
 
 /**
  * A subscriber is kept only while they are on a list: an address on none was kept for good, whichever
- * way it left its last list (08 §X27).
+ * way it left its last list.
  */
 describe('a mailing list subscriber on no list', () => {
     beforeAll(async () => {

@@ -29,7 +29,7 @@ function isIgnored(config: Config, file: string): boolean {
 /**
  * Jest requires what a test loads, and cannot require an es module. The preset compiles the one the
  * framework loads; a package of the application's own was added by restating the preset's ignore
- * pattern, which jest replaces rather than merges (08 §X23).
+ * pattern, which jest replaces rather than merges.
  */
 describe('createJestConfig', () => {
 

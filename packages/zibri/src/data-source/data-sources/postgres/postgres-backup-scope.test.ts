@@ -30,7 +30,7 @@ import { SchemaManagement } from '../../models/schema-management.model';
 import { Repository } from '../../repository/repository';
 import { RepositoryClass } from '../../repository/repository-class.type';
 
-// evaluation/round-2/02-data-layer-stores.md S1: a backup of the schema takes along whatever else
+// a backup of the schema takes along whatever else
 // lives there - another application's tables, a reporting table - and a restore rolls it back
 
 const backupFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups-entity-tables');

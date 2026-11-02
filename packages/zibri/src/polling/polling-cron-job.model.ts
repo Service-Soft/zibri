@@ -68,7 +68,9 @@ export abstract class PollingCronJob extends CronJob {
         const dataSource: DataSourceInterface = inject(repositoryTokenFor(this.polledEntity)).dataSource;
         const wakeUpService: WakeUpServiceInterface = inject(ZIBRI_DI_TOKENS.WAKE_UP_SERVICE);
         // waiting longer while nothing is found is only safe when whoever adds work can say so
-        const maxIntervalInMs: number = wakeUpService.reachesOtherInstances(dataSource) ? inject(ZIBRI_DI_TOKENS.POLL_MAX_INTERVAL_IN_MS) : 0;
+        const maxIntervalInMs: number = wakeUpService.reachesOtherInstances(dataSource)
+            ? inject(ZIBRI_DI_TOKENS.POLL_MAX_INTERVAL_IN_MS)
+            : 0;
         this.pacing = new PollPacing(maxIntervalInMs);
         this.wakeUpListener = await wakeUpService.listen(dataSource, this.wakeUpTopic, () => this.pacing.wake());
     }

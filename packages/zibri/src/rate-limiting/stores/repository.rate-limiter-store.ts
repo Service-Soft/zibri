@@ -311,10 +311,7 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
      * @returns The timestamp, or undefined while the state holds no reservations.
      */
     private nextReservationExpiresAtMs(state: TState): number | undefined {
-        if (!state.reservations.length) {
-            return undefined;
-        }
-        return Math.min(...state.reservations.map(r => r.expiresAtMs));
+        return !state.reservations.length ? undefined : Math.min(...state.reservations.map(r => r.expiresAtMs));
     }
 
     private async readUnexpired(): Promise<RateLimitStateEntity[]> {
@@ -331,9 +328,6 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
      * @returns The state, or undefined when there is none or it has expired.
      */
     private toState(entity: RateLimitStateEntity | undefined): TState | undefined {
-        if (entity == undefined || entity.expiresAtMs <= Date.now()) {
-            return undefined;
-        }
-        return entity.state as TState;
+        return entity == undefined || entity.expiresAtMs <= Date.now() ? undefined : (entity.state as TState);
     }
 }
