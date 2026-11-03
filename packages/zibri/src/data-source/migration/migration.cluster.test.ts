@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it } from '@jest/globals';
 import { StartedTestCluster, startTestCluster } from 'zibri-testing';
 
+import { TestTimeouts } from '../../__testing__/constants';
 import { FsUtilities } from '../../utilities/fs.utilities';
 
 /**
@@ -21,7 +22,7 @@ let cluster: StartedTestCluster | undefined;
 afterAll(async () => {
     // guarded so a failed start reports the real cause instead of a shutdown TypeError
     await cluster?.shutdown();
-}, 15000);
+}, TestTimeouts.resolveCluster(3, 'postgres').shutdown);
 
 describe('migrations across replicas', () => {
 
@@ -35,7 +36,7 @@ describe('migrations across replicas', () => {
         // the assertion is that the line above did not throw. startTestCluster rejects with the
         // instance's own boot error, so a failure here reads as the unique violation it really is.
         expect(cluster.instances).toHaveLength(3);
-    }, 30000);
+    }, TestTimeouts.resolveCluster(3, 'postgres').start);
 
     it('applies the migration exactly once', async () => {
         if (!cluster) {

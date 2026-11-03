@@ -27,7 +27,7 @@ beforeAll(async () => {
         instanceOptions: FsUtilities.getPath(__dirname, 'websocket.service.instance-options.ts'),
         instances: 2
     });
-}, TestTimeouts.postgres.start + TestTimeouts.valKey.start);
+}, TestTimeouts.resolveCluster(2, 'postgres', 'valKey').start);
 
 afterAll(async () => {
     for (const socket of openSockets) {
@@ -35,7 +35,7 @@ afterAll(async () => {
     }
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await cluster?.shutdown();
-}, 15000);
+}, TestTimeouts.resolveCluster(2, 'postgres', 'valKey').shutdown);
 
 /**
  * Connects a client to the given instance and waits until it is actually connected.

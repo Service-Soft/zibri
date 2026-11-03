@@ -6,8 +6,10 @@ import { TOTP } from 'otpauth';
 import { OtpCredentials, OtpCredentialsCreateData } from './2fa/methods/otp/otp-credentials.model';
 import { OtpTwoFactorMethod } from './2fa/methods/otp/otp.two-factor-method';
 import { CreateTwoFactorFailureStreakData, TwoFactorFailureStreak } from './2fa/two-factor-failure-streak.model';
+import { AuthService } from './auth.service';
 import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
 import { Auth } from './decorators/auth.decorator';
+import { BaseUser } from './models/base-user.model';
 import { AuthStrategyInterface } from './strategies/auth-strategy.interface';
 import { CredentialEntity } from './strategies/credential-entity.model';
 import { JwtRefreshToken } from './strategies/jwt/jwt-refresh-token.model';
@@ -21,6 +23,7 @@ import { StartedTestServer, startTestServer } from '../__testing__/test-server/s
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { Repository } from '../data-source/repository/repository';
+import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
@@ -57,6 +60,43 @@ const REAUTH_WINDOW_IN_MS: number = 2000;
  */
 async function waitPastTheWindow(): Promise<void> {
     await new Promise(resolve => setTimeout(resolve, REAUTH_WINDOW_IN_MS + 1000));
+}
+
+let refreshesToHold: number = 0;
+const heldRefreshes: (() => void)[] = [];
+
+/**
+ * Holds every refresh between reading its token and claiming it, until as many as `holdRefreshes`
+ * asked for got there.
+ */
+class HeldRefreshAuthService extends AuthService {
+    override async resolveRefreshUser<Role extends string, UserType extends BaseUser<Role>>(
+        user: UserType,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<UserType> {
+        if (refreshesToHold > 0) {
+            await new Promise<void>(resolve => {
+                heldRefreshes.push(resolve);
+                if (heldRefreshes.length === refreshesToHold) {
+                    refreshesToHold = 0;
+                    for (const release of heldRefreshes.splice(0)) {
+                        release();
+                    }
+                }
+            });
+        }
+        return await super.resolveRefreshUser(user, transaction);
+    }
+}
+
+/**
+ * Holds the next refreshes until `count` of them read their token, so that all of them read it while
+ * it is still live. Let go in any order, a refresh can read the token another one already spent,
+ * which within the reuse grace is a second tab that gets a token of its own.
+ * @param count - How many refreshes to hold.
+ */
+function holdRefreshes(count: number): void {
+    refreshesToHold = count;
 }
 
 @Controller('/2fa')
@@ -256,7 +296,11 @@ beforeAll(async () => {
         controllers: [JwtTestAuthController, TwoFactorController, RevocationController],
         // two strategies, as docs/auth.md recommends, so that a request carrying both can be refused
         authStrategies: [JwtAuthStrategy, ApiKeyAuthStrategy],
-        twoFactorMethods: [OtpTwoFactorMethod]
+        twoFactorMethods: [OtpTwoFactorMethod],
+        providers: [
+            ...defaultTestServerProviders,
+            defineProvider({ token: ZIBRI_DI_TOKENS.AUTH_SERVICE, useClass: HeldRefreshAuthService })
+        ]
     });
     baseUrl = await server.start();
     userRepository = inject(repositoryTokenFor(JwtUser));
@@ -303,6 +347,7 @@ describe('JwtAuthStrategy - rotating a refresh token', () => {
     it('leaves one usable refresh token when the same one is presented twice at once', async () => {
         const { refreshToken }: TokenResponseBody = await login();
 
+        holdRefreshes(2);
         await Promise.all([refreshLogin(refreshToken.value), refreshLogin(refreshToken.value)]);
 
         // a read and a write that are not one compare and set let both callers read the token as
@@ -318,6 +363,7 @@ describe('JwtAuthStrategy - rotating a refresh token', () => {
     it('accepts the same refresh token only once when it is presented twice at once', async () => {
         const { refreshToken }: TokenResponseBody = await login();
 
+        holdRefreshes(2);
         const responses: Response[] = await Promise.all([
             refreshLogin(refreshToken.value),
             refreshLogin(refreshToken.value)

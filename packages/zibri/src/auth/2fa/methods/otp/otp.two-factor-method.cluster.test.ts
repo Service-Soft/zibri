@@ -7,6 +7,7 @@ import { ClusterInstance, StartedTestCluster, startTestCluster } from 'zibri-tes
 import { OtpRegistration } from './otp.two-factor-method';
 import { otpUserEmail, otpUserPassword } from './otp.two-factor-method.instance-options';
 import { OTP_PERIOD_IN_SECONDS } from './otp.utilities';
+import { TestTimeouts } from '../../../../__testing__/constants';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../../di/inject.function';
 import { FsUtilities } from '../../../../utilities/fs.utilities';
@@ -37,12 +38,12 @@ beforeAll(async () => {
     // read rather than written out, so a deployment that moves the header does not quietly stop
     // being covered here
     otpHeader = inject(ZIBRI_DI_TOKENS.OTP_HEADER);
-}, 30000);
+}, TestTimeouts.resolveCluster(2, 'postgres').start);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await cluster?.shutdown();
-}, 15000);
+}, TestTimeouts.resolveCluster(2, 'postgres').shutdown);
 
 /**
  * Creates a user with a confirmed authenticator on the given replica.

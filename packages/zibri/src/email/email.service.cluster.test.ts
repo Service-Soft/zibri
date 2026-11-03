@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
 import { attachedContent, mailCronIntervalInMs, queuedMailCount } from './email.service.instance-options';
+import { TestTimeouts } from '../__testing__/constants';
 import { FsUtilities } from '../utilities/fs.utilities';
 
 /**
@@ -21,12 +22,12 @@ beforeAll(async () => {
         instanceOptions: FsUtilities.getPath(__dirname, 'email.service.instance-options.ts'),
         instances: 3
     });
-}, 20000);
+}, TestTimeouts.resolveCluster(3, 'postgres').start);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await cluster?.shutdown();
-}, 15000);
+}, TestTimeouts.resolveCluster(3, 'postgres').shutdown);
 
 /**
  * Groups the marks by the mail they were written for.

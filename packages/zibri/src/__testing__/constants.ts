@@ -1,3 +1,5 @@
+// the module itself rather than the package, which would load the whole harness into every suite
+import { clusterInstanceBootTimeoutInMs } from '../../../testing/src/cluster/cluster-boot-timeout';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { Ms } from '../utilities/ms';
 
@@ -68,6 +70,24 @@ export abstract class TestTimeouts {
             start: kinds.reduce((sum, kind) => sum + TestTimeouts[kind].start, 0),
             shutdown: kinds.reduce((sum, kind) => sum + TestTimeouts[kind].shutdown, 0),
             restart: kinds.reduce((sum, kind) => sum + TestTimeouts[kind].restart, 0)
+        };
+    }
+
+    /**
+     * The timeouts of a test cluster: its containers', plus the boot of every instance for its start
+     * and of one more for a restart.
+     * @param instances - How many instances the cluster starts with.
+     * @param kinds - The kinds of data source the cluster starts.
+     * @returns The timeouts.
+     */
+    static resolveCluster(instances: number, ...kinds: TestDataSourceKind[]): TestServerTimeouts {
+        const containers: TestServerTimeouts = TestTimeouts.resolveCombined(...kinds);
+        return {
+            // with the shutdown as well: a cluster that fails to start stops what it started before it
+            // rejects, and a hook that gives up first leaves the instances running and jest unable to exit
+            start: containers.start + (instances * clusterInstanceBootTimeoutInMs) + containers.shutdown,
+            shutdown: containers.shutdown,
+            restart: clusterInstanceBootTimeoutInMs
         };
     }
 }

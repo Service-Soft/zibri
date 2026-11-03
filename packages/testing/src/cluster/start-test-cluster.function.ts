@@ -5,6 +5,7 @@ import type { ExecResult, StartedTestContainer } from 'testcontainers';
 import { DataSourceInterface, FsPath, FsUtilities, inject, JsonUtilities, Newable, optionalPeer, PostgresDataSource } from 'zibri';
 import { DiContainer, initDiContainer } from 'zibri/internal';
 
+import { clusterInstanceBootTimeoutInMs } from './cluster-boot-timeout';
 import { defaultClusterDataSources } from './cluster-data-sources';
 import { ClusterMarkRow } from './cluster-mark.model';
 import { CLUSTER_DATA_SOURCE_PORTS_ENV, CLUSTER_INSTANCE_ID_ENV, CLUSTER_INSTANCE_OPTIONS_ENV, CLUSTER_MODULE_PATHS_ENV, CLUSTER_SCRATCH_PATH_ENV, ClusterInstanceMessage } from './cluster-message.model';
@@ -31,8 +32,6 @@ const instanceEntry: FsPath = FsUtilities.getPath(__dirname, `cluster-instance.e
  * Named by this file's own extension, for the same reason as {@link instanceEntry}.
  */
 const modulePathsPreload: FsPath = FsUtilities.getPath(__dirname, `cluster-module-paths${__filename.endsWith('.ts') ? '.ts' : '.js'}`);
-
-const bootTimeoutInMs: number = 15000;
 
 const killTimeoutInMs: number = 5000;
 
@@ -133,13 +132,14 @@ export class ClusterInstance {
                     // waits on is in the database: read as it gives up, while it still waits
                     const activity: string = await this.resolveDataSourceActivity();
                     reject(new Error([
-                        `the cluster instance "${id}" started at ${startedAt} did not become ready within ${bootTimeoutInMs}ms`,
+                        `the cluster instance "${id}" started at ${startedAt} did not become ready`
+                        + ` within ${clusterInstanceBootTimeoutInMs}ms`,
                         this.output,
                         'What the sessions of its data sources were doing then:',
                         activity
                     ].join('\n')));
                 })();
-            }, bootTimeoutInMs);
+            }, clusterInstanceBootTimeoutInMs);
             timeout.unref();
 
             this.child.on('message', (raw: unknown) => {

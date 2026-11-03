@@ -177,6 +177,8 @@ describe('changePropertyOfEntity', () => {
     }, 30_000);
 
     afterAll(async () => {
+        // before the container stops, which would end connections nothing closed
+        await inject(DbDataSource).shutDown();
         await container?.stop();
     }, 15_000);
 });

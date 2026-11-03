@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from 'node:timers/promises';
+
 import type { ExecResult, GenericContainer, StartedNetwork, StartedTestContainer } from 'testcontainers';
 import { DataSourceInterface, inject, Newable, optionalPeer, PostgresDataSource, PostgresOptions, PostgresPooler, PostgresTransactionPooler, ValKeyDataSource, ValKeyOptions } from 'zibri';
 import { DiContainer } from 'zibri/internal';
@@ -61,6 +63,16 @@ const POSTGRES_NETWORK_ALIAS: string = 'postgres';
  * Where PgBouncer's configuration is copied to, apart from where its package puts its own.
  */
 const PGBOUNCER_CONFIG_DIRECTORY: string = '/etc/zibri-pgbouncer';
+
+/**
+ * How long the connections of an application may take to be gone from the server once it shut down.
+ */
+const CONNECTIONS_CLOSE_WITHIN_MS: number = 5000;
+
+/**
+ * How long to wait before asking the server again whether they are.
+ */
+const CONNECTIONS_CLOSED_POLL_INTERVAL_IN_MS: number = 100;
 
 /**
  * The label naming the process that started a container, by its pid.
@@ -238,14 +250,7 @@ async function provisionApplicationRole(container: StartedTestContainer, dataSou
     const password: string = quoteLiteral(dataSource.options.password?.toString() ?? 'password');
     const database: string = quoteIdentifier(dataSource.options.database ?? 'db');
     const result: ExecResult = await container.exec([
-        'psql',
-        '--username',
-        POSTGRES_PROVISIONING_USER,
-        // eslint-disable-next-line cspell/spellchecker
-        '--dbname',
-        'postgres',
-        '--set',
-        'ON_ERROR_STOP=1',
+        ...getSuperuserPsql('postgres'),
         '--command',
         `CREATE ROLE ${role} LOGIN PASSWORD ${password} NOSUPERUSER NOCREATEROLE NOCREATEDB`,
         // separate commands, because CREATE DATABASE refuses to run inside a transaction block
@@ -319,19 +324,101 @@ async function startPgBouncer(network: StartedNetwork, dataSource: PostgresDataS
  */
 export async function runAsSuperuser(container: StartedTestContainer, dataSource: PostgresDataSource, statements: string[]): Promise<void> {
     const result: ExecResult = await container.exec([
-        'psql',
-        '--username',
-        POSTGRES_PROVISIONING_USER,
-        // eslint-disable-next-line cspell/spellchecker
-        '--dbname',
-        dataSource.options.database ?? 'db',
-        '--set',
-        'ON_ERROR_STOP=1',
+        ...getSuperuserPsql(dataSource.options.database ?? 'db'),
         ...statements.flatMap(statement => ['--command', statement])
     ]);
     if (result.exitCode !== 0) {
         throw new Error(`Could not run as the superuser of ${dataSource.constructor.name}:\n${result.output}`);
     }
+}
+
+/**
+ * Fails when a connection of a postgres data source is still open after its application shut down.
+ *
+ * Waits a moment first: a connection closed on shutdown is gone from the server shortly after.
+ * @param started - What was started for the data source.
+ * @param dataSource - The data source, whose role its connections log in as.
+ * @throws When a connection is still open, naming what each one ran last.
+ */
+export async function validateConnectionsClosed(started: StartedDataSourceContainer, dataSource: PostgresDataSource): Promise<void> {
+    const deadline: number = Date.now() + CONNECTIONS_CLOSE_WITHIN_MS;
+    let open: string[] = await findOpenConnections(started, dataSource);
+    while (open.length && Date.now() < deadline) {
+        await sleep(CONNECTIONS_CLOSED_POLL_INTERVAL_IN_MS);
+        open = await findOpenConnections(started, dataSource);
+    }
+    if (!open.length) {
+        return;
+    }
+    throw new Error([
+        `${open.length} connection(s) of ${dataSource.constructor.name} outlived the application:`,
+        ...open.map(connection => `  - ${connection}`)
+    ].join('\n'));
+}
+
+/**
+ * Finds the connections of a postgres data source that are still open: to its server, as its role,
+ * and to the pooler in front of it.
+ * @param started - What was started for the data source.
+ * @param dataSource - The data source.
+ * @returns One line per open connection.
+ * @throws When the server or the pooler cannot be asked.
+ */
+async function findOpenConnections(started: StartedDataSourceContainer, dataSource: PostgresDataSource): Promise<string[]> {
+    // the pooler's own connections to the server stay open for the next client by design, so only
+    // the ones from anywhere else count there, and the pooler is asked about its clients itself
+    const poolerAddress: string | undefined = started.pooler?.container.getIpAddress(started.pooler.network.getName());
+    const result: ExecResult = await started.container.exec([
+        ...getSuperuserPsql('postgres'),
+        '--no-align',
+        '--tuples-only',
+        '--command',
+        'SELECT format(\'pid %s, %s, last ran: %s\', pid, state, regexp_replace(left(query, 200), \'\\s+\', \' \', \'g\'))'
+        + ' FROM pg_stat_activity'
+        + ` WHERE usename = ${quoteLiteral(dataSource.options.username ?? 'postgres')}`
+        + (poolerAddress == undefined ? '' : ` AND client_addr IS DISTINCT FROM ${quoteLiteral(poolerAddress)}::inet`)
+    ]);
+    if (result.exitCode !== 0) {
+        throw new Error(`Could not ask the server of ${dataSource.constructor.name} for its connections:\n${result.output}`);
+    }
+    const open: string[] = result.stdout.split('\n').filter(line => line.trim().length);
+    if (started.pooler == undefined) {
+        return open;
+    }
+    // busybox's netstat, which the pooler's alpine image comes with
+    const clients: ExecResult = await started.pooler.container.exec([
+        'sh',
+        '-c',
+        `netstat -tn | awk '$4 ~ /:${PGBOUNCER_PORT}$/ && $6 == "ESTABLISHED"'`
+    ]);
+    if (clients.exitCode !== 0) {
+        throw new Error(`Could not ask the pooler of ${dataSource.constructor.name} for its clients:\n${clients.output}`);
+    }
+    return [
+        ...open,
+        ...clients.stdout.split('\n')
+            .filter(line => line.trim().length)
+            .map(line => `to the pooler: ${line.trim()}`)
+    ];
+}
+
+/**
+ * Gets the start of a psql command run inside a postgres container as its superuser, which stops
+ * at the first statement that fails.
+ * @param database - The database to connect to.
+ * @returns The command and its arguments, which the statements to run follow.
+ */
+function getSuperuserPsql(database: string): string[] {
+    return [
+        'psql',
+        '--username',
+        POSTGRES_PROVISIONING_USER,
+        // eslint-disable-next-line cspell/spellchecker
+        '--dbname',
+        database,
+        '--set',
+        'ON_ERROR_STOP=1'
+    ];
 }
 
 /**

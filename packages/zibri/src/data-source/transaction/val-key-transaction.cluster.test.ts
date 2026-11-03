@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { ClusterInstance, ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
+import { TestTimeouts } from '../../__testing__/constants';
 import { FsUtilities } from '../../utilities/fs.utilities';
 
 /**
@@ -25,12 +26,12 @@ beforeAll(async () => {
         instanceOptions: FsUtilities.getPath(__dirname, 'val-key-transaction.instance-options.ts'),
         instances: 3
     });
-}, 30000);
+}, TestTimeouts.resolveCluster(3, 'postgres', 'valKey').start);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await cluster?.shutdown();
-}, 15000);
+}, TestTimeouts.resolveCluster(3, 'postgres', 'valKey').shutdown);
 
 /**
  * The most replicas that had the same row buffered at the same time.

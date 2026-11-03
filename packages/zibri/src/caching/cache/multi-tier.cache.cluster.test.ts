@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { ClusterInstance, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
+import { TestTimeouts } from '../../__testing__/constants';
 import { FsUtilities } from '../../utilities/fs.utilities';
 
 /**
@@ -23,12 +24,12 @@ beforeAll(async () => {
         instanceOptions: FsUtilities.getPath(__dirname, 'multi-tier.cache.instance-options.ts'),
         instances: 2
     });
-}, 15000);
+}, TestTimeouts.resolveCluster(2, 'postgres', 'valKey').start);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await cluster?.shutdown();
-}, 15000);
+}, TestTimeouts.resolveCluster(2, 'postgres', 'valKey').shutdown);
 
 /**
  * Reads the value the given instance currently believes.

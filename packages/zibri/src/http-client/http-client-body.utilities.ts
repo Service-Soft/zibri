@@ -15,6 +15,11 @@ import { BigNumber, NumberUtilities } from '../utilities/number.utilities';
 // eslint-disable-next-line jsdoc/require-jsdoc
 type ResponseType = 'json' | 'xml' | 'text' | 'stream';
 
+/**
+ * How much of a failed response's body the message of its error quotes. The error carries all of it.
+ */
+const ERROR_MESSAGE_BODY_LENGTH: number = 500;
+
 const responseTypeForMimeType: Record<BodyMetadata['type'], ResponseType> = {
     [MimeType.JSON]: 'json',
     [MimeType.JSON_LD]: 'json',
@@ -172,8 +177,9 @@ export abstract class HttpClientBodyUtilities {
         // allows: a failure's body is whatever the upstream or a proxy in front of it chose to send,
         // and the ceiling is the memory the deployment is willing to spend on one answer
         let responseBody: unknown;
+        let rawText: string = '';
         try {
-            const rawText: string = await this.readTextWithin(response, maxSize);
+            rawText = await this.readTextWithin(response, maxSize);
             try {
                 responseBody = JsonUtilities.parse(rawText);
             }
@@ -205,7 +211,12 @@ export abstract class HttpClientBodyUtilities {
             }
         };
 
-        return new HttpClientError(message ?? this.getErrorMessage(response.statusText, options), options);
+        // the body is where an upstream says why, and the message is all a log line or a test report
+        // shows of the error: a refused capture read "failed with 422 Unknown Error", with the reason on
+        // `responseData` where nothing printed it
+        const statusLine: string = this.getErrorMessage(response.statusText, options);
+        const excerpt: string = rawText.length > ERROR_MESSAGE_BODY_LENGTH ? `${rawText.slice(0, ERROR_MESSAGE_BODY_LENGTH)}…` : rawText;
+        return new HttpClientError(message ?? (excerpt ? `${statusLine}:\n${excerpt}` : statusLine), options);
     }
 
     /**

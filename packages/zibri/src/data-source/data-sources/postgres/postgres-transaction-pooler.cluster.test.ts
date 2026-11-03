@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it } from '@jest/globals';
 import { StartedTestCluster, startTestCluster } from 'zibri-testing';
 
+import { TestTimeouts } from '../../../__testing__/constants';
 import { FsUtilities } from '../../../utilities/fs.utilities';
 import { Ms } from '../../../utilities/ms';
 
@@ -14,10 +15,10 @@ import { Ms } from '../../../utilities/ms';
  */
 
 /**
- * How long the cluster takes to start: the pooler installs PgBouncer as its container starts, and
- * three instances boot behind it.
+ * How long the cluster takes to start: three instances boot behind the pooler, which installs
+ * PgBouncer as its container starts.
  */
-const CLUSTER_START_IN_MS: number = 120 * Ms.SECOND;
+const CLUSTER_START_IN_MS: number = TestTimeouts.resolveCluster(3, 'postgres').start + (60 * Ms.SECOND);
 
 let cluster: StartedTestCluster | undefined;
 

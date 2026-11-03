@@ -1,4 +1,4 @@
-import { createPostgresTestDataSource, defaultClusterProviders, defaultClusterTestEntities, StartTestServerOptions } from 'zibri-testing';
+import { clusterInstanceBootTimeoutInMs, createPostgresTestDataSource, defaultClusterProviders, defaultClusterTestEntities, StartTestServerOptions } from 'zibri-testing';
 
 import { queryPostgres } from '../__testing__/query-postgres.function';
 import { PostgresDataSource } from '../data-source/data-sources/postgres/postgres-data-source.model';
@@ -31,11 +31,16 @@ const stuckDataSource: Newable<PostgresDataSource> = createPostgresTestDataSourc
  */
 class StuckBoot implements OnAppInit {
     /**
-     * Runs a statement that outlasts the harness.
+     * Runs statements until the harness gave up.
      */
     async onAppInit(): Promise<void> {
-        // well inside the statement timeout, so it is the harness that gives up first
-        await queryPostgres(inject(stuckDataSource), `SELECT pg_sleep(25) AS "${stuckStatementMarker}"`);
+        // the harness's wait began before this instance even loaded, so a whole one from here outlasts
+        // it. One statement at a time, each well inside the statement timeout, so it is the harness that
+        // gives up first however long it waits
+        const until: number = Date.now() + clusterInstanceBootTimeoutInMs;
+        while (Date.now() < until) {
+            await queryPostgres(inject(stuckDataSource), `SELECT pg_sleep(10) AS "${stuckStatementMarker}"`);
+        }
     }
 }
 

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
 import { executionLeaseInMs } from './cron.startup.instance-options';
+import { TestTimeouts } from '../__testing__/constants';
 import { FsUtilities } from '../utilities/fs.utilities';
 
 /**
@@ -18,12 +19,12 @@ beforeAll(async () => {
         instanceOptions: FsUtilities.getPath(__dirname, 'cron.startup.instance-options.ts'),
         instances: 1
     });
-}, 20000);
+}, TestTimeouts.resolveCluster(1, 'postgres').start);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await cluster?.shutdown();
-}, 15000);
+}, TestTimeouts.resolveCluster(3, 'postgres').shutdown);
 
 describe('a startup run across a rolling deploy', () => {
 
@@ -44,5 +45,5 @@ describe('a startup run across a rolling deploy', () => {
 
         // the ids rather than the rows, so a failure says which instances ran it
         expect(marks.map(m => m.instanceId)).toEqual(['instance-0']);
-    }, 45000);
+    }, 45000 + (2 * TestTimeouts.resolveCluster(3, 'postgres').restart));
 });

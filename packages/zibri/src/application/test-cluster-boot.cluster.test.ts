@@ -2,6 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 import { StartedTestCluster, startTestCluster } from 'zibri-testing';
 
 import { stuckStatementMarker } from './test-cluster-boot.instance-options';
+import { TestTimeouts } from '../__testing__/constants';
 import { FsUtilities } from '../utilities/fs.utilities';
 
 /**
@@ -17,6 +18,12 @@ describe('a test cluster whose instance does not finish booting', () => {
             instances: 1
         });
 
-        await expect(started).rejects.toThrow(new RegExp(`did not become ready[\\S\\s]*What the sessions[\\S\\s]*${stuckStatementMarker}`));
-    }, 60000);
+        try {
+            await expect(started).rejects.toThrow(new RegExp(`did not become ready[\\S\\s]*What the sessions[\\S\\s]*${stuckStatementMarker}`));
+        }
+        finally {
+            // a boot that finished after all leaves its instance and container running, and jest unable to exit
+            await started.then(async cluster => await cluster.shutdown(), () => undefined);
+        }
+    }, TestTimeouts.resolveCluster(1, 'postgres').start + TestTimeouts.resolveCluster(1, 'postgres').shutdown);
 });

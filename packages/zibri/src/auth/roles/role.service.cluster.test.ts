@@ -19,12 +19,12 @@ beforeAll(async () => {
         instanceOptions: FsUtilities.getPath(__dirname, 'role.service.instance-options.ts'),
         instances: 2
     });
-}, TestTimeouts.postgres.start * 2);
+}, TestTimeouts.resolveCluster(2, 'postgres').start);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await cluster?.shutdown();
-}, TestTimeouts.postgres.shutdown * 2);
+}, TestTimeouts.resolveCluster(2, 'postgres').shutdown);
 
 /**
  * Asks an instance for what the role carries.

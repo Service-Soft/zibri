@@ -195,6 +195,10 @@ describe('get / put / patch / delete / headers / query params / error handling',
             res.status(500).type('text/plain')
                 .send('something went wrong');
         });
+        app.get('/error/long', (_req, res) => {
+            res.status(500).type('text/plain')
+                .send('y'.repeat(2000));
+        });
         app.post('/no-content', (_req, res) => {
             res.status(204).end();
         });
@@ -338,6 +342,21 @@ describe('get / put / patch / delete / headers / query params / error handling',
     it('throws a HttpClientError with the raw text body when the error response body is not JSON', async () => {
         await expect(http.get(`${baseUrl}/error/plain-text`)).rejects.toMatchObject({
             responseData: { body: 'something went wrong', status: 500 }
+        });
+    });
+
+    // the message is all a log line or a test report shows, and the body is where an upstream says why
+    it('quotes the body of a failed response in the message', async () => {
+        await expect(http.get(`${baseUrl}/error/json`)).rejects.toThrow(`GET ${baseUrl}/error/json failed with 500 Internal Server Error:\n{"code":"boom"}`);
+    });
+
+    it('quotes only the start of a long body in the message, and keeps the whole body', async () => {
+        const error: unknown = await http.get(`${baseUrl}/error/long`).catch((error_: unknown) => error_);
+
+        expect(error).toBeInstanceOf(HttpClientError);
+        expect(error).toMatchObject({
+            message: `Request GET ${baseUrl}/error/long failed with 500 Internal Server Error:\n${'y'.repeat(500)}…`,
+            responseData: { body: 'y'.repeat(2000) }
         });
     });
 

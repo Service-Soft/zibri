@@ -9,7 +9,7 @@ import { registerAheadOfInit } from './register-ahead-of-init.function';
 import { ApplicationOptionsFallback, resolveApplicationOptions } from './resolve-application-options.function';
 import { createScratchDirectory, removeScratchDirectory, scratchProviders } from './scratch-directory.function';
 import { settleAfterFailure } from './settle-after-failure.function';
-import { applyContainerPorts, buildDataSources, DataSourcePorts, needsContainer, runAsSuperuser, StartedDataSourceContainer, startDataSourceContainers, stopDataSourceContainer } from './start-data-source-containers.function';
+import { applyContainerPorts, buildDataSources, DataSourcePorts, needsContainer, runAsSuperuser, StartedDataSourceContainer, startDataSourceContainers, stopDataSourceContainer, validateConnectionsClosed } from './start-data-source-containers.function';
 import { StartTestServerOptions } from './start-test-server-options.model';
 import { TestCommandRun } from './test-command-run.model';
 import { defaultTestProviders } from './test-providers';
@@ -145,11 +145,25 @@ export class StartedTestServer {
     /**
      * Shuts the application down, stops every container that was started for it, and removes what it
      * wrote.
+     * @throws When a connection to a postgres container is still open once the application shut down.
+     * The containers are stopped all the same.
      */
     async shutdown(): Promise<void> {
         try {
             await this.app.shutdown();
-            await Promise.all(this.containers.map(c => stopDataSourceContainer(c)));
+            try {
+                // asked before the containers stop, because stopping them is what ends a connection
+                // nothing closed: the server's message about it then reaches a listener of the
+                // application that is gone, which fails whatever test the worker runs at that moment -
+                // in another file, with a trace that names neither this one nor the connection
+                await Promise.all(this.containers.flatMap(c => {
+                    const dataSource: PostgresDataSource | undefined = this.postgresDataSources.get(c.dataSourceClass);
+                    return dataSource == undefined ? [] : [validateConnectionsClosed(c, dataSource)];
+                }));
+            }
+            finally {
+                await Promise.all(this.containers.map(c => stopDataSourceContainer(c)));
+            }
         }
         finally {
             removeScratchDirectory(this.scratchPath);

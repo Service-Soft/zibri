@@ -17,8 +17,8 @@ jobs:
         outputs:
             majors: ${{ steps.resolve.outputs.majors }}
         steps:
-            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                 node-version: '24'
             - id: resolve
@@ -26,8 +26,8 @@ jobs:
     lint:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                 node-version: '24'
             - run: npm ci
@@ -47,9 +47,12 @@ jobs:
             matrix:
                 node: ${{ fromJSON(needs.node-versions.outputs.majors) }}
         runs-on: ubuntu-latest
+        # a ceiling for each job that runs tests: a run that hangs - a jest that does not exit, a hook
+        # that waits on something gone - otherwise holds the runner for the platform's six hours
+        timeout-minutes: 120
         steps:
-            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                 node-version: ${{ matrix.node }}
             - name: install PostgreSQL 17
@@ -72,7 +75,7 @@ jobs:
             # what the generated deployment weighs and how long it takes to answer, measured by the
             # cli's docker suite. Its sizes are held to deployment-size-limits.ts there; the image, which
             # its base image grows, and the time, which is the runner's, are only reported
-            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+            - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                 name: deployment-report-node-${{ matrix.node }}
                 path: packages/cli/src/__testing__/file-output/deployment-report.json
@@ -95,9 +98,10 @@ jobs:
                 os: [windows-latest, macos-latest]
                 node: ${{ fromJSON(needs.node-versions.outputs.majors) }}
         runs-on: ${{ matrix.os }}
+        timeout-minutes: 45
         steps:
-            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                 node-version: ${{ matrix.node }}
             - run: npm ci
@@ -115,9 +119,10 @@ jobs:
     # by the test job.
     benchmark:
         runs-on: ubuntu-latest
+        timeout-minutes: 45
         steps:
-            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                 node-version: '24'
             - run: npm ci
@@ -126,7 +131,7 @@ jobs:
             - run: git fetch --depth=1 origin +release:refs/remotes/origin/release
             - run: npm run test:benchmark:compare -w zibri
             - if: always()
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                 name: benchmark-report
                 path: |
@@ -141,8 +146,8 @@ jobs:
     audit:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                 node-version: '24'
             # installed for the manifests rather than to run anything: the lockfile records a license

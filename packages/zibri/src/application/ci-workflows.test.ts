@@ -134,7 +134,7 @@ function resolveJestPatternsRunBy(script: string): (RegExp | undefined)[] {
             if (!part.startsWith('jest')) {
                 return [];
             }
-            const pattern: string | undefined = /--testPathPatterns='([^']*)'/.exec(part)?.[1];
+            const pattern: string | undefined = /--testPathPatterns="([^"]*)"/.exec(part)?.[1];
             assert(pattern != undefined || !part.includes('--testPathPatterns'), `cannot read the pattern of "${part}"`);
             return [pattern == undefined ? undefined : new RegExp(pattern)];
         });

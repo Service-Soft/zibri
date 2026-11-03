@@ -183,7 +183,7 @@ The limit comes from whichever is more specific:
 | Nothing declared | `defaultMaxResponseSize`, 10mb by default |
 | `stream` response type | None. Nothing is buffered, and the body is yours to consume |
 
-The body of a response that is not ok is read within `defaultMaxResponseSize`, whatever the call declared. Past that, the `HttpClientError` carries the status and the headers and no body.
+The body of a response that is not ok is read within `defaultMaxResponseSize`, whatever the call declared. Past that, the `HttpClientError` carries the status and the headers and no body. Its message names the status and quotes the first 500 characters of the body.
 
 Change the deployment-wide defaults through DI:
 

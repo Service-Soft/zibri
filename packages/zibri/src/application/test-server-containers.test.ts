@@ -109,7 +109,7 @@ const bothTimeouts: TestServerTimeouts = TestTimeouts.resolveCombined('postgres'
 // and a health check every quarter of a second for as long as it ran, so each container starting
 // beside it made the others slower
 describe('the containers of a test server', () => {
-    it('runs nothing in them while they start or run, except what creates the application\'s role', async () => {
+    it('runs nothing in them while they start or run, except what creates the application\'s role and asks once for connections left open', async () => {
         const client: ContainerRuntimeClient = await getContainerRuntimeClient();
         const recording: AbortController = new AbortController();
         const events: NodeJS.ReadableStream = await client.container.dockerode.getEvents({
@@ -142,6 +142,7 @@ describe('the containers of a test server', () => {
             recording.abort();
         }
 
-        expect(commands.map(command => command.split(' ')[0])).toEqual(['psql']);
+        // the second at shutdown, asked again only while a connection is still open
+        expect(commands.map(command => command.split(' ')[0])).toEqual(['psql', 'psql']);
     }, bothTimeouts.start + bothTimeouts.shutdown);
 });

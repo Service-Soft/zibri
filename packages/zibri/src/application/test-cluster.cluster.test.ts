@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { ClusterInstance, ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
 import { baselineUserEmail, baselineUserPassword } from './test-cluster.instance-options';
+import { TestTimeouts } from '../__testing__/constants';
 import { FsUtilities } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
 
@@ -29,12 +30,12 @@ beforeAll(async () => {
         instanceOptions: FsUtilities.getPath(__dirname, 'test-cluster.instance-options.ts'),
         instances: 2
     });
-}, 30000);
+}, TestTimeouts.resolveCluster(2, 'postgres').start);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await cluster?.shutdown();
-}, 15000);
+}, TestTimeouts.resolveCluster(2, 'postgres').shutdown);
 
 describe('cluster harness', () => {
 
@@ -125,5 +126,5 @@ describe('cluster harness', () => {
 
         const res: Response = await fetch(`${cluster.instanceAt(1).baseUrl}/cluster-baseline/who`);
         expect(res.status).toBe(200);
-    }, 15000);
+    }, 15000 + TestTimeouts.resolveCluster(2, 'postgres').restart);
 });

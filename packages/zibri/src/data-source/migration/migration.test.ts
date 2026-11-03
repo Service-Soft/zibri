@@ -156,6 +156,8 @@ describe('AddTestValueMigration', () => {
         // optional, because a beforeAll that timed out never assigned it - and stopping a container
         // that was never started threw a TypeError that replaced the timeout in the report with
         // "Test suite failed to run", which says nothing about what actually went wrong.
+        // The data sources first, which would leave their connections to the container stopping
+        await Promise.all([inject(LegacyDbDataSource).shutDown(), inject(DbDataSource).shutDown()]);
         await container?.stop();
     }, 15000);
 });

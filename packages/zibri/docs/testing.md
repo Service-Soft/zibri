@@ -50,6 +50,7 @@ It peer depends on `zibri`, so the framework under test is the copy your applica
 | `CONTAINER_PROCESS_LABEL` | constant | The label on each of those containers naming the pid of the process that started it |
 | `startTestCluster` | function | Boots several instances of one application against shared data sources |
 | `StartedTestCluster` | class | The running cluster: `instanceAt`, `sql`, `marks`, `waitFor`, `kill`, `scaleTo`, `shutdown` |
+| `clusterInstanceBootTimeoutInMs` | constant | How long an instance may take to boot before the cluster gives up on it. 45 seconds |
 | `ClusterInstance` | class | One replica: its `baseUrl`, its `output`, and `kill` |
 | `ClusterMark` | entity | The row an instance writes to record that it, specifically, did something |
 | `ClusterMarkRow` | type | A `ClusterMark` as `marks` reads it, with `at` as a JSON string |
@@ -106,6 +107,10 @@ it('serves the home page', async () => {
 
 Starting the application runs its migrations and starts every provider, which takes longer than the
 five seconds jest gives a hook, so both hooks are given 30 seconds.
+
+`shutdown` fails when a connection to a postgres container is still open after the application shut
+down, and names what each connection ran last. It stops the containers all the same. Close every
+connection a test opens itself before the server shuts down.
 
 A test file boots the application on the modules it imports. `jest.resetModules()` and
 `jest.isolateModules()` load a [second copy of `zibri`](./di.md#one-copy-per-process), and the
@@ -748,7 +753,7 @@ processes, since a process holds one Zibri application. `startTestCluster` start
 // src/__testing__/cron.cluster.test.ts
 import { beforeAll } from '@jest/globals';
 import { FsUtilities } from 'zibri';
-import { StartedTestCluster, startTestCluster } from 'zibri-testing';
+import { clusterInstanceBootTimeoutInMs, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
 let cluster: StartedTestCluster;
 
@@ -757,12 +762,17 @@ beforeAll(async () => {
         instanceOptions: FsUtilities.getPath(__dirname, 'cron.instance-options.ts'),
         instances: 3
     });
-});
+}, 60000 + (3 * clusterInstanceBootTimeoutInMs));
 ```
 
 Every instance is forked with the same options module and gets the ports of the containers the parent
 started. `bootMode` decides whether they come up one after another (the default, letting the first
 settle the schema) or all at once, as in a rolling deploy.
+
+Give the hook that starts a cluster the time its containers take to start and stop, plus
+`clusterInstanceBootTimeoutInMs` for every instance. A cluster that fails to start stops what it
+started before it rejects. A hook that gives up sooner leaves the instances running, and jest waits for
+them.
 
 ### Writing the instance options module
 The instances boot with what a module exports, named by its path, since a class cannot cross a

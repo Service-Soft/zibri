@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
 import { webInstanceId } from './event.service.heterogeneous.instance-options';
+import { TestTimeouts } from '../__testing__/constants';
 import { FsUtilities } from '../utilities/fs.utilities';
 
 /**
@@ -28,12 +29,12 @@ beforeAll(async () => {
         instanceOptions: FsUtilities.getPath(__dirname, 'event.service.heterogeneous.instance-options.ts'),
         instances: 3
     });
-}, 30000);
+}, TestTimeouts.resolveCluster(3, 'postgres').start);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await cluster?.shutdown();
-}, 15000);
+}, TestTimeouts.resolveCluster(3, 'postgres').shutdown);
 
 describe('events across differing replicas', () => {
 
