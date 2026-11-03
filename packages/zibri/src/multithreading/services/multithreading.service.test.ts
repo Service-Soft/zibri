@@ -1,3 +1,4 @@
+import assert from 'node:assert';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
@@ -20,6 +21,7 @@ import { defineProvider } from '../../di/models/di-provider.model';
 import { CreateLeaseData, Lease } from '../../leases/lease.model';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
 import { Ms } from '../../utilities/ms';
+import { PromiseUtilities, TimeoutError } from '../../utilities/promise.utilities';
 import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
 import { MultithreadingOptions } from '../models/multithreading-options.model';
 import { ThreadJobEntity } from '../models/thread-job-entity.model';
@@ -77,6 +79,58 @@ type ThreadJobRepository = Repository<AnyThreadJobEntity>;
  * it, because a blocker that finished early would make them pass without having tested anything.
  */
 const blockingAmount: number = 38;
+
+/**
+ * Waits for work on the pool until a deadline, and fails with what the pool and the newest jobs were
+ * doing if it runs out.
+ *
+ * A test timeout only says that something took too long. On a ci runner these waits ran out where
+ * they never do locally, and a job never picked up, a job still running and a job that ended without
+ * the wait noticing are three different faults.
+ * @param work - The call on the pool.
+ * @param deadline - When to give up, in epoch milliseconds - short of the test's own timeout, so this
+ * reports before jest does.
+ * @returns What the call answered.
+ * @throws With the pool's state, when the deadline passes first.
+ */
+async function settleBefore<T>(work: T | Promise<T>, deadline: number): Promise<T> {
+    try {
+        return await PromiseUtilities.withTimeout(() => work, Math.max(0, deadline - Date.now()));
+    }
+    catch (error) {
+        if (!(error instanceof TimeoutError)) {
+            throw error;
+        }
+        throw new Error(`The pool did not answer in time.\n${await describePool()}`);
+    }
+}
+
+/**
+ * What the pool holds and the newest jobs' rows say, as of now.
+ * @returns One line per fact.
+ */
+async function describePool(): Promise<string> {
+    assert(multithreadingService instanceof MultithreadingService);
+    const service: MultithreadingService = multithreadingService;
+    const now: number = Date.now();
+    const describeWorker: (worker: ThreadJobWorker) => string
+        = worker => worker.isInitializingSubject.value ? `${worker.threadId} (initializing)` : String(worker.threadId);
+    const rows: AnyThreadJobEntity[] = await inject<ThreadJobRepository>(repositoryTokenFor(ThreadJobEntity))
+        .findAll({ order: { queuedAtMs: 'DESC' }, limit: 5, acrossTenants: true });
+    return [
+        `pool ${service['poolState']}, busy workers [${service['workers'].map(describeWorker).join(', ')}],`
+        + ` idle workers [${service['idleWorkers'].map(describeWorker).join(', ')}]`,
+        `jobs running here [${service['runningJobs'].map(job => [job.id, 'on', job.threadId].join(' ')).join(', ')}]`,
+        'the newest jobs:',
+        ...rows.map(row => [
+            `  ${row.id} ${'filePath' in row.workerData ? path.basename(row.workerData.filePath) : 'function'}: ${row.status}`,
+            `attempts ${row.attempts}`,
+            `thread ${row.threadId ?? 'none'}`,
+            `queued ${now - row.queuedAtMs}ms ago`,
+            row.startedAtMs == undefined ? 'never started' : `started ${now - row.startedAtMs}ms ago`
+        ].join(', '))
+    ].join('\n');
+}
 
 // first, for the reason on startAndStopTestServerWithout
 describe('MultithreadingService — starting', () => {
@@ -237,13 +291,14 @@ describe('MultithreadingService', () => {
     }, 15000);
 
     it('requeueThreadJob resets and reruns a completed job to completion again', async () => {
+        const deadline: number = Date.now() + 14000;
         const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
-        const jobId: string = await multithreadingService.queueThreadJob({ workerData: { filePath, amount: 10 } });
-        const first: ThreadJobEntity<{ filePath: FsPath }, unknown> = await multithreadingService.waitForThreadJob(jobId);
+        const jobId: string = await settleBefore(multithreadingService.queueThreadJob({ workerData: { filePath, amount: 10 } }), deadline);
+        const first: ThreadJobEntity<{ filePath: FsPath }, unknown> = await settleBefore(multithreadingService.waitForThreadJob(jobId), deadline);
         expect(first.status).toBe(ThreadJobStatus.COMPLETED);
         expect(first.result).toEqual(55);
 
-        const rerun: ThreadJobEntity<{ filePath: FsPath }, unknown> = await multithreadingService.rerunThreadJob(jobId);
+        const rerun: ThreadJobEntity<{ filePath: FsPath }, unknown> = await settleBefore(multithreadingService.rerunThreadJob(jobId), deadline);
         expect(rerun.status).toBe(ThreadJobStatus.COMPLETED);
         expect(rerun.result).toEqual(55);
     }, 15000);
@@ -496,14 +551,18 @@ describe('MultithreadingService', () => {
     }, 40000);
 
     it('replaces a worker that hit an uncaught exception instead of handing it the next job', async () => {
+        const deadline: number = Date.now() + 38000;
         const threadIdPath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.thread-id.test.worker.ts');
-        const before: ThreadJobEntity<BaseThreadJobWorkerData, number> = await multithreadingService.runThreadJob({
+        const before: ThreadJobEntity<BaseThreadJobWorkerData, number> = await settleBefore(multithreadingService.runThreadJob({
             workerData: { filePath: threadIdPath }
-        });
+        }), deadline);
         expect(before.status).toBe(ThreadJobStatus.COMPLETED);
 
         const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.uncaught.test.worker.ts');
-        const failed: ThreadJobEntity<BaseThreadJobWorkerData, unknown> = await multithreadingService.runThreadJob({ workerData: { filePath } });
+        const failed: ThreadJobEntity<BaseThreadJobWorkerData, unknown> = await settleBefore(
+            multithreadingService.runThreadJob({ workerData: { filePath } }),
+            deadline
+        );
 
         // the error still reaches the job, which is why the worker reports before it exits - the
         // exit alone can only say that something went wrong, not what
@@ -514,9 +573,9 @@ describe('MultithreadingService', () => {
         // nothing: a worker that reports and carries on is still alive and still idle, so it takes
         // that job perfectly well - carrying whatever the throw left half done into it. The thread
         // id is what tells the two apart. The pool is one thread, so this is also the whole pool.
-        const after: ThreadJobEntity<BaseThreadJobWorkerData, number> = await multithreadingService.runThreadJob({
+        const after: ThreadJobEntity<BaseThreadJobWorkerData, number> = await settleBefore(multithreadingService.runThreadJob({
             workerData: { filePath: threadIdPath }
-        });
+        }), deadline);
         expect(after.status).toBe(ThreadJobStatus.COMPLETED);
         expect(after.result).not.toBe(before.result);
     }, 40000);

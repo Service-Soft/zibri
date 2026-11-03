@@ -1,7 +1,12 @@
-import { execSync, ExecSyncOptions, spawnSync, SpawnSyncReturns } from 'child_process';
+import { execSync, ExecSyncOptions, spawnSync, SpawnSyncOptionsWithBufferEncoding, SpawnSyncReturns } from 'child_process';
 
 import { ChalkUtilities } from './chalk.utilities';
 import { exitGracefully, exitWithInterrupt, isErrorWithSignal, isExitPromptError } from '../utilities';
+
+/**
+ * The programs npm installs, which are scripts rather than executables on windows.
+ */
+const NPM_PROGRAMS: ReadonlySet<string> = new Set(['npm', 'npx']);
 
 /**
  * How a program ended.
@@ -86,7 +91,13 @@ export abstract class CPUtilities {
      * @returns Its exit code and what it wrote to stdout.
      */
     static resolveResult(file: string, args: string[], cwd: string): ProcessResult {
-        const result: SpawnSyncReturns<Buffer> = spawnSync(file, args, { cwd, stdio: ['ignore', 'pipe', 'ignore'] });
+        const options: SpawnSyncOptionsWithBufferEncoding = { cwd, stdio: ['ignore', 'pipe', 'ignore'] };
+        // npm's programs are .cmd scripts on windows, which only a shell starts - without one, npx
+        // could never be run there. A shell joins the arguments as they are, so each is quoted: a
+        // windows path holds no double quote
+        const result: SpawnSyncReturns<Buffer> = process.platform === 'win32' && NPM_PROGRAMS.has(file)
+            ? spawnSync([file, ...args].map(arg => `"${arg}"`).join(' '), { ...options, shell: true })
+            : spawnSync(file, args, options);
         return result.error != undefined
             ? { status: undefined, stdout: Buffer.alloc(0) }
             : { status: result.status ?? undefined, stdout: result.stdout };

@@ -347,9 +347,10 @@ describe('UpgradeCommand', () => {
         await upgrade();
 
         const [dependencies, devDependencies]: string[] = execSpy.mock.calls.map(([command]) => command);
-        // quoted, so a project in a folder whose path holds a space is found
-        expect(dependencies).toMatch(new RegExp(`^cd "${appDir}" && npm i zibri@${version} `));
-        expect(devDependencies).toMatch(new RegExp(`^cd "${appDir}" && npm i -D zibri-testing@${version} `));
+        // quoted, so a project in a folder whose path holds a space is found. Compared as text, because
+        // the backslashes of a windows path are escapes in a pattern
+        expect(dependencies).toContain(`cd "${appDir}" && npm i zibri@${version} `);
+        expect(devDependencies).toContain(`cd "${appDir}" && npm i -D zibri-testing@${version} `);
         // what the project has stays at the version it has, and what it lacks is what a new project gets
         expect(dependencies).toContain(' pg-query-stream@^4.10.3');
         expect(dependencies).not.toContain('chart.js');
