@@ -19,7 +19,11 @@ export type ProcessResult = {
     /**
      * What it wrote to stdout, byte for byte.
      */
-    stdout: Buffer
+    stdout: Buffer,
+    /**
+     * What it wrote to stderr, or why it could not be started.
+     */
+    stderr: Buffer
 };
 
 /**
@@ -82,24 +86,27 @@ export abstract class CPUtilities {
     }
 
     /**
-     * Runs a program without a shell, and hands back how it ended.
+     * Runs a program, and hands back how it ended.
      * An exit code other than 0 is an answer here rather than a failure, which is the difference to
      * output: some programs say what they found that way.
      * @param file - The program.
      * @param args - Its arguments, passed as they are.
      * @param cwd - Where it runs.
-     * @returns Its exit code and what it wrote to stdout.
+     * @returns Its exit code and what it wrote, neither of which is printed.
      */
     static resolveResult(file: string, args: string[], cwd: string): ProcessResult {
-        const options: SpawnSyncOptionsWithBufferEncoding = { cwd, stdio: ['ignore', 'pipe', 'ignore'] };
+        // stderr is kept rather than printed, for whoever has to find out why a program failed
+        const options: SpawnSyncOptionsWithBufferEncoding = { cwd, stdio: ['ignore', 'pipe', 'pipe'] };
         // npm's programs are .cmd scripts on windows, which only a shell starts - without one, npx
         // could never be run there. A shell joins the arguments as they are, so each is quoted: a
-        // windows path holds no double quote
+        // windows path holds no double quote. The program is not: a script started by a quoted name
+        // that was found on the path reads its own folder as the current one, and npm.cmd finds
+        // npm through that folder
         const result: SpawnSyncReturns<Buffer> = process.platform === 'win32' && NPM_PROGRAMS.has(file)
-            ? spawnSync([file, ...args].map(arg => `"${arg}"`).join(' '), { ...options, shell: true })
+            ? spawnSync([file, ...args.map(arg => `"${arg}"`)].join(' '), { ...options, shell: true })
             : spawnSync(file, args, options);
         return result.error != undefined
-            ? { status: undefined, stdout: Buffer.alloc(0) }
-            : { status: result.status ?? undefined, stdout: result.stdout };
+            ? { status: undefined, stdout: Buffer.alloc(0), stderr: Buffer.from(result.error.message) }
+            : { status: result.status ?? undefined, stdout: result.stdout, stderr: result.stderr };
     }
 }

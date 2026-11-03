@@ -15,7 +15,8 @@ describe('CPUtilities.resolveResult', () => {
         try {
             const result: ProcessResult = CPUtilities.resolveResult('npm', ['prefix', '--prefix', prefix], workDir);
 
-            expect(result.status).toBe(0);
+            // together, so a failure shows what npm said about it
+            expect({ status: result.status, stderr: result.stderr.toString() }).toMatchObject({ status: 0 });
             expect(result.stdout.toString().trim()).toBe(prefix);
         }
         finally {

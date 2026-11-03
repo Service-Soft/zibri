@@ -34,7 +34,7 @@ let resultSpy: jest.SpiedFunction<typeof CPUtilities.resolveResult>;
 
 // git still runs: only npx, which would fetch an older release from the registry, is answered here
 const resolveResult: typeof CPUtilities.resolveResult = CPUtilities.resolveResult.bind(CPUtilities);
-const NPX_UNAVAILABLE: ProcessResult = { status: undefined, stdout: Buffer.alloc(0) };
+const NPX_UNAVAILABLE: ProcessResult = { status: undefined, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) };
 
 /**
  * Runs git in the generated project, with an identity of its own so no machine's configuration is needed.
@@ -136,7 +136,7 @@ async function publishRelease(release: string, files: Record<string, string>): P
         // stable since node 22.3, @types/node still marks it experimental; synchronous, as the spied call is
         // eslint-disable-next-line angular/no-experimental
         cpSync(releaseDir, destination, { recursive: true });
-        return { status: 0, stdout: Buffer.alloc(0) };
+        return { status: 0, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) };
     });
 }
 

@@ -141,6 +141,17 @@ function run(command: string, cwd: string = REPOSITORY_ROOT): string {
 }
 
 /**
+ * Builds the generated project's image, whose "npm ci" fetches from the registry the lock names.
+ *
+ * The lock names the registry by its container name, and a build cannot join the containers'
+ * network: docker's current builder refuses any network but the host's. So the build runs on the host's, where the
+ * registry's published port is, with that name pointed at it.
+ */
+function buildImage(): void {
+    run(`docker build --network host --add-host ${REGISTRY_CONTAINER}:127.0.0.1 -t ${IMAGE_TAG} .`, appDir);
+}
+
+/**
  * What a failed command wrote, from whichever streams it wrote to.
  * @param error - What `execSync` raised.
  * @returns Its output, or an empty string when it produced none.
@@ -450,9 +461,7 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
             + ` -v "${appDir}":/app -w /app ${BASE_IMAGE} npm install`
         );
 
-        // on the same network, so that the "npm ci" inside the build reaches the registry the lock
-        // points at. Nothing else in the build talks to it.
-        run(`docker build --network ${NETWORK_NAME} -t ${IMAGE_TAG} .`, appDir);
+        buildImage();
 
         run(
             `docker run -d --name ${DATABASE_CONTAINER} --network ${NETWORK_NAME}`
@@ -501,7 +510,7 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
             `docker exec ${DATABASE_CONTAINER} psql -U postgres -d postgres`
             + ' -c "DROP DATABASE db WITH (FORCE)" -c "CREATE DATABASE db"'
         );
-        run(`docker build --network ${NETWORK_NAME} -t ${IMAGE_TAG} .`, appDir);
+        buildImage();
 
         // what makes it a deployment: production, which starts only with a mail server named. Nothing
         // has to listen there, since a mail server is reached only when a mail is sent. Everything else
