@@ -1133,7 +1133,6 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     async reactivateUser(userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         await this.auditUserChange(AuditAction.USER_REACTIVATED, userId, transaction, async () => {
             // null rather than undefined: it clears the column
-            // eslint-disable-next-line unicorn/no-null
             await this.userService.updateDeactivatedAt(userId, null, transaction);
         });
     }

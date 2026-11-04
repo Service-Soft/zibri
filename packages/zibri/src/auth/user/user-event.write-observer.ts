@@ -54,7 +54,6 @@ export class UserEventWriteObserver implements EntityWriteObserver {
             }
             const type: EventTypeFor<UserEventData> | undefined = isDeactivated ? this.names.userDeactivated : this.names.userReactivated;
             if (type != undefined) {
-                // eslint-disable-next-line unicorn/no-null
                 await FrameworkEventUtilities.emit(type, { userId }, null);
             }
         }
@@ -70,7 +69,6 @@ export class UserEventWriteObserver implements EntityWriteObserver {
             return;
         }
         for (const userId of this.findIds(before)) {
-            // eslint-disable-next-line unicorn/no-null
             await FrameworkEventUtilities.emit(deleted, { userId }, null);
         }
     }

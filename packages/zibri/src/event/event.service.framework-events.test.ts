@@ -81,7 +81,6 @@ beforeAll(async () => {
     tenants = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
     await inject<EventServiceInterface>(ZIBRI_DI_TOKENS.EVENT_SERVICE).subscribeAll(
         (event: Event<object>) => {
-            // eslint-disable-next-line unicorn/no-null
             received.push({ type: event.type, data: event.data, tenantId: event.tenantId ?? null });
         },
         { subscriberId: 'framework-events' }
@@ -143,7 +142,6 @@ describe('the writes of the framework, as the events an application names', () =
 
         await tenants.runAs(tenantId, async () => await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).deleteById(user.id));
 
-        // eslint-disable-next-line unicorn/no-null
         expect(await receivedAbout(1, user.id)).toEqual([{ type: 'framework-events.user-left', data: { userId: user.id }, tenantId: null }]);
     });
 
@@ -154,7 +152,6 @@ describe('the writes of the framework, as the events an application names', () =
         await users.updateDeactivatedAt(user.id, new Date(), undefined);
         // already deactivated, so nothing changes
         await users.updateDeactivatedAt(user.id, new Date(), undefined);
-        // eslint-disable-next-line unicorn/no-null
         await users.updateDeactivatedAt(user.id, null, undefined);
 
         expect((await receivedAbout(2, user.id)).map(event => event.type)).toEqual([
@@ -171,7 +168,6 @@ describe('the writes of the framework, as the events an application names', () =
         const membership: TestMembership = await addMember(user.id, tenantId);
         await tenants.runAs(tenantId, async () => await memberships.updateById(membership.id, { roles: [MemberRoles.ADMIN] }));
         await tenants.runAs(tenantId, async () => await memberships.updateDeactivatedAt(user.id, new Date(), undefined));
-        // eslint-disable-next-line unicorn/no-null
         await tenants.runAs(tenantId, async () => await memberships.updateDeactivatedAt(user.id, null, undefined));
         await tenants.runAs(tenantId, async () => await memberships.deleteById(membership.id));
 
@@ -204,14 +200,12 @@ describe('the writes of the framework, as the events an application names', () =
         const roles: DefaultTestServerRoleRepository = inject(DefaultTestServerRoleRepository);
 
         await roles.create(
-            // eslint-disable-next-line unicorn/no-null
             { name: `shared-${UUIDUtilities.generate()}`, level: 'tenant', permissions: [], tenantId: null },
             { acrossTenants: true }
         );
         await tenants.runAs(tenantId, async () => await roles.create({ name: `own-${UUIDUtilities.generate()}`, level: 'tenant', permissions: [], tenantId }));
 
         expect(await receivedAbout(1, tenantId)).toEqual([{ type: 'framework-events.roles-edited', data: { tenantId }, tenantId }]);
-        // eslint-disable-next-line unicorn/no-null
         expect(received).toContainEqual({ type: 'framework-events.roles-edited', data: { tenantId: null }, tenantId: null });
     });
 

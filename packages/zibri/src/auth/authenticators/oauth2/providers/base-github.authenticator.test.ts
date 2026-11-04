@@ -87,7 +87,6 @@ describe('BaseGitHubAuthenticator', () => {
     beforeAll(async () => {
         // GitHub's api as it answers: the user with a numeric id and one name, and the emails apart. It
         // sends null for what is not set, which the authenticator has to read as nothing
-        /* eslint-disable unicorn/no-null */
         github = await startFakeOAuthProvider({
             clientId: CLIENT_ID,
             clientSecret: CLIENT_SECRET,
@@ -100,7 +99,6 @@ describe('BaseGitHubAuthenticator', () => {
                 ]
             }
         });
-        /* eslint-enable unicorn/no-null */
         const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
             entities: [
                 ...defaultTestServerEntities,

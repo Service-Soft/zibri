@@ -101,12 +101,10 @@ export abstract class TenantUtilities {
                 throw this.resolveMissingTenantError(entityClass);
             }
             // outside every tenant, only the rows that belong to none of them
-            // eslint-disable-next-line unicorn/no-null
             return { [ownership.property]: null } as Where<T>;
         }
         return ownership.required
             ? { [ownership.property]: tenantId } as Where<T>
-            // eslint-disable-next-line unicorn/no-null
             : { [ownership.property]: { oneOf: [tenantId, null] } } as Where<T>;
     }
 

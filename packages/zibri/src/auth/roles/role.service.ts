@@ -417,7 +417,6 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
             transaction
         });
         const named: RoleIdentity[] = [
-            // eslint-disable-next-line unicorn/no-null
             ...stored.filter(role => !written.has(role.id)).map(role => ({ name: role.name, tenantId: role.tenantId ?? null })),
             ...roles
         ];
@@ -487,7 +486,6 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
             }
             // one of the tenant's own where the request acts, one every tenant shares across them
             const created: BaseRole = tenantId == undefined
-                // eslint-disable-next-line unicorn/no-null
                 ? await this.getRepository().create({ ...data, tenantId: null }, { transaction, acrossTenants: true })
                 : await this.getRepository().create(data, { transaction });
             // the caller names the type of its roles, for the reason findRoles gives
@@ -850,7 +848,6 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
      */
     private async readSharedRoles(transaction: RepositoryTransaction | undefined): Promise<RoleIndex> {
         const roles: BaseRole[] = await this.getRepository().findAll({
-            // eslint-disable-next-line unicorn/no-null
             where: { tenantId: null },
             acrossTenants: true,
             limit: 'all',
@@ -960,7 +957,6 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
     private async validateStoredTenantRoles(): Promise<void> {
         const platform: string[] = [];
         const undeclared: string[] = [];
-        // eslint-disable-next-line unicorn/no-null
         for await (const role of this.getRepository().stream({ where: { tenantId: { not: null } }, acrossTenants: true })) {
             if (role.level === 'platform') {
                 platform.push(`'${role.name}' of ${role.tenantId ?? ''}`);

@@ -1,4 +1,4 @@
-import { AccessShape, projectValue } from './access-shape';
+import { AccessShape, projectValue, ReferencedProps } from './access-shape';
 import type { TranslationSources } from '../semantics/translation-sources';
 
 // What tells the runtime's own objects apart from a value that only looks like one: a property keyed
@@ -520,10 +520,9 @@ export type ComponentClientMeta = {
      */
     setupName: string | undefined,
     /**
-     * The keys of the props the client setup references, or `all` when it uses the props whole (only
-     * these are serialized into the page).
+     * The props the client setup references (only these are serialized into the page).
      */
-    referencedProps: string[] | 'all',
+    referencedProps: ReferencedProps,
     /**
      * What the client setup reads from each referenced prop; a prop without an entry is serialized whole.
      */
@@ -937,13 +936,13 @@ export function createServerRuntime(): RenderServerRuntime {
  * pick up the one the declaring parent's setup builds. Every other value is narrowed to what the client
  * reads from it.
  * @param props - All props passed to the component.
- * @param names - The keys of the props the client references, or `all`.
+ * @param names - The props the client references.
  * @param shapes - What the client reads from each prop.
  * @returns The serializable subset.
  */
 function pickSerializable(
     props: Record<string, unknown>,
-    names: string[] | 'all',
+    names: ReferencedProps,
     shapes: Record<string, AccessShape>
 ): Record<string, unknown> {
     const selected: Record<string, unknown> = {};
@@ -960,11 +959,15 @@ function pickSerializable(
 /**
  * The keys of the props the client references.
  * @param props - All props passed to the component.
- * @param names - The keys the client references, or `all` when it uses the props whole.
+ * @param names - The props the client references.
  * @returns The keys. `children` is never one of every key, since reading it renders it.
  */
-export function resolveReferencedKeys(props: Record<string, unknown>, names: string[] | 'all'): string[] {
-    return names === 'all' ? Object.keys(props).filter(name => name !== 'children') : names;
+export function resolveReferencedKeys(props: Record<string, unknown>, names: ReferencedProps): string[] {
+    if (Array.isArray(names)) {
+        return names;
+    }
+    const except: string[] = names === 'all' ? [] : names.allExcept;
+    return Object.keys(props).filter(name => name !== 'children' && !except.includes(name));
 }
 
 /**

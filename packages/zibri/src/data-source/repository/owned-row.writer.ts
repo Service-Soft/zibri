@@ -166,7 +166,6 @@ export class OwnedRowWriter<T extends BaseEntity> {
         }
         if (leftOutWhere != undefined && relation.leftOut === 'unlink') {
             // null rather than undefined, which an update reads as "leave this column alone"
-            // eslint-disable-next-line unicorn/no-null
             await repository.updateAll(leftOutWhere, { [relation.foreignKey]: null }, childOptions);
         }
 

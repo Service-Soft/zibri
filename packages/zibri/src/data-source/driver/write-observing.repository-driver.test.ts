@@ -119,7 +119,6 @@ describe('what a write to every membership a filter matches reads', () => {
  * @returns The role.
  */
 async function createSharedRole(name: string): Promise<TestRole> {
-    // eslint-disable-next-line unicorn/no-null
     return await inject(DefaultTestServerRoleRepository).create({ name, level: 'tenant', permissions: [], tenantId: null }, { acrossTenants: true });
 }
 

@@ -2,6 +2,9 @@
 
 Conventions for every package in this repository. Read this before your first change.
 
+Changing `packages/tsx`? Read [its goals](./packages/tsx/GOALS.md) first: they are what every change to
+the compiler is measured against.
+
 Where this and the surrounding code disagree, this wins — the code predates some of it. Where this
 and the linter disagree, the linter wins and this file is wrong; open an issue.
 

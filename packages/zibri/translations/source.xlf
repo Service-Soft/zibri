@@ -28,7 +28,7 @@
       </trans-unit>
       <trans-unit id="A {$1} has to belong to the tenant of the row it is written with." xml:space="preserve">
         <source>A <x id="$1" equiv-text="{$1}"/> has to belong to the tenant of the row it is written with.</source>
-        <note>src/data-source/tenancy/tenant.utilities.ts:349</note>
+        <note>src/data-source/tenancy/tenant.utilities.ts:347</note>
       </trans-unit>
       <trans-unit id="A {$1} that belongs to no tenant is changed across tenants only." xml:space="preserve">
         <source>A <x id="$1" equiv-text="{$1}"/> that belongs to no tenant is changed across tenants only.</source>
@@ -64,11 +64,11 @@
       </trans-unit>
       <trans-unit id="A group is a json object." xml:space="preserve">
         <source>A group is a json object.</source>
-        <note>src/auth/scim/scim.service.ts:1112</note>
+        <note>src/auth/scim/scim.service.ts:1109</note>
       </trans-unit>
       <trans-unit id="A group needs a displayName." xml:space="preserve">
         <source>A group needs a displayName.</source>
-        <note>src/auth/scim/scim.service.ts:1116</note>
+        <note>src/auth/scim/scim.service.ts:1113</note>
       </trans-unit>
       <trans-unit id="A login is bound to a DPoP key, which the request carries no proof of." xml:space="preserve">
         <source>A login is bound to a DPoP key, which the request carries no proof of.</source>
@@ -76,7 +76,7 @@
       </trans-unit>
       <trans-unit id="A member of the group is no provisioned user or group." xml:space="preserve">
         <source>A member of the group is no provisioned user or group.</source>
-        <note>src/auth/scim/scim.service.ts:906</note>
+        <note>src/auth/scim/scim.service.ts:903</note>
       </trans-unit>
       <trans-unit id="A password has at least {$1} characters." xml:space="preserve">
         <source>A password has at least <x id="$1" equiv-text="{$1}"/> characters.</source>
@@ -112,11 +112,11 @@
       </trans-unit>
       <trans-unit id="A role named '{$1}' exists already." xml:space="preserve">
         <source>A role named '<x id="$1" equiv-text="{$1}"/>' exists already.</source>
-        <note>src/auth/roles/role.service.ts:486</note>
+        <note>src/auth/roles/role.service.ts:485</note>
       </trans-unit>
       <trans-unit id="A row of a tenant cannot be written together with a {$1}, which belongs to none." xml:space="preserve">
         <source>A row of a tenant cannot be written together with a <x id="$1" equiv-text="{$1}"/>, which belongs to none.</source>
-        <note>src/data-source/tenancy/tenant.utilities.ts:343</note>
+        <note>src/data-source/tenancy/tenant.utilities.ts:341</note>
       </trans-unit>
       <trans-unit id="A row to delete was written while it was being deleted. Run the delete again." xml:space="preserve">
         <source>A row to delete was written while it was being deleted. Run the delete again.</source>
@@ -124,11 +124,11 @@
       </trans-unit>
       <trans-unit id="A tenant has a role of its own named '{$1}', so no role every tenant shares can be named so." xml:space="preserve">
         <source>A tenant has a role of its own named '<x id="$1" equiv-text="{$1}"/>', so no role every tenant shares can be named so.</source>
-        <note>src/auth/roles/role.service.ts:428</note>
+        <note>src/auth/roles/role.service.ts:427</note>
       </trans-unit>
       <trans-unit id="A tenant role is given and taken in the tenant a request acts in, and this one acts in none." xml:space="preserve">
         <source>A tenant role is given and taken in the tenant a request acts in, and this one acts in none.</source>
-        <note>src/auth/roles/role.service.ts:577</note>
+        <note>src/auth/roles/role.service.ts:575</note>
       </trans-unit>
       <trans-unit id="A url encoded form has to be sent as text." xml:space="preserve">
         <source>A url encoded form has to be sent as text.</source>
@@ -136,11 +136,11 @@
       </trans-unit>
       <trans-unit id="A user is a json object." xml:space="preserve">
         <source>A user is a json object.</source>
-        <note>src/auth/scim/scim.service.ts:1090</note>
+        <note>src/auth/scim/scim.service.ts:1087</note>
       </trans-unit>
       <trans-unit id="A user needs a userName." xml:space="preserve">
         <source>A user needs a userName.</source>
-        <note>src/auth/scim/scim.service.ts:1094</note>
+        <note>src/auth/scim/scim.service.ts:1091</note>
       </trans-unit>
       <trans-unit id="Access tokens work until they expire, so they cannot be revoked." xml:space="preserve">
         <source>Access tokens work until they expire, so they cannot be revoked.</source>
@@ -160,7 +160,7 @@
       </trans-unit>
       <trans-unit id="An externalId is a string." xml:space="preserve">
         <source>An externalId is a string.</source>
-        <note>src/auth/scim/scim.service.ts:1145</note>
+        <note>src/auth/scim/scim.service.ts:1142</note>
       </trans-unit>
       <trans-unit id="An operation is add, remove or replace, with an optional path." xml:space="preserve">
         <source>An operation is add, remove or replace, with an optional path.</source>
@@ -236,7 +236,7 @@
       </trans-unit>
       <trans-unit id="Could not find {$1} with id &#x22;{$2}&#x22;." xml:space="preserve">
         <source>Could not find <x id="$1" equiv-text="{$1}"/> with id "<x id="$2" equiv-text="{$2}"/>".</source>
-        <note>src/data-source/repository/reference.validator.ts:153, src/data-source/repository/repository.ts:1398, src/data-source/repository/repository.ts:1907, src/data-source/repository/repository.ts:1967, src/data-source/repository/repository.ts:1978, src/data-source/repository/repository.ts:2196, src/data-source/repository/repository.ts:2741, src/data-source/change-sets/soft-delete-repository.ts:515</note>
+        <note>src/data-source/repository/reference.validator.ts:153, src/data-source/repository/repository.ts:1398, src/data-source/repository/repository.ts:1907, src/data-source/repository/repository.ts:1967, src/data-source/repository/repository.ts:1978, src/data-source/repository/repository.ts:2196, src/data-source/repository/repository.ts:2741, src/data-source/change-sets/soft-delete-repository.ts:511</note>
       </trans-unit>
       <trans-unit id="Could not find {$1}." xml:space="preserve">
         <source>Could not find <x id="$1" equiv-text="{$1}"/>.</source>
@@ -244,7 +244,7 @@
       </trans-unit>
       <trans-unit id="Could not find connection with id &#x22;{$1}&#x22;." xml:space="preserve">
         <source>Could not find connection with id "<x id="$1" equiv-text="{$1}"/>".</source>
-        <note>src/websocket/services/websocket.service.ts:1299</note>
+        <note>src/websocket/services/websocket.service.ts:1298</note>
       </trans-unit>
       <trans-unit id="Could not find cron job with name &#x22;{$1}&#x22;" xml:space="preserve">
         <source>Could not find cron job with name "<x id="$1" equiv-text="{$1}"/>"</source>
@@ -252,7 +252,7 @@
       </trans-unit>
       <trans-unit id="Could not find handler for websocket event for version &#x22;{$1}&#x22;" xml:space="preserve">
         <source>Could not find handler for websocket event for version "<x id="$1" equiv-text="{$1}"/>"</source>
-        <note>src/websocket/services/websocket.service.ts:1330</note>
+        <note>src/websocket/services/websocket.service.ts:1329</note>
       </trans-unit>
       <trans-unit id="Could not find route &#x22;{$1}&#x22; for version &#x22;{$2}&#x22;" xml:space="preserve">
         <source>Could not find route "<x id="$1" equiv-text="{$1}"/>" for version "<x id="$2" equiv-text="{$2}"/>"</source>
@@ -280,7 +280,7 @@
       </trans-unit>
       <trans-unit id="Could not resolve the currently logged in user." xml:space="preserve">
         <source>Could not resolve the currently logged in user.</source>
-        <note>src/auth/auth.service.ts:862, src/auth/auth.service.ts:876, src/auth/auth.service.ts:1190, src/auth/auth.service.ts:1519</note>
+        <note>src/auth/auth.service.ts:862, src/auth/auth.service.ts:876, src/auth/auth.service.ts:1189, src/auth/auth.service.ts:1518</note>
       </trans-unit>
       <trans-unit id="Could not resolve version" xml:space="preserve">
         <source>Could not resolve version</source>
@@ -304,7 +304,7 @@
       </trans-unit>
       <trans-unit id="Every member of a group names the id of a user or a group as its value." xml:space="preserve">
         <source>Every member of a group names the id of a user or a group as its value.</source>
-        <note>src/auth/scim/scim.service.ts:1125</note>
+        <note>src/auth/scim/scim.service.ts:1122</note>
       </trans-unit>
       <trans-unit id="failOnErrors is a whole number above 0." xml:space="preserve">
         <source>failOnErrors is a whole number above 0.</source>
@@ -332,7 +332,7 @@
       </trans-unit>
       <trans-unit id="Groups sort by id, displayName, externalId, meta.created or meta.lastModified." xml:space="preserve">
         <source>Groups sort by id, displayName, externalId, meta.created or meta.lastModified.</source>
-        <note>src/auth/scim/scim-where.utilities.ts:692</note>
+        <note>src/auth/scim/scim-where.utilities.ts:690</note>
       </trans-unit>
       <trans-unit id="has to be one of: {$1}" xml:space="preserve">
         <source>has to be one of: <x id="$1" equiv-text="{$1}"/></source>
@@ -356,7 +356,7 @@
       </trans-unit>
       <trans-unit id="Invalid username or password." xml:space="preserve">
         <source>Invalid username or password.</source>
-        <note>src/auth/authenticators/ldap/base-ldap.authenticator.ts:327, src/auth/authenticators/ldap/base-ldap.authenticator.ts:533</note>
+        <note>src/auth/authenticators/ldap/base-ldap.authenticator.ts:327, src/auth/authenticators/ldap/base-ldap.authenticator.ts:532</note>
       </trans-unit>
       <trans-unit id="invalid XML in body" xml:space="preserve">
         <source>invalid XML in body</source>
@@ -476,7 +476,7 @@
       </trans-unit>
       <trans-unit id="No user is linked to this login." xml:space="preserve">
         <source>No user is linked to this login.</source>
-        <note>src/auth/authenticators/passkey/passkey.authenticator.ts:189, src/auth/authenticators/passkey/passkey.service.ts:305, src/auth/authenticators/ldap/base-ldap.authenticator.ts:973</note>
+        <note>src/auth/authenticators/passkey/passkey.authenticator.ts:189, src/auth/authenticators/passkey/passkey.service.ts:305, src/auth/authenticators/ldap/base-ldap.authenticator.ts:971</note>
       </trans-unit>
       <trans-unit id="No valid context" xml:space="preserve">
         <source>No valid context</source>
@@ -608,7 +608,7 @@
       </trans-unit>
       <trans-unit id="The {$1} cannot be deleted while rows of &#x22;{$2}&#x22; still point at it." xml:space="preserve">
         <source>The <x id="$1" equiv-text="{$1}"/> cannot be deleted while rows of "<x id="$2" equiv-text="{$2}"/>" still point at it.</source>
-        <note>src/data-source/repository/owned-row.writer.ts:297</note>
+        <note>src/data-source/repository/owned-row.writer.ts:296</note>
       </trans-unit>
       <trans-unit id="The {$1} holding {$2} changed since it was read, so the upsert was not applied." xml:space="preserve">
         <source>The <x id="$1" equiv-text="{$1}"/> holding <x id="$2" equiv-text="{$2}"/> changed since it was read, so the upsert was not applied.</source>
@@ -616,7 +616,7 @@
       </trans-unit>
       <trans-unit id="The {$1} with id &#x22;{$2}&#x22; changed since it was read, so it was not deleted." xml:space="preserve">
         <source>The <x id="$1" equiv-text="{$1}"/> with id "<x id="$2" equiv-text="{$2}"/>" changed since it was read, so it was not deleted.</source>
-        <note>src/data-source/repository/repository.ts:2739, src/data-source/change-sets/soft-delete-repository.ts:441</note>
+        <note>src/data-source/repository/repository.ts:2739, src/data-source/change-sets/soft-delete-repository.ts:438</note>
       </trans-unit>
       <trans-unit id="The {$1} with id &#x22;{$2}&#x22; changed since it was read, so the update was not applied." xml:space="preserve">
         <source>The <x id="$1" equiv-text="{$1}"/> with id "<x id="$2" equiv-text="{$2}"/>" changed since it was read, so the update was not applied.</source>
@@ -624,7 +624,7 @@
       </trans-unit>
       <trans-unit id="The {$1} with id &#x22;{$2}&#x22; is deleted." xml:space="preserve">
         <source>The <x id="$1" equiv-text="{$1}"/> with id "<x id="$2" equiv-text="{$2}"/>" is deleted.</source>
-        <note>src/data-source/change-sets/soft-delete-repository.ts:403</note>
+        <note>src/data-source/change-sets/soft-delete-repository.ts:400</note>
       </trans-unit>
       <trans-unit id="The amount has to be greater than 0." xml:space="preserve">
         <source>The amount has to be greater than 0.</source>
@@ -636,7 +636,7 @@
       </trans-unit>
       <trans-unit id="The backup resources {$1} are being backed up or restored. Restore once that is done." xml:space="preserve">
         <source>The backup resources <x id="$1" equiv-text="{$1}"/> are being backed up or restored. Restore once that is done.</source>
-        <note>src/backup/backup.service.ts:966</note>
+        <note>src/backup/backup.service.ts:965</note>
       </trans-unit>
       <trans-unit id="The body is not a SOAP envelope carrying a logout request." xml:space="preserve">
         <source>The body is not a SOAP envelope carrying a logout request.</source>
@@ -676,7 +676,7 @@
       </trans-unit>
       <trans-unit id="The cron job &#x22;{$1}&#x22; is declared in code, so only enable, disable and changeCron change it at runtime." xml:space="preserve">
         <source>The cron job "<x id="$1" equiv-text="{$1}"/>" is declared in code, so only enable, disable and changeCron change it at runtime.</source>
-        <note>src/cron/cron-job.model.ts:847</note>
+        <note>src/cron/cron-job.model.ts:845</note>
       </trans-unit>
       <trans-unit id="The current password is wrong." xml:space="preserve">
         <source>The current password is wrong.</source>
@@ -720,7 +720,7 @@
       </trans-unit>
       <trans-unit id="The filter cannot be read at {$1}." xml:space="preserve">
         <source>The filter cannot be read at <x id="$1" equiv-text="{$1}"/>.</source>
-        <note>src/auth/scim/scim-filter.utilities.ts:473</note>
+        <note>src/auth/scim/scim-filter.utilities.ts:472</note>
       </trans-unit>
       <trans-unit id="The filter compares an attribute resources cannot be found by, or compares it in a way its values cannot be." xml:space="preserve">
         <source>The filter compares an attribute resources cannot be found by, or compares it in a way its values cannot be.</source>
@@ -732,7 +732,7 @@
       </trans-unit>
       <trans-unit id="The filter stands for too many alternatives." xml:space="preserve">
         <source>The filter stands for too many alternatives.</source>
-        <note>src/auth/scim/scim-where.utilities.ts:709</note>
+        <note>src/auth/scim/scim-where.utilities.ts:707</note>
       </trans-unit>
       <trans-unit id="The form has both text and files under &#x22;{$1}&#x22;." xml:space="preserve">
         <source>The form has both text and files under "<x id="$1" equiv-text="{$1}"/>".</source>
@@ -824,7 +824,7 @@
       </trans-unit>
       <trans-unit id="The permission '{$1}' is not declared." xml:space="preserve">
         <source>The permission '<x id="$1" equiv-text="{$1}"/>' is not declared.</source>
-        <note>src/auth/auth.service.ts:1400</note>
+        <note>src/auth/auth.service.ts:1399</note>
       </trans-unit>
       <trans-unit id="The provided two factor code is invalid." xml:space="preserve">
         <source>The provided two factor code is invalid.</source>
@@ -892,15 +892,15 @@
       </trans-unit>
       <trans-unit id="The resource changed since the version the request names." xml:space="preserve">
         <source>The resource changed since the version the request names.</source>
-        <note>src/auth/scim/scim.service.ts:1078</note>
+        <note>src/auth/scim/scim.service.ts:1075</note>
       </trans-unit>
       <trans-unit id="The resource conflicts with one that exists." xml:space="preserve">
         <source>The resource conflicts with one that exists.</source>
-        <note>src/auth/scim/scim.service.ts:1415</note>
+        <note>src/auth/scim/scim.service.ts:1412</note>
       </trans-unit>
       <trans-unit id="The resource was changed by another request at the same time." xml:space="preserve">
         <source>The resource was changed by another request at the same time.</source>
-        <note>src/auth/scim/scim.service.ts:1061</note>
+        <note>src/auth/scim/scim.service.ts:1058</note>
       </trans-unit>
       <trans-unit id="The role '{$1}' does not exist." xml:space="preserve">
         <source>The role '<x id="$1" equiv-text="{$1}"/>' does not exist.</source>
@@ -920,11 +920,11 @@
       </trans-unit>
       <trans-unit id="The role '{$1}' is one every tenant shares, so no tenant can have one of its own named so." xml:space="preserve">
         <source>The role '<x id="$1" equiv-text="{$1}"/>' is one every tenant shares, so no tenant can have one of its own named so.</source>
-        <note>src/auth/roles/role.service.ts:429</note>
+        <note>src/auth/roles/role.service.ts:428</note>
       </trans-unit>
       <trans-unit id="The role '{$1}' is still held. Take it from everybody who holds it first." xml:space="preserve">
         <source>The role '<x id="$1" equiv-text="{$1}"/>' is still held. Take it from everybody who holds it first.</source>
-        <note>src/auth/roles/role.service.ts:443</note>
+        <note>src/auth/roles/role.service.ts:442</note>
       </trans-unit>
       <trans-unit id="The roles of the user do not carry the permissions {$1}." xml:space="preserve">
         <source>The roles of the user do not carry the permissions <x id="$1" equiv-text="{$1}"/>.</source>
@@ -940,7 +940,7 @@
       </trans-unit>
       <trans-unit id="The sortOrder is ascending or descending." xml:space="preserve">
         <source>The sortOrder is ascending or descending.</source>
-        <note>src/auth/scim/scim-where.utilities.ts:704</note>
+        <note>src/auth/scim/scim-where.utilities.ts:702</note>
       </trans-unit>
       <trans-unit id="The tenant &#x22;{$1}&#x22; this request names is not a uuid." xml:space="preserve">
         <source>The tenant "<x id="$1" equiv-text="{$1}"/>" this request names is not a uuid.</source>
@@ -964,15 +964,15 @@
       </trans-unit>
       <trans-unit id="The user has no such identity." xml:space="preserve">
         <source>The user has no such identity.</source>
-        <note>src/auth/auth.service.ts:1432</note>
+        <note>src/auth/auth.service.ts:1431</note>
       </trans-unit>
       <trans-unit id="The user is no member of the tenant &#x22;{$1}&#x22;." xml:space="preserve">
         <source>The user is no member of the tenant "<x id="$1" equiv-text="{$1}"/>".</source>
-        <note>src/auth/strategies/api-key/api-key.service.ts:292, src/auth/roles/role.service.ts:586</note>
+        <note>src/auth/strategies/api-key/api-key.service.ts:292, src/auth/roles/role.service.ts:584</note>
       </trans-unit>
       <trans-unit id="The userName {$1} is taken." xml:space="preserve">
         <source>The userName <x id="$1" equiv-text="{$1}"/> is taken.</source>
-        <note>src/auth/scim/scim.service.ts:1182</note>
+        <note>src/auth/scim/scim.service.ts:1179</note>
       </trans-unit>
       <trans-unit id="The version is named more than once." xml:space="preserve">
         <source>The version is named more than once.</source>
@@ -980,7 +980,7 @@
       </trans-unit>
       <trans-unit id="There is no group {$1}." xml:space="preserve">
         <source>There is no group <x id="$1" equiv-text="{$1}"/>.</source>
-        <note>src/auth/scim/scim.service.ts:1201</note>
+        <note>src/auth/scim/scim.service.ts:1198</note>
       </trans-unit>
       <trans-unit id="There is no provider &#x22;{$1}&#x22;." xml:space="preserve">
         <source>There is no provider "<x id="$1" equiv-text="{$1}"/>".</source>
@@ -992,7 +992,7 @@
       </trans-unit>
       <trans-unit id="There is no role named '{$1}'." xml:space="preserve">
         <source>There is no role named '<x id="$1" equiv-text="{$1}"/>'.</source>
-        <note>src/auth/roles/role.service.ts:819</note>
+        <note>src/auth/roles/role.service.ts:817</note>
       </trans-unit>
       <trans-unit id="There is no schema {$1}." xml:space="preserve">
         <source>There is no schema <x id="$1" equiv-text="{$1}"/>.</source>
@@ -1000,11 +1000,11 @@
       </trans-unit>
       <trans-unit id="There is no such login." xml:space="preserve">
         <source>There is no such login.</source>
-        <note>src/auth/auth.service.ts:2197</note>
+        <note>src/auth/auth.service.ts:2196</note>
       </trans-unit>
       <trans-unit id="There is no user {$1}." xml:space="preserve">
         <source>There is no user <x id="$1" equiv-text="{$1}"/>.</source>
-        <note>src/auth/scim/scim.service.ts:645, src/auth/scim/scim.service.ts:971, src/auth/scim/scim.service.ts:1191</note>
+        <note>src/auth/scim/scim.service.ts:645, src/auth/scim/scim.service.ts:968, src/auth/scim/scim.service.ts:1188</note>
       </trans-unit>
       <trans-unit id="There should only be one message sent." xml:space="preserve">
         <source>There should only be one message sent.</source>
@@ -1048,11 +1048,11 @@
       </trans-unit>
       <trans-unit id="This request carries more than one credential ({$1}). Send exactly one." xml:space="preserve">
         <source>This request carries more than one credential (<x id="$1" equiv-text="{$1}"/>). Send exactly one.</source>
-        <note>src/auth/auth.service.ts:2125</note>
+        <note>src/auth/auth.service.ts:2124</note>
       </trans-unit>
       <trans-unit id="This request names no tenant." xml:space="preserve">
         <source>This request names no tenant.</source>
-        <note>src/data-source/tenancy/tenant.utilities.ts:190</note>
+        <note>src/data-source/tenancy/tenant.utilities.ts:188</note>
       </trans-unit>
       <trans-unit id="This took longer than the {$1}ms it is allowed." xml:space="preserve">
         <source>This took longer than the <x id="$1" equiv-text="{$1}"/>ms it is allowed.</source>
@@ -1120,7 +1120,7 @@
       </trans-unit>
       <trans-unit id="Users are not sorted by groups, meta.version or meta.location." xml:space="preserve">
         <source>Users are not sorted by groups, meta.version or meta.location.</source>
-        <note>src/auth/scim/scim-where.utilities.ts:691</note>
+        <note>src/auth/scim/scim-where.utilities.ts:689</note>
       </trans-unit>
       <trans-unit id="Validation Error" xml:space="preserve">
         <source>Validation Error</source>
@@ -1164,7 +1164,7 @@
       </trans-unit>
       <trans-unit id="Whether a user is active is true or false." xml:space="preserve">
         <source>Whether a user is active is true or false.</source>
-        <note>src/auth/scim/scim.service.ts:1167</note>
+        <note>src/auth/scim/scim.service.ts:1164</note>
       </trans-unit>
       <trans-unit id="Without a codeChallenge the user is logged in on the redirect back from the provider, which only a strategy whose login goes out with the response can do, such as cookies. Send a codeChallenge to have the login handed over by code." xml:space="preserve">
         <source>Without a codeChallenge the user is logged in on the redirect back from the provider, which only a strategy whose login goes out with the response can do, such as cookies. Send a codeChallenge to have the login handed over by code.</source>
@@ -1172,7 +1172,7 @@
       </trans-unit>
       <trans-unit id="You cannot be logged in when accessing this route." xml:space="preserve">
         <source>You cannot be logged in when accessing this route.</source>
-        <note>src/auth/auth.service.ts:1500</note>
+        <note>src/auth/auth.service.ts:1499</note>
       </trans-unit>
       <trans-unit id="You cannot write a {$1} outside what you are allowed to see." xml:space="preserve">
         <source>You cannot write a <x id="$1" equiv-text="{$1}"/> outside what you are allowed to see.</source>
@@ -1180,11 +1180,11 @@
       </trans-unit>
       <trans-unit id="You do not have permission to access this route." xml:space="preserve">
         <source>You do not have permission to access this route.</source>
-        <note>src/auth/auth.service.ts:1508, src/auth/auth.service.ts:1573, src/auth/auth.service.ts:1591, src/auth/auth.service.ts:1836</note>
+        <note>src/auth/auth.service.ts:1507, src/auth/auth.service.ts:1572, src/auth/auth.service.ts:1590, src/auth/auth.service.ts:1835</note>
       </trans-unit>
       <trans-unit id="You do not have permission to manage this role." xml:space="preserve">
         <source>You do not have permission to manage this role.</source>
-        <note>src/auth/roles/role.service.ts:673</note>
+        <note>src/auth/roles/role.service.ts:671</note>
       </trans-unit>
       <trans-unit id="You have no passkey to present." xml:space="preserve">
         <source>You have no passkey to present.</source>
@@ -1192,11 +1192,11 @@
       </trans-unit>
       <trans-unit id="You need to be logged in to access this route." xml:space="preserve">
         <source>You need to be logged in to access this route.</source>
-        <note>src/auth/auth.service.ts:1492</note>
+        <note>src/auth/auth.service.ts:1491</note>
       </trans-unit>
       <trans-unit id="You need to provide a second factor to access this route." xml:space="preserve">
         <source>You need to provide a second factor to access this route.</source>
-        <note>src/auth/2fa/two-factor.service.ts:424</note>
+        <note>src/auth/2fa/two-factor.service.ts:423</note>
       </trans-unit>
       <trans-unit id="Your email address was changed" xml:space="preserve">
         <source>Your email address was changed</source>

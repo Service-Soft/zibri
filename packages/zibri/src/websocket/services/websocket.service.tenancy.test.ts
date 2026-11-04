@@ -350,7 +350,6 @@ describe('websockets across tenants', () => {
         expect(await hasReceived(reconnected, 'connected-while-deactivated')).toBe(false);
 
         // null rather than undefined: it clears the column
-        // eslint-disable-next-line unicorn/no-null
         await tenants.runAs(tenantA, async () => await memberships.updateDeactivatedAt(pausing.user.id, null, undefined));
         await tenants.runAs(tenantA, async () => await broadcast('after-reactivation'));
         expect(await hasReceived(deactivated, 'after-reactivation')).toBe(true);

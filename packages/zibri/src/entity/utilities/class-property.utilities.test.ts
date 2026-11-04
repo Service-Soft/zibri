@@ -173,7 +173,6 @@ describe('ClassPropertyUtilities (via OmitClass/PickClass/PartialClass/Intersect
 
         it('refuses null for a property the base requires, and takes it where the base does not', async () => {
             const problems: ValidationProblem[] = await validationService.getBodyValidationProblems(
-                // eslint-disable-next-line unicorn/no-null
                 { name: null, age: null },
                 bodyMeta(PartialBase)
             );

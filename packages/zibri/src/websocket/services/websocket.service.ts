@@ -748,7 +748,6 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         const tenantIds: string[] = currentUser == undefined
             ? []
             : (await this.membershipService.findActiveMemberships<string, BaseMembership<string>>(currentUser.id)).map(m => m.tenantId);
-        // eslint-disable-next-line unicorn/no-null
         const reachable: WhereFilter<WebsocketMessage>['tenantId'] = { oneOf: [...tenantIds, null] };
 
         let channelsOfUser: WebsocketChannel[] = [];

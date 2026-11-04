@@ -16,7 +16,6 @@ import { OmitStrict } from '../types/omit-strict.type';
     // one checkpoint per tenant and span, so two instances sealing at once cannot seal a span twice
     uniques: [
         ['tenantId', 'periodEnd'],
-        // eslint-disable-next-line unicorn/no-null
         { properties: ['periodEnd'], where: whereFor<AuditCheckpoint>({ tenantId: null }) }
     ]
 })

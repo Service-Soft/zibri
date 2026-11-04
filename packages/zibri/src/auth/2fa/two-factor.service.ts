@@ -336,7 +336,6 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         const retryAt: Date = new Date(Date.now() + (this.failureDelayInMs * (2 ** (count - 1))));
         const locks: boolean = this.failureLimit !== false && streak?.lockedAt == undefined && count >= this.failureLimit.maxFailures;
         // null rather than undefined, so an update that does not lock keeps the column as it is
-        // eslint-disable-next-line unicorn/no-null
         const lockedAt: Date | null = locks ? new Date() : streak?.lockedAt ?? null;
         await (streak
             ? this.failureStreakRepository.updateById(streak.id, { count, retryAt, lockedAt })

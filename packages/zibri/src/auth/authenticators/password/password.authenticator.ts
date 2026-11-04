@@ -403,7 +403,6 @@ export class PasswordAuthenticator<
         const count: number = streak == undefined || this.hasLockPassed(streak) ? 1 : streak.count + 1;
         const locks: boolean = count >= this.failureLimit.maxFailures && !this.isLocked(streak);
         // null rather than undefined, so an update that does not lock keeps the column as it is
-        // eslint-disable-next-line unicorn/no-null
         const lockedUntil: Date | null = locks ? new Date(Date.now() + this.failureLimit.lockForInMs) : streak?.lockedUntil ?? null;
         await (streak
             ? this.failureStreakRepository.updateById(streak.id, { count, lockedUntil })

@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/no-null */
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 

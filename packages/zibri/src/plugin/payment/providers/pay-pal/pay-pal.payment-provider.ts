@@ -610,7 +610,6 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
                     error: errorToLoggedError(new Error(`capture failed, status=${capture.status}`))
                 };
             }
-            // eslint-disable-next-line unicorn/no-null
             case null:
             case undefined: {
                 // no capture yet: the authorization tells

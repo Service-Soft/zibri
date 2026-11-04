@@ -234,7 +234,6 @@ export class AuditService implements AuditServiceInterface, OnAppInit, OnAppShut
             ...event,
             // null rather than undefined for no tenant, since the write fills an undefined one with
             // the tenant it runs in - which is whichever entry happened to start it
-            // eslint-disable-next-line unicorn/no-null
             tenantId: AlsUtilities.getCurrentTenant() ?? null,
             clientIp: requestContext?.type === 'http-request'
                 ? requestContext.request.ip ?? requestContext.request.socket?.remoteAddress
@@ -285,7 +284,6 @@ export class AuditService implements AuditServiceInterface, OnAppInit, OnAppShut
         });
         const expired: WhereFilter<AuditEntry>[] = ends.flatMap(end => end.maximum == undefined
             ? []
-            // eslint-disable-next-line unicorn/no-null
             : [{ tenantId: end.tenantId ?? null, recordedAt: { before: end.maximum } }]);
         const removed: number = expired.length ? await this.entryRepository.prune(expired) : 0;
         await this.checkpointRepository.prune({ periodEnd: { beforeOrOn: cutoff } });
@@ -313,7 +311,6 @@ export class AuditService implements AuditServiceInterface, OnAppInit, OnAppShut
         if (!unsealed.length) {
             return 0;
         }
-        // eslint-disable-next-line unicorn/no-null
         const tenantIds: (string | null)[] = unsealed.map(group => group.tenantId ?? null);
         const previousEnds: TenantPeriodEnd[] = await this.checkpointRepository.maximum('periodEnd', {
             where: tenantIds.map(tenantId => ({ tenantId })),
@@ -323,7 +320,6 @@ export class AuditService implements AuditServiceInterface, OnAppInit, OnAppShut
         });
         const starts: Map<string | null, Date> = new Map(previousEnds.flatMap(end => end.maximum == undefined
             ? []
-            // eslint-disable-next-line unicorn/no-null
             : [[end.tenantId ?? null, end.maximum]]));
 
         // every tenant's entries in one read, in the order the digest takes them
@@ -339,7 +335,6 @@ export class AuditService implements AuditServiceInterface, OnAppInit, OnAppShut
             unscoped: true
         });
         for await (const entry of entries) {
-            // eslint-disable-next-line unicorn/no-null
             const tenantId: string | null = entry.tenantId ?? null;
             const seal: Seal = seals.get(tenantId) ?? { firstRecordedAt: entry.recordedAt, count: 0, digest: createHash('sha256') };
             seals.set(tenantId, seal);
@@ -384,7 +379,6 @@ export class AuditService implements AuditServiceInterface, OnAppInit, OnAppShut
         if (!chain.intact) {
             return { intact: false, reason: `The checkpoint at ${chain.brokenAtSequence}: ${chain.reason}` };
         }
-        // eslint-disable-next-line unicorn/no-null
         const owner: string | null = tenantId ?? null;
         const checkpoints: AuditCheckpoint[] = [];
         for await (const checkpoint of this.checkpointRepository.stream({

@@ -340,7 +340,6 @@ export class SpanningTransactionRepositoryDriver<T extends BaseEntity> implement
         for (const column of this.columns) {
             if (Reflect.get(row, column) === undefined) {
                 // null rather than undefined: a write leaves out what is undefined, null clears the column
-                // eslint-disable-next-line unicorn/no-null
                 Reflect.set(before, column, null);
             }
         }

@@ -444,7 +444,6 @@ describe('ApiKeyAuthStrategy', () => {
         await expect(createBoundKey(member, [TestPermissions.MEMBER_ADMIN], tenantId)).rejects.toThrow(/no member of the tenant/);
 
         // null rather than undefined: it clears the column
-        // eslint-disable-next-line unicorn/no-null
         await setDeactivatedAt(null);
 
         expect((await callInTenant('/tenant-admin', key, tenantId)).status).toBe(200);

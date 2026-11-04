@@ -31,7 +31,6 @@ export class RoleEventWriteObserver implements EntityWriteObserver {
     async handleWritten(written: WrittenRows): Promise<void> {
         const tenantIds: Set<string | null> = new Set([...written.before, ...written.after].map(row => {
             const tenantId: unknown = Reflect.get(row, 'tenantId');
-            // eslint-disable-next-line unicorn/no-null
             return typeof tenantId === 'string' ? tenantId : null;
         }));
         for (const tenantId of tenantIds) {

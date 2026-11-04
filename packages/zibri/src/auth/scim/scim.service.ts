@@ -653,7 +653,6 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
                 userName: input.userName,
                 userNameKey: input.userName.toLowerCase(),
                 // null rather than undefined: it clears an externalId the user no longer has
-                // eslint-disable-next-line unicorn/no-null
                 externalId: input.externalId ?? null,
                 active: input.active,
                 attributes: input.attributes,
@@ -689,7 +688,6 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
             return;
         }
         // null rather than undefined: it clears the column
-        // eslint-disable-next-line unicorn/no-null
         await this.membershipService.updateDeactivatedAt(user.id, this.getActiveTenantId(), active ? null : new Date(), transaction);
     }
 
@@ -742,7 +740,6 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
                 displayName: input.displayName,
                 displayNameKey: input.displayName.toLowerCase(),
                 // null rather than undefined: it clears an externalId the group no longer has
-                // eslint-disable-next-line unicorn/no-null
                 externalId: input.externalId ?? null,
                 updatedAt: new Date(),
                 version: group.version + 1

@@ -273,7 +273,6 @@ describe('removeExcludeProperties', () => {
 
     describe('null / undefined handling', () => {
         it('does not throw when called with null', async () => {
-            // eslint-disable-next-line unicorn/no-null
             await expect(removeExcludeProperties(null, User)).resolves.not.toThrow();
         });
 
@@ -283,7 +282,6 @@ describe('removeExcludeProperties', () => {
 
         it('does not throw when a nested relation is null', async () => {
             const user: User = makeUser();
-            // eslint-disable-next-line unicorn/no-null
             user.address = null as unknown as Address;
             await expect(removeExcludeProperties(user, User)).resolves.not.toThrow();
         });

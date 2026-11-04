@@ -12,3 +12,4 @@ file-output
 packages/cli/sandbox
 packages/cli/src/__testing__/recorded-sandbox-diffs.json
 *.baseline.json
+.claude

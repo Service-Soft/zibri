@@ -57,7 +57,6 @@ describe('keyWhereToSql', () => {
         // `= NULL` is never true, so the index would cover no row and the declaration would silently
         // constrain nothing. It is the shape a deletion timestamp takes rather than a flag, which is
         // the other half of what M13 is about
-        // eslint-disable-next-line unicorn/no-null
         expect(keyWhereToSql(Registration, whereFor<Registration>({ label: null }))).toBe('"label" IS NULL');
     });
 
@@ -82,18 +81,15 @@ describe('keyWhereToSql', () => {
     it('writes not, answering a row holding none as the in process evaluator does', () => {
         // a row holding no value is not the value named, which `<>` would leave NULL
         expect(keyWhereToSql(Registration, whereFor<Registration>({ label: { not: 'x' } }))).toBe('"label" IS DISTINCT FROM \'x\'');
-        // eslint-disable-next-line unicorn/no-null
         expect(keyWhereToSql(Registration, whereFor<Registration>({ label: { not: null } }))).toBe('"label" IS NOT NULL');
     });
 
     it('writes oneOf and notOneOf, null included where it is listed', () => {
         expect(keyWhereToSql(Registration, whereFor<Registration>({ label: { oneOf: ['a', 'b'] } }))).toBe('("label" IN (\'a\', \'b\'))');
-        // eslint-disable-next-line unicorn/no-null
         expect(keyWhereToSql(Registration, whereFor<Registration>({ label: { oneOf: ['a', null] } })))
             .toBe('("label" IN (\'a\') OR "label" IS NULL)');
         expect(keyWhereToSql(Registration, whereFor<Registration>({ label: { notOneOf: ['a'] } })))
             .toBe('("label" IS NULL OR "label" NOT IN (\'a\'))');
-        // eslint-disable-next-line unicorn/no-null
         expect(keyWhereToSql(Registration, whereFor<Registration>({ label: { notOneOf: ['a', null] } })))
             .toBe('("label" IS NOT NULL AND "label" NOT IN (\'a\'))');
         expect(keyWhereToSql(Registration, whereFor<Registration>({ label: { oneOf: [] } }))).toBe('FALSE');

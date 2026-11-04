@@ -50,7 +50,6 @@ export class LogBudget extends WriteBudget<Log> {
             id: UUIDUtilities.generate(),
             // no tenant, since it counts the entries of every tenant. Null, since the write fills an
             // undefined one with the tenant it runs in
-            // eslint-disable-next-line unicorn/no-null
             tenantId: null,
             level: first.level,
             message: overflowMessage,

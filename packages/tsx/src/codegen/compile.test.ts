@@ -4,21 +4,11 @@ import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from '@jest/globals';
 
 import { compile, CompileResult } from './compile';
-import { CompiledPage, renderPage } from '../runtime/render-page';
+import { isCompiledPage, loadCjs } from '../__testing__/server-render.helper';
+import { renderPage } from '../runtime/render-page';
 import { createContext } from '../runtime/server-runtime';
 import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols';
 import { ValidationCode } from '../semantics/validate';
-
-/**
- * Whether a value is a compiled component a page can be rendered from.
- * @param value - The value an emitted module exports.
- * @returns True when it carries a render function and client metadata.
- */
-function isCompiledPage(value: unknown): value is CompiledPage {
-    return typeof value === 'object' && value !== null
-        && 'render' in value && typeof value.render === 'function'
-        && 'client' in value && typeof value.client === 'object';
-}
 
 // The emitted module is ESM, so `new Function` cannot validate it — but TypeScript's parser handles
 // import/export, so it asserts the emitted source is syntactically valid.
@@ -224,18 +214,6 @@ describe('compile', () => {
 
 describe('compile with module: cjs', () => {
     // A commonjs module can be evaluated directly, which proves the emit is not just syntactic.
-
-    function loadCjs(code: string, requireMock: (id: string) => unknown = () => ({})): Record<string, unknown> {
-        const exported: Record<string, unknown> = {};
-        // eslint-disable-next-line typescript/no-implied-eval
-        const run: (exports: Record<string, unknown>, require: (id: string) => unknown) => void = new Function(
-            'exports',
-            'require',
-            code
-        ) as (exports: Record<string, unknown>, require: (id: string) => unknown) => void;
-        run(exported, requireMock);
-        return exported;
-    }
 
     /**
      * Compiles a template as commonjs, loads it against the given modules and renders one of its exports.

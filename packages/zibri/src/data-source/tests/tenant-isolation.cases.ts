@@ -387,11 +387,9 @@ export function describeTenantIsolation(name: string, getRepositories: () => Ten
 
         it('writes a row of no tenant from inside a tenant only across tenants', async () => {
             await tenants().runAs(tenantA, async () => {
-                // eslint-disable-next-line unicorn/no-null
                 const inside: TenantNotice = await notices().create({ text: 'named none inside', tenantId: null });
                 expect(inside.tenantId).toBe(tenantA);
 
-                // eslint-disable-next-line unicorn/no-null
                 const across: TenantNotice = await notices().create({ text: 'named none across', tenantId: null }, { acrossTenants: true });
                 expect(across.tenantId ?? undefined).toBeUndefined();
                 // and naming nothing across tenants is the active tenant, as everywhere else
@@ -523,7 +521,6 @@ export function describeTenantIsolation(name: string, getRepositories: () => Ten
 
             await tenants().runAs(tenantA, async () => {
                 await expect(notices().updateById(shared.id, { tenantId: tenantA })).rejects.toThrow(ForbiddenError);
-                // eslint-disable-next-line unicorn/no-null
                 await expect(notices().updateById(own.id, { tenantId: null })).rejects.toThrow(ForbiddenError);
             });
         });

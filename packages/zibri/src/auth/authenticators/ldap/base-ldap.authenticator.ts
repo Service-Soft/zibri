@@ -397,7 +397,6 @@ export abstract class BaseLdapAuthenticator<
             const page: KeysetPage<LdapIdentity> = await this.identityRepository.findAllAfter(
                 cursor,
                 this.disabledEntryPageSize,
-                // eslint-disable-next-line unicorn/no-null
                 { where: { directory: this.name, disabledAt: null } }
             );
             // connected once there is something to ask, so a directory nobody logged in at is never asked
@@ -925,7 +924,6 @@ export abstract class BaseLdapAuthenticator<
         if (linked != undefined) {
             // the directory took the password, so the entry is enabled again; and it was just asked
             if (linked.disabledAt != undefined || this.refreshCheckIntervalInMs > 0) {
-                // eslint-disable-next-line unicorn/no-null
                 await this.identityRepository.updateById(linked.id, { disabledAt: null, checkedAt: new Date() }, { transaction });
             }
             return await this.resolveLogin(entry, await this.findLinkedUser(linked.userId), transaction);

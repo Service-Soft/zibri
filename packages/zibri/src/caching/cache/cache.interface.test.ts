@@ -44,7 +44,6 @@ describe('isCache', () => {
     });
 
     it('returns false for null and undefined', () => {
-        // eslint-disable-next-line unicorn/no-null
         expect(isCache(null)).toBe(false);
         expect(isCache(undefined)).toBe(false);
     });

@@ -47,10 +47,7 @@ export abstract class ThreadJobWorkerEventUtilities {
                 }
                 try {
                     await events.updateJob(job.id, { progress: message.progress });
-                    await events.updateJob(
-                        job.id,
-                        { status: ThreadJobStatus.COMPLETED, threadId: undefined, stoppedAtMs: Date.now() }
-                    );
+                    await events.updateJob(job.id, { status: ThreadJobStatus.COMPLETED, threadId: null, stoppedAtMs: Date.now() });
                     await events.callBack(job, () => job.onComplete?.());
                 }
                 finally {
@@ -66,7 +63,7 @@ export abstract class ThreadJobWorkerEventUtilities {
                 try {
                     await events.updateJob(job.id, {
                         status: ThreadJobStatus.COMPLETED,
-                        threadId: undefined,
+                        threadId: null,
                         stoppedAtMs: Date.now(),
                         progress: 100,
                         result: message.result
@@ -86,7 +83,7 @@ export abstract class ThreadJobWorkerEventUtilities {
                 try {
                     await events.updateJob(
                         job.id,
-                        { status: ThreadJobStatus.FAILED, threadId: undefined, stoppedAtMs: Date.now(), error: message.error }
+                        { status: ThreadJobStatus.FAILED, threadId: null, stoppedAtMs: Date.now(), error: message.error }
                     );
                     await events.callBack(job, () => job.onError?.(this.toThrownError(message.error)));
                 }
@@ -135,7 +132,7 @@ export abstract class ThreadJobWorkerEventUtilities {
                 await events.updateJob(job.id, {
                     stoppedAtMs: Date.now(),
                     status: ThreadJobStatus.FAILED,
-                    threadId: undefined
+                    threadId: null
                 });
             }
             finally {
@@ -148,7 +145,7 @@ export abstract class ThreadJobWorkerEventUtilities {
             await events.updateJob(job.id, {
                 stoppedAtMs: Date.now(),
                 status: ThreadJobStatus.CANCELLED,
-                threadId: undefined
+                threadId: null
             });
             await events.callBack(job, () => job.onCancel?.());
         }
@@ -185,7 +182,7 @@ export abstract class ThreadJobWorkerEventUtilities {
                 stoppedAtMs: Date.now(),
                 status: ThreadJobStatus.FAILED,
                 error: errorToLoggedError(error),
-                threadId: undefined
+                threadId: null
             });
         }
         finally {

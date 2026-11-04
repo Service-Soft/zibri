@@ -2,19 +2,19 @@ import { createHash } from 'node:crypto';
 
 import * as ts from 'typescript';
 
-import { accessShapeOf } from './access-shape-analysis';
+import { accessShapeOf, namedKeysOf, propertyKeyOf } from './access-shape-analysis';
 import { CLIENT_PROP_VALUES, CLIENT_PROPS_RUNTIME, ClientPropSite, collectClientPropSites } from './client-props';
-import { collectHandlerSites, HandlerSite } from './handlers';
+import { collectHandlerSites, collectServerOnlyCallbacks, HandlerSite } from './handlers';
 import { REATTACH_RUNTIME, SETUP_RUNTIME_PARAM } from './reattach';
 import { SourceSpan } from '../../diagnostics/diagnostic.model';
-import { AccessShape } from '../../runtime/access-shape';
+import { AccessShape, mergeAccessShapes, ReferencedProps, resolveAccessThroughRest } from '../../runtime/access-shape';
 import { collectOuterNames, collectOuterReferences, collectPatternBindings, collectReferencedSymbols, declaredSymbols, OuterOrigin } from '../../semantics/binding';
 import { ClientGlobalAlias } from '../../semantics/client-packages';
 import { ComponentFunction, isJsxExpression, nestedStatements } from '../../semantics/component';
 import { symbolOf } from '../../semantics/symbols';
 import { collectTranslationSources, TranslationSources } from '../../semantics/translation-sources';
-import { unwrapTypeSyntax, walk } from '../../semantics/walk';
-import { printNode } from '../server/print';
+import { isHookCall, unwrapTypeSyntax, walk } from '../../semantics/walk';
+import { printClientNode } from '../server/print';
 
 /**
  * The generated client behavior for a component.
@@ -42,11 +42,10 @@ export type ClientScript = {
      */
     clientPropSites: ClientPropSite[],
     /**
-     * The keys of the component's props that the client code actually references, or `all` when it
-     * uses the props whole. Only these are serialized into the page, so server-only props never reach
-     * the browser.
+     * The component's props that the client code actually references. Only these are serialized into
+     * the page, so server-only props never reach the browser.
      */
-    referencedProps: string[] | 'all',
+    referencedProps: ReferencedProps,
     /**
      * What the client code reads from each referenced prop. Only that much of a prop is serialized into
      * the page.
@@ -167,31 +166,41 @@ export function compileClientScript(fn: ComponentFunction, name: string, clientA
 
     // What the markup's client code reads seeds what the body has to provide, so the body is filtered
     // down to the declarations those actually reach.
-    const body: ClientBody = clientBody(fn, new Set(markup.flatMap(expression => [...collectReferencedSymbols(expression)])));
+    const markupServerOnly: Set<ts.Node> = new Set<ts.Node>(markup.flatMap(collectServerOnlyCallbacks));
+    const body: ClientBody = clientBody(
+        fn,
+        new Set(markup.flatMap(expression => [...collectReferencedSymbols(expression, markupServerOnly)]))
+    );
+    const omitted: ReadonlySet<ts.Node> = new Set<ts.Node>([...body.omitted, ...markupServerOnly]);
     const file: ts.SourceFile = fn.getSourceFile();
     const bodySource: string = body.statements
-        .map(statement => printNode(neutralizeStatementTree(statement, body.omitted), undefined, file))
+        .map(statement => printClientNode(neutralizeStatementTree(statement, omitted), file))
         .join('\n');
 
-    // Exactly the nodes that end up in the client script: the kept body (so a `$t` inside a function a
-    // handler calls is found too) plus the inline handler and function-prop expressions. A `$t` in the
-    // jsx is not included, because that one is resolved during the server render.
-    const clientNodes: ts.Node[] = [...body.statements, ...markup];
     // Only what is reachable from client code counts — props used solely in JSX stay server-side.
-    const referenced: Set<ts.Symbol> = new Set(clientNodes.flatMap(node => [...collectReferencedSymbols(node, body.omitted)]));
-    const outer: Set<string> = new Set(clientNodes.flatMap(node => [...collectOuterNames(node, fn, body.omitted)]));
+    const referenced: Set<ts.Symbol> = new Set(
+        [...body.statements, ...markup].flatMap(node => [...collectReferencedSymbols(node, omitted)])
+    );
+    // Exactly the nodes that end up in the client script: the kept body (so a `$t` inside a function a
+    // handler calls is found too), the inline handler and function-prop expressions, and the defaults of
+    // the props these read. A `$t` in the jsx is not included, because that one is resolved during the
+    // server render.
+    const clientNodes: ts.Node[] = [
+        ...body.statements,
+        ...markup,
+        ...fn.parameters.length === 0 ? [] : collectReadDefaults(fn.parameters[0], referenced)
+    ];
+    const outer: Set<string> = new Set(clientNodes.flatMap(node => [...collectOuterNames(node, fn, omitted)]));
 
     // what the client reads from the props object as a whole, so a prop is picked by its own key however
     // the parameter names it: `props.label`, `{ label: text }` and `{ item: { label } }` alike
     const propsShape: AccessShape | undefined = fn.parameters.length === 0
         ? undefined
-        : patternShape(fn.parameters[0].name, referenced, clientNodes, body.omitted);
-    const referencedProps: string[] | 'all' = propsShape === undefined
-        ? []
-        : propsShape === 'whole' ? 'all' : Object.keys(propsShape.fields);
+        : patternShape(fn.parameters[0].name, referenced, clientNodes, omitted);
+    const referencedProps: ReferencedProps = resolveReferencedProps(propsShape);
     const propShapes: Record<string, AccessShape> = propsShape === undefined || propsShape === 'whole' ? {} : propsShape.fields;
     const referencedHooks: string[] = resolveHooks(outer);
-    const referencedTranslations: TranslationSources = collectTranslationSources(clientNodes, body.omitted);
+    const referencedTranslations: TranslationSources = collectTranslationSources(clientNodes, omitted);
 
     // A component only runs on the client when it stamps an event handler, hands a function to a
     // nested component, or calls `onClient`. Statement-level body code without any of those is pure
@@ -246,7 +255,7 @@ export function compileClientScript(fn: ComponentFunction, name: string, clientA
         .filter(part => part.trim().length > 0)
         .join('\n');
     const setupName: string = `${name}$$setup$${templateHash(file.text)}`;
-    const propsParam: string = fn.parameters.length > 0 ? printNode(fn.parameters[0]) : '__unusedProps';
+    const propsParam: string = printClientParameter(fn, referenced, file);
     return {
         code: `function ${setupName}(${propsParam}, ${SETUP_RUNTIME_PARAM}) {\n${setupBody}\n}`,
         setupName,
@@ -257,9 +266,124 @@ export function compileClientScript(fn: ComponentFunction, name: string, clientA
         referencedHooks,
         referencedTranslations,
         referencedIdentifiers: [...outer],
-        outerNames: collectOuterNamesOf(clientNodes, fn, body.omitted),
-        moduleLoading: clientNodes.flatMap(node => collectModuleLoading(node, body.omitted))
+        outerNames: collectOuterNamesOf(clientNodes, fn, omitted),
+        moduleLoading: clientNodes.flatMap(node => collectModuleLoading(node, omitted))
     };
+}
+
+/**
+ * Prints the parameter of the client setup: what the component's parameter binds and client code reads.
+ * The rest of it, the defaults included, is server code, and the page would carry its text for anyone to
+ * read. A rest still holds the right fields without its siblings, because the props it leaves out are
+ * never written into the page.
+ * @param fn - The component function.
+ * @param referenced - The variables client code reads.
+ * @param file - The template.
+ * @returns The parameter's source.
+ */
+function printClientParameter(fn: ComponentFunction, referenced: ReadonlySet<ts.Symbol>, file: ts.SourceFile): string {
+    const parameter: ts.ParameterDeclaration | undefined = fn.parameters[0];
+    const name: ts.BindingName | undefined = parameter === undefined ? undefined : clientBindingName(parameter.name, referenced);
+    return parameter === undefined || name === undefined
+        ? '__unusedProps'
+        : printClientNode(ts.factory.updateParameterDeclaration(
+            parameter,
+            parameter.modifiers,
+            parameter.dotDotDotToken,
+            name,
+            parameter.questionToken,
+            parameter.type,
+            parameter.initializer
+        ), file);
+}
+
+/**
+ * A binding with only what client code reads.
+ * @param name - The binding name or pattern.
+ * @param referenced - The variables client code reads.
+ * @returns The binding, or undefined when client code reads nothing of it.
+ */
+function clientBindingName(name: ts.BindingName, referenced: ReadonlySet<ts.Symbol>): ts.BindingName | undefined {
+    if (ts.isIdentifier(name)) {
+        return isReferenced(name, referenced) ? name : undefined;
+    }
+    if (ts.isObjectBindingPattern(name)) {
+        const elements: ts.BindingElement[] = name.elements.flatMap(element => clientBindingElement(element, referenced) ?? []);
+        return elements.length === 0 ? undefined : ts.factory.updateObjectBindingPattern(name, elements);
+    }
+    // an element of an array pattern is bound by its position, so one that is left out stays a hole
+    const elements: ts.ArrayBindingElement[] = name.elements.map(element => ts.isBindingElement(element)
+        ? clientBindingElement(element, referenced) ?? ts.factory.createOmittedExpression()
+        : element);
+    return elements.every(ts.isOmittedExpression) ? undefined : ts.factory.updateArrayBindingPattern(name, elements);
+}
+
+/**
+ * An element of a binding pattern with only what client code reads.
+ * @param element - The element.
+ * @param referenced - The variables client code reads.
+ * @returns The element, or undefined when client code reads nothing of it.
+ */
+function clientBindingElement(element: ts.BindingElement, referenced: ReadonlySet<ts.Symbol>): ts.BindingElement | undefined {
+    const name: ts.BindingName | undefined = clientBindingName(element.name, referenced);
+    return name === undefined
+        ? undefined
+        : ts.factory.updateBindingElement(element, element.dotDotDotToken, element.propertyName, name, element.initializer);
+}
+
+/**
+ * Collects the defaults of the component's parameter client code depends on, adding what they read to
+ * the variables client code reads, since a default can read another prop.
+ * @param parameter - The component's parameter.
+ * @param referenced - The variables client code reads, which grows.
+ * @returns The defaults.
+ */
+function collectReadDefaults(parameter: ts.ParameterDeclaration, referenced: Set<ts.Symbol>): ts.Expression[] {
+    for (;;) {
+        const defaults: ts.Expression[] = readDefaultsOf(parameter, referenced);
+        const size: number = referenced.size;
+        for (const symbol of defaults.flatMap(initializer => [...collectReferencedSymbols(initializer)])) {
+            referenced.add(symbol);
+        }
+        if (referenced.size === size) {
+            return defaults;
+        }
+    }
+}
+
+/**
+ * The defaults of a binding that apply to something client code reads.
+ * @param declaration - The parameter or binding element.
+ * @param referenced - The variables client code reads.
+ * @returns The defaults, outermost first.
+ */
+function readDefaultsOf(declaration: ts.ParameterDeclaration | ts.BindingElement, referenced: ReadonlySet<ts.Symbol>): ts.Expression[] {
+    if (!collectPatternBindings(declaration.name).some(binding => isReferenced(binding, referenced))) {
+        return [];
+    }
+    const nested: ts.BindingElement[] = ts.isIdentifier(declaration.name) ? [] : [...declaration.name.elements].filter(ts.isBindingElement);
+    return [
+        ...declaration.initializer === undefined ? [] : [declaration.initializer],
+        ...nested.flatMap(element => readDefaultsOf(element, referenced))
+    ];
+}
+
+/**
+ * The props client code reads, from what it reads of the props object as a whole.
+ * @param shape - What client code reads, or undefined when it reads nothing.
+ * @returns The props client code reads.
+ */
+function resolveReferencedProps(shape: AccessShape | undefined): ReferencedProps {
+    if (shape === undefined) {
+        return [];
+    }
+    if (shape === 'whole') {
+        return 'all';
+    }
+    const { fields, restExcept } = shape;
+    return restExcept === undefined
+        ? Object.keys(fields)
+        : { allExcept: restExcept.filter(field => !Object.hasOwn(fields, field)) };
 }
 
 /**
@@ -368,47 +492,17 @@ function objectPatternShape(
         if (read === undefined) {
             continue;
         }
-        // a rest holds the fields the pattern does not name, so what is read from it is read from the value
-        const key: string | undefined = element.dotDotDotToken === undefined ? propertyKeyOf(element) : undefined;
         if (element.dotDotDotToken !== undefined) {
-            shape = mergeShapes(shape, read);
+            // a rest holds the fields the pattern does not name, so what is read from it is read from the
+            // value, apart from what the pattern names
+            const except: string[] | undefined = namedKeysOf(pattern);
+            shape = except === undefined ? 'whole' : mergeAccessShapes(shape, resolveAccessThroughRest(read, except));
+            continue;
         }
-        else {
-            shape = key === undefined ? 'whole' : mergeShapes(shape, { fields: { [key]: read } });
-        }
+        const key: string | undefined = propertyKeyOf(element);
+        shape = key === undefined ? 'whole' : mergeAccessShapes(shape, { fields: { [key]: read } });
     }
     return shape;
-}
-
-/**
- * The key of the value an element of an object pattern takes.
- * @param element - The element.
- * @returns The key, or undefined for a computed one.
- */
-function propertyKeyOf(element: ts.BindingElement): string | undefined {
-    const property: ts.PropertyName | ts.BindingName = element.propertyName ?? element.name;
-    return ts.isIdentifier(property) || ts.isStringLiteral(property) || ts.isNumericLiteral(property) ? property.text : undefined;
-}
-
-/**
- * What client code reads of a value in two places together.
- * @param first - What one place reads, if anything.
- * @param second - What the other place reads.
- * @returns Both, a value read whole in either being read whole.
- */
-function mergeShapes(first: AccessShape | undefined, second: AccessShape): AccessShape {
-    if (first === undefined) {
-        return second;
-    }
-    if (first === 'whole' || second === 'whole') {
-        return 'whole';
-    }
-    const fields: Record<string, AccessShape> = { ...first.fields };
-    for (const [field, read] of Object.entries(second.fields)) {
-        fields[field] = mergeShapes(fields[field], read);
-    }
-    const items: AccessShape | undefined = second.items === undefined ? first.items : mergeShapes(first.items, second.items);
-    return items === undefined ? { fields } : { fields, items };
 }
 
 /**
@@ -472,7 +566,7 @@ function handlerTable(sites: HandlerSite[]): string {
     }
     const entries: string[] = sites.map(site => {
         const params: string = site.captureVars.join(', ');
-        return `${site.id}: { event: '${site.event}', make: (${params}) => (${printNode(site.handler)}) }`;
+        return `${site.id}: { event: '${site.event}', make: (${params}) => (${printClientNode(site.handler)}) }`;
     });
     return `const __handlers = {\n${entries.join(',\n')}\n};`;
 }
@@ -487,7 +581,7 @@ function clientPropFactories(sites: ClientPropSite[]): string {
     if (sites.length === 0) {
         return '';
     }
-    const entries: string[] = sites.map(site => `${site.id}: (${site.captureVars.join(', ')}) => (${printNode(site.value)})`);
+    const entries: string[] = sites.map(site => `${site.id}: (${site.captureVars.join(', ')}) => (${printClientNode(site.value)})`);
     return `const __clientProps = {\n${entries.join(',\n')}\n};`;
 }
 
@@ -530,7 +624,7 @@ function clientBody(fn: ComponentFunction, seeds: Set<ts.Symbol>): ClientBody {
     // A top-level JSX return is the component's normal end — drop it. `onServer` bodies are left out
     // before anything else looks at the statements, so what they reference cannot keep code alive.
     const candidates: ts.Statement[] = fn.body.statements.filter(statement => !isJsxReturn(statement));
-    const serverOnly: Set<ts.Node> = new Set<ts.Node>(candidates.flatMap(serverOnlyCallbacks));
+    const serverOnly: Set<ts.Node> = new Set<ts.Node>(candidates.flatMap(collectServerOnlyCallbacks));
     const needed: Set<ts.Symbol> = new Set<ts.Symbol>(seeds);
 
     // What is kept can read a declaration that reads another, so grow until it settles.
@@ -682,20 +776,6 @@ function containsClientCode(node: ts.Node, omitted: ReadonlySet<ts.Node>): boole
 }
 
 /**
- * Whether a node is a call of the named framework hook.
- * @param node - The node to test.
- * @param hook - The hook name.
- * @returns True for a call of that hook.
- */
-function isHookCall(node: ts.Node, hook: string): node is ts.CallExpression {
-    if (!ts.isCallExpression(node)) {
-        return false;
-    }
-    const callee: ts.Expression = unwrapTypeSyntax(node.expression);
-    return ts.isIdentifier(callee) && callee.text === hook;
-}
-
-/**
  * Whether a statement provides a variable the client code reads: a function, class or enum declaration
  * of one, or an assignment to one (so a value the client reads is not left at its initial state).
  * @param statement - The statement to inspect.
@@ -749,29 +829,6 @@ function statementTree(statement: ts.Statement): ts.Statement[] {
 }
 
 /**
- * The `onServer` call a statement consists of, if it is one.
- * @param statement - The statement.
- * @returns The call, or undefined for any other statement.
- */
-function onServerCallOf(statement: ts.Statement): ts.CallExpression | undefined {
-    if (!ts.isExpressionStatement(statement)) {
-        return undefined;
-    }
-    const expression: ts.Expression = unwrapTypeSyntax(statement.expression);
-    return isHookCall(expression, 'onServer') ? expression : undefined;
-}
-
-/**
- * The callbacks of the `onServer` blocks in a statement's control flow. `onServer` is a no-op in the
- * browser, so keeping its callback would only publish server-side code that cannot even run there.
- * @param statement - The statement.
- * @returns The arguments of each `onServer` call written as a statement.
- */
-function serverOnlyCallbacks(statement: ts.Statement): ts.Expression[] {
-    return statementTree(statement).flatMap(nested => onServerCallOf(nested)?.arguments.map(unwrapTypeSyntax) ?? []);
-}
-
-/**
  * The markup of the JSX returns nested in a statement's control flow, which the client replaces with a
  * `break`.
  * @param statement - The statement.
@@ -801,21 +858,14 @@ function isJsxReturn(statement: ts.Statement): statement is ValueReturn {
 }
 
 /**
- * Rebuilds a statement the way the client runs it: every `onServer` call in its control flow with its
- * callback removed, every JSX `return` the attaching of the handlers and a `break` to the setup label, so an early exit leaves the setup
- * block without aborting the surrounding script, and everything client code does not need left out.
+ * Rebuilds a statement the way the client runs it: every JSX `return` the attaching of the handlers and a
+ * `break` to the setup label, so an early exit leaves the setup block without aborting the surrounding
+ * script, and everything client code does not need left out.
  * @param statement - The kept statement.
  * @param omitted - What is left out.
  * @returns The statement to print.
  */
 function neutralizeStatementTree(statement: ts.Statement, omitted: ReadonlySet<ts.Node>): ts.Statement {
-    const onServerCall: ts.CallExpression | undefined = onServerCallOf(statement);
-    if (onServerCall !== undefined && ts.isExpressionStatement(statement)) {
-        return ts.factory.updateExpressionStatement(
-            statement,
-            ts.factory.updateCallExpression(onServerCall, onServerCall.expression, onServerCall.typeArguments, [])
-        );
-    }
     if (isJsxReturn(statement)) {
         return ts.factory.createBlock([
             ts.factory.createExpressionStatement(

@@ -1274,7 +1274,6 @@ export class PostgresRepositoryDriver<T extends BaseEntity> implements Repositor
                 continue;
             }
             if (value === null) {
-                // eslint-disable-next-line unicorn/no-null
                 res.set(metadata.joinColumn, null);
             }
             else if (typeof value === 'object' && 'id' in value && value.id != undefined) {

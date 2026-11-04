@@ -1028,7 +1028,6 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         const value: unknown = 'default' in metadata && metadata.default !== undefined
 
             ? typeof metadata.default === 'function' ? (metadata.default as () => unknown)() : metadata.default
-            // eslint-disable-next-line unicorn/no-null
             : null;
 
         await this.updateStoredRows(MigratedEntityUtilities.resolveEntityClass(input.entity, this.entities), input.transaction, row => {
@@ -1055,7 +1054,6 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             const stored: string | undefined = row[conversion.currentName];
             // a field that is not there is a value that is null, which a change lists and converts alike
             const converted: ConvertedValue | RefusedValue = ValueConversionUtilities.resolveConvertedValue(
-                // eslint-disable-next-line unicorn/no-null
                 stored == undefined ? null : JsonUtilities.parse(stored),
                 conversion
             );

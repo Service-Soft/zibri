@@ -51,7 +51,6 @@ class MeasuredSocket extends Duplex {
     ) {
         super();
         socket.on('data', (chunk: Buffer) => this.onData(chunk));
-        // eslint-disable-next-line unicorn/no-null
         socket.on('end', () => this.push(null));
         socket.on('close', () => this.destroy());
         socket.on('error', (error: Error) => this.destroy(error));

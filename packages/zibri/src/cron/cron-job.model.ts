@@ -530,7 +530,6 @@ export abstract class CronJob {
             const recovered: boolean = err == undefined && (entity.consecutiveFailures > 0 || entity.backedOffUntil != undefined);
             if (recovered) {
                 entity.consecutiveFailures = 0;
-                // eslint-disable-next-line unicorn/no-null
                 entity.backedOffUntil = null;
             }
             if (this.fullInitialConfig.syncToDataSource) {
@@ -770,7 +769,6 @@ export abstract class CronJob {
         // null rather than undefined for "nothing to return to": a write carries only the properties
         // it names, so leaving it out would keep whatever the last stop recorded
         this.entity.state = state;
-        // eslint-disable-next-line unicorn/no-null
         this.entity.previousState = previousState ?? null;
         if (this.fullInitialConfig.syncToDataSource) {
             await this.cronJobRepository.updateAll(

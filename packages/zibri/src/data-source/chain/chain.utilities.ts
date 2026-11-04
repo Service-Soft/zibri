@@ -106,7 +106,6 @@ export class ChainUtilities {
      */
     private static normalize(value: unknown): unknown {
         if (value == undefined) {
-            // eslint-disable-next-line unicorn/no-null
             return null;
         }
         if (value instanceof Date) {

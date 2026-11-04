@@ -74,7 +74,6 @@ export abstract class CronFailurePolicyUtilities {
             errorMessage: ErrorUtilities.unknownToErrorString(error),
             consecutiveFailures,
             backedOffUntil: onFailure.backOff == undefined
-                // eslint-disable-next-line unicorn/no-null
                 ? null
                 : this.resolveBackedOffUntil(onFailure.backOff, consecutiveFailures, resolveNextRuns)
         };
@@ -114,9 +113,7 @@ export abstract class CronFailurePolicyUtilities {
         return {
             state: stored.previousState ?? CronJobState.ACTIVE,
             // the cooldown is the wait, and a back off left over from before the stop would add its own
-            // eslint-disable-next-line unicorn/no-null
             previousState: null,
-            // eslint-disable-next-line unicorn/no-null
             backedOffUntil: null
         };
     }
@@ -136,9 +133,7 @@ export abstract class CronFailurePolicyUtilities {
     ): Date | null {
         const skipped: number = Math.min((2 ** failures) - 1, backOff.maxSkippedSlots);
         return skipped <= 0
-            // eslint-disable-next-line unicorn/no-null
             ? null
-            // eslint-disable-next-line unicorn/no-null
             : resolveNextRuns(skipped + 1)[skipped] ?? null;
     }
 }

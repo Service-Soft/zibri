@@ -85,7 +85,6 @@ describe('ChangeSetRepository, given an update of part of an object', () => {
 
         await households.resetSingleChangeSetById(household.id, update.id);
 
-        // eslint-disable-next-line unicorn/no-null
         expect((await households.findById(household.id)).mailbox).toEqual({ street: 'Main', number: '1', note: null });
     });
 });

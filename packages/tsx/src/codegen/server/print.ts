@@ -4,7 +4,7 @@ import { decodeJsxEntities, normalizeJsxText } from './jsx-text';
 import { AccessShape } from '../../runtime/access-shape';
 import { escapeAttribute, escapeText, VOID_ELEMENTS } from '../../runtime/server-runtime';
 import { tagNameOf } from '../../semantics/validate-email';
-import { unwrapTypeSyntax } from '../../semantics/walk';
+import { isHookCall, unwrapTypeSyntax } from '../../semantics/walk';
 import { ClientPropSite } from '../client/client-props';
 import { attributeExpression, attributesOf, HandlerSite, isEventHandlerName, JsxElementLike } from '../client/handlers';
 
@@ -52,22 +52,38 @@ export type StampSites = {
  * @returns The source.
  */
 export function printNode(node: ts.Node, stamps?: StampSites, file: ts.SourceFile = node.getSourceFile()): string {
-    const result: ts.TransformationResult<ts.Node> = ts.transform(node, [context => root => lowerNode(root, context, stamps)]);
+    return printLowered(node, stamps, false, file);
+}
+
+/**
+ * Prints a node that goes into the client script, the way {@link printNode} does. Every `onServer` call
+ * in it, however deep, loses its callback: that code runs on the server, and the page would carry its
+ * text for anyone to read.
+ * @param node - The node to print.
+ * @param file - The file the node's text comes from, for a node built from parts of it.
+ * @returns The source.
+ */
+export function printClientNode(node: ts.Node, file: ts.SourceFile = node.getSourceFile()): string {
+    return printLowered(node, undefined, true, file);
+}
+
+/**
+ * Lowers a node and prints it.
+ * @param node - The node to print.
+ * @param stamps - The sites to stamp, if any.
+ * @param clientCode - Whether the node goes into the client script.
+ * @param file - The file the node's text comes from.
+ * @returns The source.
+ */
+function printLowered(node: ts.Node, stamps: StampSites | undefined, clientCode: boolean, file: ts.SourceFile): string {
+    const result: ts.TransformationResult<ts.Node> = ts.transform(
+        node,
+        [context => root => new JsxLowering(context, stamps, clientCode).visit(root)]
+    );
     const printed: string = ts.createPrinter({ removeComments: true, newLine: ts.NewLineKind.LineFeed })
         .printNode(ts.EmitHint.Unspecified, result.transformed[0], file);
     result.dispose();
     return printed;
-}
-
-/**
- * Lowers one node and everything below it.
- * @param node - The node.
- * @param context - The transformation context.
- * @param stamps - The sites to stamp, if any.
- * @returns The lowered node.
- */
-function lowerNode(node: ts.Node, context: ts.TransformationContext, stamps: StampSites | undefined): ts.Node {
-    return new JsxLowering(context, stamps).visit(node);
 }
 
 /**
@@ -78,7 +94,11 @@ function lowerNode(node: ts.Node, context: ts.TransformationContext, stamps: Sta
 class JsxLowering {
     private readonly factory: ts.NodeFactory;
 
-    constructor(private readonly context: ts.TransformationContext, private readonly stamps: StampSites | undefined) {
+    constructor(
+        private readonly context: ts.TransformationContext,
+        private readonly stamps: StampSites | undefined,
+        private readonly clientCode: boolean
+    ) {
         this.factory = context.factory;
     }
 
@@ -93,6 +113,9 @@ class JsxLowering {
         }
         if (ts.isJsxFragment(node)) {
             return this.lowerFragment(node);
+        }
+        if (this.clientCode && isHookCall(node, 'onServer')) {
+            return this.factory.updateCallExpression(node, node.expression, node.typeArguments, []);
         }
         if (ts.isCallExpression(node)) {
             const callee: ts.Expression = unwrapTypeSyntax(node.expression);
@@ -205,7 +228,15 @@ class JsxLowering {
             .map(([field, fieldShape]) => this.factory.createPropertyAssignment(this.quote(field), this.shapeLiteral(fieldShape))));
         return this.factory.createObjectLiteralExpression([
             this.factory.createPropertyAssignment('fields', fields),
-            ...shape.items === undefined ? [] : [this.factory.createPropertyAssignment('items', this.shapeLiteral(shape.items))]
+            ...shape.items === undefined ? [] : [this.factory.createPropertyAssignment('items', this.shapeLiteral(shape.items))],
+            ...shape.restExcept === undefined
+                ? []
+                : [
+                    this.factory.createPropertyAssignment(
+                        'restExcept',
+                        this.factory.createArrayLiteralExpression(shape.restExcept.map(field => this.quote(field)))
+                    )
+                ]
         ]);
     }
 

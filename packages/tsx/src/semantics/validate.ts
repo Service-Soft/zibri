@@ -1,9 +1,11 @@
 import * as ts from 'typescript';
 
+import { isBindingIdentifier } from './binding';
 import { browserGlobals, declaredValueNames } from './browser-globals';
 import { ComponentInfo, findComponents, hasModifier } from './component';
 import { readImports, TemplateImport } from './imports';
-import { isAmbient } from './symbols';
+import { isAmbient, symbolOf } from './symbols';
+import { walk } from './walk';
 import { ModuleLoadingSite, OuterName } from '../codegen/client/client-codegen';
 import { Diagnostic, DiagnosticSeverity } from '../diagnostics/diagnostic.model';
 
@@ -46,7 +48,11 @@ export enum ValidationCode {
     /**
      * JSX or a server-inlined hook was written outside a component.
      */
-    RENDER_SYNTAX_OUTSIDE_COMPONENT = 'ZTSX010'
+    RENDER_SYNTAX_OUTSIDE_COMPONENT = 'ZTSX010',
+    /**
+     * A component read `arguments` at its own scope, where it is not the component's props.
+     */
+    ARGUMENTS_IN_COMPONENT = 'ZTSX011'
 }
 
 /**
@@ -144,6 +150,50 @@ export function validateRenderSyntaxOutsideComponents(
         visit(statement);
     }
     return diagnostics;
+}
+
+/**
+ * Rejects `arguments` read at a component's own scope. The compiled render is a function taking the
+ * render runtime first, so `arguments` there is that runtime rather than the component's props - and in
+ * client code it would be the setup's arguments. A function the component declares has `arguments` of its
+ * own, which is fine.
+ * @param components - The components of the template.
+ * @returns One diagnostic per read (empty when no component reads its own `arguments`).
+ */
+export function validateComponentArguments(components: ComponentInfo[]): Diagnostic[] {
+    const diagnostics: Diagnostic[] = [];
+    for (const component of components) {
+        walk(component.fn, node => {
+            if (ts.isIdentifier(node) && node.text === 'arguments' && !isBindingIdentifier(node)
+                && (symbolOf(node)?.declarations ?? []).length === 0 && readsOwnArguments(node, component.fn)) {
+                diagnostics.push({
+                    code: ValidationCode.ARGUMENTS_IN_COMPONENT,
+                    message: `'arguments' is read at the scope of component '${component.name}', where it is not the component's props. `
+                        + 'Name the props parameter and read that.',
+                    severity: DiagnosticSeverity.ERROR,
+                    span: spanOf(node)
+                });
+            }
+        });
+    }
+    return diagnostics;
+}
+
+/**
+ * Whether `arguments` read inside a component refers to the component's own arguments, as opposed to those
+ * of a function nested in it. An arrow function has no `arguments` of its own, so the read falls through it.
+ * @param identifier - The `arguments` identifier.
+ * @param fn - The component function.
+ * @returns True when no function with its own `arguments` lies between the read and the component.
+ */
+function readsOwnArguments(identifier: ts.Identifier, fn: ts.Node): boolean {
+    for (let current: ts.Node = identifier.parent; current !== fn; current = current.parent) {
+        if (ts.isFunctionDeclaration(current) || ts.isFunctionExpression(current) || ts.isMethodDeclaration(current)
+            || ts.isGetAccessorDeclaration(current) || ts.isSetAccessorDeclaration(current) || ts.isConstructorDeclaration(current)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /**

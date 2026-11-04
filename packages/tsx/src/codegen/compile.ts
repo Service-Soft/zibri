@@ -12,7 +12,7 @@ import { collectClientGlobalAliases, collectClientPackages } from '../semantics/
 import { ComponentInfo, findComponents } from '../semantics/component';
 import { readImports, TemplateImport, TemplateImportSpecifier } from '../semantics/imports';
 import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols';
-import { namesAvailableInBrowser, validate, validateClientImports, validateClientModuleLoading, validateClientNames, validateRenderSyntaxOutsideComponents, ValidationCode } from '../semantics/validate';
+import { namesAvailableInBrowser, validate, validateClientImports, validateClientModuleLoading, validateClientNames, validateComponentArguments, validateRenderSyntaxOutsideComponents, ValidationCode } from '../semantics/validate';
 import { validateEmailNesting, validateNoClientInEmail } from '../semantics/validate-email';
 import { UnhandledSyntaxError } from '../semantics/walk';
 
@@ -144,11 +144,10 @@ function compileTemplate(file: ts.SourceFile, options: CompileOptions): CompileR
     if (components.length === 0) {
         return { diagnostics, code: undefined, map: undefined, componentName: undefined, client: undefined, clientPackages };
     }
-    const outsideComponents: Diagnostic[] = validateRenderSyntaxOutsideComponents(
-        file,
-        components,
-        Object.keys(SERVER_INLINED_HOOKS)
-    );
+    const outsideComponents: Diagnostic[] = [
+        ...validateRenderSyntaxOutsideComponents(file, components, Object.keys(SERVER_INLINED_HOOKS)),
+        ...validateComponentArguments(components)
+    ];
     if (outsideComponents.length > 0) {
         return {
             diagnostics: outsideComponents,

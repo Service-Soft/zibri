@@ -357,7 +357,6 @@ function resolveChainUniques(tenant: EntityTenant): UniqueGroup[] {
     if (tenant === 'shared') {
         return [{ properties: ['chainSequence'] }];
     }
-    // eslint-disable-next-line unicorn/no-null
     const ofNoTenant: Where<BaseEntity> = Object.fromEntries([[tenant.property, null]]);
     return [
         { properties: [tenant.property, 'chainSequence'] },

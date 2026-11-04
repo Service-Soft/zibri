@@ -72,7 +72,6 @@ describe('CronService, after another instance changed a job', () => {
     }, TestTimeouts.inMemory.shutdown);
 
     beforeEach(async () => {
-        // eslint-disable-next-line unicorn/no-null
         await rows.updateAll({ name: 'probe' }, { state: CronJobState.ACTIVE, previousState: null, cron: YEARLY });
         await cronService.applyStoredChanges();
         probe.ticks = 0;

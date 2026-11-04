@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/no-null */
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
 import { WhereFilterEvaluator } from './where-filter.evaluator';

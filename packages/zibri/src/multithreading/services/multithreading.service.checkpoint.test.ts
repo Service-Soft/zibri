@@ -95,7 +95,6 @@ describe('MultithreadingService, checkpoints', () => {
 
         // and the instance that took it over stops existing in turn
         await leases.deleteAll({ key: `thread-job:${id}` });
-        // eslint-disable-next-line unicorn/no-null
         await jobs.updateById(id, { status: ThreadJobStatus.INTERRUPTED, threadId: null });
         await multithreadingService.startQueuedJobs();
 
@@ -111,13 +110,11 @@ describe('MultithreadingService, checkpoints', () => {
     it('starts a requeued job from the beginning, or from its checkpoint when asked to keep it', async () => {
         const first: AnyThreadJobEntity = await multithreadingService.runThreadJob({ workerData: { filePath: checkpointOnceWorker } });
         expect(first.status).toBe(ThreadJobStatus.COMPLETED);
-        // eslint-disable-next-line unicorn/no-null
         expect(first.result).toEqual({ resumed: null, idempotencyKey: `${first.id}:1:mail` });
         const stored: ThreadJobCheckpoint<unknown> = { progress: 50, state: { half: 'done' }, number: 1 };
         expect((await jobs.findById(first.id)).checkpoint).toEqual(stored);
 
         const fromTheBeginning: AnyThreadJobEntity = await multithreadingService.rerunThreadJob(first.id);
-        // eslint-disable-next-line unicorn/no-null
         expect(fromTheBeginning.result).toEqual({ resumed: null, idempotencyKey: `${first.id}:1:mail` });
 
         const resumed: AnyThreadJobEntity = await multithreadingService.rerunThreadJob(first.id, undefined, { keepCheckpoint: true });

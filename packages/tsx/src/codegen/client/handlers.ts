@@ -4,7 +4,7 @@ import { accessShapeOf } from './access-shape-analysis';
 import { AccessShape } from '../../runtime/access-shape';
 import { collectPatternBindings, collectPatternNames, collectReferencedSymbols, declaredSymbols, symbolsOf } from '../../semantics/binding';
 import { ComponentFunction } from '../../semantics/component';
-import { childrenOf, unwrapTypeSyntax } from '../../semantics/walk';
+import { childrenOf, isHookCall, unwrapTypeSyntax, walk } from '../../semantics/walk';
 
 /**
  * A collected event-handler site on a host element within a component.
@@ -232,9 +232,26 @@ export type CapturedVariable = {
  * @returns The captured variables, in the order the handler first reads them.
  */
 export function capturedVariables(handler: ts.Expression, frames: ScopeFrame[]): CapturedVariable[] {
-    return [...collectReferencedSymbols(handler)]
+    const serverOnly: ReadonlySet<ts.Node> = new Set<ts.Node>(collectServerOnlyCallbacks(handler));
+    return [...collectReferencedSymbols(handler, serverOnly)]
         .filter(symbol => frames.some(frame => frame.has(symbol)))
-        .map(symbol => ({ name: symbol.name, shape: accessShapeOf(symbol, [handler]) }));
+        .map(symbol => ({ name: symbol.name, shape: accessShapeOf(symbol, [handler], serverOnly) }));
+}
+
+/**
+ * The callbacks of every `onServer` call within a node, however deep. `onServer` is a no-op in the browser,
+ * so they hold no client code whatever they contain, and nothing they read has to reach the page.
+ * @param node - The node.
+ * @returns The arguments of each `onServer` call.
+ */
+export function collectServerOnlyCallbacks(node: ts.Node): ts.Expression[] {
+    const callbacks: ts.Expression[] = [];
+    walk(node, current => {
+        if (isHookCall(current, 'onServer')) {
+            callbacks.push(...current.arguments.map(unwrapTypeSyntax));
+        }
+    });
+    return callbacks;
 }
 
 /**

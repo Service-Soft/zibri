@@ -13,7 +13,6 @@ class FakeElement {
     constructor(private readonly stamp: string) {}
 
     getAttribute(name: string): string | null {
-        // eslint-disable-next-line unicorn/no-null
         return name === 'data-ssr-handlers' ? this.stamp : null;
     }
 

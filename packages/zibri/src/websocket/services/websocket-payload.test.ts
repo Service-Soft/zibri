@@ -170,7 +170,6 @@ describe('what a websocket client receives', () => {
     // a request is an object: `null` reached Object.keys and was answered and logged as a server
     // error, and a number or a list passed as a request naming nothing
     it.each<[string, unknown]>([
-        // eslint-disable-next-line unicorn/no-null
         ['null', null],
         ['a number', 42],
         ['a list', []],

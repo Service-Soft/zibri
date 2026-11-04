@@ -130,7 +130,6 @@ describe('QueueUtilities', () => {
         }))).toBe(true);
 
         expect(runs.map(run => [run.runId, run.attempt, run.transaction])).toEqual([[work.id, 1, undefined]]);
-        // eslint-disable-next-line unicorn/no-null
         expect(await works.findById(work.id)).toMatchObject({ status: TestWorkStatus.DONE, attempts: 1, error: null, nextAttemptAt: null });
     });
 
@@ -157,7 +156,6 @@ describe('QueueUtilities', () => {
 
         await works.updateById(work.id, { nextAttemptAt: new Date(Date.now() - 1) });
         await QueueUtilities.poll(queue);
-        // eslint-disable-next-line unicorn/no-null
         expect(await works.findById(work.id)).toMatchObject({ status: TestWorkStatus.FAILED, attempts: 2, nextAttemptAt: null });
         expect(runIds).toEqual([work.id, work.id]);
     });
@@ -186,7 +184,6 @@ describe('QueueUtilities', () => {
 
             expect(whileRunning[0]).toMatchObject({ status: TestWorkStatus.FAILED, attempts: 1 });
             expect(whileRunning[0]?.error?.paragraphs.join('\n')).toContain('stopped before it finished');
-            // eslint-disable-next-line unicorn/no-null
             expect(await works.findById(work.id)).toMatchObject({ status: TestWorkStatus.DONE, attempts: 1, error: null });
         });
 
@@ -197,7 +194,6 @@ describe('QueueUtilities', () => {
                 throw new Error('the push service refused it');
             }, { findDelivery: () => 'atMostOnce' }));
 
-            // eslint-disable-next-line unicorn/no-null
             expect(await works.findById(work.id)).toMatchObject({ status: TestWorkStatus.FAILED, attempts: 1, nextAttemptAt: null });
         });
     });

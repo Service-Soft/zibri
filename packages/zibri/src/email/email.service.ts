@@ -364,7 +364,6 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         return await this.emailRepository.findAll({
             // a mail whose send threw is passed over until it is due, so the ones behind it are sent
             where: [
-                // eslint-disable-next-line unicorn/no-null
                 { status: EmailStatus.QUEUED, priority, nextAttemptAt: null },
                 { status: EmailStatus.QUEUED, priority, nextAttemptAt: { before: new Date() } }
             ],

@@ -253,8 +253,9 @@ generated client script is checked a second time on its own, against the same se
 
 A prop or loop value that client code reads is written into the page as the fields client code reads
 from it, followed through aliases, destructuring, loops and array callbacks like `map` and `find`. A
-value client code uses whole (passes on, spreads, stringifies) is written whole. Give client code only
-the values it needs.
+value client code uses whole (passes on, spreads, stringifies) is written whole. A field taken out with
+a rest stays out: after `const { password, ...others } = user`, a handler reading `others` whole gets
+everything but `password`. Give client code only the values it needs.
 
 Client code has these hooks, and no others:
 - `onClient`

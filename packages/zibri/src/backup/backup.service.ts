@@ -631,7 +631,6 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
     private async findDueResources(): Promise<BackupResourceEntity[]> {
         const resources: BackupResourceEntity[] = await this.backupResourceRepository.findAll({
             where: [
-                // eslint-disable-next-line unicorn/no-null
                 { completed: false, nextAttemptAt: null, backup: { where: { status: BackupStatus.RUNNING } } },
                 { completed: false, nextAttemptAt: { before: new Date() }, backup: { where: { status: BackupStatus.RUNNING } } }
             ],

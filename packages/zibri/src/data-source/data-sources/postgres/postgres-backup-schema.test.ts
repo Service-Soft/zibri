@@ -402,7 +402,6 @@ describe('a postgres backup is the schema the data source works in, with what is
             'SELECT to_regtype(\'eval_mood\')::text AS type, to_regclass(\'eval_backup_values\')::text AS view,'
             // eslint-disable-next-line cspell/spellchecker
             + ' to_regprocedure(\'eval_double(integer)\')::text AS routine, to_regclass(\'eval_created_later\')::text AS later'
-        // eslint-disable-next-line unicorn/no-null
         )).toEqual([{ type: 'eval_mood', view: 'eval_backup_values', routine: 'eval_double(integer)', later: null }]);
         await runSql('DROP VIEW eval_backup_values');
         await runSql('DROP FUNCTION eval_double(integer)');

@@ -109,7 +109,6 @@ export class RoleWriteObserver implements EntityWriteObserver {
      */
     private findTenant(role: object | undefined): string | null {
         const tenantId: unknown = this.findValue(role, 'tenantId');
-        // eslint-disable-next-line unicorn/no-null
         return typeof tenantId === 'string' ? tenantId : null;
     }
 

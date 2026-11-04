@@ -82,7 +82,6 @@ describe('JsonUtilities', () => {
             ['infinity', Number.POSITIVE_INFINITY],
             ['true', true],
             ['false', false],
-            // eslint-disable-next-line unicorn/no-null
             ['null', null],
             ['a plain string', 'plain'],
             ['a string holding a quote', 'a"b'],

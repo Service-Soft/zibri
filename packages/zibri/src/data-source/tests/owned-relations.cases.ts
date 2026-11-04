@@ -274,7 +274,6 @@ export function describeOwnedRelations(dataSourceName: string, repositoriesOf: (
             const bob: Resident | undefined = household.residents.find(r => r.name === 'Bob');
 
             await repositoriesOf().households.updateById(household.id, {
-                // eslint-disable-next-line unicorn/no-null
                 residents: [{ id: ada?.id, name: 'Ada L.' }, { id: bob?.id, nickname: null }]
             });
 
@@ -527,7 +526,6 @@ export function describeOwnedRelations(dataSourceName: string, repositoriesOf: (
             );
 
             const stops: Stop[] = await repositoriesOf().stops.findAll({ where: { tripId: trip.id } });
-            // eslint-disable-next-line unicorn/no-null
             expect(stops.map(s => [s.name, s.deleted, s.deletedWith])).toEqual([['Paris again', false, null]]);
             expect(await repositoriesOf().tickets.count({ where: { stopId: paris?.id } })).toBe(1);
         });

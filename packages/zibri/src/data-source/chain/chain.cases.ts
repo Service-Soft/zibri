@@ -110,7 +110,6 @@ export function describeChain(dataSourceName: string, noteClass: Newable<Chained
             await write(team, 'first', 'second');
             await write(other, 'elsewhere');
             await write(team, 'third');
-            // eslint-disable-next-line unicorn/no-null
             await write(null, 'of no team');
 
             expect((await chainOf(team)).map(n => [n.chainSequence, n.text])).toEqual([[1, 'first'], [2, 'second'], [3, 'third']]);

@@ -679,7 +679,6 @@ export class ChangeSetRepository<
      * @returns Its tenant, or null for a row of no tenant.
      */
     private resolveChangeSetTenant(row: T): string | null {
-        // eslint-disable-next-line unicorn/no-null
         return TenantUtilities.resolveTenantOf(row, this.entityClass) ?? null;
     }
 

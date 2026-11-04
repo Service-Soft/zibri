@@ -151,7 +151,6 @@ describe('BackupService - a backup as queued work', () => {
 
         expect((await done).status).toBe(BackupStatus.COMPLETED);
         const [resource] = (await findBackup(queued.id)).resources;
-        // eslint-disable-next-line unicorn/no-null
         expect(resource).toMatchObject({ completed: true, attempts: 2, error: null });
     });
 

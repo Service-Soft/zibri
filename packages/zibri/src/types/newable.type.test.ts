@@ -36,7 +36,6 @@ describe('isNewable', () => {
         expect(isNewable({})).toBe(false);
         expect(isNewable([])).toBe(false);
         expect(isNewable(undefined)).toBe(false);
-        // eslint-disable-next-line unicorn/no-null
         expect(isNewable(null)).toBe(false);
     });
 });

@@ -275,7 +275,6 @@ export function describeStoredOneOf(dataSourceName: string, leadsOf: () => Repos
             const found: Lead[] = await leadsOf().findAll({
                 where: { batch, followUp: { whenDue: { before: new Date('2026-03-15T00:00:00.000Z') }, whenNote: { like: 'call%' } } }
             });
-            // eslint-disable-next-line unicorn/no-null
             const withoutFollowUp: Lead[] = await leadsOf().findAll({ where: { batch, followUp: null } });
 
             expect(namesOf(found)).toEqual(['due', 'noted']);

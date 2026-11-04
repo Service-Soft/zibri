@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/no-null */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
 import { TestTimeouts } from '../../__testing__/constants';

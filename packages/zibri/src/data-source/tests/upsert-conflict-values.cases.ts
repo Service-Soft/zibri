@@ -92,7 +92,6 @@ export function describeUpsertConflictValues(dataSourceName: string, credentials
 
         it('adds to a value that is null as to 0, as an update adds to it', async () => {
             const handle: string = freshHandle();
-            // eslint-disable-next-line unicorn/no-null
             await credentialsOf().create({ handle, secret: 's', pin: '1111', uses: null });
 
             const res: Credential = await credentialsOf()

@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/no-null */
 import { describe, expect, it } from '@jest/globals';
 
 import { parseNumber } from './parse-number.function';

@@ -67,14 +67,12 @@ class Booking {
     allowDuplicate: true,
     checks: [
         {
-            // eslint-disable-next-line unicorn/no-null
             where: whereFor<CheckedChore>([{ status: { not: 'done' } }, { completedAt: { not: null } }]),
             code: 'completedAtRequired',
             message: $t`a done chore has a completion date`
         },
         whereFor<CheckedChore>({ estimate: { greaterThanEquals: 1 } }),
         {
-            // eslint-disable-next-line unicorn/no-null
             where: whereFor<CheckedChore>([{ endsAt: null }, { endsAt: { after: propertyOf('startsAt') } }]),
             code: 'endsBeforeStart',
             message: $t`a chore ends after it starts`
@@ -369,7 +367,6 @@ describe('ValidationService', () => {
         describe('the checks of an entity', () => {
             it('answers a body breaking a check with the code and message of the check', async () => {
                 await expect(validationService.validateBody(
-                    // eslint-disable-next-line unicorn/no-null
                     { status: 'done', completedAt: null, estimate: 2 },
                     bodyMeta({ modelClass: ChoreCreateData })
                 )).rejects.toThrow(expect.objectContaining({
@@ -412,7 +409,6 @@ describe('ValidationService', () => {
 
             it('reports a nested object breaking a check under the key of the object', async () => {
                 await expect(validationService.validateBody(
-                    // eslint-disable-next-line unicorn/no-null
                     { first: { status: 'done', completedAt: null, estimate: 2 } },
                     bodyMeta({ modelClass: ChoreList })
                 )).rejects.toThrow(expect.objectContaining({
@@ -428,7 +424,6 @@ describe('ValidationService', () => {
                 )).resolves.toBeUndefined();
                 // null is a value the body sets
                 await expect(validationService.validateBody(
-                    // eslint-disable-next-line unicorn/no-null
                     { status: 'done', completedAt: null },
                     bodyMeta({ modelClass: ChoreUpdateData })
                 )).rejects.toThrow(expect.objectContaining({

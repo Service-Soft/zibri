@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/no-null */
 import assert from 'node:assert';
 import { Dirent } from 'node:fs';
 import { copyFile } from 'node:fs/promises';

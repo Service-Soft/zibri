@@ -225,6 +225,13 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
      */
     private readonly pendingFunctions: Map<string, ThreadJobDataFunctions> = new Map();
     /**
+     * The claims this process holds on queued jobs, by job, each settling once it is handed back.
+     *
+     * A job is over before its claim is handed back, and whoever waited for it can queue it again in
+     * between. Asking for the claim then is refused, and only the poll would ask again.
+     */
+    private readonly claimsHeldHere: Map<string, Promise<void>> = new Map();
+    /**
      * The round of handing work to free workers that is running, if one is.
      */
     private selectionRound: Promise<boolean> | undefined;
@@ -647,22 +654,22 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async requeueThreadJob(jobId: string, data?: ThreadJobDataFunctions, options?: RequeueThreadJobOptions): Promise<void> {
-        // putting the row back in the queue *is* requeueing it now, so there is nothing else to do
+        // putting the row back in the queue *is* requeueing it now, so there is nothing else to do.
+        // What the last run left is cleared with null, since an update leaves an undefined value alone
         await this.threadJobEntityRepository.updateById(jobId, {
-            error: undefined,
+            error: null,
             progress: 0,
             // a job is usually requeued after what failed it was fixed, and its state may be what the
             // failing code left behind, so it starts over unless the caller says otherwise
-            // eslint-disable-next-line unicorn/no-null
             ...options?.keepCheckpoint === true ? {} : { checkpoint: null },
             // somebody asked for the job again, so the starts that failed it are not held against it
             attempts: 0,
             queuedAtMs: Date.now(),
             status: ThreadJobStatus.IN_QUEUE,
-            startedAtMs: undefined,
-            stoppedAtMs: undefined,
-            threadId: undefined,
-            instanceId: undefined,
+            startedAtMs: null,
+            stoppedAtMs: null,
+            threadId: null,
+            instanceId: null,
             // the run that follows answers to whoever asked for it, not to whoever queued it first
             ...this.resolveQueuedInTrace()
         });
@@ -678,9 +685,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     private resolveQueuedInTrace(): Pick<ThreadJobEntity<BaseThreadJobWorkerData, unknown>, 'traceparent' | 'tracestate'> {
         const context: TraceSpanContext | undefined = TracingUtilities.getCurrentTraceContext();
         return {
-            // eslint-disable-next-line unicorn/no-null
             traceparent: context == undefined ? null : TraceContextUtilities.resolveTraceparent(context),
-            // eslint-disable-next-line unicorn/no-null
             tracestate: context?.traceState ?? null
         };
     }
@@ -1053,12 +1058,28 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         const claimed: Promise<boolean> = new Promise<boolean>(resolve => {
             signalClaimed = resolve;
         });
+        // read before asking, so a claim handed back while this asks is not missed
+        const handedBack: Promise<void> | undefined = this.claimsHeldHere.get(entity.id);
 
         // deliberately not awaited: whether this instance got the job has to be answered now, so the
         // selector can move on to the next worker while this one runs for as long as it runs
         void this.holdAndRun(job, worker, claimedNow => signalClaimed(claimedNow));
 
-        return await claimed;
+        const isClaimed: boolean = await claimed;
+        if (!isClaimed && handedBack != undefined) {
+            // refused for the claim of the run that just ended here, which nobody else will take
+            void this.trackWorkerEvent(this.startQueuedJobsOnceHandedBack(handedBack), worker.threadId);
+        }
+        return isClaimed;
+    }
+
+    /**
+     * Hands out work again once a claim held here is handed back.
+     * @param handedBack - Settles once the claim is handed back.
+     */
+    private async startQueuedJobsOnceHandedBack(handedBack: Promise<void>): Promise<void> {
+        await handedBack;
+        await this.startQueuedJobs();
     }
 
     /**
@@ -1072,6 +1093,10 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         worker: ThreadJobWorker,
         signalClaimed: (claimed: boolean) => void
     ): Promise<void> {
+        let signalHandedBack: () => void = () => undefined;
+        const handedBack: Promise<void> = new Promise<void>(resolve => {
+            signalHandedBack = resolve;
+        });
         try {
             await this.leaseService.withLease(
                 { key: claimKeyFor(job.id), leaseInMs: this.options.jobClaimInMs, mode: 'skip', onCompletion: 'release' },
@@ -1083,6 +1108,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
                         await this.failExhaustedJob(job);
                         return;
                     }
+                    this.claimsHeldHere.set(job.id, handedBack);
                     signalClaimed(true);
                     await this.runToCompletion(job, worker, lost);
                 }
@@ -1095,6 +1121,11 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
             // says "not claimed" only when nothing has answered yet - a promise that has already
             // been resolved does not change its mind
             signalClaimed(false);
+            // the lease has been handed back by now, however the run ended
+            if (this.claimsHeldHere.get(job.id) === handedBack) {
+                this.claimsHeldHere.delete(job.id);
+            }
+            signalHandedBack();
         }
     }
 
@@ -1118,8 +1149,8 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
                 {
                     status: ThreadJobStatus.FAILED,
                     stoppedAtMs: Date.now(),
-                    threadId: undefined,
-                    instanceId: undefined,
+                    threadId: null,
+                    instanceId: null,
                     error: errorToLoggedError(error)
                 },
                 { acrossTenants: true }

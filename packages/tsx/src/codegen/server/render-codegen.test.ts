@@ -30,7 +30,6 @@ describe('server render codegen', () => {
         });
 
         it('drops null, undefined and boolean children', () => {
-            // eslint-disable-next-line unicorn/no-null
             expect(renderComponent('const A = ({ x }) => <div>{x}</div>;', { x: null })).toBe('<div></div>');
             expect(renderComponent('const A = ({ x }) => <div>{x}</div>;', { x: false })).toBe('<div></div>');
         });

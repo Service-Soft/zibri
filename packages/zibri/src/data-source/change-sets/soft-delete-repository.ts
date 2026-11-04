@@ -314,7 +314,6 @@ export class SoftDeleteRepository<
             return await this.inTransaction(options, async transaction => {
                 const restored: T[] = await super.updateAll(
                     this.softDeleteWhereToWhere(options?.deleted, where),
-                    // eslint-disable-next-line unicorn/no-null
                     { ...data, deletedWith: null },
                     { ...options, transaction, returnUpdated: true }
                 );
@@ -348,7 +347,6 @@ export class SoftDeleteRepository<
         }
         // a restore, which restores the rows deleted along with this one
         return await this.inTransaction(options, async transaction => {
-            // eslint-disable-next-line unicorn/no-null
             const res: WrittenUpdate<T> = await super.saveUpdate(id, { ...data, deletedWith: null }, { ...everyRow, transaction });
             await this.restoreOwnedRows([id], transaction);
             return res;
@@ -368,7 +366,6 @@ export class SoftDeleteRepository<
         // restored with them, in the same transaction
         return await this.inTransaction(options, async transaction => {
             const updates: WrittenUpdate<T>[] = await super.updateEach(
-                // eslint-disable-next-line unicorn/no-null
                 rows.map(r => restoredIds.has(String(r.id)) ? { ...r, deletedWith: null } : r),
                 { ...options, transaction },
                 this.softDeleteWhereToWhere(options?.deleted, where)
@@ -480,7 +477,6 @@ export class SoftDeleteRepository<
         // the caller wants them back - which is exactly the distinction saveUpdateAll draws
         const res: T[] = (await this.saveUpdateAll(
             this.softDeleteWhereToWhere('exclude', where),
-            // eslint-disable-next-line unicorn/no-null
             { deleted: true, deletedWith: null } as UpdateData,
             options
         )).map(u => u.entity);

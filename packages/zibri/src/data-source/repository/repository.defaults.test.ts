@@ -88,7 +88,6 @@ describe('when a property\'s default fills it in', () => {
     });
 
     it('stores null as a value rather than filling it in', async () => {
-        // eslint-disable-next-line unicorn/no-null
         const created: Member = await members.create({ name: 'bob', status: null });
 
         expect(created.status).toBeNull();

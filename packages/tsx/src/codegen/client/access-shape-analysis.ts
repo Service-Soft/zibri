@@ -1,7 +1,7 @@
 import * as ts from 'typescript';
 
-import { AccessShape } from '../../runtime/access-shape';
-import { isBindingIdentifier } from '../../semantics/binding';
+import { AccessShape, FieldAccess, mergeAccessShapes, resolveAccessThroughRest } from '../../runtime/access-shape';
+import { collectPatternBindings, isBindingIdentifier } from '../../semantics/binding';
 import { symbolOf } from '../../semantics/symbols';
 import { walk } from '../../semantics/walk';
 
@@ -56,7 +56,25 @@ type ShapeBuilder = {
     /**
      * What is read from the elements, when any element is read.
      */
-    items: ShapeBuilder | undefined
+    items: ShapeBuilder | undefined,
+    /**
+     * The rests taken of the value.
+     */
+    rests: RestBuilder[]
+};
+
+/**
+ * A rest taken of a value.
+ */
+type RestBuilder = {
+    /**
+     * What is read from the rest.
+     */
+    builder: ShapeBuilder,
+    /**
+     * The fields the rest leaves out.
+     */
+    except: string[]
 };
 
 /**
@@ -227,6 +245,7 @@ class AccessCollector {
      * @param name - The binding name or pattern.
      * @param builder - What is read from the value.
      */
+    // eslint-disable-next-line sonar/cognitive-complexity
     private bindName(name: ts.BindingName, builder: ShapeBuilder): void {
         if (ts.isIdentifier(name)) {
             const variable: ts.Symbol | undefined = symbolOf(name);
@@ -244,13 +263,49 @@ class AccessCollector {
             return;
         }
         for (const element of name.elements) {
-            const key: ts.PropertyName | ts.BindingName = element.propertyName ?? element.name;
-            if (element.dotDotDotToken != undefined || !(ts.isIdentifier(key) || ts.isStringLiteral(key) || ts.isNumericLiteral(key))) {
+            if (element.dotDotDotToken != undefined) {
+                this.bindRest(element, name, builder);
+                continue;
+            }
+            const key: string | undefined = propertyKeyOf(element);
+            if (key === undefined) {
                 builder.whole = true;
                 continue;
             }
-            this.bindName(element.name, fieldOf(builder, key.text));
+            // naming a field in a pattern reads nothing of it until client code reads the variable
+            if (this.isRead(element.name)) {
+                this.bindName(element.name, fieldOf(builder, key));
+            }
         }
+    }
+
+    /**
+     * Whether client code reads a variable a binding declares.
+     * @param name - The binding name or pattern.
+     * @returns True when it reads one.
+     */
+    private isRead(name: ts.BindingName): boolean {
+        return collectPatternBindings(name).some(binding => {
+            const variable: ts.Symbol | undefined = symbolOf(binding);
+            return variable === undefined || this.references.has(variable);
+        });
+    }
+
+    /**
+     * Records what the rest of an object pattern reads from the value the pattern takes apart.
+     * @param rest - The rest element.
+     * @param pattern - The pattern.
+     * @param builder - What is read from the value.
+     */
+    private bindRest(rest: ts.BindingElement, pattern: ts.ObjectBindingPattern, builder: ShapeBuilder): void {
+        const except: string[] | undefined = namedKeysOf(pattern);
+        if (except === undefined) {
+            builder.whole = true;
+            return;
+        }
+        const restBuilder: ShapeBuilder = emptyBuilder();
+        builder.rests.push({ builder: restBuilder, except });
+        this.bindName(rest.name, restBuilder);
     }
 
     /**
@@ -265,6 +320,33 @@ class AccessCollector {
         }
         items.whole = true;
     }
+}
+
+/**
+ * The key of the value an element of an object pattern takes.
+ * @param element - The element.
+ * @returns The key, or undefined for a computed one.
+ */
+export function propertyKeyOf(element: ts.BindingElement): string | undefined {
+    const property: ts.PropertyName | ts.BindingName = element.propertyName ?? element.name;
+    return ts.isIdentifier(property) || ts.isStringLiteral(property) || ts.isNumericLiteral(property) ? property.text : undefined;
+}
+
+/**
+ * The keys an object pattern names, which its rest leaves out.
+ * @param pattern - The pattern.
+ * @returns The keys, or undefined when one of them is computed and so unknown.
+ */
+export function namedKeysOf(pattern: ts.ObjectBindingPattern): string[] | undefined {
+    const keys: string[] = [];
+    for (const element of pattern.elements.filter(candidate => candidate.dotDotDotToken == undefined)) {
+        const key: string | undefined = propertyKeyOf(element);
+        if (key === undefined) {
+            return undefined;
+        }
+        keys.push(key);
+    }
+    return keys;
 }
 
 /**
@@ -364,7 +446,7 @@ function isPassedThrough(node: ts.Node, parent: ts.Node): parent is ts.Expressio
  * @returns The builder.
  */
 function emptyBuilder(): ShapeBuilder {
-    return { whole: false, fields: new Map<string, ShapeBuilder>(), items: undefined };
+    return { whole: false, fields: new Map<string, ShapeBuilder>(), items: undefined, rests: [] };
 }
 
 /**
@@ -405,5 +487,9 @@ function shapeOf(builder: ShapeBuilder): AccessShape {
     const fields: Record<string, AccessShape> = Object.fromEntries(
         [...builder.fields].map(([field, fieldBuilder]) => [field, shapeOf(fieldBuilder)])
     );
-    return builder.items === undefined ? { fields } : { fields, items: shapeOf(builder.items) };
+    const own: FieldAccess = builder.items === undefined ? { fields } : { fields, items: shapeOf(builder.items) };
+    return builder.rests.reduce<AccessShape>(
+        (shape, rest) => mergeAccessShapes(shape, resolveAccessThroughRest(shapeOf(rest.builder), rest.except)),
+        own
+    );
 }

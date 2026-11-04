@@ -627,7 +627,6 @@ describe('DiContainer', () => {
     describe('providers that name a value', () => {
         it('hands back a value that is null, and goes on doing so', () => {
             const token: InjectionToken<string | null> = new InjectionToken<string | null>('nullable-value');
-            // eslint-disable-next-line unicorn/no-null
             DiContainer.getInstance().register(defineProvider({ token, useValue: null }));
 
             expect(inject(token)).toBeNull();

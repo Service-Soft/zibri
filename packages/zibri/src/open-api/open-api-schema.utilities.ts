@@ -690,7 +690,7 @@ export abstract class OpenApiSchemaUtilities {
                 ...schema,
                 type: types.includes('null') ? types : [...types, 'null'],
                 // an enum restricts the value whatever the type says, so it has to name null too
-                // eslint-disable-next-line unicorn/no-null, typescript/no-unsafe-assignment
+                // eslint-disable-next-line typescript/no-unsafe-assignment
                 ...schema.enum == undefined || schema.enum.includes(null) ? {} : { enum: [...schema.enum, null] }
             };
         }

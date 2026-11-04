@@ -361,7 +361,6 @@ export abstract class ScimFilterUtilities {
                 }
                 case 'null': {
                     // the filter's own null, which asks for an attribute without a value
-                    // eslint-disable-next-line unicorn/no-null
                     return null;
                 }
             }

@@ -592,9 +592,7 @@ export abstract class BaseSamlAuthenticator<
             // capitalized, as SAML names them: xml attributes are case sensitive, and an identity
             // provider reading `binding` finds a service with no binding at all. Set as the xml
             // attributes of no namespace they are, rather than as html ones
-            // eslint-disable-next-line unicorn/no-null
             service.setAttributeNS(null, 'Binding', binding);
-            // eslint-disable-next-line unicorn/no-null
             service.setAttributeNS(null, 'Location', location);
             return service;
         };
@@ -825,9 +823,7 @@ export abstract class BaseSamlAuthenticator<
         // null rather than undefined, which is what node-saml's interface says nothing is found as
         return {
             saveAsync: (_key: string, value: string): Promise<CacheItem | null> => Promise.resolve({ value, createdAt: Date.now() }),
-            // eslint-disable-next-line unicorn/no-null
             getAsync: (key: string): Promise<string | null> => Promise.resolve(key === requestId ? new Date().toISOString() : null),
-            // eslint-disable-next-line unicorn/no-null
             removeAsync: (): Promise<string | null> => Promise.resolve(null)
         };
     }

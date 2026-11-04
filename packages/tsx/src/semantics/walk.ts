@@ -94,6 +94,20 @@ export function unwrapTypeSyntax(node: ts.Expression): ts.Expression {
 }
 
 /**
+ * Whether a node is a call of the named framework hook.
+ * @param node - The node to test.
+ * @param hook - The hook name.
+ * @returns True for a call of that hook.
+ */
+export function isHookCall(node: ts.Node, hook: string): node is ts.CallExpression {
+    if (!ts.isCallExpression(node)) {
+        return false;
+    }
+    const callee: ts.Expression = unwrapTypeSyntax(node.expression);
+    return ts.isIdentifier(callee) && callee.text === hook;
+}
+
+/**
  * Returns the child nodes of a node that {@link walk} descends into, in evaluation order, each already
  * looked through its type-only wrappers.
  * @param node - The node whose children to enumerate.

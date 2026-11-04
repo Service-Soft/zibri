@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/no-null */
 import { describe, expect, it } from '@jest/globals';
 
 import { dropImpossibleConditions } from './drop-impossible-conditions.function';

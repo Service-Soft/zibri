@@ -18,7 +18,6 @@ describe('toJsonValue', () => {
         expect(toJsonValue('text')).toBe('text');
         expect(toJsonValue(10.5)).toBe(10.5);
         expect(toJsonValue(true)).toBe(true);
-        // eslint-disable-next-line unicorn/no-null
         expect(toJsonValue(null)).toBeNull();
         expect(toJsonValue(undefined)).toBeUndefined();
     });

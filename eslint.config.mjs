@@ -23,7 +23,10 @@ export default [
         // Read as the root of the path below it, so the folders inside are still held to kebab case
         files: ['**/*.ts', '**/*.tsx'],
         rules: {
-            'unicorn/filename-case': ['warn', { directoryRoots: [/(^|\/)__testing__$/u] }]
+            'unicorn/filename-case': ['warn', { directoryRoots: [/(^|\/)__testing__$/u] }],
+            // null is how a write clears a value: an update leaves a property passed as undefined as it
+            // is, so a rule steering every null towards undefined steers clearing towards doing nothing
+            'unicorn/no-null': 'off'
         }
     },
     {

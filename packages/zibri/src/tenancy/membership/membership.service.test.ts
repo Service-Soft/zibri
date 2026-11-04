@@ -115,7 +115,6 @@ describe('MembershipService', () => {
         expect(await memberships().findActiveMemberships(user.id)).toEqual([]);
 
         // null rather than undefined: it clears the column
-        // eslint-disable-next-line unicorn/no-null
         await memberships().updateDeactivatedAt(user.id, first, null, undefined);
         expect((await memberships().findActiveMembership(user.id, first))?.roles).toEqual([MemberRoles.USER]);
     });
@@ -126,7 +125,6 @@ describe('MembershipService', () => {
         const second: string = await joinNewTenant(user);
 
         await memberships().updateDeactivatedAt(user.id, first, new Date(), undefined);
-        // eslint-disable-next-line unicorn/no-null
         await memberships().updateDeactivatedAt(user.id, first, null, undefined);
         await memberships().deleteMembership(user.id, second, undefined);
 

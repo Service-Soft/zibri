@@ -293,7 +293,6 @@ export class Logger implements LoggerInterface, OnAppInit {
             // read now, for the reason the request is: the entry is written later, outside the tenant.
             // Null rather than undefined for no tenant, since the write fills an undefined one with
             // the tenant it runs in - which is whichever entry happened to start it
-            // eslint-disable-next-line unicorn/no-null
             tenantId: AlsUtilities.getCurrentTenant() ?? null,
             createdAt: new Date(),
             cleanupAt: new Date(Date.now() + this.cleanupAfterInMs[level]),
@@ -414,7 +413,6 @@ export class Logger implements LoggerInterface, OnAppInit {
         return {
             id: UUIDUtilities.generate(),
             // of no tenant, since it counts the entries of every tenant
-            // eslint-disable-next-line unicorn/no-null
             tenantId: null,
             createdAt: new Date(),
             cleanupAt: new Date(Date.now() + this.cleanupAfterInMs[LogLevel.WARN]),

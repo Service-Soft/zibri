@@ -207,7 +207,6 @@ export abstract class WriteDataUtilities {
             }
             const replacing: unknown = res[key];
             if (replacing === undefined) {
-                // eslint-disable-next-line unicorn/no-null
                 res[key] = null;
             }
             else if (metadata.type === 'object' && typeof replacing === 'object' && replacing != undefined && !Array.isArray(replacing)) {

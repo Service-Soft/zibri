@@ -54,7 +54,6 @@ export class AuditBudget extends WriteBudget<RecordedAuditEntry> {
         return {
             // no tenant, since it counts the refusals of every tenant. Null, since the write fills an
             // undefined one with the tenant it runs in
-            // eslint-disable-next-line unicorn/no-null
             tenantId: null,
             action: first.action,
             outcome: first.outcome,

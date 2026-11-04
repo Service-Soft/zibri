@@ -921,6 +921,9 @@ An array is a list, and is replaced whole, as is a value of several shapes. `nul
 for the whole object or for one property of it. An object passed where the row holds none is stored
 as you pass it.
 
+A property you pass as `undefined` keeps its value, the same as one you leave out. Pass `null` to
+clear it.
+
 ### What a write hands back
 
 Every write answers with the rows as they now stand: every column of them, not only the ones you

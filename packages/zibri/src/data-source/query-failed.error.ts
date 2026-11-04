@@ -57,7 +57,9 @@ function buildErrorMessage(failed: FailedStatement): string {
     }
     if (message.includes('violates foreign key constraint') && detail != undefined) {
         // Example: "Key (id)=(a1b2c3d4-...) is still referenced from table "user_groups_group"."
-        const keyMatch: RegExpMatchArray | null = detail.match(/Key \((.+?)\)=\((.+?)\)/);
+        // Read from the start only: the value is written out as it was sent, and one repeating "Key ("
+        // after a line break would be read again from every repetition to the end of its line
+        const keyMatch: RegExpMatchArray | null = detail.match(/^Key \((.+?)\)=\((.+?)\)/);
         const tableMatch: RegExpMatchArray | null = detail.match(/table "(.+?)"/);
         const key: string | undefined = keyMatch?.[1];
         const value: string | undefined = keyMatch?.[2];

@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/no-null */
 import { EncryptionRotationFailure, EncryptionRotationFailureCreateData } from './encryption-rotation-failure.model';
 import { EncryptionRotationProgress, EncryptionRotationProgressCreateData } from './encryption-rotation-progress.model';
 import { type EncryptionServiceInterface } from './encryption-service.interface';

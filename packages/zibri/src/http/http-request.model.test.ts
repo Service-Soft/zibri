@@ -8,7 +8,6 @@ describe('isHttpRequest', () => {
     });
 
     it('returns false for null and undefined', () => {
-        // eslint-disable-next-line unicorn/no-null
         expect(isHttpRequest(null)).toBe(false);
         expect(isHttpRequest(undefined)).toBe(false);
     });

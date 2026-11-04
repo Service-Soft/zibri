@@ -359,7 +359,6 @@ export class ChainService implements ChainServiceInterface, OnAppInit {
      */
     private resolveChainFilter(entityClass: Newable<BaseChainedEntity>, chain: string): WhereFilter<BaseChainedEntity> {
         const tenantProperty: string | undefined = this.findTenantProperty(entityClass);
-        // eslint-disable-next-line unicorn/no-null
         return tenantProperty == undefined ? {} : Object.fromEntries([[tenantProperty, chain === '' ? null : chain]]);
     }
 

@@ -76,7 +76,7 @@ export class StreamBodyParser implements BodyParserInterface<MimeType.OCTET_STRE
                     return;
                 }
 
-                // eslint-disable-next-line promise/prefer-await-to-callbacks, unicorn/no-null
+                // eslint-disable-next-line promise/prefer-await-to-callbacks
                 callback(null, chunk);
             }
         });

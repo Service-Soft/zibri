@@ -105,7 +105,6 @@ function withinTenant(groups: KeyGroups, tenantProperty: string, tenantRequired:
 function withNoTenant(where: KeyWhere | undefined, tenantProperty: string): KeyWhere {
     // every branch, since they are alternatives: each covers rows of no tenant only from now on
     const branches: WhereFilter<BaseEntity>[] = where == undefined ? [{}] : Array.isArray(where) ? where : [where];
-    // eslint-disable-next-line unicorn/no-null
     const narrowed: WhereFilter<BaseEntity>[] = branches.map(branch => ({ ...branch, [tenantProperty]: null }));
     return whereFor(narrowed.length === 1 ? narrowed[0] ?? {} : narrowed);
 }

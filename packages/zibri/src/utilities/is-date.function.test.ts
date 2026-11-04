@@ -31,7 +31,6 @@ describe('isDate', () => {
         expect(isDate(42)).toBe(false);
         expect(isDate({})).toBe(false);
         expect(isDate(undefined)).toBe(false);
-        // eslint-disable-next-line unicorn/no-null
         expect(isDate(null)).toBe(false);
     });
 });

@@ -157,24 +157,20 @@ export function describePartialNestedUpdate(dataSourceName: string, repositories
         it('stores null for a property of the object given as null', async () => {
             const venue: Venue = await createVenue();
 
-            // eslint-disable-next-line unicorn/no-null
             await repositoriesOf().venues.updateById(venue.id, { location: { note: null } });
 
-            // eslint-disable-next-line unicorn/no-null
             expect(await storedLocation(venue.id)).toEqual({ ...main, note: null });
         });
 
         it('stores null for the object given as null', async () => {
             const venue: Venue = await createVenue();
 
-            // eslint-disable-next-line unicorn/no-null
             await repositoriesOf().venues.updateById(venue.id, { location: null });
 
             expect(await storedLocation(venue.id)).toBeNull();
         });
 
         it('stores the object as given where the row holds none', async () => {
-            // eslint-disable-next-line unicorn/no-null
             const venue: Venue = await createVenue(null);
 
             await repositoriesOf().venues.updateById(venue.id, { location: { street: 'Side', number: '2' } });

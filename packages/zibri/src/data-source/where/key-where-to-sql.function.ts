@@ -205,7 +205,6 @@ function listOperatorToSql(name: string, column: string, operator: string, opera
             `Received ${JsonUtilities.stringify(operand)}.`
         ]);
     }
-    // eslint-disable-next-line unicorn/no-null
     const listsNull: boolean = operand.includes(null);
     const listed: string[] = operand.filter(v => v !== null).map(v => literalToSql(v));
     if (operator === 'oneOf') {

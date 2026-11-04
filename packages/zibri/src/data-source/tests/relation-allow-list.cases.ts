@@ -131,7 +131,6 @@ export function describeRelationAllowList(dataSourceName: string, repositoriesOf
         await repositoriesOf().playlists.create({ batch, name: 'within', moods: ['calm'], credits: [ann] });
         await repositoriesOf().playlists.create({ batch, name: 'mixed', moods: ['calm', 'loud'], credits: [ann, ben] });
         await repositoriesOf().playlists.create({ batch, name: 'empty', moods: [], credits: [] });
-        // eslint-disable-next-line unicorn/no-null
         await repositoriesOf().playlists.create({ batch, name: 'missing', moods: null, credits: null });
         return batch;
     }
@@ -179,10 +178,8 @@ export function describeRelationAllowList(dataSourceName: string, repositoriesOf
             const batch: string = await createArrayPlaylists();
 
             const emptyMoods: Playlist[] = await repositoriesOf().playlists.findAll({ where: { batch, moods: { length: 0 } } });
-            // eslint-disable-next-line unicorn/no-null
             const missingMoods: Playlist[] = await repositoriesOf().playlists.findAll({ where: { batch, moods: null } });
             const emptyCredits: Playlist[] = await repositoriesOf().playlists.findAll({ where: { batch, credits: { length: 0 } } });
-            // eslint-disable-next-line unicorn/no-null
             const missingCredits: Playlist[] = await repositoriesOf().playlists.findAll({ where: { batch, credits: null } });
 
             expect(namesOf(emptyMoods)).toEqual(['empty']);

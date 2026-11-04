@@ -29,7 +29,6 @@ const EARLIEST_START: string = '2000-01-01T00:00:00.000Z';
     uniques: [['code']],
     checks: [
         {
-            // eslint-disable-next-line unicorn/no-null
             where: whereFor<Chore>([{ status: { not: 'done' } }, { completedAt: { not: null } }]),
             code: 'completedAtRequired',
             message: $t`a done chore has a completion date`
@@ -37,13 +36,11 @@ const EARLIEST_START: string = '2000-01-01T00:00:00.000Z';
         { where: whereFor<Chore>({ estimate: { greaterThanEquals: 1 } }), code: 'estimateTooSmall', message: $t`takes at least 1` },
         { where: whereFor<Chore>({ label: { notOneOf: ['forbidden'] } }), code: 'labelForbidden', message: $t`this label is forbidden` },
         {
-            // eslint-disable-next-line unicorn/no-null
             where: whereFor<Chore>([{ endsAt: null }, { endsAt: { after: propertyOf('startsAt') } }]),
             code: 'endsBeforeStart',
             message: $t`a chore ends after it starts`
         },
         {
-            // eslint-disable-next-line unicorn/no-null
             where: whereFor<Chore>([{ startsAt: null }, { startsAt: { afterOrOn: new Date(EARLIEST_START) } }]),
             code: 'startsTooEarly',
             message: $t`a chore starts in this millennium`
@@ -134,13 +131,11 @@ export function describeEntityChecks(dataSourceName: string, choresOf: () => Rep
             await expect(choresOf().create({
                 code: freshCode(),
                 status: 'open',
-                // eslint-disable-next-line unicorn/no-null
                 estimate: null
             })).rejects.toThrow(CheckConstraintViolationError);
         });
 
         it('takes null for a property a check says must not be one of a list', async () => {
-            // eslint-disable-next-line unicorn/no-null
             const chore: Chore = await choresOf().create({ code: freshCode(), status: 'open', estimate: 2, label: null });
 
             expect((await choresOf().findById(chore.id)).label).toBeNull();

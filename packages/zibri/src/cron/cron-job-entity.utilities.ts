@@ -125,7 +125,6 @@ export abstract class CronJobEntityUtilities {
             state,
             // null rather than undefined, because a write only carries the properties it names and
             // undefined names none - the column would keep the state that has just been returned to
-            // eslint-disable-next-line unicorn/no-null
             previousState: null
         };
         await repository.updateAll({ name: entity.name }, reconciled);

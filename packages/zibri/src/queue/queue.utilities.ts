@@ -176,7 +176,6 @@ export abstract class QueueUtilities {
         transaction: RepositoryTransaction | undefined
     ): Promise<void> {
         const outcome: QueuedWorkOutcome = failure == undefined
-            // eslint-disable-next-line unicorn/no-null
             ? { kind: 'succeeded', attempts, nextAttemptAt: null, error: null }
             : this.resolveFailure(queue, item, attempts, failure, mayRetry);
         await queue.record(item, outcome, transaction);
@@ -216,7 +215,6 @@ export abstract class QueueUtilities {
             const nextAttemptAt: Date = new Date(Date.now() + (queue.firstRetryDelayInMs * (2 ** (attempts - 1))));
             return { kind: 'retrying', attempts, nextAttemptAt, error: errorToLoggedError(failure) };
         }
-        // eslint-disable-next-line unicorn/no-null
         return { kind: 'failed', attempts, nextAttemptAt: null, error: errorToLoggedError(failure) };
     }
 

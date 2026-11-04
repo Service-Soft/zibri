@@ -1,8 +1,10 @@
-import { describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { ClientScript } from './client-codegen';
-import { compilePage } from '../../__testing__/server-render.helper';
+import { compilePage, renderTemplateDocument } from '../../__testing__/server-render.helper';
 import { renderPage } from '../../runtime/render-page';
+import { SERVER_HOOKS } from '../../runtime/server-hooks';
+import { createContext } from '../../runtime/server-runtime';
 import { ValidationCode } from '../../semantics/validate';
 import { compile, CompileResult } from '../compile';
 
@@ -272,6 +274,24 @@ describe('server code never reaches the client script', () => {
             expect(result.diagnostics.map(d => d.code)).toEqual([ValidationCode.UNAVAILABLE_NAME_IN_CLIENT_CODE]);
             expect(result.diagnostics[0].message).toContain(`'${name}'`);
             expect(`${PAGE_GLOBALS}${source}`.slice(result.diagnostics[0].span.start, result.diagnostics[0].span.end)).toBe(name);
+        });
+
+        it('rejects arguments at the scope of the component', () => {
+            // The compiled render takes the render runtime first, so `arguments` there is not the props.
+            const source: string = 'export function Page(props) { return <button onClick={() => go(arguments[0])}>x</button>; }';
+            const result: CompileResult = compileTemplate(source);
+
+            expect(result.code).toBeUndefined();
+            expect(result.diagnostics.map(d => d.code)).toEqual([ValidationCode.ARGUMENTS_IN_COMPONENT]);
+            expect(`${PAGE_GLOBALS}${source}`.slice(result.diagnostics[0].span.start, result.diagnostics[0].span.end)).toBe('arguments');
+        });
+
+        it('allows arguments of a function the component declares', () => {
+            const script: string = clientScriptOf(
+                'export const Page = () => { function f() { return arguments.length; } return <button onClick={() => go(f())}>x</button>; };'
+            );
+
+            expect(script).toContain('arguments.length');
         });
 
         it('allows browser globals', () => {
@@ -590,6 +610,300 @@ describe('server code never reaches the client script', () => {
 
             expect(result.code).toBeUndefined();
             expect(result.diagnostics.map(d => d.message).join('\n')).toContain(name);
+        });
+    });
+});
+
+/**
+ * The value the tests below keep on the server, wherever they keep it.
+ */
+const SECRET: string = 'SERVER-SECRET';
+
+/**
+ * The name of the environment variable holding {@link SECRET}.
+ */
+const SECRET_VARIABLE: string = 'ZIBRI_TSX_ISOLATION_TEST_SECRET';
+
+/**
+ * What every template below starts with: a server module holding the secret, the hooks, and a function
+ * of the page for client code to hand values to.
+ */
+const SERVER_TEMPLATE_START: string = 'import { onClient, onServer, useContext } from \'zibri\';\n'
+    + 'import { env, name, SecretContext } from \'./secrets\';\n'
+    + 'declare const go: (...values: unknown[]) => void;\n';
+
+/**
+ * A template written after {@link SERVER_TEMPLATE_START}, with the props it renders with.
+ */
+type TemplateCase = [how: string, source: string, props: Record<string, unknown>];
+
+/**
+ * The document a page receives from a template that imports a server module holding the secret.
+ * @param source - The template, without {@link SERVER_TEMPLATE_START}.
+ * @param props - The props to render with.
+ * @returns The document, or undefined when the template does not compile.
+ */
+function documentOf(source: string, props: Record<string, unknown> = {}): string | undefined {
+    return renderTemplateDocument(`${SERVER_TEMPLATE_START}${source}`, {
+        zibri: SERVER_HOOKS,
+        './secrets': {
+            env: {
+                DB_PASSWORD: SECRET,
+                rows: [{ id: 1, password: SECRET }],
+                oauthProviders: [{ id: 'google', clientSecret: SECRET }]
+            },
+            name: SECRET,
+            SecretContext: createContext({ password: SECRET })
+        }
+    }, props);
+}
+
+describe('what a page receives from a template', () => {
+    // These run a template the whole way: through `compile` with every check, the emitted module loaded
+    // against a real server module, and the finished document searched. A case holds whether the
+    // compiler refuses the template or leaves the value out; what it may not do is put it in the page.
+
+    beforeAll(() => {
+        process.env[SECRET_VARIABLE] = SECRET;
+    });
+
+    afterAll(() => {
+        // eslint-disable-next-line typescript/no-dynamic-delete
+        delete process.env[SECRET_VARIABLE];
+    });
+
+    describe('code of the server', () => {
+        // The client script is printed from the template's own source; no module a template imports is
+        // ever read by the compiler, so no code of the server can be in the page, whatever a module and
+        // the modules it re-exports hold.
+        it.each([
+            ['the markup', 'export const Page = () => <p>{name}</p>;'],
+            ['the body', 'export const Page = () => { const k = env.DB_PASSWORD; return <p>{k}</p>; };'],
+            ['an onServer block', 'export const Page = () => { onServer(() => { console.log(env.DB_PASSWORD); }); return <button onClick={() => go()}>x</button>; };'],
+            ['a loop with a handler', 'export const Page = () => <ul>{env.rows.map(r => <li onClick={() => go(r.id)}>{r.password}</li>)}</ul>;']
+        ])('keeps the import a component reads in %s out of the page', (_where, source) => {
+            const document: string | undefined = documentOf(source);
+
+            expect(document).toBeDefined();
+            expect(document).not.toContain('import');
+            expect(document).not.toContain('require(');
+            expect(document).not.toContain('env.');
+        });
+    });
+
+    describe('client code reading a server value', () => {
+        it.each([
+            ['a handler', 'export const Page = () => <button onClick={() => go(env.DB_PASSWORD)}>x</button>;'],
+            ['onClient', 'export const Page = () => { onClient(() => { go(env.DB_PASSWORD); }); return <div/>; };'],
+            ['a local of the body', 'export const Page = () => { const k = env.DB_PASSWORD; return <button onClick={() => go(k)}>x</button>; };'],
+            ['a destructured local', 'export const Page = () => { const { DB_PASSWORD } = env; return <button onClick={() => go(DB_PASSWORD)}>x</button>; };'],
+            ['a helper', 'export const Page = () => { function h() { return env.DB_PASSWORD; } return <button onClick={() => go(h())}>x</button>; };'],
+            ['a shorthand property', 'export const Page = () => <button onClick={() => go({ env })}>x</button>;'],
+            ['a computed key', 'export const Page = () => <button onClick={() => go({ [env.DB_PASSWORD]: 1 })}>x</button>;'],
+            ['a default of a handler parameter', 'export const Page = () => <button onClick={(a = env.DB_PASSWORD) => go(a)}>x</button>;'],
+            ['a class field', 'export const Page = () => <button onClick={() => { class X { f = env.DB_PASSWORD; } go(new X()); }}>x</button>;'],
+            ['a template literal', 'export const Page = () => <button onClick={() => go(`${env.DB_PASSWORD}`)}>x</button>;'],
+            ['a type assertion', 'export const Page = () => <button onClick={() => go((env as Record<string, string>).DB_PASSWORD)}>x</button>;'],
+            ['an import named like a browser global', 'export const Page = () => <button onClick={() => go(name)}>x</button>;'],
+            ['the handler itself', 'export const Page = () => <button onClick={env.DB_PASSWORD}>x</button>;'],
+            ['a condition around onClient', 'export const Page = () => { if (env.DB_PASSWORD) { onClient(() => { go(1); }); } return <div/>; };'],
+            ['process.env', `export const Page = () => <button onClick={() => go(process.env.${SECRET_VARIABLE})}>x</button>;`],
+            ['a module-level constant', `const M = '${SECRET}';\nexport const Page = () => <button onClick={() => go(M)}>x</button>;`],
+            ['import()', 'export const Page = () => <button onClick={() => import(\'./secrets\')}>x</button>;'],
+            ['require()', 'export const Page = () => <button onClick={() => go(require(\'./secrets\'))}>x</button>;'],
+            ['import = require', 'import s = require(\'./secrets\');\nexport const Page = () => <button onClick={() => go(s.env)}>x</button>;'],
+            ['a default of a prop client code reads', 'export const Page = ({ k = env.DB_PASSWORD }) => <button onClick={() => go(k)}>x</button>;'],
+            ['a default of a prop another default reads', 'export const Page = ({ k = env.DB_PASSWORD, l = k }) => <button onClick={() => go(l)}>x</button>;'],
+            ['a function prop', 'const Inner = () => <div/>;\nexport const Page = () => <Inner f={() => env.DB_PASSWORD}/>;'],
+            ['a config holding a function', 'const Inner = () => <div/>;\nexport const Page = () => <Inner c={{ k: env.DB_PASSWORD, f: () => 1 }}/>;'],
+            ['a component nested in the body', 'export const Page = () => { const Inner = () => <button onClick={() => go(env.DB_PASSWORD)}>x</button>; return <Inner/>; };'],
+            ['a component wrapped in a call', 'const wrap = f => f;\nexport const Page = wrap(() => <button onClick={() => go(env.DB_PASSWORD)}>x</button>);'],
+            ['useContext', 'export const Page = () => <button onClick={() => go(useContext(SecretContext))}>x</button>;']
+        ])('refuses %s', (_how, source) => {
+            expect(documentOf(source)).toBeUndefined();
+        });
+    });
+
+    describe('a value a handler captures', () => {
+        // A handler written in a loop or a block captures the variables of that scope, and the render
+        // writes each captured value into the page, narrowed to what the handler reads from it. The
+        // value comes from wherever the markup took it; the compiler does not trace that. A server
+        // value an author hands to a handler this way is written like any other - the open gap named in
+        // GOALS.md.
+
+        it.each<TemplateCase>([
+            ['a server value a local of the body holds', 'export const Page = ({ a }) => { if (a) { const s = env.DB_PASSWORD; return <b onClick={() => go(s)}>x</b>; } return <div/>; };', { a: true }],
+            ['an error caught from a server value', 'export const Page = () => { try { throw new Error(env.DB_PASSWORD); } catch (e) { return <b onClick={() => go(e.message)}>x</b>; } };', {}]
+        ])('refuses %s, which client code would read as a declaration', (_how, source, props) => {
+            expect(documentOf(source, props)).toBeUndefined();
+        });
+
+        it.each<TemplateCase>([
+            ['a field of an imported array', 'export const Page = () => <ul>{env.rows.map(r => <li onClick={() => go(r.id)}>x</li>)}</ul>;', {}],
+            ['an imported config', 'export const Page = () => <div>{env.oauthProviders.map(p => <button onClick={() => go(p.id)}>{p.id}</button>)}</div>;', {}]
+        ])('writes only the fields the handler reads from %s', (_how, source, props) => {
+            expect(documentOf(source, props)).not.toContain(SECRET);
+        });
+
+        it.each<TemplateCase>([
+            ['an import through a loop', 'export const Page = () => <ul>{[env.DB_PASSWORD].map(p => <li onClick={() => go(p)}>x</li>)}</ul>;', {}],
+            ['a secret field the handler reads', 'export const Page = () => <ul>{env.rows.map(r => <li onClick={() => go(r.password)}>x</li>)}</ul>;', {}],
+            ['an imported config passed on whole', 'export const Page = () => <div>{env.oauthProviders.map(p => <button onClick={() => go(p)}>{p.id}</button>)}</div>;', {}],
+            ['an import held by a local of the loop', 'export const Page = ({ items }) => <ul>{items.map(i => { const s = env.DB_PASSWORD; return <li onClick={() => go(s, i)}>x</li>; })}</ul>;', { items: [1] }],
+            ['process.env through a loop', `export const Page = () => <ul>{[process.env.${SECRET_VARIABLE}].map(p => <li onClick={() => go(p)}>x</li>)}</ul>;`, {}],
+            ['a module-level constant through a loop', `const M = '${SECRET}';\nexport const Page = () => <ul>{[M].map(p => <li onClick={() => go(p)}>x</li>)}</ul>;`, {}],
+            ['a parameter of a helper in the body', 'export const Page = () => { const row = (u) => <li onClick={() => go(u)}>x</li>; return <ul>{row(env.DB_PASSWORD)}</ul>; };', {}],
+            ['a for...of over an import in a helper', 'export const Page = () => { function rows() { const out = []; for (const r of env.rows) { out.push(<li onClick={() => go(r.password)}>x</li>); } return out; } return <ul>{rows()}</ul>; };', {}],
+            ['a function invoked in the markup', 'export const Page = () => <div>{(() => { const s = env.DB_PASSWORD; return <b onClick={() => go(s)}>x</b>; })()}</div>;', {}],
+            ['an import captured by a function prop', 'const Inner = () => <div/>;\nexport const Page = () => <ul>{[env.DB_PASSWORD].map(p => <Inner f={() => p}/>)}</ul>;', {}]
+        ])('writes %s into the page as the handler reads it', (_how, source, props) => {
+            expect(documentOf(source, props)).toContain(SECRET);
+        });
+    });
+
+    describe('source of the component client code does not read', () => {
+        const cases: TemplateCase[] = [
+            ['the default of a prop client code does not read', `export const Page = ({ apiKey = '${SECRET}', label }) => <button onClick={() => go(label)}>x</button>;`, { label: 'l' }],
+            ['a nested default client code does not read', `export const Page = ({ cfg: { k = '${SECRET}' } = {}, label }) => <button onClick={() => go(label)}>x</button>;`, { label: 'l' }],
+            ['the default of a prop only onServer reads', `export const Page = ({ apiKey = '${SECRET}', label }) => { onServer(() => { console.log(apiKey); }); return <button onClick={() => go(label)}>x</button>; };`, { label: 'l' }],
+            ['an onServer block in a handler', `export const Page = () => <button onClick={() => { onServer(() => { console.log('${SECRET}'); }); go(); }}>x</button>;`, {}],
+            ['a captured value only an onServer block in a handler reads', 'export const Page = ({ users }) => <ul>{users.map(u => <li onClick={() => { onServer(() => { console.log(u); }); go(); }}>x</li>)}</ul>;', { users: [{ password: SECRET }] }],
+            ['an onServer block inside a helper client code calls', `export const Page = () => { function h() { onServer(() => { console.log('${SECRET}'); }); go(); } return <button onClick={() => h()}>x</button>; };`, {}],
+            ['an onServer block inside onClient', `export const Page = () => { onClient(() => { onServer(() => { console.log('${SECRET}'); }); }); return <div/>; };`, {}],
+            ['an onServer block in an initializer', `export const Page = () => { const v = onServer(() => '${SECRET}'); return <button onClick={() => go(v)}>x</button>; };`, {}],
+            ['a local only onServer reads', `export const Page = () => { const k = '${SECRET}'; onServer(() => { console.log(k); }); return <button onClick={() => go(1)}>x</button>; };`, {}],
+            ['a statement beside onClient in control flow', `export const Page = ({ a }) => { if (a) { console.log('${SECRET}'); onClient(() => { go(1); }); } return <div/>; };`, { a: 1 }],
+            ['a comment in client code', `export const Page = () => <button onClick={() => { /* ${SECRET} */ go(1); }}>x</button>;`, {}],
+            ['markup client code reads', `export const Page = () => { const el = <div>${SECRET}</div>; return <button onClick={() => go(el)}>x</button>; };`, {}]
+        ];
+
+        it.each(cases)('does not write %s into the page', (_how, source, props) => {
+            expect(documentOf(source, props) ?? '').not.toContain(SECRET);
+        });
+    });
+
+    describe('the source of the component around its client code', () => {
+        // Client code keeps the control flow and the declarations around it, as written: the author's
+        // own source. A declaration that read an import would be refused with it.
+        const cases: TemplateCase[] = [
+            ['the condition of an early return', `export const Page = ({ token }) => { if (token !== '${SECRET}') { return <p>no</p>; } onClient(() => { go(1); }); return <div/>; };`, { token: 'other' }],
+            ['the condition around onClient', `export const Page = ({ t }) => { if (t === '${SECRET}') { onClient(() => { go(1); }); } return <div/>; };`, { t: 'other' }],
+            ['the case around onClient', `export const Page = ({ t }) => { switch (t) { case '${SECRET}': { onClient(() => { go(1); }); break; } } return <div/>; };`, { t: 'other' }],
+            ['a throw beside onClient', `export const Page = ({ t }) => { if (t) { if (t === 1) { throw new Error('${SECRET}'); } onClient(() => { go(1); }); } return <div/>; };`, { t: 2 }],
+            ['a field client code does not read of an object it does', `export const Page = () => { const cfg = { pub: 'a', key: '${SECRET}' }; return <button onClick={() => go(cfg.pub)}>x</button>; };`, {}]
+        ];
+
+        it.each(cases)('writes %s into the page as written', (_how, source, props) => {
+            expect(documentOf(source, props)).toContain(SECRET);
+        });
+    });
+
+    describe('props client code does not read', () => {
+        it.each<TemplateCase>([
+            ['a prop only the markup reads', 'export const Page = ({ account, label }) => <button onClick={() => go(label)} title={account.name}>x</button>;', { account: { name: 'n', apiToken: SECRET }, label: 'l' }],
+            ['a field next to the one client code reads', 'export const Page = ({ account }) => <button onClick={() => go(account.name)}>x</button>;', { account: { name: 'n', apiToken: SECRET } }],
+            ['a prop named apart from a rest client code reads a field of', 'export const Page = ({ secret, ...rest }) => <button onClick={() => go(rest.label)}>x</button>;', { secret: SECRET, label: 'l' }],
+            ['a field a destructuring of a local names', 'export const Page = ({ user }) => { const { password, id } = user; onClient(() => { go(id); }); return <div/>; };', { user: { id: 1, password: SECRET } }],
+            ['a field a destructuring in a loop names', 'export const Page = ({ users }) => { onClient(() => { for (const { password, id } of users) { go(id); } }); return <div/>; };', { users: [{ id: 1, password: SECRET }] }],
+            ['a field a destructuring in a callback names', 'export const Page = ({ users }) => { onClient(() => { go(users.map(({ password, id }) => id)); }); return <div/>; };', { users: [{ id: 1, password: SECRET }] }],
+            ['a field a destructured loop value names', 'export const Page = ({ users }) => <ul>{users.map(({ password, id }) => <li onClick={() => go(id)}>x</li>)}</ul>;', { users: [{ id: 1, password: SECRET }] }]
+        ])('does not write %s into the page', (_how, source, props) => {
+            expect(documentOf(source, props) ?? '').not.toContain(SECRET);
+        });
+
+        // Taking a value out with a rest is how a template says the value is not for the client, so the
+        // rest being read whole does not make the value read.
+        const rests: [...TemplateCase, kept: string][] = [
+            ['a prop', 'export const Page = ({ secret, ...rest }) => <button onClick={() => go(rest)}>x</button>;', { secret: SECRET, label: 'l' }, '"label":"l"'],
+            ['a prop only onServer reads', 'export const Page = ({ secret, ...rest }) => { onServer(() => { console.log(secret); }); return <button onClick={() => go(rest)}>x</button>; };', { secret: SECRET, label: 'l' }, '"label":"l"'],
+            ['a field of a prop', 'export const Page = ({ user: { password, ...safe } }) => <button onClick={() => go(safe)}>x</button>;', { user: { id: 1, password: SECRET } }, '"id":1'],
+            ['a field of a local', 'export const Page = ({ user }) => { const { password, ...safe } = user; onClient(() => { go(safe); }); return <div/>; };', { user: { id: 1, password: SECRET } }, '"id":1'],
+            ['a field of a rest', 'export const Page = ({ user }) => { const { password, ...others } = user; const { apiToken, ...safe } = others; onClient(() => { go(safe); }); return <div/>; };', { user: { id: 1, password: SECRET, apiToken: SECRET } }, '"id":1'],
+            ['a prop next to one client code reads', 'export const Page = ({ label, secret, ...rest }) => <button onClick={() => go(label, rest)}>x</button>;', { label: { text: 't' }, secret: SECRET, other: 'o' }, '"text":"t"'],
+            ['a field of a loop value', 'export const Page = ({ users }) => <ul>{users.map(({ password, ...safe }) => <li onClick={() => go(safe)}>x</li>)}</ul>;', { users: [{ id: 1, password: SECRET }] }, '"id":1']
+        ];
+
+        it.each(rests)('does not write %s taken out with a rest into the page', (_how, source, props, kept) => {
+            const document: string | undefined = documentOf(source, props);
+
+            expect(document).not.toContain(SECRET);
+            expect(document).toContain(kept);
+        });
+
+        it('does not write what an object serializes beside the field client code reads', () => {
+            const account: Record<string, unknown> = {
+                name: 'Acme',
+                apiToken: SECRET,
+                toJSON: () => ({ name: 'Acme', apiToken: SECRET })
+            };
+            const document: string | undefined = documentOf(
+                'export const Page = ({ account }) => <button onClick={() => go(account.name)}>x</button>;',
+                { account }
+            );
+
+            expect(document).toContain('Acme');
+            expect(document).not.toContain(SECRET);
+        });
+    });
+
+    describe('the value a handler is handed', () => {
+        // A value of the server reaches the page in exactly one way: the author hands it to client code in
+        // the template's own source, and the render writes as much of it as that code reads. Handing a
+        // value to a handler is the author's deliberate act, the same as passing it into the component as a
+        // prop, and the compiler does not second-guess it (GOALS.md, "What is the author's").
+
+        const providers: Record<string, unknown>[] = [{ name: 'Google', clientId: 'public-client-id', clientSecret: SECRET }];
+
+        /**
+         * A login page listing the providers of a server module, each with a handler reading the provider
+         * the given way.
+         * @param read - What the handler passes on: `provider` or a field of it.
+         * @returns The document.
+         */
+        function loginPageReading(read: string): string | undefined {
+            return renderTemplateDocument(
+                'import { oauthProviders } from \'./environment\';\n'
+                + 'declare const startLogin: (provider: unknown) => void;\n'
+                + 'export const Page = () => <ul>{oauthProviders.map(provider => '
+                + `<li><button onClick={() => startLogin(${read})}>{provider.name}</button></li>`
+                + ')}</ul>;',
+                { './environment': { oauthProviders: providers } }
+            );
+        }
+
+        it('writes the fields the handler reads of a server value the markup hands it through a loop', () => {
+            // `provider` is a local of the loop, captured by the handler; the render writes it into the
+            // page narrowed to the field read.
+            const document: string | undefined = loginPageReading('provider.clientId');
+
+            expect(document).toContain('public-client-id');
+            expect(document).not.toContain(SECRET);
+        });
+
+        it('writes a server value whole when the handler passes it on whole', () => {
+            const document: string | undefined = loginPageReading('provider');
+
+            expect(document).toContain('"clientId":"public-client-id"');
+            expect(document).toContain(SECRET);
+        });
+
+        it('writes a value that reached the component as the default of a context the same way', () => {
+            // The context was created in a `.ts` file with the whole environment as its default, which the
+            // compiler never sees; `useContext` runs on the server and hands the component the default.
+            // From there on it is the case above: what the page gets is decided by the handler.
+            const document: string | undefined = renderTemplateDocument(
+                'import { useContext } from \'zibri\';\n'
+                + 'import { AppConfig } from \'./app-config\';\n'
+                + 'declare const startLogin: (provider: unknown) => void;\n'
+                + 'export const Page = () => { const config = useContext(AppConfig); '
+                + 'return <ul>{config.oauthProviders.map(provider => '
+                + '<li><button onClick={() => startLogin(provider)}>{provider.name}</button></li>'
+                + ')}</ul>; };',
+                { zibri: SERVER_HOOKS, './app-config': { AppConfig: createContext({ oauthProviders: providers }) } }
+            );
+
+            expect(document).toContain('Google');
+            expect(document).toContain(SECRET);
         });
     });
 });

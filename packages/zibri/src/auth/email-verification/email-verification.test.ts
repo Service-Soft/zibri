@@ -66,7 +66,6 @@ async function createUser(verified: boolean): Promise<JwtUser> {
     const user: JwtUser = await users().create({
         email: `${UUIDUtilities.generate()}@verify.test`,
         roles: [Roles.USER],
-        // eslint-disable-next-line unicorn/no-null
         emailVerifiedAt: verified ? new Date() : null
     });
     await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
@@ -226,7 +225,6 @@ describe('Verifying the email address of a user', () => {
 
         // otherwise the verification of the old address would stand for the new one
         await expect(users().updateById(user.id, { email: `${UUIDUtilities.generate()}@verify.test` })).rejects.toThrow(/emailVerifiedAt/);
-        // eslint-disable-next-line unicorn/no-null
         await users().updateById(user.id, { email: `${UUIDUtilities.generate()}@verify.test`, emailVerifiedAt: null });
         await users().updateById(user.id, { roles: [Roles.ADMIN] });
     });

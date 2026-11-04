@@ -479,7 +479,6 @@ export abstract class ScimWhereUtilities {
             case 'caseExactText':
             case 'id': {
                 if (column.nullable) {
-                    // eslint-disable-next-line unicorn/no-null
                     return [column.where(negated ? null : { not: null })];
                 }
                 // a column every resource holds a value in
@@ -580,7 +579,6 @@ export abstract class ScimWhereUtilities {
         negated: boolean
     ): WhereFilter<T>[] {
         // a resource without a value matches no comparison, so it matches every negated one
-        // eslint-disable-next-line unicorn/no-null
         const orAbsent: WhereFilter<T>[] = negated && nullable ? [where(null)] : [];
         const escaped: string = value.replaceAll(/[%\\_]/g, String.raw`\$&`);
         switch (operator) {

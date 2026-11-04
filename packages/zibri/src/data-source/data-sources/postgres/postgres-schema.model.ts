@@ -366,7 +366,6 @@ export class PostgresSchema {
         // toFixed rather than toString, because bignumber.js writes an exponent past its configured
         // range and postgres reads "1e+25" as a numeric it cannot parse
         // a missing value is written as sql NULL
-        // eslint-disable-next-line unicorn/no-null
         const to: (value: unknown) => unknown = value => value instanceof BigNumber ? value.toFixed() : value ?? null;
         const from: (value: unknown) => unknown = value => {
             return typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint' ? readNumber(value, format) : value;

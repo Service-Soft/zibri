@@ -52,7 +52,6 @@ describe('isNumeric', () => {
     });
 
     it('returns false for non-numeric, non-string values', () => {
-        // eslint-disable-next-line unicorn/no-null
         expect(isNumeric(null)).toBe(false);
         expect(isNumeric(undefined)).toBe(false);
         expect(isNumeric({})).toBe(false);

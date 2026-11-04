@@ -22,7 +22,6 @@ describe('parseFuzzyLikeFilter', () => {
     it('throws when the filter is not an object with a value property', () => {
         expect(() => parseFuzzyLikeFilter('hello')).toThrow(/fuzzyLike expects an object with a "value" property/);
         expect(() => parseFuzzyLikeFilter({ minSimilarity: 30 })).toThrow(/fuzzyLike expects an object with a "value" property/);
-        // eslint-disable-next-line unicorn/no-null
         expect(() => parseFuzzyLikeFilter(null)).toThrow(/fuzzyLike expects an object with a "value" property/);
     });
 });

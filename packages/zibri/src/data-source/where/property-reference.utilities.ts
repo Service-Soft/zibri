@@ -86,7 +86,6 @@ export class PropertyReferenceUtilities {
         }
         return Object.fromEntries(entries.map(([key, value]) => [
             key,
-            // eslint-disable-next-line unicorn/no-null
             this.isReferenceUnder(key, value) ? Reflect.get(holder, value.property) ?? null : value
         ]));
     }

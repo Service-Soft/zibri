@@ -137,7 +137,6 @@ describe('A cron job whose ticks throw', () => {
     }, TestTimeouts.inMemory.shutdown);
 
     beforeEach(async () => {
-        // eslint-disable-next-line unicorn/no-null
         await rows.updateAll({}, { state: CronJobState.ACTIVE, previousState: null, consecutiveFailures: 0, backedOffUntil: null });
         // the claims on the slots too: a slot a case ran is held afterwards, and the next case
         // naming the same slot would be told it is dealt with
@@ -147,7 +146,6 @@ describe('A cron job whose ticks throw', () => {
         const local: CronJobEntity | undefined = localStopping['entity'];
         if (local) {
             local.state = CronJobState.ACTIVE;
-            // eslint-disable-next-line unicorn/no-null
             local.previousState = null;
         }
         for (const job of [retrying, retryingPastTheNextSlot, stopping, backingOff, localStopping]) {
@@ -158,7 +156,6 @@ describe('A cron job whose ticks throw', () => {
             const entity: CronJobEntity | undefined = job['entity'];
             if (entity) {
                 entity.consecutiveFailures = 0;
-                // eslint-disable-next-line unicorn/no-null
                 entity.backedOffUntil = null;
             }
         }

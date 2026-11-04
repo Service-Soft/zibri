@@ -233,7 +233,6 @@ describe('declaring the tenant of an entity', () => {
     });
 
     it('indexes the tenant alone when nothing else is led by it', () => {
-        // eslint-disable-next-line unicorn/no-null
         @Entity({ allowOrphan: true, allowDuplicate: true, uniques: [{ properties: ['code'], where: whereFor<Bare>({ code: { not: null } }) }] })
         class Bare extends BaseEntity {
             @Property.string({ format: 'uuid' })
@@ -256,7 +255,6 @@ describe('declaring the checks of an entity', () => {
             allowDuplicate: true,
             checks: [
                 {
-                    // eslint-disable-next-line unicorn/no-null
                     where: whereFor<Ticket>([{ state: { oneOf: ['open', null] } }, { points: { lesserThan: 10 }, state: { not: 'closed' } }]),
                     code: 'closedTicketPoints',
                     message: $t`a closed ticket has fewer than 10 points`

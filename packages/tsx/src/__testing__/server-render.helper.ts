@@ -1,9 +1,10 @@
 import * as ts from 'typescript';
 
 import { ClientScript, compileClientScript } from '../codegen/client/client-codegen';
+import { compile } from '../codegen/compile';
 import { eraseTypes } from '../codegen/erase-types';
 import { compileServerRender, ServerRenderCode } from '../codegen/server/render-codegen';
-import { CompiledPage } from '../runtime/render-page';
+import { CompiledPage, renderPage } from '../runtime/render-page';
 import { SERVER_HOOKS } from '../runtime/server-hooks';
 import { ClientInstanceEntry, CompiledComponent, createContext, createServerRuntime, HandlerRegistryEntry, Raw, renderChild, RenderServerRuntime } from '../runtime/server-runtime';
 import { collectClientGlobalAliasesFromSource, collectClientPackagesFromSource, parseCompilableTemplate } from '../semantics/client-packages';
@@ -157,6 +158,61 @@ export function renderWithComponents(
     const runtime: RenderServerRuntime = createServerRuntime();
     const html: string = renderChild(page.render(props, runtime));
     return { html, handlers: runtime.handlers, instances: runtime.instances };
+}
+
+/**
+ * Whether a value is a compiled component a page can be rendered from.
+ * @param value - The value an emitted module exports.
+ * @returns True when it carries a render function and client metadata.
+ */
+export function isCompiledPage(value: unknown): value is CompiledPage {
+    return typeof value === 'object' && value !== null
+        && 'render' in value && typeof value.render === 'function'
+        && 'client' in value && typeof value.client === 'object';
+}
+
+/**
+ * Evaluates an emitted commonjs module.
+ * @param code - The module source.
+ * @param requireMock - What the module's `require` hands out.
+ * @returns The module's exports.
+ */
+export function loadCjs(code: string, requireMock: (id: string) => unknown = () => ({})): Record<string, unknown> {
+    const exported: Record<string, unknown> = {};
+    // eslint-disable-next-line typescript/no-implied-eval
+    const run: (exports: Record<string, unknown>, require: (id: string) => unknown) => void = new Function(
+        'exports',
+        'require',
+        code
+    ) as (exports: Record<string, unknown>, require: (id: string) => unknown) => void;
+    run(exported, requireMock);
+    return exported;
+}
+
+/**
+ * Takes a template the way an application does: through `compile`, with every check it runs, and the
+ * emitted module loaded against real values for its imports. `compilePage` skips those checks and takes
+ * no imports, so what a page may receive from a server module can only be tested through this.
+ * @param source - The template source, exporting `Page`.
+ * @param modules - The modules its imports resolve to, by specifier.
+ * @param props - The props to render with.
+ * @returns The document the browser receives, or undefined when the template does not compile.
+ * @throws When the template compiles without exporting `Page`.
+ */
+export function renderTemplateDocument(
+    source: string,
+    modules: Record<string, unknown>,
+    props: Record<string, unknown> = {}
+): string | undefined {
+    const code: string | undefined = compile(source, { module: 'cjs' }).code;
+    if (code === undefined) {
+        return undefined;
+    }
+    const page: unknown = loadCjs(code, id => modules[id] ?? {})['Page'];
+    if (!isCompiledPage(page)) {
+        throw new Error('The template does not export a component named Page.');
+    }
+    return renderPage(page, props);
 }
 
 /**
