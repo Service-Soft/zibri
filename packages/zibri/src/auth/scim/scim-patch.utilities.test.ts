@@ -105,6 +105,24 @@ describe('ScimPatchUtilities', () => {
         }
     });
 
+    it('refuses an attribute of an extension that is no attribute name, leaving the prototype of every object as it is', () => {
+        // parsed as a request body is, which makes "__proto__" a key of its own rather than the prototype
+        const operation: unknown = JSON.parse(`{"op":"add","value":{"${ScimSchema.ENTERPRISE_USER}":{"__proto__":{"polluted":true}}}}`);
+        let refusal: unknown = undefined;
+        try {
+            patch({ userName: 'a' }, [operation]);
+        }
+        catch (error) {
+            refusal = error;
+        }
+        const polluted: unknown = Reflect.get({}, 'polluted');
+        // taken back before asserting, so a failure here does not reach the tests after it
+        Reflect.deleteProperty(Object.prototype, 'polluted');
+
+        expect(polluted).toBeUndefined();
+        expect(refusal).toEqual(expect.objectContaining({ body: expect.objectContaining({ scimType: ScimErrorType.INVALID_PATH }) }));
+    });
+
     it('refuses a body that is not a patch request', () => {
         expect(() => ScimPatchUtilities.resolveOperations({ Operations: [] })).toThrow(expect.objectContaining({ status: 400 }));
         const operations: ScimPatchOperation[] = ScimPatchUtilities.resolveOperations({ schemas: [ScimSchema.PATCH_OP], Operations: [] });

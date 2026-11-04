@@ -722,6 +722,7 @@ export * from './data-source/transaction/spanning-transaction.model';
 export * from './data-source/transaction/transaction-conflict.error';
 export * from './data-source/transaction/transaction-deadlock.error';
 export * from './data-source/transaction/transaction-serialization.error';
+export * from './data-source/transaction/transaction-upsert-conflict.error';
 export * from './data-source/transaction/transaction.model';
 export * from './data-source/transaction/transaction.utilities';
 

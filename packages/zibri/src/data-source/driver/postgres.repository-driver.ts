@@ -31,6 +31,7 @@ import { PaginationResult } from '../models/pagination-result.model';
 import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
+import { TransactionUpsertConflictError } from '../transaction/transaction-upsert-conflict.error';
 import { Transaction } from '../transaction/transaction.model';
 import { UnboundedReturnError } from '../unbounded-return.error';
 import { uniqueConstraintName } from '../unique-constraint-name.function';
@@ -911,9 +912,28 @@ export class PostgresRepositoryDriver<T extends BaseEntity> implements Repositor
             return res;
         };
         // one statement is atomic on its own; several are held together the way one holds itself
-        const written: Map<UpsertRow<T>, T> = transaction == undefined && statements.length > 1
+        const writeAll: () => Promise<Map<UpsertRow<T>, T>> = async () => transaction == undefined && statements.length > 1
             ? await this.inTransaction(undefined, write)
             : await write(transaction);
+        let written: Map<UpsertRow<T>, T>;
+        try {
+            written = await writeAll();
+        }
+        catch (error) {
+            // postgres decides between insert and update by the identity's key alone. Two upserts of a
+            // row nobody holds yet can both decide to insert, and the later one then waits on a key of
+            // the earlier one's row other than its identity - and is refused for it once that commits,
+            // where it should have updated the row. The row it waited for is committed by then, so a
+            // statement sent now sees it and updates it, as the one before it would have
+            if (!await this.resolveIsRefusedForOwnRow(identity, ordered, error)) {
+                throw error;
+            }
+            // the refusal has ended the caller's transaction, which only they can run again
+            if (transaction != undefined) {
+                throw new TransactionUpsertConflictError({ cause: error });
+            }
+            written = await writeAll();
+        }
         return rows.map(row => {
             const res: T | undefined = written.get(row);
             if (res != undefined) {
@@ -927,6 +947,47 @@ export class PostgresRepositoryDriver<T extends BaseEntity> implements Repositor
             }
             throw new InternalError('upsert returned no row, which should not be reachable.');
         });
+    }
+
+    /**
+     * Whether an upsert was refused for a unique key that the row its own identity names holds - which
+     * another transaction inserted while the upsert ran.
+     * @param identity - The properties identifying each row.
+     * @param rows - The rows of the upsert.
+     * @param error - What the upsert failed with.
+     * @returns True when a stored row holds both the identity and the taken values of one of the rows.
+     */
+    private async resolveIsRefusedForOwnRow(identity: string[], rows: UpsertRow<T>[], error: unknown): Promise<boolean> {
+        if (!(error instanceof UniqueConstraintViolationError)) {
+            return false;
+        }
+        const taken: string[] = error.properties;
+        const group: UniqueGroup = UpsertIdentityUtilities.resolveUniqueGroup(this.entityClass, identity);
+        // refused for the identity itself, which is a row the caller may not change
+        if (taken.length === group.properties.length && taken.every(p => group.properties.includes(p))) {
+            return false;
+        }
+        // a row whose changes set a taken value to another one than it inserts may have been refused
+        // for that change, against a row that is not its own - which a stored row holding what it
+        // inserts says nothing about
+        const insertedOnly: UpsertRow<T>[] = rows.filter(row => {
+            const created: Map<string, unknown> = new Map(Object.entries(row.create));
+            const changes: Map<string, unknown> = new Map(Object.entries(row.onConflict));
+            return taken.every(p => {
+                const change: unknown = changes.get(p);
+                return change == undefined
+                    || (typeof change === 'object' && 'set' in change
+                        && JsonUtilities.stringify(change.set) === JsonUtilities.stringify(created.get(p)));
+            });
+        });
+        const branches: object[] = insertedOnly.flatMap(row => {
+            const created: Map<string, unknown> = new Map(Object.entries(row.create));
+            const values: Record<string, unknown> = Object.fromEntries(taken.map(p => [p, created.get(p)]));
+            const own: Where<T> = UpsertIdentityUtilities.resolveConflictWhere(this.entityClass, identity, row.create);
+            return (Array.isArray(own) ? own : [own]).map(branch => ({ ...branch, ...values }));
+        });
+        // outside the transaction, which the refusal has ended
+        return branches.length ? await this.count({ where: branches, transaction: undefined }) > 0 : false;
     }
 
     private async runUpserts(

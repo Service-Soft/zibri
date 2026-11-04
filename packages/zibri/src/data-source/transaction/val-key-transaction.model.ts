@@ -108,7 +108,8 @@ export type ValKeyTransactionGrants = {
      */
     claim: (keys: string[]) => Promise<void>,
     /**
-     * The grants taken so far, as the write applying the transaction hands them back.
+     * The grants taken so far, as the write applying the transaction hands them back. Called as that
+     * write is sent: from then on a grant found gone was handed back rather than lost.
      */
     resolveRelease: () => ValKeyGrantRelease,
     /**

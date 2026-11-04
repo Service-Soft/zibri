@@ -127,7 +127,10 @@ export abstract class ScimPatchUtilities {
         // "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": { "employeeNumber": "42" }
         if (/^urn:.*:(user|group)$/i.test(key) && ScimFilterUtilities.isRecord(value)) {
             for (const [attribute, attributeValue] of Object.entries(value)) {
-                this.applyAt(resource, { path: { uri: key, attribute, subAttribute: undefined }, filter: undefined }, op, attributeValue);
+                // read as a path naming it is, which takes nothing but an attribute name: a parsed body
+                // holds "__proto__" as a key of its own, which taken as one reaches every object's prototype
+                const path: ScimAttributePath = ScimFilterUtilities.parseAttributePath(`${key}:${attribute}`, ScimErrorType.INVALID_PATH);
+                this.applyAt(resource, { path, filter: undefined }, op, attributeValue);
             }
             return;
         }

@@ -28,4 +28,13 @@ jobs:
                 # framework, where a taint path that reaches a consumer's request handler is the
                 # whole point of looking.
                 queries: security-extended
+                # the minified third-party builds the cli and the sandbox ship as they are: what is
+                # found in them is for their projects to fix, and is patched by moving to their next
+                # release. The scripts of our own next to them stay scanned.
+                config: |
+                    paths-ignore:
+                        - '**/assets/public/open-api/swagger-ui-bundle.js'
+                        - '**/assets/public/open-api/swagger-ui-standalone-preset.js'
+                        - '**/assets/public/lib/chartjs-adapter-date-fns.js'
+                        - '**/assets/public/vendor/**'
             - uses: github/codeql-action/analyze@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3.39.1

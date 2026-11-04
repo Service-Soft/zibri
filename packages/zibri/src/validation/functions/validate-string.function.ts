@@ -13,7 +13,9 @@ import { RegexUtilities } from '../../utilities/regex.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
 
-const EMAIL_REGEX: RegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// the dot of the domain is looked for apart from it: a pattern finding it as well backtracks over the
+// rest of the domain once for every dot in it, quadratic in a long value
+const EMAIL_REGEX: RegExp = /^[^\s@]+@[^\s@]+$/;
 // E.164: a plus, a country code that does not start with 0, and at most 15 digits in all
 const PHONE_REGEX: RegExp = /^\+[1-9]\d{6,14}$/;
 
@@ -111,7 +113,8 @@ function isFormatValid(format: StringFormat, value: string): boolean {
             return UUIDUtilities.STRICT_SHAPE.test(value);
         }
         case 'email': {
-            return EMAIL_REGEX.test(value);
+            // a domain with a dot that neither starts nor ends it
+            return EMAIL_REGEX.test(value) && value.slice(value.indexOf('@') + 2, -1).includes('.');
         }
         case 'phone': {
             return PHONE_REGEX.test(value);

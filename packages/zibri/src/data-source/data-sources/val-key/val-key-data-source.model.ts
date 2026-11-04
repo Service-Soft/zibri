@@ -649,13 +649,16 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
      * @param token - The token this caller took the locks with.
      * @param holdInMs - How much longer the locks should live.
      * @param name - What holds them, for the log message.
+     * @param isHandingBack - Whether the holder is handing the locks back itself by now, so that a
+     * renewal finding them gone found them released rather than lost.
      */
     private async renewLocks(
         client: GlideClient,
         lockKeys: string[],
         token: string,
         holdInMs: number,
-        name: string
+        name: string,
+        isHandingBack: () => boolean = () => false
     ): Promise<void> {
         try {
             const renewed: number[] = await PromiseUtilities.allChunked(
@@ -663,7 +666,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
                 async keys => Number(await client.invokeScript(renewLockScript(), { keys, args: [token, `${holdInMs}`] }))
             );
             const lost: number = lockKeys.length - renewed.reduce((sum, n) => sum + n, 0);
-            if (lost > 0) {
+            if (lost > 0 && !isHandingBack()) {
                 const what: string = lockKeys.length === 1 ? 'the lock' : `${lost} of the locks of`;
                 this.logger.warn(
                     `Lost ${what} "${name}" while still working - another instance may already be running the same code`
@@ -835,9 +838,14 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         // unique to this transaction, and checked by both the renewal and the release
         const token: string = UUIDUtilities.generate();
         const held: Set<string> = new Set();
+        // set as the commit sends its writes, which hand the locks back in the same script. Renewal
+        // goes on until then, so the locks outlive the wait for the script - and a renewal answered
+        // after it finds them gone because the commit released them, which is no loss. Reported as
+        // one, a commit of a large batch warned that every lock it held had been lost
+        let handingBack: boolean = false;
         const lease: HeldLease = {
             name: `transaction ${token}`,
-            renew: async () => await this.renewLocks(client, [...held], token, holdInMs, `transaction ${token}`),
+            renew: async () => await this.renewLocks(client, [...held], token, holdInMs, `transaction ${token}`, () => handingBack),
             release: async () => await this.releaseLocks(client, [...held], token)
         };
         let kept: KeptGrant | undefined;
@@ -858,7 +866,10 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
                     await this.releaseLocks(client, keys.map(key => ValKeyLockKeyUtilities.getLockKey(key)), token);
                 }
             },
-            resolveRelease: () => ({ token, lockKeys: [...held] }),
+            resolveRelease: () => {
+                handingBack = true;
+                return { token, lockKeys: [...held] };
+            },
             release: async handedBack => {
                 released = true;
                 // gone already, so neither renewed nor released again: the lease's own release then

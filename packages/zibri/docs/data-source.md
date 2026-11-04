@@ -103,6 +103,7 @@ side.
 | `IsolationLevel` | enum | The isolation level a transaction is started with |
 | `StartTransactionOptions`, `RunInTransactionOptions` | type, type | What `startTransaction` takes, the isolation level and idle timeout, and what `runInTransaction` takes on top, `maxAttempts` |
 | `TransactionConflictError`, `TransactionSerializationError` | error, error | Thrown when a transaction was ended for a conflict with another one, and that conflict for a `REPEATABLE READ` or `SERIALIZABLE` transaction whose rows changed meanwhile. Nothing it wrote is applied |
+| `TransactionUpsertConflictError` | error | Thrown when an `upsert` in a transaction found its row inserted by another transaction at the same moment. Nothing it wrote is applied |
 | `KeyDeclarationsChangedError` | error | Thrown at the commit of a transaction after the indexes or uniques of an entity it wrote changed. Nothing it wrote is applied |
 | `TransactionAlreadyFinishedError` | error | Thrown when a transaction is used after its commit or rollback |
 | `SpanningTransaction` | class | One transaction across every data source its writes reach, which repositories take |
@@ -1873,8 +1874,12 @@ is applied, so roll it back and run it again from the start.
 
 A transaction started with the isolation level `REPEATABLE READ` or `SERIALIZABLE` is ended the same
 way when another one changed what it read in a way that level does not allow, and fails with a
-`TransactionSerializationError`, at a write or at its commit. Both errors are a
-`TransactionConflictError`.
+`TransactionSerializationError`, at a write or at its commit.
+
+Two `upsert` calls naming the same row at the same moment insert it once and update it once. When
+the row has a unique besides its identity, an `upsert` inside your transaction can find the row
+inserted by the other one and fail with a `TransactionUpsertConflictError`. Running the transaction
+again updates the row. All three errors are a `TransactionConflictError`.
 
 `runInTransaction` starts a transaction, commits it once your work is done, rolls it back when your
 work fails, and runs your work again from the start after a `TransactionConflictError`, until it has

@@ -148,6 +148,36 @@ describe('validateString', () => {
             const problems: ValidationProblem[] = await validateString('email', 'user@localhost', meta({ format: 'email' }), undefined, undefined);
             expect(problems).toHaveLength(1);
         });
+
+        it('accepts a domain with dots next to each other, and rejects one starting or ending with its only dot', async () => {
+            const check: (value: string) => Promise<ValidationProblem[]> = async value => await validateString(
+                'email',
+                value,
+                meta({ format: 'email' }),
+                undefined,
+                undefined
+            );
+            await expect(check('a@b..c')).resolves.toEqual([]);
+            await expect(check('a@.bc')).resolves.toHaveLength(1);
+            await expect(check('a@bc.')).resolves.toHaveLength(1);
+        });
+
+        // a domain of many dots that fails at its end: a pattern looking for the dot backtracks over
+        // the rest of it once for every dot, which for forty thousand characters is the better part of
+        // a second in which the process answers nothing else
+        it('checks an address in time linear to it', async () => {
+            const start: number = performance.now();
+            const problems: ValidationProblem[] = await validateString(
+                'email',
+                `a@${'a.'.repeat(20000)} `,
+                meta({ format: 'email' }),
+                undefined,
+                undefined
+            );
+
+            expect(problems).toHaveLength(1);
+            expect(performance.now() - start).toBeLessThan(100);
+        });
     });
 
     describe('phone format', () => {
