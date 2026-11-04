@@ -103,7 +103,9 @@ describe('MultithreadingService, requeueing a job', () => {
     }, 10000);
 
     it('clears what the last run left on the row', async () => {
-        const failed: AnyThreadJobEntity = await multithreadingService.runThreadJob({ workerData: { filePath, amount: 45 }, timeoutInMs: 1 });
+        // long enough that the job is still running once the timeout has stopped it, and no longer:
+        // the rerun computes it to the end, on a core the rest of the suite is using too
+        const failed: AnyThreadJobEntity = await multithreadingService.runThreadJob({ workerData: { filePath, amount: 38 }, timeoutInMs: 1 });
         expect(failed.error?.name).toBe('TimeoutError');
         // what failed it fixed, which is what a job is usually requeued after
         await threadJobRepository.updateById(failed.id, { timeoutInMs: Ms.HOUR });

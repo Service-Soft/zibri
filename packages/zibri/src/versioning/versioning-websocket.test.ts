@@ -175,7 +175,7 @@ describe('VersioningService websocket integration', () => {
                 routes: []
             });
             await restartServer({ version: '2.0.0', websocketControllers: [VersionResolveController, VersionedDispatchController] });
-        });
+        }, TestTimeouts.postgres.restart);
 
         it('resolves latest version when no header provided', async () => {
             const msg: WebsocketMessage = await sendWsEvent(baseUrl, 'resolve-version');
@@ -220,7 +220,7 @@ describe('VersioningService websocket integration', () => {
                 routes: []
             });
             await restartServer({ version: '2.0.0', websocketControllers: [VersionedDispatchController] });
-        });
+        }, TestTimeouts.postgres.restart);
 
         // --- dispatch:event ---
         it('uses latest handler when no version header (active version)', async () => {
@@ -328,6 +328,6 @@ describe('VersioningService websocket integration', () => {
                     websocketControllers: [OverlapWebsocketController]
                 })
             ).rejects.toThrow(/defined more than once/);
-        });
+        }, TestTimeouts.postgres.restart);
     });
 });

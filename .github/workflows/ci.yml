@@ -1,9 +1,16 @@
 name: CI
 on:
+    # the branch a change is merged into, for the merge itself. Every other branch is checked through
+    # its pull request below, so a push to one runs this once rather than once per event
     push:
-        branches-ignore: [release, 'release-*']
+        branches: [dev]
     # and while a change can still be turned down, which is what a pull request is for
     pull_request:
+
+# a newer push to the same pull request or branch makes the run still going for the older one worthless
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
 
 permissions:
     contents: read
@@ -30,6 +37,7 @@ jobs:
             - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                 node-version: '24'
+                cache: npm
             - run: npm ci
             - run: npm run build -w zibri-tsx
             - run: npm run build:prod -w zibri
@@ -40,21 +48,28 @@ jobs:
             # the tests included: the builds leave them out, and jest only transpiles them, so a type
             # error in a test - or a type test's @ts-expect-error that no longer fires - is caught here or nowhere
             - run: npm run typecheck
-    test:
+    # the framework's suites, in shards that run beside each other: a runner has four cores, most of
+    # these suites start a container of their own, and the run takes as long as its longest shard.
+    # Each shard uploads the coverage of what it ran, and codecov adds the uploads of one commit up,
+    # so nothing merges them here. The heavy and the cluster suites, which run in band, are jobs of
+    # their own below for the same reason.
+    test-zibri:
         needs: node-versions
         strategy:
             fail-fast: false
             matrix:
                 node: ${{ fromJSON(needs.node-versions.outputs.majors) }}
+                shard: [1, 2, 3]
         runs-on: ubuntu-latest
         # a ceiling for each job that runs tests: a run that hangs - a jest that does not exit, a hook
         # that waits on something gone - otherwise holds the runner for the platform's six hours
-        timeout-minutes: 120
+        timeout-minutes: 60
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
             - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                 node-version: ${{ matrix.node }}
+                cache: npm
             - name: install PostgreSQL 17
               run: |
                 sudo apt-get update
@@ -67,10 +82,120 @@ jobs:
             - run: npm run build:prod -w zibri
             # loaded built, the way a consumer gets it, by the check that it loads without its optional peers
             - run: npm run build -w zibri-testing
-            - run: npm run test:ci -w zibri
+            # the sources every file reports are held once by the runner jest.config.mjs names, which is
+            # what keeps a coverage run of this size in memory. The reporter is lcov alone: the json
+            # reporter writes the whole merged map as one string, and `lcov` renders a page per file,
+            # and the upload needs neither
+            - run: npm run test:normal -w zibri -- --shard=${{ matrix.shard }}/3 --coverage --coverageDirectory=__testing__/coverage/raw/normal --coverageReporters=lcovonly
+            - uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
+              with:
+                token: ${{ secrets.CODECOV_TOKEN }}
+                files: packages/zibri/src/__testing__/coverage/raw/normal/lcov.info
+                flags: zibri
+                fail_ci_if_error: true
+    test-zibri-heavy:
+        needs: node-versions
+        strategy:
+            fail-fast: false
+            matrix:
+                node: ${{ fromJSON(needs.node-versions.outputs.majors) }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 60
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                node-version: ${{ matrix.node }}
+                cache: npm
+            - name: install PostgreSQL 17
+              run: |
+                sudo apt-get update
+                sudo apt-get install -y postgresql-common ca-certificates curl
+                printf '\n' | sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+                sudo apt-get update
+                sudo apt-get install -y postgresql-client-17
+            - run: npm ci
+            - run: npm run build -w zibri-tsx
+            - run: npm run build:prod -w zibri
+            - run: npm run build -w zibri-testing
+            - run: npm run test:heavy -w zibri -- --coverage --coverageDirectory=__testing__/coverage/raw/heavy --coverageReporters=lcovonly
+            - uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
+              with:
+                token: ${{ secrets.CODECOV_TOKEN }}
+                files: packages/zibri/src/__testing__/coverage/raw/heavy/lcov.info
+                flags: zibri
+                fail_ci_if_error: true
+    test-zibri-cluster:
+        needs: node-versions
+        strategy:
+            fail-fast: false
+            matrix:
+                node: ${{ fromJSON(needs.node-versions.outputs.majors) }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 60
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                node-version: ${{ matrix.node }}
+                cache: npm
+            - name: install PostgreSQL 17
+              run: |
+                sudo apt-get update
+                sudo apt-get install -y postgresql-common ca-certificates curl
+                printf '\n' | sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+                sudo apt-get update
+                sudo apt-get install -y postgresql-client-17
+            - run: npm ci
+            - run: npm run build -w zibri-tsx
+            - run: npm run build:prod -w zibri
+            - run: npm run build -w zibri-testing
+            - run: npm run test:cluster -w zibri
+    test-tsx:
+        needs: node-versions
+        strategy:
+            fail-fast: false
+            matrix:
+                node: ${{ fromJSON(needs.node-versions.outputs.majors) }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                node-version: ${{ matrix.node }}
+                cache: npm
+            - run: npm ci
+            - run: npm run build -w zibri-tsx
             - run: npm run test -w zibri-tsx
-            # the cli's whole suite in one in-band run, which is what lets it report coverage without
-            # merging two of them: its heavy tests need --runInBand anyway
+    # the cli's whole suite in one in-band run, which is what lets it report coverage without
+    # merging two of them: its heavy tests need --runInBand anyway
+    test-cli:
+        needs: node-versions
+        strategy:
+            fail-fast: false
+            matrix:
+                node: ${{ fromJSON(needs.node-versions.outputs.majors) }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 60
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                node-version: ${{ matrix.node }}
+                cache: npm
+            # the docker suite talks to the database of the project it generates
+            - name: install PostgreSQL 17
+              run: |
+                sudo apt-get update
+                sudo apt-get install -y postgresql-common ca-certificates curl
+                printf '\n' | sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+                sudo apt-get update
+                sudo apt-get install -y postgresql-client-17
+            - run: npm ci
+            - run: npm run build -w zibri-tsx
+            - run: npm run build:prod -w zibri
+            - run: npm run build -w zibri-testing
             - run: npm run test:ci -w zibri-cli
             # what the generated deployment weighs and how long it takes to answer, measured by the
             # cli's docker suite. Its sizes are held to deployment-size-limits.ts there; the image, which
@@ -82,9 +207,10 @@ jobs:
             - uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
               with:
                 token: ${{ secrets.CODECOV_TOKEN }}
-                files: packages/zibri/src/__testing__/coverage/report/lcov.info,packages/cli/src/__testing__/coverage/lcov.info
+                files: packages/cli/src/__testing__/coverage/lcov.info
+                flags: cli
                 fail_ci_if_error: true
-    # everything that writes files rather than talking to one, on the operating systems the job
+    # everything that writes files rather than talking to one, on the operating systems the jobs
     # above cannot speak for. The suites here are the ones that need no container - which is also
     # why they are the right ones: the tsx compiler and the cli spend their whole runtime in the
     # filesystem, and that is where the three platforms disagree. The container-backed suites
@@ -104,6 +230,7 @@ jobs:
             - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                 node-version: ${{ matrix.node }}
+                cache: npm
             - run: npm ci
             - run: npm run build -w zibri-tsx
             - run: npm run build -w zibri
@@ -125,6 +252,7 @@ jobs:
             - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                 node-version: '24'
+                cache: npm
             - run: npm ci
             - run: npm run build -w zibri-tsx
             - run: npm run build:prod -w zibri
@@ -150,6 +278,7 @@ jobs:
             - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                 node-version: '24'
+                cache: npm
             # installed for the manifests rather than to run anything: the lockfile records a license
             # only when it is a string, and the deprecated `licenses` list is read from package.json
             - run: npm ci --ignore-scripts
