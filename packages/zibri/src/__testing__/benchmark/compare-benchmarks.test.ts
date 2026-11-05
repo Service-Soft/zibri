@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -60,6 +61,22 @@ function compare(release: BenchmarkRound[], current: BenchmarkRound[], allowance
 const rounds: (ms: number[]) => BenchmarkRound[] = ms => ms.map(value => ({ 'GET one row': value }));
 
 describe('comparing the benchmarks with the release', () => {
+    // the release is run with its own jest configuration, and the one of 3.0.0 ignores every path
+    // with `tmp` in it: under the system's temp directory its suites were found nowhere
+    it('checks the release out beside the repository, where its own configuration finds its suites', () => {
+        const output: string = execFileSync(process.execPath, [
+            '--input-type=module', '--eval', `
+            const { worktreeParent } = await import('${pathToFileURL(scriptPath).href}');
+            console.log(JSON.stringify({ worktreeParent }));
+        `
+        ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+        const { worktreeParent } = JsonUtilities.parse<{ worktreeParent: string }>(output);
+        const repoRoot: string = path.resolve(__dirname, '..', '..', '..', '..', '..');
+
+        expect(worktreeParent).toBe(path.dirname(repoRoot));
+        expect(worktreeParent.startsWith(os.tmpdir())).toBe(false);
+    });
+
     it('fails on an operation more than the limit slower than on the release, and passes one within it', () => {
         const slower: BenchmarkComparison = compare(rounds([1, 1, 1, 1]), rounds([1.4, 1.4, 1.4, 1.4]), [], '3.0.0');
         const within: BenchmarkComparison = compare(rounds([1, 1, 1, 1]), rounds([1.2, 1.2, 1.2, 1.2]), [], '3.0.0');

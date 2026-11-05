@@ -128,7 +128,11 @@ type WorkspaceManifest = {
     /**
      * The npm scripts it is built and tested with.
      */
-    scripts?: Record<string, string>
+    scripts?: Record<string, string>,
+    /**
+     * How it is published.
+     */
+    publishConfig?: { access?: string }
 };
 
 /**
@@ -434,6 +438,21 @@ describe('the ci workflows', () => {
     // a timing says as much about the machine as about the change. The benchmarks are compared with the
     // release they would replace, run in turns on the same runner, and a recorded number - taken on
     // whichever machine recorded it - is never what a build is held to
+    // the benchmark comparison checks this release out somewhere and runs jest there, with this
+    // configuration: an ignore pattern matching that path leaves the release without suites, and a
+    // bare word did, under the system's temp directory
+    it('ignores no suite by a path it is checked out under', () => {
+        const { patterns } = inResolverProcess<{ patterns: string[] }>(`
+            const { default: config } = await import('${pathToFileURL(path.join(packagesDir, 'zibri', 'jest.config.mjs')).href}');
+            console.log(JSON.stringify({ patterns: config.modulePathIgnorePatterns ?? [] }));
+        `);
+        const releaseSources: string = '/tmp/zibri-benchmark-release-abc123/packages/zibri/src';
+        const releaseSuite: string = `${releaseSources}/__testing__/benchmark/framework-overhead.benchmark.test.ts`;
+
+        const ignoring: string[] = patterns.filter(pattern => new RegExp(pattern.replaceAll('<rootDir>', releaseSources)).test(releaseSuite));
+        expect(ignoring).toStrictEqual([]);
+    });
+
     it('compares the benchmarks with the release, and commits no baseline', () => {
         const ci: string = workflow('ci.yml');
         const committed: string[] = execFileSync('git', ['ls-files', '*.baseline.json'], { cwd: repoRoot, encoding: 'utf8' })
@@ -726,6 +745,17 @@ describe('the release workflow', () => {
 
     it('publishes with provenance', () => {
         expect(workflow('cd.yml')).toContain('--provenance');
+    });
+
+    // npm attests a package only when it says it is public, and refuses the publish of one the
+    // registry has not seen otherwise. The rehearsal cannot say so: a dry run attests nothing
+    it('publishes every package as public, which provenance asks of a package the registry has not seen', () => {
+        const manifests: WorkspaceManifest[] = Object.values(workspaceManifests());
+
+        for (const name of publishedPackages()) {
+            const manifest: WorkspaceManifest | undefined = manifests.find(m => m.name === name);
+            expect({ name, access: manifest?.publishConfig?.access }).toEqual({ name, access: 'public' });
+        }
     });
 
     it('builds every package before it publishes any of them', () => {
