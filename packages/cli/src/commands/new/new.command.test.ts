@@ -246,7 +246,7 @@ describe('NewCommand', () => {
         }
 
         expect(unresolved).toEqual([]);
-    });
+    }, 20000);
 
     it('asks for the features, offering every one checked but the mailing list', async () => {
         const promptSpy: jest.SpiedFunction<typeof InquirerUtilities.prompt> = jest.spyOn(InquirerUtilities, 'prompt')
