@@ -29,7 +29,10 @@ import { ScryptCost } from '../../hash/strategies/scrypt.hash-strategy';
  */
 async function resolveLoginDurationsInMs(baseUrl: string, emails: string[]): Promise<number[]> {
     const durations: number[][] = emails.map(() => []);
-    for (let attempt: number = 0; attempt < 3; attempt++) {
+    // seven rather than three: a derivation at this cost is bound by memory bandwidth, which a busy
+    // suite running alongside takes away in bursts, and three samples caught one address in a
+    // burst and the other outside it
+    for (let attempt: number = 0; attempt < 7; attempt++) {
         for (const [index, email] of emails.entries()) {
             const started: number = performance.now();
             const res: Response = await fetch(`${baseUrl}/auth/login`, {

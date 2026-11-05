@@ -41,6 +41,38 @@ function workflow(name: string): string {
 }
 
 /**
+ * The jobs of a workflow, each as written.
+ * @param content - A workflow definition.
+ * @returns The definition of each job, by the job's name.
+ */
+function jobsOf(content: string): Record<string, string> {
+    const jobs: Record<string, string> = {};
+    let current: string | undefined;
+    for (const line of content.slice(content.indexOf('\njobs:\n')).split('\n')) {
+        const started: string | undefined = /^ {4}([\w-]+):$/.exec(line)?.[1];
+        if (started != undefined) {
+            current = started;
+            jobs[current] = '';
+            continue;
+        }
+        if (current != undefined) {
+            jobs[current] += `${line}\n`;
+        }
+    }
+    return jobs;
+}
+
+/**
+ * The steps of a job that run one of the framework's npm scripts, with what they append to it.
+ * @param job - The job, as written.
+ * @returns One entry per step: the script, and what the step passes on to it after `--`.
+ */
+function frameworkScriptsRunBy(job: string): { script: string, args: string }[] {
+    return [...job.matchAll(/npm run (\S+) -w zibri(?: -- (.*))?$/gm)]
+        .flatMap(m => m[1] == undefined ? [] : [{ script: m[1], args: m[2] ?? '' }]);
+}
+
+/**
  * Every node major a workflow names outright, as opposed to resolving.
  * @param content - A workflow definition.
  * @returns The majors, ascending.
@@ -358,10 +390,15 @@ describe('the ci workflows', () => {
     // every other suite imports TypeScript through ts-jest and sees nothing of what is published:
     // the suite loading the built package only means something after a build
     it('builds the package the way it is published before running its suites', () => {
-        const ci: string = workflow('ci.yml');
+        const testing: [string, string][] = Object.entries(jobsOf(workflow('ci.yml')))
+            .filter(([, job]) => frameworkScriptsRunBy(job).some(({ script }) => script.startsWith('test')));
 
-        expect(ci).toMatch(/npm run build:prod -w zibri/);
-        expect(ci.indexOf('npm run build:prod -w zibri')).toBeLessThan(ci.indexOf('npm run test:ci -w zibri'));
+        expect(testing.length).toBeGreaterThan(0);
+        for (const [name, job] of testing) {
+            const built: number = job.indexOf('npm run build:prod -w zibri');
+            const tested: number = job.search(/npm run test\S* -w zibri/);
+            expect({ name, builtBeforeTesting: built !== -1 && built < tested }).toEqual({ name, builtBeforeTesting: true });
+        }
     });
 
     it('runs on pull requests, not only on pushes', () => {
@@ -371,8 +408,18 @@ describe('the ci workflows', () => {
     });
 
     it('runs every test file of the framework', () => {
-        const patterns: (RegExp | undefined)[] = [...workflow('ci.yml').matchAll(/npm run (\S+) -w zibri$/gm)]
-            .flatMap(m => m[1] == undefined ? [] : resolveJestPatternsRunBy(m[1]));
+        const patterns: (RegExp | undefined)[] = Object.values(jobsOf(workflow('ci.yml'))).flatMap(job => frameworkScriptsRunBy(job).flatMap(({ script, args }) => {
+            // what a step appends narrows nothing: a shard takes its share of every file the
+            // script names, and the matrix has to hand out every share, or the files of the
+            // share it leaves out are never run and nothing says so
+            expect(args).not.toContain('--testPathPatterns');
+            const shards: string | undefined = /--shard=\$\{\{ matrix\.shard \}\}\/(\d+)/.exec(args)?.[1];
+            if (shards != undefined) {
+                const every: string = Array.from({ length: Number(shards) }, (_, i) => i + 1).join(', ');
+                expect(job).toMatch(new RegExp(`^ +shard: \\[${every}\\]$`, 'm'));
+            }
+            return resolveJestPatternsRunBy(script);
+        }));
         const notRun: string[] = frameworkTestFiles()
             .filter(file => !patterns.some(pattern => pattern == undefined || pattern.test(file)))
             .map(file => path.relative(packagesDir, file));

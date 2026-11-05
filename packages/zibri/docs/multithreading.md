@@ -146,7 +146,7 @@ Without it, no TypeScript compiler is loaded, neither package has to be installe
 
 An error that reaches neither a `try`/`catch` nor `reportError`, such as one thrown from a timer, a callback or a promise nobody awaited, ends the worker. The job is `FAILED` with that error, and a fresh worker takes its place in the pool. The next job starts on a clean thread.
 
-A worker that takes more memory than `multithreading.workerResourceLimits` allows ends the same way: the job is `FAILED` with the out of memory error, and the pool replaces the worker. The limit is per worker. By default it is an even share of the memory the process may use, split between the workers and the main thread. A job that allocates without end ends its own worker, and the process keeps running.
+A worker that takes more memory than `multithreading.workerResourceLimits` allows ends the same way: the job is `FAILED` with the out of memory error, and the pool replaces the worker. The limit is per worker. By default it is an even share of the memory the process may use, split between the workers and the main thread. A job that allocates without end ends its own worker, and the process keeps running. With a `maxOldGenerationSizeMb`, the young generation is bounded to 8 MB unless `maxYoungGenerationSizeMb` names its own size.
 
 The job's `error` is a `LoggedError`: `{ name, paragraphs, stackTrace }`, the same shape a log entry carries. `paragraphs` holds the message and the `cause` chain beneath it. `run` rejects with a real `Error` rebuilt from it, and `onError` is handed one too.
 
@@ -357,7 +357,7 @@ The options:
 - `defaultPriorityTimeoutInMs`: The default timeout for a priority thread job. Defaults to 5 minutes.
 - `jobClaimInMs`: How long the claim on a running job lives before another instance may take that job over. It is renewed for as long as the job runs, so it does not limit how long a job takes. It sets how quickly work is taken back from an instance that stopped existing. Defaults to 30 seconds.
 - `maxAttempts`: How many times a job may be started, its first start and every takeover counted, before it is failed instead of taken over again. Defaults to 3.
-- `workerResourceLimits`: The memory a worker thread may take, as node's `Worker` takes its `resourceLimits`. Defaults to a `maxOldGenerationSizeMb` of an even share of the memory the process may use, split between the workers and the main thread. `{}` leaves node's own limits in place.
+- `workerResourceLimits`: The memory a worker thread may take, as node's `Worker` takes its `resourceLimits`. Defaults to a `maxOldGenerationSizeMb` of an even share of the memory the process may use, split between the workers and the main thread. A `maxOldGenerationSizeMb` bounds the young generation to 8 MB with it, unless `maxYoungGenerationSizeMb` names its own size. `{}` leaves node's own limits in place.
 - `enableTsWorkerFiles`: Whether a worker file may be TypeScript, see [running TypeScript worker files](#running-typescript-worker-files). Defaults to `false`.
 
 `maxThreads + maxPriorityThreads` may be at most the available parallelism of the machine.

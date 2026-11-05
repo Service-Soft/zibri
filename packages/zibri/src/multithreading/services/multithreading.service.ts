@@ -1,5 +1,5 @@
 import os from 'node:os';
-import { Worker } from 'node:worker_threads';
+import { type ResourceLimits, Worker } from 'node:worker_threads';
 
 import { filter, firstValueFrom } from 'rxjs';
 
@@ -191,6 +191,32 @@ function validateNotAFunctionJob(workerData: BaseThreadJobWorkerData): void {
     if ('func' in workerData) {
         throw new PersistedFunctionJobError();
     }
+}
+
+/**
+ * The young generation a worker thread gets along with a bounded old one, in megabytes.
+ */
+const BOUNDED_WORKER_YOUNG_GENERATION_IN_MB: number = 8;
+
+/**
+ * The limits a worker thread is started with: the configured ones, with the young generation
+ * bounded whenever the old one is and nothing names its size.
+ * @param configured - The limits as configured.
+ * @returns The limits to start the worker with.
+ */
+function resolveWorkerResourceLimits(configured: ResourceLimits): ResourceLimits {
+    if (configured.maxOldGenerationSizeMb == undefined || configured.maxYoungGenerationSizeMb != undefined) {
+        return configured;
+    }
+    // node gives a thread that reaches its old generation limit sixteen megabytes to stop in, and
+    // a scavenge promotes the survivors of a whole young generation into the old one at once. V8
+    // sizes the young generation for the machine, not for the limit, so one scavenge can reach
+    // past that room, and the thread then takes its process with it instead of ending alone.
+    // Bounded well under that room, a scavenge never needs more than node grants
+    return {
+        ...configured,
+        maxYoungGenerationSizeMb: Math.min(BOUNDED_WORKER_YOUNG_GENERATION_IN_MB, configured.maxOldGenerationSizeMb)
+    };
 }
 
 /**
@@ -459,7 +485,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         // than the thing itself.
         const worker: Worker = new Worker(
             this.threadJobWorkerFilePath,
-            { workerData: {}, resourceLimits: this.options.workerResourceLimits }
+            { workerData: {}, resourceLimits: resolveWorkerResourceLimits(this.options.workerResourceLimits) }
         );
         const threadJobWorker: ThreadJobWorker = new ThreadJobWorker(worker, priority, worker.threadId);
 

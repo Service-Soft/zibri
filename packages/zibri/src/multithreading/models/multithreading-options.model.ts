@@ -55,7 +55,9 @@ export type MultithreadingOptions = {
      * A worker that goes past `maxOldGenerationSizeMb` is ended for it, and its job is `FAILED`
      * with the out of memory error, where a worker without the limit takes the whole process down
      * with it once the container's limit is hit - and the job is then taken over by the next
-     * instance. An empty object leaves node's own limits in place.
+     * instance. A `maxOldGenerationSizeMb` bounds the young generation with it, to 8 MB, unless
+     * `maxYoungGenerationSizeMb` names its own size. An empty object leaves node's own limits in
+     * place.
      * @default `{ maxOldGenerationSizeMb }` with an even share of the memory the process may use, split between the workers and the main thread.
      */
     workerResourceLimits: ResourceLimits,

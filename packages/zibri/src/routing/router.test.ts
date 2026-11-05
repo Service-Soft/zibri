@@ -299,6 +299,11 @@ const largeJsonPayload: { rows: { id: string, name: string, amount: bigint, acti
 };
 
 /**
+ * The large result as the framework writes it.
+ */
+const largeJsonString: string = JsonUtilities.stringify(largeJsonPayload);
+
+/**
  * How long a route takes to produce the first byte of its answer.
  *
  * A json answer is written in one piece, so its first byte leaves only once it is serialized in full:
@@ -325,7 +330,7 @@ async function timeToFirstByte(url: string): Promise<number> {
 }
 
 /**
- * How long each route takes to its first byte, the quickest of three. The quickest rather than the
+ * How long each route takes to its first byte, the quickest of five. The quickest rather than the
  * average: every request does the same deterministic work, so a slower one only means something else
  * happened. The routes take turns, so a machine that gets busier or quieter meanwhile slows all of
  * them alike.
@@ -334,7 +339,7 @@ async function timeToFirstByte(url: string): Promise<number> {
  */
 async function resolveFastestRequestsInMs(urls: string[]): Promise<number[]> {
     const durations: number[][] = urls.map(() => []);
-    for (let attempt: number = 0; attempt < 3; attempt++) {
+    for (let attempt: number = 0; attempt < 5; attempt++) {
         for (const [index, url] of urls.entries()) {
             durations[index]?.push(await timeToFirstByte(url));
         }
@@ -598,9 +603,15 @@ describe('Router — the method a request arrived with, and what a path allows',
         router.registerRoute({ httpMethod: HttpMethod.GET, route: '/methods/thing', openApi: { useInOpenApi: false }, handler: () => ({ read: true }) });
         router.registerRoute({ httpMethod: HttpMethod.POST, route: '/methods/thing', openApi: { useInOpenApi: false }, handler: () => ({ written: true }) });
         router.registerRoute({ httpMethod: HttpMethod.GET, route: '/json/large', openApi: { useInOpenApi: false }, handler: () => largeJsonPayload });
-        // the same route with nothing to serialize, so what a request costs before the body is a
-        // measurement rather than an allowance
-        router.registerRoute({ httpMethod: HttpMethod.GET, route: '/json/empty', openApi: { useInOpenApi: false }, handler: () => ({ rows: [] }) });
+        // the same answer as a string the framework writes as it is, so what a body of this size
+        // costs on its way out - the validator, the encoding, the write - is a measurement rather
+        // than an allowance
+        router.registerRoute({
+            httpMethod: HttpMethod.GET,
+            route: '/json/large-written',
+            openApi: { useInOpenApi: false },
+            handler: () => HtmlResponse.fromString(largeJsonString)
+        });
         // the same answer, with the round trip res.json used to make done in the handler: what the
         // framework's one pass is measured against, as a request under the same load
         router.registerRoute({
@@ -684,27 +695,30 @@ describe('Router — the method a request arrived with, and what a path allows',
         expect(await res.text()).toBe(JsonUtilities.stringify(largeJsonPayload));
     }, 30000);
 
-    // against the other candidate measured here and now, as a request under the same load, so this
-    // says something about the framework rather than about the machine: one pass, and the round
-    // trip res.json used to make. Measured in process, the serializing alone was slowed less by a
-    // busy machine than a request is, and the comparison read as a regression
+    // against the other candidates measured here and now, as requests under the same load, so this
+    // says something about the framework rather than about the machine: the same string written as
+    // it is, and the round trip res.json used to make. Measured in process, the serializing alone
+    // was slowed less by a busy machine than a request is, and the comparison read as a regression;
+    // measured against an empty answer, what a body of this size costs on its way out - a validator
+    // over it, its encoding, the write - counted as serializing, and read as one under load as well
     it('costs one serializing pass over a json result rather than three', async () => {
         // warmed first, or the measured request pays for compiling everything on the way
-        for (const route of ['/json/large', '/json/large-three-passes', '/json/empty']) {
+        for (const route of ['/json/large-written', '/json/large', '/json/large-three-passes']) {
             await timeToFirstByte(`${baseUrl}${route}`);
         }
 
-        // a connection, express, the middleware and the router: a constant of the machine, which
-        // left in would compare a round trip against two function calls
-        const [overhead = 0, onePass = 0, threePasses = 0] = await resolveFastestRequestsInMs(
-            ['/json/empty', '/json/large', '/json/large-three-passes'].map(route => `${baseUrl}${route}`)
+        const [written = 0, onePass = 0, threePasses = 0] = await resolveFastestRequestsInMs(
+            ['/json/large-written', '/json/large', '/json/large-three-passes'].map(route => `${baseUrl}${route}`)
         );
 
-        // the third route differs from the second by the round trip alone, whatever the router does,
-        // so it is a bar the router cannot move: about two passes, a parse costing nearly what a
-        // stringify does. One pass stays under it and three go over it. A ratio of the two routes
-        // could not tell them apart, since a router writing three times adds the same to both
-        expect(onePass - overhead).toBeLessThan(threePasses - onePass);
+        // all three write the same body, so what the json route adds over the written one is its
+        // serializing, and what the third adds over the json one is the round trip alone, whatever
+        // the router does: a stringify and a parse, a bar the router cannot move. One pass stays
+        // under it and three go over it. A ratio could not tell them apart, since a router writing
+        // three times adds the same to both.
+        // with the three timings, so that a run that fails says what each request cost
+        expect({ written, onePass, threePasses, onePassUnderTwo: onePass - written < threePasses - onePass })
+            .toEqual({ written, onePass, threePasses, onePassUnderTwo: true });
     }, 60000);
 });
 
