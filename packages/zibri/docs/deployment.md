@@ -28,6 +28,8 @@ The Dockerfile builds it with `npm run build -- --env deployment`, which leaves 
 out of it, and starts the application with `node --enable-source-maps`. A deployment of your own does
 both.
 
+A stack trace keeps [as many frames as `stackTraceLimit` says](./app-settings.md#choosing-how-much-of-a-stack-trace-to-keep).
+
 `versions` sits beside `dist`: each release records the routes it serves, and the release after it is
 checked against that record. A release is recorded when the application starts in development. Commit
 the folder to version control, and copy it into every deployment, where the application only reads it

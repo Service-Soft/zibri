@@ -65,6 +65,26 @@ afterAll(() => {
 
 // the origin of every entry below is this file, the caller of the logger
 describe('levels by origin', () => {
+    it('finds the origin from every level, however deep the caller is', async () => {
+        const quiet: Received = recordingTransport(LogLevel.CRITICAL, { 'logging/logger.levels-by-origin': LogLevel.DEBUG });
+        const logger: Logger = loggerWith(quiet.transport);
+        const logFromDepth: (depth: number) => void = depth => {
+            if (depth > 0) {
+                logFromDepth(depth - 1);
+                return;
+            }
+            logger.debug('debug');
+            logger.info('info');
+            logger.warn('warn');
+            logger.error(new Error('error'));
+        };
+
+        logFromDepth(20);
+        await logger.flush();
+
+        expect(quiet.messages).toEqual(['debug', 'info', 'warn', 'error']);
+    });
+
     it('lets a transport hear more from an origin than its own level admits', async () => {
         const quiet: Received = recordingTransport(LogLevel.WARN, { 'logging/logger.levels-by-origin': LogLevel.DEBUG });
         const logger: Logger = loggerWith(quiet.transport);
@@ -84,6 +104,16 @@ describe('levels by origin', () => {
         await logger.flush();
 
         expect(noisy.messages).toEqual(['the project is gone']);
+    });
+
+    it('goes by the file whichever extension a key and the origin end in', async () => {
+        const quiet: Received = recordingTransport(LogLevel.WARN, { 'logging/logger.levels-by-origin.test.js': LogLevel.DEBUG });
+        const logger: Logger = loggerWith(quiet.transport);
+
+        logger.debug('looking up the project');
+        await logger.flush();
+
+        expect(quiet.messages).toEqual(['looking up the project']);
     });
 
     it('takes the longest key the origin contains', async () => {

@@ -20,6 +20,7 @@ and the linter disagree, the linter wins and this file is wrong; open an issue.
 - [Shape of the code](#shape-of-the-code)
 - [Types](#types)
 - [Comments and JSDoc](#comments-and-jsdoc)
+- [Messages for the user](#messages-for-the-user)
 - [The documentation](#the-documentation)
 - [Tests](#tests)
 
@@ -156,6 +157,20 @@ whoever has to change this in a year.
 
 Comment density matches the surrounding file. A comment restating the code is noise; a comment
 explaining a decision is the most valuable line on the screen.
+
+# Messages for the user
+
+**A validation message says what the value needs to be.** It is only read when the value is not that,
+so a rule stated as a fact is false for the one value it is shown for. "A password has at least 15
+characters" is what the password does not do; "A password needs to be at least 15 characters long" is
+what its author has to change.
+
+**"needs to" is the one wording of a requirement.** Not "has to", "should" or "must", and not the plain
+present ("An externalId is a string"). A problem reported under a key starts at the verb, since the key
+is its subject: `needs to be at most 5`.
+
+**A fact about what was refused stays a fact**, as long as it is true of that value: `is required`,
+`The role 'admin' does not exist`, `The filter cannot be read at "x"`.
 
 # The documentation
 

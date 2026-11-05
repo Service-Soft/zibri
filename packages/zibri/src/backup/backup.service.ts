@@ -559,7 +559,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
     private validateBackupName(name: string | undefined): void {
         if (name != undefined && !this.isPathSegment(name)) {
             throw new BadRequestError(
-                $ts`The name of a backup is one segment of a path: it is not empty, "." or "..", and holds no slash.`
+                $ts`The name of a backup needs to be one segment of a path: not empty, "." or "..", and without a slash.`
             );
         }
     }

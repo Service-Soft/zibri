@@ -485,7 +485,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 // anything else is said at once rather than read as some other offset
                 const offset: unknown = socket.handshake.auth['offset'];
                 if (offset !== undefined && !(typeof offset === 'number' && Number.isInteger(offset) && offset >= 0)) {
-                    next(new BadRequestError($ts`The offset has to be a whole number of at least 0.`));
+                    next(new BadRequestError($ts`The offset needs to be a whole number of at least 0.`));
                     return;
                 }
                 const request: WebsocketRequest = {
@@ -670,7 +670,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 return;
             }
             if (args.length > 1) {
-                const error: HttpError = new BadRequestError($ts`There should only be one message sent.`);
+                const error: HttpError = new BadRequestError($ts`Exactly one message needs to be sent.`);
                 await this.send({
                     connection,
                     event: WebsocketEvent.RESPONSE,

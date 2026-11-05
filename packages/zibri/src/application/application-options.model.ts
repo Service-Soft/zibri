@@ -215,6 +215,13 @@ export type ZibriApplicationOptions = {
      */
     passwordFailureLimit?: PasswordFailureLimit,
     /**
+     * How many frames a stack trace keeps, in the process and in its thread jobs. `0` turns stack traces
+     * off. Below 3, the origin of a log entry is `unknown`.
+     *
+     * Defaults to 50.
+     */
+    stackTraceLimit?: number,
+    /**
      * The cron jobs to register in the app.
      */
     cronJobs?: Newable<CronJob>[],

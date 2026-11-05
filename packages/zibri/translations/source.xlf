@@ -26,8 +26,8 @@
         <source><x id="$1" equiv-text="{$1}"/></source>
         <note>src/auth/scim/scim-bulk.utilities.ts:235</note>
       </trans-unit>
-      <trans-unit id="A {$1} has to belong to the tenant of the row it is written with." xml:space="preserve">
-        <source>A <x id="$1" equiv-text="{$1}"/> has to belong to the tenant of the row it is written with.</source>
+      <trans-unit id="A {$1} needs to belong to the tenant of the row it is written with." xml:space="preserve">
+        <source>A <x id="$1" equiv-text="{$1}"/> needs to belong to the tenant of the row it is written with.</source>
         <note>src/data-source/tenancy/tenant.utilities.ts:347</note>
       </trans-unit>
       <trans-unit id="A {$1} that belongs to no tenant is changed across tenants only." xml:space="preserve">
@@ -38,37 +38,37 @@
         <source>A <x id="$1" equiv-text="{$1}"/> to delete changed since it was read, so none was deleted.</source>
         <note>src/data-source/repository/repository.ts:2919</note>
       </trans-unit>
-      <trans-unit id="A bulk request holds at most {$1} operations, this one {$2}." xml:space="preserve">
-        <source>A bulk request holds at most <x id="$1" equiv-text="{$1}"/> operations, this one <x id="$2" equiv-text="{$2}"/>.</source>
+      <trans-unit id="A bulk request needs to hold at most {$1} operations, this one holds {$2}." xml:space="preserve">
+        <source>A bulk request needs to hold at most <x id="$1" equiv-text="{$1}"/> operations, this one holds <x id="$2" equiv-text="{$2}"/>.</source>
         <note>src/auth/scim/scim-bulk.utilities.ts:245</note>
       </trans-unit>
-      <trans-unit id="A client_assertion is a jwt, sent with the client_assertion_type {$1}." xml:space="preserve">
-        <source>A client_assertion is a jwt, sent with the client_assertion_type <x id="$1" equiv-text="{$1}"/>.</source>
+      <trans-unit id="A client_assertion needs to be a jwt, sent with the client_assertion_type {$1}." xml:space="preserve">
+        <source>A client_assertion needs to be a jwt, sent with the client_assertion_type <x id="$1" equiv-text="{$1}"/>.</source>
         <note>src/auth/authorization-server/authorization-server.service.ts:460</note>
       </trans-unit>
-      <trans-unit id="A client_secret is sent with a client_id." xml:space="preserve">
-        <source>A client_secret is sent with a client_id.</source>
+      <trans-unit id="A client_secret needs to be sent with a client_id." xml:space="preserve">
+        <source>A client_secret needs to be sent with a client_id.</source>
         <note>src/auth/authorization-server/authorization-server.service.ts:452</note>
       </trans-unit>
       <trans-unit id="A code was sent a moment ago. Wait before asking for another one." xml:space="preserve">
         <source>A code was sent a moment ago. Wait before asking for another one.</source>
         <note>src/auth/2fa/methods/code/code.two-factor-method.ts:291</note>
       </trans-unit>
-      <trans-unit id="A connection that does not log in has to ask for scopes." xml:space="preserve">
-        <source>A connection that does not log in has to ask for scopes.</source>
+      <trans-unit id="A connection that does not log in needs to ask for scopes." xml:space="preserve">
+        <source>A connection that does not log in needs to ask for scopes.</source>
         <note>src/auth/authenticators/federated/base-federated.authenticator.ts:298</note>
       </trans-unit>
       <trans-unit id="A currency code is required." xml:space="preserve">
         <source>A currency code is required.</source>
         <note>src/plugin/payment/providers/pay-pal/pay-pal.payment-provider.ts:275</note>
       </trans-unit>
-      <trans-unit id="A group is a json object." xml:space="preserve">
-        <source>A group is a json object.</source>
-        <note>src/auth/scim/scim.service.ts:1109</note>
-      </trans-unit>
       <trans-unit id="A group needs a displayName." xml:space="preserve">
         <source>A group needs a displayName.</source>
         <note>src/auth/scim/scim.service.ts:1113</note>
+      </trans-unit>
+      <trans-unit id="A group needs to be a json object." xml:space="preserve">
+        <source>A group needs to be a json object.</source>
+        <note>src/auth/scim/scim.service.ts:1109</note>
       </trans-unit>
       <trans-unit id="A login is bound to a DPoP key, which the request carries no proof of." xml:space="preserve">
         <source>A login is bound to a DPoP key, which the request carries no proof of.</source>
@@ -78,41 +78,41 @@
         <source>A member of the group is no provisioned user or group.</source>
         <note>src/auth/scim/scim.service.ts:903</note>
       </trans-unit>
-      <trans-unit id="A password has at least {$1} characters." xml:space="preserve">
-        <source>A password has at least <x id="$1" equiv-text="{$1}"/> characters.</source>
+      <trans-unit id="A password needs to be at least {$1} characters long." xml:space="preserve">
+        <source>A password needs to be at least <x id="$1" equiv-text="{$1}"/> characters long.</source>
         <note>src/auth/password-policy/password-policy.utilities.ts:49</note>
       </trans-unit>
-      <trans-unit id="A password has at most {$1} characters." xml:space="preserve">
-        <source>A password has at most <x id="$1" equiv-text="{$1}"/> characters.</source>
+      <trans-unit id="A password needs to be at most {$1} characters long." xml:space="preserve">
+        <source>A password needs to be at most <x id="$1" equiv-text="{$1}"/> characters long.</source>
         <note>src/auth/password-policy/password-policy.utilities.ts:53</note>
       </trans-unit>
-      <trans-unit id="A patch request names the PatchOp schema and holds Operations." xml:space="preserve">
-        <source>A patch request names the PatchOp schema and holds Operations.</source>
+      <trans-unit id="A patch request needs to name the PatchOp schema and hold Operations." xml:space="preserve">
+        <source>A patch request needs to name the PatchOp schema and hold Operations.</source>
         <note>src/auth/scim/scim-patch.utilities.ts:46</note>
       </trans-unit>
       <trans-unit id="A payment for the transactionId &#x22;{$1}&#x22; already exists." xml:space="preserve">
         <source>A payment for the transactionId "<x id="$1" equiv-text="{$1}"/>" already exists.</source>
         <note>src/plugin/payment/services/payment.service.ts:121</note>
       </trans-unit>
-      <trans-unit id="A POST names /Users or /Groups, every other operation a resource, eg. /Users/{{id}}." xml:space="preserve">
-        <source>A POST names /Users or /Groups, every other operation a resource, eg. /Users/{id}.</source>
+      <trans-unit id="A POST needs to name /Users or /Groups, every other operation a resource, eg. /Users/{{id}}." xml:space="preserve">
+        <source>A POST needs to name /Users or /Groups, every other operation a resource, eg. /Users/{id}.</source>
         <note>src/auth/scim/scim-bulk.utilities.ts:325</note>
       </trans-unit>
-      <trans-unit id="A remove operation names a path." xml:space="preserve">
-        <source>A remove operation names a path.</source>
+      <trans-unit id="A remove operation needs to name a path." xml:space="preserve">
+        <source>A remove operation needs to name a path.</source>
         <note>src/auth/scim/scim-patch.utilities.ts:82</note>
       </trans-unit>
       <trans-unit id="A request from another origin may not carry cookies for this api." xml:space="preserve">
         <source>A request from another origin may not carry cookies for this api.</source>
         <note>src/http/cross-origin-cookie.middleware.ts:65</note>
       </trans-unit>
-      <trans-unit id="A role is held at the 'tenant' or the 'platform' level." xml:space="preserve">
-        <source>A role is held at the 'tenant' or the 'platform' level.</source>
-        <note>src/auth/roles/role.service.ts:353</note>
-      </trans-unit>
       <trans-unit id="A role named '{$1}' exists already." xml:space="preserve">
         <source>A role named '<x id="$1" equiv-text="{$1}"/>' exists already.</source>
         <note>src/auth/roles/role.service.ts:485</note>
+      </trans-unit>
+      <trans-unit id="A role needs to be held at the 'tenant' or the 'platform' level." xml:space="preserve">
+        <source>A role needs to be held at the 'tenant' or the 'platform' level.</source>
+        <note>src/auth/roles/role.service.ts:353</note>
       </trans-unit>
       <trans-unit id="A row of a tenant cannot be written together with a {$1}, which belongs to none." xml:space="preserve">
         <source>A row of a tenant cannot be written together with a <x id="$1" equiv-text="{$1}"/>, which belongs to none.</source>
@@ -130,24 +130,24 @@
         <source>A tenant role is given and taken in the tenant a request acts in, and this one acts in none.</source>
         <note>src/auth/roles/role.service.ts:575</note>
       </trans-unit>
-      <trans-unit id="A url encoded form has to be sent as text." xml:space="preserve">
-        <source>A url encoded form has to be sent as text.</source>
+      <trans-unit id="A url encoded form needs to be sent as text." xml:space="preserve">
+        <source>A url encoded form needs to be sent as text.</source>
         <note>src/parsing/form-url-encoded/form-url-encoded.body-parser.ts:64</note>
-      </trans-unit>
-      <trans-unit id="A user is a json object." xml:space="preserve">
-        <source>A user is a json object.</source>
-        <note>src/auth/scim/scim.service.ts:1087</note>
       </trans-unit>
       <trans-unit id="A user needs a userName." xml:space="preserve">
         <source>A user needs a userName.</source>
         <note>src/auth/scim/scim.service.ts:1091</note>
       </trans-unit>
+      <trans-unit id="A user needs to be a json object." xml:space="preserve">
+        <source>A user needs to be a json object.</source>
+        <note>src/auth/scim/scim.service.ts:1087</note>
+      </trans-unit>
       <trans-unit id="Access tokens work until they expire, so they cannot be revoked." xml:space="preserve">
         <source>Access tokens work until they expire, so they cannot be revoked.</source>
         <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:646, src/auth/strategies/client-access-token/client-access-token.auth-strategy.ts:228</note>
       </trans-unit>
-      <trans-unit id="An amount in {$1} has at most {$2} decimals." xml:space="preserve">
-        <source>An amount in <x id="$1" equiv-text="{$1}"/> has at most <x id="$2" equiv-text="{$2}"/> decimals.</source>
+      <trans-unit id="An amount in {$1} needs to have at most {$2} decimals." xml:space="preserve">
+        <source>An amount in <x id="$1" equiv-text="{$1}"/> needs to have at most <x id="$2" equiv-text="{$2}"/> decimals.</source>
         <note>src/plugin/payment/providers/pay-pal/pay-pal.payment-provider.ts:281</note>
       </trans-unit>
       <trans-unit id="An api key cannot expire in the past." xml:space="preserve">
@@ -158,20 +158,20 @@
         <source>An api key needs a name.</source>
         <note>src/auth/strategies/api-key/api-key.service.ts:264</note>
       </trans-unit>
-      <trans-unit id="An externalId is a string." xml:space="preserve">
-        <source>An externalId is a string.</source>
+      <trans-unit id="An externalId needs to be a string." xml:space="preserve">
+        <source>An externalId needs to be a string.</source>
         <note>src/auth/scim/scim.service.ts:1142</note>
       </trans-unit>
-      <trans-unit id="An operation is add, remove or replace, with an optional path." xml:space="preserve">
-        <source>An operation is add, remove or replace, with an optional path.</source>
+      <trans-unit id="An operation needs to be add, remove or replace, with an optional path." xml:space="preserve">
+        <source>An operation needs to be add, remove or replace, with an optional path.</source>
         <note>src/auth/scim/scim-patch.utilities.ts:57</note>
       </trans-unit>
-      <trans-unit id="An operation without a path holds the attributes it changes." xml:space="preserve">
-        <source>An operation without a path holds the attributes it changes.</source>
+      <trans-unit id="An operation without a path needs to hold the attributes it changes." xml:space="preserve">
+        <source>An operation without a path needs to hold the attributes it changes.</source>
         <note>src/auth/scim/scim-patch.utilities.ts:87</note>
       </trans-unit>
-      <trans-unit id="an XML body has to be sent as text" xml:space="preserve">
-        <source>an XML body has to be sent as text</source>
+      <trans-unit id="an XML body needs to be sent as text" xml:space="preserve">
+        <source>an XML body needs to be sent as text</source>
         <note>src/parsing/xml/xml.body-parser.ts:65</note>
       </trans-unit>
       <trans-unit id="Another {$1} already holds these values for &#x22;{$2}&#x22;." xml:space="preserve">
@@ -302,12 +302,16 @@
         <source>Error generating token</source>
         <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:786</note>
       </trans-unit>
-      <trans-unit id="Every member of a group names the id of a user or a group as its value." xml:space="preserve">
-        <source>Every member of a group names the id of a user or a group as its value.</source>
+      <trans-unit id="Every member of a group needs to name the id of a user or a group as its value." xml:space="preserve">
+        <source>Every member of a group needs to name the id of a user or a group as its value.</source>
         <note>src/auth/scim/scim.service.ts:1122</note>
       </trans-unit>
-      <trans-unit id="failOnErrors is a whole number above 0." xml:space="preserve">
-        <source>failOnErrors is a whole number above 0.</source>
+      <trans-unit id="Exactly one message needs to be sent." xml:space="preserve">
+        <source>Exactly one message needs to be sent.</source>
+        <note>src/websocket/services/websocket.service.ts:673</note>
+      </trans-unit>
+      <trans-unit id="failOnErrors needs to be a whole number above 0." xml:space="preserve">
+        <source>failOnErrors needs to be a whole number above 0.</source>
         <note>src/auth/scim/scim-bulk.utilities.ts:292</note>
       </trans-unit>
       <trans-unit id="February" xml:space="preserve">
@@ -330,13 +334,9 @@
         <source>Gateway Timeout</source>
         <note>src/error-handling/errors/gateway-timeout.error.ts:16</note>
       </trans-unit>
-      <trans-unit id="Groups sort by id, displayName, externalId, meta.created or meta.lastModified." xml:space="preserve">
-        <source>Groups sort by id, displayName, externalId, meta.created or meta.lastModified.</source>
+      <trans-unit id="Groups need to be sorted by id, displayName, externalId, meta.created or meta.lastModified." xml:space="preserve">
+        <source>Groups need to be sorted by id, displayName, externalId, meta.created or meta.lastModified.</source>
         <note>src/auth/scim/scim-where.utilities.ts:690</note>
-      </trans-unit>
-      <trans-unit id="has to be one of: {$1}" xml:space="preserve">
-        <source>has to be one of: <x id="$1" equiv-text="{$1}"/></source>
-        <note>src/validation/validation-problem.model.ts:131</note>
       </trans-unit>
       <trans-unit id="Internal Server Error" xml:space="preserve">
         <source>Internal Server Error</source>
@@ -414,6 +414,10 @@
         <source>Name one of <x id="$1" equiv-text="{$1}"/> in "<x id="$2" equiv-text="{$2}"/>".</source>
         <note>src/auth/auth-controller/auth-controller.utilities.ts:86</note>
       </trans-unit>
+      <trans-unit id="needs to be after &#x22;{$1}&#x22;" xml:space="preserve">
+        <source>needs to be after "<x id="$1" equiv-text="{$1}"/>"</source>
+        <note>src/validation/functions/validate-date.function.ts:82</note>
+      </trans-unit>
       <trans-unit id="needs to be at least {$1}" xml:space="preserve">
         <source>needs to be at least <x id="$1" equiv-text="{$1}"/></source>
         <note>src/validation/functions/validate-number.function.ts:93</note>
@@ -430,9 +434,21 @@
         <source>needs to be at most <x id="$1" equiv-text="{$1}"/> characters long</source>
         <note>src/validation/functions/validate-string.function.ts:102</note>
       </trans-unit>
+      <trans-unit id="needs to be before &#x22;{$1}&#x22;" xml:space="preserve">
+        <source>needs to be before "<x id="$1" equiv-text="{$1}"/>"</source>
+        <note>src/validation/functions/validate-date.function.ts:78</note>
+      </trans-unit>
       <trans-unit id="needs to be in format &#x22;{$1}&#x22;" xml:space="preserve">
         <source>needs to be in format "<x id="$1" equiv-text="{$1}"/>"</source>
         <note>src/validation/functions/validate-number.function.ts:79, src/validation/functions/validate-string.function.ts:72</note>
+      </trans-unit>
+      <trans-unit id="needs to be of type {$1}" xml:space="preserve">
+        <source>needs to be of type <x id="$1" equiv-text="{$1}"/></source>
+        <note>src/validation/validation-problem.model.ts:54</note>
+      </trans-unit>
+      <trans-unit id="needs to be one of: {$1}" xml:space="preserve">
+        <source>needs to be one of: <x id="$1" equiv-text="{$1}"/></source>
+        <note>src/validation/validation-problem.model.ts:131</note>
       </trans-unit>
       <trans-unit id="needs to be smaller than {$1}" xml:space="preserve">
         <source>needs to be smaller than <x id="$1" equiv-text="{$1}"/></source>
@@ -542,13 +558,13 @@
         <source>Rate limit was reached</source>
         <note>src/rate-limiting/limiter/base-rate-limiter.model.ts:385, src/rate-limiting/limiter/semaphore.rate-limiter.ts:264</note>
       </trans-unit>
-      <trans-unit id="redirectTo has to be an absolute url." xml:space="preserve">
-        <source>redirectTo has to be an absolute url.</source>
-        <note>src/auth/authenticators/federated/base-federated.authenticator.ts:1203</note>
-      </trans-unit>
       <trans-unit id="redirectTo is not one of the allowed redirects." xml:space="preserve">
         <source>redirectTo is not one of the allowed redirects.</source>
         <note>src/auth/authenticators/federated/base-federated.authenticator.ts:1212</note>
+      </trans-unit>
+      <trans-unit id="redirectTo needs to be an absolute url." xml:space="preserve">
+        <source>redirectTo needs to be an absolute url.</source>
+        <note>src/auth/authenticators/federated/base-federated.authenticator.ts:1203</note>
       </trans-unit>
       <trans-unit id="relations are not allowed as part of create or update data." xml:space="preserve">
         <source>relations are not allowed as part of create or update data.</source>
@@ -577,18 +593,6 @@
       <trans-unit id="Service Unavailable" xml:space="preserve">
         <source>Service Unavailable</source>
         <note>src/error-handling/errors/service-unavailable.error.ts:15</note>
-      </trans-unit>
-      <trans-unit id="should be after &#x22;{$1}&#x22;" xml:space="preserve">
-        <source>should be after "<x id="$1" equiv-text="{$1}"/>"</source>
-        <note>src/validation/functions/validate-date.function.ts:82</note>
-      </trans-unit>
-      <trans-unit id="should be before &#x22;{$1}&#x22;" xml:space="preserve">
-        <source>should be before "<x id="$1" equiv-text="{$1}"/>"</source>
-        <note>src/validation/functions/validate-date.function.ts:78</note>
-      </trans-unit>
-      <trans-unit id="should be of type {$1}" xml:space="preserve">
-        <source>should be of type <x id="$1" equiv-text="{$1}"/></source>
-        <note>src/validation/validation-problem.model.ts:54</note>
       </trans-unit>
       <trans-unit id="Sunday" xml:space="preserve">
         <source>Sunday</source>
@@ -626,8 +630,8 @@
         <source>The <x id="$1" equiv-text="{$1}"/> with id "<x id="$2" equiv-text="{$2}"/>" is deleted.</source>
         <note>src/data-source/change-sets/soft-delete-repository.ts:400</note>
       </trans-unit>
-      <trans-unit id="The amount has to be greater than 0." xml:space="preserve">
-        <source>The amount has to be greater than 0.</source>
+      <trans-unit id="The amount needs to be greater than 0." xml:space="preserve">
+        <source>The amount needs to be greater than 0.</source>
         <note>src/plugin/payment/providers/pay-pal/pay-pal.payment-provider.ts:272</note>
       </trans-unit>
       <trans-unit id="The authorization header holds no client id and secret." xml:space="preserve">
@@ -646,8 +650,8 @@
         <source>The caller may not use the permission to introspect.</source>
         <note>src/auth/authorization-server/authorization-server.service.ts:315</note>
       </trans-unit>
-      <trans-unit id="The certificate of an api key has to be PEM encoded." xml:space="preserve">
-        <source>The certificate of an api key has to be PEM encoded.</source>
+      <trans-unit id="The certificate of an api key needs to be PEM encoded." xml:space="preserve">
+        <source>The certificate of an api key needs to be PEM encoded.</source>
         <note>src/auth/strategies/api-key/api-key.service.ts:338</note>
       </trans-unit>
       <trans-unit id="The client could not be authenticated." xml:space="preserve">
@@ -662,8 +666,8 @@
         <source>The client_id differs from the client in the authorization header.</source>
         <note>src/auth/authorization-server/authorization-server.service.ts:474</note>
       </trans-unit>
-      <trans-unit id="The code challenge has to be the S256 challenge of a PKCE verifier." xml:space="preserve">
-        <source>The code challenge has to be the S256 challenge of a PKCE verifier.</source>
+      <trans-unit id="The code challenge needs to be the S256 challenge of a PKCE verifier." xml:space="preserve">
+        <source>The code challenge needs to be the S256 challenge of a PKCE verifier.</source>
         <note>src/auth/authenticators/federated/base-federated.authenticator.ts:262</note>
       </trans-unit>
       <trans-unit id="The code is invalid or has expired." xml:space="preserve">
@@ -750,8 +754,8 @@
         <source>The id of a resource cannot change.</source>
         <note>src/auth/scim/scim-patch.utilities.ts:173</note>
       </trans-unit>
-      <trans-unit id="The JSON Web Key Set of an api key has to be at an https url." xml:space="preserve">
-        <source>The JSON Web Key Set of an api key has to be at an https url.</source>
+      <trans-unit id="The JSON Web Key Set of an api key needs to be at an https url." xml:space="preserve">
+        <source>The JSON Web Key Set of an api key needs to be at an https url.</source>
         <note>src/auth/strategies/api-key/api-key.service.ts:352</note>
       </trans-unit>
       <trans-unit id="The login could not be completed." xml:space="preserve">
@@ -790,12 +794,12 @@
         <source>The name abbreviation <x id="$1" equiv-text="{$1}"/> is already used by another recipient.</source>
         <note>src/plugin/invoicing/services/invoice-number.service.ts:222</note>
       </trans-unit>
-      <trans-unit id="The name of a backup is one segment of a path: it is not empty, &#x22;.&#x22; or &#x22;..&#x22;, and holds no slash." xml:space="preserve">
-        <source>The name of a backup is one segment of a path: it is not empty, "." or "..", and holds no slash.</source>
+      <trans-unit id="The name of a backup needs to be one segment of a path: not empty, &#x22;.&#x22; or &#x22;..&#x22;, and without a slash." xml:space="preserve">
+        <source>The name of a backup needs to be one segment of a path: not empty, "." or "..", and without a slash.</source>
         <note>src/backup/backup.service.ts:562</note>
       </trans-unit>
-      <trans-unit id="The offset has to be a whole number of at least 0." xml:space="preserve">
-        <source>The offset has to be a whole number of at least 0.</source>
+      <trans-unit id="The offset needs to be a whole number of at least 0." xml:space="preserve">
+        <source>The offset needs to be a whole number of at least 0.</source>
         <note>src/websocket/services/websocket.service.ts:488</note>
       </trans-unit>
       <trans-unit id="The operation refers in a circle to resources the request creates." xml:space="preserve">
@@ -858,8 +862,8 @@
         <source>The provider cannot be accessed for this user.</source>
         <note>src/auth/authenticators/provider-access.error.ts:18</note>
       </trans-unit>
-      <trans-unit id="The public key of an api key has to be an EC, Ed25519 or RSA key, PEM encoded or as a JSON Web Key." xml:space="preserve">
-        <source>The public key of an api key has to be an EC, Ed25519 or RSA key, PEM encoded or as a JSON Web Key.</source>
+      <trans-unit id="The public key of an api key needs to be an EC, Ed25519 or RSA key, PEM encoded or as a JSON Web Key." xml:space="preserve">
+        <source>The public key of an api key needs to be an EC, Ed25519 or RSA key, PEM encoded or as a JSON Web Key.</source>
         <note>src/auth/strategies/api-key/api-key.service.ts:320</note>
       </trans-unit>
       <trans-unit id="The request authenticates its client in more than one way." xml:space="preserve">
@@ -938,8 +942,8 @@
         <source>The scopes <x id="$1" equiv-text="{$1}"/> cannot be asked for.</source>
         <note>src/auth/authenticators/federated/base-federated.authenticator.ts:267, src/auth/authenticators/federated/base-federated.authenticator.ts:295</note>
       </trans-unit>
-      <trans-unit id="The sortOrder is ascending or descending." xml:space="preserve">
-        <source>The sortOrder is ascending or descending.</source>
+      <trans-unit id="The sortOrder needs to be ascending or descending." xml:space="preserve">
+        <source>The sortOrder needs to be ascending or descending.</source>
         <note>src/auth/scim/scim-where.utilities.ts:702</note>
       </trans-unit>
       <trans-unit id="The tenant &#x22;{$1}&#x22; this request names is not a uuid." xml:space="preserve">
@@ -1005,10 +1009,6 @@
       <trans-unit id="There is no user {$1}." xml:space="preserve">
         <source>There is no user <x id="$1" equiv-text="{$1}"/>.</source>
         <note>src/auth/scim/scim.service.ts:645, src/auth/scim/scim.service.ts:968, src/auth/scim/scim.service.ts:1188</note>
-      </trans-unit>
-      <trans-unit id="There should only be one message sent." xml:space="preserve">
-        <source>There should only be one message sent.</source>
-        <note>src/websocket/services/websocket.service.ts:673</note>
       </trans-unit>
       <trans-unit id="This account has a second factor. Present it to log in." xml:space="preserve">
         <source>This account has a second factor. Present it to log in.</source>
@@ -1118,8 +1118,8 @@
         <source>Unsupported Media Type</source>
         <note>src/error-handling/errors/unsupported-media-type.error.ts:14</note>
       </trans-unit>
-      <trans-unit id="Users are not sorted by groups, meta.version or meta.location." xml:space="preserve">
-        <source>Users are not sorted by groups, meta.version or meta.location.</source>
+      <trans-unit id="Users cannot be sorted by groups, meta.version or meta.location." xml:space="preserve">
+        <source>Users cannot be sorted by groups, meta.version or meta.location.</source>
         <note>src/auth/scim/scim-where.utilities.ts:689</note>
       </trans-unit>
       <trans-unit id="Validation Error" xml:space="preserve">
@@ -1162,8 +1162,8 @@
         <source>Wednesday</source>
         <note>src/localization/models/weekday.enum.ts:22</note>
       </trans-unit>
-      <trans-unit id="Whether a user is active is true or false." xml:space="preserve">
-        <source>Whether a user is active is true or false.</source>
+      <trans-unit id="Whether a user is active needs to be true or false." xml:space="preserve">
+        <source>Whether a user is active needs to be true or false.</source>
         <note>src/auth/scim/scim.service.ts:1164</note>
       </trans-unit>
       <trans-unit id="Without a codeChallenge the user is logged in on the redirect back from the provider, which only a strategy whose login goes out with the response can do, such as cookies. Send a codeChallenge to have the login handed over by code." xml:space="preserve">

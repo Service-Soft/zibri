@@ -500,7 +500,7 @@ import { $t, BaseTenantEntity, Entity, Property, whereFor } from 'zibri';
             // a project is not done, or has a completion date
             where: whereFor<Project>([{ status: { not: 'done' } }, { completedAt: { not: null } }]),
             code: 'completedAtRequired',
-            message: $t`a done project has a completion date`
+            message: $t`a done project needs a completion date`
         },
         whereFor<Project>({ budget: { greaterThanEquals: 0 } })
     ]
@@ -540,7 +540,7 @@ import { $t, BaseTenantEntity, Entity, Property, propertyOf, whereFor } from 'zi
         {
             where: whereFor<Sprint>({ endsAt: { after: propertyOf('startsAt') } }),
             code: 'endsBeforeStart',
-            message: $t`a sprint ends after it starts`
+            message: $t`a sprint needs to end after it starts`
         },
         whereFor<Sprint>({ startsAt: { afterOrOn: new Date('2020-01-01T00:00:00.000Z') } })
     ]
@@ -1668,7 +1668,7 @@ import { $ts, BaseTenantEntity, Entity, Property, scopeFor, UnauthorizedError } 
     scope: {
         restrictedTo: scopeFor<Invoice>(ctx => {
             if (!ctx.currentUser) {
-                throw new UnauthorizedError($ts`Invoices belong to a user.`);
+                throw new UnauthorizedError($ts`An invoice needs to belong to a user.`);
             }
             return { userId: ctx.currentUser.id };
         })

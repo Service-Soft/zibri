@@ -175,7 +175,7 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
         it('rejects amount <= 0', async () => {
             await expect(inTenant(
                 async () => await paymentService.validatePaymentData(METHOD, { amount: NumberUtilities.new(0), currencyCode: CURRENCY, transactionId: UUIDUtilities.generate() })
-            )).rejects.toThrow('The amount has to be greater than 0.');
+            )).rejects.toThrow('The amount needs to be greater than 0.');
         });
 
         it('rejects missing currencyCode', async () => {

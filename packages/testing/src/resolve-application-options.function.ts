@@ -91,6 +91,8 @@ export function resolveApplicationOptions(
         // false rather than undefined, which is what ZibriApplication falls back to anyway
         twoFactorFailureLimit: options.twoFactorFailureLimit ?? base.twoFactorFailureLimit ?? false,
         passwordFailureLimit: options.passwordFailureLimit ?? base.passwordFailureLimit ?? false,
+        // undefined when neither names it, which is ZibriApplication's own default
+        stackTraceLimit: options.stackTraceLimit ?? base.stackTraceLimit,
         cronJobs: options.cronJobs ?? base.cronJobs ?? [],
         additionalLifecycleServices: options.additionalLifecycleServices
             ?? base.additionalLifecycleServices

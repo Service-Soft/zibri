@@ -51,7 +51,7 @@ export class TypeMismatchValidationProblem implements ValidationProblem {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly message: TranslatedString;
     constructor(readonly key: string, type: string) {
-        this.message = $ts`should be of type ${type}`;
+        this.message = $ts`needs to be of type ${type}`;
     }
 }
 
@@ -128,7 +128,7 @@ export class UnknownShapeValidationProblem implements ValidationProblem {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly message: TranslatedString;
     constructor(readonly key: string, names: string[]) {
-        this.message = $ts`has to be one of: ${names.join(', ')}`;
+        this.message = $ts`needs to be one of: ${names.join(', ')}`;
     }
 }
 

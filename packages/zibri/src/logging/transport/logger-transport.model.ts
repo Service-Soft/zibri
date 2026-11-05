@@ -44,7 +44,8 @@ export type BaseLoggerTransportConfig = {
     register: 'directly' | 'afterStartup',
     /**
      * The level of the entries of some origins, in place of `level`, keyed by a part of the path of
-     * the file that logs them, such as `'/services/payment'`. The longest key the path contains wins.
+     * the file that logs them, such as `'/services/payment'`. The longest key the path contains wins,
+     * and the extension of a key or of the file does not count.
      * @default undefined
      */
     levelsByOrigin?: Record<string, LogLevel>
@@ -122,11 +123,21 @@ export class LoggerTransport<T extends BaseLoggerTransportConfig> {
      * @returns The level of the longest key of `levelsByOrigin` the origin contains, or `level` without one.
      */
     resolveLevel(origin: string): LogLevel {
-        const levels: Record<string, LogLevel> = this.config.levelsByOrigin ?? {};
+        const levels: Record<string, LogLevel> | undefined = this.config.levelsByOrigin;
+        if (levels == undefined) {
+            return this.config.level;
+        }
+        // without the extension, since one file is `.ts` or `.js` depending on how the application runs:
+        // a key has to mean the same file in a test, in development and in a bundle
+        const file: string = LoggerTransport.removeExtension(origin);
         const key: string | undefined = Object.keys(levels)
-            .filter(k => origin.includes(k))
-            .sort((a, b) => b.length - a.length)[0];
+            .filter(k => file.includes(LoggerTransport.removeExtension(k)))
+            .sort((a, b) => LoggerTransport.removeExtension(b).length - LoggerTransport.removeExtension(a).length)[0];
         return key == undefined ? this.config.level : levels[key] ?? this.config.level;
+    }
+
+    private static removeExtension(path: string): string {
+        return path.replace(/\.[cm]?[jt]sx?$/, '');
     }
 
     /**

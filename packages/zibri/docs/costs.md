@@ -65,7 +65,19 @@ On ValKey, a write also locks and reads its rows 1,000 at a time, and takes the 
 
 On ValKey, a `stream` in an order that reads more than 500 rows reads them twice: once for what the order compares, which it holds for every matching row together with the id until the stream ends, and once to hand them out. Up to 500 rows are read once.
 
+## What source maps cost
+A bundled application started with `node --enable-source-maps` reads its source map once per process, the first time it logs an entry or formats a stack trace. Each instance pays this for itself. Measured on a bundle of 6 MB with the map of a deployment:
+
+| What | Cost |
+|---|---|
+| Reading the map, which blocks the process | About 100 ms |
+| The memory the map then keeps | About 60 MB |
+| Every log entry a transport admits | About 1 µs more |
+
+The first two grow with the bundle.
+
 ## See also
 - [Data Sources](./data-source.md) — the repository calls this page lists
+- [Logging](./logging.md) — what the source map is read for
 - [Encryption & Hashing](./encryption-and-hashing.md) — what `bindToRow` decides
 - [Caching](./caching.md) — answering a repeated read without a round trip

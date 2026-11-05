@@ -253,6 +253,23 @@ With `trustProxy` set to match your proxies, a rate limit counts by the client's
 the application knows whether a request arrived over HTTPS. That decides whether session cookies are
 marked `Secure` and whether HSTS is sent.
 
+## Choosing how much of a stack trace to keep
+
+`stackTraceLimit` says how many frames a stack trace keeps, in the process and in its thread jobs. It
+defaults to 50, which reaches your own code from inside a write to a data source:
+
+```ts
+// src/application-options.base.ts
+import { ZibriApplicationOptions } from 'zibri';
+
+const longerStackTraces: Pick<ZibriApplicationOptions, 'stackTraceLimit'> = {
+    stackTraceLimit: 100
+};
+```
+
+Creating an error costs more the more frames it keeps. `0` turns stack traces off. Below 3, the
+origin of a log entry is `unknown`.
+
 ## See also
 - [Auth](./auth.md) — protecting the endpoints themselves, which is what CORS does not do
 - [Rate limiting](./rate-limiting.md) — what the client address is used for

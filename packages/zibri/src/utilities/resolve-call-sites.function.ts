@@ -11,15 +11,18 @@ type StackHolder = {
 /**
  * Collects the frames of the current call stack without rendering any of them into text.
  * @param below - The function whose own frame, and every frame it called, are left out.
+ * @param maxFrames - The most frames to collect, `Error.stackTraceLimit` when it is lower.
  * @returns The frames, starting at whatever called `below`. Empty when `Error.stackTraceLimit` is 0.
  */
-export function resolveCallSites(below: Function): NodeJS.CallSite[] {
+export function resolveCallSites(below: Function, maxFrames: number = Error.stackTraceLimit): NodeJS.CallSite[] {
     // reading `error.stack` would be the obvious way and is the expensive one: the default
     // prepareStackTrace renders every frame into text, and that formatting is most of what makes
     // materializing a stack costly. Swapping it for one that hands back the frames skips it entirely
     const originalPrepareStackTrace: typeof Error.prepareStackTrace = Error.prepareStackTrace;
+    const originalLimit: number = Error.stackTraceLimit;
     try {
         Error.prepareStackTrace = (_error, callSites) => callSites;
+        Error.stackTraceLimit = Math.min(originalLimit, maxFrames);
         const holder: StackHolder = {};
         Error.captureStackTrace(holder, below);
         // whatever prepareStackTrace returns is what `stack` holds, and the one above returns the frames
@@ -27,5 +30,6 @@ export function resolveCallSites(below: Function): NodeJS.CallSite[] {
     }
     finally {
         Error.prepareStackTrace = originalPrepareStackTrace;
+        Error.stackTraceLimit = originalLimit;
     }
 }

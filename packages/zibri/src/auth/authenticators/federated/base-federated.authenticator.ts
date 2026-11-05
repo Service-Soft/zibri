@@ -259,7 +259,7 @@ export abstract class BaseFederatedAuthenticator<
         const options: ResolvedFederationOptions = this.resolveOptions();
         this.validateRedirect(request.redirectTo, options.allowedRedirects);
         if (request.codeChallenge != undefined && !CODE_CHALLENGE_PATTERN.test(request.codeChallenge)) {
-            throw new BadRequestError($ts`The code challenge has to be the S256 challenge of a PKCE verifier.`);
+            throw new BadRequestError($ts`The code challenge needs to be the S256 challenge of a PKCE verifier.`);
         }
         // the scopes of a login come from its url, which anyone can make up and send a user
         const notAllowed: string[] = this.findScopesNotAllowed(request.apiScopes);
@@ -295,7 +295,7 @@ export abstract class BaseFederatedAuthenticator<
             throw new BadRequestError($ts`The scopes ${notAllowed.join(', ')} cannot be asked for.`);
         }
         if (!connection.forLogin && !apiScopes.length) {
-            throw new BadRequestError($ts`A connection that does not log in has to ask for scopes.`);
+            throw new BadRequestError($ts`A connection that does not log in needs to ask for scopes.`);
         }
         const code: string = randomBytes(32).toString('base64url');
         await this.connectionCodeRepository.create({
@@ -1200,7 +1200,7 @@ export abstract class BaseFederatedAuthenticator<
             target = new URL(redirectTo);
         }
         catch {
-            throw new BadRequestError($ts`redirectTo has to be an absolute url.`);
+            throw new BadRequestError($ts`redirectTo needs to be an absolute url.`);
         }
         const allowed: boolean = allowedRedirects.some(entry => {
             const permitted: URL = new URL(entry);

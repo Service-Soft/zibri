@@ -686,8 +686,8 @@ export abstract class ScimWhereUtilities {
         return new ScimError(
             HttpStatus.BAD_REQUEST,
             users
-                ? $ts`Users are not sorted by groups, meta.version or meta.location.`
-                : $ts`Groups sort by id, displayName, externalId, meta.created or meta.lastModified.`,
+                ? $ts`Users cannot be sorted by groups, meta.version or meta.location.`
+                : $ts`Groups need to be sorted by id, displayName, externalId, meta.created or meta.lastModified.`,
             ScimErrorType.INVALID_VALUE
         );
     }
@@ -699,7 +699,7 @@ export abstract class ScimWhereUtilities {
         if (sortOrder.toLowerCase() === 'descending') {
             return 'DESC';
         }
-        throw new ScimError(HttpStatus.BAD_REQUEST, $ts`The sortOrder is ascending or descending.`, ScimErrorType.INVALID_VALUE);
+        throw new ScimError(HttpStatus.BAD_REQUEST, $ts`The sortOrder needs to be ascending or descending.`, ScimErrorType.INVALID_VALUE);
     }
 
     private static validateFilterSize<T extends BaseEntity>(alternatives: WhereFilter<T>[]): WhereFilter<T>[] {

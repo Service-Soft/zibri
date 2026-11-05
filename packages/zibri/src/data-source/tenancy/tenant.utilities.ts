@@ -344,7 +344,7 @@ export abstract class TenantUtilities {
         }
         writable[ownership.property] ??= rowTenant;
         if (writable[ownership.property] !== rowTenant) {
-            throw new ForbiddenError($ts`A ${target.name} has to belong to the tenant of the row it is written with.`);
+            throw new ForbiddenError($ts`A ${target.name} needs to belong to the tenant of the row it is written with.`);
         }
     }
 

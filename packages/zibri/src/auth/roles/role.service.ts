@@ -350,7 +350,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
         for (const row of rows) {
             const level: unknown = 'level' in row ? row.level : undefined;
             if (level != undefined && !RoleUtilities.isRoleLevel(level)) {
-                throw new BadRequestError($ts`A role is held at the 'tenant' or the 'platform' level.`);
+                throw new BadRequestError($ts`A role needs to be held at the 'tenant' or the 'platform' level.`);
             }
             const permissions: unknown = 'permissions' in row ? row.permissions : undefined;
             for (const permission of Array.isArray(permissions) ? permissions.map(String) : []) {

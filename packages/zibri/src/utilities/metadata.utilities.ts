@@ -2,6 +2,7 @@
 import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
 import { ReflectUtilities } from './reflect.utilities';
 import { resolveCallSites } from './resolve-call-sites.function';
+import { resolveOriginalFile } from './resolve-original-file.function';
 // every import of a subsystem built on utilities is marked `type`: this file only names their
 // metadata shapes, and a value import would put utilities in a runtime cycle with each of them
 import { type CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
@@ -195,10 +196,10 @@ export abstract class MetadataUtilities {
         if (ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.FILE_LOCATION, ctor) !== undefined) {
             return;
         }
-        ReflectUtilities.setMetadata(MetadataInjectionKeys.FILE_LOCATION, MetadataUtilities.resolveDeclaringFile(), ctor);
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.FILE_LOCATION, MetadataUtilities.findDeclaringFrame() ?? 'unknown', ctor);
     }
 
-    private static resolveDeclaringFile(): string {
+    private static findDeclaringFrame(): NodeJS.CallSite | undefined {
         // found by what the frames are rather than at a fixed depth. The depth moved with every
         // decorator built on another - `@DataSource` calls `@Injectable` - and for a project's own
         // decorator wrapping one of those it landed inside reflect-metadata. Every decorator runs
@@ -207,12 +208,12 @@ export abstract class MetadataUtilities {
         const callSites: NodeJS.CallSite[] = resolveCallSites(MetadataUtilities.setFilePath);
         const helperStart: number = callSites.findIndex(callSite => MetadataUtilities.isDecorateHelper(callSite));
         if (helperStart === -1) {
-            return 'unknown';
+            return undefined;
         }
         const helperEnd: number = callSites.findIndex(
             (callSite, index) => index > helperStart && !MetadataUtilities.isDecorateHelper(callSite)
         );
-        return callSites[helperEnd]?.getFileName() ?? 'unknown';
+        return callSites[helperEnd];
     }
 
     private static isDecorateHelper(callSite: NodeJS.CallSite): boolean {
@@ -221,7 +222,10 @@ export abstract class MetadataUtilities {
     }
 
     static getFilePath(target: Object): string | undefined {
-        return ReflectUtilities.getMetadata(MetadataInjectionKeys.FILE_LOCATION, this.toNewable(target));
+        const declaredAt: NodeJS.CallSite | string | undefined = ReflectUtilities.getMetadata(MetadataInjectionKeys.FILE_LOCATION, this.toNewable(target));
+        // the frame is kept and resolved here, because reading a source map is expensive and every class
+        // records this while its module loads, where only an error message ever asks for it
+        return typeof declaredAt === 'object' ? resolveOriginalFile(declaredAt) ?? 'unknown' : declaredAt;
     }
 
     // ---------- param types / DI ----------

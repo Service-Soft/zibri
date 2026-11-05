@@ -1,4 +1,6 @@
-import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import assert from 'node:assert';
+
+import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
 import { PasswordCredentials, PasswordCredentialsCreateData } from './password-credentials.model';
@@ -27,6 +29,8 @@ import { PasswordRefusedError } from '../../../error-handling/errors/password-re
 import { HttpStatus } from '../../../http/http-status.enum';
 import { $ts } from '../../../localization/translate.function';
 import { type LoggerInterface } from '../../../logging/logger.interface';
+import { Controller } from '../../../routing/decorators/controller.decorator';
+import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { JsonUtilities } from '../../../utilities/json.utilities';
@@ -87,6 +91,27 @@ async function createUser(email: string = `${UUIDUtilities.generate()}@policy.te
     return await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] });
 }
 
+/**
+ * Writes a password the policy refuses, the way an application creates its first user when it starts.
+ * @returns The credentials, which it never gets to.
+ */
+async function createDefaultAdminCredentials(): Promise<PasswordCredentials> {
+    const user: JwtUser = await createUser();
+    return await passwords().create({ userId: user.id, password: 'short 1' });
+}
+
+/**
+ * Writes a password the policy refuses while answering a request.
+ */
+// an orphan for the cases in this file that boot without it
+@Controller('/refused-passwords', { allowOrphan: true })
+class RefusedPasswordController {
+    @Post('/short')
+    async writeShortPassword(): Promise<void> {
+        await passwords().create({ userId: UUIDUtilities.generate(), password: 'short 1' });
+    }
+}
+
 // a password was stored at any length, down to a single character, wherever it was written
 describe('PasswordAuthenticator - the password policy', () => {
     describe('starting', () => {
@@ -140,7 +165,7 @@ describe('PasswordAuthenticator - the password policy', () => {
 
         beforeAll(async () => {
             server = await startTestServer({
-                controllers: [JwtTestAuthController],
+                controllers: [JwtTestAuthController, RefusedPasswordController],
                 // allowed to go unused, because the other cases in this file boot without it
                 dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
                 providers: withPolicy({
@@ -148,7 +173,7 @@ describe('PasswordAuthenticator - the password policy', () => {
                     maxLength: 64,
                     validatePassword: password => {
                         if (!/\d/.test(password)) {
-                            throw new BadRequestError($ts`A password holds at least one digit.`);
+                            throw new BadRequestError($ts`A password needs to hold at least one digit.`);
                         }
                     }
                 })
@@ -175,7 +200,7 @@ describe('PasswordAuthenticator - the password policy', () => {
             const user: JwtUser = await createUser();
 
             await expect(passwords().create({ userId: user.id, password: 'correct horse battery staple' }))
-                .rejects.toThrow('A password holds at least one digit.');
+                .rejects.toThrow('A password needs to hold at least one digit.');
         });
 
         it('stores one the policy takes, hashed, which logs in', async () => {
@@ -196,6 +221,49 @@ describe('PasswordAuthenticator - the password policy', () => {
             await expect(passwords().updateAll({ userId: user.id }, { password: 'short 1' })).rejects.toBeInstanceOf(PasswordRefusedError);
             expect(await login(baseUrl, user.email, 'correct horse battery staple 1')).toBe(200);
         });
+    });
+
+    // jest raises the limit for its own reports, so these boot on what a process starts with
+    describe('the stack trace of a refused password', () => {
+        const startWithLimit: (stackTraceLimit: number | undefined) => Promise<StartedTestServer> = async stackTraceLimit => {
+            Error.stackTraceLimit = 10;
+            return await startTestServer({
+                dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
+                providers: withPolicy({ minLength: 15 }),
+                stackTraceLimit
+            });
+        };
+        const jestLimit: number = Error.stackTraceLimit;
+
+        afterEach(() => {
+            Error.stackTraceLimit = jestLimit;
+        });
+
+        it('reaches the code that wrote the password', async () => {
+            const server: StartedTestServer = await startWithLimit(undefined);
+            try {
+                const refused: unknown = await createDefaultAdminCredentials().catch((error: unknown) => error);
+
+                assert(refused instanceof PasswordRefusedError);
+                expect(refused.stack).toContain('createDefaultAdminCredentials');
+            }
+            finally {
+                await server.shutdown();
+            }
+        }, TestTimeouts.inMemory.start);
+
+        it('keeps as many frames as the application says', async () => {
+            const server: StartedTestServer = await startWithLimit(5);
+            try {
+                const refused: unknown = await createDefaultAdminCredentials().catch((error: unknown) => error);
+
+                assert(refused instanceof PasswordRefusedError);
+                expect(refused.stack).not.toContain('createDefaultAdminCredentials');
+            }
+            finally {
+                await server.shutdown();
+            }
+        }, TestTimeouts.inMemory.start);
     });
 
     // the longest password defaulted to what a login takes, 1024 characters, where ASVS 2.1.2 refuses

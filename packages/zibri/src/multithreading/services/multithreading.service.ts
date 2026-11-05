@@ -1401,7 +1401,9 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
             traceContext,
             tenantId: job.tenantId,
             jobId: job.id,
-            checkpoint: job.checkpoint ?? undefined
+            checkpoint: job.checkpoint ?? undefined,
+            // a thread has an `Error` of its own, which starts at node's default
+            stackTraceLimit: Error.stackTraceLimit
         };
         worker.worker.postMessage(message);
         worker.timeout = setTimeout(

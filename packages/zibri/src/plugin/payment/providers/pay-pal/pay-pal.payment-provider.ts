@@ -269,7 +269,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         switch (method) {
             case KnownPaymentMethod.PAY_PAL: {
                 if (!data.amount.isGreaterThan(0)) {
-                    throw new BadRequestError($ts`The amount has to be greater than 0.`);
+                    throw new BadRequestError($ts`The amount needs to be greater than 0.`);
                 }
                 if (!data.currencyCode) {
                     throw new BadRequestError($ts`A currency code is required.`);
@@ -278,7 +278,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
                 // ask for is a charge they did not agree to, and PayPal refuses it anyway
                 const decimals: number = PayPalPaymentProvider.getCurrencyDecimals(data.currencyCode);
                 if ((data.amount.decimalPlaces() ?? 0) > decimals) {
-                    throw new BadRequestError($ts`An amount in ${data.currencyCode} has at most ${decimals} decimals.`);
+                    throw new BadRequestError($ts`An amount in ${data.currencyCode} needs to have at most ${decimals} decimals.`);
                 }
                 return data;
             }

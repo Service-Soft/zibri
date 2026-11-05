@@ -122,7 +122,7 @@ import { LoggerTransport, LogLevel } from 'zibri';
 LoggerTransport.console(LogLevel.INFO, { levelsByOrigin: { '/services/payment': LogLevel.DEBUG, '/services/sync': LogLevel.WARN } })
 ```
 
-This console prints the debug entries of the payment service and only the warnings of the sync service, while every other transport keeps its own levels. The file is `.ts` in development and `.js` in a build, so choose a key that leaves the extension out. `LoggerTransport.db` takes `levelsByOrigin` beside `maxEntriesPerMinute`, and `LoggerTransport.email` in its configuration.
+This console prints the debug entries of the payment service and only the warnings of the sync service, while every other transport keeps its own levels. The extension of a key does not count, so `.ts` and `.js` name the same file. A bundled application names its files through the source map beside the bundle, so start it with `node --enable-source-maps`, as [a deployment](./deployment.md#what-a-deployment-is) does. Without it, the origin of an entry is `unknown`. [Reading the map has a cost](./costs.md#what-source-maps-cost). `LoggerTransport.db` takes `levelsByOrigin` beside `maxEntriesPerMinute`, and `LoggerTransport.email` in its configuration.
 
 ### How entries reach a transport
 

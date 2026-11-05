@@ -75,10 +75,10 @@ function dateBoundProblems(
 ): ValidationProblem[] {
     const before: Date | undefined = meta.before?.(entity, context);
     if (before != undefined && property.getTime() >= before.getTime()) {
-        return [{ key: fullKey, code: ValidationProblemCode.BEFORE, message: $ts`should be before "${$f.dateTime(before)}"` }];
+        return [{ key: fullKey, code: ValidationProblemCode.BEFORE, message: $ts`needs to be before "${$f.dateTime(before)}"` }];
     }
     const after: Date | undefined = meta.after?.(entity, context);
     return after != undefined && property.getTime() <= after.getTime()
-        ? [{ key: fullKey, code: ValidationProblemCode.AFTER, message: $ts`should be after "${$f.dateTime(after)}"` }]
+        ? [{ key: fullKey, code: ValidationProblemCode.AFTER, message: $ts`needs to be after "${$f.dateTime(after)}"` }]
         : [];
 }

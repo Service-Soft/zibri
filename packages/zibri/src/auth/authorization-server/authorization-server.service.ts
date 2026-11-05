@@ -449,7 +449,7 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
         }
         if (credentials.client_secret != undefined) {
             if (credentials.client_id == undefined) {
-                throw new OAuth2Error(OAuth2ErrorCode.INVALID_REQUEST, $ts`A client_secret is sent with a client_id.`);
+                throw new OAuth2Error(OAuth2ErrorCode.INVALID_REQUEST, $ts`A client_secret needs to be sent with a client_id.`);
             }
             presented.push({ method: 'post', clientId: credentials.client_id, proof: credentials.client_secret });
         }
@@ -457,7 +457,7 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
             if (credentials.client_assertion_type !== JWT_BEARER_ASSERTION_TYPE || credentials.client_assertion == undefined) {
                 throw new OAuth2Error(
                     OAuth2ErrorCode.INVALID_REQUEST,
-                    $ts`A client_assertion is a jwt, sent with the client_assertion_type ${JWT_BEARER_ASSERTION_TYPE}.`
+                    $ts`A client_assertion needs to be a jwt, sent with the client_assertion_type ${JWT_BEARER_ASSERTION_TYPE}.`
                 );
             }
             presented.push({

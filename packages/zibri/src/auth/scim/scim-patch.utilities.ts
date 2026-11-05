@@ -43,7 +43,7 @@ export abstract class ScimPatchUtilities {
         if (!Array.isArray(schemas) || !schemas.includes(ScimSchema.PATCH_OP) || !Array.isArray(operations)) {
             throw new ScimError(
                 HttpStatus.BAD_REQUEST,
-                $ts`A patch request names the PatchOp schema and holds Operations.`,
+                $ts`A patch request needs to name the PatchOp schema and hold Operations.`,
                 ScimErrorType.INVALID_SYNTAX
             );
         }
@@ -54,7 +54,7 @@ export abstract class ScimPatchUtilities {
             if (known == undefined || (path != undefined && typeof path !== 'string') || !ScimFilterUtilities.isRecord(operation)) {
                 throw new ScimError(
                     HttpStatus.BAD_REQUEST,
-                    $ts`An operation is add, remove or replace, with an optional path.`,
+                    $ts`An operation needs to be add, remove or replace, with an optional path.`,
                     ScimErrorType.INVALID_SYNTAX
                 );
             }
@@ -79,12 +79,12 @@ export abstract class ScimPatchUtilities {
                 continue;
             }
             if (op === 'remove') {
-                throw new ScimError(HttpStatus.BAD_REQUEST, $ts`A remove operation names a path.`, ScimErrorType.NO_TARGET);
+                throw new ScimError(HttpStatus.BAD_REQUEST, $ts`A remove operation needs to name a path.`, ScimErrorType.NO_TARGET);
             }
             if (!ScimFilterUtilities.isRecord(operation.value)) {
                 throw new ScimError(
                     HttpStatus.BAD_REQUEST,
-                    $ts`An operation without a path holds the attributes it changes.`,
+                    $ts`An operation without a path needs to hold the attributes it changes.`,
                     ScimErrorType.INVALID_VALUE
                 );
             }

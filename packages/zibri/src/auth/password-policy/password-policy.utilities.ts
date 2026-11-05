@@ -46,11 +46,11 @@ export abstract class PasswordPolicyUtilities {
         // by code point, so a character outside the basic plane counts once, as a user typing it counts it
         const length: number = [...password].length;
         if (length < policy.minLength) {
-            throw new PasswordRefusedError($ts`A password has at least ${policy.minLength} characters.`);
+            throw new PasswordRefusedError($ts`A password needs to be at least ${policy.minLength} characters long.`);
         }
         const maxLength: number = this.getMaxLength(policy);
         if (length > maxLength) {
-            throw new PasswordRefusedError($ts`A password has at most ${maxLength} characters.`);
+            throw new PasswordRefusedError($ts`A password needs to be at most ${maxLength} characters long.`);
         }
         await policy.validatePassword?.(password);
     }

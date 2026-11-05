@@ -78,6 +78,11 @@ describe('MultithreadingService, checkpoints', () => {
         await server?.shutdown();
     }, TestTimeouts.inMemory.shutdown);
 
+    // a thread has an `Error` of its own, so what the application says does not reach it by itself
+    it('keeps as many frames of a stack trace in a job as the application does', async () => {
+        await expect(multithreadingService.run(() => Error.stackTraceLimit, undefined)).resolves.toBe(Error.stackTraceLimit);
+    });
+
     it('resumes a job taken over from the last checkpoint stored, which the run that lost it cannot overwrite', async () => {
         const id: string = await multithreadingService.queueThreadJob({ workerData: { filePath: checkpointingWorker } });
         await waitUntil(async () => ((await jobs.findById(id)).checkpoint?.number ?? 0) >= 2, Ms.SECOND * 10);

@@ -237,32 +237,32 @@ export abstract class ScimBulkUtilities {
         );
         const operations: unknown = ScimFilterUtilities.isRecord(body) ? this.findAttribute(body, 'Operations') : undefined;
         if (!Array.isArray(operations)) {
-            throw invalid('A bulk request lists its Operations.');
+            throw invalid('A bulk request needs to list its Operations.');
         }
         if (operations.length > endpoint.maxBulkOperations) {
             throw new ScimError(
                 HttpStatus.CONTENT_TOO_LARGE,
-                $ts`A bulk request holds at most ${endpoint.maxBulkOperations} operations, this one ${operations.length}.`
+                $ts`A bulk request needs to hold at most ${endpoint.maxBulkOperations} operations, this one holds ${operations.length}.`
             );
         }
         const bulkIds: Set<string> = new Set();
         return operations.map((operation: unknown, index): ScimBulkOperation => {
             if (!ScimFilterUtilities.isRecord(operation)) {
-                throw invalid('An operation of a bulk request is a json object.');
+                throw invalid('An operation of a bulk request needs to be a json object.');
             }
             const method: unknown = this.findAttribute(operation, 'method');
             const path: unknown = this.findAttribute(operation, 'path');
             const bulkId: unknown = this.findAttribute(operation, 'bulkId');
             const version: unknown = this.findAttribute(operation, 'version');
             if (typeof method !== 'string' || !BULK_METHODS.includes(method.toUpperCase()) || typeof path !== 'string') {
-                throw invalid('An operation of a bulk request has a method, POST, PUT, PATCH or DELETE, and a path.');
+                throw invalid('An operation of a bulk request needs a method, POST, PUT, PATCH or DELETE, and a path.');
             }
             if ((bulkId != undefined && typeof bulkId !== 'string') || (version != undefined && typeof version !== 'string')) {
-                throw invalid('The bulkId and the version of an operation are strings.');
+                throw invalid('The bulkId and the version of an operation need to be strings.');
             }
             if (typeof bulkId === 'string') {
                 if (bulkIds.has(bulkId)) {
-                    throw invalid('Every bulkId of a bulk request is its own.');
+                    throw invalid('Every bulkId of a bulk request needs to be unique.');
                 }
                 bulkIds.add(bulkId);
             }
@@ -289,7 +289,7 @@ export abstract class ScimBulkUtilities {
             return undefined;
         }
         if (typeof failOnErrors !== 'number' || !Number.isInteger(failOnErrors) || failOnErrors < 1) {
-            throw new ScimError(HttpStatus.BAD_REQUEST, $ts`failOnErrors is a whole number above 0.`, ScimErrorType.INVALID_VALUE);
+            throw new ScimError(HttpStatus.BAD_REQUEST, $ts`failOnErrors needs to be a whole number above 0.`, ScimErrorType.INVALID_VALUE);
         }
         return failOnErrors;
     }
@@ -322,7 +322,7 @@ export abstract class ScimBulkUtilities {
             if (resource == undefined || (operation.method === 'POST') !== (id == undefined)) {
                 throw new ScimError(
                     HttpStatus.BAD_REQUEST,
-                    $ts`A POST names /Users or /Groups, every other operation a resource, eg. /Users/{id}.`,
+                    $ts`A POST needs to name /Users or /Groups, every other operation a resource, eg. /Users/{id}.`,
                     ScimErrorType.INVALID_PATH
                 );
             }

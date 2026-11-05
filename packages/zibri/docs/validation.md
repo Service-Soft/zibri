@@ -124,7 +124,7 @@ import { $t, BaseTenantEntity, Entity, OmitClass, Property, whereFor } from 'zib
             // a done task has a completion date
             where: whereFor<Task>([{ status: { not: 'done' } }, { completedAt: { not: null } }]),
             code: 'completedAtRequired',
-            message: $t`a done task has a completion date`
+            message: $t`a done task needs a completion date`
         },
         whereFor<Task>({ points: { greaterThanEquals: 0 } })
     ]

@@ -104,6 +104,11 @@ const defaultHstsOptions: HstsOptions = {
 export type ShutdownSignal = typeof SHUTDOWN_SIGNALS[number];
 
 /**
+ * The frames a stack trace keeps when the application names no `stackTraceLimit`.
+ */
+const DEFAULT_STACK_TRACE_LIMIT: number = 50;
+
+/**
  * A middleware waiting for the pipeline to be assembled.
  */
 type RegisteredMiddleware = {
@@ -189,6 +194,11 @@ export class ZibriApplication {
     constructor(private readonly providedOptions: ZibriApplicationOptions) {
         this.validateNoPluginProviderCollisions();
         this.options = this.createFullOptions();
+
+        // first, so that whatever fails while the application starts has the whole trace. A write through
+        // a repository takes up the 10 frames node keeps by default before it reaches the code that asked
+        // for it. On the process and not on this instance, because that is the only place it can be set
+        Error.stackTraceLimit = this.options.stackTraceLimit;
 
         // before any middleware reads an address or asks whether the connection was secure. Left at
         // express's default the application behind an ingress sees every request as coming from the
@@ -1153,6 +1163,7 @@ export class ZibriApplication {
             additionalLifecycleServices: [...this.providedOptions.additionalLifecycleServices ?? []],
             twoFactorFailureLimit: this.providedOptions.twoFactorFailureLimit ?? false,
             passwordFailureLimit: this.providedOptions.passwordFailureLimit ?? false,
+            stackTraceLimit: this.providedOptions.stackTraceLimit ?? DEFAULT_STACK_TRACE_LIMIT,
             security: {
                 headers: {
                     [KnownHeader.STRICT_TRANSPORT_SECURITY]: typeof hsts === 'boolean'

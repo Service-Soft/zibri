@@ -60,7 +60,8 @@ parentPort.on('message', (received: ThreadJobStartMessage | ThreadJobCheckpointA
     if ('type' in received) {
         return;
     }
-    const { workerData: wData, traceContext, tenantId, jobId, checkpoint }: ThreadJobStartMessage = received;
+    const { workerData: wData, traceContext, tenantId, jobId, checkpoint, stackTraceLimit }: ThreadJobStartMessage = received;
+    Error.stackTraceLimit = stackTraceLimit;
     updateWorkerData(wData, traceContext, tenantId, jobId, checkpoint);
 
     if (isFunctionWorkerData(wData)) {

@@ -481,6 +481,6 @@ describe('websockets across tenants', () => {
         ['a negative number', -1],
         ['a fraction', 1.5]
     ])('refuses a connection whose offset is %s', async (_, offset) => {
-        await expect(connectClient(undefined, { offset })).rejects.toThrow('The offset has to be a whole number of at least 0.');
+        await expect(connectClient(undefined, { offset })).rejects.toThrow('The offset needs to be a whole number of at least 0.');
     });
 });

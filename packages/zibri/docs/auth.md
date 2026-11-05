@@ -551,7 +551,7 @@ defineProvider({
         minLength: 15,
         validatePassword: (password: string): void => {
             if (!/\d/.test(password)) {
-                throw new BadRequestError($ts`A password holds at least one digit.`);
+                throw new BadRequestError($ts`A password needs to hold at least one digit.`);
             }
         },
         outdatedPasswords: 'requireChange'

@@ -28,6 +28,7 @@ import { TraceSpanContext } from '../tracing/trace-span-context.model';
 import { TracingUtilities } from '../tracing/tracing.utilities';
 import { OmitStrict } from '../types/omit-strict.type';
 import { resolveCallSites } from '../utilities/resolve-call-sites.function';
+import { resolveOriginalFile } from '../utilities/resolve-original-file.function';
 import { UrlUtilities } from '../utilities/url.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
@@ -35,20 +36,23 @@ import { validateEntitiesRegistered } from '../utilities/validate-entities-regis
 /**
  * Finds the file the log call came from.
  *
- * The frame is found by *name* rather than by position. Indexing a fixed depth is what made this
- * throw whenever the depth was anything else, including when `Error.stackTraceLimit` is 0 - which is
- * an ordinary production tuning, and used to make every log call in the application raise a
- * TypeError. With no frames collected this simply answers 'unknown'.
+ * Fewer frames than it takes are an ordinary production tuning, `Error.stackTraceLimit` being 0, and
+ * used to make every log call in the application raise a TypeError. This simply answers 'unknown' then.
  * @returns The file the call came from, or 'unknown' when the frames do not say.
  */
 function resolveOrigin(): string {
     // hides this function and everything it was called from below the logger, so the frames
     // start at `log` and the first one outside this file is the caller
-    const callSites: NodeJS.CallSite[] = resolveCallSites(resolveOrigin);
-    return callSites
-        .map(callSite => callSite.getFileName())
-        .find(fileName => fileName != undefined && fileName !== __filename)
-        ?? 'unknown';
+    // `log`, what called it in this file, and the caller: nothing else in this file sits between them,
+    // so only the third is looked up. This runs on every log call, however many frames an error keeps
+    const [logFrame, , callerFrame]: NodeJS.CallSite[] = resolveCallSites(resolveOrigin, 3);
+    if (logFrame == undefined || callerFrame == undefined) {
+        return 'unknown';
+    }
+    // through the source map, since in a bundle every frame names the bundle. One that still does has
+    // no map to go by, and the bundle would be the same origin for every entry
+    const file: string | undefined = resolveOriginalFile(callerFrame);
+    return file == undefined || file === logFrame.getFileName() ? 'unknown' : file;
 }
 
 /**
