@@ -41,7 +41,10 @@ const config = {
     // with coverage, jest's own process received the sources of every module once per test file that
     // loaded it, and kept them all until the run was done: past 4 GB for this suite
     runner: '<rootDir>/__testing__/deduplicating-coverage.test-runner.ts',
-    modulePathIgnorePatterns: ['tmp'],
+    // a scratch folder, named by where it is: as a bare word this matched every path with `tmp` in
+    // it, among them the temp directory the benchmark comparison checks the release out under, and
+    // the release's suites were found nowhere
+    modulePathIgnorePatterns: ['<rootDir>/tmp/'],
     // coverage
     // collectCoverage: true,
     coverageProvider: 'v8',

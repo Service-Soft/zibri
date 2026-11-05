@@ -438,6 +438,21 @@ describe('the ci workflows', () => {
     // a timing says as much about the machine as about the change. The benchmarks are compared with the
     // release they would replace, run in turns on the same runner, and a recorded number - taken on
     // whichever machine recorded it - is never what a build is held to
+    // the benchmark comparison checks this release out somewhere and runs jest there, with this
+    // configuration: an ignore pattern matching that path leaves the release without suites, and a
+    // bare word did, under the system's temp directory
+    it('ignores no suite by a path it is checked out under', () => {
+        const { patterns } = inResolverProcess<{ patterns: string[] }>(`
+            const { default: config } = await import('${pathToFileURL(path.join(packagesDir, 'zibri', 'jest.config.mjs')).href}');
+            console.log(JSON.stringify({ patterns: config.modulePathIgnorePatterns ?? [] }));
+        `);
+        const releaseSources: string = '/tmp/zibri-benchmark-release-abc123/packages/zibri/src';
+        const releaseSuite: string = `${releaseSources}/__testing__/benchmark/framework-overhead.benchmark.test.ts`;
+
+        const ignoring: string[] = patterns.filter(pattern => new RegExp(pattern.replaceAll('<rootDir>', releaseSources)).test(releaseSuite));
+        expect(ignoring).toStrictEqual([]);
+    });
+
     it('compares the benchmarks with the release, and commits no baseline', () => {
         const ci: string = workflow('ci.yml');
         const committed: string[] = execFileSync('git', ['ls-files', '*.baseline.json'], { cwd: repoRoot, encoding: 'utf8' })
