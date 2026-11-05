@@ -42,9 +42,16 @@ jobs:
             - name: read the version this release publishes
               id: version
               run: node .github/scripts/release-version.mjs >> "$GITHUB_OUTPUT"
-            - name: refuse a version the registry already has
+            # the publishes authenticate through npm's trusted publishing, which is set up on npmjs.com
+            # per package - so a package the registry has never seen has nowhere to be set up, and the
+            # registry answers its publish with a 404 after the attestation is already logged
+            - name: refuse a package the registry has never seen, and a version it already has
               run: |
                 for package in zibri-tsx zibri zibri-testing zibri-cli; do
+                  if ! npm view "$package" name > /dev/null 2>&1; then
+                    echo "$package is not on the registry, and trusted publishing cannot create it: request to let it be published once by hand"
+                    exit 1
+                  fi
                   if npm view "$package@${{ steps.version.outputs.version }}" version > /dev/null 2>&1; then
                     echo "$package@${{ steps.version.outputs.version }} is already published - bump every package or none"
                     exit 1

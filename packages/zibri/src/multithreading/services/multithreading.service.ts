@@ -946,31 +946,44 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
             return true;
         }
 
-        this.selectionRound = this.runSelectionRounds();
+        return await this.runSelectionRounds();
+    }
+
+    /**
+     * Runs a selection round, and another for every request made while one runs.
+     * @returns Whether a job was started.
+     */
+    private async runSelectionRounds(): Promise<boolean> {
+        let started: boolean = false;
         try {
-            return await this.selectionRound;
+            // the request is read here, where the round is also cleared, with nothing in between:
+            // read inside the round, a request made between the round's last read and its end
+            // found the round still on, and was lost with it once that end was the end of the loop
+            do {
+                this.selectionRequested = false;
+                this.selectionRound = this.runSelectionRound();
+                started = await this.selectionRound || started;
+            }
+            while (this.selectionRequested && this.poolState !== 'stopped');
         }
         finally {
             this.selectionRound = undefined;
         }
+        return started;
     }
 
     /**
      * Hands work to free workers until there is nothing left to hand out or nobody left to take it.
      * @returns Whether a job was started.
      */
-    private async runSelectionRounds(): Promise<boolean> {
+    private async runSelectionRound(): Promise<boolean> {
         let started: boolean = false;
         // the pool state is read before every job rather than once, because shutting down waits for
         // the round, and a round that went on starting jobs would keep it waiting
-        do {
-            this.selectionRequested = false;
-            while (this.poolState !== 'stopped' && this.idleWorkers.length && await this.startNextJob()) {
-                // filling one worker at a time until a round finds nothing to start
-                started = true;
-            }
+        while (this.poolState !== 'stopped' && this.idleWorkers.length && await this.startNextJob()) {
+            // filling one worker at a time until a round finds nothing to start
+            started = true;
         }
-        while (this.selectionRequested && this.poolState !== 'stopped');
         return started;
     }
 
