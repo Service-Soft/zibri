@@ -1,0 +1,391 @@
+import { AssetServiceInterface } from '../../assets/asset-service.interface';
+import { type AuditIntegrity } from '../../audit/audit-integrity.type';
+import { AuditServiceInterface } from '../../audit/audit-service.interface';
+import { SmsCodeLimits } from '../../auth/2fa/methods/code/sms-code-limits.model';
+import { TwoFactorCodeOptions } from '../../auth/2fa/methods/code/two-factor-code-options.model';
+import { OtpValidationWindowInMs } from '../../auth/2fa/methods/otp/otp.utilities';
+import { RecoveryCodeOptions } from '../../auth/2fa/methods/recovery-code/recovery-code-options.model';
+import { TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.interface';
+import { AuthServiceInterface } from '../../auth/auth-service.interface';
+import { AuthRateLimitOptions } from '../../auth/auth.rate-limiter';
+import { FederationOptions } from '../../auth/authenticators/federated/federation-options.model';
+import { FidoMetadataServiceInterface } from '../../auth/authenticators/passkey/fido-metadata-service.interface';
+import { PasskeyOptions } from '../../auth/authenticators/passkey/passkey-options.model';
+import { PasskeyServiceInterface } from '../../auth/authenticators/passkey/passkey-service.interface';
+import { PasswordResetEmailTemplate } from '../../auth/authenticators/password/password-reset-email-template.model';
+import { AuthorizationServerServiceInterface } from '../../auth/authorization-server/authorization-server-service.interface';
+import { DpopServiceInterface } from '../../auth/dpop/dpop-service.interface';
+import { EmailVerificationOptions } from '../../auth/email-verification/email-verification-options.model';
+import { EmailVerificationServiceInterface } from '../../auth/email-verification/email-verification-service.interface';
+import { EncryptionKey } from '../../auth/encryption/encryption-key.model';
+import { EncryptionMasterOptions } from '../../auth/encryption/encryption-master-options.model';
+import { EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface';
+import { EncryptionStrategyInterface } from '../../auth/encryption/strategies/encryption-strategy.interface';
+import { HashServiceInterface } from '../../auth/hash/hash-service.interface';
+import { HashStrategyInterface } from '../../auth/hash/strategies/hash-strategy.interface';
+import { ScryptCost } from '../../auth/hash/strategies/scrypt.hash-strategy';
+import { Require2faProviderFactors } from '../../auth/models/require-2fa-provider-factors.model';
+import { Require2faReauth } from '../../auth/models/require-2fa-reauth.model';
+import { RouteAuthConfiguration } from '../../auth/models/route-auth-configuration.model';
+import { PasswordPolicy } from '../../auth/password-policy/password-policy.model';
+import { PermissionDeclaration } from '../../auth/roles/permission-declaration.model';
+import { type RoleServiceInterface } from '../../auth/roles/role-service.interface';
+import { RouteAuthServiceInterface } from '../../auth/route-auth-service.interface';
+import { ScimServiceInterface } from '../../auth/scim/scim-service.interface';
+import { ApiKeyOptions } from '../../auth/strategies/api-key/api-key-options.model';
+import { ApiKeyServiceInterface } from '../../auth/strategies/api-key/api-key-service.interface';
+import { CookieAuthSessionOptionsInput } from '../../auth/strategies/cookie/cookie-auth.auth-strategy';
+import { AccessTokenRevocation } from '../../auth/strategies/jwt/access-token-revocation.type';
+import { JwtAuthOptions, JwtAuthOptionsInput } from '../../auth/strategies/jwt/jwt-auth-options.model';
+import { JwtServiceInterface } from '../../auth/strategies/jwt/jwt-service.interface';
+import { UserServiceInterface } from '../../auth/user/user-service.interface';
+import { BackupRetention } from '../../backup/backup-retention.model';
+import { BackupServiceInterface } from '../../backup/backup-service.interface';
+import { WriteThroughReadThroughCache } from '../../caching/cache/read-through/write-through-read-through.cache';
+import { CacheServiceInterface } from '../../caching/cache-service.interface';
+import { CacheContext } from '../../context/cache/cache.context';
+import { HttpRequestContext } from '../../context/request/http-request.context';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
+import { CronServiceInterface } from '../../cron/cron-service.interface';
+import { type ChainServiceInterface } from '../../data-source/chain/chain-service.interface';
+import { DataSourceServiceInterface } from '../../data-source/data-source-service.interface';
+import { RepositoryHooks } from '../../data-source/hooks/repository-hooks.model';
+import { PdfFontOptions } from '../../document/pdf-font-options.model';
+import { EmailServiceInterface } from '../../email/email-service.interface';
+import { EmailConfigInput } from '../../email/models/email-config.model';
+import { EmailTransportInterface } from '../../email/transports/email-transport.interface';
+import { GlobalErrorHandler, ErrorPageTemplate } from '../../error-handling/error-handler.model';
+import { EventServiceInterface } from '../../event/event-service.interface';
+import { FrameworkEventNames } from '../../event/framework-event-names.model';
+import { HandlebarOptions } from '../../handlebars/handlebar.utilities';
+import { CompressionOptions } from '../../http/compression.middleware';
+import { HttpServerLimits } from '../../http/http-server-limits.model';
+import { HttpClientOptions, HttpClientOptionsInput } from '../../http-client/http-client-options.model';
+import { HttpClientInterface } from '../../http-client/http-client.interface';
+import { LeaseServiceInterface } from '../../leases/lease-service.interface';
+import { LocalizeServiceInterface } from '../../localization/localize-service.interface';
+import { LocalizeOptionsInput, LocalizeOptions } from '../../localization/models/localize-options.model';
+import { LogLevel } from '../../logging/log-level.enum';
+import { LoggerInterface } from '../../logging/logger.interface';
+import { LoggerTransport, BaseLoggerTransportConfig } from '../../logging/transport/logger-transport.model';
+import { MetricsServiceInterface } from '../../metrics/metrics-service.interface';
+import { MultithreadingOptions, MultithreadingOptionsInput } from '../../multithreading/models/multithreading-options.model';
+import { MultithreadingServiceInterface } from '../../multithreading/services/multithreading-service.interface';
+import { OpenApiServiceInterface } from '../../open-api/open-api-service.interface';
+import { FormDataLimits } from '../../parsing/form-data/form-data-limits.model';
+import { CspOptions, CspOptionsInput } from '../../parsing/html/csp-options.model';
+import { ParserInterface } from '../../parsing/parser.interface';
+import { WakeUpServiceInterface } from '../../polling/wake-up-service.interface';
+import { RateLimiterInterface } from '../../rate-limiting/limiter/rate-limiter.interface';
+import { RateLimitingServiceInterface } from '../../rate-limiting/rate-limiting-service.interface';
+import { RouterInterface } from '../../routing/router.interface';
+import { SmsServiceInterface } from '../../sms/sms-service.interface';
+import { MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
+import { TenantServiceInterface } from '../../tenancy/tenant-service.interface';
+import { OpenTelemetrySpanExporter } from '../../tracing/open-telemetry/open-telemetry-api.model';
+import { TraceBufferInterface } from '../../tracing/trace-buffer.interface';
+import { TracerInterface } from '../../tracing/tracer.interface';
+import { Newable } from '../../types/newable.type';
+import { type RetentionInMs } from '../../types/retention-in-ms.type';
+import { FsPath } from '../../utilities/fs.utilities';
+import { ValidationServiceInterface } from '../../validation/validation-service.interface';
+import { VersioningServiceInterface } from '../../versioning/versioning-service.interface';
+import { WebsocketOptions, WebsocketOptionsInput } from '../../websocket/models/websocket-options.model';
+import { WebsocketServiceInterface } from '../../websocket/services/websocket-service.interface';
+import { TokenRecord } from '../models/di-token.model';
+import { InjectionToken } from '../models/injection-token.model';
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+function ziToken<T = never>(k: `zi.${string}`): InjectionToken<T> {
+    return new InjectionToken<T>(k);
+}
+
+/**
+ * Injection Tokens used and provided by Zibri.
+ */
+// eslint-disable-next-line typescript/typedef
+export const ZIBRI_DI_TOKENS = {
+    // static/singleton tokens
+    ZIBRI_PACKAGE_ROOT: ziToken<FsPath>('zi.zibri_package_root'),
+    ROUTER: ziToken<RouterInterface>('zi.router'),
+    LOGGER: ziToken<LoggerInterface>('zi.logger'),
+    LOGGER_TRANSPORTS: ziToken<LoggerTransport<BaseLoggerTransportConfig>[]>('zi.logger_transports'),
+    LOGGER_BUFFER_CAPACITY: ziToken<number>('zi.logger_buffer_capacity'),
+    LOGGER_FLUSH_INTERVAL_IN_MS: ziToken<number>('zi.logger_flush_interval_in_ms'),
+    LOGGER_CLEANUP_AFTER_IN_MS: ziToken<Record<LogLevel, number>>('zi.logger_cleanup_after_in_ms'),
+    /**
+     * Whether one line is written for every request that finishes.
+     *
+     * Off by default, and most applications should leave it off. The questions it usually gets turned
+     * on for - a 404 storm, a spike of 400s, a route that got slower - are about counts and
+     * distributions, and the metrics service already answers those from `http_requests_total` and
+     * `http_request_duration_seconds` at a cost that does not grow with traffic.
+     *
+     * What this gives is the individual requests: which client asked for what, in what order, with
+     * which agent. That is a debugging and forensics question,
+     * and it is worth its cost only while it is being asked - the default transports include the
+     * database one, which keeps everything from `info` upwards, so turning this on makes the log
+     * table the busiest table in the application.
+     */
+    ACCESS_LOG: ziToken<boolean>('zi.access_log'),
+    AUDIT_SERVICE: ziToken<AuditServiceInterface>('zi.audit_service'),
+    // undefined for an application that provides none, which the audit service refuses to start with
+    AUDIT_RETENTION_IN_MS: ziToken<RetentionInMs | undefined>('zi.audit_retention_in_ms'),
+    AUDIT_MAX_REFUSALS_PER_MINUTE: ziToken<number>('zi.audit_max_refusals_per_minute'),
+    AUDIT_INTEGRITY: ziToken<AuditIntegrity>('zi.audit_integrity'),
+    AUDIT_SEAL_DELAY_IN_MS: ziToken<number>('zi.audit_seal_delay_in_ms'),
+    CHAIN_SERVICE: ziToken<ChainServiceInterface>('zi.chain_service'),
+    METRICS_SERVICE: ziToken<MetricsServiceInterface>('zi.metrics_service'),
+    ASSET_SERVICE: ziToken<AssetServiceInterface>('zi.asset_service'),
+    BACKUP_SERVICE: ziToken<BackupServiceInterface>('zi.backup_service'),
+    GLOBAL_ERROR_HANDLER: ziToken<GlobalErrorHandler>('zi.global_error_handler'),
+    ERROR_PAGE_TEMPLATE: ziToken<ErrorPageTemplate | undefined>('zi.error_page_template'),
+    OPEN_API_SERVICE: ziToken<OpenApiServiceInterface>('zi.open_api_service'),
+    OPEN_API_AUTH: ziToken<RouteAuthConfiguration>('zi.open_api_auth'),
+    AUTH_SERVICE: ziToken<AuthServiceInterface>('zi.auth_service'),
+    ROUTE_AUTH_SERVICE: ziToken<RouteAuthServiceInterface>('zi.route_auth_service'),
+    REVALIDATE_USER_ON_AUTH_CHECK: ziToken<boolean>('zi.revalidate_user_on_auth_check'),
+    /**
+     * How many logins a user holds at most, across the strategies that list them. A login starting
+     * past it ends the one used least recently. Undefined for no limit.
+     */
+    MAX_LOGINS_PER_USER: ziToken<number | undefined>('zi.max_logins_per_user'),
+    /**
+     * How the email addresses of users are verified. Undefined for not at all.
+     */
+    EMAIL_VERIFICATION_OPTIONS: ziToken<EmailVerificationOptions | undefined>('zi.email_verification_options'),
+    EMAIL_VERIFICATION_SERVICE: ziToken<EmailVerificationServiceInterface>('zi.email_verification_service'),
+    /**
+     * Every permission of the application, which routes name and roles carry. The roles are rows, see
+     * `ROLE_SERVICE`.
+     *
+     * Undefined unless provided, and then no permission is declared: a route naming one, or a role
+     * carrying one, is refused.
+     */
+    PERMISSIONS: ziToken<PermissionDeclaration | undefined>('zi.permissions'),
+    /**
+     * The service keeping the roles: reading them for the checks, and creating, changing, deleting,
+     * giving and taking them.
+     */
+    ROLE_SERVICE: ziToken<RoleServiceInterface>('zi.role_service'),
+    /**
+     * When an access token stops working once what it was issued for has ended: when it expires, or
+     * immediately, which reads on every check of a token whether its login or its client still exists.
+     */
+    ACCESS_TOKEN_REVOCATION: ziToken<AccessTokenRevocation>('zi.access_token_revocation'),
+    AUTHORIZATION_SERVER_SERVICE: ziToken<AuthorizationServerServiceInterface>('zi.authorization_server_service'),
+    // eslint-disable-next-line typescript/no-explicit-any
+    AUTH_RATE_LIMITER: ziToken<RateLimiterInterface<any>>('zi.auth_rate_limiter'),
+    AUTH_RATE_LIMIT_OPTIONS: ziToken<AuthRateLimitOptions>('zi.auth_rate_limit_options'),
+    TWO_FACTOR_SERVICE: ziToken<TwoFactorServiceInterface>('zi.two_factor_service'),
+    TWO_FACTOR_FAILURE_DELAY_IN_MS: ziToken<number>('zi.two_factor_failure_delay_in_ms'),
+    REQUIRE_2FA_REAUTH: ziToken<Require2faReauth>('zi.require_2fa_reauth'),
+    REQUIRE_2FA_REAUTH_WINDOW_IN_MS: ziToken<number>('zi.require_2fa_reauth_window_in_ms'),
+    REQUIRE_2FA_PROVIDER_FACTORS: ziToken<Require2faProviderFactors>('zi.require_2fa_provider_factors'),
+    OTP_HEADER: ziToken<string>('zi.otp_header'),
+    OTP_VALIDATION_WINDOW_IN_MS: ziToken<OtpValidationWindowInMs>('zi.otp_validation_window_in_ms'),
+    OTP_LENGTH: ziToken<number>('zi.otp_length'),
+    /**
+     * How long an authenticator app shows one code, in seconds. `OTP_VALIDATION_WINDOW_IN_MS` is a
+     * whole number of these.
+     */
+    OTP_PERIOD_IN_SECONDS: ziToken<number>('zi.otp_period_in_seconds'),
+    /**
+     * How many recovery codes a set holds, and how long each is.
+     */
+    RECOVERY_CODE_OPTIONS: ziToken<RecoveryCodeOptions>('zi.recovery_code_options'),
+    PASSKEY_HEADER: ziToken<string>('zi.passkey_header'),
+    EMAIL_CODE_HEADER: ziToken<string>('zi.email_code_header'),
+    SMS_CODE_HEADER: ziToken<string>('zi.sms_code_header'),
+    LOGIN_TICKET_HEADER: ziToken<string>('zi.login_ticket_header'),
+    LOGIN_TICKET_EXPIRES_IN_MS: ziToken<number>('zi.login_ticket_expires_in_ms'),
+    // undefined for an application that provides none, which is the one not sending codes by text message
+    SMS_CODE_LIMITS: ziToken<SmsCodeLimits | undefined>('zi.sms_code_limits'),
+    RECOVERY_CODE_HEADER: ziToken<string>('zi.recovery_code_header'),
+    API_KEY_HEADER: ziToken<string>('zi.api_key_header'),
+    API_KEY_SERVICE: ziToken<ApiKeyServiceInterface>('zi.api_key_service'),
+    API_KEY_OPTIONS: ziToken<ApiKeyOptions>('zi.api_key_options'),
+    SCIM_SERVICE: ziToken<ScimServiceInterface>('zi.scim_service'),
+    TWO_FACTOR_CODE_OPTIONS: ziToken<TwoFactorCodeOptions>('zi.two_factor_code_options'),
+    PARSER: ziToken<ParserInterface>('zi.parser_service'),
+    VALIDATION_SERVICE: ziToken<ValidationServiceInterface>('zi.validation_service'),
+    DATA_SOURCE_SERVICE: ziToken<DataSourceServiceInterface>('zi.data_source_service'),
+    REPOSITORY_HOOKS: ziToken<RepositoryHooks>('zi.repository_hooks'),
+    SCHEMA_LOCK_TIMEOUT_IN_MS: ziToken<number>('zi.schema_lock_timeout_in_ms'),
+    SCHEMA_LOCK_HOLD_IN_MS: ziToken<number>('zi.schema_lock_hold_in_ms'),
+    VAL_KEY_TRANSACTION_LOCK_TIMEOUT_IN_MS: ziToken<number>('zi.val_key_transaction_lock_timeout_in_ms'),
+    VAL_KEY_TRANSACTION_LOCK_HOLD_IN_MS: ziToken<number>('zi.val_key_transaction_lock_hold_in_ms'),
+    HTTP_DRAIN_TIMEOUT_IN_MS: ziToken<number>('zi.http_drain_timeout_in_ms'),
+    HTTP_SERVER_LIMITS: ziToken<HttpServerLimits>('zi.http_server_limits'),
+    COMPRESSION_OPTIONS: ziToken<CompressionOptions>('zi.compression_options'),
+    LEASE_SERVICE: ziToken<LeaseServiceInterface>('zi.lease_service'),
+    WAKE_UP_SERVICE: ziToken<WakeUpServiceInterface>('zi.wake_up_service'),
+    POLL_MAX_INTERVAL_IN_MS: ziToken<number>('zi.poll_max_interval_in_ms'),
+    METRICS_REQUEST_DURATION_BUCKETS_IN_MS: ziToken<number[]>('zi.metrics_request_duration_buckets_in_ms'),
+    METRICS_DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS: ziToken<number>('zi.metrics_data_source_collector_interval_in_ms'),
+    PDF_FONT_OPTIONS: ziToken<PdfFontOptions>('zi.pdf_font_options'),
+    TENANT_SERVICE: ziToken<TenantServiceInterface>('zi.tenant_service'),
+    MEMBERSHIP_SERVICE: ziToken<MembershipServiceInterface>('zi.membership_service'),
+    LEASE_DRAIN_TIMEOUT_IN_MS: ziToken<number>('zi.lease_drain_timeout_in_ms'),
+    /**
+     * Which instance of the application this process is, recorded on the leases it holds and the
+     * thread jobs it runs.
+     */
+    INSTANCE_ID: ziToken<string>('zi.instance_id'),
+    JWT_AUTH_OPTIONS_INPUT: ziToken<JwtAuthOptionsInput>('zi.jwt_auth_options_input'),
+    JWT_AUTH_OPTIONS: ziToken<JwtAuthOptions>('zi.jwt_auth_options'),
+    JWT_SERVICE: ziToken<JwtServiceInterface>('zi.jwt_service'),
+    DPOP_SERVICE: ziToken<DpopServiceInterface>('zi.dpop_service'),
+    /**
+     * Whether the DPoP proofs of clients carry a nonce the application issued. Defaults to false.
+     */
+    DPOP_NONCES: ziToken<boolean>('zi.dpop_nonces'),
+    /**
+     * How long ago a DPoP proof may have been issued, and how far ahead of the clock it may claim to
+     * be.
+     */
+    DPOP_PROOF_MAX_AGE_IN_MS: ziToken<number>('zi.dpop_proof_max_age_in_ms'),
+    /**
+     * How long a DPoP nonce the application issued is taken.
+     */
+    DPOP_NONCE_LIFETIME_IN_MS: ziToken<number>('zi.dpop_nonce_lifetime_in_ms'),
+    COOKIE_AUTH_SESSION_OPTIONS: ziToken<CookieAuthSessionOptionsInput>('zi.cookie_auth_session_options'),
+    COOKIE_AUTH_REFRESH_SESSION_OPTIONS: ziToken<CookieAuthSessionOptionsInput>('zi.cookie_auth_refresh_session_options'),
+    COOKIE_AUTH_SESSION_EXPIRES_IN_MS: ziToken<number>('zi.cookie_auth_session_expires_in_ms'),
+    COOKIE_AUTH_REFRESH_SESSION_EXPIRES_IN_MS: ziToken<number>('zi.cookie_auth_refresh_session_expires_in_ms'),
+    COOKIE_AUTH_REFRESH_SESSION_REUSE_GRACE_IN_MS: ziToken<number>('zi.cookie_auth_refresh_session_reuse_grace_in_ms'),
+    /**
+     * How long the row of a cookie session and of a refresh session outlives its cookie, for a clock
+     * of a client or a replica that runs behind.
+     */
+    COOKIE_AUTH_ROW_GRACE_IN_MS: ziToken<number>('zi.cookie_auth_row_grace_in_ms'),
+    /**
+     * What a password has to be, checked whenever one is written to a property declared
+     * `password: true`. Undefined unless provided, and an application whose entities hold a password
+     * does not start without one.
+     */
+    PASSWORD_POLICY: ziToken<PasswordPolicy | undefined>('zi.password_policy'),
+    PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: ziToken<number>('zi.password_reset_token_expires_in_ms'),
+    CONFIRM_PASSWORD_RESET_URL: ziToken<string | undefined>('zi.confirm_password_reset_url'),
+    // eslint-disable-next-line typescript/no-explicit-any
+    PASSWORD_RESET_EMAIL_TEMPLATE: ziToken<PasswordResetEmailTemplate<any, any> | undefined>('zi.password_reset_email_template'),
+    FEDERATION_OPTIONS: ziToken<FederationOptions | undefined>('zi.federation_options'),
+    PASSKEY_OPTIONS: ziToken<PasskeyOptions | undefined>('zi.passkey_options'),
+    PASSKEY_SERVICE: ziToken<PasskeyServiceInterface>('zi.passkey_service'),
+    FIDO_METADATA_SERVICE: ziToken<FidoMetadataServiceInterface>('zi.fido_metadata_service'),
+    USER_SERVICE: ziToken<UserServiceInterface>('zi.user_service'),
+    CRON_SERVICE: ziToken<CronServiceInterface>('zi.cron_service'),
+    CRON_EXECUTION_LEASE_IN_MS: ziToken<number>('zi.cron_execution_lease_in_ms'),
+    CRON_REGISTRATION_LEASE_IN_MS: ziToken<number>('zi.cron_registration_lease_in_ms'),
+    FILE_UPLOAD_TEMP_FOLDER: ziToken<FsPath>('zi.file_upload_temp_folder'),
+    BACKUP_TEMP_FOLDER: ziToken<FsPath>('zi.backup_temp_folder'),
+    BACKUP_SHUTDOWN_WAIT_IN_MS: ziToken<number>('zi.backup_shutdown_wait_in_ms'),
+    BACKUP_STOPPING_TIMEOUT_IN_MS: ziToken<number>('zi.backup_stopping_timeout_in_ms'),
+    BACKUP_MAX_ATTEMPTS: ziToken<number>('zi.backup_max_attempts'),
+    BACKUP_RETRY_DELAY_IN_MS: ziToken<number>('zi.backup_retry_delay_in_ms'),
+    // undefined for an application that keeps every backup until it deletes one itself
+    BACKUP_RETENTION: ziToken<BackupRetention | undefined>('zi.backup_retention'),
+    VERSIONS_PATH: ziToken<FsPath>('zi.versions_path'),
+    TRANSLATIONS_PATH: ziToken<FsPath>('zi.translations_path'),
+    ASSETS_PATH: ziToken<FsPath>('zi.assets_path'),
+    PUBLIC_ASSETS_MAX_AGE_IN_MS: ziToken<number>('zi.public_assets_max_age_in_ms'),
+    FORM_DATA_LIMITS: ziToken<FormDataLimits>('zi.form_data_limits'),
+    EMAIL_SERVICE: ziToken<EmailServiceInterface>('zi.email_service'),
+    SMS_SERVICE: ziToken<SmsServiceInterface | undefined>('zi.sms_service'),
+    EMAIL_CONFIG: ziToken<EmailConfigInput | undefined>('zi.email_config'),
+    EMAIL_TRANSPORT: ziToken<EmailTransportInterface | undefined>('zi.email_transport'),
+    // eslint-disable-next-line typescript/no-explicit-any
+    EMAIL_RATE_LIMITER: ziToken<RateLimiterInterface<any>>('zi.email_rate_limiter'),
+    MULTITHREADING_SERVICE: ziToken<MultithreadingServiceInterface>('zi.multithreading_service'),
+    MULTITHREADING_OPTIONS_INPUT: ziToken<MultithreadingOptionsInput>('zi.multithreading_options_input'),
+    MULTITHREADING_OPTIONS: ziToken<MultithreadingOptions>('zi.multithreading_options'),
+    // undefined for an application that provides none, which the multithreading service refuses to start with
+    THREAD_JOB_RETENTION_IN_MS: ziToken<RetentionInMs | undefined>('zi.thread_job_retention_in_ms'),
+    // eslint-disable-next-line typescript/no-explicit-any
+    WEBSOCKET_SERVICE: ziToken<WebsocketServiceInterface<any>>('zi.websocket_service'),
+    // both undefined for an application that provides no input, which is the one without websockets
+    WEBSOCKET_OPTIONS_INPUT: ziToken<WebsocketOptionsInput | undefined>('zi.websocket_options_input'),
+    WEBSOCKET_OPTIONS: ziToken<WebsocketOptions | undefined>('zi.websocket_options'),
+    HTTP_CLIENT: ziToken<HttpClientInterface>('zi.http_client'),
+    HTTP_CLIENT_OPTIONS_INPUT: ziToken<HttpClientOptionsInput>('zi.http_client_options_input'),
+    HTTP_CLIENT_OPTIONS: ziToken<HttpClientOptions>('zi.http_client_options'),
+    EVENT_SERVICE: ziToken<EventServiceInterface>('zi.event_service'),
+    EVENT_EXECUTION_LEASE_IN_MS: ziToken<number>('zi.event_execution_lease_in_ms'),
+    EVENT_SUBSCRIBER_REGISTRATION_TTL_IN_MS: ziToken<number>('zi.event_subscriber_registration_ttl_in_ms'),
+    EVENT_RETRY_DELAY_IN_MS: ziToken<number>('zi.event_retry_delay_in_ms'),
+    EVENT_MAX_CONCURRENT_HOOKS: ziToken<number>('zi.event_max_concurrent_hooks'),
+    EVENT_HOOK_TIMEOUT_IN_MS: ziToken<number>('zi.event_hook_timeout_in_ms'),
+    EVENT_FINISHED_RETENTION_IN_MS: ziToken<number>('zi.event_finished_retention_in_ms'),
+    FRAMEWORK_EVENT_NAMES: ziToken<FrameworkEventNames>('zi.framework_event_names'),
+    // undefined for an application that provides none, which the event service refuses to start
+    EVENT_FAILED_RETENTION_IN_MS: ziToken<RetentionInMs | undefined>('zi.event_failed_retention_in_ms'),
+    /**
+     * What turns the work the application does into spans somebody can look at.
+     *
+     * `OpenTelemetryTracer` by default, which records through the OpenTelemetry SDK and sets that
+     * SDK up itself - so there is nothing to configure to have spans, and `TRACE_EXPORTER` is the
+     * only thing to say to have them leave the process.
+     *
+     * The default needs `@opentelemetry/api` and `@opentelemetry/sdk-trace-node`, which you install,
+     * and says so by name when one is missing.
+     *
+     * The trace *context* does not depend on any of this: a request arriving with a `traceparent`
+     * continues that trace, a request arriving without one starts a new trace, and either way the
+     * log lines of that request name it and the calls it makes carry it on. What a tracer adds is
+     * the spans inside the trace.
+     */
+    TRACER: ziToken<TracerInterface>('zi.tracer'),
+    /**
+     * Where the spans the application recorded are kept so that it can answer for them itself.
+     *
+     * An `InMemoryTraceBuffer` of a thousand spans by default. Register one of another size to keep
+     * more or less: what it holds is bounded by a count, so its cost does not grow with how long the
+     * process has been running or with how much traffic it has taken.
+     *
+     * What it holds is a window, not a history - at a few spans per request, a thousand of
+     * them is a few hundred requests - so it answers what is happening now. Anything that has to
+     * survive being asked about tomorrow leaves through `TRACE_EXPORTER`.
+     */
+    TRACE_BUFFER: ziToken<TraceBufferInterface>('zi.trace_buffer'),
+    /**
+     * Where finished spans are sent, if anywhere.
+     *
+     * Nothing by default, and that is what makes tracing cost nothing outside this process: spans
+     * are kept in `TRACE_BUFFER` and go no further. `otlpTraceExporter()` sends them to a collector
+     * over the protocol every tracing backend reads, and anything the SDK can export through works
+     * here as well. Spans reach it in batches.
+     */
+    // in batches rather than one at a time, because a span is finished on the path of every request
+    // the application answers
+    TRACE_EXPORTER: ziToken<OpenTelemetrySpanExporter | undefined>('zi.trace_exporter'),
+    CSRF_TOKEN_HEADER: ziToken<string>('zi.csrf_token_header'),
+    COOKIE_SIGN_SECRET: ziToken<string | undefined>('zi.cookie_sign_secret'),
+    HASH_SERVICE: ziToken<HashServiceInterface>('zi.hash_service'),
+    HASH_STRATEGIES: ziToken<Newable<HashStrategyInterface<Record<string, unknown>>>[]>('zi.hash_strategies'),
+    SCRYPT_COST: ziToken<ScryptCost>('zi.scrypt_cost'),
+    ENCRYPTION_SERVICE: ziToken<EncryptionServiceInterface>('zi.encryption_service'),
+    ENCRYPTION_STRATEGIES: ziToken<
+        // eslint-disable-next-line typescript/no-explicit-any
+        Newable<EncryptionStrategyInterface<any, any, any>>[]
+    >('zi.encryption_strategies'),
+    // eslint-disable-next-line typescript/no-explicit-any
+    ENCRYPTION_MASTER_OPTIONS: ziToken<EncryptionMasterOptions<any, any, any> | undefined>(
+        'zi.encryption_master_options'
+    ),
+    ENCRYPTION_KEY_CACHE: ziToken<WriteThroughReadThroughCache<string, EncryptionKey, 'EncryptionKeyCache'>>('zi.encryption_key_cache'),
+    CACHE_SERVICE: ziToken<CacheServiceInterface>('zi.cache_service'),
+    CACHE_INVALIDATION_RETENTION_IN_MS: ziToken<number>('zi.cache_invalidation_retention_in_ms'),
+    VERSIONING_SERVICE: ziToken<VersioningServiceInterface>('zi.versioning_service'),
+    VERSION_HEADER: ziToken<string>('zi.version_header'),
+    VERSION_QUERY_PARAM: ziToken<string>('zi.version_query_param'),
+    LOCALIZE_SERVICE: ziToken<LocalizeServiceInterface>('zi.localize_service'),
+    LOCALIZE_OPTIONS_INPUT: ziToken<LocalizeOptionsInput>('zi.localize_options_input'),
+    LOCALIZE_OPTIONS: ziToken<LocalizeOptions>('zi.localize_options'),
+    RATE_LIMITING_SERVICE: ziToken<RateLimitingServiceInterface>('zi.rate_limiting_service'),
+    HANDLEBAR_OPTIONS: ziToken<HandlebarOptions>('zi.handlebar_options'),
+    DEFAULT_CSP_OPTIONS_INPUT: ziToken<CspOptionsInput>('zi.default_csp_options_input'),
+    DEFAULT_CSP_OPTIONS: ziToken<CspOptions>('zi.default_csp_options'),
+    // dynamic/context based tokens
+    CURRENT_REQUEST_CONTEXT: ziToken<HttpRequestContext | WebsocketRequestContext | undefined>('zi.current_request_context'),
+    CURRENT_CACHE_CONTEXT: ziToken<CacheContext[] | undefined>('zi.current_cache_context')
+} as const satisfies TokenRecord;

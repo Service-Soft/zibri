@@ -1,0 +1,8 @@
+{
+    // the declarations of the published build, in a pass of their own: `removeComments` would strip
+    // the JSDoc out of them as well
+    "compilerOptions": {
+        "emitDeclarationOnly": true
+    },
+    "extends": "./tsconfig.cjs.json"
+}

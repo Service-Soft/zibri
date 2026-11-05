@@ -1,0 +1,17 @@
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
+import { OmitClass } from '../../../entity/omit-class.model';
+
+/**
+ * Data for refreshing a login with the cookie auth strategy.
+ */
+export class CookieAuthRefreshLoginData {
+    /**
+     * The transaction that this should run in.
+     */
+    transaction!: RepositoryTransaction;
+}
+
+/**
+ * The body a refresh of the cookie auth strategy is sent with: nothing, the cookies carry the login.
+ */
+export class CookieAuthRefreshLoginDto extends OmitClass(CookieAuthRefreshLoginData, ['transaction']) {}

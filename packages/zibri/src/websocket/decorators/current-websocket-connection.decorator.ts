@@ -1,0 +1,24 @@
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+
+/**
+ * Metadata of the \@CurrentWebsocketConnection decorator.
+ */
+export type CurrentWebsocketConnectionMetadata = {
+    /**
+     * The index at which the parameter exists that should be injected as the currently logged in user.
+     */
+    index: number
+};
+
+/**
+ * Marks the parameter to be injected as the currently connected websocket.
+ */
+export function CurrentWebsocketConnection(): ParameterDecorator {
+    return (target, propertyKey, index) => {
+        const fullMetadata: CurrentWebsocketConnectionMetadata = { index };
+        const ctor: Function = target.constructor;
+        MetadataUtilities.setFilePath(ctor);
+        const key: string = propertyKey?.toString() ?? '';
+        MetadataUtilities.setRouteCurrentWebsocketConnection(ctor, fullMetadata, key);
+    };
+}

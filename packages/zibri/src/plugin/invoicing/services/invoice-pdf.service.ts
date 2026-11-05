@@ -1,0 +1,563 @@
+import { type CompanyInfoServiceInterface } from './company-info-service.interface';
+import { InvoiceConformanceServiceInterface, InvoiceConformance } from './conformance/invoice-conformance-service.interface';
+import { type InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
+import { InvoicePdfServiceInterface } from './invoice-pdf-service.interface';
+import { validateInvoiceTotal } from './validate-invoice-total.function';
+import { Inject } from '../../../di/decorators/inject.decorator';
+import { Injectable } from '../../../di/decorators/injectable.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
+import { PdfContentDefinition, PdfColumnDefinition, PdfDocument, PdfDocumentDefinition, PdfUtilities, PdfTableCellDefinition, PdfContentSize, PdfPageSize } from '../../../document/pdf.utilities';
+import { InternalError } from '../../../error-handling/internal-error.model';
+import { type LocalizeServiceInterface } from '../../../localization/localize-service.interface';
+import { LocaleCode } from '../../../localization/models/locale-code.model';
+import { Timezone } from '../../../localization/models/timezone.model';
+import { BigNumber } from '../../../utilities/number.utilities';
+import { optionalPeer } from '../../../utilities/optional-peer.function';
+import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
+import { CompanyInfo } from '../models/company-info.model';
+import { Invoice } from '../models/invoice.model';
+import { type InvoicingOptions } from '../models/invoicing-options.model';
+import { Vat } from '../models/vat.model';
+
+/**
+ * Default implementation of the invoice pdf service.
+ */
+@Injectable({ register: 'onUse' })
+export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
+    constructor(
+        @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS)
+        protected readonly options: InvoicingOptions,
+        @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CALC_SERVICE)
+        private readonly invoiceCalcService: InvoiceCalcServiceInterface<Invoice>,
+        @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CONFORMANCE_SERVICES)
+        private readonly invoiceConformanceServices: InvoiceConformanceServiceInterface<Invoice>[],
+        @Inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE)
+        private readonly localizeService: LocalizeServiceInterface,
+        @Inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.COMPANY_INFO_SERVICE)
+        private readonly companyInfoService: CompanyInfoServiceInterface
+    ) {
+        // at startup rather than at the first invoice. This service is registered by the invoicing
+        // plugin, and every registered token is constructed while the application starts - so an
+        // application that declared the plugin without installing pdfmake finds out on the way up,
+        // months before the first invoice run would have found out for it.
+        optionalPeer('pdfmake', 'The invoicing plugin');
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async generateInvoicePdf(
+        invoice: Invoice,
+        locale: LocaleCode,
+        timezone: Timezone,
+        conformance?: InvoiceConformance,
+        pageSize?: PdfPageSize
+    ): Promise<PdfDocument> {
+        const documentDefinition: PdfDocumentDefinition = await this.generateInvoiceDocumentDefinition(
+            invoice,
+            conformance,
+            locale,
+            timezone,
+            pageSize ?? this.options.pageSize
+        );
+        const doc: PdfDocument = PdfUtilities.create(documentDefinition, undefined);
+        return doc;
+    }
+
+    /**
+     * Generates a pdf document definition for the given invoice.
+     * @param invoice - The invoice to generate the document definition for.
+     * @param conformance - The legal conformance that the invoice should conform to.
+     * @param locale - The locale that the invoice should be in.
+     * @param timezone - The time zone the invoice's dates are read in, deciding which calendar day each lands on.
+     * @param pageSize - The size of the pages.
+     * @returns The invoice document definition.
+     */
+    protected async generateInvoiceDocumentDefinition(
+        invoice: Invoice,
+        conformance: InvoiceConformance | undefined,
+        locale: LocaleCode,
+        timezone: Timezone,
+        pageSize: PdfPageSize = this.options.pageSize
+    ): Promise<PdfDocumentDefinition> {
+        await validateInvoiceTotal(invoice, this.invoiceCalcService, this.localizeService);
+        const taxGroups: Vat[] = await this.getTaxGroups(invoice);
+        // the company of the invoice's own tenant, whichever tenant asks for its pdf
+        const company: CompanyInfo = await this.companyInfoService.resolveCompanyInfo(invoice.tenantId);
+        const res: PdfDocumentDefinition = {
+            info: {
+                producer: company.fullName
+            },
+            pageSize,
+            pageMargins: [40, 40, 40, 70],
+            defaultStyle: { font: this.options.font },
+            attachments: [],
+            version: '1.7',
+            subset: 'PDF/A-3',
+            images: this.options.images,
+            header: this.getHeader(company),
+            content: [
+                this.getLetterhead(invoice, company),
+                {
+                    text: this.options.headline,
+                    fontSize: this.options.headlineFontSize,
+                    margin: [0, 10, 0, 10],
+                    bold: true
+                },
+                await this.getNumberAndDates(invoice, locale, timezone),
+                ...this.getContentFromParagraphs(invoice.textBeforeItems),
+                await this.getInvoiceItemsTable(invoice, taxGroups, locale),
+                await this.getTotalTable(invoice, taxGroups, locale),
+                ...this.getContentFromParagraphs(invoice.textAfterItems)
+            ],
+            footer: this.getFooter(company)
+        };
+        if (conformance != undefined) {
+            await this.getConformanceService(conformance).updateDocumentDefinition(invoice, res, timezone);
+        }
+        return res;
+    }
+
+    /**
+     * Gets the conformance service for the given name.
+     * @param conformance - The name of the conformance to get the service for.
+     * @returns The found conformance service.
+     * @throws When no conformance service has been found.
+     */
+    protected getConformanceService(conformance: InvoiceConformance): InvoiceConformanceServiceInterface<Invoice> {
+        const res: InvoiceConformanceServiceInterface<Invoice> | undefined = this.invoiceConformanceServices
+            .find(s => s.name === conformance);
+        if (!res) {
+            throw new InternalError(
+                [
+                    `Could not find InvoiceConformanceService for "${conformance}".`,
+                    'Did you forget to add the conformance service to your ZIBRI_INVOICING_DI_TOKENS.INVOICE_CONFORMANCE_SERVICES provider?'
+                ]
+            );
+        }
+        return res;
+    }
+
+    /**
+     * Gets the table that displays the total price of all items.
+     * @param invoice - The invoice to get the table from.
+     * @param taxGroups - The different tax groups that need to be taken into consideration.
+     * @param locale - The locale that the invoice should be in.
+     * @returns The total price of all items and the tax groups.
+     */
+    protected async getTotalTable(invoice: Invoice, taxGroups: Vat[], locale: LocaleCode): Promise<PdfContentDefinition> {
+        return {
+            table: {
+                headerRows: 0,
+                widths: ['*', 159],
+                body: await this.getTotalBody(invoice, taxGroups, locale)
+            },
+            fontSize: this.options.tableFontSize,
+            bold: true,
+            margin: [0, 15, 0, 20]
+        };
+    }
+
+    /**
+     * Gets the body of the total table.
+     * @param invoice - The invoice to build the body from.
+     * @param taxGroups - The different tax groups that need to be taken into consideration.
+     * @param locale - The locale that the invoice should be in.
+     * @returns The body of the total table.
+     */
+    protected async getTotalBody(invoice: Invoice, taxGroups: Vat[], locale: LocaleCode): Promise<PdfTableCellDefinition[][]> {
+        if (!taxGroups.length) {
+            const totalBeforeTax: BigNumber = await this.invoiceCalcService.getTotalBeforeTax(invoice);
+            return [
+                [
+                    this.options.totalLabel,
+                    this.localizeService.formatPrice(
+                        totalBeforeTax,
+                        { currency: invoice.currency, locale }
+                    )
+                ]
+            ];
+        }
+        const totalBeforeTax: BigNumber = await this.invoiceCalcService.getTotalBeforeTax(invoice);
+        const res: PdfTableCellDefinition[][] = [
+            [
+                this.options.totalBeforeTaxLabel,
+                this.localizeService.formatPrice(
+                    totalBeforeTax,
+                    { currency: invoice.currency, locale }
+                )
+            ]
+        ];
+        for (const group of taxGroups) {
+            const totalTaxOfGroup: BigNumber = await this.invoiceCalcService.getTotalTaxForTaxGroup(invoice, group, true);
+            res.push([
+                `${this.localizeService.formatPercent(group.rate, { locale })} ${this.options.taxLabel}`,
+                this.localizeService.formatPrice(
+                    totalTaxOfGroup,
+                    { currency: invoice.currency, locale }
+                )
+            ]);
+        }
+
+        const totalAfterTax: BigNumber = await this.invoiceCalcService.getTotalAfterTax(invoice);
+        res.push([
+            this.options.totalAfterTaxLabel,
+            this.localizeService.formatPrice(
+                totalAfterTax,
+                { currency: invoice.currency, locale }
+            )
+        ]);
+        return res;
+    }
+
+    /**
+     * Gets the table that displays all invoice items.
+     * @param invoice - The invoice to build the table from.
+     * @param taxGroups - The different tax groups that need to be taken into consideration.
+     * @param locale - The locale that the invoice should be in.
+     * @returns The table with all invoice items.
+     */
+    protected async getInvoiceItemsTable(invoice: Invoice, taxGroups: Vat[], locale: LocaleCode): Promise<PdfContentDefinition> {
+        const widths: PdfContentSize[] = taxGroups.length ? ['*', 75, 75, 75, 75] : ['*', 100, 100, 100];
+        return {
+            table: {
+                headerRows: 1,
+                widths: widths,
+                body: await this.getInvoiceItemsBody(invoice, taxGroups, locale)
+            },
+            fontSize: this.options.tableFontSize,
+            margin: [0, 25, 0, 0]
+        };
+    }
+
+    /**
+     * Gets the body of the invoice items table.
+     * @param invoice - The invoice to build the body from.
+     * @param taxGroups - The different tax groups that need to be taken into consideration.
+     * @param locale - The locale that the invoice should be in.
+     * @returns The body of the invoice items table.
+     */
+    protected async getInvoiceItemsBody(invoice: Invoice, taxGroups: Vat[], locale: LocaleCode): Promise<PdfTableCellDefinition[][]> {
+        const res: PdfTableCellDefinition[][] = [this.getInvoiceItemsHeaders(taxGroups)];
+
+        for (const item of invoice.items) {
+            const totalPricePreTax: BigNumber = await this.invoiceCalcService.getItemTotalPriceBeforeTax(item, invoice.currency);
+            const amount: string = `${item.amount} ${item.amountUnit.displayName}`;
+            if (taxGroups.length) {
+                res.push([
+                    item.name,
+                    amount,
+                    this.localizeService.formatPrice(
+                        item.price,
+                        { currency: invoice.currency, locale }
+                    ),
+                    item.vat.rate ? this.localizeService.formatPercent(item.vat.rate, { locale }) : '-',
+                    this.localizeService.formatPrice(
+                        totalPricePreTax.toNumber(),
+                        { currency: invoice.currency, locale }
+                    )
+                ]);
+            }
+            else {
+                res.push([
+                    item.name,
+                    amount,
+                    this.localizeService.formatPrice(
+                        item.price, { currency: invoice.currency, locale }
+                    ),
+                    this.localizeService.formatPrice(
+                        totalPricePreTax.toNumber(),
+                        { currency: invoice.currency, locale }
+                    )
+                ]);
+            }
+        }
+        return res;
+    }
+
+    /**
+     * Gets the headers for the invoice items table. If the only tax group is 0, the tax column is removed.
+     * @param taxGroups - The different tax groups that need to be taken into consideration.
+     * @returns The headers of the invoice items table.
+     */
+    protected getInvoiceItemsHeaders(taxGroups: Vat[]): PdfTableCellDefinition[] {
+        const headers: PdfTableCellDefinition[] = [
+            {
+                text: this.options.itemNameLabel,
+                bold: true
+            },
+            {
+                text: this.options.itemAmountLabel,
+                bold: true
+            },
+            {
+                text: this.options.itemSinglePriceLabel,
+                bold: true
+            }
+        ];
+        if (taxGroups.length) {
+            headers.push({
+                text: this.options.taxLabel,
+                bold: true
+            });
+        }
+        headers.push({
+            text: this.options.itemTotalPriceLabel,
+            bold: true
+        });
+        return headers;
+    }
+
+    /**
+     * Gets the text that should be displayed before the actual invoice items start.
+     * @param paragraphs - The paragraphs to get the text from.
+     * @returns The text that should be displayed before the actual invoice items.
+     */
+    protected getContentFromParagraphs(paragraphs: string[]): PdfContentDefinition[] {
+        return paragraphs.map(t => {
+            return {
+                text: t,
+                margin: [0, 10, 0, 0]
+            };
+        });
+    }
+
+    /**
+     * Gets the invoice number and the dates.
+     * @param invoice - The invoice to build the content from.
+     * @param locale - The locale that the invoice should be in.
+     * @param timezone - The time zone the invoice's dates are read in, deciding which calendar day each lands on.
+     * @returns The content containing the invoice number and the date, performance date and due date.
+     */
+    protected getNumberAndDates(invoice: Invoice, locale: LocaleCode, timezone: Timezone): PdfContentDefinition {
+        const invoiceNumberColumn: PdfColumnDefinition = [
+            {
+                text: `${this.options.invoiceNumberLabel}: ${invoice.number}`,
+                alignment: 'left'
+            },
+            {
+                text: this.options.invoiceNumberNotice,
+                fontSize: 8,
+                italics: true
+            }
+        ];
+        const invoiceDate: string = this.localizeService.formatDate(
+            invoice.date,
+            'date',
+            { locale, timezone }
+        );
+        const dateColumn: PdfColumnDefinition = [
+            {
+                text: `${this.options.dateLabel}: ${invoiceDate}`,
+                alignment: 'right'
+            }
+        ];
+        if (this.options.showPerformanceDate) {
+            const performanceDate: string = this.localizeService.formatDate(
+                invoice.performanceDate,
+                'date',
+                { locale, timezone }
+            );
+            dateColumn.push({
+                text: `${this.options.performanceDateLabel}: ${performanceDate}`,
+                alignment: 'right'
+            });
+        }
+        if (this.options.showDueDate) {
+            const dueDate: string = this.localizeService.formatDate(
+                invoice.dueDate,
+                'date',
+                { locale, timezone }
+            );
+            dateColumn.push({
+                text: `${this.options.dueDateLabel}: ${dueDate}`,
+                alignment: 'right'
+            });
+        }
+        return {
+            columns: [
+                invoiceNumberColumn,
+                dateColumn
+            ]
+        };
+    }
+
+    /**
+     * Gets the letterhead.
+     * @param invoice - The invoice to get the letterhead from.
+     * @param company - The company issuing the invoice.
+     * @returns The letterhead of the customer and the company.
+     */
+    protected getLetterhead(invoice: Invoice, company: CompanyInfo): PdfContentDefinition {
+        return {
+            columns: [
+                this.getCustomerLetterheadColumn(invoice, company),
+                {
+                    columns: [this.getCompanyLetterheadColumn(company)],
+                    width: 'auto'
+                }
+            ]
+        };
+    }
+
+    /**
+     * Gets the letterhead of the customer.
+     * @param invoice - The invoice to get the customer letterhead from.
+     * @param company - The company issuing the invoice, whose address line heads it.
+     * @returns The letterhead of the customer, containing the name and address.
+     */
+    protected getCustomerLetterheadColumn(invoice: Invoice, company: CompanyInfo): PdfColumnDefinition {
+        // eslint-disable-next-line stylistic/max-len
+        const companyAddressLine: string = `${company.fullName} - ${company.address.street} ${company.address.number} - ${company.address.postcode} ${company.address.city}`;
+        const fontSize: number = this.getFontSizeForLetterhead(companyAddressLine);
+        return [
+            {
+                text: companyAddressLine,
+                fontSize: fontSize,
+                alignment: 'left',
+                margin: [0, 0, 0, 5],
+                decoration: 'underline'
+            },
+            this.getCustomerName(invoice),
+            `${invoice.customerAddressData.street} ${invoice.customerAddressData.number}`,
+            `${invoice.customerAddressData.postcode} ${invoice.customerAddressData.city}`
+        ];
+    }
+
+    private getCustomerName(invoice: Invoice): string {
+        return invoice.customerAddressData.company && invoice.customerAddressData.companyName
+            ? invoice.customerAddressData.companyName
+            : `${invoice.customerAddressData.firstName} ${invoice.customerAddressData.lastName}`;
+    }
+
+    /**
+     * Gets the font size for the provided company address line.
+     * Checks if the address line is too big and makes the font smaller accordingly.
+     * @param companyAddressLine - The company address line of the invoice.
+     * @returns The font size to use for the letter head.
+     */
+    protected getFontSizeForLetterhead(companyAddressLine: string): number {
+        if (companyAddressLine.length > 85) {
+            return 4;
+        }
+        return companyAddressLine.length > 65 ? 6 : 8;
+    }
+
+    /**
+     * Gets the letterhead of the company.
+     * @param company - The company issuing the invoice.
+     * @returns The letterhead of the company, containing full name, address and contact information.
+     */
+    protected getCompanyLetterheadColumn(company: CompanyInfo): PdfColumnDefinition {
+        return [
+            {
+                text: company.fullName,
+                bold: true
+            },
+            `${company.address.street} ${company.address.number}`,
+            {
+                text: `${company.address.postcode} ${company.address.city}`,
+                margin: [0, 0, 0, 10]
+            },
+            `${this.options.phoneLabel}: ${company.phone}`,
+            `${this.options.emailLabel}: ${company.email}`
+        ];
+    }
+
+    /**
+     * Gets all relevant tax groups for the pdf file.
+     * @param invoice - The invoice to get the tax groups for.
+     * @returns The tax groups for the pdf.
+     */
+    protected async getTaxGroups(invoice: Invoice): Promise<Vat[]> {
+        const vats: Vat[] = await this.invoiceCalcService.getTaxGroups(invoice, true);
+        return vats.filter(v => v.rate !== 0);
+    }
+
+    /**
+     * Gets the Content of the header.
+     * @param company - The company issuing the invoice.
+     * @returns A row with the logo or an empty array if the company has none.
+     */
+    protected getHeader(company: CompanyInfo): PdfContentDefinition {
+        if (!company.logo) {
+            return [];
+        }
+        return [
+            {
+                columns: [
+                    {
+                        width: '*',
+                        text: ''
+                    },
+                    {
+                        fit: [500, 25],
+                        image: company.logo
+                    }
+                ]
+            }
+        ];
+    }
+
+    /**
+     * Gets the Content of the footer.
+     * @param company - The company issuing the invoice.
+     * @returns Multiple rows containing information about the company and payment data.
+     */
+    protected getFooter(company: CompanyInfo): PdfContentDefinition {
+        return {
+            columns: [
+                this.getFirstFooterColumn(company),
+                this.getSecondFooterColumn(company)
+            ],
+            margin: [40, 0, 0, 0],
+            fontSize: this.options.footerFontSize
+        };
+    }
+
+    /**
+     * Gets the first column of the footer.
+     * @param company - The company issuing the invoice.
+     * @returns The column definition.
+     */
+    protected getFirstFooterColumn(company: CompanyInfo): PdfColumnDefinition {
+        const res: PdfColumnDefinition = [
+            {
+                text: this.options.bankDetailsLabel,
+                bold: true
+            }
+        ];
+        if (company.bankName) {
+            res.push(company.bankName);
+        }
+        if (company.iban) {
+            res.push(`${this.options.ibanLabel} ${company.iban}`);
+        }
+        if (company.bic) {
+            res.push(`${this.options.bicLabel} ${company.bic}`);
+        }
+        return res;
+    }
+
+    /**
+     * Gets the second column of the footer.
+     * @param company - The company issuing the invoice.
+     * @returns The column definition.
+     */
+    protected getSecondFooterColumn(company: CompanyInfo): PdfColumnDefinition {
+        const res: PdfColumnDefinition = [
+            {
+                text: company.fullName,
+                bold: true
+            }
+        ];
+        if (company.taxNumber) {
+            res.push(`${this.options.taxNumberLabel} ${company.taxNumber}`);
+        }
+        if (company.taxOffice) {
+            res.push(company.taxOffice);
+        }
+        if (company.ceo) {
+            res.push(`${this.options.ceoLabel} ${company.ceo}`);
+        }
+        return res;
+    }
+}

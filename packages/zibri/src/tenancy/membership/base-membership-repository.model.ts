@@ -1,0 +1,126 @@
+import { BaseMembership } from './base-membership.model';
+import { MembershipRepositoryInterface } from './membership-repository.interface';
+import { ChangeSetRepository } from '../../data-source/change-sets/change-set-repository';
+import { type ChangeSetEntity } from '../../data-source/change-sets/models/change-set-entity.model';
+import { type SoftDeleteEntity } from '../../data-source/change-sets/models/soft-delete-entity.model';
+import { SoftDeleteRepository } from '../../data-source/change-sets/soft-delete-repository';
+import { Where } from '../../data-source/models/where/where-filter.model';
+import { Repository } from '../../data-source/repository/repository';
+import { MEMBERSHIP_REPOSITORY } from '../../data-source/repository/repository-kind.model';
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
+import { ModelRegistry } from '../../global/model-registry/model.registry';
+import { DeepPartial } from '../../types/deep-partial.type';
+import { Newable } from '../../types/newable.type';
+
+/**
+ * A membership repository class built over the repository a data source builds for its entity.
+ */
+export type MembershipRepositoryClass<T extends BaseMembership<string>, R extends Repository<T>> = new (
+    entityClass: Newable<T>,
+    repo: R
+) => R & MembershipRepositoryInterface<string, T>;
+
+/**
+ * Defines the base of a membership repository: a repository of the membership entity that finds,
+ * creates and deletes the membership of a user in a tenant and stores its deactivation and roles.
+ * Extend the class it returns and declare it with `@RepositoryFor(Membership)`.
+ */
+export function BaseMembershipRepository<T extends BaseMembership<string>>(): MembershipRepositoryClass<T, Repository<T>>;
+/**
+ * Defines the base of a membership repository over `SoftDeleteRepository`, for a membership entity
+ * that soft deletes.
+ * @param base - `SoftDeleteRepository`, which the class extends.
+ */
+export function BaseMembershipRepository<T extends BaseMembership<string> & SoftDeleteEntity>(
+    base: typeof SoftDeleteRepository
+): MembershipRepositoryClass<T, SoftDeleteRepository<T>>;
+/**
+ * Defines the base of a membership repository over `ChangeSetRepository`, for a membership entity
+ * that records change sets.
+ * @param base - `ChangeSetRepository`, which the class extends.
+ */
+export function BaseMembershipRepository<T extends BaseMembership<string> & ChangeSetEntity>(
+    base: typeof ChangeSetRepository
+): MembershipRepositoryClass<T, ChangeSetRepository<T>>;
+export function BaseMembershipRepository<T extends BaseMembership<string>>(
+    base: typeof Repository = Repository
+): Newable<Repository<T> & MembershipRepositoryInterface<string, T>> {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    class MembershipRepository extends base<T> implements MembershipRepositoryInterface<string, T> {
+        // a getter for the reason BaseUserRepository gives
+        // eslint-disable-next-line jsdoc/require-jsdoc, typescript/class-literal-property-style
+        get [MEMBERSHIP_REPOSITORY](): true {
+            return true;
+        }
+
+        // the filters and the data are cast because typescript does not resolve a mapped type over an
+        // entity that is still a type parameter, though every membership entity has these columns
+
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        async findMembership(userId: string, tenantId: string, transaction?: RepositoryTransaction): Promise<T | undefined> {
+            // the tenant is the active one, which the repository narrows to by itself
+            return await this.findOne({
+                where: { userId } as Where<T>,
+                transaction: this.resolveRepositoryTransaction(transaction),
+                required: false
+            });
+        }
+
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        async findMemberships(userId: string): Promise<T[]> {
+            return await this.findAll({ where: { userId } as Where<T>, acrossTenants: true });
+        }
+
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        async resolveMembership(userId: string, transaction: RepositoryTransaction | undefined): Promise<T> {
+            const roles: string[] = [];
+            const own: RepositoryTransaction<T> | undefined = this.resolveRepositoryTransaction(transaction);
+            return await this.findOne({ where: { userId } as Where<T>, transaction: own, required: false })
+                ?? await this.create({ userId, roles } as DeepPartial<T>, { transaction: own });
+        }
+
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        async updateDeactivatedAt(
+            userId: string,
+            deactivatedAt: Date | null,
+            transaction: RepositoryTransaction | undefined
+        ): Promise<void> {
+            await this.updateAll(
+                { userId } as Where<T>,
+                { deactivatedAt } as DeepPartial<T>,
+                { transaction: this.resolveRepositoryTransaction(transaction) }
+            );
+        }
+
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        async deleteMembership(userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+            // whatever a locked property of the membership holds, which the caller has no value of
+            await this.deleteAll(
+                ModelRegistry.get(this.entityClass).optimisticLockDescriptor.resolveRegardlessWhere({ userId } as Where<T>),
+                { transaction: this.resolveRepositoryTransaction(transaction) }
+            );
+        }
+
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        async updateRoles(userId: string, roles: string[], transaction: RepositoryTransaction | undefined): Promise<void> {
+            await this.updateAll(
+                { userId } as Where<T>,
+                { roles } as DeepPartial<T>,
+                { transaction: this.resolveRepositoryTransaction(transaction) }
+            );
+        }
+
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        async deleteMemberships(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
+            // whatever a locked property holds: the user they belong to is being deleted
+            await this.deleteAll(
+                ModelRegistry.get(this.entityClass)
+                    .optimisticLockDescriptor
+                    .resolveRegardlessWhere({ userId: { oneOf: userIds } } as Where<T>),
+                { transaction: this.resolveRepositoryTransaction(transaction), acrossTenants: true }
+            );
+        }
+    }
+
+    return MembershipRepository;
+}

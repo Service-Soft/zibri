@@ -1,0 +1,391 @@
+import { beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+
+import { defineDateFormat } from './define-date-format.function';
+import { FormatDateOptions, FormatPercentOptions, FormatPriceOptions } from './localize-service.interface';
+import { LocalizeService } from './localize.service';
+import { LocaleCode } from './models/locale-code.model';
+import { LocaleConfiguration, LocalizeOptions } from './models/localize-options.model';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { initDiContainer } from '../di/init-di-container.function';
+import { inject } from '../di/inject.function';
+import { ObjectUtilities } from '../utilities/object.utilities';
+
+type ResolutionCase = {
+    readonly header: string,
+    readonly supportedLocales: readonly LocaleCode[],
+    readonly expected: LocaleCode | undefined
+};
+
+const localeConfiguration: LocaleConfiguration = {
+    currencyCode: 'EUR',
+    defaultDateFormat: defineDateFormat('YYYY-MM-DD'),
+    defaultDateTimeFormat: defineDateFormat('YYYY-MM-DD HH:mm:ss'),
+    defaultTimeFormat: defineDateFormat('HH:mm:ss')
+};
+
+let localizeService: LocalizeService;
+
+function clearSupportedLocales(): void {
+    const supportedLocales: LocalizeOptions['supportedLocales'] = localizeService['options'].supportedLocales;
+    for (const locale of ObjectUtilities.keys(supportedLocales)) {
+        // eslint-disable-next-line typescript/no-dynamic-delete
+        delete supportedLocales[locale];
+    }
+}
+
+function setSupportedLocales(...locales: readonly LocaleCode[]): void {
+    clearSupportedLocales();
+
+    const supportedLocales: LocalizeOptions['supportedLocales'] = localizeService['options'].supportedLocales;
+    for (const locale of locales) {
+        supportedLocales[locale] = localeConfiguration;
+    }
+}
+
+describe('LocalizeService', () => {
+    beforeAll(() => {
+        initDiContainer();
+        localizeService = inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE) as LocalizeService;
+    });
+
+    beforeEach(() => {
+        clearSupportedLocales();
+    });
+
+    it.each<ResolutionCase>([
+        {
+            header: 'en',
+            supportedLocales: ['en'],
+            expected: 'en'
+        },
+        {
+            header: 'en',
+            supportedLocales: ['en-GB'],
+            expected: 'en-GB'
+        },
+        {
+            header: 'en-US',
+            supportedLocales: ['en-US'],
+            expected: 'en-US'
+        },
+        {
+            header: 'en-US',
+            supportedLocales: ['en'],
+            expected: 'en'
+        },
+        {
+            header: 'en-US,en;q=0.9',
+            supportedLocales: ['en-US'],
+            expected: 'en-US'
+        },
+        {
+            header: 'en-US,en;q=0.9',
+            supportedLocales: ['en'],
+            expected: 'en'
+        },
+        {
+            header: 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
+            supportedLocales: ['de-DE'],
+            expected: 'de-DE'
+        },
+        {
+            header: 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
+            supportedLocales: ['en-US'],
+            expected: 'en-US'
+        },
+        {
+            header: 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
+            supportedLocales: ['en'],
+            expected: 'en'
+        },
+        {
+            header: 'fr-CH, fr;q=0.9, en;q=0.8',
+            supportedLocales: ['fr-CH'],
+            expected: 'fr-CH'
+        },
+        {
+            header: 'fr-CH, fr;q=0.9, en;q=0.8',
+            supportedLocales: ['fr'],
+            expected: 'fr'
+        },
+        {
+            header: 'fr-CH, fr;q=0.9, en;q=0.8',
+            supportedLocales: ['en'],
+            expected: 'en'
+        },
+        {
+            header: 'fr-CH, fr;q=0.9, en;q=0.8',
+            supportedLocales: ['fr-FR', 'en'],
+            expected: 'fr-FR'
+        },
+        {
+            header: 'zh-Hans-CN,zh;q=0.9,en;q=0.8',
+            supportedLocales: ['zh-Hans-CN'],
+            expected: 'zh-Hans-CN'
+        },
+        {
+            header: 'zh-Hans-CN,zh;q=0.9,en;q=0.8',
+            supportedLocales: ['zh-Hans'],
+            expected: 'zh-Hans'
+        },
+        {
+            header: 'zh-Hans-CN,zh;q=0.9,en;q=0.8',
+            supportedLocales: ['zh'],
+            expected: 'zh'
+        },
+        {
+            header: 'zh-Hans-CN,zh;q=0.9,en;q=0.8',
+            supportedLocales: ['en'],
+            expected: 'en'
+        },
+        {
+            header: 'zh-Hant-TW,zh-Hant;q=0.9,zh;q=0.8',
+            supportedLocales: ['zh-Hant-TW'],
+            expected: 'zh-Hant-TW'
+        },
+        {
+            header: 'zh-Hant-TW,zh-Hant;q=0.9,zh;q=0.8',
+            supportedLocales: ['zh-Hant'],
+            expected: 'zh-Hant'
+        },
+        {
+            header: 'zh-Hant-TW,zh-Hant;q=0.9,zh;q=0.8',
+            supportedLocales: ['zh'],
+            expected: 'zh'
+        },
+        {
+            header: 'en-GB,en;q=0.9',
+            supportedLocales: ['en-GB'],
+            expected: 'en-GB'
+        },
+        {
+            header: 'en-GB,en;q=0.9',
+            supportedLocales: ['en'],
+            expected: 'en'
+        },
+        {
+            header: 'en-GB,en;q=0.9',
+            supportedLocales: ['de-DE'],
+            expected: undefined
+        },
+        {
+            header: 'de-DE,de;q=0.9,de-AT;q=0.8,de-CH;q=0.7',
+            supportedLocales: ['de-DE'],
+            expected: 'de-DE'
+        },
+        {
+            header: 'de-DE,de;q=0.9,de-AT;q=0.8,de-CH;q=0.7',
+            supportedLocales: ['de'],
+            expected: 'de'
+        },
+        {
+            header: 'en-US;q=0.95,en;q=0.9,*;q=0.1',
+            supportedLocales: ['en-US'],
+            expected: 'en-US'
+        },
+        {
+            header: 'en-US;q=0.95,en;q=0.9,*;q=0.1',
+            supportedLocales: ['en'],
+            expected: 'en'
+        },
+        {
+            header: 'en-US;q=0.95,en;q=0.9,*;q=0.1',
+            supportedLocales: ['de-DE'],
+            expected: undefined
+        },
+        {
+            header: 'en;q=0.9,de;q=0.9',
+            supportedLocales: ['en', 'de'],
+            expected: 'en'
+        },
+        {
+            header: 'de;q=0.9,en;q=0.9',
+            supportedLocales: ['en', 'de'],
+            expected: 'de'
+        },
+        {
+            header: 'en;q=0.7,de;q=0.3',
+            supportedLocales: ['de', 'en'],
+            expected: 'en'
+        },
+        {
+            header: 'de;q=1.0,en;q=0.5',
+            supportedLocales: ['de', 'en'],
+            expected: 'de'
+        }
+    ])('resolves "$header" with supportedLocales=$supportedLocales', ({ header, supportedLocales, expected }) => {
+        setSupportedLocales(...supportedLocales);
+        expect(localizeService.resolveSupportedLocaleFromAcceptLanguageString(header)).toBe(expected);
+    });
+
+    it.each<ResolutionCase>([
+        {
+            header: '',
+            supportedLocales: ['en', 'de-DE'],
+            expected: undefined
+        },
+        {
+            header: ' ',
+            supportedLocales: ['en', 'de-DE'],
+            expected: undefined
+        },
+        {
+            header: ',',
+            supportedLocales: ['en', 'de-DE'],
+            expected: undefined
+        },
+        {
+            header: ',,',
+            supportedLocales: ['en', 'de-DE'],
+            expected: undefined
+        },
+        {
+            header: 'english',
+            supportedLocales: ['en', 'de-DE'],
+            expected: undefined
+        },
+        {
+            header: 'en_US',
+            supportedLocales: ['en', 'de-DE'],
+            expected: 'en'
+        },
+        {
+            header: '*',
+            supportedLocales: ['en', 'de-DE'],
+            expected: undefined
+        },
+        {
+            header: '*;q=1.0',
+            supportedLocales: ['en', 'de-DE'],
+            expected: undefined
+        },
+        {
+            header: 'en-US;q=',
+            supportedLocales: ['en-US'],
+            expected: 'en-US'
+        },
+        {
+            header: 'en-US;q=abc',
+            supportedLocales: ['en-US'],
+            expected: 'en-US'
+        },
+        {
+            header: 'en;q=',
+            supportedLocales: ['en'],
+            expected: 'en'
+        },
+        {
+            header: 'en;q=1.1',
+            supportedLocales: ['en'],
+            expected: 'en'
+        },
+        {
+            header: 'en;q=-1',
+            supportedLocales: ['en'],
+            expected: 'en'
+        },
+        {
+            header: 'de-DE;q=abc',
+            supportedLocales: ['de-DE'],
+            expected: 'de-DE'
+        },
+        // q=0 is "not acceptable" (RFC 9110, 12.4.2)
+        {
+            header: 'en-US;q=0',
+            supportedLocales: ['en-US'],
+            expected: undefined
+        },
+        {
+            header: 'fr, de;q=0',
+            supportedLocales: ['en', 'de'],
+            expected: undefined
+        },
+        // whitespace is allowed before the weight
+        {
+            header: 'en; q=0.1, de',
+            supportedLocales: ['de', 'en'],
+            expected: 'de'
+        },
+        {
+            header: 'en-US;q=.8',
+            supportedLocales: ['en-US'],
+            expected: 'en-US'
+        },
+        {
+            header: 'en-US;q=0.123',
+            supportedLocales: ['en-US'],
+            expected: 'en-US'
+        }
+    ])('handles malformed "$header" with supportedLocales=$supportedLocales', ({ header, supportedLocales, expected }) => {
+        setSupportedLocales(...supportedLocales);
+        expect(localizeService.resolveSupportedLocaleFromAcceptLanguageString(header)).toBe(expected);
+    });
+
+    it('starts an application that has no translations', async () => {
+        setSupportedLocales(localizeService['options'].defaultLocale);
+
+        // the translations folder belongs to the application, and an application that localizes
+        // nothing has none - so reading source.xlf unconditionally made having nothing to translate
+        // a boot failure, reported as a bare ENOENT naming a path inside node_modules
+        await expect(localizeService.onAppInit()).resolves.toBeUndefined();
+    });
+
+    // one order is stored, so an application serving languages that order text differently is making
+    // a decision - and one nobody makes deliberately is one nobody knows was made
+    describe('supported locales that order text differently', () => {
+        it('refuses to start, naming the option that says one order is wanted', async () => {
+            // Swedish sorts "ä" after "z" where German sorts it with "a"
+            setSupportedLocales(localizeService['options'].defaultLocale, 'sv-SE', 'de-DE');
+
+            await expect(localizeService.onAppInit()).rejects.toThrow('order text differently');
+        });
+
+        it('starts once the application says so', async () => {
+            setSupportedLocales(localizeService['options'].defaultLocale, 'sv-SE', 'de-DE');
+            const options: LocalizeOptions = localizeService['options'];
+            Object.assign(options, { textOrder: 'defaultLocale' });
+
+            await expect(localizeService.onAppInit()).resolves.toBeUndefined();
+
+            Object.assign(options, { textOrder: undefined });
+        });
+
+        it('asks nothing of an application whose locales agree', async () => {
+            setSupportedLocales(localizeService['options'].defaultLocale, 'en-GB');
+
+            await expect(localizeService.onAppInit()).resolves.toBeUndefined();
+        });
+    });
+
+    it('leaves the options a value is formatted with as the caller passed them', () => {
+        const percentOptions: FormatPercentOptions = {};
+        const dateOptions: FormatDateOptions = {};
+        const priceOptions: FormatPriceOptions = { currency: 'EUR' };
+
+        localizeService.formatPercent(0.5, percentOptions);
+        localizeService.formatDate(new Date('2026-01-01T00:00:00.000Z'), 'YYYY', dateOptions);
+        localizeService.formatPrice(5, priceOptions);
+
+        expect([percentOptions, dateOptions, priceOptions]).toEqual([{}, {}, { currency: 'EUR' }]);
+    });
+
+    // a percent of 19 was formatted as 1,900%, and 7.7 was rounded to 8%
+    it('formats a percent as the number of percent it is, with its decimals', () => {
+        expect(localizeService.formatPercent(19, { locale: 'en-US' })).toBe('19%');
+        expect(localizeService.formatPercent(7.7, { locale: 'en-US' })).toBe('7.7%');
+        expect(localizeService.formatPercent(19, { locale: 'de-DE' })).toBe('19 %');
+    });
+
+    describe('ordering text', () => {
+        it('orders alphabetically rather than by the bytes text is written with', () => {
+            // 'B' is the lower byte and the later letter
+            expect(localizeService.compareText('Bravo', 'alpha')).toBeGreaterThan(0);
+            expect(localizeService.compareText('alpha', 'Bravo')).toBeLessThan(0);
+        });
+
+        it('lets case decide only between two texts that are otherwise the same', () => {
+            expect(localizeService.compareText('alpha', 'Alpha')).toBeLessThan(0);
+            expect(localizeService.compareText('alpha', 'alpha')).toBe(0);
+        });
+    });
+});

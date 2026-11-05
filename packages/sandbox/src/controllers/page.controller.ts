@@ -1,0 +1,48 @@
+import { AssetServiceInterface, Auth, Cache, Cached, CacheServiceInterface, Controller, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, Inject, inject, InMemoryCacheStore, LocaleCode, LoggerInterface, MetricsServiceInterface, Response, TreeNode, TsxUtilities, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS } from 'zibri';
+
+import { AssetsPage } from '../templates/pages/assets';
+import { HomePage } from '../templates/pages/home';
+
+@Cache()
+export class StaticPagesCache extends WriteThroughReadThroughCache<string, HtmlResponse, 'StaticPagesCache'> {
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        protected readonly logger: LoggerInterface,
+        @Inject(ZIBRI_DI_TOKENS.CACHE_SERVICE)
+        protected readonly cacheService: CacheServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.METRICS_SERVICE)
+        protected readonly metricsService: MetricsServiceInterface
+    ) {
+        super('StaticPagesCache', new InMemoryCacheStore(), []);
+    }
+
+    static getPageKey(page: string): string {
+        const ctx: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        const locale: LocaleCode = inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).resolveSupportedLocale(ctx);
+        return locale + page;
+    }
+}
+
+@Auth.skip({ allowRedundant: true })
+@Controller('/', { versions: 'all' })
+export class PageController {
+
+    @Cached(StaticPagesCache, () => StaticPagesCache.getPageKey('index'))
+    @Response.html()
+    @Get()
+    // eslint-disable-next-line typescript/require-await
+    async index(): Promise<HtmlResponse> {
+        const html: string = TsxUtilities.renderPage(HomePage, { appName: GlobalRegistry.getAppData('name') ?? '' });
+        return HtmlResponse.fromString(html);
+    }
+
+    @Cached(StaticPagesCache, () => StaticPagesCache.getPageKey('assets'))
+    @Response.html()
+    @Get('/assets')
+    async assets(): Promise<HtmlResponse> {
+        const assetService: AssetServiceInterface = inject(ZIBRI_DI_TOKENS.ASSET_SERVICE);
+        const nodes: TreeNode[] = await assetService.buildFileTree();
+        const html: string = TsxUtilities.renderPage(AssetsPage, { nodes });
+        return HtmlResponse.fromString(html);
+    }
+}

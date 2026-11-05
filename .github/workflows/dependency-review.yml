@@ -1,0 +1,31 @@
+name: Dependency review
+
+# what a pull request changes in the dependency tree, before it is merged - releases included, since
+# every release is a pull request into `release`. The whole tree is checked on every push by the
+# audit job in ci.yml; this is the same policy applied to a change while it can still be turned down.
+on:
+    pull_request:
+
+permissions:
+    contents: read
+
+jobs:
+    review:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            # the policy the audit job checks, so the two cannot drift apart: the allowed licenses, the
+            # packages whose license was confirmed by hand because their manifest does not say it, and the
+            # packages allowed a license of their own. The action can only exempt a package from the
+            # license check as a whole, so for those last ones the audit job is what holds the license
+            - name: read the license policy
+              id: policy
+              run: |
+                echo "allowed=$(node -p "require('./.github/license-policy.json').allowed.join(', ')")" >> "$GITHUB_OUTPUT"
+                echo "exceptions=$(node -p "const policy = require('./.github/license-policy.json'); [...Object.keys(policy.exceptions), ...Object.keys(policy.allowedFor)].map(key => 'pkg:npm/' + key.replace(/^@/, '%40')).join(', ')")" >> "$GITHUB_OUTPUT"
+            - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+              with:
+                # the bar the audit job fails at
+                fail-on-severity: high
+                allow-licenses: ${{ steps.policy.outputs.allowed }}
+                allow-dependencies-licenses: ${{ steps.policy.outputs.exceptions }}

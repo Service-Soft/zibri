@@ -1,0 +1,157 @@
+import { Property } from '../entity/decorators/property.decorator';
+import { FileSize } from '../entity/models/file-property-metadata.model';
+import { type OneOfShapeMetadata } from '../entity/models/one-of-property-metadata.model';
+import { ValidationProblemCode } from '../error-handling/validation-problem-code.enum';
+import { MimeType } from '../http/mime-type.enum';
+import type { TranslatedString } from '../localization/models/translated-string.model';
+import { $ts } from '../localization/translate.function';
+import { type ShapeAttempt } from '../parsing/functions/parse-one-of.function';
+
+/**
+ * A problem with a value: where it is, what kind of problem it is, and a description of it.
+ */
+export class ValidationProblem {
+    /**
+     * Where the problem is, as the path to the value, such as `items.3.quantity`.
+     */
+    @Property.string()
+    key!: string;
+
+    /**
+     * What kind of problem it is: a {@link ValidationProblemCode}, or the code of a check or of a
+     * custom rule of the application.
+     */
+    @Property.string()
+    code!: string;
+
+    /**
+     * The problem, in the language of the request.
+     */
+    @Property.string()
+    message!: TranslatedString;
+}
+
+/**
+ * The validation problem that the property is required and no value has been provided.
+ */
+export class IsRequiredValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly code: string = ValidationProblemCode.REQUIRED;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly message: TranslatedString = $ts`is required`;
+    constructor(readonly key: string) {}
+}
+
+/**
+ * The validation problem that the provided value has an incorrect type.
+ */
+export class TypeMismatchValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly code: string = ValidationProblemCode.TYPE;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly message: TranslatedString;
+    constructor(readonly key: string, type: string) {
+        this.message = $ts`should be of type ${type}`;
+    }
+}
+
+/**
+ * The validation problem that a key is none of the properties of the model.
+ */
+export class UnknownKeyValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly code: string = ValidationProblemCode.UNKNOWN_KEY;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly message: TranslatedString = $ts`this key is unknown`;
+    constructor(readonly key: string) {}
+}
+
+/**
+ * The validation problem that the provided file is too big.
+ */
+export class MaxFileSizeValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly code: string = ValidationProblemCode.MAX_SIZE;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly message: TranslatedString;
+    constructor(readonly key: string, maxSize: FileSize) {
+        this.message = $ts`needs to be smaller than ${maxSize}`;
+    }
+}
+
+/**
+ * The validation problem that the provided file has an incorrect mime type.
+ */
+export class MimeTypeMismatchValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly code: string = ValidationProblemCode.ALLOWED_MIME_TYPES;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly message: TranslatedString;
+    constructor(readonly key: string, allowedMimeTypes: MimeType[]) {
+        this.message = allowedMimeTypes.length > 1
+            ? $ts`the file type needs to be one of: ${allowedMimeTypes.join(', ')}`
+            : $ts`the file type needs to be ${allowedMimeTypes[0]}`;
+    }
+}
+
+/**
+ * The validation problem that a value fits none of the shapes its property can hold.
+ *
+ * One problem rather than one per shape, because the value is wrong once. It names every shape in
+ * the order they were tried, with what kept the value from each, so the caller can see which one
+ * they meant and what it still needs.
+ */
+export class NoShapeFitsValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly code: string = ValidationProblemCode.NO_SHAPE_FITS;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly message: TranslatedString;
+    constructor(readonly key: string, attempts: ShapeAttempt[]) {
+        this.message = [
+            $ts`fits none of its shapes:`,
+            ...attempts.map(attempt => {
+                const reasons: string = attempt.problems
+                    .map(problem => problem.key ? `${problem.key} ${problem.message}` : problem.message)
+                    .join(', ');
+                return `- ${shapeName(attempt.shape)}: ${reasons}`;
+            })
+        ].join('\n') as TranslatedString;
+    }
+}
+
+/**
+ * The validation problem that a value of several named shapes names none of them.
+ */
+export class UnknownShapeValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly code: string = ValidationProblemCode.UNKNOWN_SHAPE;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly message: TranslatedString;
+    constructor(readonly key: string, names: string[]) {
+        this.message = $ts`has to be one of: ${names.join(', ')}`;
+    }
+}
+
+/**
+ * What a shape is called in a message: its class for an object, its kind for anything else.
+ * @param shape - The shape.
+ * @returns The name to show.
+ */
+function shapeName(shape: OneOfShapeMetadata): string {
+    return shape.type === 'object' ? shape.cls().name : shape.type;
+}
+
+/**
+ * The validation problem that the provided value has relation data on it, which is not supported.
+ */
+export class RelationsNotAllowedValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly code: string = ValidationProblemCode.RELATION;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly message: TranslatedString;
+    // the caller is told what is wrong with what it sent and nothing more: how to write a model that
+    // takes a relation is for whoever writes the application, and is in models.md
+    constructor(readonly key: string) {
+        this.message = $ts`relations are not allowed as part of create or update data.`;
+    }
+}

@@ -1,3 +1,0 @@
-chartjs
-Petstore
-petstore

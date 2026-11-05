@@ -1,0 +1,120 @@
+import { AstProgram } from './ast.model';
+import { HandlebarUtilities } from './handlebar.utilities';
+import { resolveAllArrayKeys } from './resolve-all-array-keys.function';
+import { resolveTree } from './resolve-tree.function';
+import { FsUtilities, FsPath } from '../utilities/fs.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities';
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+export type PathTree = {
+    [key: string]: PathTree
+};
+
+const defaultGlobs: string[] = ['src/templates/**/*.hbs'];
+
+/**
+ * Generate type files for handlebar files, so that they expose a correctly typed "renderTemplate" function.
+ * @param glob - The glob(s) to find your handlebar files from.
+ */
+export async function generateHandlebarTypeFiles(glob: string | string[] = defaultGlobs): Promise<void> {
+    const templateFiles: FsPath[] = await FsUtilities.glob(glob);
+
+    for (const file of templateFiles) {
+        if (await canBeSkipped(file)) {
+            continue;
+        }
+
+        try {
+            const src: string = await FsUtilities.readFile(file);
+            const ast: AstProgram = HandlebarUtilities.parse(src, { srcName: file });
+            await generateHandlebarType(ast, file);
+        }
+        catch (error) {
+            // eslint-disable-next-line no-console
+            console.error(`Error processing ${file}:`, error);
+        }
+    }
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+export async function generateHandlebarType(ast: AstProgram, file: FsPath): Promise<string[]> {
+    const arrayKeys: string[] = [...new Set(resolveAllArrayKeys(ast, undefined))];
+    const tree: PathTree = resolveTree(ast, arrayKeys);
+    const arrayKeysWithoutThis: string[] = arrayKeys.map(k => k.replaceAll('this.', ''));
+    return await generateTypeFile(tree, arrayKeysWithoutThis, file);
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+async function generateTypeFile(tree: PathTree, arrayKeys: string[], file: FsPath): Promise<string[]> {
+    const typeLines: string[] = generateInterfaceLines(tree, arrayKeys);
+    const type: string[] = typeLines.length
+        ? [
+            'type Context = {',
+            ...typeLines,
+            '};'
+        ]
+        : ['type Context = Record<string, never>;'];
+
+    const content: string = [
+        '// auto-generated — do not edit',
+        `import raw from './${FsUtilities.baseName(file)}';`,
+        '',
+        ...type,
+        '',
+        'const renderTemplate: (ctx: Context) => string = raw;',
+        'export default renderTemplate;'
+    ]
+        .join('\n')
+        .replace('mailingListData:', 'mailingListData?:');
+
+    const outFile: FsPath = FsUtilities.getPath(FsUtilities.dirName(file), `${FsUtilities.baseName(file)}.ts`);
+    await FsUtilities.upsertFile(outFile, content);
+
+    return content.split('\n');
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+function generateInterfaceLines(
+    tree: PathTree,
+    arrayKeys: string[],
+    indent = '    ',
+    currentPath = ''
+): string[] {
+    const lines: string[] = [];
+    const entries: [string, PathTree][] = ObjectUtilities.entries(tree);
+
+    for (const [i, [key, subtree]] of entries.entries()) {
+        const isLast: boolean = i === entries.length - 1;
+        const fullPath: string = currentPath ? `${currentPath}.${key}` : key;
+
+        const suffix: string = arrayKeys.includes(fullPath) ? '[]' : '';
+        const comma: string = isLast ? '' : ','; // no comma for last
+
+        const childKeys: string[] = ObjectUtilities.keys(subtree);
+        // a key handlebars reads, such as `first-name`, is not always a name typescript can write bare
+        const name: string = /^[$A-Z_a-z][\w$]*$/.test(key) ? key : `'${key.replaceAll('\\', '\\\\').replaceAll('\'', '\\\'')}'`;
+
+        if (childKeys.length === 0) {
+            lines.push(`${indent}${name}: string${suffix}${comma}`);
+        }
+        else {
+            lines.push(`${indent}${name}: {`);
+            lines.push(...generateInterfaceLines(subtree, arrayKeys, indent + '    ', fullPath));
+            lines.push(`${indent}}${suffix}${comma}`);
+        }
+    }
+
+    return lines;
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+async function canBeSkipped(hbsFile: FsPath): Promise<boolean> {
+    const tsFile: FsPath = FsUtilities.getPath(`${hbsFile}.ts`);
+
+    if (!await FsUtilities.exists(tsFile)) {
+        return false;
+    }
+
+    const [hbsStats, tsStats] = await Promise.all([FsUtilities.stat(hbsFile), FsUtilities.stat(tsFile)]);
+    return tsStats.mtimeMs >= hbsStats.mtimeMs;
+}

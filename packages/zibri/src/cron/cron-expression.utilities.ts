@@ -1,0 +1,300 @@
+import { InternalError } from '../error-handling/internal-error.model';
+import { Weekday } from '../localization/models/weekday.enum';
+import { IntRange } from '../types/percentage.type';
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+export type CronUnit = 'seconds' | 'minutes' | 'hours' | 'days' | 'months';
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+export type DayOfWeek = 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday'
+    | 'Thursday' | 'Friday' | 'Saturday';
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+export type MonthName = | 'January' | 'February' | 'March' | 'April'
+    | 'May' | 'June' | 'July' | 'August'
+    | 'September' | 'October' | 'November' | 'December';
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+export type CronExpressionString = string & {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    __brand: 'CronExpression'
+};
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+type CronFields = [
+    second: string,
+    minute: string,
+    hour: string,
+    day: string,
+    month: string,
+    weekday: string
+];
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+type RangeForCronUnit<T extends CronUnit> = T extends 'seconds'
+    ? IntRange<0, 60>
+    : T extends 'minutes'
+        ? IntRange<0, 60>
+        : T extends 'hours'
+            ? IntRange<0, 24>
+            : T extends 'days'
+                ? IntRange<1, 32>
+                : T extends 'months'
+                    ? IntRange<1, 13>
+                    : never;
+
+const UNIT_FIELD_INDEX: Record<CronUnit, number> = {
+    seconds: 0,
+    minutes: 1,
+    hours: 2,
+    days: 3,
+    months: 4
+};
+
+const DAY_VALUES: Record<DayOfWeek, Weekday> = {
+    Sunday: 0,
+    Monday: 1,
+    Tuesday: 2,
+    Wednesday: 3,
+    Thursday: 4,
+    Friday: 5,
+    Saturday: 6
+};
+
+// We can't use the Month enum here,
+// as that is zero based and the cron expressions are 1 based.
+const MONTH_VALUES: Record<MonthName, number> = {
+    January: 1,
+    February: 2,
+    March: 3,
+    April: 4,
+    May: 5,
+    June: 6,
+    July: 7,
+    August: 8,
+    September: 9,
+    October: 10,
+    November: 11,
+    December: 12
+};
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+function withField(
+    fields: CronFields,
+    index: number,
+    value: string
+): CronFields {
+    const next: CronFields = [...fields];
+    next[index] = value;
+    return next;
+}
+
+/**
+ * Utility class for creating cron expressions with guardrails.
+ */
+export class CronExpression {
+    /**
+     * What a field is set to when the caller named a coarser unit than it.
+     *
+     * "Every five minutes" says nothing about seconds, and a field that says nothing means every
+     * value of it - so without this, naming any unit above seconds builds a schedule that fires once
+     * a second throughout every window it matches. The first of the month rather than a zero for the
+     * day, because that field is one based and `0` matches nothing.
+     */
+    private static readonly fieldFloor: CronFields = ['0', '0', '0', '1', '*', '*'];
+
+    private readonly _fields: CronFields;
+
+    private constructor(fields: CronFields) {
+        this._fields = fields;
+    }
+
+    private static blank(): CronExpression {
+        return new CronExpression(['*', '*', '*', '*', '*', '*']);
+    }
+
+    // ── Static entry points ──────────────────────────────────────────────────
+
+    /**
+     * Runs every N units.
+     *
+     * Everything below the named unit is fixed, so "every five minutes" is twelve runs an hour. A field left open matches every value of itself,
+     * so an expression that only names minutes would run once a second for the whole of every fifth
+     * minute. Chain `at` to move a run within its window - the floor is a default, not a lock.
+     * @param value - The interval at which to run.
+     * @param unit - The unit, like 'minutes', 'hours', 'days' etc.
+     * @example
+     * CronExpression.every(5, 'minutes')  // "0 *\/5 * * * *"
+     * CronExpression.every(2, 'hours')    // "0 0 *\/2 * * *"
+     * @returns A cron expression to either continue working with or building the result string.
+     */
+    static every<T extends CronUnit>(value: RangeForCronUnit<T>, unit: T): CronExpression {
+        const idx: number = UNIT_FIELD_INDEX[unit];
+        const field: string = value === 1 ? '*' : `*/${value}`;
+
+        const floored: CronFields = CronExpression.blank()._fields.map(
+            (f, i) => i < idx ? CronExpression.fieldFloor[i] : f
+        ) as CronFields;
+
+        return new CronExpression(withField(floored, idx, field));
+    }
+
+    /**
+     * Runs once a day. Default: midnight (00:00:00).
+     * Chain `.at()` to set the time.
+     * @example
+     * CronExpression.daily().at(9, 'hours').at(30, 'minutes')  // "0 30 9 * * *"
+     * @returns A cron expression to either continue working with or building the result string.
+     */
+    static daily(): CronExpression {
+        return new CronExpression(['0', '0', '0', '*', '*', '*']);
+    }
+
+    /**
+     * Runs once a week. Default: Sunday midnight.
+     * Chain `.on()` and `.at()` to customize.
+     * @example
+     * CronExpression.weekly().on('Monday').at(8, 'hours')  // "0 0 8 * * 1"
+     * @returns A cron expression to either continue working with or building the result string.
+     */
+    static weekly(): CronExpression {
+        return new CronExpression(['0', '0', '0', '*', '*', '0']);
+    }
+
+    /**
+     * Runs once a month. Default: 1st of the month at midnight.
+     * @example
+     * CronExpression.monthly().at(15, 'days').at(6, 'hours')  // "0 0 6 15 * *"
+     * @returns A cron expression to either continue working with or building the result string.
+     */
+    static monthly(): CronExpression {
+        return new CronExpression(['0', '0', '0', '1', '*', '*']);
+    }
+
+    /**
+     * Builds a CronExpression from a raw node-cron string (for interop / parsing).
+     * @param expression - The raw expression too build from.
+     * @returns The final CronExpressionString.
+     * @throws If there are more than 6 parts provided.
+     */
+    static fromString(expression: string): CronExpressionString {
+        const parts: string[] = expression.trim().split(/\s+/);
+        if (parts.length !== 6) {
+            throw new InternalError(
+                `Expected 6 fields for node-cron expression, got ${parts.length}: "${expression}"`
+            );
+        }
+        return new CronExpression(parts as CronFields).build();
+    }
+
+    /**
+     * The zone a schedule is read in: the one it is given, or UTC where that names the same moments.
+     *
+     * A schedule that names no hour, day or month, such as every ten seconds, runs at the same
+     * moments in UTC as in a zone whose clocks are a whole number of hours off UTC both in summer and
+     * in winter. Read in UTC, it also runs through the hour such a zone goes through twice when its
+     * clocks go back.
+     * @param expression - The schedule, in node-cron's form.
+     * @param timezone - The zone of the job.
+     * @returns The zone to read the schedule in.
+     */
+    static resolveTimezoneOfTask(expression: string, timezone: string): string {
+        const fields: string[] = expression.trim().split(/\s+/);
+        // the hour, the day, the month and the weekday, with or without a field of seconds
+        const calendarFields: string[] = fields.slice(fields.length - 4);
+        if (!calendarFields.every(field => field === '*')) {
+            return timezone;
+        }
+        const year: number = new Date().getUTCFullYear();
+        const wholeHours: boolean = [new Date(Date.UTC(year, 0, 1)), new Date(Date.UTC(year, 6, 1))]
+            .every(moment => CronExpression.resolveOffsetInMinutes(timezone, moment) % 60 === 0);
+        return wholeHours ? 'UTC' : timezone;
+    }
+
+    /**
+     * How far a zone's clocks are off UTC at a moment.
+     * @param timezone - The zone.
+     * @param moment - The moment.
+     * @returns The offset in minutes.
+     */
+    private static resolveOffsetInMinutes(timezone: string, moment: Date): number {
+        const name: string = new Intl.DateTimeFormat('en-US', { timeZone: timezone, timeZoneName: 'longOffset' })
+            .formatToParts(moment)
+            .find(part => part.type === 'timeZoneName')?.value ?? 'GMT';
+        const match: RegExpExecArray | null = /GMT([+-])(\d{2}):(\d{2})/.exec(name);
+        if (match == undefined) {
+            return 0;
+        }
+        return (match[1] === '-' ? -1 : 1) * ((Number(match[2]) * 60) + Number(match[3]));
+    }
+
+    // ── Instance modifiers ───────────────────────────────────────────────────
+
+    /**
+     * Fixes a specific field to a concrete value.
+     * @param value - The concrete value.
+     * @param unit - The unit, like 'minutes', 'hours', 'days' etc.
+     * @example
+     * CronExpression.every(1, 'hours').at(30, 'minutes')  // "0 30 * * * *" (at :30 past every hour)
+     * CronExpression.daily().at(9, 'hours')               // "0 0 9 * * *"
+     * @returns A cron expression to either continue working with or building the result string.
+     */
+    at<T extends CronUnit>(value: RangeForCronUnit<T>, unit: T): CronExpression {
+        const idx: number = UNIT_FIELD_INDEX[unit];
+        return new CronExpression(withField(this._fields, idx, String(value)));
+    }
+
+    /**
+     * Restricts execution to a range of values for a given unit.
+     * @param from - The value at which the range starts.
+     * @param to - The value at which the range ends.
+     * @param unit - The unit, like 'minutes', 'hours', 'days' etc.
+     * @example
+     * CronExpression.every(1, 'minutes').between(9, 17, 'hours')  // "0 * 9-17 * * *" (business hours only)
+     * @returns A cron expression to either continue working with or building the result string.
+     * @throws If the "from" value is smaller than the "to" value.
+     */
+    between<T extends CronUnit>(from: RangeForCronUnit<T>, to: RangeForCronUnit<T>, unit: T): CronExpression {
+        if (from >= to) {
+            throw new RangeError(`'from' (${from}) must be less than 'to' (${to})`);
+        }
+        const idx: number = UNIT_FIELD_INDEX[unit];
+        return new CronExpression(
+            withField(this._fields, idx, `${from}-${to}`)
+        );
+    }
+
+    /**
+     * Restricts execution to specific days of the week.
+     * @param days - The days on which the execution should happen.
+     * @example
+     * CronExpression.daily().on('Monday', 'Wednesday', 'Friday')  // "0 0 0 * * 1,3,5"
+     * @returns A cron expression to either continue working with or building the result string.
+     */
+    on(...days: [DayOfWeek, ...DayOfWeek[]]): CronExpression {
+        const value: string = days.map(d => DAY_VALUES[d]).join(',');
+        return new CronExpression(withField(this._fields, 5, value));
+    }
+
+    /**
+     * Restricts execution to specific months.
+     * @param months - The months in which the execution should happen.
+     * @example
+     * CronExpression.monthly().in('March', 'June', 'September', 'December')  // "0 0 0 1 3,6,9,12 *"
+     * @returns A cron expression to either continue working with or building the result string.
+     */
+    in(...months: [MonthName, ...MonthName[]]): CronExpression {
+        const value: string = months.map(m => MONTH_VALUES[m]).join(',');
+        return new CronExpression(withField(this._fields, 4, value));
+    }
+
+    // ── Output ───────────────────────────────────────────────────────────────
+
+    /**
+     * Builds the final result from the builder input.
+     * @returns The branded node-cron expression string.
+     */
+    build(): CronExpressionString {
+        return this._fields.join(' ') as CronExpressionString;
+    }
+}

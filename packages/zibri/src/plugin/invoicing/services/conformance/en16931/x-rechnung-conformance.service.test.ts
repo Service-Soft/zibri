@@ -1,0 +1,231 @@
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+
+import { XRechnungConformanceService } from './x-rechnung-conformance.service';
+import { testFileFolder, TestTimeouts } from '../../../../../__testing__/constants';
+import { companyInfoProvider } from '../../../../../__testing__/mocks/company-info-provider.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerProviders } from '../../../../../__testing__/test-server/providers';
+import { StartedTestServer, startTestServer } from '../../../../../__testing__/test-server/start-test-server.function';
+import { Repository } from '../../../../../data-source/repository/repository';
+import { repositoryTokenFor } from '../../../../../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../../../di/default/zibri-di-tokens.default';
+import { inject } from '../../../../../di/inject.function';
+import { defineProvider } from '../../../../../di/models/di-provider.model';
+import { type TenantServiceInterface } from '../../../../../tenancy/tenant-service.interface';
+import { OmitStrict } from '../../../../../types/omit-strict.type';
+import { FsUtilities } from '../../../../../utilities/fs.utilities';
+import { Ms } from '../../../../../utilities/ms';
+import { UUIDUtilities } from '../../../../../utilities/uuid.utilities';
+import { ZibriInvoicingPlugin } from '../../../invoicing.plugin';
+import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../../invoicing.tokens';
+import { CompanyInfo } from '../../../models/company-info.model';
+import { InvoiceRecipientAbbreviation } from '../../../models/invoice-recipient-abbreviation.model';
+import { Invoice } from '../../../models/invoice.model';
+import { InvoicingOptions } from '../../../models/invoicing-options.model';
+import { NumberInvoices } from '../../../models/number-invoices.model';
+
+const invoicingOptions: InvoicingOptions = {
+    pageSize: 'A4',
+    font: 'Roboto',
+    footerFontSize: 10,
+    images: undefined,
+    phoneLabel: 'Phone',
+    emailLabel: 'E-Mail',
+    headline: 'Invoice',
+    headlineFontSize: 20,
+    invoiceNumberLabel: 'Invoice-No.',
+    invoiceNumberNotice: 'Please specify when making payments and invoicing!',
+    dateLabel: 'Date',
+    performanceDateLabel: 'Date of performance',
+    showPerformanceDate: false,
+    showDueDate: true,
+    dueDateLabel: 'Due date',
+    tableFontSize: 12,
+    itemNameLabel: 'Name',
+    totalLabel: 'Total',
+    totalBeforeTaxLabel: 'Total (excl. tax)',
+    totalAfterTaxLabel: 'Total (incl. tax)',
+    taxLabel: 'VAT',
+    taxNumberLabel: 'Tax number:',
+    ceoLabel: 'CEO:',
+    itemAmountLabel: 'Amount',
+    itemSinglePriceLabel: 'Price',
+    itemTotalPriceLabel: 'Total',
+    bankDetailsLabel: 'Bank details:',
+    ibanLabel: 'IBAN:',
+    bicLabel: 'BIC/SWIFT:',
+    numberOfDigits: 4,
+    separator: '-',
+    numberCompanyAbbreviationCharacters: 6,
+    numberPrivateCustomerAbbreviationCharacters: 3
+};
+
+const companyInfo: CompanyInfo = {
+    name: 'Example Company',
+    fullName: 'Example Company LLC',
+    email: 'info@example-company.com',
+    phone: '12345 67890123',
+    timezone: 'Europe/Berlin',
+    address: {
+        street: 'Example street',
+        number: '1b',
+        postcode: '12345',
+        city: 'Example city',
+        countryId: 'DE'
+    },
+    taxNumber: '123/456/78910',
+    ceo: 'James Smith',
+    iban: 'DE75 5121 0800 1245 1261 99',
+    bic: 'ABCD5F',
+    bankName: 'Example Bank',
+    taxOffice: 'Tax Office Example City'
+};
+
+/**
+ * The tenant the invoices of the tests are issued in.
+ */
+const TENANT: string = UUIDUtilities.generate();
+
+let server: StartedTestServer;
+let repo: Repository<Invoice, OmitStrict<Invoice, 'id' | 'tenantId'>>;
+let conformanceService: XRechnungConformanceService;
+
+/**
+ * Creates an invoice in the tenant of the tests.
+ * @param data - The invoice.
+ * @returns The created invoice.
+ */
+async function createInvoice(data: OmitStrict<Invoice, 'id' | 'tenantId'>): Promise<Invoice> {
+    return await inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(TENANT, async () => await repo.create(data));
+}
+
+describe('generateXml', () => {
+    beforeAll(async () => {
+        await FsUtilities.mkdir(testFileFolder);
+        server = await startTestServer({
+            plugins: [new ZibriInvoicingPlugin()],
+            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation], repositories: defaultTestServerRepositories })],
+            providers: [
+                ...defaultTestServerProviders,
+                defineProvider({ token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT, useValue: invoicingOptions }),
+                companyInfoProvider(() => companyInfo)
+            ]
+        });
+
+        repo = inject(repositoryTokenFor(Invoice));
+        conformanceService = inject(XRechnungConformanceService);
+    }, TestTimeouts.postgres.start);
+
+    afterAll(async () => {
+        await server.shutdown();
+    }, TestTimeouts.postgres.shutdown);
+
+    it('should create the expected result', async () => {
+        const invoice: Invoice = await createInvoice({
+            // eslint-disable-next-line cspell/spellchecker
+            number: `${new Date().getFullYear()}-GREATC-0001`,
+            currency: 'EUR',
+            items: [
+                {
+                    name: 'Testing',
+                    amount: 4,
+                    amountUnit: {
+                        displayName: 'Hours',
+                        code: 'HUR'
+                    },
+                    vat: {
+                        categoryCode: 'E',
+                        rate: 0,
+                        exemptionReason: '§19 small business'
+                    },
+                    price: 90
+                }
+            ],
+            date: new Date(),
+            performanceDate: new Date(),
+            dueDate: new Date(Date.now() + (Ms.WEEK * 2)),
+            customerAddressData: {
+                formOfAddress: '',
+                firstName: '',
+                lastName: '',
+                street: 'Great Street',
+                number: '42',
+                postcode: '12345',
+                city: 'Great City',
+                company: true,
+                companyName: 'Great Company LLC',
+                countryId: 'DE',
+                email: 'info@great-company-llc.com'
+            },
+            textBeforeItems: [''],
+            textAfterItems: ['Unless otherwise stated, the date of delivery/service corresponds to the date of invoice.']
+        });
+
+        const xmlString: string = await conformanceService.generateXml(invoice, 'UTC');
+        await FsUtilities.upsertFile(FsUtilities.getPath(testFileFolder, 'xrechnung.xml'), xmlString);
+
+        // the guideline XRechnung 3.0 is identified by, which validators pick the XRechnung rules by
+        expect(xmlString).toContain('<ram:ID>urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0</ram:ID>');
+        expect(xmlString).toContain(invoice.number);
+        expect(xmlString).toContain('Great Company LLC');
+        expect(xmlString).toContain('info@great-company-llc.com');
+        expect(xmlString).toContain('Example Company LLC');
+        expect(xmlString).toContain('DE75 5121 0800 1245 1261 99');
+        expect(xmlString).toContain('ABCD5F');
+        expect(xmlString).toContain('§19 small business');
+        expect(xmlString).toContain('Testing');
+        expect(xmlString).toContain('90');
+    });
+
+    it('states the calendar day of the given time zone, not of the machine', async () => {
+        // 01:30 utc on new year's day is still December 31st in New York, and the document has to
+        // say whichever of the two the caller asked for no matter where the server stands
+        const invoice: Invoice = await createInvoice({
+            // eslint-disable-next-line cspell/spellchecker
+            number: `${new Date().getFullYear()}-GREATC-0002`,
+            currency: 'EUR',
+            items: [
+                {
+                    name: 'Testing',
+                    amount: 4,
+                    amountUnit: {
+                        displayName: 'Hours',
+                        code: 'HUR'
+                    },
+                    vat: {
+                        categoryCode: 'E',
+                        rate: 0,
+                        exemptionReason: '§19 small business'
+                    },
+                    price: 90
+                }
+            ],
+            date: new Date(Date.UTC(2024, 0, 1, 1, 30)),
+            performanceDate: new Date(Date.UTC(2024, 0, 1, 1, 30)),
+            dueDate: new Date(Date.UTC(2024, 0, 15, 1, 30)),
+            customerAddressData: {
+                formOfAddress: '',
+                firstName: '',
+                lastName: '',
+                street: 'Great Street',
+                number: '42',
+                postcode: '12345',
+                city: 'Great City',
+                company: true,
+                companyName: 'Great Company LLC',
+                countryId: 'DE',
+                email: 'info@great-company-llc.com'
+            },
+            textBeforeItems: [''],
+            textAfterItems: ['Unless otherwise stated, the date of delivery/service corresponds to the date of invoice.']
+        });
+
+        const utcXml: string = await conformanceService.generateXml(invoice, 'UTC');
+        expect(utcXml).toContain('20240101');
+        expect(utcXml).toContain('20240115');
+
+        const newYorkXml: string = await conformanceService.generateXml(invoice, 'America/New_York');
+        expect(newYorkXml).toContain('20231231');
+        expect(newYorkXml).toContain('20240114');
+    });
+});

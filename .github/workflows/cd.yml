@@ -2,43 +2,125 @@ name: CD
 on:
     pull_request:
         types: [closed]
-        branches: [release]
+        # `release-<major>` is where a fix for an older major would be released from, the day one is
+        branches: [release, 'release-*']
 
 permissions:
     id-token: write  # Required for OIDC
-    contents: read
+    contents: write   # to tag the released commit and create its GitHub release
     pages: write      # to deploy to Pages
 
 jobs:
     deploy:
         if: github.event.pull_request.merged
         runs-on: ubuntu-latest
+        outputs:
+            dist_tag: ${{ steps.version.outputs.dist_tag }}
         steps:
-            - uses: actions/checkout@v4
+            # the merge itself rather than the branch, which may have moved on by the time this runs
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
-                ref: release
-            - uses: actions/setup-node@v4
+                ref: ${{ github.event.pull_request.merge_commit_sha }}
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
-                node-version: '20'
+                node-version: '24'
                 registry-url: 'https://registry.npmjs.org'
-            # Ensure npm 11.5.1 or later is installed
-            - run: npm install -g npm@latest
-            - run: npm i
-            - run: npm run build:prod
-            - run: npm publish
+            # the client that signs the provenance attestation, at a version rather than whatever npm
+            # shipped that morning; 11.5.1 is the first that attests
+            - run: npm install -g npm@12.2.1
+            - run: npm ci
 
+            # Everything that can refuse the release happens before anything is published. A publish
+            # is the one step here that cannot be taken back - npm allows an unpublish for 72 hours
+            # and then never again - so a half published release is not something to recover from,
+            # it is something to not start. The packages name each other by version, so the
+            # half of a release that did go out is one consumers can install and cannot resolve.
+            # `zi new` installs zibri and zibri-testing at the cli's own version, so one left behind
+            # is a release where every generated project fails to install.
+            # and the npm tag it goes out under: `latest` for the newest release, `latest-<major>` for
+            # a fix to an older one, `next` for a prerelease
+            - name: read the version this release publishes
+              id: version
+              run: node .github/scripts/release-version.mjs >> "$GITHUB_OUTPUT"
+            - name: refuse a version the registry already has
+              run: |
+                for package in zibri-tsx zibri zibri-testing zibri-cli; do
+                  if npm view "$package@${{ steps.version.outputs.version }}" version > /dev/null 2>&1; then
+                    echo "$package@${{ steps.version.outputs.version }} is already published - bump every package or none"
+                    exit 1
+                  fi
+                done
+            # the tag and the release are made after the publishes, so what could stop them has to be
+            # asked here: an existing tag would leave four published packages with no release beside them
+            - name: refuse a version that already has a tag
+              run: |
+                if git ls-remote --exit-code --tags origin "refs/tags/v${{ steps.version.outputs.version }}" > /dev/null; then
+                  echo "the tag v${{ steps.version.outputs.version }} already exists"
+                  exit 1
+                fi
+            - name: refuse a release without notes
+              run: node .github/scripts/release-notes.mjs "${{ steps.version.outputs.version }}" > "$RUNNER_TEMP/release-notes.md"
+            # asked again here rather than trusted from the branch's last push: an advisory is published
+            # against code that did not change, and this is the last moment it can still stop the release
+            - name: refuse a release whose consumer tree breaks the license policy or carries a high advisory
+              run: node .github/scripts/check-consumer-tree.mjs
+
+            # every build before any publish: a build failing after a publish is the likeliest way
+            # to lose a release halfway, and ordering alone removes it.
+            # zibri-tsx first: zibri type checks against its built dist and depends on it as a peer.
+            # zibri-testing after zibri, which it peer depends on and type checks against.
+            - run: npm run build -w zibri-tsx
+            - run: npm run build:prod -w zibri
+            - run: npm run build -w zibri-testing
+            - run: npm run build -w zibri-cli
+
+            # and a rehearsal of each, because npm refuses a package for reasons a build never
+            # sees - a file the packer cannot read, a name this account may not publish under
+            - run: npm publish -w zibri-tsx --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
+            - run: npm publish -w zibri --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
+            - run: npm publish -w zibri-testing --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
+            - run: npm publish -w zibri-cli --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
+
+            # --provenance on each publish, because `id-token: write` above is granted for it. Asking
+            # for the permission and never producing the attestation left consumers with no
+            # supply-chain provenance while the setup implied there was some.
+            - run: npm publish -w zibri-tsx --provenance --tag "${{ steps.version.outputs.dist_tag }}"
+            - run: npm publish -w zibri --provenance --tag "${{ steps.version.outputs.dist_tag }}"
+            - run: npm publish -w zibri-testing --provenance --tag "${{ steps.version.outputs.dist_tag }}"
+            - run: npm publish -w zibri-cli --provenance --tag "${{ steps.version.outputs.dist_tag }}"
+
+            # last, because a tag says a version exists - on the commit that produced it, with the
+            # notes written for it. Marked latest only when npm's `latest` is this release too.
+            - name: tag the release
+              env:
+                GH_TOKEN: ${{ github.token }}
+              run: |
+                gh release create "v${{ steps.version.outputs.version }}" \
+                  --target "$(git rev-parse HEAD)" \
+                  --title "v${{ steps.version.outputs.version }}" \
+                  --notes-file "$RUNNER_TEMP/release-notes.md" \
+                  --latest=${{ steps.version.outputs.dist_tag == 'latest' }} \
+                  --prerelease=${{ steps.version.outputs.dist_tag == 'next' }}
+
+    # the site documents the newest release: one from an older major, or a prerelease, would replace
+    # it with pages that no longer match what `npm install` gets
     updateDocs:
-        if: github.event.pull_request.merged
+        needs: deploy
+        if: needs.deploy.outputs.dist_tag == 'latest'
         # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
-                ref: release
+                ref: ${{ github.event.pull_request.merge_commit_sha }}
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                node-version: '24'
             - run: npm ci
-            - run: npm run build:prod
-            - uses: actions/configure-pages@v5
-            - uses: actions/upload-pages-artifact@v3
+            - run: npm run build -w zibri-tsx
+            - run: npm run build:prod -w zibri
+            - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+            - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
               with:
-                path: docs/generated
-            - uses: actions/deploy-pages@v4
+                path: packages/zibri/docs/generated
+            - uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

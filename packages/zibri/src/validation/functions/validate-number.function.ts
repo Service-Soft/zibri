@@ -1,0 +1,149 @@
+import assert from 'node:assert';
+
+import { HttpRequestContext } from '../../context/request/http-request.context';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
+import { AnyNumber } from '../../data-source/models/where/number-where-filter.model';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator';
+import { NumberFormat, NumberPropertyMetadata } from '../../entity/models/number-property-metadata.model';
+import { ValidationProblemCode } from '../../error-handling/validation-problem-code.enum';
+import { $ts } from '../../localization/translate.function';
+import { INTEGER_REGEX } from '../../parsing/functions/parse-number.function';
+import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
+import { NumberParamMetadata } from '../../routing/models/number-param-metadata.model';
+import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
+import { ObjectUtilities } from '../../utilities/object.utilities';
+import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
+
+/**
+ * Validates the given number property.
+ * @param key - The key of the property.
+ * @param property - The actual value.
+ * @param metadata - The metadata of the property.
+ * @param parentKey - The key of the parent, if it exists.
+ * @param entity - The entity that this value belongs to.
+ * @returns All validation problems found.
+ */
+export async function validateNumber(
+    key: string,
+    property: unknown,
+    metadata: PropertyMetadata | QueryParamMetadata | HeaderParamMetadata | PathParamMetadata,
+    parentKey: string | undefined,
+    entity: unknown | undefined
+): Promise<ValidationProblem[]> {
+    const meta: NumberPropertyMetadata | NumberParamMetadata = metadata as NumberPropertyMetadata | NumberParamMetadata;
+    const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
+    if (property == undefined) {
+        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        const isRequired: boolean = typeof metadata.required === 'boolean' ? metadata.required : await metadata.required(entity, context);
+        if ((meta as NumberPropertyMetadata).default == undefined && isRequired) {
+            return [new IsRequiredValidationProblem(fullKey)];
+        }
+        if (!isRequired || (meta as NumberPropertyMetadata).default != undefined) {
+            return [];
+        }
+    }
+    return numberValueProblems(fullKey, property, meta);
+}
+
+/**
+ * The problems of a number value, judged by the value alone.
+ *
+ * Everything about a number except whether it may be left out, which can depend on the request.
+ * What decides which of several shapes a value is uses exactly this, so it cannot disagree with
+ * validation about any rule it looks at.
+ * @param fullKey - The key the problems are reported under.
+ * @param property - The value.
+ * @param meta - What the number is declared as.
+ * @returns All validation problems found.
+ */
+export function numberValueProblems(
+    fullKey: string,
+    property: unknown,
+    meta: NumberPropertyMetadata | NumberParamMetadata
+): ValidationProblem[] {
+    // the format says which type the value is, and nothing else can: a `bigint` and an exact
+    // decimal are both written as text, so what arrived says nothing about what was meant. This is
+    // also where a property whose declared type contradicts its format is caught - the check at
+    // declaration time can only read a type typescript emits, and a union like `number | null` is
+    // not one of them
+    const expectedType: string = expectedTypeFor(meta.format);
+    if (runtimeTypeOf(property) !== expectedType) {
+        return [new TypeMismatchValidationProblem(fullKey, expectedType)];
+    }
+
+    assert(typeof property === 'bigint' || typeof property === 'number' || property instanceof BigNumber);
+
+    if (!isFormatValid(meta.format, property)) {
+        return [{ key: fullKey, code: ValidationProblemCode.FORMAT, message: $ts`needs to be in format "${meta.format}"` }];
+    }
+    // compared by value rather than with `===` or `<`: a BigNumber compares by reference against a
+    // plain number, and read as a double it is rounded onto a bound it is past
+    if (meta.enum && !ObjectUtilities.values(meta.enum).some(v => isNumber(v) && NumberUtilities.compare(property, v) === 0)) {
+        return [
+            {
+                key: fullKey,
+                code: ValidationProblemCode.ENUM,
+                message: $ts`needs to match one of "${ObjectUtilities.values(meta.enum)}"`
+            }
+        ];
+    }
+    if (meta.min != undefined && NumberUtilities.compare(property, meta.min) < 0) {
+        return [{ key: fullKey, code: ValidationProblemCode.MIN, message: $ts`needs to be at least ${meta.min}` }];
+    }
+    return meta.max != undefined && NumberUtilities.compare(property, meta.max) > 0
+        ? [{ key: fullKey, code: ValidationProblemCode.MAX, message: $ts`needs to be at most ${meta.max}` }]
+        : [];
+}
+
+/**
+ * What a value of the given format is at runtime.
+ * @param format - What kind of number the property holds.
+ * @returns The name of the type a value of it has, as a caller would recognize it.
+ */
+function expectedTypeFor(format: NumberFormat): string {
+    switch (format) {
+        case 'bigint': {
+            return 'bigint';
+        }
+        case 'bignumber': {
+            return 'BigNumber';
+        }
+        case 'integer':
+        case 'number': {
+            return 'number';
+        }
+    }
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+function runtimeTypeOf(value: unknown): string {
+    return value instanceof BigNumber ? 'BigNumber' : typeof value;
+}
+
+// an enum's values hold the names of its members as well, for a numeric one
+// eslint-disable-next-line jsdoc/require-jsdoc
+function isNumber(value: unknown): value is number | bigint {
+    return typeof value === 'number' || typeof value === 'bigint';
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+function isFormatValid(format: NumberFormat, value: AnyNumber): boolean {
+    switch (format) {
+        case 'bigint': {
+            return INTEGER_REGEX.test(value.toString());
+        }
+        // past the safe range a double stands for more than one whole number, so the value written is
+        // not certainly the value meant
+        case 'integer': {
+            return Number.isSafeInteger(value);
+        }
+        // any number is one of these: a double is what a javascript number is, and a BigNumber
+        // holds whatever it was given. The type check above is the whole of what they require
+        case 'bignumber':
+        case 'number': {
+            return true;
+        }
+    }
+}

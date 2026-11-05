@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="en-US" target-language="de-DE" datatype="plaintext" original="project">
+    <body>
+      <trans-unit id="Assets" xml:space="preserve">
+        <source>Assets</source>
+        <target>Assets</target>
+        <note>src/templates/pages/home.tsx:19</note>
+      </trans-unit>
+      <trans-unit id="Home" xml:space="preserve">
+        <source>Home</source>
+        <target>Home</target>
+        <note>src/templates/components/navbar.tsx:17</note>
+      </trans-unit>
+      <trans-unit id="Lists all publicly registered assets." xml:space="preserve">
+        <source>Lists all publicly registered assets.</source>
+        <target>Listet alle öffentlich zugänglichen Assets.</target>
+        <note>src/templates/pages/home.tsx:22</note>
+      </trans-unit>
+      <trans-unit id="Localization" xml:space="preserve">
+        <source>Localization</source>
+        <target>Lokalisierung</target>
+        <note>src/templates/pages/test-page.tsx:23, src/templates/pages/test-page.tsx:28, src/templates/pages/test-page.tsx:29</note>
+      </trans-unit>
+      <trans-unit id="Switch Language" xml:space="preserve">
+        <source>Switch Language</source>
+        <target>Sprache wechseln</target>
+        <note>src/templates/pages/test-page.tsx:24, src/templates/pages/test-page.tsx:30</note>
+      </trans-unit>
+      <trans-unit id="The official OpenAPI/Swagger documentation." xml:space="preserve">
+        <source>The official OpenAPI/Swagger documentation.</source>
+        <target>Die offizielle OpenAPI/Swagger-Dokumentation.</target>
+        <note>src/templates/pages/home.tsx:30</note>
+      </trans-unit>
+    </body>
+  </file>
+  <file source-language="en-US" target-language="de-DE" datatype="plaintext" original="zibri">
+    <body>
+      <trans-unit id="April" xml:space="preserve">
+        <source>April</source>
+        <target>April</target>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:28</note>
+      </trans-unit>
+      <trans-unit id="August" xml:space="preserve">
+        <source>August</source>
+        <target>August</target>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:32</note>
+      </trans-unit>
+      <trans-unit id="December" xml:space="preserve">
+        <source>December</source>
+        <target>Dezember</target>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:36</note>
+      </trans-unit>
+      <trans-unit id="February" xml:space="preserve">
+        <source>February</source>
+        <target>Februar</target>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:26</note>
+      </trans-unit>
+      <trans-unit id="Friday" xml:space="preserve">
+        <source>Friday</source>
+        <target>Freitag</target>
+        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:24</note>
+      </trans-unit>
+      <trans-unit id="January" xml:space="preserve">
+        <source>January</source>
+        <target>Januar</target>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:25</note>
+      </trans-unit>
+      <trans-unit id="July" xml:space="preserve">
+        <source>July</source>
+        <target>Juli</target>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:31</note>
+      </trans-unit>
+      <trans-unit id="June" xml:space="preserve">
+        <source>June</source>
+        <target>Juni</target>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:30</note>
+      </trans-unit>
+      <trans-unit id="March" xml:space="preserve">
+        <source>March</source>
+        <target>März</target>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:27</note>
+      </trans-unit>
+      <trans-unit id="May" xml:space="preserve">
+        <source>May</source>
+        <target>Mai</target>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:29</note>
+      </trans-unit>
+      <trans-unit id="Monday" xml:space="preserve">
+        <source>Monday</source>
+        <target>Montag</target>
+        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:20</note>
+      </trans-unit>
+      <trans-unit id="November" xml:space="preserve">
+        <source>November</source>
+        <target>November</target>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:35</note>
+      </trans-unit>
+      <trans-unit id="October" xml:space="preserve">
+        <source>October</source>
+        <target>Oktober</target>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:34</note>
+      </trans-unit>
+      <trans-unit id="Saturday" xml:space="preserve">
+        <source>Saturday</source>
+        <target>Samstag</target>
+        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:25</note>
+      </trans-unit>
+      <trans-unit id="September" xml:space="preserve">
+        <source>September</source>
+        <target>September</target>
+        <note>node_modules/zibri/src/localization/models/month.enum.ts:33</note>
+      </trans-unit>
+      <trans-unit id="Sunday" xml:space="preserve">
+        <source>Sunday</source>
+        <target>Sonntag</target>
+        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:26</note>
+      </trans-unit>
+      <trans-unit id="Thursday" xml:space="preserve">
+        <source>Thursday</source>
+        <target>Donnerstag</target>
+        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:23</note>
+      </trans-unit>
+      <trans-unit id="Tuesday" xml:space="preserve">
+        <source>Tuesday</source>
+        <target>Dienstag</target>
+        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:21</note>
+      </trans-unit>
+      <trans-unit id="Wednesday" xml:space="preserve">
+        <source>Wednesday</source>
+        <target>Mittwoch</target>
+        <note>node_modules/zibri/src/localization/models/weekday.enum.ts:22</note>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>
