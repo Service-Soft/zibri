@@ -283,3 +283,14 @@ jobs:
             # only when it is a string, and the deprecated `licenses` list is read from package.json
             - run: npm ci --ignore-scripts
             - run: node .github/scripts/check-consumer-tree.mjs
+    # every job that runs tests, as the one status the branch protection requires. Those jobs are a
+    # matrix read off node's release schedule, so their names change as node's lines do, and a
+    # protection naming them would wait on a job that no longer exists. Runs whatever happened above,
+    # and fails when any of them did not succeed
+    test:
+        needs: [test-zibri, test-zibri-heavy, test-zibri-cluster, test-tsx, test-cli, portability]
+        if: always()
+        runs-on: ubuntu-latest
+        steps:
+            - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
+              run: exit 1
