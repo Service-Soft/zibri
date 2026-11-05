@@ -2,6 +2,10 @@
 
 What changed in each release of `zibri`, `zibri-tsx`, `zibri-testing` and `zibri-cli`. The four are released together, at one version.
 
+## 3.0.1
+
+- Fixed a thread job queued just as the pool finished looking for work: it stayed in the queue beside a free worker until the next poll, up to two seconds later. It starts right away.
+
 ## 3.0.0
 
 A major release. An application on 2.x needs changes before it starts on 3.0.0, and its database needs a migration. [Upgrading to 3](https://service-soft.github.io/zibri/documents/upgrading-to-3.html) lists both: what the compiler does not tell you about, and the migration for the tables Zibri ships. Back up your database first.

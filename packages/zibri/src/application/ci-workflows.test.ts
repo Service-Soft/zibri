@@ -805,6 +805,18 @@ describe('the release workflow', () => {
         }
     });
 
+    // the job authenticates through npm's trusted publishing, which is set up on npmjs.com per
+    // package: a package the registry has never seen cannot be set up, and its publish is answered
+    // with a 404 after its attestation was logged. Asked up front, the release says what to do instead
+    it('refuses a package the registry has never seen, before publishing anything', () => {
+        const steps: string[] = deploySteps();
+        const check: number = steps.findIndex(line => line.includes('npm view "$package" name'));
+
+        expect(check).toBeGreaterThanOrEqual(0);
+        expect(check).toBeLessThan(Math.min(...indexesMatching(steps, isRealPublish)));
+        expect(steps[check + 1]).toContain('published once by hand');
+    });
+
     it('publishes one version across every package it releases', () => {
         const res: { agreed: string, refused: string } = inResolverProcess(`
             const { releaseVersion, declaredVersions } = await import('${pathToFileURL(releaseVersionPath).href}');
