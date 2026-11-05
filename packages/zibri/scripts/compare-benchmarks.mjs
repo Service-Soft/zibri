@@ -1,7 +1,6 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -20,6 +19,10 @@ const ROUNDS = 4;
 
 const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = path.resolve(packageDir, '..', '..');
+// beside the repository rather than under the system's temp directory: the release is run with its
+// own jest configuration, and the one of 3.0.0 ignores every path with `tmp` in it, so under /tmp
+// its suites were found nowhere. Next to the checkout, a path is what the checkout's own is
+export const worktreeParent = path.dirname(repoRoot);
 // a slowdown found to be worth it: { against, name, ratio, reason }, counting for as long as the
 // release `against` is the one compared with
 const allowancesPath = path.join(packageDir, 'benchmark-allowances.json');
@@ -147,7 +150,7 @@ function main() {
         return;
     }
 
-    const worktree = mkdtempSync(path.join(os.tmpdir(), 'zibri-benchmark-release-'));
+    const worktree = mkdtempSync(path.join(worktreeParent, 'zibri-benchmark-release-'));
     run('git', ['worktree', 'add', '--detach', worktree, against], repoRoot);
     try {
         // installed and built the way the job builds this checkout
