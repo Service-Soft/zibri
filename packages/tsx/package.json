@@ -1,5 +1,8 @@
 {
     "name": "zibri-tsx",
+    "publishConfig": {
+        "access": "public"
+    },
     "version": "3.0.0",
     "license": "MIT",
     "main": "./dist/index.js",

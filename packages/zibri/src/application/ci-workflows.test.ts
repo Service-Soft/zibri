@@ -128,7 +128,11 @@ type WorkspaceManifest = {
     /**
      * The npm scripts it is built and tested with.
      */
-    scripts?: Record<string, string>
+    scripts?: Record<string, string>,
+    /**
+     * How it is published.
+     */
+    publishConfig?: { access?: string }
 };
 
 /**
@@ -726,6 +730,17 @@ describe('the release workflow', () => {
 
     it('publishes with provenance', () => {
         expect(workflow('cd.yml')).toContain('--provenance');
+    });
+
+    // npm attests a package only when it says it is public, and refuses the publish of one the
+    // registry has not seen otherwise. The rehearsal cannot say so: a dry run attests nothing
+    it('publishes every package as public, which provenance asks of a package the registry has not seen', () => {
+        const manifests: WorkspaceManifest[] = Object.values(workspaceManifests());
+
+        for (const name of publishedPackages()) {
+            const manifest: WorkspaceManifest | undefined = manifests.find(m => m.name === name);
+            expect({ name, access: manifest?.publishConfig?.access }).toEqual({ name, access: 'public' });
+        }
     });
 
     it('builds every package before it publishes any of them', () => {
