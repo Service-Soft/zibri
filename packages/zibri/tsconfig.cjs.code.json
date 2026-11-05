@@ -1,0 +1,10 @@
+{
+    // the JavaScript of the published build, without comments: they are a third of it, the declarations
+    // keep the JSDoc for editors, and the source maps lead to the sources, which ship with every comment
+    "compilerOptions": {
+        "declaration": false,
+        "declarationMap": false,
+        "removeComments": true
+    },
+    "extends": "./tsconfig.cjs.json"
+}

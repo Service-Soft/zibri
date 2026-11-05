@@ -1,0 +1,125 @@
+import { AlsUtilities } from '../../../context/als.utilities';
+import { CacheContext } from '../../../context/cache/cache.context';
+import { CachedValue } from '../../store/cached-value.model';
+import { CacheFill } from '../../store/fill-guarded.cache-store';
+import { BaseCache } from '../base-cache.model';
+import { CacheOperation } from '../cache-operation.enum';
+import { CacheKeyProvider, CacheWrapOptions } from '../cache-options.model';
+
+/**
+ * Base class for all read through caches.
+ */
+export abstract class ReadThroughCache<
+    K,
+    V,
+    CacheTag extends string,
+    WriteResultAvailable extends boolean,
+    N extends string
+> extends BaseCache<K, V, CacheTag, WriteResultAvailable, N> {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    wrap<TArgs extends unknown[]>(
+        fn: (...args: TArgs) => V | Promise<V>,
+        keyFn: CacheKeyProvider<K, TArgs>,
+        options?: CacheWrapOptions<V, TArgs, CacheTag>
+    ): (...args: TArgs) => Promise<V> {
+        return async (...args) => {
+            const cacheCtx: CacheContext = { cache: this.name, operation: CacheOperation.WRAP };
+            const label: Record<string, string> = { cache: this.name };
+
+            return AlsUtilities.runWithCacheContext(cacheCtx, async () => {
+                let key: K | undefined;
+
+                try {
+                    key = await keyFn(...args);
+                    cacheCtx.key = key;
+
+                    const storeStart: number = performance.now();
+                    const cached: CachedValue<V> | undefined = await this.store.get(key);
+                    this.metrics.storeDuration.observe(
+                        { cache: this.name, operation: CacheOperation.WRAP },
+                        performance.now() - storeStart
+                    );
+
+                    // a store answers with what is still valid: an entry whose time to live has run
+                    // out is removed and reported as absent, so there is nothing to check here
+                    if (cached !== undefined) {
+                        cacheCtx.hit = true;
+                        this.metrics.hits.increase(label);
+                        return cached.value;
+                    }
+                }
+                catch (error) {
+                    this.metrics.errors.increase({ cache: this.name, operation: CacheOperation.WRAP });
+                    this.logger.warn('Cache read failed, treating as miss', { error });
+                }
+
+                cacheCtx.hit = false;
+                this.metrics.misses.increase(label);
+
+                if (key == undefined) {
+                    const start: number = performance.now();
+                    const value: V = await fn(...args);
+                    cacheCtx.durationInMs = performance.now() - start;
+                    return value;
+                }
+
+                const filled: K = key;
+                return this.runSingleFlight(filled, async () => {
+                    const fill: CacheFill = this.store.beginFill(filled);
+                    try {
+                        const sourceStart: number = performance.now();
+                        const value: V = await fn(...args);
+                        const sourceDuration: number = performance.now() - sourceStart;
+                        cacheCtx.durationInMs = sourceDuration;
+                        this.metrics.sourceDuration.observe({ cache: this.name, operation: CacheOperation.WRAP }, sourceDuration);
+                        await this.cacheFilledValue(filled, value, args, options, fill);
+                        return value;
+                    }
+                    finally {
+                        this.store.endFill(filled, fill);
+                    }
+                });
+            });
+        };
+    }
+
+    /**
+     * Caches the value a fill read from the source, unless a write overtook the fill: what it read
+     * is then what the write replaced.
+     * @param key - The key it filled.
+     * @param value - The value the source answered.
+     * @param args - The arguments of the call.
+     * @param options - The options of the wrap.
+     * @param fill - The fill.
+     */
+    private async cacheFilledValue<TArgs extends unknown[]>(
+        key: K,
+        value: V,
+        args: TArgs,
+        options: CacheWrapOptions<V, TArgs, CacheTag> | undefined,
+        fill: CacheFill
+    ): Promise<void> {
+        try {
+            const [tags, ttl] = await Promise.all([
+                this.resolveResultTags(options?.tags, value, args),
+                this.resolveResultTtl(options?.ttlInMs, value, args)
+            ]);
+            if (fill.stale) {
+                return;
+            }
+
+            const storeStart: number = performance.now();
+            await this.store.set(key, this.createCachedValue(value, tags, ttl));
+            this.metrics.storeDuration.observe({ cache: this.name, operation: 'SET' }, performance.now() - storeStart);
+
+            await this.updateSizeGauge();
+        }
+        catch (error) {
+            this.metrics.errors.increase({ cache: this.name, operation: 'SET' });
+            this.logger.warn(
+                'Cache store failed after successful source read, value was returned but not cached',
+                { error }
+            );
+        }
+    }
+}

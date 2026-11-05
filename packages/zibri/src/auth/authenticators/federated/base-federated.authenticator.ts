@@ -1,0 +1,1227 @@
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+
+import { FederatedAnswerContext } from './federated-answer-context.model';
+import { FederatedAuthenticatorInterface } from './federated-authenticator.interface';
+import { FederatedBindingUtilities } from './federated-binding.utilities';
+import { FederatedConnectionCode, FederatedConnectionCodeCreateData } from './federated-connection-code.model';
+import { FederatedCredentials, FederatedHandoverCredentials, FederatedTicketCredentials } from './federated-credentials.model';
+import { FederatedHandoverCode, FederatedHandoverCodeCreateData } from './federated-handover-code.model';
+import { FederatedIdentity, FederatedIdentityCreateData } from './federated-identity.model';
+import { FederatedLinkIdentityRequest } from './federated-link-identity-request.model';
+import { FederatedLinkIdentityStart } from './federated-link-identity-start.model';
+import { FederatedLoginAction } from './federated-login-action.type';
+import { FederatedLoginAttempt, FederatedLoginAttemptCreateData } from './federated-login-attempt.model';
+import { FederatedLoginFailure } from './federated-login-failure.enum';
+import { FederatedLoginRequest } from './federated-login-request.model';
+import { FederatedLoginResult } from './federated-login-result.model';
+import { FederatedLoginStart } from './federated-login-start.model';
+import { FederatedLoginError } from './federated-login.error';
+import { FederatedLogin } from './federated-login.model';
+import { FederatedMetadata } from './federated-metadata.model';
+import { FederatedProviderIdentity } from './federated-provider-identity.model';
+import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model';
+import { FederatedProviderLogout } from './federated-provider-logout.model';
+import { FederatedProviderSession } from './federated-provider-session.model';
+import { FederatedReauthentication } from './federated-reauthentication.model';
+import { FederatedRegistrationTicket, FederatedRegistrationTicketCreateData } from './federated-registration-ticket.model';
+import { FederatedRegistration } from './federated-registration.model';
+import { FederatedRouteEndpoint } from './federated-route-endpoint.model';
+import { FederatedRoute } from './federated-route.type';
+import { FederatedSessionMatch } from './federated-session-match.model';
+import { FederatedSession } from './federated-session.model';
+import { FederatedSoapLogout } from './federated-soap-logout.model';
+import { FederationOptions } from './federation-options.model';
+import { ProviderTokenGrant } from './provider-token-grant.model';
+import { ZibriApplication } from '../../../application/application';
+import { Repository } from '../../../data-source/repository/repository';
+import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
+import { UniqueConstraintViolationError } from '../../../data-source/unique-constraint-violation.error';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
+import { NoProviderError } from '../../../di/errors/no-provider.error';
+import { inject } from '../../../di/inject.function';
+import { BadRequestError } from '../../../error-handling/errors/bad-request.error';
+import { NotFoundError } from '../../../error-handling/errors/not-found.error';
+import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
+import { InternalError } from '../../../error-handling/internal-error.model';
+import { HttpMethod } from '../../../http/http-method.enum';
+import { $ts } from '../../../localization/translate.function';
+import { AuditAction } from '../../../logging/audit-event.model';
+import { ControllerUtilities } from '../../../routing/controller.utilities';
+import { Newable } from '../../../types/newable.type';
+import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
+import { FEDERATED_ROUTE } from '../../auth-controller/auth-controller-routes.model';
+import { isAuthControllerClass } from '../../auth-controller/is-auth-controller-class.function';
+import { type HashServiceInterface } from '../../hash/hash-service.interface';
+import type { HashString } from '../../hash/hash.utilities';
+import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
+import { Authentication } from '../../models/authentication.model';
+import { BaseUser } from '../../models/base-user.model';
+import { type UserServiceInterface } from '../../user/user-service.interface';
+import { AuthControllerAuthenticatorInterface } from '../auth-controller-authenticator.interface';
+import { LinkIdentityRequestingAuthenticatorInterface } from '../link-identity-requesting-authenticator.interface';
+
+/**
+ * The options with every default filled in.
+ */
+export type ResolvedFederationOptions = Required<Omit<FederationOptions, 'loggedOutUrl'>> & Pick<FederationOptions, 'loggedOutUrl'>;
+
+/**
+ * What a handover code or a registration ticket is spent with: the cookie of the browser the
+ * login was started in, or the verifier of the frontend's PKCE challenge.
+ */
+type FederatedGrantProof = {
+    /**
+     * The hash of the cookie's secret, when the cookie is the proof.
+     */
+    binding: HashString | undefined | null,
+    /**
+     * The name of the cookie, when the cookie is the proof.
+     */
+    bindingCookie: string | undefined | null,
+    /**
+     * The PKCE challenge, when the verifier is the proof.
+     */
+    codeChallenge: string | undefined | null
+};
+
+/**
+ * What a handover code or a registration ticket is created with to be spent with, before the cookie's
+ * secret is hashed.
+ */
+type FederatedGrantProofData = Pick<FederatedHandoverCodeCreateData, 'binding' | 'bindingCookie' | 'codeChallenge'>;
+
+/**
+ * What a handover code or a registration ticket keeps of the session at the provider.
+ */
+type FederatedSessionData = Pick<FederatedHandoverCodeCreateData, 'subjectKey' | 'sessionKey' | 'sessionLogout'>;
+
+/**
+ * A PKCE challenge as S256 makes it: a sha256, in base64url without padding.
+ */
+const CODE_CHALLENGE_PATTERN: RegExp = /^[\w-]{43}$/;
+
+/**
+ * Authenticates a user by a login at a provider: the browser is sent there, and comes back with an
+ * answer the provider proves who logged in with.
+ *
+ * What every protocol shares: the login tied to the browser it was started in and taken once, the
+ * identities linked to users, the ticket a first login continues with at the registration, the code
+ * a login is handed over with, and connecting a provider to an account. Extend `BaseOAuthAuthenticator`
+ * for OAuth and OpenID Connect, or `BaseSamlAuthenticator` for SAML. The login itself runs through the
+ * routes of `AuthController`, or routes of your own that `resolveRouteUrl` names.
+ */
+export abstract class BaseFederatedAuthenticator<
+    RoleType extends string,
+    UserType extends BaseUser<RoleType> = BaseUser<RoleType>
+> implements FederatedAuthenticatorInterface<RoleType, UserType>,
+    LinkIdentityRequestingAuthenticatorInterface<
+        RoleType,
+        UserType,
+        FederatedCredentials,
+        FederatedTicketCredentials,
+        FederatedRegistration,
+        FederatedIdentity,
+        FederatedLinkIdentityRequest,
+        FederatedLinkIdentityStart
+    >,
+    AuthControllerAuthenticatorInterface<RoleType, UserType, FederatedCredentials> {
+    /**
+     * The name of the provider, which its routes are reached under. Lowercase letters, digits and dashes.
+     */
+    abstract readonly name: string;
+
+    /**
+     * The issuer the provider's identities are known by, eg. `https://accounts.google.com`.
+     */
+    abstract readonly issuer: string;
+
+    /**
+     * The scopes of the provider's apis a login or a connection may ask for, whose tokens are then
+     * kept for calling those apis. None by default.
+     */
+    readonly apiScopes: string[] = [];
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    get routes(): FederatedRouteEndpoint[] {
+        return [
+            { route: 'callback', method: this.answersWithFormPost() ? HttpMethod.POST : HttpMethod.GET },
+            { route: 'link-identity', method: HttpMethod.GET }
+        ];
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly credentialsModel: Newable<FederatedCredentials> = FederatedHandoverCredentials;
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly linkIdentityRequestModel: Newable<FederatedLinkIdentityRequest> = FederatedLinkIdentityRequest;
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly linkIdentityStartModel: Newable<FederatedLinkIdentityStart> = FederatedLinkIdentityStart;
+
+    // the declared controller the provider sends the browser back to, found while the application starts
+    private routesController: Newable<unknown> | undefined;
+
+    // read when used rather than injected: an application extends this class, and a constructor it
+    // has to pass through would be one more thing to get wrong in every provider
+    private get attemptRepository(): Repository<FederatedLoginAttempt, FederatedLoginAttemptCreateData> {
+        return inject(repositoryTokenFor(FederatedLoginAttempt));
+    }
+
+    private get handoverCodeRepository(): Repository<FederatedHandoverCode, FederatedHandoverCodeCreateData> {
+        return inject(repositoryTokenFor(FederatedHandoverCode));
+    }
+
+    private get registrationTicketRepository(): Repository<FederatedRegistrationTicket, FederatedRegistrationTicketCreateData> {
+        return inject(repositoryTokenFor(FederatedRegistrationTicket));
+    }
+
+    private get connectionCodeRepository(): Repository<FederatedConnectionCode, FederatedConnectionCodeCreateData> {
+        return inject(repositoryTokenFor(FederatedConnectionCode));
+    }
+
+    private get hashService(): HashServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.HASH_SERVICE);
+    }
+
+    private get userService(): UserServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.USER_SERVICE);
+    }
+
+    /**
+     * Where the identities linked to users are kept.
+     * @returns The repository.
+     */
+    protected get identityRepository(): Repository<FederatedIdentity, FederatedIdentityCreateData> {
+        return inject(repositoryTokenFor(FederatedIdentity));
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    init(app: ZibriApplication): void {
+        validateEntitiesRegistered(
+            this.constructor.name,
+            app,
+            FederatedLoginAttempt,
+            FederatedIdentity,
+            FederatedHandoverCode,
+            FederatedRegistrationTicket,
+            FederatedConnectionCode
+        );
+        this.resolveOptions();
+        // the provider is sent to the routes of the auth controller the application declares, at its
+        // path. None is no mistake yet: a subclass resolving urls of its own needs none, and the
+        // application checks every url while it starts
+        this.routesController = app.options.controllers.find(isAuthControllerClass);
+    }
+
+    /**
+     * The url the provider sends the browser back to, which has to be registered there exactly like this.
+     * @returns The url `resolveRouteUrl` resolves for the `callback` route.
+     * @throws When the application has not been started yet, or declares no auth controller.
+     */
+    getCallbackUrl(): string {
+        return this.resolveRouteUrl('callback');
+    }
+
+    /**
+     * The url of one of the provider's routes: the application's `baseUrl`, followed by the path of
+     * the auth controller and `/federated/{name}/{route}`, eg. `/auth/federated/{name}/callback`.
+     *
+     * Override it to serve the routes from controllers of your own, and override `routes` to name the
+     * ones those serve.
+     * @param route - The route.
+     * @returns The url.
+     * @throws When the application has not been started yet, or declares no controller defined by
+     * `AuthController`.
+     */
+    resolveRouteUrl(route: FederatedRoute): string {
+        if (this.routesController == undefined) {
+            throw new InternalError([
+                `${this.constructor.name} gives out the urls of its routes ${this.routes.map(r => r.route).join(', ')}, and found no`,
+                'controller defined by AuthController to serve them while the application started.',
+                'Declare one, or override resolveRouteUrl to name routes of your own.'
+            ]);
+        }
+        return `${ControllerUtilities.resolveUrl(this.routesController)}${FEDERATED_ROUTE}/${this.name}/${route}`;
+    }
+
+    /**
+     * Starts a login at the provider.
+     *
+     * Ties the login to the browser with a cookie, so it can only be completed there.
+     * @param request - Where the login goes afterwards, how it is handed over, and which scopes of the
+     * provider's apis it asks for.
+     * @returns The url at the provider to send the browser to.
+     * @throws When `redirectTo` is not allowed, the challenge is not one S256 makes, or a scope is not
+     * one of the `apiScopes`.
+     */
+    async requestProviderLogin(request: FederatedLoginRequest): Promise<string> {
+        const options: ResolvedFederationOptions = this.resolveOptions();
+        this.validateRedirect(request.redirectTo, options.allowedRedirects);
+        if (request.codeChallenge != undefined && !CODE_CHALLENGE_PATTERN.test(request.codeChallenge)) {
+            throw new BadRequestError($ts`The code challenge has to be the S256 challenge of a PKCE verifier.`);
+        }
+        // the scopes of a login come from its url, which anyone can make up and send a user
+        const notAllowed: string[] = this.findScopesNotAllowed(request.apiScopes);
+        if (notAllowed.length) {
+            throw new BadRequestError($ts`The scopes ${notAllowed.join(', ')} cannot be asked for.`);
+        }
+        return await this.startAttempt(request, undefined, true, options);
+    }
+
+    /**
+     * Requests linking the provider to the account of a user: so that a login through it logs in as
+     * them from then on, so that its apis can be called for them, or both.
+     * `AuthServiceInterface.requestLinkIdentity` calls it for the user logged in with the request.
+     *
+     * Answers with the url of the `link-identity` route `resolveRouteUrl` resolves. The browser goes on
+     * to the provider from there, the user logs in,
+     * and the browser lands on `redirectTo` once the identity is linked.
+     * @param userId - The user the provider is linked to.
+     * @param connection - Where the browser goes once the provider is linked, whether the identity
+     * logs in, and the scopes of the provider's apis to keep tokens for.
+     * @returns The url to send the browser to, which is good once and for a short time.
+     * @throws BadRequestError when `redirectTo` is not allowed, a scope is not one of the `apiScopes`,
+     * or the link is for neither logging in nor any scope.
+     */
+    async requestLinkIdentity(userId: string, connection: FederatedLinkIdentityRequest): Promise<FederatedLinkIdentityStart> {
+        const options: ResolvedFederationOptions = this.resolveOptions();
+        this.validateRedirect(connection.redirectTo, options.allowedRedirects);
+        const apiScopes: string[] = connection.scopes ?? [];
+        // the client names these when it calls the link-identity/request route of AuthController, so a
+        // wrong one is refused like a scope in the url of a login
+        const notAllowed: string[] = this.findScopesNotAllowed(apiScopes);
+        if (notAllowed.length) {
+            throw new BadRequestError($ts`The scopes ${notAllowed.join(', ')} cannot be asked for.`);
+        }
+        if (!connection.forLogin && !apiScopes.length) {
+            throw new BadRequestError($ts`A connection that does not log in has to ask for scopes.`);
+        }
+        const code: string = randomBytes(32).toString('base64url');
+        await this.connectionCodeRepository.create({
+            value: code,
+            provider: this.name,
+            userId,
+            redirectTo: connection.redirectTo,
+            forLogin: connection.forLogin,
+            apiScopes,
+            spent: false,
+            expirationDate: new Date(Date.now() + options.linkIdentityCodeExpiresInMs)
+        });
+        const url: URL = new URL(this.resolveRouteUrl('link-identity'));
+        url.searchParams.set('code', code);
+        return { url: url.toString() };
+    }
+
+    /**
+     * Sends a link requested with `requestLinkIdentity` on to the provider, and ties it to the browser.
+     *
+     * The user is always asked to log in at the provider, even when it still has a session of theirs.
+     * @param code - The one-time code of the connection.
+     * @returns The url at the provider to send the browser to.
+     * @throws FederatedLoginError when the code is unknown, spent or expired.
+     */
+    async continueLinkIdentity(code: string): Promise<string> {
+        const options: ResolvedFederationOptions = this.resolveOptions();
+        const connection: FederatedConnectionCode | undefined = await this.connectionCodeRepository.findOne({
+            where: { value: await this.hashService.hash(code, { strategy: Sha256HashStrategy }), provider: this.name },
+            required: false
+        });
+        if (connection == undefined || connection.spent || new Date(connection.expirationDate).getTime() <= Date.now()) {
+            throw new FederatedLoginError(FederatedLoginFailure.EXPIRED, { action: AuditAction.IDENTITY_LINKED });
+        }
+        await this.claim(
+            async () => await this.connectionCodeRepository.updateById(connection.id, { spent: true }, { where: { spent: false } }),
+            AuditAction.IDENTITY_LINKED
+        );
+        // the cookie is set here, by the application's own origin in a top level navigation, rather
+        // than by requestLinkIdentity: that answers a request the frontend sends, which may come from
+        // another site, and a browser keeps a cookie set there as a third party one or not at all.
+        // The user logs in at the provider whatever session it has, so they see which account they
+        // connect - a session somebody else left in a shared browser would otherwise be linked to them
+        return await this.startAttempt(
+            {
+                redirectTo: connection.redirectTo,
+                reauthenticate: true,
+                codeChallenge: undefined,
+                strategy: undefined,
+                apiScopes: connection.apiScopes
+            },
+            connection.userId,
+            connection.forLogin,
+            options
+        );
+    }
+
+    /**
+     * Takes the provider's answer to a login.
+     *
+     * Checks that it answers a login this browser started, has the provider prove who logged in, and
+     * finds the user linked to the identity.
+     * @param answer - What the provider sent the browser back with: the query of a redirect, or the
+     * fields of a form post.
+     * @returns The code that hands the login over, the ticket the registration continues with, or that
+     * the provider is linked.
+     * @throws FederatedLoginError saying why, when the answer cannot be taken.
+     */
+    async confirmProviderLogin(answer: URLSearchParams): Promise<FederatedLoginResult> {
+        const options: ResolvedFederationOptions = this.resolveOptions();
+        const state: string | null = this.readState(answer);
+        if (state == undefined) {
+            throw new FederatedLoginError(FederatedLoginFailure.EXPIRED);
+        }
+        const attempt: FederatedLoginAttempt | undefined = await this.attemptRepository.findOne({
+            where: { state: await this.hashService.hash(state, { strategy: Sha256HashStrategy }), provider: this.name },
+            required: false
+        });
+        if (attempt == undefined || attempt.spent || new Date(attempt.expirationDate).getTime() <= Date.now()) {
+            throw new FederatedLoginError(FederatedLoginFailure.EXPIRED);
+        }
+        const action: FederatedLoginAction = attempt.userId == undefined ? AuditAction.LOGIN : AuditAction.IDENTITY_LINKED;
+        const bindingCookie: string = FederatedBindingUtilities.getCookieName(attempt.id);
+        const binding: string | undefined = FederatedBindingUtilities.findCookie(bindingCookie);
+        // a callback from another browser than the one the login started in is how an attacker logs
+        // a victim into the attacker's own account: they send the victim the answer to their login.
+        // For a connection, it is how they would link their own identity to the victim's account
+        if (binding == undefined || !await this.hashService.equal(binding, attempt.binding)) {
+            throw new FederatedLoginError(FederatedLoginFailure.EXPIRED, { action });
+        }
+        await this.claim(
+            async () => await this.attemptRepository.updateById(attempt.id, { spent: true }, { where: { spent: false } }),
+            action
+        );
+
+        const failure: FederatedLoginFailure | undefined = this.findProviderFailure(answer);
+        if (failure != undefined) {
+            FederatedBindingUtilities.clearCookie(bindingCookie);
+            throw new FederatedLoginError(failure, { action });
+        }
+
+        const verified: FederatedLogin | FederatedReauthentication = await this.verifyAnswer(answer, {
+            state,
+            binding,
+            apiScopes: attempt.apiScopes,
+            maxAuthenticationAgeInMs: options.maxAuthenticationAgeInMs,
+            action
+        });
+        if ('reauthenticate' in verified) {
+            FederatedBindingUtilities.clearCookie(bindingCookie);
+            // a provider that ignored being asked once would be asked forever
+            if (attempt.reauthenticate) {
+                throw new FederatedLoginError(FederatedLoginFailure.INVALID, { action });
+            }
+            const url: string = await this.startAttempt(
+                {
+                    redirectTo: attempt.redirectTo,
+                    reauthenticate: true,
+                    codeChallenge: attempt.codeChallenge ?? undefined,
+                    strategy: attempt.strategy ?? undefined,
+                    apiScopes: attempt.apiScopes
+                },
+                attempt.userId ?? undefined,
+                attempt.forLogin,
+                options
+            );
+            return { type: 'reauthentication', url };
+        }
+        const login: FederatedLogin = verified;
+        const loggedIn: FederatedProviderIdentity = login.identity;
+        // only what the login asked for access to is kept: the tokens of a plain login are good
+        // for reading who logged in, which is done
+        const tokens: ProviderTokenGrant | undefined = attempt.apiScopes.length ? login.tokens : undefined;
+        if (attempt.userId != undefined) {
+            FederatedBindingUtilities.clearCookie(bindingCookie);
+            await this.linkRequestedIdentity(attempt.userId, loggedIn, attempt.forLogin, tokens);
+            return { type: 'linked', userId: attempt.userId, redirectTo: attempt.redirectTo };
+        }
+        const proof: FederatedGrantProofData = attempt.codeChallenge == undefined
+            ? { binding, bindingCookie, codeChallenge: undefined }
+            : { binding: undefined, bindingCookie: undefined, codeChallenge: attempt.codeChallenge };
+        if (attempt.codeChallenge != undefined) {
+            // the frontend's verifier is the proof from here on
+            FederatedBindingUtilities.clearCookie(bindingCookie);
+        }
+
+        const session: FederatedSessionData = this.toSessionData(loggedIn, login.session);
+        const identity: FederatedIdentity | undefined = await this.findIdentity(loggedIn.issuer, loggedIn.subject);
+        if (identity != undefined) {
+            this.validateForLogin(identity, bindingCookie);
+            if (tokens != undefined) {
+                await this.keepProviderTokens(identity, tokens, undefined);
+            }
+            const code: string = randomBytes(32).toString('base64url');
+            await this.handoverCodeRepository.create({
+                value: code,
+                provider: this.name,
+                userId: identity.userId,
+                authenticatedAt: loggedIn.authenticatedAt,
+                claims: loggedIn.claims,
+                providerAuthentication: loggedIn.providerAuthentication,
+                ...session,
+                binding: proof.binding,
+                bindingCookie: proof.bindingCookie,
+                codeChallenge: proof.codeChallenge,
+                spent: false,
+                expirationDate: new Date(Date.now() + options.handoverCodeExpiresInMs)
+            });
+            return { type: 'handover', code, redirectTo: attempt.redirectTo, strategy: attempt.strategy ?? undefined };
+        }
+        const ticket: string = await this.startRegistration(loggedIn, tokens, session, proof, attempt.redirectTo, options);
+        return { type: 'registration', ticket };
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async authenticate(
+        credentials: FederatedCredentials,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<Authentication<UserType>> {
+        if ('code' in credentials) {
+            const handover: FederatedHandoverCode = await this.findHandoverCode(credentials.code, credentials.codeVerifier, transaction);
+            await this.claim(async () => await this.handoverCodeRepository.updateById(
+                handover.id,
+                { spent: true },
+                { where: { spent: false }, transaction }
+            ), AuditAction.LOGIN);
+            this.clearProofCookie(handover);
+            // inside the login's transaction, so what the authenticator changes about the user, such
+            // as their roles, is committed with the login or rolled back with its refusal
+            const user: UserType = await this.resolveLoginUser(handover.claims, await this.resolveUser(handover.userId), transaction);
+            return {
+                user,
+                authenticatedAt: new Date(handover.authenticatedAt),
+                federatedSession: this.toFederatedSession(handover),
+                providerAuthentication: handover.providerAuthentication ?? undefined
+            };
+        }
+
+        const ticket: FederatedRegistrationTicket = await this.findRegistrationTicket(credentials, transaction);
+        // read in the login's transaction, which is where a registration has just linked it. Only one
+        // that logs in: one connected for apis only in the meantime would otherwise log in as its user
+        const identity: FederatedIdentity | undefined = await this.identityRepository.findOne({
+            where: { issuer: ticket.issuer, subject: ticket.subject, forLogin: true },
+            transaction,
+            required: false
+        });
+        if (identity == undefined) {
+            throw new FederatedLoginError(FederatedLoginFailure.NOT_LINKED);
+        }
+        await this.claim(async () => await this.registrationTicketRepository.updateById(
+            ticket.id,
+            { spent: true },
+            { where: { spent: false }, transaction }
+        ), AuditAction.LOGIN);
+        this.clearProofCookie(ticket);
+        return {
+            user: await this.resolveUser(identity.userId),
+            authenticatedAt: new Date(ticket.authenticatedAt),
+            federatedSession: this.toFederatedSession(ticket),
+            providerAuthentication: ticket.providerAuthentication ?? undefined
+        };
+    }
+
+    /**
+     * Reads who logged in at the provider, for creating the user they become. Does not spend the ticket.
+     * @param credentials - The ticket, and the PKCE verifier when the login was started with a challenge.
+     * @param transaction - The transaction the registration runs in, if any.
+     * @returns Who logged in, as the provider reports them.
+     * @throws When the ticket is unknown, spent or expired, or the proof is missing.
+     */
+    async resolveRegistration(
+        credentials: FederatedTicketCredentials,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<FederatedRegistration> {
+        const ticket: FederatedRegistrationTicket = await this.findRegistrationTicket(credentials, transaction);
+        return {
+            provider: ticket.provider,
+            issuer: ticket.issuer,
+            subject: ticket.subject,
+            email: ticket.email ?? undefined,
+            emailVerified: ticket.emailVerified ?? undefined,
+            name: ticket.name ?? undefined,
+            givenName: ticket.givenName ?? undefined,
+            familyName: ticket.familyName ?? undefined,
+            claims: ticket.claims,
+            redirectTo: ticket.redirectTo
+        };
+    }
+
+    /**
+     * Links the identity a registration ticket names to a user, so the ticket can log them in and every
+     * later login through the provider finds them. Keeps the tokens of the provider's apis the login
+     * asked for. Does not spend the ticket.
+     * @param credentials - The ticket, and the PKCE verifier when the login was started with a challenge.
+     * @param userId - The user to link the identity to.
+     * @param transaction - The transaction the registration runs in, if any.
+     * @throws When the ticket is unknown, spent or expired, or the proof is missing.
+     */
+    async linkTicketIdentity(
+        credentials: FederatedTicketCredentials,
+        userId: string,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<void> {
+        const ticket: FederatedRegistrationTicket = await this.findRegistrationTicket(credentials, transaction);
+        const identity: FederatedIdentity = await this.identityRepository.create(
+            { issuer: ticket.issuer, subject: ticket.subject, userId, forLogin: true, grantedScopes: [] },
+            { transaction }
+        );
+        if (ticket.accessToken != undefined) {
+            await this.keepProviderTokens(identity, {
+                accessToken: ticket.accessToken,
+                refreshToken: ticket.refreshToken,
+                accessTokenExpirationDate: ticket.accessTokenExpirationDate,
+                grantedScopes: ticket.grantedScopes
+            }, transaction);
+        }
+    }
+
+    /**
+     * Finds the identities at the provider that are linked to a user.
+     * @param userId - The user.
+     * @param transaction - The transaction to read in, if any.
+     * @returns The identities, none when the user has none at the provider.
+     */
+    async findIdentities(userId: string, transaction: RepositoryTransaction | undefined): Promise<FederatedIdentity[]> {
+        const identities: FederatedIdentity[] = await this.identityRepository.findAll({ where: { userId }, transaction });
+        return identities.filter(identity => this.isOwnIssuer(identity.issuer));
+    }
+
+    /**
+     * Unlinks an identity at the provider from a user, so a login through it no longer logs in as them.
+     * @param userId - The user.
+     * @param identityId - The id of the identity, as `findIdentities` answers with it.
+     * @param transaction - The transaction to unlink in, if any.
+     * @throws NotFoundError when the user has no identity of that id at the provider.
+     */
+    async unlinkIdentity(userId: string, identityId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+        const identity: FederatedIdentity = await this.findOwnIdentity(userId, identityId, transaction);
+        await this.identityRepository.deleteById(identity.id, { transaction });
+    }
+
+    /**
+     * Deletes the identities of the given users at this provider, and the logins, connections and
+     * handovers under way for them. Called in the transaction that deletes the users for good.
+     * @param userIds - The users.
+     * @param transaction - The transaction deleting them.
+     */
+    async deleteUserRows(userIds: string[], transaction: RepositoryTransaction): Promise<void> {
+        const identities: FederatedIdentity[] = await this.findOwnIdentitiesOf(userIds, transaction);
+        if (identities.length) {
+            await this.identityRepository.deleteAll({ id: { oneOf: identities.map(identity => identity.id) } }, { transaction });
+        }
+        await this.attemptRepository.deleteAll({ provider: this.name, userId: { oneOf: userIds } }, { transaction });
+        await this.handoverCodeRepository.deleteAll({ provider: this.name, userId: { oneOf: userIds } }, { transaction });
+        await this.connectionCodeRepository.deleteAll({ provider: this.name, userId: { oneOf: userIds } }, { transaction });
+    }
+
+    /**
+     * The origins the provider's answer may be posted to the callback from: the origin of its login
+     * page, when it answers with a form post. None when it redirects.
+     * @returns The origins.
+     * @throws When the provider cannot be reached to read where its login page is.
+     */
+    abstract resolveFormPostOrigins(): Promise<string[]>;
+
+    /**
+     * Answers the user a login with an identity linked to them logs in as: updated from what the
+     * provider proved about them, such as their roles from a groups claim, or as they are. Throw an http
+     * error to refuse the login. Runs inside the login's transaction.
+     *
+     * Not called for a first login, whose user the registration creates from the same claims, and not
+     * when a login is refreshed, since the provider is not asked again then.
+     * @param claims - Everything the provider proved about who logged in: the claims of an OpenID
+     * Connect ID token, the attributes of a SAML assertion, or what a provider that speaks plain OAuth2
+     * answers about them.
+     * @param user - The user the identity is linked to.
+     * @param transaction - The transaction of the login, if any.
+     * @returns The user the identity logs in as.
+     */
+    // eslint-disable-next-line typescript/require-await
+    protected async resolveLoginUser(
+        claims: Record<string, unknown>,
+        user: UserType,
+        // eslint-disable-next-line unusedImports/no-unused-vars
+        transaction: RepositoryTransaction | undefined
+    ): Promise<UserType> {
+        return user;
+    }
+
+    /**
+     * The document the authenticator publishes about the application at the `metadata` route, for the
+     * provider to be set up with. None by default.
+     * @returns The document, or undefined when the protocol has none.
+     */
+    // eslint-disable-next-line typescript/require-await
+    async resolveMetadata(): Promise<FederatedMetadata | undefined> {
+        return undefined;
+    }
+
+    /**
+     * The url at the provider that ends the session there a login was started from, once the login has
+     * ended here. None by default, for a protocol that cannot be told.
+     * @param session - The session the login kept.
+     * @returns The url to send the browser to, or undefined when the provider cannot be told.
+     */
+    // eslint-disable-next-line typescript/require-await
+    async createLogoutUrl(
+        // eslint-disable-next-line unusedImports/no-unused-vars
+        session: FederatedSession
+    ): Promise<string | undefined> {
+        return undefined;
+    }
+
+    /**
+     * Reads what the provider sent the browser to the `logout` route with: that the user logged out
+     * there, or the answer to a logout that started here.
+     * @param message - The query of a redirect, or the fields of a posted form.
+     * @returns What the provider said.
+     * @throws NotFoundError for a protocol without logout at the provider.
+     * @throws UnauthorizedError when what the provider sent cannot be verified.
+     */
+    // eslint-disable-next-line typescript/require-await
+    async readProviderLogout(
+        // eslint-disable-next-line unusedImports/no-unused-vars
+        message: FederatedProviderLogoutMessage
+    ): Promise<FederatedProviderLogout> {
+        throw new NotFoundError($ts`The provider "${this.name}" cannot be logged out at.`);
+    }
+
+    /**
+     * Reads a logout request the provider sent server to server in a SOAP envelope, and answers which
+     * logins end and the envelope to answer the provider with.
+     * @param envelope - The envelope, exactly as it arrived.
+     * @returns The logins that end, and the answer.
+     * @throws NotFoundError for a protocol without such logout requests.
+     * @throws UnauthorizedError when the request cannot be verified.
+     */
+    // eslint-disable-next-line typescript/require-await
+    async resolveSoapLogout(
+        // eslint-disable-next-line unusedImports/no-unused-vars
+        envelope: string
+    ): Promise<FederatedSoapLogout> {
+        throw new NotFoundError($ts`The provider "${this.name}" takes no logout requests sent server to server.`);
+    }
+
+    /**
+     * Reads a logout token the provider sent server to server, and answers which logins end.
+     * @param token - The token, exactly as it arrived.
+     * @returns The logins that end.
+     * @throws NotFoundError for a protocol without logout tokens.
+     * @throws UnauthorizedError when the token cannot be verified.
+     */
+    // eslint-disable-next-line typescript/require-await
+    async resolveBackChannelLogout(
+        // eslint-disable-next-line unusedImports/no-unused-vars
+        token: string
+    ): Promise<FederatedSessionMatch> {
+        throw new NotFoundError($ts`The provider "${this.name}" takes no logout tokens.`);
+    }
+
+    /**
+     * Builds the url at the provider the browser is sent to for a login.
+     *
+     * Everything the provider has to echo back in its answer is either `state` or derived from the
+     * binding with `deriveFromBinding`, so the stored attempt holds nothing a reader of the database
+     * could finish the login with.
+     * @param start - What the login is started with.
+     * @returns The url.
+     * @throws When the provider cannot be reached to build it.
+     */
+    protected abstract createLoginUrl(start: FederatedLoginStart): Promise<string>;
+
+    /**
+     * Has the provider prove who logged in, from its answer to a login this browser started.
+     * @param answer - Everything the provider sent the browser back with.
+     * @param context - What the answer is checked with.
+     * @returns Who logged in and when, and the tokens of the apis the login asked for. Or that the
+     * user logged in at the provider longer ago than `maxAuthenticationAgeInMs` allows, for a protocol
+     * that cannot ask the provider beforehand, which starts the login again with `reauthenticate`.
+     * @throws FederatedLoginError when the provider cannot be reached or does not prove who logged in.
+     */
+    protected abstract verifyAnswer(
+        answer: URLSearchParams,
+        context: FederatedAnswerContext
+    ): Promise<FederatedLogin | FederatedReauthentication>;
+
+    /**
+     * Whether the provider sends its answer back as a page posting it to the callback, which another
+     * site's page does: the cookie of the login is then made one a browser sends along with that.
+     * @returns True for a form post, false for a redirect.
+     */
+    protected abstract answersWithFormPost(): boolean;
+
+    /**
+     * Reads what the provider handed back to find the login again.
+     * @param answer - Everything the provider sent the browser back with.
+     * @returns The state, or null when the answer has none.
+     */
+    protected readState(answer: URLSearchParams): string | null {
+        return answer.get('state');
+    }
+
+    /**
+     * Reads why the provider did not log the user in, when its answer says it did not.
+     * @param answer - Everything the provider sent the browser back with.
+     * @returns The failure, or undefined when the answer is to be verified.
+     */
+    protected findProviderFailure(
+        // eslint-disable-next-line unusedImports/no-unused-vars
+        answer: URLSearchParams
+    ): FederatedLoginFailure | undefined {
+        return undefined;
+    }
+
+    /**
+     * Keeps the tokens of the provider's apis for an identity. Only called with tokens a login of an
+     * authenticator with `apiScopes` was granted.
+     * @param identity - The identity.
+     * @param tokens - The tokens.
+     * @param transaction - The transaction to write in, if any.
+     * @throws When the authenticator keeps no tokens.
+     */
+    // eslint-disable-next-line typescript/require-await
+    protected async keepProviderTokens(
+        identity: FederatedIdentity,
+        // eslint-disable-next-line unusedImports/no-unused-vars
+        tokens: ProviderTokenGrant,
+        // eslint-disable-next-line unusedImports/no-unused-vars
+        transaction: RepositoryTransaction | undefined
+    ): Promise<void> {
+        throw new InternalError(`${this.constructor.name} keeps no tokens, but was handed some for the identity ${identity.id}.`);
+    }
+
+    /**
+     * Finds the identities of the given users at this provider.
+     * @param userIds - The users.
+     * @param transaction - The transaction to read in.
+     * @returns Their identities here, of every other provider none.
+     */
+    protected async findOwnIdentitiesOf(userIds: string[], transaction: RepositoryTransaction): Promise<FederatedIdentity[]> {
+        const identities: FederatedIdentity[] = await this.identityRepository
+            .findAll({ where: { userId: { oneOf: userIds } }, transaction });
+        return identities.filter(identity => this.isOwnIssuer(identity.issuer));
+    }
+
+    /**
+     * Finds an identity of a user at the provider.
+     * @param userId - The user.
+     * @param identityId - The id of the identity.
+     * @param transaction - The transaction to read in, if any.
+     * @returns The identity.
+     * @throws NotFoundError when the user has no identity of that id at the provider.
+     */
+    protected async findOwnIdentity(
+        userId: string,
+        identityId: string,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<FederatedIdentity> {
+        const identity: FederatedIdentity | undefined = await this.identityRepository.findOne({
+            where: { id: identityId, userId },
+            transaction,
+            required: false
+        });
+        if (identity == undefined || !this.isOwnIssuer(identity.issuer)) {
+            throw new NotFoundError($ts`The user has no such identity at this provider.`);
+        }
+        return identity;
+    }
+
+    /**
+     * Whether an issuer is this provider: the issuer of an identity, or one a token or a logout names.
+     *
+     * Compared as urls: the issuer an identity is stored with is the one the provider publishes, which
+     * may differ from the configured one by a trailing slash.
+     * @param issuer - The issuer, a url.
+     * @returns True when it is this provider.
+     */
+    protected isOwnIssuer(issuer: string): boolean {
+        return new URL(issuer).href === new URL(this.issuer).href;
+    }
+
+    /**
+     * Derives a value the provider has to echo back from the secret of the login's cookie, so that only
+     * the browser holding the cookie can complete the login.
+     * @param binding - The secret of the cookie.
+     * @param purpose - What the value is for, which keeps values of different purposes apart.
+     * @returns The value, in base64url.
+     */
+    protected deriveFromBinding(binding: string, purpose: string): string {
+        return createHmac('sha256', binding).update(purpose)
+            .digest('base64url');
+    }
+
+    /**
+     * What identifies a person at the provider, and one session of theirs there, without naming them.
+     * A login keeps both, and a logout at the provider finds its logins by them.
+     * @param subject - Who the person is at the provider.
+     * @param sessionId - The provider's id of the session, if it names one.
+     * @returns The keys.
+     */
+    protected resolveSessionKeys(subject: string, sessionId: string | undefined): FederatedSessionMatch {
+        return {
+            provider: this.name,
+            subjectKey: this.toSessionKey([this.issuer, subject]),
+            sessionKey: sessionId == undefined ? undefined : this.toSessionKey([this.issuer, subject, sessionId])
+        };
+    }
+
+    /**
+     * A key a login is found by, made of what names the person or the session at the provider, without
+     * holding any of it.
+     * @param parts - What names them.
+     * @returns The key, in base64url.
+     */
+    protected toSessionKey(parts: string[]): string {
+        return createHash('sha256').update(JSON.stringify(parts))
+            .digest('base64url');
+    }
+
+    /**
+     * The S256 challenge of a PKCE verifier.
+     * @param codeVerifier - The verifier.
+     * @returns The challenge.
+     */
+    protected toCodeChallenge(codeVerifier: string): string {
+        return createHash('sha256').update(codeVerifier)
+            .digest('base64url');
+    }
+
+    /**
+     * The options every provider shares, with the defaults filled in.
+     * @returns The options.
+     * @throws When `FEDERATION_OPTIONS` is not provided.
+     */
+    protected resolveOptions(): ResolvedFederationOptions {
+        const options: FederationOptions | undefined = inject(ZIBRI_DI_TOKENS.FEDERATION_OPTIONS);
+        if (options == undefined) {
+            throw new NoProviderError(ZIBRI_DI_TOKENS.FEDERATION_OPTIONS, []);
+        }
+        return {
+            ...options,
+            loginAttemptExpiresInMs: options.loginAttemptExpiresInMs ?? 600000,
+            registrationTicketExpiresInMs: options.registrationTicketExpiresInMs ?? 1800000,
+            handoverCodeExpiresInMs: options.handoverCodeExpiresInMs ?? 60000,
+            linkIdentityCodeExpiresInMs: options.linkIdentityCodeExpiresInMs ?? 60000
+        };
+    }
+
+    private async startAttempt(
+        request: FederatedLoginRequest,
+        userId: string | undefined,
+        forLogin: boolean,
+        options: ResolvedFederationOptions
+    ): Promise<string> {
+        const state: string = randomBytes(32).toString('base64url');
+        const binding: string = randomBytes(32).toString('base64url');
+        // built before anything is stored, so a provider that cannot be reached leaves nothing behind
+        const url: string = await this.createLoginUrl({
+            state,
+            binding,
+            reauthenticate: request.reauthenticate,
+            apiScopes: request.apiScopes,
+            maxAuthenticationAgeInMs: options.maxAuthenticationAgeInMs
+        });
+        const attempt: FederatedLoginAttempt = await this.attemptRepository.create({
+            state,
+            binding,
+            provider: this.name,
+            redirectTo: request.redirectTo,
+            reauthenticate: request.reauthenticate,
+            codeChallenge: request.codeChallenge,
+            strategy: request.strategy,
+            userId,
+            forLogin,
+            apiScopes: request.apiScopes,
+            spent: false,
+            expirationDate: new Date(Date.now() + options.loginAttemptExpiresInMs)
+        });
+        // a provider posting its answer does so from its own page, which is another site: a browser
+        // sends a cookie along with that only when it is SameSite=None. The cookie still only counts
+        // together with the state of the same attempt, which another site cannot make up
+        FederatedBindingUtilities.setCookie(
+            FederatedBindingUtilities.getCookieName(attempt.id),
+            binding,
+            options.loginAttemptExpiresInMs,
+            this.answersWithFormPost() ? 'none' : 'lax'
+        );
+        return url;
+    }
+
+    /**
+     * Links the identity a connection logged in with to the user who connected the provider, unless it
+     * is linked to them already, and keeps the tokens of the apis the connection asked for.
+     *
+     * A connection that logs in turns logging in on for an identity linked to the user already. One
+     * that does not leaves it as it is.
+     * @param userId - The user.
+     * @param loggedIn - Who logged in at the provider.
+     * @param forLogin - Whether the identity logs in as the user.
+     * @param tokens - The tokens to keep, if the connection asked for any apis.
+     * @throws FederatedLoginError when the identity is linked to another user, or the user no longer exists.
+     */
+    private async linkRequestedIdentity(
+        userId: string,
+        loggedIn: FederatedProviderIdentity,
+        forLogin: boolean,
+        tokens: ProviderTokenGrant | undefined
+    ): Promise<void> {
+        if (await this.userService.findById<RoleType, UserType, false>(userId, { required: false }) == undefined) {
+            throw new FederatedLoginError(FederatedLoginFailure.EXPIRED, { action: AuditAction.IDENTITY_LINKED });
+        }
+        let linked: FederatedIdentity | undefined = await this.findIdentity(loggedIn.issuer, loggedIn.subject);
+        if (linked == undefined) {
+            try {
+                linked = await this.identityRepository.create({
+                    issuer: loggedIn.issuer,
+                    subject: loggedIn.subject,
+                    userId,
+                    forLogin,
+                    grantedScopes: []
+                });
+            }
+            catch (error) {
+                // linked in the meantime, by a second answer for the same user or by somebody else,
+                // which the read below tells apart
+                if (!(error instanceof UniqueConstraintViolationError)) {
+                    throw error;
+                }
+                linked = await this.findIdentity(loggedIn.issuer, loggedIn.subject);
+            }
+        }
+        // never moved from one user to another: whoever it logs in as now would lose it to whoever
+        // connected it last
+        if (linked?.userId !== userId) {
+            throw new FederatedLoginError(FederatedLoginFailure.ALREADY_LINKED, { action: AuditAction.IDENTITY_LINKED });
+        }
+        if (forLogin && !linked.forLogin) {
+            linked = await this.identityRepository.updateById(linked.id, { forLogin: true });
+        }
+        if (tokens != undefined) {
+            await this.keepProviderTokens(linked, tokens, undefined);
+        }
+    }
+
+    /**
+     * Refuses a login with an identity that is linked to its user for the provider's apis only.
+     *
+     * Not sent to the registration either: an identity is linked to one user, so it could not be
+     * linked to another.
+     * @param identity - The identity.
+     * @param bindingCookie - The cookie of the login, which is of no use once it is refused.
+     * @throws FederatedLoginError when the identity is not for login.
+     */
+    private validateForLogin(identity: FederatedIdentity, bindingCookie: string): void {
+        if (!identity.forLogin) {
+            FederatedBindingUtilities.clearCookie(bindingCookie);
+            throw new FederatedLoginError(FederatedLoginFailure.NOT_FOR_LOGIN);
+        }
+    }
+
+    /**
+     * Hands out the ticket a login with an identity no user is linked to continues with at the
+     * registration, holding who logged in and the tokens of the apis it asked for.
+     * @param loggedIn - Who logged in at the provider.
+     * @param tokens - The tokens to keep once the identity is linked, if the login asked for apis.
+     * @param session - What the login keeps of the session at the provider.
+     * @param proof - What the ticket is spent with.
+     * @param redirectTo - Where the login was to go once it was done.
+     * @param options - The options.
+     * @returns The ticket.
+     */
+    private async startRegistration(
+        loggedIn: FederatedProviderIdentity,
+        tokens: ProviderTokenGrant | undefined,
+        session: FederatedSessionData,
+        proof: FederatedGrantProofData,
+        redirectTo: string,
+        options: ResolvedFederationOptions
+    ): Promise<string> {
+        const ticket: string = randomBytes(32).toString('base64url');
+        await this.registrationTicketRepository.create({
+            value: ticket,
+            provider: this.name,
+            issuer: loggedIn.issuer,
+            subject: loggedIn.subject,
+            ...loggedIn.profile,
+            claims: loggedIn.claims,
+            providerAuthentication: loggedIn.providerAuthentication,
+            redirectTo,
+            authenticatedAt: loggedIn.authenticatedAt,
+            ...session,
+            binding: proof.binding,
+            bindingCookie: proof.bindingCookie,
+            codeChallenge: proof.codeChallenge,
+            // until there is a user to keep them for, which linkTicketIdentity moves them to
+            accessToken: tokens?.accessToken,
+            refreshToken: tokens?.refreshToken,
+            accessTokenExpirationDate: tokens?.accessTokenExpirationDate,
+            grantedScopes: tokens?.grantedScopes ?? [],
+            spent: false,
+            expirationDate: new Date(Date.now() + options.registrationTicketExpiresInMs)
+        });
+        if (proof.bindingCookie != undefined && proof.binding != undefined) {
+            // kept for as long as the registration may take, which is longer than the login. Lax
+            // whichever way the provider answered: the registration is the application's own page
+            FederatedBindingUtilities.setCookie(proof.bindingCookie, proof.binding, options.registrationTicketExpiresInMs, 'lax');
+        }
+        return ticket;
+    }
+
+    /**
+     * What a handover code or a registration ticket keeps of the session at the provider, for the login
+     * it becomes.
+     * @param loggedIn - Who logged in.
+     * @param session - The session the provider says they have, if it can be ended.
+     * @returns The columns.
+     */
+    private toSessionData(loggedIn: FederatedProviderIdentity, session: FederatedProviderSession | undefined): FederatedSessionData {
+        if (session == undefined) {
+            return { subjectKey: undefined, sessionKey: undefined, sessionLogout: undefined };
+        }
+        const keys: FederatedSessionMatch = this.resolveSessionKeys(loggedIn.subject, session.id);
+        return { subjectKey: keys.subjectKey, sessionKey: keys.sessionKey, sessionLogout: session.logout };
+    }
+
+    private toFederatedSession(grant: FederatedSessionData): FederatedSession | undefined {
+        if (grant.subjectKey == undefined) {
+            return undefined;
+        }
+        return {
+            provider: this.name,
+            subjectKey: grant.subjectKey,
+            sessionKey: grant.sessionKey ?? undefined,
+            logout: grant.sessionLogout ?? undefined
+        };
+    }
+
+    private async findIdentity(issuer: string, subject: string): Promise<FederatedIdentity | undefined> {
+        return await this.identityRepository.findOne({ where: { issuer, subject }, required: false });
+    }
+
+    private findScopesNotAllowed(scopes: string[]): string[] {
+        return scopes.filter(scope => !this.apiScopes.includes(scope));
+    }
+
+    private async findHandoverCode(
+        code: string,
+        codeVerifier: string | undefined,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<FederatedHandoverCode> {
+        const handover: FederatedHandoverCode | undefined = await this.handoverCodeRepository.findOne({
+            where: { value: await this.hashService.hash(code, { strategy: Sha256HashStrategy }), provider: this.name },
+            transaction,
+            required: false
+        });
+        if (handover == undefined || handover.spent || new Date(handover.expirationDate).getTime() <= Date.now()) {
+            throw new UnauthorizedError($ts`The code is invalid or has expired.`);
+        }
+        await this.validateProof(handover, codeVerifier);
+        return handover;
+    }
+
+    private async findRegistrationTicket(
+        credentials: FederatedTicketCredentials,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<FederatedRegistrationTicket> {
+        const ticket: FederatedRegistrationTicket | undefined = await this.registrationTicketRepository.findOne({
+            where: { value: await this.hashService.hash(credentials.ticket, { strategy: Sha256HashStrategy }), provider: this.name },
+            transaction,
+            required: false
+        });
+        if (ticket == undefined || ticket.spent || new Date(ticket.expirationDate).getTime() <= Date.now()) {
+            throw new UnauthorizedError($ts`The ticket is invalid or has expired.`);
+        }
+        await this.validateProof(ticket, credentials.codeVerifier);
+        return ticket;
+    }
+
+    /**
+     * Checks that whoever spends a code or a ticket is who the login was started by.
+     *
+     * Without it, a code or a ticket copied out of a url - a browser history, a referrer - would log in
+     * whoever copied it.
+     * @param grant - The code or the ticket.
+     * @param codeVerifier - The verifier sent with it, if any.
+     * @throws When the proof is missing or wrong.
+     */
+    private async validateProof(grant: FederatedGrantProof, codeVerifier: string | undefined): Promise<void> {
+        if (grant.codeChallenge != undefined) {
+            if (codeVerifier == undefined || !this.equalsInConstantTime(this.toCodeChallenge(codeVerifier), grant.codeChallenge)) {
+                throw new UnauthorizedError($ts`The code verifier does not match.`);
+            }
+            return;
+        }
+        const binding: string | undefined = grant.bindingCookie == undefined
+            ? undefined
+            : FederatedBindingUtilities.findCookie(grant.bindingCookie);
+        if (binding == undefined || grant.binding == undefined || !await this.hashService.equal(binding, grant.binding)) {
+            throw new UnauthorizedError($ts`The login was started in another browser.`);
+        }
+    }
+
+    /**
+     * Marks a code, a ticket or an attempt as spent, if nobody else did first.
+     *
+     * The read before takes no lock, so two requests carrying the same one both get this far - the
+     * condition on the write decides between them.
+     * @param spend - The write, which only finds it while it is not spent.
+     * @param action - What the login it belongs to is for.
+     * @throws When it was spent meanwhile.
+     */
+    private async claim(spend: () => Promise<unknown>, action: FederatedLoginAction): Promise<void> {
+        try {
+            await spend();
+        }
+        catch (error) {
+            if (!(error instanceof NotFoundError)) {
+                throw error;
+            }
+            throw new FederatedLoginError(FederatedLoginFailure.EXPIRED, { cause: error, action });
+        }
+    }
+
+    private async resolveUser(userId: string): Promise<UserType> {
+        const user: UserType | undefined = await this.userService.findById<RoleType, UserType, false>(userId, { required: false });
+        if (user == undefined) {
+            throw new FederatedLoginError(FederatedLoginFailure.NOT_LINKED);
+        }
+        return user;
+    }
+
+    /**
+     * Refuses a redirect that is not under one of the allowed ones, which would make the login an
+     * open redirect: a link to the application's own login that ends on somebody else's page.
+     * @param redirectTo - Where the login should go.
+     * @param allowedRedirects - Where it may go.
+     * @throws When it may not go there.
+     */
+    private validateRedirect(redirectTo: string, allowedRedirects: string[]): void {
+        let target: URL;
+        try {
+            target = new URL(redirectTo);
+        }
+        catch {
+            throw new BadRequestError($ts`redirectTo has to be an absolute url.`);
+        }
+        const allowed: boolean = allowedRedirects.some(entry => {
+            const permitted: URL = new URL(entry);
+            const below: string = permitted.pathname.endsWith('/') ? permitted.pathname : `${permitted.pathname}/`;
+            return target.origin === permitted.origin
+                && (target.pathname === permitted.pathname || target.pathname.startsWith(below));
+        });
+        if (!allowed) {
+            throw new BadRequestError($ts`redirectTo is not one of the allowed redirects.`);
+        }
+    }
+
+    private equalsInConstantTime(a: string, b: string): boolean {
+        const left: Buffer = Buffer.from(a);
+        const right: Buffer = Buffer.from(b);
+        return left.length === right.length && timingSafeEqual(left, right);
+    }
+
+    private clearProofCookie(grant: FederatedGrantProof): void {
+        if (grant.bindingCookie != undefined) {
+            FederatedBindingUtilities.clearCookie(grant.bindingCookie);
+        }
+    }
+}

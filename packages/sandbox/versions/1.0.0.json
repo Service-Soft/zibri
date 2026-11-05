@@ -1,0 +1,171 @@
+{
+    "endsAt": "2026-05-27T08:19:29.305Z",
+    "routes": [
+        {
+            "key": "GET /favicon.ico",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /explorer/spec/:version",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /explorer/swagger-ui.css",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /explorer/swagger-ui-bundle.js",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /explorer/swagger-ui-standalone-preset.js",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /explorer/swagger-ui-init.js",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /explorer/custom.js",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /explorer",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /tests/",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "GET /tests/:id",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "POST /tests/",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "PATCH /tests/:id",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "DELETE /tests/:id",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "POST /files/",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "GET /files/stream",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "GET /templates/socket",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "GET /templates/password-reset-mail",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "GET /templates/log",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "GET /cron/",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "POST /cron/enable-status",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "POST /cron/disable-status",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "POST /auth/login",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "POST /auth/refresh-login",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "POST /auth/request-password-reset",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "POST /auth/verify-password-reset-token",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "POST /auth/confirm-password-reset",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "POST /auth/logout",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "GET /metrics/",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "GET /metrics/dashboard",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "POST /tests-crud/",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "GET /tests-crud/",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "GET /tests-crud/:id",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "PATCH /tests-crud/:id",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "GET /tests-crud/password-reset-mail",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "GET /",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "GET /assets",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "GET /mailing-lists/:id/subscribe/:token",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "GET /mailing-lists/:id/unsubscribe",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "GET /mailing-lists/preferences",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "PATCH /mailing-lists/preferences",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        },
+        {
+            "key": "chat message",
+            "versions": { "shape": "Matchers", "value": ["latest"] }
+        }
+    ],
+    "startsAt": "2026-05-27T08:11:12.332Z",
+    "value": "1.0.0"
+}

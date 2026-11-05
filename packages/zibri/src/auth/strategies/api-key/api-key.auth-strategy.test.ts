@@ -1,0 +1,687 @@
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
+
+import { ApiKeyCleanupCronJob } from './api-key-cleanup.cron-job';
+import { type ApiKeyCreateData } from './api-key-create-data.model';
+import { ApiKeyOptions } from './api-key-options.model';
+import { ApiKeyAuthStrategy } from './api-key.auth-strategy';
+import { ApiKey, ApiKeyCreateDto } from './api-key.model';
+import { CreatedApiKey } from './created-api-key.model';
+import { TestTimeouts } from '../../../__testing__/constants';
+import { missingEntityPattern } from '../../../__testing__/missing-entity-pattern.function';
+import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
+import { MemberRoles } from '../../../__testing__/mocks/entities/member-roles.enum';
+import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
+import { TestMembership } from '../../../__testing__/mocks/entities/test-membership.entity';
+import { TestPermissions, TestPlatformPermissions } from '../../../__testing__/mocks/entities/test-permissions.model';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
+import { DefaultTestServerMembershipRepository } from '../../../__testing__/test-server/membership-repository';
+import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
+import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
+import { CronJob } from '../../../cron/cron-job.model';
+import { CronServiceInterface } from '../../../cron/cron-service.interface';
+import { CronService } from '../../../cron/cron.service';
+import { Repository } from '../../../data-source/repository/repository';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
+import { inject } from '../../../di/inject.function';
+import { defineProvider, DiProvider } from '../../../di/models/di-provider.model';
+import { BadRequestError } from '../../../error-handling/errors/bad-request.error';
+import { AuditAction, AuditOutcome, AuditReason } from '../../../logging/audit-event.model';
+import { Log } from '../../../logging/log.model';
+import { type LoggerInterface } from '../../../logging/logger.interface';
+import { Controller } from '../../../routing/decorators/controller.decorator';
+import { Get } from '../../../routing/decorators/get.decorator';
+import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
+import { Newable } from '../../../types/newable.type';
+import { JsonUtilities } from '../../../utilities/json.utilities';
+import { Ms } from '../../../utilities/ms';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities';
+import { type AuthServiceInterface } from '../../auth-service.interface';
+import { Auth } from '../../decorators/auth.decorator';
+import { CurrentUser } from '../../decorators/current-user.decorator';
+import { type Permission } from '../../roles/permission.type';
+import { type PlatformPermission } from '../../roles/platform-permission.type';
+import { AuthStrategies } from '../auth-strategies.model';
+import { JwtAuthStrategy } from '../jwt/jwt.auth-strategy';
+
+/**
+ * What the route answering with the current user answers.
+ */
+type Me = {
+    id: string,
+    platformPermissions: string[]
+};
+
+@Controller('/machine')
+class MachineController {
+    @Auth.isLoggedIn()
+    @Get('/me')
+    me(
+        @CurrentUser()
+        user: CurrentUser<JwtUser>
+    ): Me {
+        return { id: user.id, platformPermissions: user.platformPermissions };
+    }
+
+    @Auth.hasPlatformPermission(TestPlatformPermissions.ADMIN)
+    @Get('/admin')
+    admin(): { ok: boolean } {
+        return { ok: true };
+    }
+
+    @Auth.hasPermission(TestPermissions.MEMBER_ADMIN)
+    @Get('/tenant-admin')
+    tenantAdmin(): { ok: boolean } {
+        return { ok: true };
+    }
+
+    // a route for people only, which an api key cannot reach whatever its roles
+    @Auth.isLoggedIn([JwtAuthStrategy])
+    @Get('/people-only')
+    peopleOnly(): { ok: boolean } {
+        return { ok: true };
+    }
+}
+
+let server: StartedTestServer | undefined;
+let baseUrl: string;
+
+/**
+ * Calls a route of the machine controller with an api key.
+ * @param path - The route below /machine.
+ * @param key - The key to send.
+ * @returns The answer.
+ */
+async function callWithKey(path: string, key: string): Promise<Response> {
+    return await fetch(`${baseUrl}/machine${path}`, { headers: { 'x-api-key': key } });
+}
+
+/**
+ * Calls a route of the machine controller with an api key, for a tenant.
+ * @param path - The route below /machine.
+ * @param key - The key to send.
+ * @param tenantId - The tenant the request is for.
+ * @returns The answer.
+ */
+async function callInTenant(path: string, key: string, tenantId: string): Promise<Response> {
+    return await fetch(`${baseUrl}/machine${path}`, { headers: { 'x-api-key': key, 'x-tenant-id': tenantId } });
+}
+
+/**
+ * Makes a user a member of a new tenant.
+ * @param user - The user.
+ * @param roles - The roles they hold in it.
+ * @returns The id of the tenant.
+ */
+async function createMembership(user: JwtUser, roles: MemberRoles[]): Promise<string> {
+    const tenantId: string = UUIDUtilities.generate();
+    await inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE)
+        .runAs(tenantId, async () => await inject(DefaultTestServerMembershipRepository).create({ tenantId, userId: user.id, roles }));
+    return tenantId;
+}
+
+/**
+ * Creates an api key bound to a tenant.
+ * @param user - The user the key acts as.
+ * @param permissions - The permissions the key may use.
+ * @param tenantId - The tenant it is bound to.
+ * @returns The created key.
+ */
+async function createBoundKey(user: JwtUser, permissions: (Permission | PlatformPermission)[], tenantId: string): Promise<CreatedApiKey> {
+    return await authService().createApiKey(
+        user.id,
+        { name: 'bound', permissions, expiresAt: undefined, tenantId, clientAuthentication: undefined, requireDpop: false },
+        undefined
+    );
+}
+
+/**
+ * The auth service of the running application.
+ * @returns The service.
+ */
+function authService(): AuthServiceInterface {
+    return inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
+}
+
+/**
+ * The users of the running application.
+ * @returns Their repository.
+ */
+function users(): Repository<JwtUser> {
+    return inject(repositoryTokenFor(JwtUser));
+}
+
+/**
+ * The stored api keys of the running application.
+ * @returns Their repository.
+ */
+function apiKeys(): Repository<ApiKey, ApiKeyCreateDto> {
+    return inject(repositoryTokenFor(ApiKey));
+}
+
+/**
+ * Creates a user with the given roles.
+ * @param name - What sets the user's email apart.
+ * @param roles - The roles of the user.
+ * @returns The user.
+ */
+async function createUser(name: string, roles: Roles[]): Promise<JwtUser> {
+    return await users().create({ email: `${name}@machines.test`, roles });
+}
+
+/**
+ * Creates an api key that works until it is revoked.
+ * @param user - The user the key acts as.
+ * @param permissions - The permissions the key may use.
+ * @returns The created key.
+ */
+async function createKey(user: JwtUser, permissions: (Permission | PlatformPermission)[]): Promise<CreatedApiKey> {
+    return await authService().createApiKey(user.id, { name: 'ci', permissions, expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false }, undefined);
+}
+
+/**
+ * When a key was last used, as it is stored.
+ * @param apiKeyId - The id of the key.
+ * @returns The time in milliseconds, or undefined for a key never used.
+ */
+async function findLastUse(apiKeyId: string): Promise<number | undefined> {
+    const lastUsedAt: Date | undefined | null = (await apiKeys().findById(apiKeyId)).lastUsedAt;
+    return lastUsedAt == undefined ? undefined : new Date(lastUsedAt).getTime();
+}
+
+/**
+ * Starts an application keeping its data in memory.
+ * @param authStrategies - The strategies it reads requests with.
+ * @param providers - What it runs with besides the defaults.
+ * @returns The server, started.
+ */
+async function startApp(authStrategies: AuthStrategies, providers: DiProvider<unknown>[] = []): Promise<StartedTestServer> {
+    const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
+        entities: [...defaultTestServerEntities, ApiKey],
+        repositories: defaultTestServerRepositories,
+        allowOrphan: true
+    });
+    return await startTestServer({
+        dataSources: [dataSourceClass],
+        authStrategies,
+        controllers: [MachineController],
+        providers: [...defaultTestServerProviders, ...providers]
+    });
+}
+
+/**
+ * Provides the api key options.
+ * @param options - The options.
+ * @returns The provider.
+ */
+function apiKeyOptions(options: ApiKeyOptions): DiProvider<ApiKeyOptions> {
+    return defineProvider({ token: ZIBRI_DI_TOKENS.API_KEY_OPTIONS, useFactory: (): ApiKeyOptions => options });
+}
+
+/**
+ * What the audit trail recorded.
+ * @returns Whatever each entry carries under `context.metadata.audit`.
+ */
+async function auditEvents(): Promise<unknown[]> {
+    await inject<LoggerInterface>(ZIBRI_DI_TOKENS.LOGGER).flush();
+    return (await inject(repositoryTokenFor(Log)).findAll({})).map(l => l.context.metadata?.['audit']);
+}
+
+// first, for the reason on startAndStopTestServerWithout
+describe('ApiKeyAuthStrategy — starting', () => {
+    it('refuses to start without ApiKey, and names it', async () => {
+        const start: Promise<void> = startAndStopTestServerWithout(
+            [],
+            { authStrategies: [JwtAuthStrategy, ApiKeyAuthStrategy], controllers: [MachineController] }
+        );
+
+        await expect(start).rejects.toThrow(missingEntityPattern('ApiKey', 'ApiKeyAuthStrategy'));
+    }, TestTimeouts.inMemory.start);
+
+    it('refuses to create a key in an application that reads none', async () => {
+        const started: StartedTestServer = await startApp([JwtAuthStrategy]);
+        try {
+            const user: JwtUser = await createUser('no-strategy', [Roles.USER]);
+
+            await expect(createKey(user, [TestPlatformPermissions.USER])).rejects.toThrow('Api keys are read by nothing in this application');
+        }
+        finally {
+            await started.shutdown();
+        }
+    }, TestTimeouts.inMemory.start);
+
+    it('refuses API_KEY_OPTIONS that are no whole number of milliseconds', async () => {
+        await expect(startApp([JwtAuthStrategy, ApiKeyAuthStrategy], [apiKeyOptions({ recordUseAfterInMs: -1 })]))
+            .rejects.toThrow('API_KEY_OPTIONS.recordUseAfterInMs must be a whole number of milliseconds, got -1.');
+        await expect(startApp([JwtAuthStrategy, ApiKeyAuthStrategy], [apiKeyOptions({ deleteExpiredAfterInMs: 1.5 })]))
+            .rejects.toThrow('API_KEY_OPTIONS.deleteExpiredAfterInMs must be a whole number of milliseconds, got 1.5.');
+    }, TestTimeouts.inMemory.start);
+
+    // node hands every header name over lowercased, so
+    // a header provided as it is usually written never matched
+    it('reads the key from a header provided in any spelling', async () => {
+        const started: StartedTestServer = await startApp(
+            [JwtAuthStrategy, ApiKeyAuthStrategy],
+            [defineProvider({ token: ZIBRI_DI_TOKENS.API_KEY_HEADER, useValue: 'X-Api-Key' })]
+        );
+        try {
+            const url: string = await started.start();
+            const user: JwtUser = await createUser('spelled', [Roles.USER]);
+            const { key }: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+
+            expect((await fetch(`${url}/machine/me`, { headers: { 'X-Api-Key': key } })).status).toBe(200);
+        }
+        finally {
+            await started.shutdown();
+        }
+    }, TestTimeouts.inMemory.start);
+
+    it('schedules deleting expired keys', async () => {
+        // the test server's cron service schedules nothing, so the real one shows what is scheduled
+        const started: StartedTestServer = await startApp(
+            [JwtAuthStrategy, ApiKeyAuthStrategy],
+            [{ token: ZIBRI_DI_TOKENS.CRON_SERVICE, useClass: CronService }]
+        );
+        try {
+            const cronService: CronServiceInterface = inject(ZIBRI_DI_TOKENS.CRON_SERVICE);
+
+            expect(cronService.cronJobs.some((job: CronJob) => job instanceof ApiKeyCleanupCronJob)).toBe(true);
+        }
+        finally {
+            await started.shutdown();
+        }
+    }, TestTimeouts.inMemory.start);
+});
+
+describe('ApiKeyAuthStrategy', () => {
+    beforeAll(async () => {
+        server = await startApp([JwtAuthStrategy, ApiKeyAuthStrategy]);
+        baseUrl = await server.start();
+    });
+
+    afterAll(async () => {
+        await server?.shutdown();
+    });
+
+    it('lets a request act as the user of its key, and keeps only a hash of the key', async () => {
+        const user: JwtUser = await createUser('anna', [Roles.USER]);
+        const { key, apiKey }: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+
+        const res: Response = await callWithKey('/me', key);
+
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ id: user.id, platformPermissions: [TestPlatformPermissions.USER] });
+        const stored: ApiKey = await apiKeys().findById(apiKey.id);
+        expect(stored.value).not.toBe(key);
+        expect(stored.value).not.toContain(key);
+        // and never part of an answer
+        expect(JsonUtilities.stringify(await authService().findApiKeys(user.id, undefined))).not.toContain(stored.value);
+    });
+
+    it('takes a key sent as a bearer token, and leaves other bearer tokens to the jwt strategy', async () => {
+        const user: JwtUser = await createUser('olga', [Roles.USER]);
+        const { key }: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+        expect(key.startsWith('zibri_')).toBe(true);
+
+        const res: Response = await fetch(`${baseUrl}/machine/me`, { headers: { authorization: `Bearer ${key}` } });
+
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ id: user.id, platformPermissions: [TestPlatformPermissions.USER] });
+        // the scheme is case-insensitive (RFC 9110 §11.1), as a client or a proxy may spell it
+        expect((await fetch(`${baseUrl}/machine/me`, { headers: { authorization: `bearer ${key}` } })).status).toBe(200);
+        // a key in both places is still one credential of one strategy, and a jwt beside it two
+        expect((await fetch(`${baseUrl}/machine/me`, { headers: { authorization: 'Bearer zibri_unknown' } })).status).toBe(401);
+        expect((await fetch(`${baseUrl}/machine/me`, { headers: { authorization: 'Bearer a.b.c', 'x-api-key': key } })).status).toBe(401);
+    });
+
+    it('refuses a key nobody holds', async () => {
+        const res: Response = await callWithKey('/me', 'not-a-key');
+
+        expect(res.status).toBe(401);
+    });
+
+    it('holds only the permissions the key may use, also for the handler', async () => {
+        const admin: JwtUser = await createUser('bob', [Roles.USER, Roles.ADMIN]);
+        const readOnly: CreatedApiKey = await createKey(admin, [TestPlatformPermissions.USER]);
+        const full: CreatedApiKey = await createKey(admin, [TestPlatformPermissions.USER, TestPlatformPermissions.ADMIN]);
+
+        expect((await callWithKey('/admin', readOnly.key)).status).toBe(403);
+        expect((await callWithKey('/admin', full.key)).status).toBe(200);
+        // the user the handler gets holds what the key may use, so a check of its own cannot be wider
+        expect(await (await callWithKey('/me', readOnly.key)).json()).toEqual({ id: admin.id, platformPermissions: [TestPlatformPermissions.USER] });
+    });
+
+    it('takes a role from the keys once it is taken from the user', async () => {
+        const admin: JwtUser = await createUser('carla', [Roles.USER, Roles.ADMIN]);
+        const { key }: CreatedApiKey = await createKey(admin, [TestPlatformPermissions.USER, TestPlatformPermissions.ADMIN]);
+        expect((await callWithKey('/admin', key)).status).toBe(200);
+
+        await users().updateById(admin.id, { roles: [Roles.USER] });
+
+        expect((await callWithKey('/admin', key)).status).toBe(403);
+    });
+
+    it('takes a permission from the keys once the role carrying it is taken from the membership', async () => {
+        const member: JwtUser = await createUser('demoted-member', [Roles.USER]);
+        const tenantId: string = await createMembership(member, [MemberRoles.USER, MemberRoles.ADMIN]);
+        const { key }: CreatedApiKey = await createKey(member, [TestPlatformPermissions.USER, TestPermissions.MEMBER_ADMIN]);
+        expect((await callInTenant('/tenant-admin', key, tenantId)).status).toBe(200);
+
+        await inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(tenantId, async () => {
+            const memberships: DefaultTestServerMembershipRepository = inject(DefaultTestServerMembershipRepository);
+            const membership: TestMembership = await memberships.findOne({ where: { userId: member.id } });
+            await memberships.updateById(membership.id, { roles: [MemberRoles.USER] });
+        });
+
+        expect((await callInTenant('/tenant-admin', key, tenantId)).status).toBe(403);
+    });
+
+    it('holds the permissions of its user\'s membership in the tenant the request is for, as far as the key may use them', async () => {
+        const member: JwtUser = await createUser('frida', [Roles.USER]);
+        const tenantId: string = await createMembership(member, [MemberRoles.USER, MemberRoles.ADMIN]);
+        const readOnly: CreatedApiKey = await createKey(member, [TestPlatformPermissions.USER, TestPermissions.MEMBER_USER]);
+        const full: CreatedApiKey = await createKey(member, [TestPlatformPermissions.USER, TestPermissions.MEMBER_USER, TestPermissions.MEMBER_ADMIN]);
+
+        expect((await callInTenant('/tenant-admin', readOnly.key, tenantId)).status).toBe(403);
+        expect((await callInTenant('/tenant-admin', full.key, tenantId)).status).toBe(200);
+        // a membership role is no role of the user's own
+        expect((await callInTenant('/admin', full.key, tenantId)).status).toBe(403);
+    });
+
+    it('refuses every request for a tenant its user is no member of, also on a route asking for no role', async () => {
+        const member: JwtUser = await createUser('greta', [Roles.USER]);
+        await createMembership(member, [MemberRoles.ADMIN]);
+        const { key }: CreatedApiKey = await createKey(member, [TestPlatformPermissions.USER, TestPermissions.MEMBER_ADMIN]);
+
+        const otherTenantId: string = UUIDUtilities.generate();
+        expect((await callInTenant('/me', key, otherTenantId)).status).toBe(403);
+        expect((await callInTenant('/tenant-admin', key, otherTenantId)).status).toBe(403);
+        // and a request for no tenant reaches what every tenant shares, without a membership to hold
+        expect((await callWithKey('/me', key)).status).toBe(200);
+        expect((await callWithKey('/tenant-admin', key)).status).toBe(403);
+    });
+
+    it('acts only in the tenant a key is bound to', async () => {
+        const member: JwtUser = await createUser('hanna', [Roles.USER]);
+        const bound: string = await createMembership(member, [MemberRoles.ADMIN]);
+        const other: string = await createMembership(member, [MemberRoles.ADMIN]);
+        const { key }: CreatedApiKey = await createBoundKey(member, [TestPermissions.MEMBER_ADMIN], bound);
+
+        expect((await callInTenant('/tenant-admin', key, bound)).status).toBe(200);
+        // a member there too, and still refused: the key is not
+        expect((await callInTenant('/tenant-admin', key, other)).status).toBe(403);
+        expect((await callInTenant('/me', key, other)).status).toBe(403);
+    });
+
+    it('acts in the tenant a key is bound to when the request names none', async () => {
+        const member: JwtUser = await createUser('bound-tenant', [Roles.USER]);
+        const bound: string = await createMembership(member, [MemberRoles.ADMIN]);
+        const { key }: CreatedApiKey = await createBoundKey(member, [TestPermissions.MEMBER_ADMIN], bound);
+        const unbound: CreatedApiKey = await createKey(member, [TestPlatformPermissions.USER, TestPermissions.MEMBER_ADMIN]);
+
+        expect((await callWithKey('/tenant-admin', key)).status).toBe(200);
+        // a key acting in every tenant of its user has none to choose
+        expect((await callWithKey('/tenant-admin', unbound.key)).status).toBe(403);
+    });
+
+    it('refuses every request through a deactivated membership, until it is reactivated', async () => {
+        const member: JwtUser = await createUser('paused-member', [Roles.USER]);
+        const tenantId: string = await createMembership(member, [MemberRoles.ADMIN]);
+        const { key }: CreatedApiKey = await createKey(member, [TestPlatformPermissions.USER, TestPermissions.MEMBER_ADMIN]);
+        const setDeactivatedAt: (deactivatedAt: Date | null) => Promise<void> = async deactivatedAt => {
+            await inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
+                tenantId,
+                async () => await inject(DefaultTestServerMembershipRepository).updateDeactivatedAt(member.id, deactivatedAt, undefined)
+            );
+        };
+
+        await setDeactivatedAt(new Date());
+
+        expect((await callInTenant('/me', key, tenantId)).status).toBe(403);
+        expect((await callInTenant('/tenant-admin', key, tenantId)).status).toBe(403);
+        await expect(createBoundKey(member, [TestPermissions.MEMBER_ADMIN], tenantId)).rejects.toThrow(/no member of the tenant/);
+
+        // null rather than undefined: it clears the column
+        await setDeactivatedAt(null);
+
+        expect((await callInTenant('/tenant-admin', key, tenantId)).status).toBe(200);
+    });
+
+    it('refuses to create a key bound to a tenant its user is no member of, or with a permission no role of theirs there carries', async () => {
+        const member: JwtUser = await createUser('ida', [Roles.USER]);
+        const tenantId: string = await createMembership(member, [MemberRoles.USER]);
+
+        await expect(createBoundKey(member, [TestPermissions.MEMBER_USER], UUIDUtilities.generate())).rejects.toThrow(/no member of the tenant/);
+        await expect(createBoundKey(member, [TestPermissions.MEMBER_ADMIN], tenantId)).rejects.toThrow(`The roles of the user do not carry the permissions ${TestPermissions.MEMBER_ADMIN}.`);
+        expect(await authService().findApiKeys(member.id, undefined)).toEqual([]);
+    });
+
+    it('refuses to create a key bound to a tenant that is not a uuid, as the caller\'s mistake', async () => {
+        const member: JwtUser = await createUser('ivo', [Roles.USER]);
+        await createMembership(member, [MemberRoles.USER]);
+
+        await expect(createBoundKey(member, [TestPermissions.MEMBER_USER], 'acme')).rejects.toThrow(BadRequestError);
+        expect(await authService().findApiKeys(member.id, undefined)).toEqual([]);
+    });
+
+    it('refuses to create a key with a permission no role of the user carries', async () => {
+        const user: JwtUser = await createUser('dave', [Roles.USER]);
+
+        await expect(createKey(user, [TestPlatformPermissions.USER, TestPlatformPermissions.ADMIN])).rejects.toThrow(`The roles of the user do not carry the permissions ${TestPlatformPermissions.ADMIN}.`);
+        expect(await authService().findApiKeys(user.id, undefined)).toEqual([]);
+    });
+
+    it('refuses to create a key with a permission that is not declared, as the caller\'s mistake', async () => {
+        const user: JwtUser = await createUser('typo', [Roles.USER]);
+
+        // @ts-expect-error - a plain string is no permission, so a typo is refused by the compiler first
+        const created: Promise<CreatedApiKey> = createKey(user, ['test.reed']);
+
+        await expect(created).rejects.toThrow(BadRequestError);
+        await expect(created).rejects.toThrow('The permission \'test.reed\' is not declared.');
+    });
+
+    it('lists permissions, not roles', () => {
+        // @ts-expect-error - a key is limited by what it may do, not by the roles that carry it
+        const withRoles: ApiKeyCreateData<undefined> = { name: 'ci', permissions: [], roles: [MemberRoles.ADMIN], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false };
+
+        expect(withRoles).toBeDefined();
+    });
+
+    it('refuses to create a key without a name, or one that has expired already', async () => {
+        const user: JwtUser = await createUser('erin', [Roles.USER]);
+
+        await expect(authService().createApiKey(user.id, { name: ' ', permissions: [], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false }, undefined))
+            .rejects.toThrow('An api key needs a name.');
+        await expect(authService().createApiKey(
+            user.id,
+            { name: 'ci', permissions: [], expiresAt: new Date(Date.now() - 1000), tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
+            undefined
+        )).rejects.toThrow('An api key cannot expire in the past.');
+    });
+
+    it('refuses a key once it has expired', async () => {
+        const user: JwtUser = await createUser('frank', [Roles.USER]);
+        const { key, apiKey }: CreatedApiKey = await authService().createApiKey(
+            user.id,
+            { name: 'nightly', permissions: [TestPlatformPermissions.USER], expiresAt: new Date(Date.now() + 60_000), tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
+            undefined
+        );
+        expect((await callWithKey('/me', key)).status).toBe(200);
+
+        await apiKeys().updateById(apiKey.id, { expiresAt: new Date(Date.now() - 1000) });
+
+        expect((await callWithKey('/me', key)).status).toBe(401);
+    });
+
+    it('revokes one key without the others, and then all of them', async () => {
+        const user: JwtUser = await createUser('gina', [Roles.USER]);
+        const first: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+        const second: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+        const third: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+
+        await authService().revokeApiKey(user.id, first.apiKey.id, undefined);
+
+        expect((await callWithKey('/me', first.key)).status).toBe(401);
+        expect((await callWithKey('/me', second.key)).status).toBe(200);
+        expect((await authService().findApiKeys(user.id, undefined)).map(k => k.id)).toEqual([second.apiKey.id, third.apiKey.id]);
+
+        await authService().revokeApiKeys(user.id, undefined);
+
+        expect((await callWithKey('/me', second.key)).status).toBe(401);
+        expect((await callWithKey('/me', third.key)).status).toBe(401);
+    });
+
+    it('revokes only a key of the user it is asked for', async () => {
+        const holder: JwtUser = await createUser('hank', [Roles.USER]);
+        const other: JwtUser = await createUser('ivy', [Roles.USER]);
+        const { key, apiKey }: CreatedApiKey = await createKey(holder, [TestPlatformPermissions.USER]);
+
+        await expect(authService().revokeApiKey(other.id, apiKey.id, undefined)).rejects.toThrow();
+
+        expect((await callWithKey('/me', key)).status).toBe(200);
+    });
+
+    it('keeps the keys when the logins of the user are ended', async () => {
+        const user: JwtUser = await createUser('jack', [Roles.USER]);
+        const { key }: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+
+        await authService().endLogins(user.id, undefined);
+
+        expect((await callWithKey('/me', key)).status).toBe(200);
+    });
+
+    it('refuses a key whose user has been deleted', async () => {
+        const user: JwtUser = await createUser('kate', [Roles.USER]);
+        const { key }: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+
+        await users().deleteById(user.id);
+
+        expect((await callWithKey('/me', key)).status).toBe(401);
+    });
+
+    it('cannot reach a route that accepts other strategies only', async () => {
+        const user: JwtUser = await createUser('mike', [Roles.USER, Roles.ADMIN]);
+        const { key }: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER, TestPlatformPermissions.ADMIN]);
+
+        expect((await callWithKey('/people-only', key)).status).toBe(401);
+    });
+
+    it('records creating and revoking a key', async () => {
+        const user: JwtUser = await createUser('nick', [Roles.USER]);
+        const { apiKey }: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+        await expect(createKey(user, [TestPlatformPermissions.ADMIN])).rejects.toThrow();
+        await authService().revokeApiKey(user.id, apiKey.id, undefined);
+        await expect(authService().revokeApiKey(user.id, apiKey.id, undefined)).rejects.toThrow();
+
+        const events: unknown[] = await auditEvents();
+
+        expect(events).toContainEqual({ action: AuditAction.API_KEY_CREATED, outcome: AuditOutcome.SUCCESS, userId: user.id });
+        expect(events).toContainEqual({ action: AuditAction.API_KEY_CREATED, outcome: AuditOutcome.FAILURE, reason: AuditReason.REFUSED, userId: user.id });
+        expect(events).toContainEqual({ action: AuditAction.API_KEY_REVOKED, outcome: AuditOutcome.SUCCESS, userId: user.id });
+        expect(events).toContainEqual({ action: AuditAction.API_KEY_REVOKED, outcome: AuditOutcome.FAILURE, reason: AuditReason.REFUSED, userId: user.id });
+    });
+
+    it('writes down when a key was last used, at most once an hour', async () => {
+        const user: JwtUser = await createUser('lena', [Roles.USER]);
+        const { key, apiKey }: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+        expect(await findLastUse(apiKey.id)).toBeUndefined();
+
+        expect((await callWithKey('/me', key)).status).toBe(200);
+
+        expect(await findLastUse(apiKey.id)).toBeGreaterThan(Date.now() - Ms.MINUTE);
+        expect((await authService().findApiKeys(user.id, undefined))[0]?.lastUsedAt ?? undefined).toBeDefined();
+        // used again within the hour, it is left as it was
+        const halfAnHourAgo: Date = new Date(Date.now() - (Ms.MINUTE * 30));
+        await apiKeys().updateById(apiKey.id, { lastUsedAt: halfAnHourAgo });
+        expect((await callWithKey('/me', key)).status).toBe(200);
+        expect(await findLastUse(apiKey.id)).toBe(halfAnHourAgo.getTime());
+        // and once the hour has passed, the next use is written down
+        await apiKeys().updateById(apiKey.id, { lastUsedAt: new Date(Date.now() - Ms.HOUR - Ms.MINUTE) });
+        expect((await callWithKey('/me', key)).status).toBe(200);
+        expect(await findLastUse(apiKey.id)).toBeGreaterThan(Date.now() - Ms.MINUTE);
+    });
+
+    it('writes down no use of a key that was refused', async () => {
+        const user: JwtUser = await createUser('lukas', [Roles.USER]);
+        const { key, apiKey }: CreatedApiKey = await authService().createApiKey(
+            user.id,
+            { name: 'bound to a DPoP key', permissions: [TestPlatformPermissions.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: true },
+            undefined
+        );
+
+        expect((await callWithKey('/me', key)).status).toBe(401);
+
+        expect(await findLastUse(apiKey.id)).toBeUndefined();
+    });
+
+    it('deletes a key thirty days after it expired, and lists it until then', async () => {
+        const user: JwtUser = await createUser('mona', [Roles.USER]);
+        const longExpired: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+        const recentlyExpired: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+        const lasting: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+        await apiKeys().updateById(longExpired.apiKey.id, { expiresAt: new Date(Date.now() - (Ms.DAY * 31)) });
+        await apiKeys().updateById(recentlyExpired.apiKey.id, { expiresAt: new Date(Date.now() - (Ms.DAY * 29)) });
+
+        await new ApiKeyCleanupCronJob(inject(ZIBRI_DI_TOKENS.API_KEY_SERVICE)).onTick();
+
+        expect((await authService().findApiKeys(user.id, undefined)).map(k => k.id)).toEqual([recentlyExpired.apiKey.id, lasting.apiKey.id]);
+    });
+});
+
+describe('ApiKeyAuthStrategy — with API_KEY_OPTIONS', () => {
+    beforeAll(async () => {
+        server = await startApp([JwtAuthStrategy, ApiKeyAuthStrategy], [apiKeyOptions({ recordUseAfterInMs: 0, deleteExpiredAfterInMs: Ms.DAY })]);
+        baseUrl = await server.start();
+    });
+
+    afterAll(async () => {
+        await server?.shutdown();
+    });
+
+    it('writes down every use when recordUseAfterInMs is 0', async () => {
+        const user: JwtUser = await createUser('nora', [Roles.USER]);
+        const { key, apiKey }: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+        const aSecondAgo: Date = new Date(Date.now() - Ms.SECOND);
+        await apiKeys().updateById(apiKey.id, { lastUsedAt: aSecondAgo });
+
+        expect((await callWithKey('/me', key)).status).toBe(200);
+
+        expect(await findLastUse(apiKey.id)).toBeGreaterThan(aSecondAgo.getTime());
+    });
+
+    it('deletes a key once deleteExpiredAfterInMs has passed since it expired', async () => {
+        const user: JwtUser = await createUser('otto', [Roles.USER]);
+        const expiredLong: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+        const expiredRecently: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+        await apiKeys().updateById(expiredLong.apiKey.id, { expiresAt: new Date(Date.now() - Ms.DAY - Ms.HOUR) });
+        await apiKeys().updateById(expiredRecently.apiKey.id, { expiresAt: new Date(Date.now() - Ms.HOUR) });
+
+        await new ApiKeyCleanupCronJob(inject(ZIBRI_DI_TOKENS.API_KEY_SERVICE)).onTick();
+
+        expect((await authService().findApiKeys(user.id, undefined)).map(k => k.id)).toEqual([expiredRecently.apiKey.id]);
+    });
+});
+
+// a deployment scanning its repositories for leaked secrets looks for a prefix of its own
+describe('ApiKeyAuthStrategy — keys with a prefix of the application\'s own', () => {
+    beforeAll(async () => {
+        server = await startApp([JwtAuthStrategy, ApiKeyAuthStrategy], [apiKeyOptions({ prefix: 'acme_' })]);
+        baseUrl = await server.start();
+    });
+
+    afterAll(async () => {
+        await server?.shutdown();
+    });
+
+    it('issues keys with the prefix, and takes them', async () => {
+        const user: JwtUser = await createUser('pia', [Roles.USER]);
+        const { key }: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
+
+        expect(key.startsWith('acme_')).toBe(true);
+        expect((await callWithKey('/me', key)).status).toBe(200);
+        expect((await callWithKey('/me', `zibri_${key.slice('acme_'.length)}`)).status).toBe(401);
+    });
+});

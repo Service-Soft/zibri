@@ -1,0 +1,170 @@
+{
+    "routes": [
+        {
+            "key": "GET /favicon.ico",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /explorer/spec/:version",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /explorer/swagger-ui.css",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /explorer/swagger-ui-bundle.js",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /explorer/swagger-ui-standalone-preset.js",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /explorer/swagger-ui-init.js",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /explorer/custom.js",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /explorer",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /tests/",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /tests/:id",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "POST /tests/",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "PATCH /tests/:id",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "DELETE /tests/:id",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "POST /files/",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /files/stream",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /templates/socket",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /templates/password-reset-mail",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /templates/log",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /cron/",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "POST /cron/enable-status",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "POST /cron/disable-status",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "POST /auth/login",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "POST /auth/refresh-login",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "POST /auth/request-password-reset",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "POST /auth/verify-password-reset-token",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "POST /auth/confirm-password-reset",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "POST /auth/logout",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /metrics/",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /metrics/dashboard",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "POST /tests-crud/",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /tests-crud/",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /tests-crud/:id",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "PATCH /tests-crud/:id",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /tests-crud/password-reset-mail",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /assets",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /mailing-lists/:id/subscribe/:token",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /mailing-lists/:id/unsubscribe",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "GET /mailing-lists/preferences",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "PATCH /mailing-lists/preferences",
+            "versions": { "shape": "All", "value": "all" }
+        },
+        {
+            "key": "chat message",
+            "versions": { "shape": "All", "value": "all" }
+        }
+    ],
+    "startsAt": "2026-05-27T08:19:29.305Z",
+    "value": "1.0.1"
+}

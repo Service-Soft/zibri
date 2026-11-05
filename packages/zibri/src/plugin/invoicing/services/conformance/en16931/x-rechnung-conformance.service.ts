@@ -1,0 +1,12 @@
+import { Injectable } from '../../../../../di/decorators/injectable.decorator';
+import { InvoiceConformance } from '../invoice-conformance-service.interface';
+import { EN16931ConformanceService, EN16931DocumentContextId } from './en16931-conformance.service';
+
+/**
+ * Handles conforming to the X-Rechnung standard.
+ */
+@Injectable({ register: 'onUse' })
+export class XRechnungConformanceService extends EN16931ConformanceService {
+    override readonly name: InvoiceConformance = 'x-rechnung';
+    override readonly documentContextId: EN16931DocumentContextId = 'urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0';
+}

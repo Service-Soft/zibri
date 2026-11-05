@@ -1,0 +1,143 @@
+import type { GlideClient, GlideReturnType, Script } from '@valkey/valkey-glide';
+
+import { type ValKeyBufferedWrite, type ValKeyGrantRelease } from './val-key-transaction.model';
+import { InternalError } from '../../error-handling/internal-error.model';
+import { JsonUtilities } from '../../utilities/json.utilities';
+import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function';
+
+/**
+ * What a guarded write checks before it writes: what each guarded key and each guarded hash held
+ * when it was read.
+ */
+export type ValKeyWriteGuards = {
+    /**
+     * The value each guarded key was read with, by key. An empty string for a key that did not exist.
+     */
+    values: Map<string, string>,
+    /**
+     * The fields each guarded hash was read with, by key. A hash holding anything else by now has
+     * changed, one that is gone included.
+     */
+    hashes: Map<string, Record<string, string>>
+};
+
+/**
+ * One write as the script reads it: what it does, the key, and the fields, field values or members.
+ */
+type ScriptWrite = [ValKeyBufferedWrite['type'], string, string[]];
+
+/**
+ * The script, once it has been built.
+ *
+ * Built on first use rather than at module scope, for the reason the lock scripts are: constructing
+ * one needs the optional valkey client, and the barrel reaches this module in an application that
+ * has none.
+ */
+let guardedWritesScript: Script | undefined;
+
+/**
+ * Applies the writes, but only while every guarded key still holds the value it was read with.
+ *
+ * Either all of them or none, as one command: the check and the writes cannot be told apart by any
+ * other writer. Members and fields go in a thousand at a time, below what a single call takes.
+ * @returns The script, which answers 1 when it wrote and 0 when a guarded key had changed.
+ */
+function resolveGuardedWritesScript(): Script {
+    guardedWritesScript ??= new (valKeyGlide().Script)(
+        'local payload = cjson.decode(ARGV[1]) '
+        + 'for _, guard in ipairs(payload[1]) do '
+        + 'if (redis.call("get", guard[1]) or "") ~= guard[2] then return 0 end '
+        + 'end '
+        // a hash field by field: as many as it was read with, each holding what it held
+        + 'for _, guard in ipairs(payload[2]) do '
+        + 'local stored = redis.call("hgetall", guard[1]) '
+        + 'if #stored ~= #guard[2] then return 0 end '
+        + 'local fields = {} '
+        + 'for i = 1, #stored, 2 do fields[stored[i]] = stored[i + 1] end '
+        + 'for i = 1, #guard[2], 2 do if fields[guard[2][i]] ~= guard[2][i + 1] then return 0 end end '
+        + 'end '
+        // eslint-disable-next-line cspell/spellchecker
+        + 'local commands = { hashSet = "hset", hashDelete = "hdel", setAdd = "sadd", setRemove = "srem" } '
+        + 'for _, write in ipairs(payload[3]) do '
+        + 'if write[1] == "delete" then redis.call("del", write[2]) '
+        + 'else for i = 1, #write[3], 1000 do '
+        + 'redis.call(commands[write[1]], write[2], unpack(write[3], i, math.min(i + 999, #write[3]))) '
+        + 'end end '
+        + 'end '
+        // the grants after the writes they protected, and only those still holding the token
+        + 'for _, key in ipairs(payload[5]) do '
+        + 'if redis.call("get", key) == payload[4] then redis.call("del", key) end '
+        + 'end return 1'
+    );
+    return guardedWritesScript;
+}
+
+/**
+ * Applies writes as one atomic step, but only while the guarded keys and hashes hold what they were
+ * read with.
+ *
+ * What a write needs when some of it was worked out from a value another instance may change at any
+ * moment: checked here, the value and the writes derived from it are decided together, where checking
+ * it first and writing afterwards would leave a window in which the value changes unseen.
+ * @param client - The client to write through.
+ * @param guards - What each guarded key and hash was read with.
+ * @param writes - The writes, in the order they are applied.
+ * @param release - The grants to hand back once the writes are applied, in the same step. Nothing is
+ * handed back when a guard refuses the writes.
+ * @returns True when the writes were applied, false when a guarded key or hash had changed and
+ * nothing was.
+ * @throws When the script answers with something other than whether it wrote.
+ */
+export async function applyGuardedValKeyWrites(
+    client: GlideClient,
+    guards: ValKeyWriteGuards,
+    writes: ValKeyBufferedWrite[],
+    release: ValKeyGrantRelease = { token: '', lockKeys: [] }
+): Promise<boolean> {
+    const payload: [[string, string][], [string, string[]][], ScriptWrite[], string, string[]] = [
+        [...guards.values.entries()],
+        [...guards.hashes.entries()].map(([key, fields]) => [key, Object.entries(fields).flat()]),
+        writes.map(w => toScriptWrite(w)),
+        release.token,
+        release.lockKeys
+    ];
+    const keys: string[] = [
+        ...new Set([
+            ...guards.values.keys(),
+            ...guards.hashes.keys(),
+            ...writes.map(w => w.key),
+            ...release.lockKeys
+        ])
+    ];
+    const res: GlideReturnType = await client.invokeScript(resolveGuardedWritesScript(), {
+        keys,
+        args: [JsonUtilities.stringify(payload)]
+    });
+    if (res !== 0 && res !== 1) {
+        throw new InternalError('Applying writes behind a guard was answered with something other than whether it wrote.');
+    }
+    return res === 1;
+}
+
+/**
+ * Writes one write the way the script reads it.
+ * @param write - The write.
+ * @returns What it does, its key, and what it writes.
+ */
+function toScriptWrite(write: ValKeyBufferedWrite): ScriptWrite {
+    switch (write.type) {
+        case 'hashSet': {
+            return [write.type, write.key, Object.entries(write.values).flat()];
+        }
+        case 'hashDelete': {
+            return [write.type, write.key, write.fields];
+        }
+        case 'delete': {
+            return [write.type, write.key, []];
+        }
+        case 'setAdd':
+        case 'setRemove': {
+            return [write.type, write.key, write.members];
+        }
+    }
+}

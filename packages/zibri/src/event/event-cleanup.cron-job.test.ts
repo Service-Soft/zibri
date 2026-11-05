@@ -1,0 +1,69 @@
+import { describe, expect, it, jest } from '@jest/globals';
+
+import { EventCleanupCronJob } from './event-cleanup.cron-job';
+import { Event, EventStatus } from './event.model';
+import { Repository } from '../data-source/repository/repository';
+import { LoggerInterface } from '../logging/logger.interface';
+
+function fakeEventRepository(): Repository<Event<unknown>> & { deleteAll: jest.Mock<(options: unknown) => Promise<number>> } {
+    return {
+        deleteAll: jest.fn<(options: unknown) => Promise<number>>().mockResolvedValue(0)
+    } as unknown as Repository<Event<unknown>> & { deleteAll: jest.Mock<(options: unknown) => Promise<number>> };
+}
+
+function fakeLogger(): LoggerInterface {
+    return {
+        debug: jest.fn(),
+        info: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+        critical: jest.fn()
+    } as unknown as LoggerInterface;
+}
+
+describe('EventCleanupCronJob', () => {
+    it('deletes finished events whose cleanupAt has passed', async () => {
+        const repo: Repository<Event<unknown>> & { deleteAll: jest.Mock<(options: unknown) => Promise<number>> } = fakeEventRepository();
+        const cronJob: EventCleanupCronJob = new EventCleanupCronJob(repo, 'forever');
+        (cronJob as unknown as { logger: LoggerInterface }).logger = fakeLogger();
+
+        const before: Date = new Date();
+        await cronJob.onTick();
+        const after: Date = new Date();
+
+        expect(repo.deleteAll).toHaveBeenCalledTimes(1);
+        const where: { status: EventStatus, cleanupAt: { before: Date } }
+            = repo.deleteAll.mock.calls[0]?.[0] as { status: EventStatus, cleanupAt: { before: Date } };
+        expect(where.status).toBe(EventStatus.FINISHED);
+        expect(where.cleanupAt.before.getTime()).toBeGreaterThanOrEqual(before.getTime());
+        expect(where.cleanupAt.before.getTime()).toBeLessThanOrEqual(after.getTime());
+    });
+
+    it('logs how many events were removed', async () => {
+        const repo: Repository<Event<unknown>> & { deleteAll: jest.Mock<(options: unknown) => Promise<number>> } = fakeEventRepository();
+        repo.deleteAll.mockResolvedValue(2);
+        const cronJob: EventCleanupCronJob = new EventCleanupCronJob(repo, 'forever');
+        const logger: LoggerInterface = fakeLogger();
+        (cronJob as unknown as { logger: LoggerInterface }).logger = logger;
+
+        await cronJob.onTick();
+
+        expect(logger.info).toHaveBeenCalledWith('removed 2 events');
+    });
+
+    it('hands an error from the repository to its caller', async () => {
+        const repo: Repository<Event<unknown>> & { deleteAll: jest.Mock<(options: unknown) => Promise<number>> } = fakeEventRepository();
+        repo.deleteAll.mockRejectedValue(new Error('db is down'));
+        const cronJob: EventCleanupCronJob = new EventCleanupCronJob(repo, 'forever');
+        (cronJob as unknown as { logger: LoggerInterface }).logger = fakeLogger();
+
+        await expect(cronJob.onTick()).rejects.toThrow('db is down');
+    });
+
+    it('is configured to run daily and not on init', () => {
+        const cronJob: EventCleanupCronJob = new EventCleanupCronJob(fakeEventRepository(), 'forever');
+
+        expect(cronJob.initialConfig.name).toBe('Event Cleanup');
+        expect(cronJob.initialConfig.runOnInit).toBe(false);
+    });
+});

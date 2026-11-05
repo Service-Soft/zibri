@@ -1,0 +1,103 @@
+import { AstProgram, AstStatement } from './ast.model';
+import { PathTree } from './generate-handlebar-type-files.function';
+import { resolveKeyForMustacheStatement } from './resolve-key-for-mustache-statement.function';
+import { resolveKeysForBlockStatement } from './resolve-keys-for-block-statement.function';
+import { resolveKeysForExpression, resolveKeysForPartialStatement } from './resolve-keys-for-partial-statement.function';
+import { InternalError } from '../error-handling/internal-error.model';
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+export function resolveTree(ast: AstProgram, arrayKeys: string[]): PathTree {
+    const allKeys: string[] = [...new Set(resolveAllKeys(ast, undefined))];
+
+    const root: PathTree = {};
+
+    for (const key of allKeys) {
+        const parts: string[] = key.split('.');
+        let node: PathTree = root;
+
+        const parentIsArray: boolean = isParentArray(parts, arrayKeys);
+        for (const part of parts) {
+            if (part === 'this') {
+                continue;
+            }
+            if (part === 'length' && parentIsArray) {
+                continue;
+            }
+
+            const child: PathTree = node[part] ?? {};
+            node[part] = child;
+            node = child;
+        }
+    }
+
+    return root;
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc
+function isParentArray(parts: string[], arrayKeys: string[]): boolean {
+    if (parts.length <= 1) {
+        return false;
+    }
+    const parent: string = parts.slice(0, parts.length - 1).join('.');
+    return arrayKeys.includes(parent);
+}
+
+// eslint-disable-next-line jsdoc/require-jsdoc, sonar/cognitive-complexity
+export function resolveAllKeys(ast: AstProgram, parentKey: string | undefined): string[] {
+    const res: string[] = [];
+    for (const element of ast.body) {
+        switch (element.type) {
+            case 'BlockStatement': {
+                res.push(...resolveKeysForBlockStatement(element, parentKey));
+                break;
+            }
+            case 'MustacheStatement': {
+                // reached leaf
+                // 1) record the direct lookup, if any
+                const key: string | undefined = element.path.original === 'this' || element.params.length || element.hash?.pairs.length
+                    ? undefined
+                    : resolveKeyForMustacheStatement(element, parentKey);
+                if (key != undefined) {
+                    res.push(key);
+                }
+                // 2) now dive into any helper arguments to find nested keys!
+                for (const param of element.params) {
+                    res.push(...resolveKeysForExpression(param, parentKey));
+                }
+                for (const pair of element.hash?.pairs ?? []) {
+                    res.push(...resolveKeysForExpression(pair.value, parentKey));
+                }
+                break;
+            }
+            case 'PartialStatement': {
+                res.push(...resolveKeysForPartialStatement(element, parentKey));
+                break;
+            }
+            case 'PartialBlockStatement': {
+                // 1) Positional params
+                for (const param of element.params) {
+                    res.push(...resolveKeysForExpression(param, parentKey));
+                }
+                // 2) Named params (hash)
+                for (const pair of element.hash?.pairs ?? []) {
+                    res.push(...resolveKeysForExpression(pair.value, parentKey));
+                }
+                // 3) Traverse nested block
+                if (element.program) {
+                    res.push(...resolveAllKeys(element.program, parentKey));
+                }
+                break;
+            }
+            case 'CommentStatement':
+            case 'ContentStatement': {
+                // reached leaf
+                break;
+            }
+            default: {
+                throw new InternalError(`Unknown AST Element ${(element as AstStatement).type}`);
+            }
+        }
+    }
+
+    return res;
+}

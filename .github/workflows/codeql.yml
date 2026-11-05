@@ -1,0 +1,40 @@
+name: CodeQL
+
+# on a schedule as well as on push, because an advisory is published against code that has not
+# changed - the branch going quiet is not the same as the risk going quiet.
+on:
+    push:
+        branches-ignore: [release, 'release-*']
+    schedule:
+        - cron: '0 3 * * 1'
+
+permissions:
+    contents: read
+
+jobs:
+    analyze:
+        runs-on: ubuntu-latest
+        permissions:
+            security-events: write
+            actions: read
+            contents: read
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: github/codeql-action/init@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3.39.1
+              with:
+                languages: javascript-typescript
+                # the extended suite rather than the default one: the default is tuned for a low
+                # false positive rate on an application, and what is being scanned here is a
+                # framework, where a taint path that reaches a consumer's request handler is the
+                # whole point of looking.
+                queries: security-extended
+                # the minified third-party builds the cli and the sandbox ship as they are: what is
+                # found in them is for their projects to fix, and is patched by moving to their next
+                # release. The scripts of our own next to them stay scanned.
+                config: |
+                    paths-ignore:
+                        - '**/assets/public/open-api/swagger-ui-bundle.js'
+                        - '**/assets/public/open-api/swagger-ui-standalone-preset.js'
+                        - '**/assets/public/lib/chartjs-adapter-date-fns.js'
+                        - '**/assets/public/vendor/**'
+            - uses: github/codeql-action/analyze@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3.39.1

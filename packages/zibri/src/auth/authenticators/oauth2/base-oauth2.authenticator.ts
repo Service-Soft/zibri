@@ -1,0 +1,155 @@
+import type { ClientAuth, Configuration, CustomFetch, DiscoveryRequestOptions, TokenEndpointResponse, TokenEndpointResponseHelpers } from 'openid-client';
+
+import { ErrorUtilities } from '../../../error-handling/error.utilities';
+import { KnownHeader } from '../../../http/known-header.enum';
+import { MimeType } from '../../../http/mime-type.enum';
+import { JsonUtilities } from '../../../utilities/json.utilities';
+import { BaseUser } from '../../models/base-user.model';
+import { FederatedLoginFailure } from '../federated/federated-login-failure.enum';
+import { FederatedLoginError } from '../federated/federated-login.error';
+import { FederatedProviderIdentity } from '../federated/federated-provider-identity.model';
+import { BaseOAuthAuthenticator } from '../oauth/base-oauth.authenticator';
+import { OAuthCodeExchange } from '../oauth/oauth-code-exchange.model';
+import { OAuthProviderLogin } from '../oauth/oauth-provider-login.model';
+import { OpenIdClient } from '../oauth/open-id-client.type';
+
+/**
+ * Who logged in at a provider that speaks plain OAuth2, as read from its api.
+ */
+export type OAuth2Identity = Pick<FederatedProviderIdentity, 'subject' | 'profile'> & Partial<Pick<FederatedProviderIdentity, 'claims'>>;
+
+/**
+ * Authenticates a user by a login at a provider that speaks plain OAuth2, without OpenID Connect,
+ * such as GitHub.
+ *
+ * Such a provider issues no ID token, so who logged in is read from its api with the access token of
+ * the login. Extend it once for every provider, naming the provider, its endpoints and the client
+ * registered there, and reading the user in `resolveIdentity`. The login itself runs through the
+ * routes of `AuthController`.
+ *
+ * A login through such a provider never counts as a recent login: the provider does not say when
+ * the user logged in there.
+ */
+export abstract class BaseOAuth2Authenticator<
+    RoleType extends string,
+    UserType extends BaseUser<RoleType> = BaseUser<RoleType>
+> extends BaseOAuthAuthenticator<RoleType, UserType> {
+    /**
+     * Where the browser is sent to log in at the provider.
+     */
+    abstract readonly authorizationEndpoint: string;
+
+    /**
+     * Where the code the provider answers with is exchanged for an access token.
+     */
+    abstract readonly tokenEndpoint: string;
+
+    /**
+     * Where tokens are handed back once they are no longer kept, as RFC 7009 has it. None by default,
+     * and then they are only removed here.
+     */
+    readonly revocationEndpoint: string | undefined = undefined;
+
+    /**
+     * Reads who logged in from the provider's api, with the access token of the login.
+     * @param accessToken - The access token.
+     * @returns Who logged in, as the provider names them, what it reports about them, and everything
+     * else its api answered about them as `claims`, for the registration and the later logins to
+     * read. Nothing, when left out.
+     */
+    protected abstract resolveIdentity(accessToken: string): Promise<OAuth2Identity>;
+
+    /**
+     * Reads json from the provider's api, with the access token of the login.
+     *
+     * Goes through the application's http client, as every other request to the provider does.
+     * @param url - Where to read from.
+     * @param accessToken - The access token.
+     * @param headers - Headers the provider's api asks for on top.
+     * @returns The json, unchecked.
+     * @throws When the api does not answer with success.
+     */
+    protected async fetchJson(url: string, accessToken: string, headers: Record<string, string> = {}): Promise<unknown> {
+        const client: OpenIdClient = this.resolveOpenIdClient();
+        const response: Response = await client.fetchProtectedResource(
+            await this.resolveConfiguration(),
+            accessToken,
+            new URL(url),
+            'GET',
+            undefined,
+            new Headers({ [KnownHeader.ACCEPT]: MimeType.JSON, ...headers })
+        );
+        if (!response.ok) {
+            throw new Error(`The provider answered ${String(response.status)} to GET ${url}.`);
+        }
+        return JsonUtilities.parse<unknown>(await response.text());
+    }
+
+    protected override createConfiguration(
+        client: OpenIdClient,
+        clientAuthentication: ClientAuth,
+        requestOptions: DiscoveryRequestOptions
+    ): Configuration {
+        // configured rather than discovered: a provider without OpenID Connect publishes nothing to
+        // discover. The request options apply here as they would to a discovered configuration
+        const configuration: Configuration = new client.Configuration(
+            {
+                issuer: this.issuer,
+                authorization_endpoint: this.authorizationEndpoint,
+                token_endpoint: this.tokenEndpoint,
+                revocation_endpoint: this.revocationEndpoint
+            },
+            this.clientId,
+            undefined,
+            clientAuthentication
+        );
+        const customFetch: CustomFetch | undefined = requestOptions[client.customFetch];
+        if (customFetch != undefined) {
+            configuration[client.customFetch] = customFetch;
+        }
+        for (const apply of requestOptions.execute ?? []) {
+            apply(configuration);
+        }
+        return configuration;
+    }
+
+    /**
+     * Exchanges the code for an access token, and reads who logged in from the provider's api with it.
+     * @param answer - Everything the provider sent the browser back with.
+     * @param exchange - What the answer is checked and exchanged with.
+     * @returns Who logged in, and the tokens.
+     * @throws FederatedLoginError when the provider cannot be reached, or does not say who logged in.
+     */
+    protected override async resolveLogin(answer: URLSearchParams, exchange: OAuthCodeExchange): Promise<OAuthProviderLogin> {
+        const tokens: TokenEndpointResponse & TokenEndpointResponseHelpers = await this.exchangeCode(answer, exchange, {
+            idTokenExpected: false
+        });
+        let identity: OAuth2Identity;
+        try {
+            identity = await this.resolveIdentity(tokens.access_token);
+        }
+        catch (error) {
+            // a refusal stays a refusal; anything else is the provider's api not answering as it should
+            if (ErrorUtilities.isRefusal(error)) {
+                throw error;
+            }
+            throw new FederatedLoginError(FederatedLoginFailure.PROVIDER_ERROR, { cause: error, action: exchange.action });
+        }
+        return {
+            identity: {
+                issuer: this.issuer,
+                subject: identity.subject,
+                // the provider does not say when the user logged in there, and may have reused its own
+                // session without asking them. So the login never counts as a recent login, rather than
+                // passing a provider session as a fresh login to a route that would take one for a second
+                // factor
+                authenticatedAt: new Date(0),
+                profile: identity.profile,
+                claims: identity.claims ?? {},
+                // nor how they logged in there, for the same reason
+                providerAuthentication: undefined
+            },
+            tokens
+        };
+    }
+}

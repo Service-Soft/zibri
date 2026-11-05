@@ -1,0 +1,202 @@
+import { RoundTripCounter } from 'zibri-testing';
+
+import { DefaultTestServerMembershipRepository } from './membership-repository';
+import { DefaultTestServerRoleRepository } from './role-repository';
+import { DefaultTestServerUserRepository } from './user-repository';
+import { AuditCheckpoint } from '../../audit/audit-checkpoint.model';
+import { AuditEntry } from '../../audit/audit-entry.model';
+import { OtpCredentials } from '../../auth/2fa/methods/otp/otp-credentials.model';
+import { TwoFactorFailureStreak } from '../../auth/2fa/two-factor-failure-streak.model';
+import { PasswordCredentials } from '../../auth/authenticators/password/password-credentials.model';
+import { EncryptionKey } from '../../auth/encryption/encryption-key.model';
+import { EncryptionRotationFailure } from '../../auth/encryption/encryption-rotation-failure.model';
+import { EncryptionRotationProgress } from '../../auth/encryption/encryption-rotation-progress.model';
+import { SigningKey } from '../../auth/encryption/signing-key.model';
+import { EncryptionStrategyEntity } from '../../auth/encryption/strategies/encryption-strategy-entity.model';
+import { HashStrategyEntity } from '../../auth/hash/strategies/hash-strategy-entity.model';
+import { LoginTicket } from '../../auth/models/login-ticket.model';
+import { PasswordResetToken } from '../../auth/models/password-reset-token.model';
+import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
+import { CacheInvalidation } from '../../caching/cache-invalidation.model';
+import { CronJobEntity } from '../../cron/cron-job-entity.model';
+import { ChainAnchor } from '../../data-source/chain/chain-anchor.model';
+import { ChangeSet } from '../../data-source/change-sets/models/change-set.model';
+import { Change } from '../../data-source/change-sets/models/change.model';
+import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-data-source.model';
+import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
+import { DataSource } from '../../data-source/decorators/data-source.decorator';
+import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
+import { Migration } from '../../data-source/migration/migration.model';
+import { SchemaManagement } from '../../data-source/models/schema-management.model';
+import { RepositoryClass } from '../../data-source/repository/repository-class.type';
+import { Email } from '../../email/models/email.model';
+import { BaseEntity } from '../../entity/base-entity.model';
+import { EventSubscriberRegistration } from '../../event/event-subscriber-registration.model';
+import { EventSubscriberRun } from '../../event/event-subscriber-run.model';
+import { Event } from '../../event/event.model';
+import { Lease } from '../../leases/lease.model';
+import { Log } from '../../logging/log.model';
+import { ThreadJobEntity } from '../../multithreading/models/thread-job-entity.model';
+import { Newable } from '../../types/newable.type';
+import { WebsocketChannel } from '../../websocket/models/websocket-channel.model';
+import { WebsocketMessageSequence } from '../../websocket/models/websocket-message-sequence.model';
+import { WebsocketMessage } from '../../websocket/models/websocket-message.model';
+import { JwtUser } from '../mocks/entities/jwt-user.entity';
+import { TestMembership } from '../mocks/entities/test-membership.entity';
+import { TestRole } from '../mocks/entities/test-role.entity';
+
+export type CreateTestDataSourceOptions = {
+    entities?: Newable<BaseEntity>[],
+    /**
+     * The repository classes of the data source. The test server's own when `entities` is not given
+     * either, none otherwise.
+     */
+    repositories?: RepositoryClass[],
+    host?: string,
+    username?: string,
+    password?: string,
+    database?: string,
+    /**
+     * Whether the built class may exist without an application using it.
+     *
+     * Needed only by a suite that calls this more than once and hands each application just one of
+     * the results - the others are then declared and never deployed. Left false everywhere else, so
+     * a data source a test meant to boot and forgot to pass still fails loudly.
+     */
+    allowOrphan?: boolean,
+    /**
+     * How many connections the data source may hold at once.
+     *
+     * Only a suite that is about the pool itself sets this. Left at the framework default everywhere
+     * else, because a test that quietly runs on a pool of its own is not testing what ships.
+     */
+    poolSize?: number,
+    /**
+     * How long acquiring a connection may wait before it gives up.
+     *
+     * Set alongside a small `poolSize` so a pool that has nothing left to hand out reports that,
+     * rather than leaving the caller waiting for a connection that is not coming.
+     */
+    connectionTimeoutInMs?: number,
+    /**
+     * Records every statement the data source sends, `BEGIN` and `COMMIT` included.
+     *
+     * Only a suite measuring what a call costs sets this, on a data source holding nothing but the
+     * entities it measures, so that no service of the application adds statements of its own.
+     */
+    roundTrips?: RoundTripCounter,
+    /**
+     * Who manages the schema. Synchronizing when it is not given, which is the one shape a suite
+     * shipping no migrations is right with.
+     */
+    schemaManagement?: SchemaManagement,
+    /**
+     * The migrations of the data source, for a suite whose migrations manage the schema.
+     */
+    migrations?: Newable<Migration>[]
+};
+
+export const defaultTestServerEntities: Newable<BaseEntity>[] = [
+    Change,
+    ChangeSet,
+    MigrationEntity,
+    CronJobEntity,
+    Lease,
+    CacheInvalidation,
+    Email,
+    ThreadJobEntity,
+    WebsocketChannel,
+    WebsocketMessage,
+    WebsocketMessageSequence,
+    Log,
+    AuditEntry,
+    AuditCheckpoint,
+    PasswordResetToken,
+    JwtUser,
+    TestMembership,
+    TestRole,
+    JwtRefreshToken,
+    PasswordCredentials,
+    OtpCredentials,
+    TwoFactorFailureStreak,
+    LoginTicket,
+    Event,
+    EventSubscriberRun,
+    EventSubscriberRegistration,
+    HashStrategyEntity,
+    EncryptionKey,
+    EncryptionStrategyEntity,
+    EncryptionRotationProgress,
+    EncryptionRotationFailure,
+    SigningKey,
+    ChainAnchor
+];
+
+/**
+ * The repositories of the test server's users, memberships and roles, which a data source declaring
+ * `defaultTestServerEntities` lists beside them.
+ */
+export const defaultTestServerRepositories: RepositoryClass[] = [
+    DefaultTestServerUserRepository,
+    DefaultTestServerMembershipRepository,
+    DefaultTestServerRoleRepository
+];
+
+export function createTestDataSource({
+    entities,
+    repositories = entities == undefined ? defaultTestServerRepositories : [],
+    host = 'localhost',
+    username = 'postgres',
+    password = 'password',
+    database = 'db',
+    allowOrphan = false,
+    poolSize,
+    connectionTimeoutInMs,
+    roundTrips,
+    schemaManagement = 'synchronize',
+    migrations = []
+}: CreateTestDataSourceOptions = {}): Newable<PostgresDataSource & {
+    /** The connection options of the data source. */
+    options: PostgresOptions,
+    /** The entities of the data source. */
+    entities: Newable<BaseEntity>[],
+    /** The repository classes of the data source. */
+    repositories: RepositoryClass[],
+    /** Who manages the schema. Named here so a class extending this one counts as concrete. */
+    schemaManagement: SchemaManagement,
+    /** What stands between the data source and its server. Named here for the same reason. */
+    pooler: PostgresPooler
+}> {
+
+    @DataSource({ allowOrphan })
+    class DbDataSource extends PostgresDataSource {
+        options: PostgresOptions = {
+            host,
+            username,
+            password,
+            database,
+            // the container serves no tls
+            ssl: false,
+            // spread rather than assigned, because an explicit undefined would take the framework
+            // default away instead of leaving it in place
+            ...poolSize != undefined ? { poolSize } : {},
+            ...connectionTimeoutInMs != undefined ? { connectTimeoutInMs: connectionTimeoutInMs } : {}
+        };
+        entities: Newable<BaseEntity>[] = entities ?? defaultTestServerEntities;
+        readonly repositories: RepositoryClass[] = repositories;
+        override migrations: Newable<Migration>[] = migrations;
+        // a suite that ships no migrations and needs tables synchronizes, which is the one
+        // deployment shape that is actually right for. Said here, because implicit it was a default
+        // nobody had chosen
+        schemaManagement: SchemaManagement = schemaManagement;
+        readonly pooler: PostgresPooler = 'none';
+
+        // recorded as it is sent, so a statement that fails is counted as well - it was a round
+        // trip all the same
+        protected override onStatementSent(statement: string): void {
+            roundTrips?.record(statement);
+        }
+    }
+
+    return DbDataSource;
+}

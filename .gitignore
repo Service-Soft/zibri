@@ -1,9 +1,15 @@
 node_modules
 dist
+tmp
+/out-tsc
 coverage
 *.hbs.ts
-docs/generated
+packages/zibri/docs/generated
 file-output
 .vscode
-src/di/default/temp
+.zibri/
 .env
+packages/cli/sandbox
+packages/cli/src/__testing__/recorded-sandbox-diffs.json
+*.baseline.json
+.claude
