@@ -1,8 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { compile, CompileResult } from './compile';
-import { compilePage } from '../__testing__/server-render.helper';
-import { renderPage } from '../runtime/render-page';
+import { compilePage, renderTestPage } from '../__testing__/server-render.helper';
 import { ValidationCode } from '../semantics/validate';
 
 /**
@@ -19,7 +18,7 @@ function clientScriptOf(source: string): string {
 describe('syntax inside components', () => {
     describe('do...while and for...in', () => {
         it('renders both loops on the server', () => {
-            const page: string = renderPage(compilePage(
+            const page: string = renderTestPage(compilePage(
                 'const Home = ({ flags }) => { const names = []; for (const name in flags) { names.push(name); } '
                 + 'let rounds = 0; do { rounds++; } while (rounds < 2); return <p>{names.join(\',\')}:{rounds}</p>; };'
             ), { flags: { a: true, b: false } });
@@ -62,7 +61,7 @@ describe('syntax inside components', () => {
 
     describe('classes', () => {
         it('renders a class declared in the body on the server', () => {
-            const page: string = renderPage(compilePage(
+            const page: string = renderTestPage(compilePage(
                 'const Home = ({ start }) => { class Counter { count = start; #step = 2; '
                 + 'next() { this.count += this.#step; return this.count; } get twice() { return this.count * 2; } } '
                 + 'const counter = new Counter(); counter.next(); return <p>{counter.count}/{counter.twice}</p>; };'
@@ -109,7 +108,7 @@ describe('syntax inside components', () => {
         // Emitted code targets ES2022, which Node and current browsers run; newer syntax is lowered.
 
         it('renders a decorated class on the server', () => {
-            const page: string = renderPage(compilePage(
+            const page: string = renderTestPage(compilePage(
                 'const Home = () => { function upper(method) { return function () { return method.call(this).toUpperCase(); }; } '
                 + 'class Greeter { @upper greet() { return \'hi\'; } } return <p>{new Greeter().greet()}</p>; };'
             ));

@@ -3,9 +3,12 @@ import { createHash } from 'node:crypto';
 import * as ts from 'typescript';
 
 import { accessShapeOf, namedKeysOf, propertyKeyOf } from './access-shape-analysis';
+import { BindingSite, collectBindingSites, STATE_HANDLE_HOOKS } from './bindings';
+import { REGION_RUNTIME, regionTable } from './region-code';
+import { collectRegions, RegionCollection } from './regions';
 import { CLIENT_PROP_VALUES, CLIENT_PROPS_RUNTIME, ClientPropSite, collectClientPropSites } from './client-props';
 import { collectHandlerSites, collectServerOnlyCallbacks, HandlerSite } from './handlers';
-import { REATTACH_RUNTIME, SETUP_RUNTIME_PARAM } from './reattach';
+import { BIND_RUNTIME, REATTACH_RUNTIME, SETUP_RUNTIME_PARAM } from './reattach';
 import { SourceSpan } from '../../diagnostics/diagnostic.model';
 import { AccessShape, mergeAccessShapes, ReferencedProps, resolveAccessThroughRest } from '../../runtime/access-shape';
 import { collectOuterNames, collectOuterReferences, collectPatternBindings, collectReferencedSymbols, declaredSymbols, OuterOrigin } from '../../semantics/binding';
@@ -14,6 +17,7 @@ import { ComponentFunction, isJsxExpression, nestedStatements } from '../../sema
 import { symbolOf } from '../../semantics/symbols';
 import { collectTranslationSources, TranslationSources } from '../../semantics/translation-sources';
 import { isHookCall, unwrapTypeSyntax, walk } from '../../semantics/walk';
+import { decodeJsxEntities, normalizeJsxText } from '../server/jsx-text';
 import { printClientNode } from '../server/print';
 
 /**
@@ -52,6 +56,11 @@ export type ClientScript = {
      */
     propShapes: Record<string, AccessShape>,
     /**
+     * What the client code reads from the value of each state it reads, by the name of the state's variable.
+     * Only that much of the initial value is written into the page.
+     */
+    stateShapes: Record<string, AccessShape>,
+    /**
      * Framework hook names (`$t`, `$ts`, `$f`, ...) the client code references and that the runtime
      * must inline with render-time data.
      */
@@ -75,7 +84,15 @@ export type ClientScript = {
     /**
      * Where the emitted client code loads a module, which it cannot do.
      */
-    moduleLoading: ModuleLoadingSite[]
+    moduleLoading: ModuleLoadingSite[],
+    /**
+     * Where the emitted client code holds JSX, which only the server renders.
+     */
+    jsx: SourceSpan[],
+    /**
+     * Where the markup reads state, which makes it client code: the browser computes it again when the state changes.
+     */
+    bindings: SourceSpan[]
 };
 
 /**
@@ -111,12 +128,17 @@ export type ModuleLoadingSite = {
 };
 
 /**
- * Client definitions of the framework lifecycle hooks. `onClient` runs its callback in the browser;
- * `onServer` is a no-op there.
+ * Client definitions of the framework hooks a setup defines for itself. `onServer` is a no-op in the
+ * browser. A ref is found by the name of its variable among the refs the instance was rendered with. `onClient`
+ * is defined once for the page, see `CLIENT_HOOK_SOURCES`.
  */
-const CLIENT_HOOKS: Readonly<Record<string, string>> = {
-    onClient: 'const onClient = (fn) => { fn(); };',
-    onServer: 'const onServer = () => {};'
+export const CLIENT_SETUP_HOOKS: Readonly<Record<string, string>> = {
+    onServer: 'const onServer = () => {};',
+    useRef: `const useRef = (name) => __zibriRef(${SETUP_RUNTIME_PARAM}.refs[name]);`,
+    useRefs: `const useRefs = (name) => __zibriRef(${SETUP_RUNTIME_PARAM}.refs[name]);`,
+    useState: `const useState = (name) => __zibriState(${SETUP_RUNTIME_PARAM}.states, name);`,
+    useInput: `const useInput = (name) => __zibriInput(${SETUP_RUNTIME_PARAM}, name);`,
+    useWritableInput: `const useWritableInput = (name) => __zibriInput(${SETUP_RUNTIME_PARAM}, name);`
 };
 
 /**
@@ -161,12 +183,21 @@ type ClientBody = {
 export function compileClientScript(fn: ComponentFunction, name: string, clientAliases: ClientGlobalAlias[]): ClientScript {
     const { sites } = collectHandlerSites(fn);
     const { sites: propSites } = collectClientPropSites(fn);
-    // The client code written in the markup — handlers and function props.
-    const markup: ts.Expression[] = [...sites.map(site => site.handler), ...propSites.map(site => site.value)];
+    const { sites: bindingSites } = collectBindingSites(fn);
+    const regions: RegionCollection = collectRegions(fn);
+    // The client code written in the markup — handlers, function props, and the expressions reading state, which the
+    // browser computes again when a state changes, the conditions and lists it renders again among them.
+    const markup: ts.Expression[] = [
+        ...sites.map(site => site.handler),
+        ...propSites.map(site => site.value),
+        ...bindingSites.flatMap(bindingExpressions),
+        ...regions.sites.map(site => site.expression)
+    ];
 
     // What the markup's client code reads seeds what the body has to provide, so the body is filtered
     // down to the declarations those actually reach.
-    const markupServerOnly: Set<ts.Node> = new Set<ts.Node>(markup.flatMap(collectServerOnlyCallbacks));
+    // what the regions hold that only the server renders, such as what their components are handed, is no client code
+    const markupServerOnly: Set<ts.Node> = new Set<ts.Node>([...markup.flatMap(collectServerOnlyCallbacks), ...regions.serverOnly]);
     const body: ClientBody = clientBody(
         fn,
         new Set(markup.flatMap(expression => [...collectReferencedSymbols(expression, markupServerOnly)]))
@@ -206,7 +237,8 @@ export function compileClientScript(fn: ComponentFunction, name: string, clientA
     // nested component, or calls `onClient`. Statement-level body code without any of those is pure
     // server work (an `onServer` block, a computed class name), so emitting a setup for it would ship
     // dead code - and possibly a server-only reference like `GlobalRegistry` - to every page using it.
-    const hasClientBehavior: boolean = sites.length > 0 || propSites.length > 0 || outer.has('onClient');
+    const hasClientBehavior: boolean = sites.length > 0 || propSites.length > 0 || bindingSites.length > 0 || regions.sites.length > 0
+        || outer.has('onClient') || outer.has('useEffect');
     if (!hasClientBehavior) {
         return {
             code: undefined,
@@ -215,11 +247,14 @@ export function compileClientScript(fn: ComponentFunction, name: string, clientA
             clientPropSites: propSites,
             referencedProps: [],
             propShapes: {},
+            stateShapes: {},
             referencedHooks: [],
             referencedTranslations: { sources: [], complete: true },
             referencedIdentifiers: [],
             outerNames: [],
-            moduleLoading: []
+            moduleLoading: [],
+            jsx: [],
+            bindings: []
         };
     }
 
@@ -227,30 +262,41 @@ export function compileClientScript(fn: ComponentFunction, name: string, clientA
     // client-prop factories and the reattachment, so they all live inside the labeled setup block, in a
     // function declared there. It is hoisted, so a JSX return calls it before it leaves the block: the
     // markup an early return renders has handlers too, and they only read what was declared before it.
+    const handedToComponents: HandlerSite[] = sites.filter(site => site.onComponent);
+    const handedDown: BindingSite[] = bindingSites.filter(site => site.kind === 'prop');
+    const buildsClientProps: boolean = propSites.length > 0 || handedToComponents.length > 0 || handedDown.length > 0;
     const attach: string = [
         handlerTable(sites),
         sites.length > 0 ? REATTACH_RUNTIME : '',
-        clientPropFactories(propSites),
-        propSites.length > 0 ? CLIENT_PROPS_RUNTIME : ''
+        bindingTable(bindingSites),
+        bindingSites.length > 0 ? BIND_RUNTIME : '',
+        regionTable(regions.sites, regions),
+        regions.sites.length > 0 ? REGION_RUNTIME : '',
+        clientPropFactories(propSites, handedToComponents, handedDown),
+        buildsClientProps ? CLIENT_PROPS_RUNTIME : ''
     ].filter(part => part.trim().length > 0).join('\n');
+    // The attach function takes what it attaches: what this instance was rendered with first, and later what the server
+    // rendered for it into a template the page copies, such as the children it handed a component that shows them
+    // again. The page finds it, and the functions it built for children, by the instance.
     const setupBlock: string = [
         `${SETUP_LABEL}: {`,
+        `__zibriOwn(${SETUP_RUNTIME_PARAM}.owner, ${ATTACH_FUNCTION}${buildsClientProps ? `, ${CLIENT_PROP_VALUES}` : ''});`,
         bodySource,
-        `function ${ATTACH_FUNCTION}() {`,
+        `function ${ATTACH_FUNCTION}(${SETUP_RUNTIME_PARAM}) {`,
         attach,
         '}',
-        `${ATTACH_FUNCTION}();`,
+        `${ATTACH_FUNCTION}(${SETUP_RUNTIME_PARAM});`,
         '}'
     ].filter(part => part.trim().length > 0).join('\n');
 
     const setupBody: string = [
         clientAliasDefinitions(clientAliases, outer),
         hookDefinitions(outer),
-        propSites.length > 0 ? `const ${CLIENT_PROP_VALUES} = {};` : '',
+        buildsClientProps ? `const ${CLIENT_PROP_VALUES} = {};` : '',
         setupBlock,
         // Handed back so the emitted call of a child component can pass in the functions this
         // instance declared for it. An early JSX return builds them before it leaves the block.
-        propSites.length > 0 ? `return ${CLIENT_PROP_VALUES};` : ''
+        buildsClientProps ? `return ${CLIENT_PROP_VALUES};` : ''
     ]
         .filter(part => part.trim().length > 0)
         .join('\n');
@@ -263,11 +309,14 @@ export function compileClientScript(fn: ComponentFunction, name: string, clientA
         clientPropSites: propSites,
         referencedProps,
         propShapes,
+        stateShapes: resolveStateShapes(body.statements, clientNodes, omitted),
         referencedHooks,
         referencedTranslations,
         referencedIdentifiers: [...outer],
         outerNames: collectOuterNamesOf(clientNodes, fn, omitted),
-        moduleLoading: clientNodes.flatMap(node => collectModuleLoading(node, omitted))
+        moduleLoading: clientNodes.flatMap(node => collectModuleLoading(node, omitted)),
+        jsx: clientNodes.flatMap(node => collectJsx(node, omitted, regions.markup)),
+        bindings: bindingSites.flatMap(bindingExpressions).map(expression => ({ start: expression.getStart(), end: expression.getEnd() }))
     };
 }
 
@@ -369,6 +418,31 @@ function readDefaultsOf(declaration: ts.ParameterDeclaration | ts.BindingElement
 }
 
 /**
+ * What client code reads of the value of each state it reads: the part of what it reads of the handle that is read
+ * through `.value`, or all of the value when it hands the handle on whole.
+ * @param statements - The statements of the component client code keeps, among them the states it reads.
+ * @param nodes - Every node that ends up in the client script.
+ * @param omitted - What inside the nodes is left out.
+ * @returns The shapes, by the name of each state's variable.
+ */
+function resolveStateShapes(statements: ts.Statement[], nodes: ts.Node[], omitted: ReadonlySet<ts.Node>): Record<string, AccessShape> {
+    const shapes: Record<string, AccessShape> = {};
+    for (const declaration of statements.filter(ts.isVariableStatement).flatMap(statement => [...statement.declarationList.declarations])) {
+        const symbol: ts.Symbol | undefined = ts.isIdentifier(declaration.name) ? symbolOf(declaration.name) : undefined;
+        const initializer: ts.Expression | undefined = declaration.initializer;
+        if (symbol === undefined || initializer === undefined || !STATE_HANDLE_HOOKS.some(hook => isHookCall(initializer, hook))) {
+            continue;
+        }
+        const handle: AccessShape = accessShapeOf(symbol, nodes, omitted);
+        const value: AccessShape | undefined = handle === 'whole' ? 'whole' : handle.fields['value'];
+        if (value !== undefined) {
+            shapes[symbol.name] = value;
+        }
+    }
+    return shapes;
+}
+
+/**
  * The props client code reads, from what it reads of the props object as a whole.
  * @param shape - What client code reads, or undefined when it reads nothing.
  * @returns The props client code reads.
@@ -419,6 +493,29 @@ function collectModuleLoading(node: ts.Node, omitted: ReadonlySet<ts.Node>): Mod
         else if (ts.isMetaProperty(current) && current.keywordToken === ts.SyntaxKind.ImportKeyword) {
             sites.push({ construct: 'import.meta', span: { start: current.getStart(), end: current.getEnd() } });
         }
+    }, omitted);
+    return sites;
+}
+
+/**
+ * Collects where client code holds JSX, the outermost element of each piece of markup.
+ * @param node - A node that ends up in the client script.
+ * @param omitted - What inside the node is left out, such as the markup of an early return.
+ * @param rendered - The markup of the conditions and lists the browser renders.
+ * @returns The spans of the JSX.
+ */
+function collectJsx(node: ts.Node, omitted: ReadonlySet<ts.Node>, rendered: ReadonlySet<ts.Node>): SourceSpan[] {
+    const sites: SourceSpan[] = [];
+    walk(node, current => {
+        // the markup of a condition or a list the browser renders is html it builds, and JSX inside its code is not
+        if (rendered.has(current)) {
+            return true;
+        }
+        if (ts.isJsxElement(current) || ts.isJsxSelfClosingElement(current) || ts.isJsxFragment(current)) {
+            sites.push({ start: current.getStart(), end: current.getEnd() });
+            return false;
+        }
+        return true;
     }, omitted);
     return sites;
 }
@@ -513,6 +610,14 @@ function objectPatternShape(
  */
 function resolveHooks(referenced: Set<string>): string[] {
     const hooks: string[] = [];
+    // what keeps state and runs the bindings, which a page carries only when it uses state. An effect runs again from
+    // the same update, after the bindings
+    if (['useState', 'useEffect', 'useInput', 'useWritableInput'].some(hook => referenced.has(hook))) {
+        hooks.push('useState');
+    }
+    if (referenced.has('useEffect')) {
+        hooks.push('useEffect');
+    }
     if (referenced.has('$t') || referenced.has('$ts')) {
         hooks.push('$t');
     }
@@ -548,10 +653,71 @@ function clientAliasDefinitions(aliases: ClientGlobalAlias[], referenced: Set<st
  * @returns The hook definition source.
  */
 function hookDefinitions(referenced: Set<string>): string {
-    return Object.entries(CLIENT_HOOKS)
+    return Object.entries(CLIENT_SETUP_HOOKS)
         .filter(([name]) => referenced.has(name))
         .map(([, source]) => source)
         .join('\n');
+}
+
+/**
+ * Builds the `__bindingSites` table mapping each binding site id to where it writes and a factory that makes the
+ * function computing it, parameterized by the site's captured variables.
+ * @param sites - The binding sites.
+ * @returns The table source (empty when there are no sites).
+ */
+function bindingTable(sites: BindingSite[]): string {
+    if (sites.length === 0) {
+        return '';
+    }
+    const entries: string[] = sites.map(site => {
+        const params: string = site.captureVars.join(', ');
+        const attribute: string = site.attribute === undefined ? 'undefined' : JSON.stringify(site.attribute);
+        // the whole text of an element is its text and its holes, which the page joins as the server renders them, and
+        // a state handed to a component is followed by its value wherever the component forwards it
+        let computed: string = printClientNode(site.expression);
+        if (site.handle) {
+            computed = `(${computed}).value`;
+        }
+        else if (site.parts !== undefined) {
+            computed = `[${site.parts.flatMap(part => {
+                if (ts.isJsxText(part)) {
+                    const text: string = decodeJsxEntities(normalizeJsxText(part.text));
+                    return text === '' ? [] : [JSON.stringify(text)];
+                }
+                return ts.isJsxExpression(part) && part.expression != undefined ? [printClientNode(part.expression)] : [];
+            }).join(', ')}]`;
+        }
+        // a state itself is written back where it binds both ways
+        const write: string = site.handle ? `, write: (${params}) => (next) => { (${printClientNode(site.expression)}).value = next; }` : '';
+        return `${site.id}: { kind: '${site.kind}', attribute: ${attribute}, make: (${params}) => () => (${computed})${write} }`;
+    });
+    return `const __bindingSites = {\n${entries.join(',\n')}\n};`;
+}
+
+/**
+ * The factories of the handles a component builds for what it hands down that follows a state, which a component
+ * below reads with `useInput` or `useWritableInput`: the state itself, or a value computed when it is read.
+ * @param sites - The binding sites of the props and contexts it hands down.
+ * @returns The table entries.
+ */
+function inputFactories(sites: BindingSite[]): string[] {
+    return sites.map(site => {
+        const params: string = site.captureVars.join(', ');
+        return site.handle
+            ? `${site.id}: (${params}) => (${printClientNode(site.expression)})`
+            : `${site.id}: (...captured) => __zibriDerived(__bindingSites.${site.id}.make(...captured))`;
+    });
+}
+
+/**
+ * The expressions a binding computes: its expression, or every hole of an element whose whole text it writes.
+ * @param site - The binding site.
+ * @returns The expressions.
+ */
+function bindingExpressions(site: BindingSite): ts.Expression[] {
+    return site.parts === undefined
+        ? [site.expression]
+        : site.parts.flatMap(part => ts.isJsxExpression(part) && part.expression != undefined ? [part.expression] : []);
 }
 
 /**
@@ -573,16 +739,21 @@ function handlerTable(sites: HandlerSite[]): string {
 
 /**
  * Emits the build-time table of client-prop factories: one factory per site, parameterized by the
- * variables that site captures from enclosing scopes.
+ * variables that site captures from enclosing scopes. A handler written on a nested component is a
+ * function prop as well, for the component that calls it instead of attaching it. Its factory is the
+ * one the handler table already holds.
  * @param sites - The component's client-prop sites.
+ * @param handlers - The handler sites written on nested components.
+ * @param inputs - The binding sites of the props and contexts the component hands down that follow a state.
  * @returns The table source (empty when there are no sites).
  */
-function clientPropFactories(sites: ClientPropSite[]): string {
-    if (sites.length === 0) {
-        return '';
-    }
-    const entries: string[] = sites.map(site => `${site.id}: (${site.captureVars.join(', ')}) => (${printClientNode(site.value)})`);
-    return `const __clientProps = {\n${entries.join(',\n')}\n};`;
+function clientPropFactories(sites: ClientPropSite[], handlers: HandlerSite[], inputs: BindingSite[]): string {
+    const entries: string[] = [
+        ...sites.map(site => `${site.id}: (${site.captureVars.join(', ')}) => (${printClientNode(site.value)})`),
+        ...handlers.map(site => `${site.id}: __handlers.${site.id}.make`),
+        ...inputFactories(inputs)
+    ];
+    return entries.length === 0 ? '' : `const __clientProps = {\n${entries.join(',\n')}\n};`;
 }
 
 /**
@@ -758,16 +929,16 @@ function isJump(statement: ts.Statement): boolean {
 }
 
 /**
- * Whether a node contains client code, i.e. An `onClient` call. Such a statement is kept no matter what
- * references it, because its callback *is* the client behavior.
+ * Whether a node contains client code, i.e. An `onClient` or `useEffect` call. Such a statement is kept no matter
+ * what references it, because its callback *is* the client behavior.
  * @param node - The node to inspect.
  * @param omitted - What inside the node is left out.
- * @returns True when the node contains an `onClient` call.
+ * @returns True when the node contains an `onClient` or `useEffect` call.
  */
 function containsClientCode(node: ts.Node, omitted: ReadonlySet<ts.Node>): boolean {
     let found: boolean = false;
     walk(node, current => {
-        if (isHookCall(current, 'onClient')) {
+        if (isHookCall(current, 'onClient') || isHookCall(current, 'useEffect')) {
             found = true;
         }
         return !found;
@@ -869,7 +1040,7 @@ function neutralizeStatementTree(statement: ts.Statement, omitted: ReadonlySet<t
     if (isJsxReturn(statement)) {
         return ts.factory.createBlock([
             ts.factory.createExpressionStatement(
-                ts.factory.createCallExpression(ts.factory.createIdentifier(ATTACH_FUNCTION), undefined, [])
+                ts.factory.createCallExpression(ts.factory.createIdentifier(ATTACH_FUNCTION), undefined, [ts.factory.createIdentifier(SETUP_RUNTIME_PARAM)])
             ),
             ts.factory.createBreakStatement(SETUP_LABEL)
         ]);

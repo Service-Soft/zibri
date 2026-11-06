@@ -5,7 +5,7 @@ import path from 'node:path';
 import type CopyWebpackPlugin from 'copy-webpack-plugin';
 import type MiniCssExtractPlugin from 'mini-css-extract-plugin';
 import type { Configuration, NormalModuleReplacementPlugin } from 'webpack';
-import { ZibriTsxVendorPlugin } from 'zibri-tsx/webpack';
+import { ZibriTsxTypeCheckPlugin, ZibriTsxVendorPlugin } from 'zibri-tsx/webpack';
 
 import { GenerateSourcesOnBuildPlugin } from './generate-sources-on-build.plugin';
 import { RestartServerOnBuildPlugin } from './restart-server-on-build.plugin';
@@ -161,7 +161,9 @@ export function resolveWebpackConfiguration(options: WebpackConfigurationOptions
                 },
                 {
                     test: /\.tsx?$/,
-                    exclude: tsxTemplateDirs,
+                    // only the templates themselves: a module of plain typescript beside them, such as one creating a
+                    // context, is compiled like the rest of the application
+                    exclude: (file: string) => file.endsWith('.tsx') && tsxTemplateDirs.some(dir => file.startsWith(`${dir}${path.sep}`)),
                     loader: 'ts-loader',
                     // without it ts-loader compiles everything the tsconfig includes, tests too, and a type
                     // error in a test then fails the build and keeps "start" from restarting the server
@@ -215,9 +217,15 @@ export function resolveWebpackConfiguration(options: WebpackConfigurationOptions
                 outDir: path.join(root, 'assets', 'public', 'vendor'),
                 resolveFrom: root
             }),
+            // the templates skip ts-loader, which reports the type errors of the rest
+            new ZibriTsxTypeCheckPlugin({
+                tsconfig: path.join(root, 'tsconfig.json'),
+                templateDirs: tsxTemplateDirs
+            }),
             new RestartServerOnBuildPlugin(root),
             ...MiniCssPlugin == undefined ? [] : [new MiniCssPlugin({ filename: STYLESHEET })],
-            // a package a template imports with ?client is the package itself on the server
+            // a ?client import outside a template is the package itself on the server. The compiler leaves
+            // those of a template out of the server render
             new ReplacementPlugin(
                 /^([^?]+)\?client$/,
                 resource => resource.request = resource.request.replace(/\?client$/, '')

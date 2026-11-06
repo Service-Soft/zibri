@@ -1,6 +1,7 @@
 import * as ts from 'typescript';
 
 import { accessShapeOf } from './access-shape-analysis';
+import { regionExpressions } from './regions';
 import { AccessShape } from '../../runtime/access-shape';
 import { collectPatternBindings, collectPatternNames, collectReferencedSymbols, declaredSymbols, symbolsOf } from '../../semantics/binding';
 import { ComponentFunction } from '../../semantics/component';
@@ -22,6 +23,10 @@ export type HandlerSite = {
      * The handler value expression.
      */
     handler: ts.Expression,
+    /**
+     * Whether the handler is written on a nested component, which may call it rather than attach it.
+     */
+    onComponent: boolean,
     /**
      * Names bound by enclosing nested scopes (e.g. `.map` params) that the handler references and
      * must therefore be captured per instance at render time.
@@ -75,6 +80,29 @@ export type JsxElementLike = ts.JsxElement | ts.JsxSelfClosingElement;
  */
 export function isEventHandlerName(name: string): boolean {
     return name.length > 2 && name.startsWith('on') && name[2] === name[2].toUpperCase();
+}
+
+/**
+ * Whether a JSX name refers to a component rather than a host element. Only components receive
+ * function props; on a host element a function cannot be rendered and is dropped as an attribute.
+ * @param name - The JSX tag name.
+ * @returns True for capitalized or dotted tags.
+ */
+export function isComponentName(name: ts.JsxTagNameExpression): boolean {
+    if (ts.isPropertyAccessExpression(name)) {
+        return true;
+    }
+    const written: string = ts.isIdentifier(name) ? name.text : name.getText();
+    return !!written && !written.startsWith(written[0].toLowerCase());
+}
+
+/**
+ * The tag name of a JSX element.
+ * @param element - The element.
+ * @returns Its tag name expression.
+ */
+export function tagNameOf(element: JsxElementLike): ts.JsxTagNameExpression {
+    return ts.isJsxElement(element) ? element.openingElement.tagName : element.tagName;
 }
 
 /**
@@ -147,9 +175,14 @@ export function collectHandlerSites(fn: ComponentFunction): HandlerCollection {
     const sites: HandlerSite[] = [];
     const byNode: Map<ts.Expression, HandlerSite> = new Map<ts.Expression, HandlerSite>();
     const props: PropScope = propScope(fn);
+    // a condition or a list the browser renders attaches the handlers of its markup itself
+    const regions: Set<ts.Node> = regionExpressions(fn);
     let counter: number = 0;
 
     const visit: (node: ts.Node, frames: ScopeFrame[]) => void = (node: ts.Node, frames: ScopeFrame[]): void => {
+        if (regions.has(node)) {
+            return;
+        }
         if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
             collectElementHandlers(node, frames, props, sites, byNode, () => `h${counter++}`);
         }
@@ -197,6 +230,7 @@ function collectElementHandlers(
             event: attribute.name.getText().slice(2)
                 .toLowerCase(),
             handler,
+            onComponent: isComponentName(tagNameOf(element)),
             captureVars: captured.map(variable => variable.name),
             captureShapes: captured.map(variable => variable.shape)
         };
@@ -229,25 +263,27 @@ export type CapturedVariable = {
  * declares (not the component's own top scope, whose declarations are available in the client script).
  * @param handler - The handler expression.
  * @param frames - The enclosing nested scopes.
+ * @param alsoServerOnly - What of the handler only the server reads, besides the arguments of the hooks that run there.
  * @returns The captured variables, in the order the handler first reads them.
  */
-export function capturedVariables(handler: ts.Expression, frames: ScopeFrame[]): CapturedVariable[] {
-    const serverOnly: ReadonlySet<ts.Node> = new Set<ts.Node>(collectServerOnlyCallbacks(handler));
+export function capturedVariables(handler: ts.Expression, frames: ScopeFrame[], alsoServerOnly: Iterable<ts.Node> = []): CapturedVariable[] {
+    const serverOnly: ReadonlySet<ts.Node> = new Set<ts.Node>([...collectServerOnlyCallbacks(handler), ...alsoServerOnly]);
     return [...collectReferencedSymbols(handler, serverOnly)]
         .filter(symbol => frames.some(frame => frame.has(symbol)))
         .map(symbol => ({ name: symbol.name, shape: accessShapeOf(symbol, [handler], serverOnly) }));
 }
 
 /**
- * The callbacks of every `onServer` call within a node, however deep. `onServer` is a no-op in the browser,
- * so they hold no client code whatever they contain, and nothing they read has to reach the page.
+ * The callbacks of every `onServer` call within a node, however deep, and the argument of every `useState`. `onServer`
+ * is a no-op in the browser, and the argument of `useState` runs on the server, whose result the page is handed as a
+ * value. So they hold no client code whatever they contain, and nothing they read has to reach the page.
  * @param node - The node.
- * @returns The arguments of each `onServer` call.
+ * @returns The arguments of each `onServer` and `useState` call.
  */
 export function collectServerOnlyCallbacks(node: ts.Node): ts.Expression[] {
     const callbacks: ts.Expression[] = [];
     walk(node, current => {
-        if (isHookCall(current, 'onServer')) {
+        if (ts.isCallExpression(current) && ['onServer', 'useState', 'useInput', 'useWritableInput'].some(hook => isHookCall(current, hook))) {
             callbacks.push(...current.arguments.map(unwrapTypeSyntax));
         }
     });

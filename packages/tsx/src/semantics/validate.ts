@@ -1,13 +1,13 @@
 import * as ts from 'typescript';
 
 import { isBindingIdentifier } from './binding';
-import { browserGlobals, declaredValueNames } from './browser-globals';
+import { browserGlobals, browserOnlyGlobals, declaredValueNames } from './browser-globals';
 import { ComponentInfo, findComponents, hasModifier } from './component';
 import { readImports, TemplateImport } from './imports';
 import { isAmbient, symbolOf } from './symbols';
-import { walk } from './walk';
+import { isHookCall, walk } from './walk';
 import { ModuleLoadingSite, OuterName } from '../codegen/client/client-codegen';
-import { Diagnostic, DiagnosticSeverity } from '../diagnostics/diagnostic.model';
+import { Diagnostic, DiagnosticSeverity, SourceSpan } from '../diagnostics/diagnostic.model';
 
 /**
  * Diagnostic codes produced by dialect validation.
@@ -46,14 +46,44 @@ export enum ValidationCode {
      */
     UNAVAILABLE_NAME_IN_CLIENT_CODE = 'ZTSX009',
     /**
-     * JSX or a server-inlined hook was written outside a component.
+     * JSX, or a hook only a component can call, was written outside a component.
      */
     RENDER_SYNTAX_OUTSIDE_COMPONENT = 'ZTSX010',
     /**
      * A component read `arguments` at its own scope, where it is not the component's props.
      */
-    ARGUMENTS_IN_COMPONENT = 'ZTSX011'
+    ARGUMENTS_IN_COMPONENT = 'ZTSX011',
+    /**
+     * Client code holds JSX, which only the server renders.
+     */
+    JSX_IN_CLIENT_CODE = 'ZTSX012',
+    /**
+     * A `?client` import names a file of the application rather than a package.
+     */
+    CLIENT_IMPORT_OF_A_FILE = 'ZTSX013',
+    /**
+     * Code running while the server renders read a name only the browser has.
+     */
+    BROWSER_NAME_DURING_RENDER = 'ZTSX014',
+    /**
+     * A ref is created or put somewhere it cannot work.
+     */
+    REF_MISUSED = 'ZTSX015',
+    /**
+     * A state is created, changed or read somewhere the page could not follow it.
+     */
+    STATE_MISUSED = 'ZTSX016',
+    /**
+     * An effect is called somewhere, or with a list, the page could not run it from.
+     */
+    EFFECT_MISUSED = 'ZTSX017'
 }
+
+/**
+ * The hooks of client code that only a component can call, as each instance of a component has a setup
+ * of its own in the page. Code outside a component has none, so nothing would run what they are given.
+ */
+const CLIENT_COMPONENT_HOOKS: readonly string[] = ['onClient', 'useRef', 'useRefs', 'useState', 'useEffect', 'useInput', 'useWritableInput'];
 
 /**
  * The span of a node, in the offsets diagnostics use.
@@ -76,7 +106,37 @@ export function validate(file: ts.SourceFile): Diagnostic[] {
     for (const component of findComponents(file)) {
         validateComponent(component, diagnostics);
     }
+    diagnostics.push(...validateClientImportSources(file));
     return diagnostics;
+}
+
+/**
+ * Rejects a `?client` import of a file of the application. The build makes a vendor script of a package
+ * the page loads, and a file of the application is none: the build would look for a package of that name,
+ * and the browser for a script nobody wrote.
+ * @param file - The parsed template.
+ * @returns One diagnostic per such import.
+ */
+function validateClientImportSources(file: ts.SourceFile): Diagnostic[] {
+    return readImports(file)
+        .filter(item => item.client && isFileOfTheApplication(item.source))
+        .map(item => ({
+            code: ValidationCode.CLIENT_IMPORT_OF_A_FILE,
+            message: `'${item.source}?client' imports a file of this application, and '?client' takes a package, whose browser `
+                + 'script the build makes the page load. Client code cannot import a file of the application: pass what it '
+                + 'needs in as a prop.',
+            severity: DiagnosticSeverity.ERROR,
+            span: item.span
+        }));
+}
+
+/**
+ * Whether an import names a file of the application rather than a package.
+ * @param source - What the import names, without `?client`.
+ * @returns True for a relative or an absolute path.
+ */
+function isFileOfTheApplication(source: string): boolean {
+    return source.startsWith('.') || source.startsWith('/');
 }
 
 /**
@@ -109,9 +169,10 @@ function validateComponent(component: ComponentInfo, diagnostics: Diagnostic[]):
 }
 
 /**
- * Rejects render syntax outside a component. JSX and the server-inlined hooks (`useContext`,
- * `provideContext`, `$raw`) need the render runtime a component receives for each render, which code
- * outside a component does not have.
+ * Rejects what only a component can hold, written outside one. JSX and the server-inlined hooks
+ * (`useContext`, `provideContext`, `$raw`) need the render runtime a component receives for each render,
+ * and the hooks of client code (`onClient`) the setup each instance of a component has in the page. Code
+ * outside a component has neither.
  * @param file - The parsed template.
  * @param components - The components of the template.
  * @param serverInlinedHooks - The names of the hooks lowered to the render runtime.
@@ -123,22 +184,27 @@ export function validateRenderSyntaxOutsideComponents(
     serverInlinedHooks: readonly string[]
 ): Diagnostic[] {
     const insideComponents: Set<ts.Node> = new Set(components.map(component => component.fn));
-    const hooks: Set<string> = new Set(serverInlinedHooks);
+    const renderHooks: Set<string> = new Set(serverInlinedHooks);
+    const clientHooks: Set<string> = new Set(CLIENT_COMPONENT_HOOKS);
     const diagnostics: Diagnostic[] = [];
     const visit: (node: ts.Node) => void = (node: ts.Node): void => {
         if (insideComponents.has(node)) {
             return;
         }
         const isJsx: boolean = ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node);
-        const hook: string | undefined = ts.isCallExpression(node) && ts.isIdentifier(node.expression) && hooks.has(node.expression.text)
+        const hook: string | undefined = ts.isCallExpression(node) && ts.isIdentifier(node.expression)
+            && (renderHooks.has(node.expression.text) || clientHooks.has(node.expression.text))
             ? node.expression.text
             : undefined;
         if (isJsx || hook !== undefined) {
-            const written: string = hook === undefined ? 'JSX' : `'${hook}'`;
+            const message: string = hook !== undefined && clientHooks.has(hook)
+                ? `'${hook}' is written outside a component, where nothing runs it: client code runs in the setup of `
+                    + 'a component in the page. Move it into the component it belongs to.'
+                : `${hook === undefined ? 'JSX' : `'${hook}'`} is written outside a component, where there is no render `
+                    + 'to produce it in. Move it into a component - a function named in PascalCase that returns JSX.';
             diagnostics.push({
                 code: ValidationCode.RENDER_SYNTAX_OUTSIDE_COMPONENT,
-                message: `${written} is written outside a component, where there is no `
-                    + 'render to produce it in. Move it into a component - a function named in PascalCase that returns JSX.',
+                message,
                 severity: DiagnosticSeverity.ERROR,
                 span: spanOf(node)
             });
@@ -150,6 +216,210 @@ export function validateRenderSyntaxOutsideComponents(
         visit(statement);
     }
     return diagnostics;
+}
+
+/**
+ * Rejects a name only the browser has, read by code that runs while the server renders: a global such as
+ * `document` or `window`, or what a `?client` import binds, which the server module does not import. Such
+ * a read compiles and then throws on every render.
+ *
+ * What runs during the render is the code at module level, the body and markup of each component, and a
+ * function handed directly to a call there, such as the callback of `map` or of `onServer`. A function
+ * handed to `onClient` or to an event handler runs in the browser, and so does a function a component
+ * declares, as long as nothing calls it during the render: following such calls is left to the render,
+ * which throws. A read is allowed under a `typeof` check of the same name, and a name the template
+ * declares is not a global.
+ * @param file - The parsed template.
+ * @param components - The components of the template.
+ * @returns One diagnostic per name, where it is first read.
+ */
+export function validateBrowserNamesDuringRender(file: ts.SourceFile, components: ComponentInfo[]): Diagnostic[] {
+    const clientImports: Map<ts.Node, string> = clientImportDeclarations(file);
+    const reported: Map<string, Diagnostic> = new Map();
+    const check: (identifier: ts.Identifier) => void = identifier => {
+        const name: string = identifier.text;
+        if (reported.has(name) || isBindingIdentifier(identifier) || isUnderTypeofGuard(identifier, name)) {
+            return;
+        }
+        const declarations: ts.Declaration[] = symbolOf(identifier)?.declarations ?? [];
+        const clientSource: string | undefined = declarations
+            .map(declaration => clientImports.get(declaration))
+            .find(source => source !== undefined);
+        if (clientSource !== undefined) {
+            reported.set(name, browserNameDiagnostic(identifier, `'${name}' comes from '${clientSource}?client', which only the `
+                + 'page loads, and this code runs while the server renders the page. Use it in onClient or in a handler.'));
+        }
+        else if (declarations.length === 0 && browserOnlyGlobals().has(name)) {
+            reported.set(name, browserNameDiagnostic(identifier, `'${name}' exists in the browser and not on the server, and `
+                + 'this code runs while the server renders the page. Read it in onClient or in a handler, or check '
+                + `'typeof ${name} !== 'undefined'' before reading it.`));
+        }
+    };
+    const visit: (node: ts.Node) => void = node => walk(node, current => {
+        if (isFunctionNode(current) && !runsWhereItIsWritten(current)) {
+            return false;
+        }
+        if (ts.isIdentifier(current)) {
+            check(current);
+        }
+        return true;
+    });
+
+    for (const node of moduleLevelCode(file.statements)) {
+        visit(node);
+    }
+    for (const { fn } of components) {
+        for (const parameter of fn.parameters) {
+            visit(parameter);
+        }
+        if (fn.body != undefined) {
+            visit(fn.body);
+        }
+    }
+    return [...reported.values()];
+}
+
+/**
+ * The code that runs when the template's module loads: its statements, the expression of a default
+ * export, and the statements of a namespace. Imports, re-exports and what is declared with `declare` run
+ * nothing.
+ * @param statements - The statements of the module, or of a namespace in it.
+ * @returns The nodes to look at.
+ */
+function moduleLevelCode(statements: readonly ts.Statement[]): ts.Node[] {
+    return statements.flatMap((statement): ts.Node[] => {
+        if (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement) || isAmbient(statement)) {
+            return [];
+        }
+        if (ts.isExportAssignment(statement)) {
+            return [statement.expression];
+        }
+        if (ts.isModuleDeclaration(statement)) {
+            return statement.body != undefined && ts.isModuleBlock(statement.body) ? moduleLevelCode(statement.body.statements) : [];
+        }
+        return [statement];
+    });
+}
+
+/**
+ * The declarations of the bindings of the template's `?client` imports, each with what it imports.
+ * @param file - The parsed template.
+ * @returns The package each binding declaration imports, by the declaration.
+ */
+function clientImportDeclarations(file: ts.SourceFile): Map<ts.Node, string> {
+    const declarations: Map<ts.Node, string> = new Map();
+    for (const statement of file.statements) {
+        const specifier: ts.Expression | undefined = ts.isImportDeclaration(statement) ? statement.moduleSpecifier : undefined;
+        const clause: ts.ImportClause | undefined = ts.isImportDeclaration(statement) ? statement.importClause : undefined;
+        if (specifier === undefined || !ts.isStringLiteral(specifier) || !specifier.text.endsWith('?client') || clause === undefined) {
+            continue;
+        }
+        const source: string = specifier.text.slice(0, -'?client'.length);
+        const named: ts.NamedImportBindings | undefined = clause.namedBindings;
+        for (const declaration of [
+            ...clause.name === undefined ? [] : [clause],
+            ...named === undefined ? [] : ts.isNamespaceImport(named) ? [named] : named.elements
+        ]) {
+            declarations.set(declaration, source);
+        }
+    }
+    return declarations;
+}
+
+/**
+ * Whether a node is a function, whose body runs only when it is called.
+ * @param node - The node.
+ * @returns True for every kind of function.
+ */
+export function isFunctionNode(node: ts.Node): node is ts.FunctionLikeDeclaration {
+    return ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node) || ts.isMethodDeclaration(node)
+        || ts.isGetAccessorDeclaration(node) || ts.isSetAccessorDeclaration(node) || ts.isConstructorDeclaration(node);
+}
+
+/**
+ * Whether a function runs where it is written, during the render: called on the spot, or handed directly to
+ * a call, as the callback of `map` is, unless that call is a hook of client code.
+ * @param fn - The function.
+ * @returns True when its body runs during the render.
+ */
+export function runsWhereItIsWritten(fn: ts.FunctionLikeDeclaration): boolean {
+    if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) {
+        return false;
+    }
+    let outer: ts.Node = fn;
+    while (ts.isParenthesizedExpression(outer.parent)) {
+        outer = outer.parent;
+    }
+    const call: ts.Node = outer.parent;
+    if (!ts.isCallExpression(call) && !ts.isNewExpression(call)) {
+        return false;
+    }
+    if (ts.isCallExpression(call) && call.expression === outer) {
+        return true;
+    }
+    return call.arguments?.some(argument => argument === outer) === true
+        && !CLIENT_COMPONENT_HOOKS.some(hook => isHookCall(call, hook));
+}
+
+/**
+ * Whether a read sits where a `typeof` check of the same name decides it is reached: the operand of that
+ * `typeof` itself, a branch of a condition, the right side of `&&`, `||` or `??`, or a branch of an `if`
+ * whose condition checks it.
+ * @param identifier - The read.
+ * @param name - The name it reads.
+ * @returns True when such a check guards it.
+ */
+function isUnderTypeofGuard(identifier: ts.Identifier, name: string): boolean {
+    let child: ts.Node = identifier;
+    for (let current: ts.Node = identifier.parent; !ts.isSourceFile(current); child = current, current = current.parent) {
+        if (ts.isTypeOfExpression(current) && current.expression === child) {
+            return true;
+        }
+        const condition: ts.Node | undefined = ts.isConditionalExpression(current) && child !== current.condition
+            ? current.condition
+            : ts.isBinaryExpression(current) && child === current.right && isShortCircuit(current.operatorToken.kind)
+                ? current.left
+                : ts.isIfStatement(current) && child !== current.expression ? current.expression : undefined;
+        if (condition !== undefined && checksTypeof(condition, name)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Whether an operator only evaluates its right side depending on its left one.
+ * @param kind - The operator.
+ * @returns True for `&&`, `||` and `??`.
+ */
+function isShortCircuit(kind: ts.SyntaxKind): boolean {
+    return kind === ts.SyntaxKind.AmpersandAmpersandToken || kind === ts.SyntaxKind.BarBarToken
+        || kind === ts.SyntaxKind.QuestionQuestionToken;
+}
+
+/**
+ * Whether a condition holds `typeof` of a name.
+ * @param condition - The condition.
+ * @param name - The name.
+ * @returns True when it does.
+ */
+function checksTypeof(condition: ts.Node, name: string): boolean {
+    let found: boolean = false;
+    walk(condition, current => {
+        found ||= ts.isTypeOfExpression(current) && ts.isIdentifier(current.expression) && current.expression.text === name;
+        return !found;
+    });
+    return found;
+}
+
+/**
+ * A diagnostic for a name only the browser has, read during the render.
+ * @param identifier - The read.
+ * @param message - What to say.
+ * @returns The diagnostic.
+ */
+function browserNameDiagnostic(identifier: ts.Identifier, message: string): Diagnostic {
+    return { code: ValidationCode.BROWSER_NAME_DURING_RENDER, message, severity: DiagnosticSeverity.ERROR, span: spanOf(identifier) };
 }
 
 /**
@@ -202,41 +472,96 @@ function readsOwnArguments(identifier: ts.Identifier, fn: ts.Node): boolean {
  * lives in the server module, which the client script — plain text in the page — cannot reach, so
  * the identifier would silently be undefined at runtime.
  * @param file - The parsed template.
- * @param referencedIdentifiers - Every name the emitted client code reads from outside the component.
+ * @param outerNames - The names client code reads from outside the component, each where it is first read.
  * @param providedByFramework - Names the compiler inlines into the client script itself (the
  * framework hooks), which are imported from `zibri` but never read from the module at runtime.
+ * @param renderHooks - The hooks that read the render on the server, such as `useContext`.
+ * @param bindingSpans - Where the markup reads state, which is client code as well.
  * @returns The diagnostics found (empty when no client code reads an import).
  */
 export function validateClientImports(
     file: ts.SourceFile,
-    referencedIdentifiers: string[],
-    providedByFramework: readonly string[]
+    outerNames: OuterName[],
+    providedByFramework: readonly string[],
+    renderHooks: readonly string[],
+    bindingSpans: SourceSpan[]
 ): Diagnostic[] {
     const provided: Set<string> = new Set(providedByFramework);
-    const referenced: Set<string> = new Set(referencedIdentifiers.filter(name => !provided.has(name)));
+    const reads: Map<string, OuterName> = new Map(outerNames
+        .filter(outer => outer.origin === 'import' && !provided.has(outer.name))
+        .map(outer => [outer.name, outer]));
     const diagnostics: Diagnostic[] = [];
 
     for (const item of readImports(file)) {
         if (item.client || item.typeOnly) {
             continue;
         }
-        const bindings: string[] = [
-            ...item.specifiers.filter(specifier => !specifier.typeOnly).map(specifier => specifier.local),
-            ...item.defaultImport ? [item.defaultImport] : [],
-            ...item.namespaceImport ? [item.namespaceImport] : []
+        const bindings: [imported: string, local: string][] = [
+            ...item.specifiers.filter(specifier => !specifier.typeOnly).map((specifier): [string, string] => [specifier.imported, specifier.local]),
+            ...item.defaultImport === undefined ? [] : [['default', item.defaultImport] satisfies [string, string]],
+            ...item.namespaceImport === undefined ? [] : [['*', item.namespaceImport] satisfies [string, string]]
         ];
-        for (const binding of bindings.filter(name => referenced.has(name))) {
+        for (const [imported, local] of bindings) {
+            const read: OuterName | undefined = reads.get(local);
+            if (read === undefined) {
+                continue;
+            }
+            const inBinding: boolean = bindingSpans.some(span => read.span.start >= span.start && read.span.end <= span.end);
             diagnostics.push({
                 code: ValidationCode.SERVER_IMPORT_IN_CLIENT_CODE,
-                message: `'${binding}' is imported from '${item.source}' and used in client code, where it does not `
-                    + `exist. Pass what you need in as a prop, or - if '${item.source}' is a browser package - import `
-                    + `it as '${item.source}?client' so the vendor bundle provides it.`,
+                message: inBinding
+                    ? `'${local}' is read by markup that reads a state, which the browser computes again when the state changes, `
+                        + `and '${local}' is imported from '${item.source}', which stays on the server. Read it outside that markup, `
+                        + 'or compute the value with it into the state on the server, as `useState(...)`.'
+                    : serverImportMessage(local, item.source, renderHooks.includes(imported)),
                 severity: DiagnosticSeverity.ERROR,
-                span: item.span
+                span: read.span
             });
         }
     }
     return diagnostics;
+}
+
+/**
+ * The explanation for an import client code cannot read, by what it imports from.
+ * @param binding - The name the template imports it under.
+ * @param source - What it is imported from.
+ * @param isRenderHook - Whether it is a hook reading the render on the server.
+ * @returns The diagnostic message.
+ */
+function serverImportMessage(binding: string, source: string, isRenderHook: boolean): string {
+    if (isRenderHook) {
+        return `'${binding}' reads the render on the server, and client code runs in the browser after it. Read it while `
+            + `rendering and hand client code the value as a state, such as \`const value = useState(${binding}(...));\`.`;
+    }
+    if (source === 'zibri' || source.startsWith('zibri/')) {
+        return `'${binding}' is imported from '${source}', which runs on the server, and client code runs in the browser. `
+            + 'Work out what client code needs while rendering, and pass it in as a prop.';
+    }
+    if (isFileOfTheApplication(source)) {
+        return `'${binding}' is imported from '${source}', a file of this application, which stays on the server. `
+            + 'Pass what client code needs in as a prop.';
+    }
+    return `'${binding}' is imported from '${source}' and used in client code, where it does not exist. Pass what you need `
+        + `in as a prop, or - if '${source}' is a browser package - import it as '${source}?client' so the vendor bundle `
+        + 'provides it.';
+}
+
+/**
+ * Rejects JSX in client code. Markup is rendered once, on the server, and client code runs in the browser
+ * afterwards, where there is no render to produce it.
+ * @param sites - Where the emitted client code holds JSX.
+ * @returns One diagnostic per site.
+ */
+export function validateClientJsx(sites: SourceSpan[]): Diagnostic[] {
+    return sites.map(span => ({
+        code: ValidationCode.JSX_IN_CLIENT_CODE,
+        message: 'JSX is written in client code, which runs in the browser after the server rendered the page, where '
+            + 'there is no render to produce it. Render the markup on the server, and change the page from client code '
+            + 'through the DOM. A declaration client code reads is client code as well.',
+        severity: DiagnosticSeverity.ERROR,
+        span
+    }));
 }
 
 /**

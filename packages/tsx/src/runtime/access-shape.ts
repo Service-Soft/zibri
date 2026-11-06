@@ -44,14 +44,17 @@ export type AllPropsExcept = {
  *
  * An array keeps its length, with each element narrowed to what is read from the elements, or left empty
  * when none is. An object keeps the fields read - read through getters, as client code would read them -
- * unless client code looks up its keys dynamically, in which case it stays whole. A value with a `toJSON`
- * method is narrowed by what that method returns, which is the form client code receives it in.
+ * unless client code looks up its keys dynamically, in which case it stays whole. A `Date`, `Map` or `Set`
+ * stays whole, as client code reads it through its methods. Any other value with a `toJSON` method is
+ * narrowed by what that method returns, which is the form client code receives it in.
  * @param value - The value.
  * @param shape - What client code reads from it.
  * @returns The value, narrowed to the shape.
  */
 export function projectValue(value: unknown, shape: AccessShape): unknown {
-    if (shape === 'whole') {
+    // what client code reads of these are methods, which are no fields to narrow to: the value goes whole,
+    // and the page gets it as what it is
+    if (shape === 'whole' || value instanceof Date || value instanceof Map || value instanceof Set) {
         return value;
     }
     const serialized: unknown = serializesItself(value) ? value.toJSON() : value;

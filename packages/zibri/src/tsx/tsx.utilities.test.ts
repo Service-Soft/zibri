@@ -1,9 +1,11 @@
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { CompiledPage } from 'zibri-tsx';
 
 import { TsxComponent } from './tsx-component.model';
 import { TsxUtilities } from './tsx.utilities';
 import { compileTsxTemplate } from '../__testing__/compile-tsx-template.function';
+import { ZibriApplicationOptions } from '../application/application-options.model';
+import { GlobalRegistry } from '../global/global-registry';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { initDiContainer } from '../di/init-di-container.function';
 import { inject } from '../di/inject.function';
@@ -14,6 +16,17 @@ import { TranslationRegistry } from '../localization/translation.registry';
  * Globals the pages these templates stand for provide, so client code in the tests can call something
  * without each test declaring it.
  */
+const applicationOptions: ZibriApplicationOptions = {
+    name: 'Task Tracker',
+    version: '1.0.0',
+    environment: 'development',
+    baseUrl: 'http://localhost:3000',
+    controllers: [],
+    websocketControllers: [],
+    defaultAuth: 'public',
+    twoFactorAtLogin: 'never'
+};
+
 const PAGE_GLOBALS: string = 'declare const track: (...values: unknown[]) => void;\n'
     + 'declare const show: (...values: unknown[]) => void;\n'
     + 'declare const pick: () => string;\n'
@@ -34,6 +47,23 @@ function templateOf<T>(source: string): TsxComponent<T> {
 describe('TsxUtilities', () => {
     beforeAll(() => {
         initDiContainer();
+        // the application a template renders in, whose environment decides what a mistake of the render does
+        GlobalRegistry.setAppData(applicationOptions);
+    });
+
+    afterAll(() => {
+        GlobalRegistry.markAppAsCreated();
+        GlobalRegistry.markAppAsShuttingDown();
+        GlobalRegistry.markAppAsOffline();
+    });
+
+    it('refuses to render without an application, whose environment it needs', () => {
+        GlobalRegistry.markAppAsCreated();
+        GlobalRegistry.markAppAsShuttingDown();
+        GlobalRegistry.markAppAsOffline();
+
+        expect(() => TsxUtilities.renderPage(templateOf('export const Home = () => <p>x</p>;'))).toThrow(/before any application was created/);
+        GlobalRegistry.setAppData(applicationOptions);
     });
 
     describe('renderPage', () => {
@@ -75,7 +105,7 @@ describe('TsxUtilities', () => {
 
             const html: string = TsxUtilities.renderPage(page);
 
-            expect(html).toContain('data-ssr-handlers="h0_0:click"');
+            expect(html).toContain('data-ssr="h0_0:click"');
             // The instance is handed its own handler entry, so its setup only wires up its elements.
             expect(html).toContain('"handlers":[{"id":"h0_0","site":"h0","event":"click","captured":[],"owner":0}]');
         });

@@ -2,6 +2,37 @@
 
 What changed in each release of `zibri`, `zibri-tsx`, `zibri-testing` and `zibri-cli`. The four are released together, at one version.
 
+## 3.1.0
+
+### Templates
+- **State.** `useState` creates a state of a component, and every text and attribute of the markup reading it follows it. A state on the `value` of a field or the `checked` of a checkbox binds both ways. See [keeping the page in step with a state](https://service-soft.github.io/zibri/documents/templating.html#keeping-the-page-in-step-with-a-state).
+- **Conditions and lists the browser renders.** `cond && <x/>`, `cond ? <a/> : <b/>` and `items.map(item => <li key={...}/>)` reading a state render again when it changes, keyed by row. They can hold components and the `children` of the component: a branch or a row the browser builds later is copied from a template the server renders, and removing one runs the cleanups of its components. See [rendering markup that follows a state](https://service-soft.github.io/zibri/documents/templating.html#rendering-markup-that-follows-a-state).
+- **`onClient` may return a cleanup**, which runs when the component is removed with its branch or row.
+- **`useEffect`** runs code after a state changes, with a cleanup. See [running code after a state changes](https://service-soft.github.io/zibri/documents/templating.html#running-code-after-a-state-changes).
+- **`useInput` and `useWritableInput`** let a component follow, or write, a state it is handed as a prop or a context. See [handing a state to another component](https://service-soft.github.io/zibri/documents/templating.html#handing-a-state-to-another-component).
+- **`useRef` and `useRefs`** give client code the elements they are put on. See [reaching an element from client code](https://service-soft.github.io/zibri/documents/templating.html#reaching-an-element-from-client-code).
+- A mistake only the render can see, such as a required ref on no element, throws in `development` and is logged in `production`.
+- A `let` the markup reads and client code writes compiles with a `ZTSX016` warning, as the markup never follows it. It fails the build from 4.0.
+
+### Application
+- **`stackTraceLimit`** says how many frames a stack trace keeps, in the process and in its thread jobs. It defaults to 50, which reaches your own code from inside a write to a data source. See [choosing how much of a stack trace to keep](https://service-soft.github.io/zibri/documents/app-settings.html#choosing-how-much-of-a-stack-trace-to-keep).
+
+### Testing
+- **`startPageBrowser`** of `zibri-testing` opens the pages of a test server in a real Chromium. See [testing a page in a browser](https://service-soft.github.io/zibri/documents/testing.html#testing-a-page-in-a-browser).
+
+### Deprecated
+- `renderPage` and `createServerRuntime` of `zibri-tsx` without an environment, which render as in `production`. Pass the environment the page is rendered in. `TsxUtilities.renderPage` does.
+
+### Fixed
+- A handler a nested component wraps, such as `onClick={() => onClick?.(value)}`, never ran under the Content Security Policy zibri sends. It runs.
+- `onClient` ran its callback where the component called it, so a callback read what a later setup had not declared yet, and a throw in one setup stopped every later one. The callbacks run once every component is set up, each on its own. Code reading a variable right after the `onClient` assigning it reads it in the callback instead.
+- A `Date` that client code reads arrived as a string, and a `Map` or `Set` as `{}`. They arrive as what they are.
+- A component destructuring `children` rendered them before it ran, so they missed a context it provided. They render when read.
+- The `value` of a `textarea` and a `select` was written as an attribute, which the browser ignores. It is the text of the `textarea` and the selected option.
+- A `.ts` file beside the templates had no loader in the build of `zibri/webpack`.
+- In a bundled application, the origin of every log entry was the bundle, so `levelsByOrigin` matched no file of yours. Started with `node --enable-source-maps`, as a deployment is, the origin is the source file, read from the source map. See [what source maps cost](https://service-soft.github.io/zibri/documents/costs.html#what-source-maps-cost).
+- Validation messages say what a value needs to be, such as `needs to be of type string` and `A password needs to be at least 15 characters long.`, where they stated it as a fact. Translations of these messages are keyed by their new text.
+
 ## 3.0.1
 
 - Fixed a thread job queued just as the pool finished looking for work: it stayed in the queue beside a free worker until the next poll, up to two seconds later. It starts right away.

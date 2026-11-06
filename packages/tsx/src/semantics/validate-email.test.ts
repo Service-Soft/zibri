@@ -232,6 +232,26 @@ describe('client code in an email (ZTSX005)', () => {
             .toContain('ZTSX005');
     });
 
+    it('rejects a ref, which no client code of an email could read', () => {
+        expect(codesOf(email('export const E = () => { const section = useRef(); return <MjBody><MjSection ref={section}></MjSection></MjBody>; };')))
+            .toContain('ZTSX005');
+    });
+
+    it('rejects a state, which no client code of an email could change', () => {
+        expect(codesOf(email('export const E = () => { const title = useState(\'Hi\'); return <MjBody><MjSection></MjSection></MjBody>; };')))
+            .toContain('ZTSX005');
+    });
+
+    it('rejects an input, which no client code of an email could follow', () => {
+        expect(codesOf(email('export const E = ({ title }) => { const shown = useInput(title); return <MjBody><MjSection></MjSection></MjBody>; };')))
+            .toContain('ZTSX005');
+    });
+
+    it('rejects an effect, which an email never runs', () => {
+        expect(codesOf(email('export const E = ({ s }) => { useEffect(() => console.log(s.value), [s]); return <MjBody></MjBody>; };')))
+            .toContain('ZTSX005');
+    });
+
     it('rejects a ?client import', () => {
         expect(codesOf(
             'import { Chart } from \'chart.js?client\';\n'

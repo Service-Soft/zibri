@@ -1,10 +1,11 @@
 import * as ts from 'typescript';
 
 import { ClientScript, compileClientScript } from '../codegen/client/client-codegen';
+import { collectInputs } from '../codegen/client/inputs';
 import { compile } from '../codegen/compile';
 import { eraseTypes } from '../codegen/erase-types';
 import { compileServerRender, ServerRenderCode } from '../codegen/server/render-codegen';
-import { CompiledPage, renderPage } from '../runtime/render-page';
+import { CompiledPage, renderPage, RenderPageOptions } from '../runtime/render-page';
 import { SERVER_HOOKS } from '../runtime/server-hooks';
 import { ClientInstanceEntry, CompiledComponent, createContext, createServerRuntime, HandlerRegistryEntry, Raw, renderChild, RenderServerRuntime } from '../runtime/server-runtime';
 import { collectClientGlobalAliasesFromSource, collectClientPackagesFromSource, parseCompilableTemplate } from '../semantics/client-packages';
@@ -90,7 +91,8 @@ export function compileComponent(source: string, deps: Record<string, CompiledCo
         name: info.name,
         render: (props: Record<string, unknown>, ssr: RenderServerRuntime) => fn(ssr, props),
         client,
-        clientPackages: collectClientPackagesFromSource(source)
+        clientPackages: collectClientPackagesFromSource(source),
+        inputProps: collectInputs(info.fn).inputProps
     };
 }
 
@@ -121,7 +123,7 @@ export function renderComponentResult(
     deps: Record<string, CompiledComponent> = {}
 ): RenderResult {
     const component: CompiledComponent = compileComponent(source, deps);
-    const runtime: RenderServerRuntime = createServerRuntime();
+    const runtime: RenderServerRuntime = createServerRuntime('development');
     const html: string = renderChild(component.render(props, runtime));
     return { html, handlers: runtime.handlers, instances: runtime.instances };
 }
@@ -155,7 +157,7 @@ export function renderWithComponents(
     props: Record<string, unknown> = {}
 ): RenderResult {
     const page: CompiledPage = compilePage(pageSource, componentSources);
-    const runtime: RenderServerRuntime = createServerRuntime();
+    const runtime: RenderServerRuntime = createServerRuntime('development');
     const html: string = renderChild(page.render(props, runtime));
     return { html, handlers: runtime.handlers, instances: runtime.instances };
 }
@@ -204,6 +206,18 @@ export function renderTemplateDocument(
     modules: Record<string, unknown>,
     props: Record<string, unknown> = {}
 ): string | undefined {
+    const page: CompiledPage | undefined = loadTemplatePage(source, modules);
+    return page === undefined ? undefined : renderTestPage(page, props);
+}
+
+/**
+ * Takes a template the way an application does, see {@link renderTemplateDocument}, and hands back its page.
+ * @param source - The template source, exporting `Page`.
+ * @param modules - The modules its imports resolve to, by specifier.
+ * @returns The page, or undefined when the template does not compile.
+ * @throws When the template compiles without exporting `Page`.
+ */
+export function loadTemplatePage(source: string, modules: Record<string, unknown>): CompiledPage | undefined {
     const code: string | undefined = compile(source, { module: 'cjs' }).code;
     if (code === undefined) {
         return undefined;
@@ -212,7 +226,22 @@ export function renderTemplateDocument(
     if (!isCompiledPage(page)) {
         throw new Error('The template does not export a component named Page.');
     }
-    return renderPage(page, props);
+    return page;
+}
+
+/**
+ * Renders a page the way a test does: in `development`, where a mistake only the render can see throws.
+ * @param page - The compiled page.
+ * @param props - The props to render with.
+ * @param options - How the document is assembled, apart from where it is rendered.
+ * @returns The full HTML document.
+ */
+export function renderTestPage(
+    page: CompiledPage,
+    props: Record<string, unknown> = {},
+    options: Omit<RenderPageOptions, 'environment'> = {}
+): string {
+    return renderPage(page, props, { environment: 'development', ...options });
 }
 
 /**

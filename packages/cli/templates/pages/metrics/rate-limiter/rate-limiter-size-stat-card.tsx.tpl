@@ -1,33 +1,22 @@
-import { $ts, MetricsSnapshot, onClient, TsxComponent } from 'zibri';
+import { $ts, Input, MetricsSnapshot, TsxComponent, useContext, useInput } from 'zibri';
 
 import { StatCard } from '../../../components/stat-card';
-import { MetricsEvent } from '../metrics';
+import { Snapshots } from '../snapshots';
 
 type Props = { className?: string };
 
 export const RateLimiterSizeStatCard: TsxComponent<Props> = ({ className = '' }) => {
-    onClient(() => {
-        document.addEventListener('metrics:update', (ev) => {
-            if (!(ev instanceof CustomEvent) || !('snaps' in ev.detail)) {
-                throw new Error($ts`received invalid metrics event`);
-            }
-            update((ev as MetricsEvent).detail.snaps);
-        });
-    });
+    const snapshots: Input<MetricsSnapshot[]> = useInput(useContext(Snapshots));
 
-    function update(snaps: MetricsSnapshot[]): void {
-        if (!snaps.length) {
-            return;
+    function activeKeys(): string {
+        const latest: MetricsSnapshot | undefined = snapshots.value.at(-1);
+        if (!latest) {
+            return '...';
         }
-        const latest: MetricsSnapshot = snaps[snaps.length - 1];
-        const activeKeys: number = latest.metrics
+        return String(latest.metrics
             .filter(m => m.name === 'rate_limit_active_keys')
-            .reduce((p, c) => p + c.value, 0);
-        const el: HTMLElement | null = document.getElementById('rateLimiterSizeStat');
-        if (el) {
-            el.textContent = String(activeKeys);
-        }
+            .reduce((p, c) => p + c.value, 0));
     }
 
-    return <StatCard id="rateLimiterSizeStat" title={$ts`Tracked identities`} unit={$ts`keys`} className={className} />;
+    return <StatCard id="rateLimiterSizeStat" title={$ts`Tracked identities`} unit={$ts`keys`} className={className}>{activeKeys()}</StatCard>;
 };

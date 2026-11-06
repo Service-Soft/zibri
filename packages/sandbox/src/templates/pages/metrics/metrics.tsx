@@ -1,5 +1,5 @@
 import { Chart } from 'chart.js?client';
-import { $ts, MetricsSnapshot, onClient, TsxComponent } from 'zibri';
+import { $ts, MetricsSnapshot, onClient, provideContext, State, TsxComponent, useEffect, useState } from 'zibri';
 
 import { CacheDetailSection } from './cache/cache-details-section';
 import { CacheHitRateStatCard } from './cache/cache-hit-rate-stat-card';
@@ -16,16 +16,13 @@ import { RateLimiterSizeStatCard } from './rate-limiter/rate-limiter-size-stat-c
 import { RequestDurationChart } from './request-duration-chart';
 import { RequestsPerSecondChart } from './requests-per-second-chart';
 import { ResourceUsageChart } from './resource-usage-chart';
+import { Snapshots } from './snapshots';
 import { BasePage } from '../../components/base-page';
 import { Checkbox } from '../../components/checkbox';
 import { Heading } from '../../components/heading';
 import { StatCard } from '../../components/stat-card';
 import { TabBar } from '../../components/tab-bar';
 import { TabItem } from '../../components/tab-item';
-
-export type MetricsEvent = CustomEvent<{
-    snaps: MetricsSnapshot[]
-}>;
 
 type Props = {
     version: string,
@@ -36,56 +33,33 @@ type Props = {
 };
 
 export const MetricsPage: TsxComponent<Props> = ({ version, primary, secondary, cacheNames, rateLimiterNames }) => {
-    let snaps: MetricsSnapshot[] = [];
-    let automaticReload: boolean = true;
-
-    const tabs: string[] = ['overview', 'caches'];
+    const snaps: State<MetricsSnapshot[]> = useState<MetricsSnapshot[]>([]);
+    const automaticReload: State<boolean> = useState(true);
+    // the charts and cards of the page show them
+    provideContext(Snapshots, snaps.value);
 
     onClient(() => {
-        // Chart comes from a ?client import, so it only exists in the browser. This runs before any
-        // nested chart component's setup, which is where the charts are actually created.
+        // Chart comes from a ?client import, so it only exists in the browser. A page's onClient runs
+        // before those of the components inside it, which is where the charts are created.
         Chart.defaults.color = 'whitesmoke';
         Chart.defaults.borderColor = 'whitesmoke';
         Chart.defaults.scale.grid.color = 'rgba(200, 200, 200, 0.3)';
-
-        window.addEventListener('load', () => {
-            activateTab('overview');
-
-            for (const id of tabs) {
-                const btn: HTMLElement | null = document.querySelector(`[data-tab-btn="${id}"]`);
-                btn?.addEventListener('click', () => activateTab(id));
-            }
-
-            void loadSnapshots();
-            setInterval(() => void loadSnapshots(), 1000);
-        });
     });
 
-    function activateTab(activeId: string): void {
-        for (const id of tabs) {
-            const panel: HTMLElement | null = document.querySelector(`[data-tab-panel="${id}"]`);
-            const btn: HTMLElement | null = document.querySelector(`[data-tab-btn="${id}"]`);
-            if (!panel || !btn) {
-                continue;
-            }
-
-            const isActive: boolean = id === activeId;
-            panel.style.display = isActive ? '' : 'none';
-            btn.classList.toggle('bg-secondary', isActive);
-            btn.classList.toggle('bg-dark-gray', !isActive);
-            btn.classList.toggle('hover:bg-secondary', !isActive);
-        }
-    }
-
-    async function loadSnapshots(): Promise<void> {
-        if (!automaticReload) {
+    useEffect(() => {
+        if (!automaticReload.value) {
             return;
         }
+        void loadSnapshots();
+        const timer: ReturnType<typeof setInterval> = setInterval(() => void loadSnapshots(), 1000);
+        return () => clearInterval(timer);
+    }, [automaticReload]);
+
+    async function loadSnapshots(): Promise<void> {
         try {
             const resp: Response = await fetch('/metrics');
             // eslint-disable-next-line typescript/no-unsafe-assignment
-            snaps = await resp.json();
-            document.dispatchEvent(new CustomEvent('metrics:update', { detail: { snaps } }));
+            snaps.value = await resp.json();
         }
         catch (error) {
             // eslint-disable-next-line no-console
@@ -102,9 +76,10 @@ export const MetricsPage: TsxComponent<Props> = ({ version, primary, secondary, 
             >
                 <Heading className="text-center">{$ts`Metrics`}</Heading>
                 <Checkbox
+                    id='automatic-reload'
                     className='text-white'
                     label={$ts`Automatic reload`}
-                    onChange={() => automaticReload = !automaticReload} checked={automaticReload}
+                    onChange={() => automaticReload.value = !automaticReload.value} checked={automaticReload.value}
                 />
                 <div className="w-full px-10 flex">
                     <TabBar className='w-full' tabs={[

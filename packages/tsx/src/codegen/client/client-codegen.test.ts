@@ -4,6 +4,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import { ClientScript, compileClientScript } from './client-codegen';
 import { collectHandlerSites } from './handlers';
+import { CLIENT_HOOK_SOURCES } from './hooks';
 import { parseTemplateOk } from '../../__testing__/parse.helper';
 import { renderComponentResult, renderWithComponents } from '../../__testing__/server-render.helper';
 import { collectClientGlobalAliasesFromSource } from '../../semantics/client-packages';
@@ -32,7 +33,7 @@ class FakeElement {
     constructor(private readonly stamp: string) {}
 
     getAttribute(name: string): string | null {
-        return name === 'data-ssr-handlers' ? this.stamp : null;
+        return name === 'data-ssr' ? this.stamp : null;
     }
 
     addEventListener(event: string, fn: (arg: unknown) => void): void {
@@ -47,7 +48,7 @@ class FakeElement {
 }
 
 function elementsFrom(html: string): FakeElement[] {
-    return [...html.matchAll(/data-ssr-handlers="([^"]+)"/g)].map(m => new FakeElement(m[1]));
+    return [...html.matchAll(/data-ssr="([^"]+)"/g)].map(m => new FakeElement(m[1]));
 }
 
 function runClient(
@@ -69,7 +70,9 @@ function runClient(
         '__props',
         '__runtime',
         ...names,
-        `${script.code}\n${script.setupName}(__props, __runtime);`
+        // as the page runs it: after the page's own start, which finds the stamped elements, and before
+        // the onClient callbacks run
+        `${CLIENT_HOOK_SOURCES['onClient']}\n${script.code}\n${script.setupName}(__props, __runtime);\n__zibriStart();`
     ) as (...args: unknown[]) => void;
     run(fakeDocument, {}, console, props, { handlers: registry }, ...names.map(n => globals[n]));
 }
@@ -134,11 +137,12 @@ describe('compileClientScript', () => {
         expect(script.code).toContain('const label =');
     });
 
-    it('emits a named setup function that inlines onClient and includes the body', () => {
+    it('emits a named setup function that calls the onClient of the page and includes the body', () => {
         const script: ClientScript = clientOf('const A = () => { onClient(() => { setup(); }); return <div/>; };');
         expect(script.setupName).toMatch(/^A\$\$setup\$[\da-f]{12}$/);
         expect(script.code).toContain(`function ${script.setupName}(__unusedProps, __ssr)`);
-        expect(script.code).toContain('const onClient = (fn) => { fn(); };');
+        // defined once for the page, so the page decides when the callbacks run
+        expect(script.code).not.toContain('const onClient');
         expect(script.code).toContain('onClient(() =>');
         expect(script.code).not.toContain('return $ssr');
     });
@@ -271,7 +275,7 @@ describe('end-to-end reattachment', () => {
         const button: string = 'const Button = ({ onClick, children }) => <button onClick={onClick}>{children}</button>;';
         const page: string = 'const Page = () => { function inc() { picked(\'x\'); } return <Button onClick={inc}>Go</Button>; };';
         const { html, handlers } = renderWithComponents(page, { Button: button });
-        expect(html).toBe('<button data-ssr-handlers="h0_0:click">Go</button>');
+        expect(html).toBe('<button data-ssr="h0_0:click">Go</button>');
         const elements: FakeElement[] = elementsFrom(html);
         let received: string | undefined;
         runClient(clientOf(page), {}, elements, handlers, {

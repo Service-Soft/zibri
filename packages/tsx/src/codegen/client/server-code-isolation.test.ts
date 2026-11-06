@@ -1,8 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { ClientScript } from './client-codegen';
-import { compilePage, renderTemplateDocument } from '../../__testing__/server-render.helper';
-import { renderPage } from '../../runtime/render-page';
+import { compilePage, renderTemplateDocument, renderTestPage } from '../../__testing__/server-render.helper';
 import { SERVER_HOOKS } from '../../runtime/server-hooks';
 import { createContext } from '../../runtime/server-runtime';
 import { ValidationCode } from '../../semantics/validate';
@@ -472,7 +471,7 @@ describe('server code never reaches the client script', () => {
          * @returns The rendered document.
          */
         function pageWith(source: string, props: Record<string, unknown>): string {
-            return renderPage(compilePage(source), props);
+            return renderTestPage(compilePage(source), props);
         }
 
         const account: Record<string, unknown> = {
@@ -550,7 +549,7 @@ describe('server code never reaches the client script', () => {
         });
 
         it('writes only the field a handler reads from a captured loop value into the page', () => {
-            const page: string = renderPage(
+            const page: string = renderTestPage(
                 compilePage('const Page = ({ users }) => <ul>{users.map(user => <li onClick={() => alert(user.id)}>x</li>)}</ul>;'),
                 { users: [{ id: 'user-1', passwordHash: 'HASH-NEVER-IN-PAGE' }] }
             );
@@ -560,7 +559,7 @@ describe('server code never reaches the client script', () => {
         });
 
         it('writes only the field a child component reads from an object handed down through .map', () => {
-            const page: string = renderPage(
+            const page: string = renderTestPage(
                 compilePage(
                     'const Page = ({ users }) => <ul>{users.map(user => <UserRow user={user}/>)}</ul>;',
                     { UserRow: 'const UserRow = ({ user }) => <li onClick={() => alert(user.name)}>x</li>;' }
@@ -573,7 +572,7 @@ describe('server code never reaches the client script', () => {
         });
 
         it('hands a child the value the server computed with a callback, and writes only what client code reads', () => {
-            const page: string = renderPage(
+            const page: string = renderTestPage(
                 compilePage(
                     'const Page = ({ users }) => <Picker users={users.filter(user => user.active)}/>;',
                     { Picker: 'const Picker = ({ users }) => { onClient(() => { console.log(users.map(user => user.id)); }); return <ul>{users.map(user => <li>{user.id}</li>)}</ul>; };' }
@@ -587,7 +586,7 @@ describe('server code never reaches the client script', () => {
         });
 
         it('writes only the field client code reads from a prop into the page', () => {
-            const page: string = renderPage(
+            const page: string = renderTestPage(
                 compilePage('const Page = ({ account }) => { onClient(() => { document.title = account.name; }); return <div/>; };'),
                 { account: { name: 'Acme', apiToken: 'TOKEN-NEVER-IN-PAGE' } }
             );
@@ -653,6 +652,7 @@ function documentOf(source: string, props: Record<string, unknown> = {}): string
                 oauthProviders: [{ id: 'google', clientSecret: SECRET }]
             },
             name: SECRET,
+            mask: (value: string) => `${value.slice(0, 1)}***`,
             SecretContext: createContext({ password: SECRET })
         }
     }, props);
@@ -691,6 +691,157 @@ describe('what a page receives from a template', () => {
         });
     });
 
+    describe('an initial state', () => {
+        // the argument of useState runs on the server, and what it returns crosses as a value, narrowed to what
+        // client code reads of it (GOALS.md, "What reaches a page")
+        it.each([
+            ['a call of a server helper', 'const shown = useState(mask(name));'],
+            ['a local the argument reads', 'const masked = mask(name); const shown = useState(masked);']
+        ])('writes what %s returns, and nothing of the helper or what it read', (_how, declaration) => {
+            const document: string | undefined = documentOf(
+                'import { useState } from \'zibri\';\nimport { mask } from \'./secrets\';\n'
+                + `export const Page = () => { ${declaration} return <button onClick={() => go(shown.value)}>x</button>; };`
+            );
+
+            expect(document).toBeDefined();
+            expect(document).toContain(`"${SECRET.slice(0, 1)}***"`);
+            expect(document).not.toContain(SECRET);
+            expect(document).not.toContain('mask');
+        });
+
+        it('writes the fields client code reads of it', () => {
+            const document: string | undefined = documentOf(
+                'import { useState } from \'zibri\';\n'
+                + 'export const Page = () => { const row = useState(env.rows[0]); return <button onClick={() => go(row.value.id)}>x</button>; };'
+            );
+
+            expect(document).toContain('"row":{"id":1}');
+            expect(document).not.toContain(SECRET);
+        });
+
+        it('writes nothing more of it for an effect that lists it', () => {
+            const document: string | undefined = documentOf(
+                'import { useEffect, useState } from \'zibri\';\n'
+                + 'export const Page = () => { const row = useState(env.rows[0]); useEffect(() => go(row.value.id), [row]); return <div/>; };'
+            );
+
+            expect(document).toContain('"row":{"id":1}');
+            expect(document).not.toContain(SECRET);
+        });
+
+        it('leaves a function of it out', () => {
+            const document: string | undefined = documentOf(
+                'import { useState } from \'zibri\';\n'
+                + 'export const Page = () => { const item = useState({ label: \'x\', run: () => env.DB_PASSWORD }); return <button onClick={() => go(item.value)}>x</button>; };'
+            );
+
+            expect(document).toContain('"item":{"label":"x"}');
+            expect(document).not.toContain('DB_PASSWORD');
+            expect(document).not.toContain(SECRET);
+        });
+    });
+
+    describe('state across components', () => {
+        // a state handed to a component is a reference, an expression reading state is client code of the parent, and
+        // the argument of useInput runs on the server (GOALS.md, "State across components")
+        const LABEL: string = 'const Label = ({ text }) => <p>{text}</p>;';
+
+        it('writes a state handed to a component once, as its initial value, and nothing of the server', () => {
+            const document: string | undefined = documentOf(
+                'import { useState, useWritableInput } from \'zibri\';\nimport { mask } from \'./secrets\';\n'
+                + 'export const Page = () => { const email = useState(mask(name)); return <Field value={email}/>; };\n'
+                + 'const Field = ({ value }) => { const text = useWritableInput(value); return <input value={text.value} onInput={ev => { text.value = ev.currentTarget.value; }}/>; };'
+            );
+
+            expect(document).toContain('"email":"S***"');
+            expect(document).not.toContain(SECRET);
+            expect(document).not.toContain('mask');
+        });
+
+        it('writes what client code of the parent reads of a state an expression handed to a component reads', () => {
+            const document: string | undefined = documentOf(
+                'import { useState } from \'zibri\';\n'
+                + `export const Page = () => { const row = useState(env.rows[0]); return <Label text={row.value.id}/>; };\n${LABEL}`
+            );
+
+            expect(document).toContain('"row":{"id":1}');
+            expect(document).not.toContain(SECRET);
+        });
+
+        it('writes what the rows of a list rendered in the browser read of its items, and nothing more', () => {
+            const document: string | undefined = documentOf(
+                'import { useState } from \'zibri\';\n'
+                + 'export const Page = () => { const rows = useState(env.rows); return <ul>{rows.value.map(row => <li key={row.id}>{row.id}</li>)}</ul>; };'
+            );
+
+            expect(document).toContain('"rows":[{"id":1}]');
+            expect(document).not.toContain(SECRET);
+        });
+
+        it('keeps the argument of useInput on the server, and writes what it returns, narrowed', () => {
+            const document: string | undefined = documentOf(
+                'import { useInput } from \'zibri\';\n'
+                + 'export const Page = () => <Card row={env.rows[0]}/>;\n'
+                + 'const Card = ({ row }) => { const shown = useInput(row); return <button onClick={() => go(shown.value.id)}>x</button>; };'
+            );
+
+            expect(document).toContain('"shown":{"id":1}');
+            expect(document).not.toContain(SECRET);
+            expect(document).not.toContain('env');
+        });
+    });
+
+    describe('a ref', () => {
+        // a ref crosses as neither a prop nor a capture: its element carries the stamp, and the setup reading it
+        // gets what names it, which is written in the template's own source (GOALS.md, "What reaches a page")
+        it('writes the stamp on its element, and for the setup what names the ref, and nothing of the server', () => {
+            const document: string | undefined = documentOf(
+                'import { useRef } from \'zibri\';\n'
+                + 'export const Page = () => { const input = useRef<HTMLInputElement>(); onClient(() => { go(input.current.value); }); '
+                + 'return <Field inputRef={input} secret={env.DB_PASSWORD}/>; };\n'
+                + 'const Field = ({ inputRef, secret }) => <input ref={inputRef} title={secret.length > 0 ? \'set\' : \'\'}/>;'
+            );
+
+            expect(document).not.toContain(SECRET);
+            expect(document).toContain('<input title="set" data-ssr="r0"/>');
+            expect(document).toContain('"refs":{"input":{"id":"r0","name":"input","component":"Page","many":false,"required":true}}');
+        });
+    });
+
+    describe('a template the page copies', () => {
+        // the server renders a branch or a row holding a component into a template: html of the server like the rest of
+        // the page, holding no value reading a state or the row (GOALS.md, "Templates")
+        it('leaves the row out of the template, and writes what the components of a list are handed of it, narrowed', () => {
+            const document: string | undefined = documentOf(
+                'import { useState } from \'zibri\';\n'
+                + 'export const Page = () => { const rows = useState(env.rows); return <ul>{rows.value.map(row => <Item key={row.id} id={row.id}/>)}</ul>; };\n'
+                + 'const Item = ({ id }) => <li>{id}</li>;'
+            );
+
+            expect(document).toMatch(/<template data-zt="t\d+"><!--\{p\d+--><li><!--(\w+)--><!--\/\1--><\/li><!--\}--><\/template>/);
+            expect(document).toContain('"rows":[{"id":1}]');
+            expect(document).not.toContain(SECRET);
+        });
+
+        it.each([
+            ['a hole', '<p>{name}</p>'],
+            ['a prop of a component', '<Label text={name}/>']
+        ])('renders a value of the server in %s of such markup as html, and puts nothing of it into the script', (_where, markup) => {
+            const document: string | undefined = documentOf(
+                'import { useState } from \'zibri\';\n'
+                + `export const Page = () => { const s = useState(true); return <div>{s.value && ${markup}}</div>; };\n`
+                + 'const Label = ({ text }) => <p>{text}</p>;'
+            );
+            const [html, script] = (document ?? '').split('<script');
+
+            expect(html).toContain(SECRET);
+            expect(script).toBeDefined();
+            expect(script).not.toContain(SECRET);
+            // what a getter of the markup reading it would print
+            expect(script).not.toContain('=> (name)');
+        });
+    });
+
     describe('client code reading a server value', () => {
         it.each([
             ['a handler', 'export const Page = () => <button onClick={() => go(env.DB_PASSWORD)}>x</button>;'],
@@ -706,6 +857,19 @@ describe('what a page receives from a template', () => {
             ['a type assertion', 'export const Page = () => <button onClick={() => go((env as Record<string, string>).DB_PASSWORD)}>x</button>;'],
             ['an import named like a browser global', 'export const Page = () => <button onClick={() => go(name)}>x</button>;'],
             ['the handler itself', 'export const Page = () => <button onClick={env.DB_PASSWORD}>x</button>;'],
+            ['an effect', 'import { useEffect, useState } from \'zibri\';\n'
+                + 'export const Page = () => { const s = useState(0); useEffect(() => { go(env.DB_PASSWORD); }, [s]); return <p>{s.value}</p>; };'],
+            ['a prop following a state', 'import { useState } from \'zibri\';\n'
+                + 'export const Page = () => { const s = useState(0); return <Label text={env.DB_PASSWORD + s.value}/>; };\nconst Label = ({ text }) => <p>{text}</p>;'],
+            ['markup the page renders again', 'import { useState } from \'zibri\';\n'
+                + 'export const Page = () => { const s = useState(true); return <div>{s.value && <p>{env.DB_PASSWORD + s.value}</p>}</div>; };'],
+            ['a component in markup the page renders again', 'import { useState } from \'zibri\';\n'
+                + 'export const Page = () => { const s = useState(true); return <div>{s.value && <Label text={env.DB_PASSWORD + s.value}/>}</div>; };\n'
+                + 'const Label = ({ text }) => <p>{text}</p>;'],
+            ['a context following a state','import { provideContext, useState } from \'zibri\';\n'
+                + 'export const Page = () => { const s = useState(0); provideContext(SecretContext, env.DB_PASSWORD + s.value); return <div/>; };'],
+            ['the list of an effect', 'import { useEffect } from \'zibri\';\n'
+                + 'export const Page = () => { useEffect(() => { go(1); }, [env]); return <div/>; };'],
             ['a condition around onClient', 'export const Page = () => { if (env.DB_PASSWORD) { onClient(() => { go(1); }); } return <div/>; };'],
             ['process.env', `export const Page = () => <button onClick={() => go(process.env.${SECRET_VARIABLE})}>x</button>;`],
             ['a module-level constant', `const M = '${SECRET}';\nexport const Page = () => <button onClick={() => go(M)}>x</button>;`],

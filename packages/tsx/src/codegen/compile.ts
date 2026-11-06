@@ -1,7 +1,8 @@
 import * as ts from 'typescript';
 
-import { ClientScript, compileClientScript } from './client/client-codegen';
-import { CLIENT_HOOK_SOURCES } from './client/hooks';
+import { CLIENT_SETUP_HOOKS, ClientScript, compileClientScript } from './client/client-codegen';
+import { CLIENT_HOOK_SOURCES, PAGE_RUNTIME_NAMES } from './client/hooks';
+import { collectInputs } from './client/inputs';
 import { unavailableNamesIn } from './client/script-names';
 import { EmittedModule, emitModuleCode, eraseTypes } from './erase-types';
 import { printNode, SERVER_INLINED_HOOKS } from './server/print';
@@ -12,8 +13,11 @@ import { collectClientGlobalAliases, collectClientPackages } from '../semantics/
 import { ComponentInfo, findComponents } from '../semantics/component';
 import { readImports, TemplateImport, TemplateImportSpecifier } from '../semantics/imports';
 import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols';
-import { namesAvailableInBrowser, validate, validateClientImports, validateClientModuleLoading, validateClientNames, validateComponentArguments, validateRenderSyntaxOutsideComponents, ValidationCode } from '../semantics/validate';
+import { namesAvailableInBrowser, validate, validateBrowserNamesDuringRender, validateClientImports, validateClientJsx, validateClientModuleLoading, validateClientNames, validateComponentArguments, validateRenderSyntaxOutsideComponents, ValidationCode } from '../semantics/validate';
 import { validateEmailNesting, validateNoClientInEmail } from '../semantics/validate-email';
+import { createsRefsOrState, validateRefs } from '../semantics/validate-refs';
+import { validateEffects } from '../semantics/validate-effects';
+import { validateState } from '../semantics/validate-state';
 import { UnhandledSyntaxError } from '../semantics/walk';
 
 /**
@@ -49,7 +53,8 @@ export type CompileOptions = {
  */
 export type CompileResult = {
     /**
-     * Parse and dialect diagnostics. A non-empty list with errors means `code` is undefined.
+     * Parse and dialect diagnostics. A non-empty list with errors means `code` is undefined. Warnings come with the
+     * `code`.
      */
     diagnostics: Diagnostic[],
     /**
@@ -146,9 +151,15 @@ function compileTemplate(file: ts.SourceFile, options: CompileOptions): CompileR
     }
     const outsideComponents: Diagnostic[] = [
         ...validateRenderSyntaxOutsideComponents(file, components, Object.keys(SERVER_INLINED_HOOKS)),
-        ...validateComponentArguments(components)
+        ...validateComponentArguments(components),
+        ...validateBrowserNamesDuringRender(file, components),
+        ...validateRefs(components),
+        ...validateState(components),
+        ...validateEffects(components)
     ];
-    if (outsideComponents.length > 0) {
+    // a warning reports what a template does, and leaves it compiling
+    const warnings: Diagnostic[] = outsideComponents.filter(diagnostic => diagnostic.severity === DiagnosticSeverity.WARNING);
+    if (outsideComponents.length > warnings.length) {
         return {
             diagnostics: outsideComponents,
             code: undefined,
@@ -178,7 +189,11 @@ function compileTemplate(file: ts.SourceFile, options: CompileOptions): CompileR
     // Email templates get their own gate: MJML nesting rules, and no client code (emails run none).
     const emailDiagnostics: Diagnostic[] = [
         ...validateEmailNesting(file),
-        ...validateNoClientInEmail(file, compiled.some(component => component.client.code !== undefined), clientPackages)
+        ...validateNoClientInEmail(
+            file,
+            compiled.some(component => component.client.code !== undefined) || createsRefsOrState(components),
+            clientPackages
+        )
     ];
     if (emailDiagnostics.length > 0) {
         return {
@@ -192,7 +207,7 @@ function compileTemplate(file: ts.SourceFile, options: CompileOptions): CompileR
     }
 
     const { code, map } = emitModule(file, compiled, clientPackages, options.module ?? 'esm', options.fileName ?? 'template.tsx');
-    return { diagnostics, code, map, componentName: compiled[0].info.name, client: compiled[0].client, clientPackages };
+    return { diagnostics: [...diagnostics, ...warnings], code, map, componentName: compiled[0].info.name, client: compiled[0].client, clientPackages };
 }
 
 /**
@@ -226,12 +241,13 @@ function compileTemplateComponent(file: ts.SourceFile, component: ComponentInfo)
         ...compiledClient,
         code: compiledClient.code === undefined ? undefined : eraseTypes(compiledClient.code)
     };
-    const hooks: string[] = Object.keys(CLIENT_HOOK_SOURCES);
+    const hooks: string[] = [...Object.keys(CLIENT_HOOK_SOURCES), ...Object.keys(CLIENT_SETUP_HOOKS)];
 
     // Only checkable once the client code is known, because it depends on what the client reaches. Each
     // check refuses on its own, in this order.
     const checks: (() => Diagnostic[])[] = [
-        () => validateClientImports(file, client.referencedIdentifiers, hooks),
+        () => validateClientJsx(client.jsx),
+        () => validateClientImports(file, client.outerNames, hooks, Object.keys(SERVER_INLINED_HOOKS), client.bindings),
         () => validateClientModuleLoading(client.moduleLoading),
         () => validateClientNames(file, client.outerNames, hooks),
         // The finished script is checked once more on its own, so what reaches the page never depends on
@@ -258,7 +274,10 @@ function validateFinishedClientScript(file: ts.SourceFile, code: string | undefi
     if (code === undefined) {
         return [];
     }
-    const available: ReadonlySet<string> = namesAvailableInBrowser(file, Object.keys(CLIENT_HOOK_SOURCES));
+    const available: ReadonlySet<string> = namesAvailableInBrowser(
+        file,
+        [...Object.keys(CLIENT_HOOK_SOURCES), ...Object.keys(CLIENT_SETUP_HOOKS), ...PAGE_RUNTIME_NAMES]
+    );
     return unavailableNamesIn(code, available).map(name => ({
         code: ValidationCode.UNAVAILABLE_NAME_IN_CLIENT_CODE,
         message: `The client script of '${component.name}' reads '${name}', which does not exist where it runs. `
@@ -394,11 +413,13 @@ function emitCompiledComponent(component: CompiledTemplateComponent, clientPacka
         `    name: ${JSON.stringify(info.name)},`,
         `    render: (props, $ssr) => ${renderName}($ssr, props),`,
         `    clientPackages: ${JSON.stringify(clientPackages)},`,
+        `    inputProps: ${JSON.stringify(collectInputs(info.fn).inputProps)},`,
         '    client: {',
         `        code: ${client.code === undefined ? 'undefined' : JSON.stringify(client.code)},`,
         `        setupName: ${client.setupName === undefined ? 'undefined' : JSON.stringify(client.setupName)},`,
         `        referencedProps: ${JSON.stringify(client.referencedProps)},`,
         `        propShapes: ${JSON.stringify(client.propShapes)},`,
+        `        stateShapes: ${JSON.stringify(client.stateShapes)},`,
         `        referencedHooks: ${JSON.stringify(client.referencedHooks)},`,
         `        referencedTranslations: ${JSON.stringify(client.referencedTranslations)}`,
         '    }',

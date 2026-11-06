@@ -1,7 +1,9 @@
 import { projectValue } from './access-shape';
-import { toScriptJson } from './script-json';
-import { ClientInstanceEntry, CompiledComponent, createServerRuntime, isClientPropMarker, renderChild,
-    RenderServerRuntime, resolveReferencedKeys } from './server-runtime';
+import { isRefMarker } from './refs';
+import { RenderEnvironment, reportRenderMistake } from './render-environment';
+import { toScriptValue } from './script-value';
+import { ClientInstanceEntry, CompiledComponent, createServerRuntime, isClientPropMarker, isPartReference, PartRecord, renderChild,
+    RenderRegistry, RenderServerRuntime, resolveReferencedKeys, TemplateRecord } from './server-runtime';
 import { CLIENT_HOOK_SOURCES, HookData, substituteHookPlaceholders } from '../codegen/client/hooks';
 import { vendorFileName } from '../vendor-file-name';
 
@@ -15,7 +17,13 @@ export type CompiledPage = CompiledComponent;
  * Canonical order for the render-data hooks, so dependencies are defined before their users
  * (`$ts` is implemented in terms of `$t`).
  */
-const HOOK_ORDER: readonly string[] = ['$t', '$ts', '$f'];
+const HOOK_ORDER: readonly string[] = ['useState', 'useEffect', '$t', '$ts', '$f'];
+
+/**
+ * The start of every client script: `onClient`, and what runs each setup on its own and the callbacks
+ * once all of them are done.
+ */
+const CLIENT_STARTUP_SOURCE: string = CLIENT_HOOK_SOURCES['onClient'] ?? '';
 
 /**
  * Locale and formatting data supplied by the host application for the `$t`/`$ts`/`$f` hooks.
@@ -40,6 +48,12 @@ export type LocaleData = {
  */
 export type RenderPageOptions = {
     /**
+     * Where the page is rendered. A mistake only the render can see, such as a required ref on no element,
+     * throws in `development` and is logged in `production`, which renders the page with the broken part
+     * degraded. Leaving it out is deprecated, and renders as in `production`.
+     */
+    environment?: RenderEnvironment,
+    /**
      * CSP nonce to place on the injected `<script>`, if the host uses one.
      */
     nonce?: string,
@@ -58,15 +72,32 @@ export type RenderPageOptions = {
  * interactivity (handler registry + per-instance setup call).
  * @param page - The compiled page.
  * @param props - The props to render with.
- * @param options - Document assembly options.
+ * @param options - Where the page is rendered, and how the document is assembled.
  * @returns The full HTML document.
+ * @throws In `development`, when the render shows a mistake, such as a required ref on no element.
  */
+export function renderPage(
+    page: CompiledPage,
+    props: Record<string, unknown>,
+    options: RenderPageOptions & { environment: RenderEnvironment }
+): string;
+/**
+ * Renders a compiled page as in `production`, where a mistake only the render can see is logged.
+ * @param page - The compiled page.
+ * @param props - The props to render with.
+ * @param options - How the document is assembled.
+ * @returns The full HTML document.
+ * @deprecated Pass the `environment` the page is rendered in, which decides whether such a mistake throws.
+ */
+export function renderPage(page: CompiledPage, props?: Record<string, unknown>, options?: RenderPageOptions): string;
+// eslint-disable-next-line jsdoc/require-jsdoc
 export function renderPage(
     page: CompiledPage,
     props: Record<string, unknown> = {},
     options: RenderPageOptions = {}
 ): string {
-    const ssr: RenderServerRuntime = createServerRuntime();
+    // what 3.0 rendered with, before a page was told where it renders
+    const ssr: RenderServerRuntime = createServerRuntime(options.environment ?? 'production', page.name);
     // The root page's own `?client` packages are not seen by `$ssr.component`, which only sees
     // nested components — seed them here.
     for (const packageName of page.clientPackages ?? []) {
@@ -75,9 +106,52 @@ export function renderPage(
         }
     }
     const html: string = renderChild(page.render(props, ssr));
+    // only once everything rendered: a ref can be put on an element by any component it is handed to
+    validateRefs(ssr);
     const script: string = buildClientScript(page, props, ssr, options.localeData);
     const vendorTags: string = buildVendorTags(ssr.vendorPackages, options.vendorUrlPrefix);
-    return wrapDocument(withVendorTags(html, vendorTags), script, options.nonce);
+    return wrapDocument(withTemplates(withVendorTags(html, vendorTags), ssr), script, options.nonce);
+}
+
+/**
+ * Puts the templates the page copies at the end of the body: a `<template>` holds html the browser neither shows nor
+ * runs.
+ * @param html - The rendered page HTML.
+ * @param ssr - The runtime of the finished render.
+ * @returns The HTML with the templates.
+ */
+function withTemplates(html: string, ssr: RenderServerRuntime): string {
+    if (ssr.templates.length === 0) {
+        return html;
+    }
+    const tags: string = ssr.templates.map(template => `<template data-zt="${template.id}">${template.html}</template>`).join('');
+    // a function replacer keeps `$` sequences in the html literal
+    return html.includes('</body>') ? html.replace('</body>', () => `${tags}\n</body>`) : `${html}\n${tags}`;
+}
+
+/**
+ * Reports a ref the render put on the wrong number of elements: a required `useRef` on none, or a `useRef` on
+ * more than one. Each is a mistake only the render can see, as a ref handed to a component of another file
+ * is put on an element there. In `production` the page degrades: a required ref on no element throws when
+ * client code reads it, and one on several elements holds the first.
+ * @param ssr - The runtime of the finished render.
+ * @throws In `development`, for the first such ref.
+ */
+function validateRefs(ssr: RenderServerRuntime): void {
+    for (const { entry, stamped, template } of ssr.refs) {
+        // the copies of a template are made in the page
+        if (entry.many || template) {
+            continue;
+        }
+        if (entry.required && stamped === 0) {
+            reportRenderMistake(ssr.environment, `The ref '${entry.name}' of '${entry.component}' is on no element. Put it on one `
+                + `with ref={${entry.name}}, or create it with useRef({ required: false }) when it may stay on none.`);
+        }
+        if (stamped > 1) {
+            reportRenderMistake(ssr.environment, `The ref '${entry.name}' of '${entry.component}' is on ${stamped} elements, and `
+                + 'useRef holds one. Create it with useRefs for a ref on several elements.');
+        }
+    }
 }
 
 /**
@@ -122,12 +196,14 @@ export function buildClientScript(
     ssr: RenderServerRuntime,
     localeData?: LocaleData
 ): string {
-    const entries: ClientInstanceEntry[] = [...pageEntry(page, props), ...ssr.instances];
+    const pageEntries: ClientInstanceEntry[] = pageEntry(page, props);
+    const registries: RenderRegistry[] = [ssr.registry, ...ssr.parts.map(part => part.registry), ...ssr.templates.map(template => template.registry)];
+    const entries: ClientInstanceEntry[] = [...pageEntries, ...registries.flatMap(registry => registry.instances)];
     if (entries.length === 0) {
         return '';
     }
 
-    const parts: string[] = [];
+    const parts: string[] = [CLIENT_STARTUP_SOURCE];
     parts.push(...hookSources(collectHooks(entries), entries, localeData));
 
     // One definition per component type, then one call per instance (function scope isolates them).
@@ -138,46 +214,125 @@ export function buildClientScript(
             parts.push(entry.code);
         }
     }
-    // An instance that declared functions for its children binds its setup's result, so those calls
-    // can pick the functions up. Instances are emitted parent first, so the binding always exists.
-    const declaring: Set<number> = new Set(ssr.clientProps.map(entry => entry.owner));
-    for (const entry of entries) {
-        // Each instance is handed only the handlers and function props it declared, so running the
-        // same setup again for the next instance cannot attach this instance's elements a second time.
-        const runtime: string = toScriptJson({
-            handlers: ssr.handlers.filter(handler => handler.owner === entry.owner),
-            props: ssr.clientProps.filter(prop => prop.owner === entry.owner)
-        });
-        const call: string = `${entry.setupName}(${serializeInstanceProps(entry.props)}, ${runtime});`;
-        parts.push(declaring.has(entry.owner) ? `const ${instanceBinding(entry.owner)} = ${call}` : call);
+    // what the page sets up when it takes over a part of markup it renders again, or copies a template
+    if (ssr.parts.length > 0) {
+        parts.push(`__zibriParts = {\n${recordEntries(ssr.parts, ssr)}\n};`);
     }
+    if (ssr.templates.length > 0) {
+        parts.push(`__zibriTemplates = {\n${recordEntries(ssr.templates, ssr)}\n};`);
+    }
+    parts.push(...setupCalls(ssr.registry, pageEntries, ssr));
+    // the onClient callbacks, once every setup has run
+    parts.push('__zibriStart();');
     return parts.join('\n');
 }
 
 /**
- * The name binding an instance's setup result, i.e. The functions it built for its children.
- * @param owner - The instance id.
- * @returns The binding name.
+ * The entries of the table of parts or templates: a function by id, which sets up what rendering it registered.
+ * @param records - The parts or templates.
+ * @param ssr - The runtime of the finished render.
+ * @returns The entries' source.
  */
-function instanceBinding(owner: number): string {
-    return `__ssrInstance${owner}`;
+function recordEntries(records: (PartRecord | TemplateRecord)[], ssr: RenderServerRuntime): string {
+    return records
+        .map(record => [record.id, setupCalls(record.registry, [], ssr)] as const)
+        .filter(([, calls]) => calls.length > 0)
+        .map(([id, calls]) => `${toScriptValue(id)}: () => {\n${calls.join('\n')}\n}`)
+        .join(',\n');
+}
+
+/**
+ * What sets up what a registry holds: what an instance outside it registered there, such as the children it handed a
+ * component that shows them again, the props of parts forwarded to an element, and a setup call per instance.
+ * @param registry - The registry.
+ * @param pageEntries - The page itself, when it is the page's registry.
+ * @param ssr - The runtime of the finished render.
+ * @returns The statements.
+ */
+function setupCalls(registry: RenderRegistry, pageEntries: ClientInstanceEntry[], ssr: RenderServerRuntime): string[] {
+    const instances: ClientInstanceEntry[] = [...pageEntries, ...registry.instances];
+    const own: Set<number> = new Set(instances.map(entry => entry.owner));
+    const outer: number[] = [...new Set([...registry.handlers, ...registry.bindings, ...registry.regions, ...registry.clientProps]
+        .map(entry => entry.owner))]
+        .filter(owner => !own.has(owner));
+    const calls: string[] = outer.map(owner => `__zibriAttachTo(${owner}, ${toScriptValue(attachData(registry, owner, ssr))});`);
+    if (registry.partBindings.length > 0 || registry.partHandlers.length > 0) {
+        calls.push(`__zibriPartEntries(${toScriptValue({ bindings: registry.partBindings, handlers: registry.partHandlers })});`);
+    }
+    for (const entry of instances) {
+        // Each instance is handed only the handlers and function props it declared, so running the
+        // same setup again for the next instance cannot attach this instance's elements a second time.
+        const data: string = toScriptValue({
+            ...attachData(registry, entry.owner, ssr),
+            // by the name of the variable, which is how the setup asks for one
+            refs: Object.fromEntries(registry.refs.filter(ref => ref.owner === entry.owner).map(ref => [ref.entry.name, ref.entry])),
+            // the value each state has once the server rendered, narrowed to what the setup reads of it
+            states: Object.fromEntries(registry.states
+                .filter(state => state.owner === entry.owner && entry.stateShapes?.[state.name] !== undefined)
+                .map(state => [state.name, projectValue(state.handle.value, entry.stateShapes?.[state.name] ?? 'whole')]))
+        });
+        // what the setup reads with useInput that follows a state: the handle the instance handing it builds
+        const inputs: Record<string, unknown> = Object.fromEntries(registry.inputs
+            .filter(input => input.owner === entry.owner && input.source !== undefined)
+            .map(input => [input.name, input.source]));
+        const runtime: string = Object.keys(inputs).length === 0
+            ? data
+            : `${data.slice(0, -1)},"inputs":${serializeInstanceProps(inputs)}}`;
+        // each setup on its own: one that throws is reported, and the rest of the page still starts
+        calls.push(`__zibriRunSetup(() => ${entry.setupName}(${serializeInstanceProps(entry.props)}, ${runtime}));`);
+    }
+    return calls;
+}
+
+/**
+ * What the attach function of an instance is handed from a registry: the instance, its handlers, the functions it
+ * builds for its children, its bindings, its conditions and lists, and their templates.
+ * @param registry - The registry.
+ * @param owner - The instance.
+ * @param ssr - The runtime of the finished render.
+ * @returns The data.
+ */
+function attachData(registry: RenderRegistry, owner: number, ssr: RenderServerRuntime): Record<string, unknown> {
+    const templates: Record<string, Record<string, string>> | undefined = ssr.templatesOf(owner);
+    return {
+        owner,
+        handlers: registry.handlers.filter(handler => handler.owner === owner),
+        props: registry.clientProps.filter(prop => prop.owner === owner),
+        ...registry.bindings.some(binding => binding.owner === owner)
+            ? { bindings: registry.bindings.filter(binding => binding.owner === owner) }
+            : {},
+        ...registry.regions.some(region => region.owner === owner)
+            ? { regions: registry.regions.filter(region => region.owner === owner) }
+            : {},
+        ...templates === undefined ? {} : { templates }
+    };
 }
 
 /**
  * Serializes an instance's props for its setup call. Values are plain JSON except for client-prop
- * references, which become a lookup into the declaring instance's setup result.
+ * references, which become a lookup of the function the declaring instance built, and references to a prop of a part.
  * @param props - The instance's client-referenced props.
  * @returns The JavaScript source of the props object.
  */
 function serializeInstanceProps(props: Record<string, unknown>): string {
-    if (!Object.values(props).some(isClientPropMarker)) {
-        return toScriptJson(props);
+    if (!Object.values(props).some(value => isClientPropMarker(value) || isRefMarker(value) || isPartReference(value))) {
+        return toScriptValue(props);
     }
     const entries: string[] = Object.entries(props).map(([name, value]) => {
-        const source: string = isClientPropMarker(value)
-            ? `${instanceBinding(value.owner)}[${toScriptJson(value.id)}]`
-            : toScriptJson(value);
-        return `${toScriptJson(name)}:${source}`;
+        let source: string;
+        if (isClientPropMarker(value)) {
+            // a declaring instance whose setup threw has no result, and its child gets undefined
+            source = `__zibriProp(${value.owner}, ${toScriptValue(value.id)})`;
+        }
+        else if (isPartReference(value)) {
+            // computed from the branch or the row of the part
+            source = `__zibriPartValue(${toScriptValue(value.part)}, ${toScriptValue(value.prop)})`;
+        }
+        else {
+            // a ref is a handle the page builds from its entry, whichever instance created it
+            source = isRefMarker(value) ? `__zibriRef(${toScriptValue(value.entry)})` : toScriptValue(value);
+        }
+        return `${toScriptValue(name)}:${source}`;
     });
     return `{${entries.join(',')}}`;
 }
@@ -189,7 +344,7 @@ function serializeInstanceProps(props: Record<string, unknown>): string {
  * @returns A single-element array, or an empty one.
  */
 function pageEntry(page: CompiledPage, props: Record<string, unknown>): ClientInstanceEntry[] {
-    const { code, setupName, referencedProps, propShapes, referencedHooks, referencedTranslations } = page.client;
+    const { code, setupName, referencedProps, propShapes, stateShapes, referencedHooks, referencedTranslations } = page.client;
     if (!code || !setupName) {
         return [];
     }
@@ -201,7 +356,7 @@ function pageEntry(page: CompiledPage, props: Record<string, unknown>): ClientIn
         }
     }
     // The page renders first, so it owns instance 0 - the id `createServerRuntime` starts out with.
-    return [{ name: page.name, setupName, code, referencedHooks, referencedTranslations, owner: 0, props: selected }];
+    return [{ name: page.name, setupName, code, referencedHooks, referencedTranslations, stateShapes, owner: 0, props: selected }];
 }
 
 /**
@@ -308,7 +463,7 @@ export function wrapDocument(html: string, script: string, nonce?: string): stri
     // Neutralize any `</script` inside the emitted code so it cannot terminate the tag early. An html
     // parser ends a script on it in any case and followed by whitespace, `/` or `>`, so every one is
     // escaped; `<\/` is the same two characters inside a javascript string or regex. The data in the
-    // script cannot contain one at all, see toScriptJson.
+    // script cannot contain one at all, see toScriptValue.
     const safe: string = script.replaceAll(/<\/script/gi, match => `<\\/${match.slice(2)}`);
     const tag: string = `<script${nonceAttr}>\n${safe}\n</script>`;
     // A function replacer is required: generated code can contain `$$`, `$&` and friends, which a

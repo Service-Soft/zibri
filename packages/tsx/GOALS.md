@@ -30,12 +30,41 @@ is refused (`ZTSX003`), and `const x = MaskUtilities.mask(value)` compiles only 
 the server, in the markup. A name client code reads from outside the component is one of the
 browser's globals, a `?client` global, a global the template declares, or a hook (`ZTSX009`).
 
-Values cross in two places, both narrowed to the fields client code reads:
+Values cross in three places, all narrowed to the fields client code reads:
 1. **Props**, which the caller passes into the component function.
 2. **Captures**: a loop variable or block local a handler reads, snapshotted at render time.
+3. **Initial state.** The argument of `useState` runs on the server and never reaches the client script, whatever it
+   reads. Its result is written into the page, narrowed to the fields client code reads. Like a prop or a capture, it is
+   what the author wrote: `useState(mask(email))` writes the masked text, and `useState(config)` writes as much of
+   `config` as client code reads.
 
-Both are what the author wrote: a prop at the call, a capture in the handler. The compiler does not
-trace where the value came from.
+All are what the author wrote: a prop at the call, a capture in the handler, an initial value in `useState`. The
+compiler does not trace where the value came from.
+
+**State across components.** A state handed to a nested component is a reference to it. Its value is written once,
+as its initial value. An expression handed to a nested component that reads state, as a prop or through
+`provideContext`, is client code of the parent, narrowed like any other. The argument of `useInput` and
+`useWritableInput` runs on the server like the argument of `useState`: when it is a state, or such an expression, of a
+component above, the page gets the reference to it, and otherwise the value, narrowed to what client code reads of it.
+
+**Refs** (`useRef`, `useRefs`) cross as neither. A ref writes a stamp on an element and nothing else. The
+stamp identifies the element within the page, and holds no value of the server. The handle is created in
+the browser by the template's own source.
+
+**Markup rendered in the browser.** A conditional or a list whose condition or items read state is rendered again in
+the browser when the state changes, by code printed from the template's own markup. What it reads crosses like any
+other client code, narrowed to what it reads.
+
+**Templates.** A component, or `children` a component places, inside such markup is html the browser cannot build, as
+it comes from another file. The server renders each branch and row holding one once more into a `<template>`, which the
+browser copies. A template is html the server renders, like the rest of the page, and holds no code. It holds no value
+reading a state or the row either: those are left out of it, and the browser writes them into the copy. A value reading
+neither is the server's, rendered the same into every copy. The components in a template are instances like any other,
+whose setup data is narrowed like any other. What a branch not shown renders is in the page, as a user can change a
+state.
+
+**Effects** (`useEffect`) cross as neither. The effect and its list are client code, printed from the template's own
+source like a callback of `onClient`. The server render drops the call, so neither runs while the server renders.
 
 # How it is held
 
@@ -44,10 +73,10 @@ trace where the value came from.
 - **`ZTSX003`, `ZTSX008`, `ZTSX009`** check every name the emitted client code reads.
 - **The independent script check** parses the finished client script again, on its own, so what
   reaches the page never depends on the analysis above being right.
-- **Reachability by symbol** ships only the declarations client code reads, `onServer` callbacks
-  and prop defaults left out.
-- **Projection** writes only the fields client code reads from a prop or a capture, through aliases,
-  destructuring, rests, loops and array callbacks.
+- **Reachability by symbol** ships only the declarations client code reads, `onServer` callbacks,
+  the arguments of `useState`, `useInput` and `useWritableInput`, and prop defaults left out.
+- **Projection** writes only the fields client code reads from a prop, a capture or an initial state, through
+  aliases, destructuring, rests, loops and array callbacks.
 
 **The tests that hold it** are in `codegen/client/server-code-isolation.test.ts`, under "what a page
 receives from a template". They run a template all the way through: they compile it with every check,
@@ -90,3 +119,29 @@ document. A case shows what stays out, or states what crosses and how much of it
 **Name the threat before building a guarantee.** The closed scope above was built against "a value
 of the server", when the threat was "code of the server compiled into the page". Those differ by
 everything a template is allowed to import.
+
+**A mistake is reported as early as it can be known**: by the type check, then by the compiler, then while the server
+renders, and the browser last. One only the render can see calls `reportRenderMistake`: it throws in `development`, so
+a test rendering it fails, and in `production` it is logged and the page renders with the broken part degraded.
+
+# Decided against
+
+What the client side of a template does not have, and why, so it is not proposed again without a new reason.
+
+- **React's model.** A component runs once: it renders on the server, and its setup runs once per instance in the
+  browser. Re-running it needs its markup in the client script, so every import the markup reads would hit `ZTSX003`,
+  every prop it reads would be written into the page, and a component imported from another file could not be rendered
+  at all, as the compiler reads one file. State is followed by bindings per expression instead.
+- **The hooks that exist because React re-runs components:** `useComputed`, `useCallback`, `useMemo` as a cache,
+  `useTransition`, `useDeferredValue` and `useLayoutEffect`. A binding reaches state through a local function, and with
+  no dependency graph a computed value has nothing to do.
+- **A named global store**, such as `useStore('metrics:snaps', [])`. Props and contexts carry a state between
+  components.
+- **A spread of a state or a row onto a component inside markup the browser renders**, such as `<Card {...item}/>` in a
+  list. It is `ZTSX016`, and the props are written by name. The page follows each prop by its name, and a template is
+  rendered without the row, so the server would have to take the names from the component's own lists, which leaves
+  open what client code reading its props as a whole gets.
+- **Client code shared across files** is not built: client code cannot read an import, and what works instead is a
+  `?client` package, a value computed on the server and handed over, a script the page loads which the template
+  declares, or a copy in each component. A client module, compiled and checked on its own and loaded as an asset of its
+  own, is the shape it would take if a real case needs it.

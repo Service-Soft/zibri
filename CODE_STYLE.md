@@ -79,6 +79,7 @@ thing it is:
 | `.enum.ts` | An enum |
 | `.type.ts` | A standalone type alias |
 | `.test.ts` | Tests for the file of the same name |
+| `.browser.test.ts` | Tests of what the file of the same name does in a real browser |
 | `.cases.ts` | Test cases shared by several `.test.ts` files |
 | `.instance-options.ts` | What every instance of the `.cluster.test.ts` beside it boots with |
 
@@ -202,6 +203,7 @@ that is never red is not a suite that is passing. Leave it red and report it.
 | `test:benchmark` | `*.benchmark.test.ts`, in band: timings reported against a `*.baseline.json` beside each suite, never failing |
 | `test:benchmark:compare` | `test:benchmark` on your checkout and on `release`, in turns; fails on an operation that got slower |
 | `test:heavy` | Long-running suites, in band |
+| `test:browser` | `*.browser.test.ts` of `zibri-tsx` and the sandbox, in Chromium: run `npx playwright install chromium` once |
 
 CI runs every one of them: `test:ci` runs all but the benchmarks, which a job of its own runs through
 `test:benchmark:compare`.
@@ -222,6 +224,16 @@ grow, and say why beside it.
 **Recorded baselines are your own machine's, never committed.** `ZIBRI_BENCHMARK_UPDATE_BASELINE=1`
 (or `ZIBRI_DEPLOYMENT_UPDATE_BASELINE=1` for the deployment) records the run as your `*.baseline.json`,
 which later runs are reported against.
+
+**What runs in the browser is tested in a browser.** A fake DOM missed that handlers wrapped by a child
+component never ran, on every page. The sandbox opens its pages from its own routes with
+`startPageBrowser` of `zibri-testing`; the compiler, which builds before it, uses
+`packages/tsx/src/__testing__/browser.helper.ts`.
+
+**A browser test finds an element by its id, and checks accessibility in assertions of their own.**
+Finding an element by its role checks the role as a side effect, and whoever later finds it another
+way removes a check they did not know was there. No line of a test checks something in passing while
+doing something else.
 
 **Most suites need a container runtime.** `startTestServer()` starts Postgres and ValKey through
 testcontainers, so they need Docker or Podman running.

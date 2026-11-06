@@ -3,15 +3,24 @@ import * as ts from 'typescript';
 import { decodeJsxEntities, normalizeJsxText } from './jsx-text';
 import { AccessShape } from '../../runtime/access-shape';
 import { escapeAttribute, escapeText, VOID_ELEMENTS } from '../../runtime/server-runtime';
+import { isBindingIdentifier } from '../../semantics/binding';
+import { symbolOf } from '../../semantics/symbols';
 import { tagNameOf } from '../../semantics/validate-email';
 import { isHookCall, unwrapTypeSyntax } from '../../semantics/walk';
+import { BindingSite } from '../client/bindings';
 import { ClientPropSite } from '../client/client-props';
+import { containsJsx, JsxMarkup, PartPropKind, RegionCollection, RegionForm, RegionSite, resolveForm } from '../client/regions';
 import { attributeExpression, attributesOf, HandlerSite, isEventHandlerName, JsxElementLike } from '../client/handlers';
 
 /**
  * Name of the injected server-runtime helper namespace referenced by generated code.
  */
 export const SSR: string = '$ssr';
+
+/**
+ * The hooks the page finds what they create by the name of the variable it is assigned to.
+ */
+const NAMED_HOOKS: readonly string[] = ['useRef', 'useRefs', 'useState', 'useInput', 'useWritableInput'];
 
 /**
  * Framework hooks whose calls are lowered to a method on the per-render {@link SSR} runtime instead
@@ -37,8 +46,55 @@ export type StampSites = {
     /**
      * Client-prop site lookup keyed by prop value expression node.
      */
-    clientProps: Map<ts.Expression, ClientPropSite>
+    clientProps: Map<ts.Expression, ClientPropSite>,
+    /**
+     * Binding-site lookup keyed by the expression of the markup that reads state.
+     */
+    bindings: Map<ts.Expression, BindingSite>,
+    /**
+     * The props the component forwards as they are to an attribute of an element or into a text, which follow a state
+     * when a component above handed one in.
+     */
+    forwards: ReadonlySet<ts.Expression>,
+    /**
+     * The conditions and lists that read state, which the browser renders again, by their expression.
+     */
+    regions: ReadonlyMap<ts.Expression, RegionSite>,
+    /**
+     * The attributes inside them holding a state itself that binds both ways.
+     */
+    regionTwoWay: ReadonlySet<ts.Expression>,
+    /**
+     * What the regions hold that only the server renders: the id of each form, the branches and rows it renders into a
+     * template, what their components are handed that the page follows, and their holes of html of the server.
+     */
+    regionParts: Pick<RegionCollection, 'forms' | 'templated' | 'partProps' | 'opaque'>,
+    /**
+     * The children the component destructures, read from its props where they are used, so they render there.
+     */
+    lazyChildren?: LazyChildren
 };
+
+/**
+ * The children a component destructures from its props. Destructuring reads them, and the runtime renders them when
+ * they are read, so the render reads them from the props where the component uses them instead: after what its body
+ * does first, such as providing a context to them.
+ */
+export type LazyChildren = {
+    /**
+     * The variable the component binds them to.
+     */
+    symbol: ts.Symbol,
+    /**
+     * Its default, for children that are not handed.
+     */
+    fallback: ts.Expression | undefined
+};
+
+/**
+ * The name of the props parameter of a server render whose children are read lazily.
+ */
+export const LAZY_PROPS: string = '__props';
 
 /**
  * Prints a node back to TypeScript source, lowering any embedded JSX to HTML-string-building calls
@@ -94,6 +150,12 @@ function printLowered(node: ts.Node, stamps: StampSites | undefined, clientCode:
 class JsxLowering {
     private readonly factory: ts.NodeFactory;
 
+    /**
+     * Whether the markup being lowered is inside a condition or a list the browser renders again, which marks its
+     * texts and stamps none of its handlers.
+     */
+    private inRegion: boolean = false;
+
     constructor(
         private readonly context: ts.TransformationContext,
         private readonly stamps: StampSites | undefined,
@@ -114,8 +176,22 @@ class JsxLowering {
         if (ts.isJsxFragment(node)) {
             return this.lowerFragment(node);
         }
+        const lazy: LazyChildren | undefined = this.stamps?.lazyChildren;
+        if (lazy !== undefined && ts.isShorthandPropertyAssignment(node) && symbolOf(node.name) === lazy.symbol) {
+            return this.factory.createPropertyAssignment(node.name.text, this.lazyChildrenValue(lazy));
+        }
+        if (lazy !== undefined && ts.isIdentifier(node) && !isBindingIdentifier(node) && symbolOf(node) === lazy.symbol) {
+            return this.lazyChildrenValue(lazy);
+        }
         if (this.clientCode && isHookCall(node, 'onServer')) {
             return this.factory.updateCallExpression(node, node.expression, node.typeArguments, []);
+        }
+        // an effect only ever runs in the page, so nothing of it is left in the module the server runs
+        if (!this.clientCode && isHookCall(node, 'useEffect')) {
+            return this.factory.createVoidZero();
+        }
+        if (NAMED_HOOKS.some(hook => isHookCall(node, hook)) && ts.isCallExpression(node)) {
+            return this.lowerNamedHook(node);
         }
         if (ts.isCallExpression(node)) {
             const callee: ts.Expression = unwrapTypeSyntax(node.expression);
@@ -126,7 +202,10 @@ class JsxLowering {
             // rather than resolved as an import. That also keeps it server-only: client code that
             // named it would find no import and fail the leak check.
             if (inlined !== undefined && node.questionDotToken == undefined) {
-                return this.runtimeCall(inlined, node.arguments.map(this.expression));
+                // a value provided that follows a state is handed down as one
+                return this.runtimeCall(inlined, node.arguments.map((argument, index) => inlined === 'provideContext' && index === 1
+                    ? this.inputValue(argument)
+                    : this.expression(argument)));
             }
         }
         if (ts.isMethodDeclaration(node) && ts.isObjectLiteralExpression(node.parent) && node.body != undefined) {
@@ -147,6 +226,81 @@ class JsxLowering {
             ? this.factory.createNewExpression(this.expression(node.expression), node.typeArguments, [])
             : ts.visitEachChild(node, this.visit, this.context);
     };
+
+    /**
+     * Lowers `useRef`, `useRefs`, `useState`, `useInput` and `useWritableInput`. On the server they create the ref or
+     * the handle on the render's runtime, named by the variable it is assigned to and its component. In the browser the
+     * setup finds it by that name, whichever of them its client code reads, and the argument stays on the server.
+     * @param node - The call.
+     * @returns `$ssr.useRefs(component, name)`, or `$ssr.<hook>(argument, component, name)`, on the server, the hook
+     * called with the name in the browser.
+     */
+    private lowerNamedHook(node: ts.CallExpression): ts.CallExpression {
+        const hook: string = NAMED_HOOKS.find(name => isHookCall(node, name)) ?? '';
+        const name: ts.Expression = this.quote(ts.isVariableDeclaration(node.parent) && ts.isIdentifier(node.parent.name) ? node.parent.name.text : '');
+        if (this.clientCode) {
+            return this.factory.createCallExpression(this.factory.createIdentifier(hook), undefined, [name]);
+        }
+        const component: ts.Expression = this.quote(enclosingFunctionName(node));
+        if (hook === 'useRefs') {
+            return this.runtimeCall(hook, [component, name]);
+        }
+        const [first] = node.arguments;
+        const unwrapped: ts.Expression | undefined = first === undefined ? undefined : unwrapTypeSyntax(first);
+        let argument: ts.Expression;
+        if (first === undefined || unwrapped === undefined) {
+            argument = this.factory.createIdentifier('undefined');
+        }
+        else if ((hook === 'useInput' || hook === 'useWritableInput') && isHookCall(unwrapped, 'useContext')) {
+            // a context read for an input keeps a value following a state as one
+            const context: ts.Expression | undefined = unwrapped.arguments[0];
+            argument = this.runtimeCall('useContext', [
+                context === undefined ? this.factory.createIdentifier('undefined') : this.expression(context),
+                this.factory.createTrue()
+            ]);
+        }
+        else {
+            argument = this.expression(first);
+        }
+        return this.runtimeCall(hook, [argument, component, name]);
+    }
+
+    /**
+     * Where a component uses the children it destructures, read from its props.
+     * @param lazy - The children.
+     * @returns `__props.children`, or with the default for children that are not handed.
+     */
+    private lazyChildrenValue(lazy: LazyChildren): ts.Expression {
+        const read: () => ts.Expression = () => this.factory.createPropertyAccessExpression(this.factory.createIdentifier(LAZY_PROPS), 'children');
+        if (lazy.fallback === undefined) {
+            return read();
+        }
+        return this.factory.createParenthesizedExpression(this.factory.createConditionalExpression(
+            this.factory.createStrictEquality(read(), this.factory.createIdentifier('undefined')),
+            undefined,
+            this.expression(lazy.fallback),
+            undefined,
+            read()
+        ));
+    }
+
+    /**
+     * The value of a prop of a component, or of a context provided: one following a state when it reads one.
+     * @param expression - The value.
+     * @returns `$ssr.input(site, captured, value, handle)` for a value following a state, the value otherwise.
+     */
+    private inputValue(expression: ts.Expression): ts.Expression {
+        const site: BindingSite | undefined = this.stamps?.bindings.get(expression);
+        return site === undefined || site.kind !== 'prop'
+            ? this.expression(expression)
+            : this.runtimeCall('input', [
+                this.quote(site.id),
+                this.capturedValues(site),
+                // a state itself is handed as it is, and a value derived from one is left out of a template
+                site.handle ? this.expression(expression) : this.read(this.expression(expression)),
+                site.handle ? this.factory.createTrue() : this.factory.createFalse()
+            ]);
+    }
 
     /**
      * Lowers an expression.
@@ -281,7 +435,14 @@ class JsxLowering {
      */
     private lowerHostElement(element: JsxElementLike): ts.Expression {
         const tag: string = this.tagText(tagNameOf(element));
-        const attributes: ts.Expression[] = attributesOf(element).flatMap(attribute => this.lowerAttribute(attribute));
+        // html has no value attribute for these: a textarea holds its value as its text, and a select marks its option
+        const valueAttribute: ts.JsxAttribute | undefined = tag === 'textarea' || tag === 'select'
+            ? attributesOf(element).find((attribute): attribute is ts.JsxAttribute => ts.isJsxAttribute(attribute)
+                && attribute.name.getText() === 'value')
+            : undefined;
+        const attributes: ts.Expression[] = attributesOf(element)
+            .filter(attribute => attribute !== valueAttribute)
+            .flatMap(attribute => this.lowerAttribute(attribute));
         const handlerStamp: ts.Expression | undefined = this.stampHandlers(element);
         if (handlerStamp !== undefined) {
             attributes.push(handlerStamp);
@@ -292,9 +453,15 @@ class JsxLowering {
         }
 
         const innerHtml: ts.Expression | undefined = this.dangerousInnerHtml(element);
-        const children: ts.Expression[] = innerHtml !== undefined
+        let children: ts.Expression[] = innerHtml !== undefined
             ? [innerHtml]
             : this.childrenOf(element).flatMap(child => this.lowerChild(child));
+        if (valueAttribute !== undefined) {
+            const value: ts.Expression = this.attributeValue(valueAttribute);
+            children = tag === 'textarea'
+                ? [this.runtimeCall('child', [value])]
+                : [this.runtimeCall('selectOption', [children.length > 0 ? this.concat(children) : this.quote(''), value])];
+        }
         const parts: ts.Expression[] = [this.quote(`<${tag}`), ...attributes, this.quote('>'), ...children, this.quote(`</${tag}>`)];
         return this.runtimeCall('raw', [this.concat(parts)]);
     }
@@ -316,9 +483,16 @@ class JsxLowering {
     private lowerComponentElement(element: JsxElementLike): ts.Expression {
         const entries: ts.ObjectLiteralElementLike[] = [];
         for (const attribute of attributesOf(element)) {
-            entries.push(ts.isJsxSpreadAttribute(attribute)
-                ? this.factory.createSpreadAssignment(this.expression(attribute.expression))
-                : this.componentPropEntry(attribute));
+            if (ts.isJsxSpreadAttribute(attribute)) {
+                entries.push(this.factory.createSpreadAssignment(this.expression(attribute.expression)));
+                continue;
+            }
+            // the key of a row is read by the list, and the server renders a template without its item
+            if (this.inRegion && attribute.name.getText() === 'key') {
+                continue;
+            }
+            const kind: PartPropKind | undefined = this.stamps?.regionParts.partProps.get(attribute);
+            entries.push(kind === undefined ? this.componentPropEntry(attribute) : this.partPropEntry(attribute, kind));
         }
         const children: readonly ts.JsxChild[] = this.childrenOf(element);
         const childrenValue: ts.Expression | undefined = this.childrenValue(children);
@@ -344,8 +518,44 @@ class JsxLowering {
             ));
         }
         // Routed through the runtime so it can register a client instance for components that have
-        // client behavior, then delegate to their server render.
-        return this.runtimeCall('component', args);
+        // client behavior, then delegate to their server render. Inside markup the browser renders again, it is a part
+        // of that markup the page takes over, and copies from a template.
+        return this.runtimeCall(this.inRegion ? 'part' : 'component', args);
+    }
+
+    /**
+     * The entry of a prop the page follows, of a component inside markup the browser renders again: computed in a
+     * function, which the server calls where it renders the value and not for a template.
+     * @param attribute - The attribute.
+     * @param kind - How the page follows it.
+     * @returns `name: $ssr.partFunction(() => value)`, or `name: $ssr.partValue(() => value, isState)`.
+     */
+    private partPropEntry(attribute: ts.JsxAttribute, kind: PartPropKind): ts.PropertyAssignment {
+        const name: string = attribute.name.getText();
+        const key: ts.PropertyName = /^[$_a-z][\w$]*$/i.test(name) ? this.factory.createIdentifier(name) : this.quote(name);
+        const expression: ts.Expression | undefined = attributeExpression(attribute);
+        const value: ts.Expression = this.thunk(expression === undefined ? this.factory.createTrue() : this.expression(expression));
+        return this.factory.createPropertyAssignment(key, kind === 'function'
+            ? this.runtimeCall('partFunction', [value])
+            : this.runtimeCall('partValue', [value, kind === 'state' ? this.factory.createTrue() : this.factory.createFalse()]));
+    }
+
+    /**
+     * A function computing a value, which the server leaves uncalled where it renders a template.
+     * @param value - The lowered value.
+     * @returns `() => (value)`.
+     */
+    private thunk(value: ts.Expression): ts.ArrowFunction {
+        return this.factory.createArrowFunction(undefined, undefined, [], undefined, undefined, this.factory.createParenthesizedExpression(value));
+    }
+
+    /**
+     * A value reading a state or a row, which the server renders where it renders it, and leaves out of a template.
+     * @param value - The lowered value.
+     * @returns `$ssr.read(() => (value))`.
+     */
+    private read(value: ts.Expression): ts.Expression {
+        return this.runtimeCall('read', [this.thunk(value)]);
     }
 
     /**
@@ -389,7 +599,7 @@ class JsxLowering {
         }
         return this.factory.createPropertyAssignment(
             key,
-            expression === undefined ? this.factory.createIdentifier('undefined') : this.expression(expression)
+            expression === undefined ? this.factory.createIdentifier('undefined') : this.inputValue(expression)
         );
     }
 
@@ -428,9 +638,107 @@ class JsxLowering {
             return text ? [this.quote(text)] : [];
         }
         if (ts.isJsxExpression(child)) {
-            return child.expression == undefined ? [] : [this.expression(child.expression)];
+            if (child.expression == undefined) {
+                return [];
+            }
+            return [this.regionPart(child.expression) ?? this.textHole(child.expression, false)];
         }
         return [ts.isJsxFragment(child) ? this.lowerFragment(child) : this.lowerElement(child)];
+    }
+
+    /**
+     * The part a hole contributes when it is, or is inside, a condition or a list the browser renders again.
+     * @param expression - The expression of the hole.
+     * @returns `$ssr.region(...)` for one, `$ssr.range(...)` or `$ssr.hole(...)` inside one, or undefined for any
+     * other hole.
+     */
+    private regionPart(expression: ts.Expression): ts.Expression | undefined {
+        const site: RegionSite | undefined = this.stamps?.regions.get(expression);
+        if (site !== undefined) {
+            return this.runtimeCall('region', [this.quote(site.id), this.capturedValues(site), this.regionForm(expression, site.form)]);
+        }
+        if (!this.inRegion) {
+            return undefined;
+        }
+        // html of the server, which the page takes over as it is
+        if (this.stamps?.regionParts.opaque.has(expression) === true) {
+            return this.runtimeCall('opaque', [this.expression(expression)]);
+        }
+        // checked when the regions were collected, so markup in it is one of the forms
+        const nested: RegionForm | undefined = containsJsx(expression) ? resolveForm(expression, { diagnostics: [] }) : undefined;
+        return nested === undefined
+            ? this.runtimeCall('hole', [this.read(this.expression(expression))])
+            : this.runtimeCall('range', [this.regionForm(expression, nested)]);
+    }
+
+    /**
+     * A condition or a list the browser renders again, for the runtime: its id, and functions rendering what holds, and
+     * each branch or the row a template is rendered of.
+     * @param expression - The expression of the form.
+     * @param form - The form.
+     * @returns `$ssr.when(id, condition, whenTrue, whenFalse, templated)` or `$ssr.rows(id, items, row, key, templated)`.
+     */
+    private regionForm(expression: ts.Expression, form: RegionForm): ts.Expression {
+        const outer: boolean = this.inRegion;
+        this.inRegion = true;
+        try {
+            const id: ts.Expression = this.quote(this.stamps?.regionParts.forms.get(expression) ?? '');
+            const templated: (node: JsxMarkup | undefined) => ts.Expression = node => node !== undefined
+                && this.stamps?.regionParts.templated.has(node) === true
+                ? this.factory.createTrue()
+                : this.factory.createFalse();
+            const markup: (node: JsxMarkup) => ts.Expression = node => ts.isJsxFragment(node) ? this.lowerFragment(node) : this.lowerElement(node);
+            if (form.kind === 'if') {
+                const branch: (node: JsxMarkup | undefined) => ts.Expression = node => node === undefined
+                    ? this.factory.createIdentifier('undefined')
+                    : this.thunk(markup(node));
+                return this.runtimeCall('when', [
+                    id,
+                    this.thunk(this.expression(form.condition)),
+                    branch(form.whenTrue),
+                    branch(form.whenFalse),
+                    templated(form.whenTrue),
+                    templated(form.whenFalse)
+                ]);
+            }
+            const parameters: ts.ParameterDeclaration[] = form.callback.parameters.map(parameter => this.visitNode(parameter, ts.isParameter));
+            const arrow: (body: ts.Expression) => ts.ArrowFunction = body => this.factory
+                .createArrowFunction(undefined, undefined, parameters, undefined, undefined, body);
+            return this.runtimeCall('rows', [
+                id,
+                this.thunk(this.expression(form.list)),
+                arrow(markup(form.row)),
+                arrow(this.expression(form.key)),
+                templated(form.row)
+            ]);
+        }
+        finally {
+            this.inRegion = outer;
+        }
+    }
+
+    /**
+     * A text hole: its value, rendered between the comments the browser finds it by when it reads state.
+     * @param expression - The expression of the hole.
+     * @param rendered - Whether the value is rendered here, as a child of an element of the page, rather than handed
+     * to a component as one of its children.
+     * @returns `$ssr.text(site, captured, value)` for a binding, `$ssr.child(value)` or the value otherwise.
+     */
+    private textHole(expression: ts.Expression, rendered: boolean): ts.Expression {
+        const site: BindingSite | undefined = this.stamps?.bindings.get(expression);
+        let value: ts.Expression = this.expression(expression);
+        if (site !== undefined && site.kind === 'text') {
+            value = this.runtimeCall('text', [this.quote(site.id), this.capturedValues(site), this.read(value)]);
+        }
+        // the text of a title or a textarea a binding writes whole
+        else if (site !== undefined) {
+            value = this.read(value);
+        }
+        // a prop forwarded into the text, which follows a state when a component above handed one in
+        else if (this.stamps?.forwards.has(expression) === true) {
+            value = this.runtimeCall('forward', [value]);
+        }
+        return rendered ? this.runtimeCall('child', [value]) : value;
     }
 
     /**
@@ -454,7 +762,11 @@ class JsxLowering {
             return text ? [this.quote(escapeText(text))] : [];
         }
         if (ts.isJsxExpression(child)) {
-            return child.expression == undefined ? [] : [this.runtimeCall('child', [this.expression(child.expression)])];
+            if (child.expression == undefined) {
+                return [];
+            }
+            const region: ts.Expression | undefined = this.regionPart(child.expression);
+            return [region === undefined ? this.textHole(child.expression, true) : this.runtimeCall('child', [region])];
         }
         return [this.runtimeCall('child', [ts.isJsxFragment(child) ? this.lowerFragment(child) : this.lowerElement(child)])];
     }
@@ -466,10 +778,12 @@ class JsxLowering {
      */
     private lowerAttribute(attribute: ts.JsxAttributeLike): ts.Expression[] {
         if (ts.isJsxSpreadAttribute(attribute)) {
-            return [this.runtimeCall('spread', [this.expression(attribute.expression)])];
+            const spread: ts.Expression = this.expression(attribute.expression);
+            return [this.runtimeCall('spread', [this.inRegion || this.stamps?.bindings.has(attribute.expression) === true ? this.read(spread) : spread])];
         }
         const name: string = attribute.name.getText();
-        if (isEventHandlerName(name) || name === 'dangerouslySetInnerHTML') {
+        // a ref is stamped, with the handlers
+        if (isEventHandlerName(name) || name === 'dangerouslySetInnerHTML' || name === 'ref') {
             return [];
         }
         const initializer: ts.JsxAttributeValue | undefined = attribute.initializer;
@@ -479,27 +793,57 @@ class JsxLowering {
         if (ts.isStringLiteral(initializer)) {
             return [this.quote(` ${mapAttributeName(name)}="${escapeAttribute(decodeJsxEntities(initializer.text))}"`)];
         }
-        const expression: ts.Expression | undefined = attributeExpression(attribute);
-        return [
-            this.runtimeCall('attr', [
-                this.quote(name),
-                expression === undefined ? this.factory.createIdentifier('undefined') : this.expression(expression)
-            ])
-        ];
+        return [this.runtimeCall('attr', [this.quote(name), this.attributeValue(attribute)])];
     }
 
     /**
-     * The `data-ssr-handlers` stamping attribute for a host element's handlers, when a server render is
+     * The value an attribute of a host element is written with.
+     * @param attribute - The attribute.
+     * @returns The value: `true` for one written without one, the text of a string, or the expression.
+     */
+    private attributeValue(attribute: ts.JsxAttribute): ts.Expression {
+        const initializer: ts.JsxAttributeValue | undefined = attribute.initializer;
+        if (initializer == undefined) {
+            return this.factory.createTrue();
+        }
+        if (ts.isStringLiteral(initializer)) {
+            return this.quote(decodeJsxEntities(initializer.text));
+        }
+        const expression: ts.Expression | undefined = attributeExpression(attribute);
+        const value: ts.Expression = expression === undefined ? this.factory.createIdentifier('undefined') : this.expression(expression);
+        // a state itself on a control is written as its value, which it binds both ways
+        const twoWay: boolean = expression !== undefined
+            && (this.stamps?.bindings.get(expression)?.handle === true || this.stamps?.regionTwoWay.has(expression) === true);
+        const written: ts.Expression = twoWay
+            ? this.factory.createPropertyAccessExpression(this.factory.createParenthesizedExpression(value), 'value')
+            : value;
+        // what the browser writes again is left out of a template, and written into the copy
+        const followed: boolean = expression !== undefined && (this.inRegion || this.stamps?.bindings.has(expression) === true);
+        return followed ? this.read(written) : written;
+    }
+
+    /**
+     * The `data-ssr` stamping attribute for a host element's handlers and its ref, when a server render is
      * being printed and the element has any.
      * @param element - The host element.
-     * @returns A `$ssr.on([...])` attribute expression, or undefined.
+     * @returns A `$ssr.on([...], ref)` attribute expression, or undefined.
      */
     private stampHandlers(element: JsxElementLike): ts.Expression | undefined {
         if (this.stamps === undefined) {
             return undefined;
         }
         const specs: ts.Expression[] = [];
+        let ref: ts.Expression | undefined;
         for (const attribute of attributesOf(element)) {
+            if (ts.isJsxAttribute(attribute) && attribute.name.getText() === 'ref') {
+                const value: ts.Expression | undefined = attributeExpression(attribute);
+                ref = value === undefined ? undefined : this.expression(value);
+                continue;
+            }
+            // markup the browser renders again attaches its handlers itself, and only its ref is stamped
+            if (this.inRegion) {
+                continue;
+            }
             if (!ts.isJsxAttribute(attribute) || !isEventHandlerName(attribute.name.getText())) {
                 continue;
             }
@@ -521,7 +865,40 @@ class JsxLowering {
                     this.factory.createPropertyAssignment('captured', this.capturedValues(site))
                 ]));
         }
-        return specs.length > 0 ? this.runtimeCall('on', [this.factory.createArrayLiteralExpression(specs)]) : undefined;
+        // the bindings that write to this element: its attributes, and the whole text of a title or a textarea
+        const holes: ts.Expression[] = ts.isJsxElement(element)
+            ? element.children.flatMap(child => ts.isJsxExpression(child) && child.expression != undefined ? [child.expression] : [])
+            : [];
+        const bindings: ts.Expression[] = [
+            ...attributesOf(element).flatMap(attribute => ts.isJsxAttribute(attribute) ? [attributeExpression(attribute)] : []),
+            ...holes
+        ].flatMap(expression => {
+            const site: BindingSite | undefined = expression === undefined ? undefined : this.stamps?.bindings.get(expression);
+            // every hole of a title or a textarea leads to the one binding writing its whole text
+            const isFirst: boolean = site !== undefined && site.expression === expression;
+            return site === undefined || site.kind === 'text' || !isFirst
+                ? []
+                : [this.factory.createObjectLiteralExpression([
+                    this.factory.createPropertyAssignment('site', this.quote(site.id)),
+                    this.factory.createPropertyAssignment('captured', this.capturedValues(site))
+                ])];
+        });
+        // the props forwarded to its attributes, which follow a state when a component above handed one in
+        const forwards: ts.Expression[] = attributesOf(element).flatMap(attribute => {
+            const expression: ts.Expression | undefined = ts.isJsxAttribute(attribute) ? attributeExpression(attribute) : undefined;
+            return ts.isJsxAttribute(attribute) && expression !== undefined && this.stamps?.forwards.has(expression) === true
+                ? [this.factory.createArrayLiteralExpression([this.quote(attribute.name.getText()), this.expression(expression)])]
+                : [];
+        });
+        if (specs.length === 0 && ref === undefined && bindings.length === 0 && forwards.length === 0) {
+            return undefined;
+        }
+        return this.runtimeCall('on', [
+            this.factory.createArrayLiteralExpression(specs),
+            ref ?? this.factory.createIdentifier('undefined'),
+            this.factory.createArrayLiteralExpression(bindings),
+            ...forwards.length === 0 ? [] : [this.factory.createArrayLiteralExpression(forwards)]
+        ]);
     }
 
     /**
@@ -560,4 +937,22 @@ function mapAttributeName(name: string): string {
         return 'class';
     }
     return name === 'htmlFor' ? 'for' : name;
+}
+
+/**
+ * The name of the function a node is in, as it is declared or assigned: the component, for a hook called at
+ * the top of one.
+ * @param node - The node.
+ * @returns The name, or an empty string for a function without one.
+ */
+function enclosingFunctionName(node: ts.Node): string {
+    for (let current: ts.Node | undefined = node.parent; current != undefined; current = current.parent) {
+        if (ts.isFunctionDeclaration(current) || ts.isFunctionExpression(current) || ts.isArrowFunction(current)) {
+            if (current.name != undefined) {
+                return current.name.text;
+            }
+            return ts.isVariableDeclaration(current.parent) && ts.isIdentifier(current.parent.name) ? current.parent.name.text : '';
+        }
+    }
+    return '';
 }

@@ -4,8 +4,8 @@ import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from '@jest/globals';
 
 import { compile, CompileResult } from './compile';
-import { isCompiledPage, loadCjs } from '../__testing__/server-render.helper';
-import { renderPage } from '../runtime/render-page';
+import { isCompiledPage, loadCjs, renderTestPage } from '../__testing__/server-render.helper';
+import { DiagnosticSeverity } from '../diagnostics/diagnostic.model';
 import { createContext } from '../runtime/server-runtime';
 import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols';
 import { ValidationCode } from '../semantics/validate';
@@ -156,7 +156,7 @@ describe('compile', () => {
         const page: unknown = exports['Page'];
         assert(isCompiledPage(page));
 
-        expect(renderPage(page)).toContain('<p>5 KB</p>');
+        expect(renderTestPage(page)).toContain('<p>5 KB</p>');
     });
 
     it('exports every component a template exports', () => {
@@ -170,7 +170,7 @@ describe('compile', () => {
         const footer: unknown = exports['Footer'];
         assert(isCompiledPage(footer));
 
-        expect(renderPage(footer)).toContain('<footer>footer</footer>');
+        expect(renderTestPage(footer)).toContain('<footer>footer</footer>');
     });
 
     it('reports dialect violations instead of emitting code', () => {
@@ -212,6 +212,322 @@ describe('compile', () => {
     });
 });
 
+/**
+ * Compiles a template that the compiler refuses with one diagnostic.
+ * @param source - The template.
+ * @returns The diagnostic, and the text of the template it points at.
+ */
+function refusalOf(source: string): { code: string, message: string, at: string } {
+    const result: CompileResult = compile(source);
+    expect(result.code).toBeUndefined();
+    expect(result.diagnostics).toHaveLength(1);
+    const [diagnostic] = result.diagnostics;
+    return { code: diagnostic.code, message: diagnostic.message, at: source.slice(diagnostic.span.start, diagnostic.span.end) };
+}
+
+describe('the errors a template is refused with', () => {
+    describe('JSX in client code', () => {
+        it.each([
+            ['in onClient', 'export const A = () => { onClient(() => { const shown = <b>x</b>; console.log(shown); }); return <div/>; };'],
+            ['in a handler', 'export const A = () => <button onClick={() => console.log(<b>x</b>)}>x</button>;'],
+            ['in a declaration client code reads', 'export const A = () => { const shown = <b>x</b>; return <button onClick={() => console.log(shown)}>x</button>; };']
+        ])('is refused %s, pointing at the JSX', (_where, source) => {
+            const refusal: { code: string, message: string, at: string } = refusalOf(source);
+
+            expect(refusal.code).toBe(ValidationCode.JSX_IN_CLIENT_CODE);
+            expect(refusal.at).toBe('<b>x</b>');
+            expect(refusal.message).not.toContain('defect in the compiler');
+        });
+
+        it('allows JSX returned early by a component with client code', () => {
+            const result: CompileResult = compile(
+                'export const A = ({ empty }) => { onClient(() => console.log(1)); if (empty) { return <p>none</p>; } return <div/>; };'
+            );
+
+            expect(result.diagnostics).toEqual([]);
+        });
+    });
+
+    describe('an import read by client code', () => {
+        it('names zibri as code of the server, without suggesting ?client', () => {
+            const source: string = 'import { MaskUtilities } from \'zibri\';\n'
+                + 'export const A = ({ e }) => <button onClick={() => console.log(MaskUtilities.maskEmail(e))}>x</button>;';
+            const refusal: { code: string, message: string, at: string } = refusalOf(source);
+
+            expect(refusal.code).toBe(ValidationCode.SERVER_IMPORT_IN_CLIENT_CODE);
+            expect(refusal.at).toBe('MaskUtilities');
+            expect(refusal.message).toContain('\'zibri\'');
+            expect(refusal.message).not.toContain('?client');
+        });
+
+        it('names a hook of the render, without suggesting ?client', () => {
+            const source: string = 'import { createContext, useContext } from \'zibri\';\n'
+                + 'export const A = () => { const theme = useContext(Theme); return <button onClick={() => console.log(theme)}>x</button>; };\n'
+                + 'const Theme = createContext(\'light\');';
+            const refusal: { code: string, message: string, at: string } = refusalOf(source);
+
+            expect(refusal.code).toBe(ValidationCode.SERVER_IMPORT_IN_CLIENT_CODE);
+            expect(refusal.at).toBe('useContext');
+            expect(refusal.message).toContain('render');
+            expect(refusal.message).not.toContain('?client');
+        });
+
+        it('names a file of the application, without suggesting ?client', () => {
+            const source: string = 'import { mask } from \'./mask\';\n'
+                + 'export const A = ({ e }) => <button onClick={() => console.log(mask(e))}>x</button>;';
+            const refusal: { code: string, message: string, at: string } = refusalOf(source);
+
+            expect(refusal.code).toBe(ValidationCode.SERVER_IMPORT_IN_CLIENT_CODE);
+            expect(refusal.at).toBe('mask');
+            expect(refusal.message).toContain('\'./mask\'');
+            expect(refusal.message).not.toContain('?client');
+        });
+
+        it('names the state as the reason for markup reading it', () => {
+            const source: string = 'import { MaskUtilities } from \'zibri\';\n'
+                + 'export const A = () => { const email = useState(\'a@b.c\'); return <p>{MaskUtilities.maskEmail(email.value)}</p>; };';
+            const refusal: { code: string, message: string, at: string } = refusalOf(source);
+
+            expect(refusal.code).toBe(ValidationCode.SERVER_IMPORT_IN_CLIENT_CODE);
+            expect(refusal.at).toBe('MaskUtilities');
+            expect(refusal.message).toContain('state');
+        });
+
+        it('suggests ?client for a package', () => {
+            const source: string = 'import dayjs from \'dayjs\';\n'
+                + 'export const A = () => <button onClick={() => console.log(dayjs())}>x</button>;';
+            const refusal: { code: string, message: string, at: string } = refusalOf(source);
+
+            expect(refusal.code).toBe(ValidationCode.SERVER_IMPORT_IN_CLIENT_CODE);
+            expect(refusal.at).toBe('dayjs');
+            expect(refusal.message).toContain('\'dayjs?client\'');
+        });
+    });
+
+    describe('a ?client import of a file of the application', () => {
+        it.each([
+            ['with bindings', 'import { mask } from \'./mask?client\';\nexport const A = () => <div/>;', 'import { mask } from \'./mask?client\';'],
+            ['for its effect', 'import \'../setup?client\';\nexport const A = () => <div/>;', 'import \'../setup?client\';']
+        ])('is refused %s', (_form, source, located) => {
+            const refusal: { code: string, message: string, at: string } = refusalOf(source);
+
+            expect(refusal.code).toBe(ValidationCode.CLIENT_IMPORT_OF_A_FILE);
+            expect(refusal.at).toBe(located);
+        });
+    });
+
+    describe('onClient outside a component', () => {
+        it.each([
+            ['at module level', 'onClient(() => console.log(1));\nexport const A = () => <div/>;'],
+            ['in a helper', 'function start() { onClient(() => console.log(1)); }\nexport const A = () => { start(); return <div/>; };']
+        ])('is refused %s', (_where, source) => {
+            const refusal: { code: string, message: string, at: string } = refusalOf(source);
+
+            expect(refusal.code).toBe(ValidationCode.RENDER_SYNTAX_OUTSIDE_COMPONENT);
+            expect(refusal.at).toBe('onClient(() => console.log(1))');
+            expect(refusal.message).toContain('\'onClient\'');
+        });
+    });
+
+    describe('a ref', () => {
+        it.each([
+            ['created with an argument written otherwise', 'export const A = () => { const r = useRef(0); return <p ref={r}/>; };', 'useRef(0)'],
+            ['created with options in a variable', 'const options = { required: false };\nexport const A = () => { const r = useRef(options); return <p ref={r}/>; };', 'useRef(options)'],
+            ['created by useRefs with an argument', 'export const A = () => { const r = useRefs({ required: false }); return <p ref={r}/>; };', 'useRefs({ required: false })'],
+            ['created in a function of the component', 'export const A = () => { function make() { return useRef(); } const r = make(); return <p ref={r}/>; };', 'useRef()'],
+            ['created in a block', 'export const A = ({ on }) => { if (on) { const r = useRef(); console.log(r); } return <p/>; };', 'useRef()'],
+            ['created without a variable', 'export const A = () => <p ref={useRef()}/>;', 'useRef()'],
+            ['put on no element and handed to no component', 'export const A = () => { const r = useRef(); return <p/>; };', 'useRef()'],
+            ['of useRef put on an element in a loop', 'export const A = ({ items }) => { const r = useRef(); return <ul>{items.map(item => <li ref={r}>{item}</li>)}</ul>; };', 'ref={r}'],
+            ['required, on an element a condition skips', 'export const A = ({ on }) => { const r = useRef(); return <div>{on && <p ref={r}/>}</div>; };', 'useRef()'],
+            ['required, on an element an early return skips', 'export const A = ({ on }) => { const r = useRef(); if (!on) { return <p/>; } return <p ref={r}/>; };', 'useRef()'],
+            ['required, on an element a condition reading state skips', 'export const A = () => { const open = useState(false); const r = useRef(); return <div>{open.value && <p ref={r}/>}</div>; };', 'useRef()'],
+            ['of useRef put on the rows of a list reading state', 'export const A = () => { const items = useState(["a"]); const r = useRef(); return <ul>{items.value.map(item => <li key={item} ref={r}>{item}</li>)}</ul>; };', 'ref={r}'],
+            ['of useRef put on two elements that both render', 'export const A = () => { const r = useRef(); return <div><p ref={r}/><p ref={r}/></div>; };', 'ref={r}']
+        ])('is refused %s', (_how, source, located) => {
+            const refusal: { code: string, message: string, at: string } = refusalOf(source);
+
+            expect(refusal.code).toBe(ValidationCode.REF_MISUSED);
+            expect(refusal.at).toBe(located);
+        });
+
+        it('points at useRefs for one in a loop, and at required: false for one a path skips', () => {
+            expect(refusalOf('export const A = ({ items }) => { const r = useRef(); return <ul>{items.map(item => <li ref={r}>{item}</li>)}</ul>; };').message)
+                .toContain('useRefs');
+            expect(refusalOf('export const A = ({ on }) => { const r = useRef(); return <div>{on && <p ref={r}/>}</div>; };').message)
+                .toContain('{ required: false }');
+        });
+
+        it('is refused outside a component', () => {
+            expect(refusalOf('const r = useRef();\nexport const A = () => <p/>;').code).toBe(ValidationCode.RENDER_SYNTAX_OUTSIDE_COMPONENT);
+        });
+
+        it.each([
+            ['required, on an element of each branch', 'export const A = ({ on }) => { const r = useRef(); return on ? <p ref={r}/> : <span ref={r}/>; };'],
+            ['not required, on an element a condition skips', 'export const A = ({ on }) => { const r = useRef({ required: false }); return <div>{on && <p ref={r}/>}</div>; };'],
+            ['not required, on an element a condition reading state skips', 'export const A = () => { const open = useState(false); const r = useRef({ required: false }); return <div>{open.value && <p ref={r}/>}</div>; };'],
+            ['required, on an element of each branch of a condition reading state', 'export const A = () => { const open = useState(false); const r = useRef(); return <div>{open.value ? <p ref={r}/> : <span ref={r}/>}</div>; };'],
+            ['created as required in so many words', 'export const A = () => { const r = useRef({ required: true }); return <p ref={r}/>; };'],
+            ['of useRefs, on an element in a loop', 'export const A = ({ items }) => { const r = useRefs(); return <ul>{items.map(item => <li ref={r}>{item}</li>)}</ul>; };'],
+            ['handed to a component', 'export const A = () => { const r = useRef(); return <Field inputRef={r}/>; };\nconst Field = ({ inputRef }) => <input ref={inputRef}/>;'],
+            ['on an element handed to a component as its children', 'export const A = () => { const r = useRef(); return <Card><h2 ref={r}>x</h2></Card>; };\nconst Card = ({ children }) => <section>{children}</section>;'],
+            ['created after an early return', 'export const A = ({ on }) => { if (!on) { return <p/>; } const r = useRef(); return <p ref={r}/>; };'],
+            ['on an element of a constant the markup renders', 'export const A = () => { const r = useRef(); const title = <h1 ref={r}>x</h1>; return <div>{title}</div>; };']
+        ])('is allowed %s', (_how, source) => {
+            expect(compile(source).diagnostics).toEqual([]);
+        });
+    });
+
+    describe('a state', () => {
+        it.each([
+            ['read by markup in a form the page cannot follow', 'export const A = () => { const open = useState(false); return <div>{[open.value && <p>x</p>]}</div>; };', '[open.value && <p>x</p>]'],
+            ['read by markup behind an || it cannot follow', 'export const A = () => { const open = useState(false); return <div>{(open.value && <p>x</p>) || <b>y</b>}</div>; };', '(open.value && <p>x</p>) || <b>y</b>'],
+            ['read by a list whose row has no key', 'export const A = () => { const list = useState([1]); return <ul>{list.value.map(item => <li>{item}</li>)}</ul>; };', '<li>{item}</li>'],
+            ['read by a list whose row has two roots', 'export const A = () => { const list = useState([1]); return <ul>{list.value.map(item => <><li key={item}>a</li><li>b</li></>)}</ul>; };', '<><li key={item}>a</li><li>b</li></>'],
+            ['read by markup spreading a row into a component', 'export const A = () => { const list = useState([{ id: 1 }]); return <ul>{list.value.map(item => <li key={item.id}><Card {...item}/></li>)}</ul>; };\nconst Card = () => <p/>;', '{...item}'],
+            ['read by markup holding raw html', 'export const A = () => { const open = useState(false); return <div>{open.value && <p>{$raw(\'<b>x</b>\')}</p>}</div>; };', '$raw(\'<b>x</b>\')'],
+            ['read by a list holding markup in a form it cannot follow', 'export const A = () => { const list = useState([1]); return <ul>{list.value.map(item => <li key={item}>{[<b>x</b>]}</li>)}</ul>; };', '[<b>x</b>]'],
+            ['read through a constant a binding reads', 'export const A = () => { const count = useState(0); const next = count.value + 1; return <p>{next}</p>; };', 'next'],
+            ['changed through its value with a method', 'export const A = () => { const list = useState([1]); return <button onClick={() => list.value.push(2)}>{list.value.length}</button>; };', 'list.value.push(2)'],
+            ['changed through its value by assigning a field', 'export const A = () => { const user = useState({ name: \'a\' }); return <button onClick={() => { user.value.name = \'b\'; }}>{user.value.name}</button>; };', 'user.value.name = \'b\''],
+            ['created in a block', 'export const A = ({ on }) => { if (on) { const count = useState(0); console.log(count); } return <p/>; };', 'useState(0)'],
+            ['created destructured', 'export const A = () => { const [count] = useState([0]); return <p>{count}</p>; };', 'useState([0])'],
+            ['written as raw html by a binding', 'export const A = () => { const html = useState(\'<b>x</b>\'); return <p>{$raw(html.value)}</p>; };', '$raw(html.value)'],
+            ['written through the handle useInput returns', 'export const A = ({ text }) => { const shown = useInput(text); return <button onClick={() => { shown.value = \'x\'; }}>{shown.value}</button>; };', 'shown.value = \'x\''],
+            ['changed through the handle useInput returns', 'export const A = ({ items }) => { const shown = useInput(items); return <button onClick={() => shown.value.push(1)}>{shown.value.length}</button>; };', 'shown.value.push(1)'],
+            ['taken by useInput in a block', 'export const A = ({ on, text }) => { if (on) { const shown = useInput(text); console.log(shown); } return <p/>; };', 'useInput(text)'],
+            ['taken by useWritableInput without a variable', 'export const A = ({ value }) => <p>{useWritableInput(value).value}</p>;', 'useWritableInput(value)']
+        ])('is refused %s', (_how, source, located) => {
+            const refusal: { code: string, message: string, at: string } = refusalOf(source);
+
+            expect(refusal.code).toBe(ValidationCode.STATE_MISUSED);
+            expect(refusal.at).toBe(located);
+        });
+
+        it('suggests the forms the page follows for markup in another form', () => {
+            const refusal: { code: string, message: string, at: string } = refusalOf(
+                'export const A = () => { const open = useState(false); return <div>{[open.value && <p>x</p>]}</div>; };'
+            );
+
+            expect(refusal.message).toContain('&&');
+            expect(refusal.message).toContain('.map(');
+        });
+
+        // a warning in 3.x, as the template compiled in 3.0
+        it('warns about a let the markup reads and client code writes, pointing at useState, and compiles the template', () => {
+            const source: string = 'export const A = () => { let on = false; return <input type="checkbox" checked={on} onChange={() => { on = !on; }}/>; };';
+            const result: CompileResult = compile(source);
+
+            expect(result.code).toBeDefined();
+            expect(result.diagnostics).toEqual([expect.objectContaining({
+                code: ValidationCode.STATE_MISUSED,
+                severity: DiagnosticSeverity.WARNING,
+                message: expect.stringContaining('useState')
+            })]);
+            expect(source.slice(result.diagnostics[0].span.start, result.diagnostics[0].span.end)).toBe('on = !on');
+        });
+
+        it.each([
+            ['read by markup in each row of a list of the server', 'export const A = ({ items }) => { const chosen = useState(\'\'); return <ul>{items.map(item => <li className={chosen.value === item ? \'on\' : \'\'}>{item}</li>)}</ul>; };'],
+            ['read through a function a binding calls', 'export const A = () => { const count = useState(0); function label() { return `${count.value} tasks`; } return <p>{label()}</p>; };'],
+            ['given a new value', 'export const A = () => { const list = useState([1]); return <button onClick={() => { list.value = [...list.value, 2]; }}>{list.value.length}</button>; };'],
+            ['of a let the markup reads and only the server writes', 'export const A = ({ items }) => { let total = 0; for (const item of items) { total += item; } onServer(() => { total += 1; }); return <p>{total}</p>; };'],
+            ['read by a prop of a component', 'export const A = () => { const count = useState(0); return <Shown value={count.value}/>; };\nconst Shown = ({ value }) => <p>{value}</p>;'],
+            ['read by markup that follows it with &&', 'export const A = () => { const open = useState(false); return <div>{open.value && <p>x</p>}</div>; };'],
+            ['read by markup that follows it with a ternary', 'export const A = () => { const open = useState(false); return <div>{open.value ? <p>x</p> : null}</div>; };'],
+            ['read by a list with a key on each row', 'export const A = () => { const list = useState([1]); return <ul>{list.value.map((item, index) => <li key={item} onClick={() => console.log(index)}>{item}</li>)}</ul>; };'],
+            ['read by a list with a condition in each row', 'export const A = () => { const list = useState([{ id: 1, done: true }]); return <ul>{list.value.map(item => <li key={item.id}>{item.done ? <b>y</b> : <i>n</i>}</li>)}</ul>; };'],
+            ['read by markup holding a component', 'export const A = () => { const open = useState(false); return <div>{open.value && <Card/>}</div>; };\nconst Card = () => <p/>;'],
+            ['read by a list of components handed the row', 'export const A = () => { const list = useState([{ id: 1 }]); return <ul>{list.value.map(item => <Card key={item.id} item={item} onPick={() => console.log(item.id)}/>)}</ul>; };\nconst Card = () => <p/>;'],
+            ['read by markup placing the children', 'export const A = ({ children }) => { const open = useState(false); return <div>{open.value && <section>{children}</section>}</div>; };'],
+            ['handed to a component itself', 'export const A = () => { const email = useState(\'\'); return <Field value={email}/>; };\nconst Field = ({ value }) => { const text = useWritableInput(value); return <input value={text.value} onInput={ev => { text.value = ev.currentTarget.value; }}/>; };'],
+            ['provided to a context', 'import { createContext, provideContext, useContext } from \'zibri\';\nconst Counted = createContext(0);\n'
+                + 'export const A = () => { const count = useState(0); provideContext(Counted, count.value); return <Total/>; };\n'
+                + 'const Total = () => { const total = useInput(useContext(Counted)); return <p>{total.value}</p>; };'],
+            ['written through the handle useWritableInput returns', 'export const A = ({ value }) => { const text = useWritableInput(value); return <button onClick={() => { text.value = \'x\'; }}>{text.value}</button>; };']
+        ])('is allowed %s', (_how, source) => {
+            expect(compile(source).diagnostics).toEqual([]);
+        });
+    });
+
+    describe('an effect', () => {
+        const STATE: string = 'const count = useState(0);';
+
+        it.each([
+            ['without a list', `export const A = () => { ${STATE} useEffect(() => console.log(count.value)); return <p/>; };`, 'useEffect(() => console.log(count.value))'],
+            ['with a list in a variable', `export const A = () => { ${STATE} const watched = [count]; useEffect(() => console.log(count.value), watched); return <p/>; };`, 'watched'],
+            ['with a spread in its list', `export const A = () => { ${STATE} const watched = [count]; useEffect(() => console.log(count.value), [...watched]); return <p/>; };`, '...watched'],
+            ['called in a block', `export const A = ({ on }) => { ${STATE} if (on) { useEffect(() => console.log(count.value), [count]); } return <p/>; };`, 'useEffect(() => console.log(count.value), [count])'],
+            ['called in a function of the component', `export const A = () => { ${STATE} function watch() { useEffect(() => console.log(count.value), [count]); } watch(); return <p/>; };`, 'useEffect(() => console.log(count.value), [count])'],
+            ['called in onClient', `export const A = () => { ${STATE} onClient(() => useEffect(() => console.log(count.value), [count])); return <p/>; };`, 'useEffect(() => console.log(count.value), [count])'],
+            ['with its result read', `export const A = () => { ${STATE} const effect = useEffect(() => console.log(count.value), [count]); console.log(effect); return <p/>; };`, 'useEffect(() => console.log(count.value), [count])']
+        ])('is refused %s', (_how, source, located) => {
+            const refusal: { code: string, message: string, at: string } = refusalOf(source);
+
+            expect(refusal.code).toBe(ValidationCode.EFFECT_MISUSED);
+            expect(refusal.at).toBe(located);
+        });
+
+        it('points at onClient for an empty list', () => {
+            const refusal: { code: string, message: string, at: string } = refusalOf(
+                'export const A = () => { useEffect(() => console.log(1), []); return <p/>; };'
+            );
+
+            expect(refusal.code).toBe(ValidationCode.EFFECT_MISUSED);
+            expect(refusal.at).toBe('[]');
+            expect(refusal.message).toContain('onClient');
+        });
+
+        it('is refused outside a component', () => {
+            expect(refusalOf('useEffect(() => console.log(1), [1]);\nexport const A = () => <p/>;').code)
+                .toBe(ValidationCode.RENDER_SYNTAX_OUTSIDE_COMPONENT);
+        });
+
+        it.each([
+            ['with a state and a local function in its list', `export const A = () => { ${STATE} function isBig() { return count.value > 9; } `
+                + 'useEffect(() => console.log(count.value), [count, isBig]); return <p/>; };'],
+            ['returning a cleanup', `export const A = () => { ${STATE} useEffect(() => { const timer = setInterval(() => console.log(count.value), 1000); `
+                + 'return () => clearInterval(timer); }, [count]); return <p/>; };'],
+            ['reading a name only the browser has', `export const A = () => { ${STATE} useEffect(() => { document.title = String(count.value); }, [count]); return <p/>; };`]
+        ])('is allowed %s', (_how, source) => {
+            expect(compile(source).diagnostics).toEqual([]);
+        });
+    });
+
+    describe('a name only the browser has, read while the server renders', () => {
+        it.each([
+            ['in the body of a component', 'export const A = () => { const title = document.title; return <p>{title}</p>; };', 'document'],
+            ['in the markup', 'export const A = () => <p>{window.location.href}</p>;', 'window'],
+            ['at module level', 'const title = document.title;\nexport const A = () => <p>{title}</p>;', 'document'],
+            ['in a callback the markup calls', 'export const A = ({ items }) => <ul>{items.map(item => <li>{document.title}{item}</li>)}</ul>;', 'document'],
+            ['in onServer', 'export const A = () => { onServer(() => console.log(window.name)); return <p/>; };', 'window'],
+            ['from a ?client import, in the body', 'import { Chart } from \'chart.js?client\';\nexport const A = () => { Chart.defaults.color = \'red\'; return <p/>; };', 'Chart'],
+            ['from a ?client import, at module level', 'import { Chart } from \'chart.js?client\';\nChart.defaults.color = \'red\';\nexport const A = () => <p/>;', 'Chart']
+        ])('is refused %s', (_where, source, name) => {
+            const refusal: { code: string, message: string, at: string } = refusalOf(source);
+
+            expect(refusal.code).toBe(ValidationCode.BROWSER_NAME_DURING_RENDER);
+            expect(refusal.at).toBe(name);
+            expect(refusal.message).toContain(`'${name}'`);
+        });
+
+        it.each([
+            ['under a typeof guard', 'export const A = () => <p>{typeof window === \'undefined\' ? \'\' : window.location.href}</p>;'],
+            ['under a typeof guard with &&', 'export const A = () => <p>{typeof document !== \'undefined\' && document.title}</p>;'],
+            ['under a typeof guard in an if', 'export const A = () => { let title = \'\'; if (typeof document !== \'undefined\') { title = document.title; } return <p>{title}</p>; };'],
+            ['when the template declares it', 'declare const gtag: (...values: unknown[]) => void;\nexport const A = () => { gtag(\'x\'); return <p/>; };'],
+            ['in onClient', 'export const A = () => { onClient(() => console.log(document.title)); return <p/>; };'],
+            ['in a handler', 'export const A = () => <button onClick={() => console.log(window.name)}>x</button>;'],
+            ['as a type', 'export const A = () => { let element: HTMLElement | undefined; onClient(() => { element = document.body; console.log(element); }); return <p/>; };'],
+            ['when the server has it as well', 'export const A = () => { console.log(new URL(\'https://example.com\')); return <p/>; };'],
+            ['when the component declares the name', 'export const A = () => { const location = \'here\'; return <p>{location}</p>; };'],
+            ['from a ?client import, in onClient', 'import { Chart } from \'chart.js?client\';\nexport const A = () => { onClient(() => { Chart.defaults.color = \'red\'; }); return <p/>; };']
+        ])('is allowed %s', (_where, source) => {
+            expect(compile(source).diagnostics).toEqual([]);
+        });
+    });
+});
+
 describe('compile with module: cjs', () => {
     // A commonjs module can be evaluated directly, which proves the emit is not just syntactic.
 
@@ -238,8 +554,45 @@ describe('compile with module: cjs', () => {
         });
         const page: unknown = loaded[exportName];
         assert(isCompiledPage(page));
-        return { html: renderPage(page, props), required };
+        return { html: renderTestPage(page, props), required };
     }
+
+    // what the build does with a template importing a package with ?client: the server module is this one,
+    // and the page loads the package's browser script
+    it('leaves a ?client import out of the module the server runs', () => {
+        const source: string = 'import { Chart } from \'chart.js?client\';\n'
+            + 'export const kind = typeof Chart;\n'
+            + 'export const Home = () => { onClient(() => { Chart.defaults.color = \'red\'; }); return <p>x</p>; };';
+        const result: CompileResult = compile(source, { module: 'cjs' });
+        assert(result.code);
+        const required: string[] = [];
+
+        const loaded: Record<string, unknown> = loadCjs(result.code, id => {
+            required.push(id);
+            return id === 'chart.js' ? { Chart: { defaults: {} } } : {};
+        });
+
+        expect(required).not.toContain('chart.js');
+        expect(loaded['kind']).toBe('undefined');
+        expect(result.clientPackages).toEqual(['chart.js']);
+    });
+
+    it('leaves an effect and its list out of the module the server runs', () => {
+        const source: string = 'import { useEffect, useState } from \'zibri\';\n'
+            + 'export const Home = () => { const count = useState(1); function watched() { return count.value > 0; } '
+            + 'useEffect(() => { document.title = String(count.value); }, [count, watched]); return <p>{count.value}</p>; };';
+        const result: CompileResult = compile(source, { module: 'cjs' });
+        assert(result.code);
+        // the module also holds the client script, as a string the page receives
+        const serverRender: string = result.code.slice(0, result.code.indexOf('exports.Home = {'));
+
+        const { html } = renderCjs(source, {});
+
+        expect(html).toContain('<p><!--b0_0-->1<!--/b0_0--></p>');
+        expect(serverRender).toContain('function __render$Home');
+        expect(serverRender).not.toContain('document.title');
+        expect(serverRender).not.toContain('[count, watched]');
+    });
 
     it('renders a context created at module level', () => {
         const source: string = 'import { createContext, provideContext, useContext } from \'zibri\';\n'
@@ -305,7 +658,7 @@ describe('compile with module: cjs', () => {
     it('stamps a handler inside a JSX element given as an attribute value in the rendered page', () => {
         const source: string = 'export const Home = () => <Card icon=<button onClick={() => console.log(\'icon\')}>i</button>/>;\n'
             + 'const Card = ({ icon }) => <div>{icon}</div>;';
-        expect(renderCjs(source, {}).html).toContain('<button data-ssr-handlers="h0_0:click">i</button>');
+        expect(renderCjs(source, {}).html).toContain('<button data-ssr="h0_0:click">i</button>');
     });
 
     it('renders a spread child', () => {

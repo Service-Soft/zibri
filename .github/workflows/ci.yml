@@ -168,6 +168,37 @@ jobs:
             - run: npm ci
             - run: npm run build -w zibri-tsx
             - run: npm run test -w zibri-tsx
+    # what runs in a browser: the client scripts the compiler writes, and the pages of the sandbox opened
+    # from its own routes, in a real Chromium. One job on one node line: the browser is what these test,
+    # and it is the same browser on every one of them. The sandbox's other suites run here as well, as
+    # this is the job that has its environment
+    test-browser:
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        env:
+            # the blanks of the sandbox's .env.example, which a deployment fills in and a test overrides
+            ENVIRONMENT: development
+            JWT_ACCESS_SECRET: ci-access-token-secret
+            JWT_REFRESH_SECRET: ci-refresh-token-secret
+            MASTER_KEY: ci-master-key-ci-master-key-ci-mk
+            DEFAULT_ADMIN_PASSWORD: ci-default-admin-password
+            SMTP_HOST: localhost
+            SMTP_PORT: 25
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                node-version: '24'
+                cache: npm
+            - run: npm ci
+            - run: npx playwright install --with-deps chromium
+            - run: npm run build -w zibri-tsx
+            - run: npm run build:prod -w zibri
+            - run: npm run build -w zibri-testing
+            - run: npm run test:browser -w zibri-tsx
+            - run: cp packages/sandbox/.env.example packages/sandbox/.env
+            - run: npm run test -w sandbox
+            - run: npm run test:browser -w sandbox
     # the cli's whole suite in one in-band run, which is what lets it report coverage without
     # merging two of them: its heavy tests need --runInBand anyway
     test-cli:
@@ -288,7 +319,7 @@ jobs:
     # protection naming them would wait on a job that no longer exists. Runs whatever happened above,
     # and fails when any of them did not succeed
     test:
-        needs: [test-zibri, test-zibri-heavy, test-zibri-cluster, test-tsx, test-cli, portability]
+        needs: [test-zibri, test-zibri-heavy, test-zibri-cluster, test-tsx, test-browser, test-cli, portability]
         if: always()
         runs-on: ubuntu-latest
         steps:

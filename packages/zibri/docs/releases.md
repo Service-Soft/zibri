@@ -15,6 +15,11 @@ Files inside a package can only be reached through these entry points.
 
 `zibri/internal` holds what the other Zibri packages use from `zibri`. Any release can change it.
 
+`zibri-tsx` also exports what the templates it compiles call while they render and in the page:
+`createServerRuntime`, the `RenderServerRuntime` type with the registries and markers it holds, and the sources of
+the client script, such as `CLIENT_HOOK_SOURCES`, `REATTACH_RUNTIME` and `BIND_RUNTIME`. Any release can change
+them, along with the code the compiler emits.
+
 ## What a version number tells you
 | Release | Contains |
 |---|---|

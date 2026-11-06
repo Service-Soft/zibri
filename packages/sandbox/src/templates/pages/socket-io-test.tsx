@@ -1,7 +1,6 @@
 /* eslint-disable no-console */
-/* eslint-disable typescript/no-non-null-assertion */
 import { io, Socket } from 'socket.io-client?client';
-import { onClient, TsxComponent, WebsocketSendDataMessage } from 'zibri';
+import { Input, onClient, Ref, State, TsxComponent, useEffect, useInput, useRef, useState, WebsocketSendDataMessage } from 'zibri';
 
 import { BasePage } from '../components/base-page';
 import { Button } from '../components/button';
@@ -15,11 +14,27 @@ type Props = {
     secondary: string
 };
 
+type ChatMessage = {
+    id: number,
+    text: string,
+    senderConnectionId: string,
+    senderUserId: string,
+    isOwn: boolean
+};
+
+type ChatBubbleProps = {
+    message: ChatMessage,
+    primary: string,
+    secondary: string
+};
+
 export const SocketIoTestPage: TsxComponent<Props> = ({ primary, secondary }: Props) => {
     let socket: Socket;
-    let message: string = '';
-    let dialog: HTMLDialogElement;
-    let errorParagraphs: HTMLDivElement;
+    const message: State<string> = useState('');
+    const messages: State<ChatMessage[]> = useState<ChatMessage[]>([]);
+    const errorTitle: State<string> = useState('...');
+    const errorParagraphs: State<string[]> = useState<string[]>([]);
+    const dialog: Ref<HTMLDialogElement> = useRef<HTMLDialogElement>();
 
     onClient(() => {
         socket = io({
@@ -27,37 +42,23 @@ export const SocketIoTestPage: TsxComponent<Props> = ({ primary, secondary }: Pr
                 offset: 0
             }
         });
-        dialog = document.querySelector('#dialog')!;
-        errorParagraphs = document.querySelector('#error-paragraphs')!;
 
         socket.on('chat message', (msg, ack) => {
-            const item: HTMLLIElement = document.createElement('li');
-            item.style.padding = '16px';
-            item.style.borderRadius = '12px';
-            item.style.width = 'fit-content';
-            item.style.maxWidth = '48%';
-            item.style.wordBreak = 'break-all';
-            item.style.color = 'whitesmoke';
-
-            item.innerHTML = [
-                // eslint-disable-next-line typescript/no-unsafe-member-access
-                `<div>${msg.data.message}</div>`,
-                // eslint-disable-next-line typescript/no-unsafe-member-access
-                `<div>senderConnectionId: ${msg.senderConnectionId}</div>`,
-                // eslint-disable-next-line typescript/no-unsafe-member-access
-                `<div>senderUserId: ${msg.senderUserId}</div>`
-            ].join('\n');
-            // eslint-disable-next-line typescript/no-unsafe-member-access
-            if (msg.senderConnectionId === socket.id) {
-                item.style.backgroundColor = secondary;
-                item.style.marginLeft = 'auto';
-            }
-            else {
-                item.style.backgroundColor = primary;
-            }
-            const messages: HTMLUListElement = document.querySelector('#messages')!;
-            messages.appendChild(item);
-            window.scrollTo(0, document.body.scrollHeight);
+            messages.value = [
+                ...messages.value,
+                {
+                    id: messages.value.length,
+                    // text, never html: a message is written by whoever else is connected
+                    // eslint-disable-next-line typescript/no-unsafe-member-access
+                    text: String(msg.data.message),
+                    // eslint-disable-next-line typescript/no-unsafe-member-access
+                    senderConnectionId: String(msg.senderConnectionId),
+                    // eslint-disable-next-line typescript/no-unsafe-member-access
+                    senderUserId: String(msg.senderUserId),
+                    // eslint-disable-next-line typescript/no-unsafe-member-access
+                    isOwn: msg.senderConnectionId === socket.id
+                }
+            ];
             if (typeof ack === 'function') {
                 // eslint-disable-next-line typescript/no-unsafe-call
                 ack();
@@ -80,20 +81,16 @@ export const SocketIoTestPage: TsxComponent<Props> = ({ primary, secondary }: Pr
         });
     });
 
+    useEffect(() => window.scrollTo(0, document.body.scrollHeight), [messages]);
+
     // eslint-disable-next-line unusedImports/no-unused-vars
     function closeDialog(): void {
-        errorParagraphs.replaceChildren();
-        dialog.close();
-    }
-
-    function updateMessage(value: string): void {
-        const input: HTMLTextAreaElement = document.querySelector('#input')!;
-        message = value;
-        input.value = value;
+        errorParagraphs.value = [];
+        dialog.current.close();
     }
 
     async function sendMessage(): Promise<void> {
-        if (!message) {
+        if (!message.value) {
             return;
         }
 
@@ -103,23 +100,18 @@ export const SocketIoTestPage: TsxComponent<Props> = ({ primary, secondary }: Pr
                 'chat message',
                 {
                     headers: { Authorization: 'Bearer 12376892311' },
-                    body: { message }
+                    body: { message: message.value }
                 }
             );
 
         if (response.ok) {
-            updateMessage('');
+            message.value = '';
             return;
         }
 
-        const errorDialogTitle: Element = document.querySelector('#error-dialog-title')!;
-        errorDialogTitle.textContent = `Error: ${response.error?.status}`;
-        for (const p of response.error?.paragraphs ?? []) {
-            const item: HTMLParagraphElement = document.createElement('p');
-            item.textContent = p;
-            errorParagraphs.appendChild(item);
-        }
-        dialog.showModal();
+        errorTitle.value = `Error: ${response.error?.status}`;
+        errorParagraphs.value = response.error?.paragraphs ?? [];
+        dialog.current.showModal();
         console.error(response.error);
     }
 
@@ -136,25 +128,50 @@ export const SocketIoTestPage: TsxComponent<Props> = ({ primary, secondary }: Pr
                         <hr className="text-white"/>
                     </div>
                     <div className="flex flex-col w-full">
-                        <ul className="flex-1 overflow-scroll p-4 flex flex-col gap-4" id="messages"></ul>
+                        <ul className="flex-1 overflow-scroll p-4 flex flex-col gap-4" id="messages">
+                            {messages.value.map(chatMessage => <ChatBubble
+                                key={chatMessage.id}
+                                message={chatMessage}
+                                primary={primary}
+                                secondary={secondary}
+                            />)}
+                        </ul>
                         <Form onSubmit={() => void sendMessage()} className="bg-dark-gray p-4 rounded-br-xl">
                             <div className="flex gap-5">
-                                <TextArea onChange={(value) => updateMessage(value)}
+                                <TextArea value={message}
                                     label={undefined}
                                     id="input"
                                     className="flex-1">
                                 </TextArea>
-                                <Button type="submit" className="min-w-36 h-full">Send</Button>
+                                <Button type="submit" id="send-button" className="min-w-36 h-full">Send</Button>
                             </div>
                         </Form>
                     </div>
                 </div>
 
-                <Dialog id="dialog" className="hidden open:flex flex-col gap-2">
-                    <Heading id="error-dialog-title">...</Heading>
-                    <div id="error-paragraphs"></div>
+                <Dialog id="dialog" dialogRef={dialog} className="hidden open:flex flex-col gap-2">
+                    <Heading id="error-dialog-title">{errorTitle.value}</Heading>
+                    <div id="error-paragraphs">
+                        {errorParagraphs.value.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+                    </div>
                 </Dialog>
             </BasePage>
         </>
+    );
+};
+
+const ChatBubble: TsxComponent<ChatBubbleProps> = ({ message, primary, secondary }) => {
+    const shown: Input<ChatMessage> = useInput(message);
+    return (
+        <li
+            className="p-4 rounded-xl w-fit max-w-[48%] break-all text-[whitesmoke]"
+            style={shown.value.isOwn
+                ? { backgroundColor: secondary, marginLeft: 'auto' }
+                : { backgroundColor: primary }}
+        >
+            <div>{shown.value.text}</div>
+            <div>senderConnectionId: {shown.value.senderConnectionId}</div>
+            <div>senderUserId: {shown.value.senderUserId}</div>
+        </li>
     );
 };

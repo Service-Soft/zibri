@@ -31,6 +31,22 @@ export function browserGlobals(): ReadonlySet<string> {
 }
 
 /**
+ * The browser globals the server does not have, read once.
+ */
+let browserOnly: ReadonlySet<string> | undefined;
+
+/**
+ * The names a page's script can read and code on the server cannot, such as `document` and `window`:
+ * the browser globals, without those of the Node running the compiler, which runs the server render as
+ * well. A name Node has, such as `fetch`, `URL` or `console`, works on both.
+ * @returns The global names.
+ */
+export function browserOnlyGlobals(): ReadonlySet<string> {
+    browserOnly ??= new Set([...browserGlobals()].filter(name => !(name in globalThis)));
+    return browserOnly;
+}
+
+/**
  * Reads the browser globals from the lib files of the installed TypeScript.
  * @returns The global names.
  * @throws When a lib file is missing from the TypeScript installation.

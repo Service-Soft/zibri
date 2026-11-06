@@ -79,8 +79,9 @@
         "lint": "eslint . --max-warnings=0",
         "lint:fix": "eslint . --max-warnings=0 --fix",
         "prepublishOnly": "npm run build",
-        "test": "jest && jest --config jest.typescript-6.config.mjs",
-        "test:coverage": "jest --coverage"
+        "test": "jest --testPathPatterns=\"^(?!.*\\.browser\\.test\\.ts$).*\" && jest --config jest.typescript-6.config.mjs --testPathPatterns=\"^(?!.*\\.browser\\.test\\.ts$).*\"",
+        "test:browser": "jest --testPathPatterns=\"\\.browser\\.test\\.ts$\"",
+        "test:coverage": "jest --coverage --testPathPatterns=\"^(?!.*\\.browser\\.test\\.ts$).*\""
     },
     "peerDependencies": {
         "typescript": "^5.9.2 || ^6.0.0"
@@ -92,8 +93,11 @@
         "eslint-config-service-soft": "^2.1.6",
         "jest": "^30.4.2",
         "mjml": "^5.4.0",
+        "playwright": "^1.61.1",
         "ts-jest": "^29.4.11",
+        "ts-loader": "^9.5.2",
         "typescript": "^5.9.2",
-        "typescript-6": "npm:typescript@^6.0.2"
+        "typescript-6": "npm:typescript@^6.0.2",
+        "webpack": "^5.105.3"
     }
 }

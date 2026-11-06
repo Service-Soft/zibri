@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 import { compile, CompileResult } from '../codegen/compile';
 import { SourceMap } from '../codegen/source-map';
-import { resolveCompileError } from '../diagnostics/diagnostic.model';
+import { resolveCompileError, resolveCompileWarning } from '../diagnostics/diagnostic.model';
 
 /**
  * The subset of the options jest hands a transformer that this one uses. Typed structurally so the package needs
@@ -80,16 +80,22 @@ const zibriTsxTransformer: ZibriTsxTransformer = {
         if (!result.code || !result.map) {
             throw resolveCompileError(result.diagnostics, source, file);
         }
+        if (result.diagnostics.length > 0) {
+            // eslint-disable-next-line no-console
+            console.warn(resolveCompileWarning(result.diagnostics, source, file).message);
+        }
         return { code: result.code, map: result.map };
     },
     getCacheKey(source: string, file: string, options: TransformOptions): string {
         // jest's own key covers the file and the configuration, but not the transformer. Without the
-        // version, a template compiled before an upgrade would keep being served from the cache
+        // version, a template compiled before an upgrade would keep being served from the cache. The
+        // version stays the same while the compiler is worked on, and every build rewrites this file.
         return createHash('sha256')
             .update(source)
             .update(file)
             .update(options.configString)
             .update(PACKAGE_VERSION)
+            .update(String(statSync(__filename).mtimeMs))
             .digest('hex');
     }
 };

@@ -1,5 +1,4 @@
-/* eslint-disable typescript/no-non-null-assertion */
-import { $ts, MailingList, MailingListPreferencesPageTemplate, MaskUtilities, onClient } from 'zibri';
+import { $ts, MailingList, MailingListPreferencesPageTemplate, MaskUtilities, State, useState } from 'zibri';
 
 import { Button } from '../components/button';
 import { Card } from '../components/card';
@@ -12,8 +11,9 @@ type MailingListDisplayData = MailingList & {
 };
 
 export const MailingListPreferencesPage: MailingListPreferencesPageTemplate = ({ subscriber, mailingLists, managePreferencesApiUrl }) => {
-    let updateButton: HTMLButtonElement;
-    let statusBar: HTMLDivElement;
+    const status: State<string> = useState('');
+    const statusColor: State<string> = useState('');
+    const isLoading: State<boolean> = useState(false);
 
     const email: string = MaskUtilities.mask(subscriber.email);
     const lists: MailingListDisplayData[] = mailingLists.map(l => ({
@@ -21,96 +21,51 @@ export const MailingListPreferencesPage: MailingListPreferencesPageTemplate = ({
         isSubscribedTo: subscriber.mailingLists.some(sl => sl.id === l.id)
     }));
 
-    let checkedMailingListIdsPriorChanges: string[] = lists.filter(l => l.isSubscribedTo).map(l => l.id);
-    let currentCheckedMailingListIds: string[] = [...checkedMailingListIdsPriorChanges];
+    const saved: State<string[]> = useState(lists.filter(l => l.isSubscribedTo).map(l => l.id));
+    const checked: State<string[]> = useState(lists.filter(l => l.isSubscribedTo).map(l => l.id));
 
-    onClient(() => {
-        updateButton = document.querySelector('#update-button')!;
-        statusBar = document.querySelector('#status-bar')!;
-    });
-
-    function updateCheckedMailingListIds(l: MailingListDisplayData): void {
-        if (l.isSubscribedTo) {
-            currentCheckedMailingListIds.push(l.id);
-        }
-        else {
-            currentCheckedMailingListIds = currentCheckedMailingListIds.filter(id => id !== l.id);
-        }
-
-        checkIsDirty();
+    function isChecked(id: string): boolean {
+        return checked.value.includes(id);
     }
 
-    function checkIsDirty(): void {
-        if (checkedMailingListIdsPriorChanges.find(id => !currentCheckedMailingListIds.includes(id))) {
-            updateButton.disabled = false;
-            return;
-        }
-        if (currentCheckedMailingListIds.find(id => !checkedMailingListIdsPriorChanges.includes(id))) {
-            updateButton.disabled = false;
-            return;
-        }
+    function isDirty(): boolean {
+        return saved.value.some(id => !checked.value.includes(id)) || checked.value.some(id => !saved.value.includes(id));
+    }
 
-        updateButton.disabled = true;
+    function toggleCheckedMailingListId(id: string): void {
+        checked.value = checked.value.includes(id)
+            ? checked.value.filter(checkedId => checkedId !== id)
+            : [...checked.value, id];
     }
 
     async function update(): Promise<void> {
-        setIsLoading();
+        isLoading.value = true;
+        showStatus($ts`loading...`, 'gray');
 
-        const success: boolean = (await fetch(
+        const success: boolean = await fetch(
             managePreferencesApiUrl,
             {
                 method: 'PATCH',
-                body: JSON.stringify({ mailingListIds: currentCheckedMailingListIds }),
+                body: JSON.stringify({ mailingListIds: checked.value }),
                 headers: { 'content-type': 'application/json' }
             }
-        )).ok;
+        ).then(response => response.ok, () => false);
 
+        isLoading.value = false;
         if (success) {
-            setIsSuccess();
-            return;
+            saved.value = checked.value;
+            showStatus($ts`preferences updated`, 'green');
         }
-
-        for (const id of lists.map(l => l.id)) {
-            if (!checkedMailingListIdsPriorChanges.includes(id)) {
-                const checkbox: HTMLInputElement = document.querySelector(`#${id}`)!;
-                checkbox.checked = false;
-            }
+        else {
+            checked.value = saved.value;
+            showStatus($ts`failed updating preferences`, 'red');
         }
-        for (const id of checkedMailingListIdsPriorChanges) {
-            if (!lists.map(l => l.id).includes(id)) {
-                const checkbox: HTMLInputElement = document.querySelector(`#${id}`)!;
-                checkbox.checked = true;
-            }
-        }
-        setIsFailed();
+        setTimeout(() => showStatus('', ''), 3000);
     }
 
-    function reset(): void {
-        checkedMailingListIdsPriorChanges = [...currentCheckedMailingListIds];
-        checkIsDirty();
-    }
-    function removeStatus(): void {
-        statusBar.style.backgroundColor = '';
-        statusBar.textContent = '';
-    }
-    function setIsLoading(): void {
-        updateButton.disabled = true;
-        statusBar.style.backgroundColor = 'gray';
-        statusBar.textContent = $ts`loading...`;
-    }
-    function setIsSuccess(): void {
-        removeStatus();
-        statusBar.style.backgroundColor = 'green';
-        statusBar.textContent = $ts`preferences updated`;
-        reset();
-        setTimeout(removeStatus, 3000);
-    }
-    function setIsFailed(): void {
-        removeStatus();
-        statusBar.style.backgroundColor = 'red';
-        statusBar.textContent = $ts`failed updating preferences`;
-        reset();
-        setTimeout(removeStatus, 3000);
+    function showStatus(text: string, color: string): void {
+        status.value = text;
+        statusColor.value = color;
     }
 
     return (
@@ -124,15 +79,19 @@ export const MailingListPreferencesPage: MailingListPreferencesPageTemplate = ({
                     </Heading>
                     <ul>
                         {lists.map(l => <li className="mb-2">
-                            <Checkbox onChange={() => updateCheckedMailingListIds(l)} label={l.name} id={l.id} checked={l.isSubscribedTo}>
+                            <Checkbox onChange={() => toggleCheckedMailingListId(l.id)} label={l.name} id={l.id} checked={isChecked(l.id)}>
                             </Checkbox>
                         </li>)}
                     </ul>
-                    <Button onClick={() => void update()} className='mx-auto' disabled id='update-button'>{$ts`Update`}</Button>
+                    <Button onClick={() => void update()} className='mx-auto' disabled={isLoading.value || !isDirty()} id='update-button'>
+                        {$ts`Update`}
+                    </Button>
                     <div
                         className="flex items-center justify-center h-6 -mt-[9px] -m-[15px] transition duration-300 ease-in"
                         id="status-bar"
+                        style={statusColor.value === '' ? undefined : { backgroundColor: statusColor.value }}
                     >
+                        {status.value}
                     </div>
                 </Card>
             </EmptyPage>

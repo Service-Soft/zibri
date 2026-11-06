@@ -1,22 +1,22 @@
-import { TsxComponent } from 'zibri';
+import { State, TsxComponent } from 'zibri';
 
 type Props = {
     id: string,
     label: string | undefined,
-    onChange?: (value: string) => void,
+    value: State<string>,
     className?: string
 };
 
-export const TextArea: TsxComponent<Props> = ({ label, id, className, onChange }) => {
+export const TextArea: TsxComponent<Props> = ({ label, id, className, value }) => {
     return (
         <div className={`flex flex-col gap-1 ${className}`}>
             {label && <label className="cursor-pointer" for={id}>
                 {label}
             </label>}
-            <textarea onChange={(ev) => onChange?.(ev.currentTarget.value)}
-                className={'p-1 border-none rounded resize-none'}
+            <textarea className={'p-1 border-none rounded resize-none'}
                 autocomplete="off"
                 id={id}
+                value={value}
             />
         </div>
     );

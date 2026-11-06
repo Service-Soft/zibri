@@ -1,3 +1,6 @@
+import { Stats, statSync, utimesSync } from 'node:fs';
+import path from 'node:path';
+
 import { describe, expect, it } from '@jest/globals';
 
 import zibriTsxTransformer from './index';
@@ -27,6 +30,24 @@ describe('zibri-tsx jest transformer', () => {
             .toThrow(/\/app\/src\/templates\/bad\.tsx:2:\d+ ZTSX002/);
     });
 
+    it('compiles a template with a warning, and prints the warning naming the file, line and code', () => {
+        const printed: string[] = [];
+        const original: typeof console.warn = console.warn;
+        console.warn = (message: unknown) => printed.push(String(message));
+        try {
+            const { code } = zibriTsxTransformer.process(
+                '\nexport const Toggle = () => { let on = false; return <input type="checkbox" checked={on} onChange={() => { on = !on; }}/>; };',
+                '/app/src/templates/toggle.tsx'
+            );
+
+            expect(code).toContain('exports.Toggle =');
+            expect(printed).toEqual([expect.stringMatching(/\/app\/src\/templates\/toggle\.tsx:2:\d+ ZTSX016/)]);
+        }
+        finally {
+            console.warn = original;
+        }
+    });
+
     it('caches a template under a key of its own source, path and configuration', () => {
         const key: string = zibriTsxTransformer.getCacheKey(TEMPLATE, '/app/home.tsx', { configString: '{}' });
 
@@ -34,5 +55,21 @@ describe('zibri-tsx jest transformer', () => {
         expect(zibriTsxTransformer.getCacheKey(`${TEMPLATE} `, '/app/home.tsx', { configString: '{}' })).not.toBe(key);
         expect(zibriTsxTransformer.getCacheKey(TEMPLATE, '/app/other.tsx', { configString: '{}' })).not.toBe(key);
         expect(zibriTsxTransformer.getCacheKey(TEMPLATE, '/app/home.tsx', { configString: '{"a":1}' })).not.toBe(key);
+    });
+
+    // the version does not move while the compiler is worked on, so a test would keep rendering what
+    // the compiler before the last build emitted
+    it('caches a template under another key once the compiler was built again', () => {
+        const compiler: string = path.join(__dirname, 'index.ts');
+        const { atime, mtime }: Stats = statSync(compiler);
+        const key: string = zibriTsxTransformer.getCacheKey(TEMPLATE, '/app/home.tsx', { configString: '{}' });
+
+        utimesSync(compiler, atime, new Date(mtime.getTime() + 1000));
+        try {
+            expect(zibriTsxTransformer.getCacheKey(TEMPLATE, '/app/home.tsx', { configString: '{}' })).not.toBe(key);
+        }
+        finally {
+            utimesSync(compiler, atime, mtime);
+        }
     });
 });

@@ -1,9 +1,9 @@
 import { ChartConfiguration, Chart as ChartJsChart } from 'chart.js?client';
-import { $ts, MetricsSnapshot, onClient, TsxComponent } from 'zibri';
+import { Input, MetricsSnapshot, onClient, Ref, TsxComponent, useContext, useEffect, useInput, useRef } from 'zibri';
 
 import { Card } from './card';
 import { Heading } from './heading';
-import { MetricsEvent } from '../pages/metrics/metrics';
+import { Snapshots } from '../pages/metrics/snapshots';
 
 type Props = {
     title: string,
@@ -15,23 +15,17 @@ type Props = {
 };
 
 export const Chart: TsxComponent<Props> = ({ className = '', title, canvasId, chartConfig, updateChart }) => {
+    const canvas: Ref<HTMLCanvasElement> = useRef<HTMLCanvasElement>();
+    const snapshots: Input<MetricsSnapshot[]> = useInput(useContext(Snapshots));
+    let chart: ChartJsChart | undefined;
+
     onClient(() => {
-        let chart: ChartJsChart | undefined;
-
-        window.addEventListener('load', () => {
-            const el: HTMLElement | null = document.getElementById(canvasId);
-            if (!el) {
-                return;
-            }
-
+        // the date adapter of the charts is a deferred script, which runs before this event
+        document.addEventListener('DOMContentLoaded', () => {
             new IntersectionObserver(([entry]) => {
                 if (entry.isIntersecting) {
                     if (!chart) {
-                        const canvas: HTMLCanvasElement | null = document.querySelector<HTMLCanvasElement>(`#${canvasId}`);
-                        if (!canvas) {
-                            return;
-                        }
-                        chart = new ChartJsChart(canvas, chartConfig);
+                        chart = new ChartJsChart(canvas.current, chartConfig);
                     }
                     else {
                         chart.update();
@@ -40,24 +34,20 @@ export const Chart: TsxComponent<Props> = ({ className = '', title, canvasId, ch
                 else {
                     chart?.stop();
                 }
-            }).observe(el);
-        });
-
-        document.addEventListener('metrics:update', (ev) => {
-            if (!(ev instanceof CustomEvent) || !('snaps' in ev.detail)) {
-                throw new Error($ts`received invalid metrics event`);
-            }
-            if (!chart) {
-                return;
-            }
-            updateChart(chart, (ev as MetricsEvent).detail.snaps);
+            }).observe(canvas.current);
         });
     });
+
+    useEffect(() => {
+        if (chart) {
+            updateChart(chart, [...snapshots.value]);
+        }
+    }, [snapshots]);
 
     return (
         <Card className={className}>
             <Heading className='!text-xl' tag='h2'>{title}</Heading>
-            <canvas id={canvasId}></canvas>
+            <canvas id={canvasId} ref={canvas}></canvas>
         </Card>
     );
 };

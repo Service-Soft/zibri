@@ -2,7 +2,9 @@ import { collectClientPackagesFromFiles, findTemplateFiles } from '../build/temp
 import { generateVendorBundles } from '../build/vendor';
 import { compile, CompileResult, ModuleFormat } from '../codegen/compile';
 import { SourceMap } from '../codegen/source-map';
-import { resolveCompileError } from '../diagnostics/diagnostic.model';
+import { resolveCompileError, resolveCompileWarning } from '../diagnostics/diagnostic.model';
+
+export * from './type-check';
 
 /**
  * The subset of webpack's loader context this loader uses. Typed structurally so the package needs
@@ -17,6 +19,10 @@ export type LoaderContext = {
      * Reports a compilation error for this file.
      */
     emitError: (error: Error) => void,
+    /**
+     * Reports a compilation warning for this file.
+     */
+    emitWarning?: (warning: Error) => void,
     /**
      * Hands webpack the compiled module, with its source map.
      */
@@ -77,6 +83,9 @@ export default function zibriTsxLoader(this: LoaderContext, source: string): voi
         // a placeholder keeps the bundler going, so it reports every failing file
         this.callback(undefined, format === 'cjs' ? 'module.exports = undefined;' : 'export default undefined;');
         return;
+    }
+    if (result.diagnostics.length > 0) {
+        this.emitWarning?.(resolveCompileWarning(result.diagnostics, source, this.resourcePath));
     }
     this.callback(undefined, result.code, result.map);
 }

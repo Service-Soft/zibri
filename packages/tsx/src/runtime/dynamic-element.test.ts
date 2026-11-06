@@ -76,7 +76,7 @@ describe('dynamic tag names', () => {
             + 'const TagName = tag; return <TagName onClick={pick}>x</TagName>; };';
         const result: RenderResult = renderComponentResult(source, { tag: 'button' });
 
-        expect(result.html).toContain('data-ssr-handlers="h0_0:click"');
+        expect(result.html).toContain('data-ssr="h0_0:click"');
         // The handler must not leak into the markup as an attribute.
         expect(result.html).not.toContain('onClick');
         expect(result.handlers).toHaveLength(1);
@@ -90,7 +90,7 @@ describe('dynamic tag names', () => {
             + 'return <div><Button tag="button" onClick={pick}>Go</Button></div>; };';
         const result: RenderResult = renderWithComponents(page, { Button: button });
 
-        expect(result.html).toContain('data-ssr-handlers=');
+        expect(result.html).toContain('data-ssr=');
         expect(result.handlers).toHaveLength(1);
     });
 

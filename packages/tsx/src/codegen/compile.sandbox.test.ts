@@ -61,7 +61,9 @@ describe('compile against real sandbox templates', () => {
             const result: CompileResult = compile(readFileSync(file, 'utf8'));
             const hasClientCode: boolean = (result.client?.handlerSites.length ?? 0) > 0
                 || (result.client?.clientPropSites.length ?? 0) > 0
-                || readFileSync(file, 'utf8').includes('onClient(');
+                || (result.client?.bindings.length ?? 0) > 0
+                || readFileSync(file, 'utf8').includes('onClient(')
+                || readFileSync(file, 'utf8').includes('useEffect(');
             // Dropping unreachable statements must never drop the client behavior itself.
             expect(result.client?.code !== undefined).toBe(hasClientCode);
         }

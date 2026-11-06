@@ -74,6 +74,18 @@ export async function generateVendorBundles(options: VendorBundleOptions): Promi
 }
 
 /**
+ * Resolves the code of a package's vendor bundle, as {@link generateVendorBundles} writes it, without
+ * writing anything. A test serves it to a browser this way, so it needs no build first.
+ * @param packageName - The `?client` package name, such as `chart.js`.
+ * @param resolveFrom - The directory whose `package.json` anchors module resolution, normally the application root.
+ * @returns The bundle's code.
+ * @throws When the package has no browser distribution to serve.
+ */
+export async function resolveVendorBundleCode(packageName: string, resolveFrom: string): Promise<string> {
+    return await readBrowserDist(packageName, createRequire(join(resolveFrom, PACKAGE_MANIFEST)));
+}
+
+/**
  * Whether a file already contains the given content.
  * @param file - The file to compare.
  * @param code - The content to compare against.

@@ -1,7 +1,8 @@
 import * as ts from 'typescript';
 
-import { attributeExpression, attributesOf, CapturedVariable, capturedVariables, isEventHandlerName, isPropPassThrough, JsxElementLike, PropScope, propScope, ScopeFrame, scopeFrameFor, visitComponentBody } from './handlers';
+import { attributeExpression, attributesOf, CapturedVariable, capturedVariables, isComponentName, isEventHandlerName, isPropPassThrough, JsxElementLike, PropScope, propScope, ScopeFrame, scopeFrameFor, tagNameOf, visitComponentBody } from './handlers';
 import { SETUP_RUNTIME_PARAM } from './reattach';
+import { regionExpressions } from './regions';
 import { AccessShape } from '../../runtime/access-shape';
 import { ComponentFunction } from '../../semantics/component';
 import { childrenOf, unwrapTypeSyntax, walk } from '../../semantics/walk';
@@ -77,29 +78,6 @@ export const CLIENT_PROPS_RUNTIME: string = `(function () {
         ${CLIENT_PROP_VALUES}[entries[i].id] = factory.apply(null, entries[i].captured || []);
     }
 })();`;
-
-/**
- * Whether a JSX name refers to a component rather than a host element. Only components receive
- * function props; on a host element a function cannot be rendered and is dropped as an attribute.
- * @param name - The JSX tag name.
- * @returns True for capitalized or dotted tags.
- */
-export function isComponentName(name: ts.JsxTagNameExpression): boolean {
-    if (ts.isPropertyAccessExpression(name)) {
-        return true;
-    }
-    const written: string = ts.isIdentifier(name) ? name.text : name.getText();
-    return !!written && !written.startsWith(written[0].toLowerCase());
-}
-
-/**
- * The tag name of a JSX element.
- * @param element - The element.
- * @returns Its tag name expression.
- */
-export function tagNameOf(element: JsxElementLike): ts.JsxTagNameExpression {
-    return ts.isJsxElement(element) ? element.openingElement.tagName : element.tagName;
-}
 
 /**
  * Collects the names the component declares as functions in its own body, so a prop that merely
@@ -203,9 +181,14 @@ export function collectClientPropSites(fn: ComponentFunction): ClientPropCollect
     const byNode: Map<ts.Expression, ClientPropSite> = new Map<ts.Expression, ClientPropSite>();
     const props: PropScope = propScope(fn);
     const locals: Set<string> = localFunctionNames(fn);
+    // a condition or a list the browser renders holds no component
+    const regions: Set<ts.Node> = regionExpressions(fn);
     let counter: number = 0;
 
     const visit: (node: ts.Node, frames: ScopeFrame[]) => void = (node: ts.Node, frames: ScopeFrame[]): void => {
+        if (regions.has(node)) {
+            return;
+        }
         if ((ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) && isComponentName(tagNameOf(node))) {
             collectElementProps(node, frames, props, locals, sites, byNode, () => `p${counter++}`);
         }

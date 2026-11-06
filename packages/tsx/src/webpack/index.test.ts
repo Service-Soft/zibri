@@ -98,6 +98,20 @@ describe('zibri-tsx webpack loader', () => {
         expect(handed.code).toBe('export default undefined;');
     });
 
+    it('reports a warning with file, line and column, and hands webpack the module', () => {
+        const warnings: Error[] = [];
+        const handed: Handed = { code: undefined, map: undefined };
+        zibriTsxLoader.call(
+            { ...contextFor('/app/src/templates/toggle.tsx', [], handed), emitWarning: (warning: Error) => warnings.push(warning) },
+            '\nexport const Toggle = () => { let on = false; return <input type="checkbox" checked={on} onChange={() => { on = !on; }}/>; };'
+        );
+
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0].message).toContain('/app/src/templates/toggle.tsx:2:');
+        expect(warnings[0].message).toContain('ZTSX016');
+        expect(handed.code).toContain('exports.Toggle =');
+    });
+
     it('reports parse errors', () => {
         const errors: Error[] = [];
         zibriTsxLoader.call(contextFor('/app/x.tsx', errors, { code: undefined, map: undefined }), 'export const A = () => <div>oops;');

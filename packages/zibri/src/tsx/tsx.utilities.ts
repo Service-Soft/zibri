@@ -1,6 +1,8 @@
 import { CompiledPage, createServerRuntime, renderChild, renderPage, RenderServerRuntime } from 'zibri-tsx';
 
 import { TsxComponent } from './tsx-component.model';
+import { ZibriEnvironment } from '../application/zibri-environment.type';
+import { GlobalRegistry } from '../global/global-registry';
 import { TsxEmailComponent } from './tsx-email-component.model';
 import { TsxLocaleData } from './tsx-locale-data.model';
 import { HttpRequestContext } from '../context/request/http-request.context';
@@ -38,7 +40,7 @@ export abstract class TsxUtilities {
         const compiled: CompiledPage = this.toCompiledComponent(component);
         // A fresh runtime per render; its handler and client instance registries are simply ignored,
         // which is what makes this the script free variant of renderPage.
-        const runtime: RenderServerRuntime = createServerRuntime();
+        const runtime: RenderServerRuntime = createServerRuntime(this.resolveEnvironment());
 
         return `<!DOCTYPE html>\n${renderChild(compiled.render(this.toPropsRecord(props), runtime))}`;
     }
@@ -62,9 +64,27 @@ export abstract class TsxUtilities {
         const [component, props] = args;
 
         return renderPage(this.toCompiledComponent(component), this.toPropsRecord(props), {
+            environment: this.resolveEnvironment(),
             nonce: this.resolveNonce(),
             localeData: new TsxLocaleData()
         });
+    }
+
+    /**
+     * Resolves the environment of the application, which decides what a mistake only the render can see
+     * does: it throws in `development`, and is logged in `production`, which renders the page degraded.
+     * @returns The environment.
+     * @throws An InternalError when no application was created, as nothing says which it is.
+     */
+    private static resolveEnvironment(): ZibriEnvironment {
+        const environment: ZibriEnvironment | undefined = GlobalRegistry.getAppData('environment');
+        if (environment == undefined) {
+            throw new InternalError([
+                'A tsx template is rendered before any application was created, and the environment of the application',
+                'decides what a mistake only the render can see does. Render templates in a created application.'
+            ]);
+        }
+        return environment;
     }
 
     /**

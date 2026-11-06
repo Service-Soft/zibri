@@ -52,18 +52,23 @@
     "peerDependencies": {
         "@peculiar/x509": "^2.1.0",
         "ldapts": "^9.2.0",
+        "playwright": "^1.61.1",
         "testcontainers": "^12.0.0",
         "ts-jest": "^29.4.11",
         "ts-node": "^10.9.2",
         "xml-crypto": "^6.3.3",
         "xml-encryption": "^3.1.0",
-        "zibri": "^3.0.1"
+        "zibri": "^3.0.1",
+        "zibri-tsx": "^3.0.1"
     },
     "peerDependenciesMeta": {
         "@peculiar/x509": {
             "optional": true
         },
         "ldapts": {
+            "optional": true
+        },
+        "playwright": {
             "optional": true
         },
         "testcontainers": {
@@ -89,6 +94,7 @@
         "eslint-config-service-soft": "^2.1.6",
         "jest": "^30.4.2",
         "ldapts": "^9.2.0",
+        "playwright": "^1.61.1",
         "testcontainers": "^12.0.0",
         "ts-jest": "^29.4.11",
         "ts-node": "^10.9.2",

@@ -41,6 +41,9 @@ It peer depends on `zibri`, so the framework under test is the copy your applica
 | `FakeLdapDirectory` | class | The running directory: its entries, and the binds and searches it was asked for |
 | `FakeLdapDirectoryOptions`, `FakeLdapEntry`, `FakeLdapBind`, `FakeLdapSearch` | type | Its entries, and what it was asked |
 | `TestBrowser` | class | Plays the browser: keeps cookies, follows no redirect on its own |
+| `startPageBrowser` | function | Launches a real Chromium that opens the pages of a test server, see [testing a page in a browser](#testing-a-page-in-a-browser) |
+| `PageBrowser` | class | The running browser: `open`, `findPageErrors` and `close` |
+| `PageBrowserOptions`, `PageBrowserProxy` | type | The vendor scripts it serves, and the base url it answers from the server |
 | `FakePasskeyDevice` | class | Plays a device with its browser: creates and uses passkeys |
 | `FakePasskeyDeviceOptions`, `FakePasskey`, `FakePasskeyAttestation` | type | What kind of device it is, the passkeys it holds, and how it proves its model |
 | `FakeDpopKey`, `FakeDpopProofOptions` | class, type | A client's key pair, signing [DPoP](./glossary.md#dpop) proofs, see [signing DPoP proofs](#signing-dpop-proofs) |
@@ -74,6 +77,7 @@ Install these only for what needs them. Anything else in the harness works witho
 | `ldapts` | `startFakeLdapDirectory` |
 | `xml-crypto` | `startFakeSamlProvider` |
 | `xml-encryption` | `startFakeSamlProvider` with `encryptsTo` |
+| `playwright` | `startPageBrowser`, with its Chromium downloaded by `npx playwright install chromium` |
 
 ## Starting your application in a test
 `startTestServer` boots your application, with its data source and its lifecycle, and `start` hands
@@ -198,8 +202,9 @@ export default createJestConfig({ rootDir: 'src' });
 ```
 
 `createJestConfig` compiles your code with `ts-jest` and your templates with `zibri-tsx/jest`, so a
-test renders the same templates the build does. A package imported with `?client` is the package
-itself in a test, as it is in the server build. A test worker is restarted once it holds more than
+test renders the same templates the build does. A package a template imports with `?client` is left
+out of the server render, in a test as in the build, so only client code reads it, see
+[running code in the browser](./templating.md#running-code-in-the-browser). A test worker is restarted once it holds more than
 1 GB, which keeps a long run within the memory of the machine. Every jest option you pass is kept,
 `workerIdleMemoryLimit` included.
 
@@ -420,6 +425,7 @@ Each replaces a default that fits a deployment and not a test:
 | `CRON_SERVICE` | a stub that schedules nothing, so tests run on their own clock |
 | `MULTITHREADING_SERVICE` | a stub that spawns nothing, so no worker outlives the test that started it |
 | `AUTH_RATE_LIMIT_OPTIONS` | a limit above what a suite makes, so the eleventh test still reaches its endpoint |
+| `ASSETS_PATH` | the `assets` folder of the application, which the build copies beside the bundle, so a test server serves the stylesheet and the scripts of the pages |
 
 A later provider for a token wins, so these replace the application's. A test about one of them
 names its own provider for the token:
@@ -448,6 +454,95 @@ list. `defaultClusterProviders` is that list, filtered that way.
 
 A test that swaps the master encryption strategy hands `testMasterKey` back in as an old key, so the
 key rows already stored stay readable.
+
+## Testing a page in a browser
+`startPageBrowser` launches a headless Chromium, and `open` loads a route of your test server in a page
+of its own. The page runs what your [templates](./templating.md) run in the browser, under the
+headers your application sends, its Content Security Policy included. `findPageErrors` answers what
+the page threw and what its policy refused.
+
+```ts
+// src/__testing__/tasks-page.browser.test.ts
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { Page } from 'playwright';
+import { PageBrowser, startPageBrowser, StartedTestServer, startTestServer } from 'zibri-testing';
+
+import { testApplicationOptions } from './test-application-options';
+
+describe('the tasks page', () => {
+    let server: StartedTestServer;
+    let baseUrl: string;
+    let browser: PageBrowser;
+
+    beforeAll(async () => {
+        server = await startTestServer({ application: testApplicationOptions });
+        baseUrl = await server.start();
+        browser = await startPageBrowser({ vendorPackages: ['chart.js'] });
+    }, 30000);
+
+    afterAll(async () => {
+        await browser.close();
+        await server.shutdown();
+    }, 30000);
+
+    it('saves a task', async () => {
+        const page: Page = await browser.open(`${baseUrl}/tasks`);
+
+        await page.locator('#title').fill('Write the release notes');
+        await page.locator('#save-button').click();
+
+        expect(await page.locator('#status').textContent()).toBe('Saved');
+        expect(browser.findPageErrors(page)).toEqual([]);
+    });
+
+    it('announces the status to a screen reader', async () => {
+        const page: Page = await browser.open(`${baseUrl}/tasks`);
+
+        expect(await page.locator('#status').getAttribute('role')).toBe('status');
+    });
+});
+```
+
+`open` answers a Playwright `Page`, and the tests use its API from there. Find an element by its id,
+and check what assistive technology reads in assertions of their own, such as the `role` above.
+Finding an element by its role checks the role as well, and that check is lost when someone later
+finds the element another way.
+
+`vendorPackages` names the packages your templates import with `?client`. The browser answers their
+scripts from your `node_modules`, so a test needs no build first. To stub one, route its url in the
+second argument of `open`, which runs before the page loads:
+
+```ts
+// src/__testing__/chat-page.browser.test.ts
+import { Page } from 'playwright';
+import { PageBrowser } from 'zibri-testing';
+
+async function openChat(browser: PageBrowser, baseUrl: string): Promise<Page> {
+    return await browser.open(`${baseUrl}/chat`, async opened => {
+        await opened.route('**/assets/vendor/socket-io-client.js', route => route.fulfill({
+            contentType: 'text/javascript',
+            body: 'window.io = () => ({ on: () => {} });'
+        }));
+    });
+}
+```
+
+Links your application builds, such as those in its emails, point at its `baseUrl` rather than at the
+port the test server listens on. `behindProxy` answers every request to the base url from the server,
+and the page keeps the base url as its origin, as behind the reverse proxy of a deployment:
+
+```ts
+// src/__testing__/emails.browser.test.ts
+import { PageBrowser, startPageBrowser, StartedTestServer } from 'zibri-testing';
+
+import { testApplicationOptions } from './test-application-options';
+
+async function startBrowserBehindProxy(server: StartedTestServer): Promise<PageBrowser> {
+    return await startPageBrowser({
+        behindProxy: { baseUrl: testApplicationOptions.baseUrl, appUrl: await server.start() }
+    });
+}
+```
 
 ## Logging in through a provider
 `startFakeOAuthProvider` starts an OpenID Connect provider inside the test, reached over HTTP on

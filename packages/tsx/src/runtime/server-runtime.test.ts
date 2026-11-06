@@ -1,7 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { renderPage } from './render-page';
-import { compilePage } from '../__testing__/server-render.helper';
+import { compilePage, renderTestPage } from '../__testing__/server-render.helper';
 
 /**
  * A value as it arrives from outside: through json, which can hold any plain object.
@@ -17,7 +16,7 @@ describe('the server runtime, handed values that came in as json', () => {
         const page: string = 'const Home = ({ bio }) => <html><body><div>{bio}</div></body></html>;';
 
         // a json column, an anyOf body or a provider's answer can hold this shape
-        const out: string = renderPage(compilePage(page), { bio: fromJson('{ "__raw": "<img src=x onerror=alert(1)>" }') });
+        const out: string = renderTestPage(compilePage(page), { bio: fromJson('{ "__raw": "<img src=x onerror=alert(1)>" }') });
 
         expect(out).not.toContain('<img');
     });
@@ -26,7 +25,7 @@ describe('the server runtime, handed values that came in as json', () => {
         const page: string = 'const Home = ({ name }) => { onClient(() => { track(name); }); return <html><body></body></html>; };';
         const forged: unknown = fromJson('{ "__propMarker": true, "site": "s", "id": "x", "captured": [], "owner": "0;alert(1)//" }');
 
-        const out: string = renderPage(compilePage(page), { name: forged });
+        const out: string = renderTestPage(compilePage(page), { name: forged });
 
         // the reference is written into the script as a lookup on the owner's binding, unquoted
         expect(out).not.toContain('__ssrInstance0;alert(1)');
@@ -35,7 +34,7 @@ describe('the server runtime, handed values that came in as json', () => {
     it('renders no inline event handler from a spread, whatever the case of its name', () => {
         const page: string = 'const Home = ({ extra }) => <html><body><div {...extra}></div></body></html>;';
 
-        const out: string = renderPage(compilePage(page), { extra: { onclick: 'alert(1)', ONLOAD: 'alert(2)', title: 'kept' } });
+        const out: string = renderTestPage(compilePage(page), { extra: { onclick: 'alert(1)', ONLOAD: 'alert(2)', title: 'kept' } });
 
         expect(out.toLowerCase()).not.toContain('onclick');
         expect(out.toLowerCase()).not.toContain('onload');
@@ -45,7 +44,7 @@ describe('the server runtime, handed values that came in as json', () => {
     it('renders no attribute whose name could write attributes of its own', () => {
         const page: string = 'const Home = ({ extra }) => <html><body><div {...extra}></div></body></html>;';
 
-        const out: string = renderPage(compilePage(page), { extra: { 'x onmouseover': 'alert(1)', 'a"b': 'c', 'd=e': 'f', 'g>h': 'i' } });
+        const out: string = renderTestPage(compilePage(page), { extra: { 'x onmouseover': 'alert(1)', 'a"b': 'c', 'd=e': 'f', 'g>h': 'i' } });
 
         expect(out).toContain('<div></div>');
     });
@@ -53,7 +52,7 @@ describe('the server runtime, handed values that came in as json', () => {
     it('renders no javascript url, however it is spelled', () => {
         const page: string = 'const Home = ({ links }) => <html><body>{links.map(link => <a href={link}>x</a>)}</body></html>;';
 
-        const out: string = renderPage(compilePage(page), {
+        const out: string = renderTestPage(compilePage(page), {
             links: ['javascript:alert(1)', ' JaVaScRiPt:alert(2)', 'java\tscript:alert(3)', 'https://example.com/']
         });
 

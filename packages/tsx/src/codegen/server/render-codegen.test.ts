@@ -68,7 +68,7 @@ describe('server render codegen', () => {
         it('stamps event handlers for reattachment instead of rendering them as attributes', () => {
             const html: string = renderComponent('const A = () => <button onClick={() => go()}>t</button>;');
             expect(html).not.toContain('onClick');
-            expect(html).toBe('<button data-ssr-handlers="h0_0:click">t</button>');
+            expect(html).toBe('<button data-ssr="h0_0:click">t</button>');
         });
     });
 

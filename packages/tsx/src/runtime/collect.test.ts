@@ -4,7 +4,7 @@ import { createServerRuntime, RenderServerRuntime } from './server-runtime';
 
 describe('runtime collect/collected', () => {
     it('records values in first-seen order, de-duplicated', () => {
-        const runtime: RenderServerRuntime = createServerRuntime();
+        const runtime: RenderServerRuntime = createServerRuntime('development');
         runtime.collect('c', '100');
         runtime.collect('c', '50');
         runtime.collect('c', '100');
@@ -12,7 +12,7 @@ describe('runtime collect/collected', () => {
     });
 
     it('keeps channels separate', () => {
-        const runtime: RenderServerRuntime = createServerRuntime();
+        const runtime: RenderServerRuntime = createServerRuntime('development');
         runtime.collect('a', '1');
         runtime.collect('b', '2');
         expect(runtime.collected('a')).toEqual(['1']);
@@ -20,12 +20,12 @@ describe('runtime collect/collected', () => {
     });
 
     it('returns nothing for an untouched channel', () => {
-        expect(createServerRuntime().collected('missing')).toEqual([]);
+        expect(createServerRuntime('development').collected('missing')).toEqual([]);
     });
 
     it('is isolated per render', () => {
-        const first: RenderServerRuntime = createServerRuntime();
+        const first: RenderServerRuntime = createServerRuntime('development');
         first.collect('c', '1');
-        expect(createServerRuntime().collected('c')).toEqual([]);
+        expect(createServerRuntime('development').collected('c')).toEqual([]);
     });
 });

@@ -3,7 +3,7 @@ import * as ts from 'typescript';
 import { AccessShape, FieldAccess, mergeAccessShapes, resolveAccessThroughRest } from '../../runtime/access-shape';
 import { collectPatternBindings, isBindingIdentifier } from '../../semantics/binding';
 import { symbolOf } from '../../semantics/symbols';
-import { walk } from '../../semantics/walk';
+import { isHookCall, walk } from '../../semantics/walk';
 
 /**
  * Array methods whose callback receives each element as its first parameter.
@@ -169,6 +169,11 @@ class AccessCollector {
         }
         if (ts.isBinaryExpression(parent) && parent.operatorToken.kind === ts.SyntaxKind.EqualsToken && parent.left === node) {
             // overwritten, not read
+            return;
+        }
+        if (isWatchedByEffect(node, parent)) {
+            // the page compares the value a state holds, and reads nothing of it
+            fieldOf(builder, 'value');
             return;
         }
         builder.whole = true;
@@ -387,6 +392,17 @@ function isValuePreservingWrapper(node: ts.Node): node is ts.ParenthesizedExpres
     | ts.TypeAssertion | ts.NonNullExpression {
     return ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node)
         || ts.isTypeAssertionExpression(node) || ts.isNonNullExpression(node);
+}
+
+/**
+ * Whether a use is an entry of the list of an effect.
+ * @param node - The use.
+ * @param parent - Its parent.
+ * @returns True for an element of the array written as the second argument of `useEffect`.
+ */
+function isWatchedByEffect(node: ts.Node, parent: ts.Node): boolean {
+    return ts.isArrayLiteralExpression(parent) && parent.elements.some(element => element === node)
+        && ts.isCallExpression(parent.parent) && isHookCall(parent.parent, 'useEffect') && parent.parent.arguments[1] === parent;
 }
 
 /**

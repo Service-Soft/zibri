@@ -40,6 +40,7 @@ import { AnchorAttributes,
     TrackAttributes,
     VideoAttributes } from './jsx-element-attributes.model';
 import { HtmlAttributes } from './jsx.model';
+import { RefTarget } from '../runtime/refs';
 
 /**
  * Every html tag that carries no attributes beyond the global ones. Listing them explicitly is what
@@ -55,9 +56,27 @@ type PlainElementTag
         | 'ul' | 'var' | 'wbr';
 
 /**
- * The html elements that can be used in a template, mapped to the props they accept.
+ * The element a tag renders, as the browser types it.
+ */
+type ElementOf<Tag extends string> = Tag extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[Tag] : HTMLElement;
+
+/**
+ * The html elements that can be used in a template, mapped to the props they accept: their attributes, and
+ * `ref`, which takes a ref of `useRef` or `useRefs` whose type the element is.
  */
 export type IntrinsicElements = {
+    [Tag in keyof ElementAttributesByTag]: ElementAttributesByTag[Tag] & {
+        /**
+         * Gives client code this element through a ref of `useRef` or `useRefs`.
+         */
+        ref?: RefTarget<ElementOf<Tag>>
+    }
+};
+
+/**
+ * The html elements that can be used in a template, mapped to their attributes.
+ */
+type ElementAttributesByTag = {
     [Tag in PlainElementTag]: HtmlAttributes;
 } & {
     /**

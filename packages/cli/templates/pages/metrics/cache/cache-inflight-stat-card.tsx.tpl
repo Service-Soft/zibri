@@ -1,38 +1,24 @@
-import { $ts, MetricsSnapshot, onClient, TsxComponent } from 'zibri';
+import { $ts, Input, MetricsSnapshot, TsxComponent, useContext, useInput } from 'zibri';
 
 import { StatCard } from '../../../components/stat-card';
-import { MetricsEvent } from '../metrics';
+import { Snapshots } from '../snapshots';
 
 type Props = {
     className?: string
 };
 
 export const CacheInFlightStatCard: TsxComponent<Props> = ({ className = '' }) => {
-    onClient(() => {
-        document.addEventListener('metrics:update', (ev) => {
-            if (!(ev instanceof CustomEvent) || !('snaps' in ev.detail)) {
-                throw new Error($ts`received invalid metrics event`);
-            }
-            const { snaps } = (ev as MetricsEvent).detail;
-            update(snaps);
-        });
-    });
+    const snapshots: Input<MetricsSnapshot[]> = useInput(useContext(Snapshots));
 
-    function update(snaps: MetricsSnapshot[]): void {
-        if (!snaps.length) {
-            return;
+    function inFlight(): string {
+        const latest: MetricsSnapshot | undefined = snapshots.value.at(-1);
+        if (!latest) {
+            return '...';
         }
-
-        const latest: MetricsSnapshot = snaps[snaps.length - 1];
-        const inFlight: number = latest.metrics
+        return String(latest.metrics
             .filter(m => m.name === 'cache_in_flight')
-            .reduce((p, c) => p + c.value, 0);
-
-        const el: HTMLElement | null = document.getElementById('cacheInFlightStat');
-        if (el) {
-            el.textContent = String(inFlight);
-        }
+            .reduce((p, c) => p + c.value, 0));
     }
 
-    return <StatCard id="cacheInFlightStat" title={$ts`Ongoing cache operations`} className={className} />;
+    return <StatCard id="cacheInFlightStat" title={$ts`Ongoing cache operations`} className={className}>{inFlight()}</StatCard>;
 };

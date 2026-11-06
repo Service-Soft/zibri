@@ -1,4 +1,4 @@
-import { TsxChildren, TsxElement } from '../index';
+import { Input, Ref, Refs, State, TsxChildren, TsxElement, useEffect, useInput, useRef, useRefs, useState, useWritableInput } from '../index';
 
 /**
  * Type level verification of the jsx typings. Nothing here is executed — it fails the typecheck when
@@ -146,6 +146,137 @@ function rejected(): TsxElement {
 }
 
 /**
+ * Refs, typed by the element they are put on and by whether they need one.
+ * @returns The rendered element.
+ */
+function refs(): TsxElement {
+    const dialog: Ref<HTMLDialogElement> = useRef<HTMLDialogElement>();
+    const anyElement: Ref<HTMLElement> = useRef<HTMLElement>();
+    const block: Ref<HTMLDivElement> = useRef<HTMLDivElement>();
+    const hint: Ref<HTMLElement | undefined> = useRef<HTMLElement>({ required: false });
+    const rows: Refs<HTMLLIElement> = useRefs<HTMLLIElement>();
+    const input: Ref<HTMLInputElement> = useRef<HTMLInputElement>({ required: true });
+
+    const shown: HTMLDialogElement = dialog.current;
+    const maybe: HTMLElement | undefined = hint.current;
+    const all: HTMLLIElement[] = rows.current;
+    // @ts-expect-error a ref that is not required may hold no element
+    const certain: HTMLElement = hint.current;
+    // @ts-expect-error useRef takes whether the ref is required, and nothing else
+    useRef<HTMLElement>(0);
+    void [shown, maybe, all, certain];
+
+    return <div ref={block}>
+        <dialog ref={dialog}/>
+        <dialog ref={anyElement}/>
+        <em ref={hint}/>
+        <ul><li ref={rows}/></ul>
+        {/* @ts-expect-error a ref of an input does not fit a dialog */}
+        <dialog ref={input}/>
+        {/* @ts-expect-error a ref is a ref, not any object */}
+        <p ref={{}}/>
+    </div>;
+}
+
+/**
+ * Effects, typed by what they run again for and what they return.
+ * @returns The rendered element.
+ */
+function effects(): TsxElement {
+    const count: State<number> = useState(0);
+    function isBig(): boolean {
+        return count.value > 9;
+    }
+
+    useEffect(() => report(String(count.value)), [count, isBig]);
+    useEffect(async () => {
+        await Promise.resolve();
+    }, [count]);
+    useEffect(() => {
+        const timer: ReturnType<typeof setInterval> = setInterval(() => report('tick'), 1000);
+        return () => clearInterval(timer);
+    }, [count]);
+    // @ts-expect-error an effect runs again for at least one state or function, and onClient runs once
+    useEffect(() => report('once'), []);
+    // @ts-expect-error the value of a state is what it holds now, and an effect follows the state itself
+    useEffect(() => report('read'), [count.value]);
+    // @ts-expect-error an effect returns nothing, or a cleanup
+    useEffect(() => 'done', [count]);
+
+    return <p>{count.value}</p>;
+}
+
+/**
+ * Shows a text it is handed.
+ * @param props - The props.
+ * @param props.text - The text.
+ * @returns The rendered element.
+ */
+function Preview({ text }: { text: string }): TsxElement {
+    const shown: Input<string> = useInput(text);
+    return <p>{shown.value}</p>;
+}
+
+/**
+ * Edits a state it is handed.
+ * @param props - The props.
+ * @param props.value - The state.
+ * @returns The rendered element.
+ */
+function Field({ value }: { value: State<string> }): TsxElement {
+    const text: State<string> = useWritableInput(value);
+    return <input value={text.value}/>;
+}
+
+/**
+ * Inputs, typed by whether the component may write them.
+ * @returns The rendered element.
+ */
+function inputs(): TsxElement {
+    const email: State<string> = useState('');
+    const tags: Input<string[]> = useInput(['admin']);
+    const first: string | undefined = tags.value[0];
+    // @ts-expect-error the handle useInput returns is read only
+    tags.value = [];
+    // @ts-expect-error what useInput holds is read only as well
+    tags.value.push('owner');
+    void first;
+
+    return <div>
+        <Preview text={email.value}/>
+        <Field value={email}/>
+        {/* @ts-expect-error a state is not the value it holds */}
+        <Preview text={email}/>
+        {/* @ts-expect-error a value is not the state holding it */}
+        <Field value={email.value}/>
+    </div>;
+}
+
+/**
+ * Form controls, bound one way by a value and both ways by a state.
+ * @returns The rendered element.
+ */
+function forms(): TsxElement {
+    const email: State<string> = useState('');
+    const agreed: State<boolean> = useState(false);
+    const count: State<number> = useState(0);
+
+    return <form>
+        <input value={email}/>
+        <input value={email.value}/>
+        <input type="checkbox" checked={agreed}/>
+        <textarea value={email}/>
+        <select value={email}/>
+        {/* @ts-expect-error a control holds text, which a state of a number is not */}
+        <input value={count}/>
+        {/* @ts-expect-error a checkbox is checked by a state of a boolean */}
+        <input type="checkbox" checked={email}/>
+        {/* @ts-expect-error a button is sent with its value, and writes no state */}
+        <button value={email}/>
+    </form>;
+}
+
+/**
  * Stands in for whatever a handler would do with a value.
  * @param value - The reported value.
  */
@@ -154,4 +285,4 @@ function report(value: string): void {
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-export { Card, elementSpecific, globals, handlers, rejected, structures };
+export { Card, effects, elementSpecific, forms, globals, handlers, inputs, refs, rejected, structures };

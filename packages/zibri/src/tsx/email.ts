@@ -1,6 +1,6 @@
 /**
- * The framework's MJML email components and the context primitives, re-exported so templates import
- * everything from `zibri`. The components render structurally-correct MJML on the server; the nesting
+ * The framework's MJML email components, the context primitives and the refs, re-exported so templates
+ * import everything from `zibri`. The components render structurally-correct MJML on the server; the nesting
  * rules between them are enforced at compile time by zibri-tsx.
  */
 export { Mjml,
@@ -24,7 +24,13 @@ export { Mjml,
     $raw,
     createContext,
     provideContext,
-    useContext } from 'zibri-tsx';
+    useContext,
+    useEffect,
+    useInput,
+    useRef,
+    useRefs,
+    useState,
+    useWritableInput } from 'zibri-tsx';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export type { MjmlProps,
@@ -40,4 +46,8 @@ export type { MjmlProps,
     MjSpacerProps,
     MjAttributesProps,
     EmailLayout,
-    RenderContext } from 'zibri-tsx';
+    RenderContext,
+    Input,
+    Ref,
+    Refs,
+    State } from 'zibri-tsx';

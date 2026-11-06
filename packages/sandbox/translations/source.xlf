@@ -4,7 +4,7 @@
     <body>
       <trans-unit id="{$1}d {$2}h {$3}m {$4}s" xml:space="preserve">
         <source><x id="$1" equiv-text="{$1}"/>d <x id="$2" equiv-text="{$2}"/>h <x id="$3" equiv-text="{$3}"/>m <x id="$4" equiv-text="{$4}"/>s</source>
-        <note>src/templates/pages/metrics/metrics-status.tsx:51</note>
+        <note>src/templates/pages/metrics/metrics-status.tsx:40</note>
       </trans-unit>
       <trans-unit id="A password reset was requested for your account." xml:space="preserve">
         <source>A password reset was requested for your account.</source>
@@ -20,7 +20,7 @@
       </trans-unit>
       <trans-unit id="Active reservations" xml:space="preserve">
         <source>Active reservations</source>
-        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-reservation-stat-card.tsx:35</note>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-reservation-stat-card.tsx:23</note>
       </trans-unit>
       <trans-unit id="Allowed" xml:space="preserve">
         <source>Allowed</source>
@@ -36,11 +36,11 @@
       </trans-unit>
       <trans-unit id="Automatic reload" xml:space="preserve">
         <source>Automatic reload</source>
-        <note>src/templates/pages/metrics/metrics.tsx:106</note>
+        <note>src/templates/pages/metrics/metrics.tsx:81</note>
       </trans-unit>
       <trans-unit id="Block rate" xml:space="preserve">
         <source>Block rate</source>
-        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-block-rate-stat-card.tsx:40, src/templates/pages/metrics/rate-limiter/rate-limiter-overview-chart.tsx:72</note>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-block-rate-stat-card.tsx:29, src/templates/pages/metrics/rate-limiter/rate-limiter-overview-chart.tsx:72</note>
       </trans-unit>
       <trans-unit id="Block rate (%)" xml:space="preserve">
         <source>Block rate (%)</source>
@@ -49,10 +49,6 @@
       <trans-unit id="Blocked" xml:space="preserve">
         <source>Blocked</source>
         <note>src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:32</note>
-      </trans-unit>
-      <trans-unit id="Button with id &#x22;button-{$1}&#x22; could not be found" xml:space="preserve">
-        <source>Button with id "button-<x id="$1" equiv-text="{$1}"/>" could not be found</source>
-        <note>src/templates/components/tab-bar.tsx:27, src/templates/components/tab-bar.tsx:37</note>
       </trans-unit>
       <trans-unit id="Cache Errors" xml:space="preserve">
         <source>Cache Errors</source>
@@ -64,7 +60,7 @@
       </trans-unit>
       <trans-unit id="Caches" xml:space="preserve">
         <source>Caches</source>
-        <note>src/templates/pages/metrics/metrics.tsx:112</note>
+        <note>src/templates/pages/metrics/metrics.tsx:87</note>
       </trans-unit>
       <trans-unit id="Click the link down below to proceed." xml:space="preserve">
         <source>Click the link down below to proceed.</source>
@@ -136,11 +132,11 @@
       </trans-unit>
       <trans-unit id="failed to load metrics" xml:space="preserve">
         <source>failed to load metrics</source>
-        <note>src/templates/pages/metrics/metrics.tsx:92</note>
+        <note>src/templates/pages/metrics/metrics.tsx:66</note>
       </trans-unit>
       <trans-unit id="failed updating preferences" xml:space="preserve">
         <source>failed updating preferences</source>
-        <note>src/templates/pages/mailing-list-preferences.tsx:111</note>
+        <note>src/templates/pages/mailing-list-preferences.tsx:61</note>
       </trans-unit>
       <trans-unit id="Hello" xml:space="preserve">
         <source>Hello</source>
@@ -164,7 +160,7 @@
       </trans-unit>
       <trans-unit id="Hit rate" xml:space="preserve">
         <source>Hit rate</source>
-        <note>src/templates/pages/metrics/cache/cache-hit-rate-stat-card.tsx:41, src/templates/pages/metrics/cache/cache-overview-chart.tsx:76</note>
+        <note>src/templates/pages/metrics/cache/cache-hit-rate-stat-card.tsx:29, src/templates/pages/metrics/cache/cache-overview-chart.tsx:76</note>
       </trans-unit>
       <trans-unit id="Hit rate (%)" xml:space="preserve">
         <source>Hit rate (%)</source>
@@ -200,7 +196,7 @@
       </trans-unit>
       <trans-unit id="keys" xml:space="preserve">
         <source>keys</source>
-        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-size-stat-card.tsx:32</note>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-size-stat-card.tsx:21</note>
       </trans-unit>
       <trans-unit id="Kind regards," xml:space="preserve">
         <source>Kind regards,</source>
@@ -216,15 +212,15 @@
       </trans-unit>
       <trans-unit id="loading..." xml:space="preserve">
         <source>loading...</source>
-        <note>src/templates/pages/mailing-list-preferences.tsx:99</note>
+        <note>src/templates/pages/mailing-list-preferences.tsx:43</note>
       </trans-unit>
       <trans-unit id="Mailing list preferences" xml:space="preserve">
         <source>Mailing list preferences</source>
-        <note>src/templates/pages/mailing-list-preferences.tsx:123</note>
+        <note>src/templates/pages/mailing-list-preferences.tsx:78</note>
       </trans-unit>
       <trans-unit id="Mailing List Preferences" xml:space="preserve">
         <source>Mailing List Preferences</source>
-        <note>src/templates/pages/mailing-list-preferences.tsx:118</note>
+        <note>src/templates/pages/mailing-list-preferences.tsx:73</note>
       </trans-unit>
       <trans-unit id="manage preferences" xml:space="preserve">
         <source>manage preferences</source>
@@ -248,7 +244,7 @@
       </trans-unit>
       <trans-unit id="Metrics" xml:space="preserve">
         <source>Metrics</source>
-        <note>src/templates/pages/metrics/metrics.tsx:98, src/templates/pages/metrics/metrics.tsx:103</note>
+        <note>src/templates/pages/metrics/metrics.tsx:72, src/templates/pages/metrics/metrics.tsx:77</note>
       </trans-unit>
       <trans-unit id="Misses" xml:space="preserve">
         <source>Misses</source>
@@ -264,7 +260,7 @@
       </trans-unit>
       <trans-unit id="Ongoing cache operations" xml:space="preserve">
         <source>Ongoing cache operations</source>
-        <note>src/templates/pages/metrics/cache/cache-inflight-stat-card.tsx:37</note>
+        <note>src/templates/pages/metrics/cache/cache-inflight-stat-card.tsx:23</note>
       </trans-unit>
       <trans-unit id="Only want to change what you receive?" xml:space="preserve">
         <source>Only want to change what you receive?</source>
@@ -284,7 +280,7 @@
       </trans-unit>
       <trans-unit id="Overview" xml:space="preserve">
         <source>Overview</source>
-        <note>src/templates/pages/metrics/metrics.tsx:111, src/templates/pages/metrics/rate-limiter/rate-limiter-overview-chart.tsx:65, src/templates/pages/metrics/cache/cache-overview-chart.tsx:69</note>
+        <note>src/templates/pages/metrics/metrics.tsx:86, src/templates/pages/metrics/rate-limiter/rate-limiter-overview-chart.tsx:65, src/templates/pages/metrics/cache/cache-overview-chart.tsx:69</note>
       </trans-unit>
       <trans-unit id="Password Reset" xml:space="preserve">
         <source>Password Reset</source>
@@ -296,7 +292,7 @@
       </trans-unit>
       <trans-unit id="preferences updated" xml:space="preserve">
         <source>preferences updated</source>
-        <note>src/templates/pages/mailing-list-preferences.tsx:104</note>
+        <note>src/templates/pages/mailing-list-preferences.tsx:57</note>
       </trans-unit>
       <trans-unit id="RAM (MB)" xml:space="preserve">
         <source>RAM (MB)</source>
@@ -304,15 +300,11 @@
       </trans-unit>
       <trans-unit id="Rate Limiters" xml:space="preserve">
         <source>Rate Limiters</source>
-        <note>src/templates/pages/metrics/metrics.tsx:113</note>
-      </trans-unit>
-      <trans-unit id="received invalid metrics event" xml:space="preserve">
-        <source>received invalid metrics event</source>
-        <note>src/templates/pages/metrics/metrics-status.tsx:24, src/templates/pages/metrics/rate-limiter/rate-limiter-block-rate-stat-card.tsx:12, src/templates/pages/metrics/rate-limiter/rate-limiter-reservation-stat-card.tsx:14, src/templates/pages/metrics/rate-limiter/rate-limiter-size-stat-card.tsx:12, src/templates/pages/metrics/cache/cache-hit-rate-stat-card.tsx:12, src/templates/pages/metrics/cache/cache-inflight-stat-card.tsx:14, src/templates/pages/metrics/cache/cache-size-stat-card.tsx:12, src/templates/components/chart.tsx:48</note>
+        <note>src/templates/pages/metrics/metrics.tsx:88</note>
       </trans-unit>
       <trans-unit id="registered" xml:space="preserve">
         <source>registered</source>
-        <note>src/templates/pages/metrics/metrics.tsx:134, src/templates/pages/metrics/metrics.tsx:151</note>
+        <note>src/templates/pages/metrics/metrics.tsx:109, src/templates/pages/metrics/metrics.tsx:126</note>
       </trans-unit>
       <trans-unit id="Request" xml:space="preserve">
         <source>Request</source>
@@ -348,7 +340,7 @@
       </trans-unit>
       <trans-unit id="Since" xml:space="preserve">
         <source>Since</source>
-        <note>src/templates/pages/metrics/metrics-status.tsx:79</note>
+        <note>src/templates/pages/metrics/metrics-status.tsx:63</note>
       </trans-unit>
       <trans-unit id="Size" xml:space="preserve">
         <source>Size</source>
@@ -372,7 +364,7 @@
       </trans-unit>
       <trans-unit id="Status" xml:space="preserve">
         <source>Status</source>
-        <note>src/templates/pages/metrics/metrics-status.tsx:67</note>
+        <note>src/templates/pages/metrics/metrics-status.tsx:51</note>
       </trans-unit>
       <trans-unit id="Store (mean)" xml:space="preserve">
         <source>Store (mean)</source>
@@ -385,10 +377,6 @@
       <trans-unit id="Success" xml:space="preserve">
         <source>Success</source>
         <note>src/templates/pages/metrics/requests-per-second-chart.tsx:114</note>
-      </trans-unit>
-      <trans-unit id="TabPanel with id &#x22;{$1}&#x22; could not be found" xml:space="preserve">
-        <source>TabPanel with id "<x id="$1" equiv-text="{$1}"/>" could not be found</source>
-        <note>src/templates/components/tab-bar.tsx:23, src/templates/components/tab-bar.tsx:33</note>
       </trans-unit>
       <trans-unit id="The application recorded the following" xml:space="preserve">
         <source>The application recorded the following</source>
@@ -408,19 +396,19 @@
       </trans-unit>
       <trans-unit id="Total cached entries" xml:space="preserve">
         <source>Total cached entries</source>
-        <note>src/templates/pages/metrics/cache/cache-size-stat-card.tsx:32</note>
+        <note>src/templates/pages/metrics/cache/cache-size-stat-card.tsx:21</note>
       </trans-unit>
       <trans-unit id="Total caches" xml:space="preserve">
         <source>Total caches</source>
-        <note>src/templates/pages/metrics/metrics.tsx:134</note>
+        <note>src/templates/pages/metrics/metrics.tsx:109</note>
       </trans-unit>
       <trans-unit id="Total rate limiters" xml:space="preserve">
         <source>Total rate limiters</source>
-        <note>src/templates/pages/metrics/metrics.tsx:151</note>
+        <note>src/templates/pages/metrics/metrics.tsx:126</note>
       </trans-unit>
       <trans-unit id="Tracked identities" xml:space="preserve">
         <source>Tracked identities</source>
-        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-size-stat-card.tsx:32</note>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-size-stat-card.tsx:21</note>
       </trans-unit>
       <trans-unit id="unsubscribe" xml:space="preserve">
         <source>unsubscribe</source>
@@ -444,11 +432,11 @@
       </trans-unit>
       <trans-unit id="Update" xml:space="preserve">
         <source>Update</source>
-        <note>src/templates/pages/mailing-list-preferences.tsx:131</note>
+        <note>src/templates/pages/mailing-list-preferences.tsx:87</note>
       </trans-unit>
       <trans-unit id="Uptime" xml:space="preserve">
         <source>Uptime</source>
-        <note>src/templates/pages/metrics/metrics-status.tsx:75</note>
+        <note>src/templates/pages/metrics/metrics-status.tsx:59</note>
       </trans-unit>
       <trans-unit id="URL" xml:space="preserve">
         <source>URL</source>
@@ -460,7 +448,7 @@
       </trans-unit>
       <trans-unit id="Version" xml:space="preserve">
         <source>Version</source>
-        <note>src/templates/pages/metrics/metrics-status.tsx:71</note>
+        <note>src/templates/pages/metrics/metrics-status.tsx:55</note>
       </trans-unit>
       <trans-unit id="Warning" xml:space="preserve">
         <source>Warning</source>

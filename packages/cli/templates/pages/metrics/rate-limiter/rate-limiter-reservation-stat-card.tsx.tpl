@@ -1,36 +1,24 @@
-import { $ts, MetricsSnapshot, onClient, TsxComponent } from 'zibri';
+import { $ts, Input, MetricsSnapshot, TsxComponent, useContext, useInput } from 'zibri';
 
 import { StatCard } from '../../../components/stat-card';
-import { MetricsEvent } from '../metrics';
+import { Snapshots } from '../snapshots';
 
 type Props = {
     className?: string
 };
 
 export const RateLimiterReservationsStatCard: TsxComponent<Props> = ({ className = '' }) => {
-    onClient(() => {
-        document.addEventListener('metrics:update', (ev) => {
-            if (!(ev instanceof CustomEvent) || !('snaps' in ev.detail)) {
-                throw new Error($ts`received invalid metrics event`);
-            }
-            const { snaps } = (ev as MetricsEvent).detail;
-            update(snaps);
-        });
-    });
+    const snapshots: Input<MetricsSnapshot[]> = useInput(useContext(Snapshots));
 
-    function update(snaps: MetricsSnapshot[]): void {
-        if (!snaps.length) {
-            return;
+    function activeReservations(): string {
+        const latest: MetricsSnapshot | undefined = snapshots.value.at(-1);
+        if (!latest) {
+            return '...';
         }
-        const latest: MetricsSnapshot = snaps[snaps.length - 1];
-        const activeReservations: number = latest.metrics
+        return String(latest.metrics
             .filter(m => m.name === 'rate_limit_active_reservations')
-            .reduce((p, c) => p + c.value, 0);
-        const el: HTMLElement | null = document.getElementById('rateLimiterReservationsStat');
-        if (el) {
-            el.textContent = String(activeReservations);
-        }
+            .reduce((p, c) => p + c.value, 0));
     }
 
-    return <StatCard id="rateLimiterReservationsStat" title={$ts`Active reservations`} className={className} />;
+    return <StatCard id="rateLimiterReservationsStat" title={$ts`Active reservations`} className={className}>{activeReservations()}</StatCard>;
 };

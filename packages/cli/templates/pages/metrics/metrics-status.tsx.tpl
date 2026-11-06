@@ -1,6 +1,6 @@
-import { $f, $ts, Metric, MetricsSnapshot, onClient, TsxComponent } from 'zibri';
+import { $f, $ts, Input, Metric, MetricsSnapshot, TsxComponent, useContext, useInput } from 'zibri';
 
-import { MetricsEvent } from './metrics';
+import { Snapshots } from './snapshots';
 import { Card } from '../../components/card';
 import { Heading } from '../../components/heading';
 
@@ -17,29 +17,19 @@ export const MetricsStatus: TsxComponent<Props> = ({
 }) => {
     const uptimeInfoId: string = `uptimeInfo-${id}`;
     const uptimeInfoSinceId: string = `uptimeInfoSince-${id}`;
+    const snapshots: Input<MetricsSnapshot[]> = useInput(useContext(Snapshots));
 
-    onClient(() => {
-        document.addEventListener('metrics:update', (ev) => {
-            if (!(ev instanceof CustomEvent) || !('snaps' in ev.detail)) {
-                throw new Error($ts`received invalid metrics event`);
-            }
-            const { snaps } = (ev as MetricsEvent).detail;
-            renderUptime(snaps);
-        });
-    });
+    function findStart(): number | undefined {
+        const latest: MetricsSnapshot | undefined = snapshots.value.at(-1);
+        const startTimeMetric: Metric | undefined = latest?.metrics.find(m => m.name === 'process_start_time_seconds');
+        return startTimeMetric === undefined ? undefined : startTimeMetric.value * 1000;
+    }
 
-    function renderUptime(snaps: MetricsSnapshot[]): void {
-        if (!snaps.length) {
-            return;
+    function uptime(): string {
+        const start: number | undefined = findStart();
+        if (start === undefined) {
+            return '...';
         }
-
-        const latest: MetricsSnapshot = snaps[snaps.length - 1];
-        const startTimeMetric: Metric | undefined = latest.metrics.find(m => m.name === 'process_start_time_seconds');
-        if (!startTimeMetric) {
-            return;
-        }
-
-        const start: number = startTimeMetric.value * 1000;
         const diffMs: number = Date.now() - start;
         const { days, hours, minutes, seconds } = {
             days: Math.floor(diffMs / 86400000),
@@ -47,18 +37,12 @@ export const MetricsStatus: TsxComponent<Props> = ({
             minutes: Math.floor((diffMs % 3600000) / 60000),
             seconds: Math.floor((diffMs % 60000) / 1000)
         };
+        return $ts`${days}d ${hours}h ${minutes}m ${seconds}s`;
+    }
 
-        const text: string = $ts`${days}d ${hours}h ${minutes}m ${seconds}s`;
-        const sinceText: string = $f.dateTime(new Date(start));
-
-        const uptimeInfo: HTMLElement | null = document.getElementById(uptimeInfoId);
-        if (uptimeInfo) {
-            uptimeInfo.textContent = text;
-        }
-        const uptimeInfoSince: HTMLElement | null = document.getElementById(uptimeInfoSinceId);
-        if (uptimeInfoSince) {
-            uptimeInfoSince.textContent = sinceText;
-        }
+    function since(): string {
+        const start: number | undefined = findStart();
+        return start === undefined ? '...' : $f.dateTime(new Date(start));
     }
 
     return (
@@ -73,11 +57,11 @@ export const MetricsStatus: TsxComponent<Props> = ({
                     </div>
                     <div className="flex justify-between gap-10">
                         <div>{$ts`Uptime`}:</div>
-                        <div id={uptimeInfoId}>...</div>
+                        <div id={uptimeInfoId}>{uptime()}</div>
                     </div>
                     <div className="flex justify-between gap-10">
                         <div>{$ts`Since`}:</div>
-                        <div id={uptimeInfoSinceId}>...</div>
+                        <div id={uptimeInfoSinceId}>{since()}</div>
                     </div>
                 </div>
             </Card>

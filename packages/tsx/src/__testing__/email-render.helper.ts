@@ -14,7 +14,7 @@ export type Mount = <P>(component: TsxComponent<P>, props: P, children?: () => u
  * @returns The rendered HTML.
  */
 export function renderEmail(build: (mount: Mount) => Raw): string {
-    const runtime: RenderServerRuntime = createServerRuntime();
+    const runtime: RenderServerRuntime = createServerRuntime('development');
     // The single inherent compiled-object-to-component cast, kept in one place - an email component
     // is a compiled object at runtime, typed as a JSX component for authoring.
     const mount: Mount = <P>(component: TsxComponent<P>, props: P, children?: () => unknown): Raw => {

@@ -30,6 +30,7 @@
         "useDefineForClassFields": true,
         "useUnknownInCatchVariables": true
     },
-    "exclude": [],
+    // what tests write there, such as projects whose type errors a test builds on purpose
+    "exclude": ["src/__testing__/file-output"],
     "include": ["src", "jest.config.mjs"]
 }

@@ -1,3 +1,4 @@
+import assert from 'node:assert';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -5,6 +6,7 @@ import { setTimeout as wait } from 'node:timers/promises';
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
 import { Configuration, validate } from 'webpack';
+import { ZibriTsxTypeCheckPlugin } from 'zibri-tsx/webpack';
 
 import { resolveWebpackConfiguration } from './resolve-webpack-configuration.function';
 import { RestartServerOnBuildPlugin, WebpackStats } from './restart-server-on-build.plugin';
@@ -35,6 +37,44 @@ function copiedFolders(plugin: unknown): string[] {
     return patterns.flatMap((pattern: unknown) => {
         const from: unknown = typeof pattern === 'object' && pattern != undefined ? Reflect.get(pattern, 'from') : undefined;
         return typeof from === 'string' ? [from] : [];
+    });
+}
+
+/**
+ * Whether a file meets a condition of a rule, for the forms the configuration writes them in.
+ * @param condition - A `test`, `include` or `exclude` of a rule.
+ * @param file - The absolute path of the file.
+ * @returns True when it does.
+ */
+function meets(condition: unknown, file: string): boolean {
+    if (condition instanceof RegExp) {
+        return condition.test(file);
+    }
+    if (typeof condition === 'string') {
+        return file.startsWith(condition);
+    }
+    if (typeof condition === 'function') {
+        return Reflect.apply(condition, undefined, [file]) === true;
+    }
+    return Array.isArray(condition) && condition.some(entry => meets(entry, file));
+}
+
+/**
+ * The loaders the top-level rules of a configuration hand a typescript file to.
+ * @param configuration - The configuration.
+ * @param file - The absolute path of the file.
+ * @returns The loaders, in the order of the rules.
+ */
+function loadersFor(configuration: Configuration, file: string): string[] {
+    return (configuration.module?.rules ?? []).flatMap(rule => {
+        if (typeof rule !== 'object' || rule == undefined || rule.enforce !== undefined) {
+            return [];
+        }
+        const applies: boolean = meets(rule.test, file)
+            && (rule.include === undefined || meets(rule.include, file))
+            && (rule.exclude === undefined || !meets(rule.exclude, file));
+        const loader: unknown = rule.loader ?? rule.use;
+        return applies && typeof loader === 'string' ? [loader] : [];
     });
 }
 
@@ -110,6 +150,30 @@ describe('resolveWebpackConfiguration', () => {
     it('writes the map with the sources for an editor, and without them for a deployment', () => {
         expect(resolveWebpackConfiguration({ root: sandboxDir, sourceMap: 'with-sources' }).devtool).toBe('source-map');
         expect(resolveWebpackConfiguration({ root: sandboxDir, sourceMap: 'file-and-line' }).devtool).toBe('nosources-source-map');
+    });
+
+    // ts-loader skips the templates, so their type errors are reported by a check of their own
+    it('type-checks the templates in the program of the project\'s tsconfig', () => {
+        const configuration: Configuration = resolveWebpackConfiguration({ root: sandboxDir, sourceMap: 'with-sources' });
+        const plugin: ZibriTsxTypeCheckPlugin | undefined = (configuration.plugins ?? [])
+            .find((entry): entry is ZibriTsxTypeCheckPlugin => entry instanceof ZibriTsxTypeCheckPlugin);
+
+        assert(plugin);
+        // the plugin keeps its options to itself, so they are read the way any other field would be
+        expect(Reflect.get(plugin, 'options')).toEqual({
+            tsconfig: path.join(sandboxDir, 'tsconfig.json'),
+            templateDirs: ['pages', 'components', 'emails', 'email-components'].map(folder => path.join(sandboxDir, 'src', 'templates', folder))
+        });
+    });
+
+    // a template imports a module of plain typescript beside it, such as one creating a context
+    it('compiles a template with zibri-tsx, and a module of plain typescript beside it with ts-loader', () => {
+        const configuration: Configuration = resolveWebpackConfiguration({ root: sandboxDir, sourceMap: 'with-sources' });
+        const components: string = path.join(sandboxDir, 'src', 'templates', 'components');
+
+        expect(loadersFor(configuration, path.join(components, 'tab-bar.tsx'))).toEqual(['zibri-tsx/webpack']);
+        expect(loadersFor(configuration, path.join(components, 'current-tab.ts'))).toEqual(['ts-loader']);
+        expect(loadersFor(configuration, path.join(sandboxDir, 'src', 'index.ts'))).toEqual(['ts-loader']);
     });
 
     it('copies only folders a generated project has', () => {

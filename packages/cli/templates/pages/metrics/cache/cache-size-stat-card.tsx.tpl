@@ -1,33 +1,22 @@
-import { $ts, MetricsSnapshot, onClient, TsxComponent } from 'zibri';
+import { $ts, Input, MetricsSnapshot, TsxComponent, useContext, useInput } from 'zibri';
 
 import { StatCard } from '../../../components/stat-card';
-import { MetricsEvent } from '../metrics';
+import { Snapshots } from '../snapshots';
 
 type Props = { className?: string };
 
 export const CacheSizeStatCard: TsxComponent<Props> = ({ className = '' }) => {
-    onClient(() => {
-        document.addEventListener('metrics:update', (ev) => {
-            if (!(ev instanceof CustomEvent) || !('snaps' in ev.detail)) {
-                throw new Error($ts`received invalid metrics event`);
-            }
-            update((ev as MetricsEvent).detail.snaps);
-        });
-    });
+    const snapshots: Input<MetricsSnapshot[]> = useInput(useContext(Snapshots));
 
-    function update(snaps: MetricsSnapshot[]): void {
-        if (!snaps.length) {
-            return;
+    function size(): string {
+        const latest: MetricsSnapshot | undefined = snapshots.value.at(-1);
+        if (!latest) {
+            return '...';
         }
-        const latest: MetricsSnapshot = snaps[snaps.length - 1];
-        const size: number = latest.metrics
+        return String(latest.metrics
             .filter(m => m.name === 'cache_size')
-            .reduce((p, c) => p + c.value, 0);
-        const el: HTMLElement | null = document.getElementById('cacheSizeStat');
-        if (el) {
-            el.textContent = String(size);
-        }
+            .reduce((p, c) => p + c.value, 0));
     }
 
-    return <StatCard id="cacheSizeStat" title={$ts`Total cached entries`} unit="entries" className={className} />;
+    return <StatCard id="cacheSizeStat" title={$ts`Total cached entries`} unit="entries" className={className}>{size()}</StatCard>;
 };

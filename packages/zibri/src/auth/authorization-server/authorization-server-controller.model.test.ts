@@ -954,7 +954,7 @@ describe('AuthorizationServerController — access tokens that work until they e
             tenantId: undefined,
             clientAuthentication: { method: ApiKeyAuthenticationMethod.PRIVATE_KEY_JWT, jwksUrl: 'http://keys.example.com/jwks.json' },
             requireDpop: false
-        }, undefined)).rejects.toThrow('has to be at an https url');
+        }, undefined)).rejects.toThrow('needs to be at an https url');
         await expect(authService().createApiKey(user.id, {
             name: 'x',
             permissions: [],
