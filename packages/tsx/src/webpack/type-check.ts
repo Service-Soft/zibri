@@ -96,10 +96,6 @@ export class ZibriTsxTypeCheckPlugin {
         });
     }
 
-    /**
-     * Type-checks the templates in the program of the application's tsconfig.
-     * @returns The type errors of the templates, and the templates.
-     */
     private resolveTemplateTypeCheck(): TemplateTypeCheck {
         const { tsconfig, templateDirs } = this.options;
         const config: ts.ParsedCommandLine | undefined = ts.getParsedCommandLineOfConfigFile(tsconfig, {}, {
@@ -118,8 +114,15 @@ export class ZibriTsxTypeCheckPlugin {
             configFileParsingDiagnostics: config.errors
         });
         const dirs: string[] = templateDirs.map(dir => `${path.resolve(dir)}${path.sep}`);
-        const templates: ts.SourceFile[] = program.getSourceFiles()
-            .filter(file => file.fileName.endsWith('.tsx') && dirs.some(dir => path.resolve(file.fileName).startsWith(dir)));
+        const isTemplate: (file: ts.SourceFile) => boolean = file => file.fileName.endsWith('.tsx')
+            && dirs.some(dir => path.resolve(file.fileName).startsWith(dir));
+        // the diagnostics of a file are answered from what the last build learned, which only stops counting once
+        // every file a change affects is taken out: a template is otherwise checked against the component it
+        // renders as it was. Every other file is the loader's to check, and skipped
+        while (program.getSemanticDiagnosticsOfNextAffectedFile(undefined, file => !isTemplate(file)) !== undefined) {
+            // each turn checks one affected template again
+        }
+        const templates: ts.SourceFile[] = program.getSourceFiles().filter(isTemplate);
         const errors: Error[] = templates
             .flatMap(file => program.getSemanticDiagnostics(file))
             .filter(diagnostic => diagnostic.category === ts.DiagnosticCategory.Error)

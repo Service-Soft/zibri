@@ -549,7 +549,16 @@ export { type EmailLoggerTransportConfig, type EmailLoggerTransportConfigInput }
 // openapi
 export * from './open-api/open-api.service';
 export * from './open-api/open-api-service.interface';
-export { type EmptyOpenApiResponse, type ErrorOpenApiResponse, type FileOpenApiResponse, type HtmlOpenApiResponse, isOpenApiReferenceObject, type JsonOpenApiResponse, type OpenApiComponentsObject, type OpenApiDefinition, type OpenApiReferenceObject, type OpenApiResponse, type OpenApiSecuritySchemeObject, type OpenApiSecuritySchemeType, type RedirectHttpStatus, type RedirectOpenApiResponse } from './open-api/open-api.model';
+export { type EmptyOpenApiResponse, type ErrorOpenApiResponse, type FileOpenApiResponse, type HtmlOpenApiResponse, isOpenApiReferenceObject, type JsonOpenApiResponse, type OpenApiComponentsObject, type OpenApiDefinition, type OpenApiHeaderObject, type OpenApiMediaTypeObject, type OpenApiParameterObject, type OpenApiReferenceObject, type OpenApiRequestBodyObject, type OpenApiResponse, type OpenApiResponseObject, type OpenApiSchemaObject, type OpenApiSecuritySchemeObject, type OpenApiSecuritySchemeType, type OpenApiServerObject, type RedirectHttpStatus, type RedirectOpenApiResponse } from './open-api/open-api.model';
+export * from './open-api/explorer/open-api-explorer.model';
+export * from './open-api/explorer/open-api-explorer-operation.model';
+export * from './open-api/explorer/open-api-explorer-security-scheme.model';
+export * from './open-api/explorer/open-api-explorer.utilities';
+export * from './async-api/async-api.model';
+export * from './async-api/async-api-service.interface';
+export * from './async-api/async-api.service';
+export * from './async-api/explorer/async-api-explorer-operation.model';
+export * from './async-api/explorer/async-api-explorer.utilities';
 export { type KeysetPage, type PaginationResult } from './data-source/models/pagination-result.model';
 
 export * from './open-api/decorators/response.decorator';

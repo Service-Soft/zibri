@@ -10,6 +10,11 @@ import { InternalError } from '../../../error-handling/internal-error.model';
 const AUTH_TAG_LENGTH: number = 16;
 
 /**
+ * The length in bytes of a key, which aes-256 is named after.
+ */
+const KEY_LENGTH: number = 32;
+
+/**
  * The message of the error a value that cannot be decrypted is refused with.
  */
 const INVALID_VALUE_MESSAGE: string = 'Invalid encrypted value';
@@ -106,6 +111,7 @@ export class AesGcmEncryptionStrategy implements EncryptionStrategyInterface<
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     encrypt(value: string, options: AesGcmEncryptOptions): EncryptionString {
+        this.validateKey(options);
         const marker: AesGcmValueBinding | undefined = this.markerFor(options.binding);
         const iv: Buffer = randomBytes(12);
         const cipher: CipherGCM = createCipheriv(this.name, options.key, iv);
@@ -139,6 +145,7 @@ export class AesGcmEncryptionStrategy implements EncryptionStrategyInterface<
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     decrypt(value: EncryptionString, options: AesGcmDecryptOptions): string {
+        this.validateKey(options);
         const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(value);
         const { marker, ivB64, tagB64, contentB64 }: ParsedAesGcmValue = this.parse(content.encryptedValue);
 
@@ -174,6 +181,24 @@ export class AesGcmEncryptionStrategy implements EncryptionStrategyInterface<
     isBoundToRow(value: EncryptionString): boolean {
         const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(value);
         return this.parse(content.encryptedValue).marker === AesGcmValueBinding.ROW;
+    }
+
+    /**
+     * Checks that the key is one aes-256 can use.
+     * @param options - What the caller passed, holding the key and its id.
+     * @throws When the key is not 32 bytes long, naming the key.
+     */
+    private validateKey(options: AesGcmEncryptOptions | AesGcmDecryptOptions): void {
+        // counted in bytes, so a master key handed over as the string it was read as from the
+        // environment is measured the way node measures it: as utf8
+        const length: number = Buffer.byteLength(options.key);
+        if (length === KEY_LENGTH) {
+            return;
+        }
+        throw new InternalError([
+            `The key "${options.keyId}" needs to be ${KEY_LENGTH} bytes long for ${this.name} (${this.version}), got ${length}.`,
+            'Decode it into a Buffer, such as with Buffer.from(value, \'base64url\').'
+        ].join(' '));
     }
 
     /**

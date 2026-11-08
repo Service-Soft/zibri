@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 import { StoredRoute } from './stored-route.model';
 import { Version, VersionFile } from './version.model';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
+import { explorerTestProviders } from '../__testing__/explorer-test-providers';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
 import { HttpRequestContext } from '../context/request/http-request.context';
@@ -95,6 +96,7 @@ async function restartServer(
         ...applicationOptions,
         providers: [
             ...defaultTestServerProviders,
+            ...explorerTestProviders,
             { token: ZIBRI_DI_TOKENS.VERSIONS_PATH, useValue: versionsPath ?? testVersionsDir }
         ]
     });
@@ -232,8 +234,7 @@ describe('VersioningService integration', () => {
             const html: string = await res.text();
 
             expect(res.status).toBe(200);
-            expect(html).toContain('/explorer/spec/1.0.0');
-            expect(html).toMatch(/"name":"1\.0\.0 \(.+ - .+\)"/);
+            expect(html).toMatch(/<li>1\.0\.0 \([^)|]+ - [^)|]+\)\|\/explorer\/1\.0\.0\|\/explorer\/spec\/1\.0\.0<\/li>/);
         });
     });
 

@@ -9,7 +9,7 @@ export const FileEntryComponent: TsxComponent<Props> = ({ node, className = '' }
         return (
             <details className={`flex flex-col ${className}`}>
                 <summary
-                    className="bg-gray p-3 rounded leading-none cursor-pointer hover:bg-primary duration-200 ease-in"
+                    className="bg-gray p-3 rounded-sm leading-none cursor-pointer hover:bg-primary duration-200 ease-in"
                 >
                     {node.name}
                 </summary>
@@ -22,7 +22,7 @@ export const FileEntryComponent: TsxComponent<Props> = ({ node, className = '' }
 
     return (
         <Link
-            className={`bg-gray p-3 rounded leading-none hover:bg-primary hover:text-white ${className}`}
+            className={`bg-gray p-3 rounded-sm leading-none hover:bg-primary hover:text-white ${className}`}
             href={node.route}
         >
             {node.name}

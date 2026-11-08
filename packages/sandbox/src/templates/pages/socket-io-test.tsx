@@ -28,6 +28,22 @@ type ChatBubbleProps = {
     secondary: string
 };
 
+const ChatBubble: TsxComponent<ChatBubbleProps> = ({ message, primary, secondary }) => {
+    const shown: Input<ChatMessage> = useInput(message);
+    return (
+        <li
+            className="p-4 rounded-xl w-fit max-w-[48%] break-all text-white"
+            style={shown.value.isOwn
+                ? { backgroundColor: secondary, marginLeft: 'auto' }
+                : { backgroundColor: primary }}
+        >
+            <div>{shown.value.text}</div>
+            <div>senderConnectionId: {shown.value.senderConnectionId}</div>
+            <div>senderUserId: {shown.value.senderUserId}</div>
+        </li>
+    );
+};
+
 export const SocketIoTestPage: TsxComponent<Props> = ({ primary, secondary }: Props) => {
     let socket: Socket;
     const message: State<string> = useState('');
@@ -124,7 +140,7 @@ export const SocketIoTestPage: TsxComponent<Props> = ({ primary, secondary }: Pr
                 <Heading className="text-center">Socket Test</Heading>
                 <div className="flex h-[65vh] bg-disabled-dark rounded-xl shadow-elevation">
                     <div className="rounded-l-xl bg-dark-gray w-1/3 p-4">
-                        <Heading className='!text-2xl' tag='h2'>Chats</Heading>
+                        <Heading className='text-2xl!' tag='h2'>Chats</Heading>
                         <hr className="text-white"/>
                     </div>
                     <div className="flex flex-col w-full">
@@ -143,7 +159,7 @@ export const SocketIoTestPage: TsxComponent<Props> = ({ primary, secondary }: Pr
                                     id="input"
                                     className="flex-1">
                                 </TextArea>
-                                <Button type="submit" id="send-button" className="min-w-36 h-full">Send</Button>
+                                <Button type="submit" id="send-button" className="min-w-36 py-4 h-full">Send</Button>
                             </div>
                         </Form>
                     </div>
@@ -157,21 +173,5 @@ export const SocketIoTestPage: TsxComponent<Props> = ({ primary, secondary }: Pr
                 </Dialog>
             </BasePage>
         </>
-    );
-};
-
-const ChatBubble: TsxComponent<ChatBubbleProps> = ({ message, primary, secondary }) => {
-    const shown: Input<ChatMessage> = useInput(message);
-    return (
-        <li
-            className="p-4 rounded-xl w-fit max-w-[48%] break-all text-[whitesmoke]"
-            style={shown.value.isOwn
-                ? { backgroundColor: secondary, marginLeft: 'auto' }
-                : { backgroundColor: primary }}
-        >
-            <div>{shown.value.text}</div>
-            <div>senderConnectionId: {shown.value.senderConnectionId}</div>
-            <div>senderUserId: {shown.value.senderUserId}</div>
-        </li>
     );
 };

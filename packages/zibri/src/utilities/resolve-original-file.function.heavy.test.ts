@@ -126,8 +126,10 @@ describe.each([
 
         // as a generated project builds and starts it, in its Dockerfile and in "npm start"
         runNode([require.resolve('webpack-cli/bin/cli.js'), ...buildArgs]);
-        printed = runNode(['--enable-source-maps', bundle]).trim().split('\n');
-        printedWithoutSourceMaps = runNode([bundle]).trim().split('\n');
+        printed = runNode(['--enable-source-maps', bundle]).trim()
+            .split('\n');
+        printedWithoutSourceMaps = runNode([bundle]).trim()
+            .split('\n');
     }, Ms.MINUTE * 10);
 
     afterAll(async () => {

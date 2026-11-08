@@ -8,6 +8,7 @@ import { MailingListSubscribeConfirmationEmail } from './templates/emails/mailin
 {{/mailingList}}
 import { PasswordResetEmail } from './templates/emails/password-reset';
 {{#pages}}
+import { ExplorerPage } from './templates/explorer/explorer';
 import { ErrorPage } from './templates/pages/error';
 {{/pages}}
 {{#mailingList}}
@@ -22,6 +23,10 @@ export const providers: DiProvider<unknown>[] = [
         token: ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE,
         useFactory: () => ErrorPage
     }),
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE,
+        useFactory: () => ExplorerPage
+    }),
 {{/pages}}
     defineProvider({
         token: ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS,
@@ -29,7 +34,7 @@ export const providers: DiProvider<unknown>[] = [
             currentMasterStrategy: new AesGcmEncryptionStrategy(),
             currentMasterKey: {
                 id: 'k1',
-                value: requireEnv('MASTER_KEY')
+                value: Buffer.from(requireEnv('MASTER_KEY'), 'base64url')
             }
         }
     }),

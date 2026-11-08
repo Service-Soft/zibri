@@ -14,12 +14,12 @@ export const ErrorPage: ErrorPageTemplate = ({ error }) => {
 
     return <EmptyPage title={error.title} className='flex items-center justify-center'>
         <div className="flex gap-8">
-            <Card className='!pt-0 max-w-64'>
+            <Card className='pt-0! max-w-64'>
                 <Link href="/">
                     <img src="/assets/logo.jpg" width="256px" height="256px" />
                 </Link>
                 <Link href="/">
-                    <Heading tag="h2" className='text-center !text-2xl'>{name}</Heading>
+                    <Heading tag="h2" className='text-center text-2xl!'>{name}</Heading>
                 </Link>
             </Card>
             <div className='flex flex-col gap-4 w-[500px]'>
@@ -32,8 +32,8 @@ export const ErrorPage: ErrorPageTemplate = ({ error }) => {
                     </div>
                 </Card>
                 <Card>
-                    <Link icon='/assets/open-api/swagger.png' href="/explorer">
-                        {$ts`OpenAPI Explorer`}
+                    <Link icon='/assets/explorer.svg' href="/explorer">
+                        {$ts`API Explorer`}
                     </Link>
                 </Card>
             </div>

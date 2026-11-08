@@ -31,8 +31,7 @@ Most changes start in four places:
 | `package.json` | The dependencies, and the `start`, `build` and `test` scripts |
 | `tsconfig.json` | Extends `zibri/tsconfig.application.json`, see [build toolchains](./getting-started.md#build-toolchains) |
 | `webpack.config.js` | The build `zibri/webpack` ships. It bundles `src/index.ts` and the stylesheet into `dist`, with a map beside the bundle, see [deployment](./deployment.md#what-a-deployment-is) |
-| `postcss.config.js` | Runs Tailwind and autoprefixer over the stylesheet |
-| `tailwind.config.js` | The colors and shadows of the pages and emails |
+| `postcss.config.js` | Runs Tailwind over the stylesheet |
 | `src/tsx.d.ts` | Declares the `chart.js?client` import the metrics charts run in the browser, see [running code in the browser](./templating.md#running-code-in-the-browser) |
 | `translations/` | The translation source the build extracts, see [providing translations](./localization.md#providing-translations) |
 | `.gitignore` | Keeps `node_modules`, `dist`, `.zibri` and `.env` out of version control |
@@ -89,14 +88,16 @@ Most changes start in four places:
 | `src/templates/pages/mailing-list-preferences.tsx` | Where a subscriber manages their mailing lists |
 | `src/templates/pages/mailing-list-unsubscribe-confirmation.tsx` | What a subscriber sees after unsubscribing |
 | `src/templates/pages/subscribe-success.tsx` | What a subscriber sees after confirming |
+| `src/templates/explorer/` | The explorer of the OpenAPI and the AsyncAPI document at `/explorer`, see [changing the explorer](./open-api.md#changing-the-explorer) |
 | `src/templates/pages/metrics/` | An example of a page with charts that run in the browser: a metrics dashboard. The link to it on the home page is commented out until a controller of yours renders it, see [metrics](./metrics.md) |
 | `src/templates/components/chart.tsx`, `src/templates/components/stat-card.tsx` | The charts and figures of the metrics dashboard |
 | `src/templates/email-components/` | The building blocks of the emails, see [rendering an email](./templating.md#rendering-an-email) |
 | `src/templates/emails/password-reset.tsx` | The password reset email |
 | `src/templates/emails/mailing-list-subscribe-confirmation.tsx` | The email that asks a subscriber to confirm |
 | `src/templates/emails/log.tsx` | An example of an email built from data: it lists log entries, for a log transport of your own, see [logging](./logging.md) |
-| `assets/public/style.css` | The stylesheet, which the build runs through Tailwind |
-| `assets/public/open-api/` | The files of the OpenAPI explorer at `/explorer` |
+| `assets/public/style.css` | The stylesheet, which the build runs through Tailwind 4. Its `@theme` holds the colors and shadows of the pages |
+| `assets/public/explorer.svg` | The icon the home page and the error page link the API explorer with |
+| `assets/public/lock.svg`, `assets/public/lock-open.svg` | The lock the API explorer marks a route that requires a login with, closed once a login is entered |
 | `assets/public/lib/` | The date adapter the metrics charts load |
 | `assets/public/metrics.svg` | The icon of the commented out link to the metrics dashboard |
 | `assets/public/` | The images the pages and emails show, and the favicon, see [assets](./assets.md) |
@@ -121,12 +122,12 @@ Most changes start in four places:
 
 ## Choosing the features
 The tables above list a project with every feature. Without any, the project is a JSON API: the
-auth and health routes, the OpenAPI explorer, the password reset email and everything to build,
+auth and health routes, the OpenAPI and AsyncAPI documents, the password reset email and everything to build,
 test and deploy it.
 
 | Feature | What it adds | Needs |
 |---|---|---|
-| `pages` | The home page, the assets explorer, the error page, their components, and the stylesheet with `postcss.config.js` and `tailwind.config.js` | |
+| `pages` | The home page, the assets explorer, the error page, the OpenAPI explorer, their components, and the stylesheet with `postcss.config.js` | |
 | `mailingList` | The [mailing list plugin](./mailing-list-plugin.md), with its pages, its email, its providers and its entities | `pages` |
 | `metricsDashboard` | An example of a page with charts that run in the browser, rendered by nothing until a controller of yours does, and the `chart.js` dependency | `pages` |
 | `logEmail` | An example of an email built from data, rendered by nothing until a log transport of yours does | |

@@ -83,7 +83,15 @@ export enum ValidationCode {
  * The hooks of client code that only a component can call, as each instance of a component has a setup
  * of its own in the page. Code outside a component has none, so nothing would run what they are given.
  */
-const CLIENT_COMPONENT_HOOKS: readonly string[] = ['onClient', 'useRef', 'useRefs', 'useState', 'useEffect', 'useInput', 'useWritableInput'];
+const CLIENT_COMPONENT_HOOKS: readonly string[] = [
+    'onClient',
+    'useRef',
+    'useRefs',
+    'useState',
+    'useEffect',
+    'useInput',
+    'useWritableInput'
+];
 
 /**
  * The span of a node, in the offsets diagnostics use.
@@ -199,7 +207,8 @@ export function validateRenderSyntaxOutsideComponents(
         if (isJsx || hook !== undefined) {
             const message: string = hook !== undefined && clientHooks.has(hook)
                 ? `'${hook}' is written outside a component, where nothing runs it: client code runs in the setup of `
-                    + 'a component in the page. Move it into the component it belongs to.'
+                + 'a component in the page. Move it into the component it belongs to.'
+                // eslint-disable-next-line sonar/no-nested-template-literals
                 : `${hook === undefined ? 'JSX' : `'${hook}'`} is written outside a component, where there is no render `
                     + 'to produce it in. Move it into a component - a function named in PascalCase that returns JSX.';
             diagnostics.push({
@@ -247,12 +256,12 @@ export function validateBrowserNamesDuringRender(file: ts.SourceFile, components
             .find(source => source !== undefined);
         if (clientSource !== undefined) {
             reported.set(name, browserNameDiagnostic(identifier, `'${name}' comes from '${clientSource}?client', which only the `
-                + 'page loads, and this code runs while the server renders the page. Use it in onClient or in a handler.'));
+            + 'page loads, and this code runs while the server renders the page. Use it in onClient or in a handler.'));
         }
         else if (declarations.length === 0 && browserOnlyGlobals().has(name)) {
             reported.set(name, browserNameDiagnostic(identifier, `'${name}' exists in the browser and not on the server, and `
-                + 'this code runs while the server renders the page. Read it in onClient or in a handler, or check '
-                + `'typeof ${name} !== 'undefined'' before reading it.`));
+            + 'this code runs while the server renders the page. Read it in onClient or in a handler, or check '
+            + `'typeof ${name} !== 'undefined'' before reading it.`));
         }
     };
     const visit: (node: ts.Node) => void = node => walk(node, current => {
@@ -354,11 +363,10 @@ export function runsWhereItIsWritten(fn: ts.FunctionLikeDeclaration): boolean {
     if (!ts.isCallExpression(call) && !ts.isNewExpression(call)) {
         return false;
     }
-    if (ts.isCallExpression(call) && call.expression === outer) {
-        return true;
-    }
-    return call.arguments?.some(argument => argument === outer) === true
-        && !CLIENT_COMPONENT_HOOKS.some(hook => isHookCall(call, hook));
+    return ts.isCallExpression(call) && call.expression === outer
+        ? true
+        : call.arguments?.some(argument => argument === outer) === true
+            && !CLIENT_COMPONENT_HOOKS.some(hook => isHookCall(call, hook));
 }
 
 /**
@@ -497,6 +505,7 @@ export function validateClientImports(
             continue;
         }
         const bindings: [imported: string, local: string][] = [
+            // eslint-disable-next-line stylistic/max-len
             ...item.specifiers.filter(specifier => !specifier.typeOnly).map((specifier): [string, string] => [specifier.imported, specifier.local]),
             ...item.defaultImport === undefined ? [] : [['default', item.defaultImport] satisfies [string, string]],
             ...item.namespaceImport === undefined ? [] : [['*', item.namespaceImport] satisfies [string, string]]
@@ -511,8 +520,8 @@ export function validateClientImports(
                 code: ValidationCode.SERVER_IMPORT_IN_CLIENT_CODE,
                 message: inBinding
                     ? `'${local}' is read by markup that reads a state, which the browser computes again when the state changes, `
-                        + `and '${local}' is imported from '${item.source}', which stays on the server. Read it outside that markup, `
-                        + 'or compute the value with it into the state on the server, as `useState(...)`.'
+                    + `and '${local}' is imported from '${item.source}', which stays on the server. Read it outside that markup, `
+                    + 'or compute the value with it into the state on the server, as `useState(...)`.'
                     : serverImportMessage(local, item.source, renderHooks.includes(imported)),
                 severity: DiagnosticSeverity.ERROR,
                 span: read.span
@@ -538,13 +547,12 @@ function serverImportMessage(binding: string, source: string, isRenderHook: bool
         return `'${binding}' is imported from '${source}', which runs on the server, and client code runs in the browser. `
             + 'Work out what client code needs while rendering, and pass it in as a prop.';
     }
-    if (isFileOfTheApplication(source)) {
-        return `'${binding}' is imported from '${source}', a file of this application, which stays on the server. `
-            + 'Pass what client code needs in as a prop.';
-    }
-    return `'${binding}' is imported from '${source}' and used in client code, where it does not exist. Pass what you need `
-        + `in as a prop, or - if '${source}' is a browser package - import it as '${source}?client' so the vendor bundle `
-        + 'provides it.';
+    return isFileOfTheApplication(source)
+        ? `'${binding}' is imported from '${source}', a file of this application, which stays on the server. `
+        + 'Pass what client code needs in as a prop.'
+        : `'${binding}' is imported from '${source}' and used in client code, where it does not exist. Pass what you need `
+            + `in as a prop, or - if '${source}' is a browser package - import it as '${source}?client' so the vendor bundle `
+            + 'provides it.';
 }
 
 /**

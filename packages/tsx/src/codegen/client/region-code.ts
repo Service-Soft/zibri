@@ -194,14 +194,14 @@ function describeChildren(children: readonly ts.JsxChild[], rows: RowScope[], de
             if (child.expression == undefined) {
                 return [];
             }
+            // html of the server, which the page takes over as it is
+            if (describing.opaque.has(child.expression)) {
+                return ['{ o: 1 }'];
+            }
             if (containsJsx(child.expression)) {
                 // checked when the regions were collected, so it is one of the forms
                 const form: RegionForm | undefined = resolveForm(child.expression, { diagnostics: [] });
                 return form === undefined ? [] : [describeForm(child.expression, form, rows, describing)];
-            }
-            // html of the server, which the page takes over as it is
-            if (describing.opaque.has(child.expression)) {
-                return ['{ o: 1 }'];
             }
             return [`{ h: ${getter(printClientNode(child.expression), rows)} }`];
         }

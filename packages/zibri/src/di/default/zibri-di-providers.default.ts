@@ -58,6 +58,7 @@ import { LoggerTransport } from '../../logging/transport/logger-transport.model'
 import { PrometheusMetricsService } from '../../metrics/metrics.service';
 import { MultithreadingService } from '../../multithreading/services/multithreading.service';
 import { OpenApiService } from '../../open-api/open-api.service';
+import { AsyncApiService } from '../../async-api/async-api.service';
 import { CspOptionsInput } from '../../parsing/html/csp-options.model';
 import { Parser } from '../../parsing/parser';
 import { WakeUpService } from '../../polling/wake-up.service';
@@ -147,6 +148,11 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // did. A browser navigating to the explorer carries no Authorization header, so an
     // application that wants it open says so here, `{ skip: true }`, independent of its default
     OPEN_API_AUTH: { useFactory: (): RouteAuthConfiguration => ({}) },
+    OPEN_API_EXPLORER_TEMPLATE: { useFactory: () => undefined },
+    // undefined names the application itself, which only the services can describe
+    OPEN_API_SERVERS: { useFactory: () => undefined },
+    ASYNC_API_SERVERS: { useFactory: () => undefined },
+    ASYNC_API_SERVICE: { useClass: AsyncApiService },
     PARSER: { useClass: Parser },
     VALIDATION_SERVICE: { useClass: ValidationService },
     DATA_SOURCE_SERVICE: { useClass: DataSourceService },

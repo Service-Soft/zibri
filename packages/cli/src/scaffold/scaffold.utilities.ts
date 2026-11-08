@@ -34,9 +34,9 @@ type PackageJson = {
      */
     name: string,
     /**
-     * Every package it names, as a dependency or a devDependency.
+     * Every package it names, as a dependency or a devDependency, with the range it names it at.
      */
-    installed: Set<string>
+    installed: Map<string, string>
 };
 
 /**
@@ -292,7 +292,7 @@ export abstract class ScaffoldUtilities {
     /**
      * Reads what a project's package.json says about it.
      * @param projectPath - The project.
-     * @returns Its name, and every package it installs.
+     * @returns Its name, and every package it installs, with its range.
      */
     static async resolvePackageJson(projectPath: Path): Promise<PackageJson> {
         const packageJsonPath: Path = getPath(projectPath, PACKAGE_JSON);
@@ -305,9 +305,9 @@ export abstract class ScaffoldUtilities {
         const devDependencies: unknown = 'devDependencies' in packageJson ? packageJson.devDependencies : {};
         return {
             name: packageJson.name,
-            installed: new Set([
-                ...isStringRecord(dependencies) ? Object.keys(dependencies) : [],
-                ...isStringRecord(devDependencies) ? Object.keys(devDependencies) : []
+            installed: new Map([
+                ...isStringRecord(dependencies) ? Object.entries(dependencies) : [],
+                ...isStringRecord(devDependencies) ? Object.entries(devDependencies) : []
             ])
         };
     }

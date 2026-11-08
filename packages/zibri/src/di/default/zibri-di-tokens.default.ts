@@ -1,4 +1,6 @@
 import { AssetServiceInterface } from '../../assets/asset-service.interface';
+import { AsyncApiServiceInterface } from '../../async-api/async-api-service.interface';
+import { AsyncApiServer } from '../../async-api/async-api.model';
 import { type AuditIntegrity } from '../../audit/audit-integrity.type';
 import { AuditServiceInterface } from '../../audit/audit-service.interface';
 import { SmsCodeLimits } from '../../auth/2fa/methods/code/sms-code-limits.model';
@@ -71,7 +73,9 @@ import { LoggerTransport, BaseLoggerTransportConfig } from '../../logging/transp
 import { MetricsServiceInterface } from '../../metrics/metrics-service.interface';
 import { MultithreadingOptions, MultithreadingOptionsInput } from '../../multithreading/models/multithreading-options.model';
 import { MultithreadingServiceInterface } from '../../multithreading/services/multithreading-service.interface';
+import { OpenApiExplorerTemplate } from '../../open-api/explorer/open-api-explorer.model';
 import { OpenApiServiceInterface } from '../../open-api/open-api-service.interface';
+import { OpenApiServerObject } from '../../open-api/open-api.model';
 import { FormDataLimits } from '../../parsing/form-data/form-data-limits.model';
 import { CspOptions, CspOptionsInput } from '../../parsing/html/csp-options.model';
 import { ParserInterface } from '../../parsing/parser.interface';
@@ -142,6 +146,10 @@ export const ZIBRI_DI_TOKENS = {
     ERROR_PAGE_TEMPLATE: ziToken<ErrorPageTemplate | undefined>('zi.error_page_template'),
     OPEN_API_SERVICE: ziToken<OpenApiServiceInterface>('zi.open_api_service'),
     OPEN_API_AUTH: ziToken<RouteAuthConfiguration>('zi.open_api_auth'),
+    OPEN_API_EXPLORER_TEMPLATE: ziToken<OpenApiExplorerTemplate | undefined>('zi.open_api_explorer_template'),
+    OPEN_API_SERVERS: ziToken<OpenApiServerObject[] | undefined>('zi.open_api_servers'),
+    ASYNC_API_SERVICE: ziToken<AsyncApiServiceInterface>('zi.async_api_service'),
+    ASYNC_API_SERVERS: ziToken<Record<string, AsyncApiServer> | undefined>('zi.async_api_servers'),
     AUTH_SERVICE: ziToken<AuthServiceInterface>('zi.auth_service'),
     ROUTE_AUTH_SERVICE: ziToken<RouteAuthServiceInterface>('zi.route_auth_service'),
     REVALIDATE_USER_ON_AUTH_CHECK: ziToken<boolean>('zi.revalidate_user_on_auth_check'),

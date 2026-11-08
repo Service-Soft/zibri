@@ -28,7 +28,11 @@ type ProjectFiles = {
     /**
      * A template.
      */
-    'src/templates/pages/page.tsx': string
+    'src/templates/pages/page.tsx': string,
+    /**
+     * A component the template renders, when it renders one.
+     */
+    'src/templates/pages/heading.tsx'?: string
 };
 
 /**
@@ -89,16 +93,20 @@ function compilerFor(root: string): Compiler {
         output: { path: path.join(root, 'dist') },
         resolve: { extensions: ['.ts', '.js'] },
         module: {
-            rules: [{
-                test: /\.ts$/,
-                loader: 'ts-loader',
-                options: { onlyCompileBundledFiles: true, configFile: path.join(root, 'tsconfig.json') }
-            }]
+            rules: [
+                {
+                    test: /\.ts$/,
+                    loader: 'ts-loader',
+                    options: { onlyCompileBundledFiles: true, configFile: path.join(root, 'tsconfig.json') }
+                }
+            ]
         },
-        plugins: [new ZibriTsxTypeCheckPlugin({
-            tsconfig: path.join(root, 'tsconfig.json'),
-            templateDirs: [path.join(root, 'src', 'templates', 'pages')]
-        })]
+        plugins: [
+            new ZibriTsxTypeCheckPlugin({
+                tsconfig: path.join(root, 'tsconfig.json'),
+                templateDirs: [path.join(root, 'src', 'templates', 'pages')]
+            })
+        ]
     });
 }
 
@@ -144,6 +152,25 @@ describe('ZibriTsxTypeCheckPlugin', () => {
 
         expect(errors).toHaveLength(1);
         expect(errors[0]).toContain('index.ts');
+    }, TIMEOUT);
+
+    it('passes the next build once the component a template renders takes the prop it is passed', async () => {
+        // the order an editor saves them in: the template first, which a build in between checks against the old component
+        const root: string = writeProject({
+            'src/index.ts': 'export const ready: boolean = true;\n',
+            'src/templates/pages/page.tsx': 'import { Heading } from \'./heading\';\n'
+                + 'export const Page = () => <Heading title="Tasks" subtitle="of the team"/>;\n',
+            'src/templates/pages/heading.tsx': 'type Props = { title: string };\n'
+                + 'export const Heading = ({ title }: Props) => <h1>{title}</h1>;\n'
+        });
+        const before: string[] = await build(root);
+
+        writeFile(root, 'src/templates/pages/heading.tsx', 'type Props = { title: string, subtitle: string };\n'
+        + 'export const Heading = ({ title, subtitle }: Props) => <h1>{title}<small>{subtitle}</small></h1>;\n');
+
+        expect(before).toHaveLength(1);
+        expect(before[0]).toContain('subtitle');
+        expect(await build(root)).toEqual([]);
     }, TIMEOUT);
 
     it('passes the rebuild of watch mode once the template is fixed', async () => {

@@ -68,7 +68,8 @@ describe('NewCommand', () => {
         expect(await FsUtilities.exists(path.join(appDir, 'tsconfig.json') as Path)).toBe(true);
         expect(await FsUtilities.exists(path.join(appDir, 'webpack.config.js') as Path)).toBe(true);
         expect(await FsUtilities.exists(path.join(appDir, 'postcss.config.js') as Path)).toBe(true);
-        expect(await FsUtilities.exists(path.join(appDir, 'tailwind.config.js') as Path)).toBe(true);
+        // Tailwind 4 takes its theme from the stylesheet
+        expect(await FsUtilities.exists(path.join(appDir, 'tailwind.config.js') as Path)).toBe(false);
         expect(await FsUtilities.exists(path.join(appDir, 'src', 'index.ts') as Path)).toBe(true);
         expect(await FsUtilities.exists(path.join(appDir, 'src', 'controllers', 'page.controller.ts') as Path)).toBe(true);
         expect(await FsUtilities.exists(path.join(appDir, 'src', 'models', 'user.model.ts') as Path)).toBe(true);
@@ -159,12 +160,12 @@ describe('NewCommand', () => {
         it('writes a JSON API: no pages, no stylesheet, no examples and no mailing list', async () => {
             const absent: string[] = [
                 'postcss.config.js',
-                'tailwind.config.js',
                 'assets/public/style.css',
                 'src/tsx.d.ts',
                 'src/controllers/page.controller.ts',
                 'src/__testing__/home-page.test.ts',
                 'src/templates/components',
+                'src/templates/explorer',
                 'src/templates/pages',
                 'src/templates/emails/log.tsx',
                 'src/templates/emails/mailing-list-subscribe-confirmation.tsx'
@@ -172,8 +173,7 @@ describe('NewCommand', () => {
             const present: string[] = [
                 'webpack.config.js',
                 'src/__testing__/health.test.ts',
-                'src/templates/emails/password-reset.tsx',
-                'assets/public/open-api/swagger-ui-bundle.js'
+                'src/templates/emails/password-reset.tsx'
             ];
 
             const exists: (relativePath: string) => Promise<boolean> = async relativePath => FsUtilities.exists(path.join(appDir, relativePath) as Path);
@@ -190,6 +190,7 @@ describe('NewCommand', () => {
             expect(await read('src/controllers/index.ts')).not.toContain('page.controller');
             const providers: string = await read('src/providers.ts');
             expect(providers).not.toContain('ErrorPage');
+            expect(providers).not.toContain('ExplorerPage');
             expect(providers).not.toContain('MAILING_LIST');
             expect(await read('src/data-sources/db/entities.ts')).not.toContain('MailingList');
         });
@@ -197,7 +198,7 @@ describe('NewCommand', () => {
         it('installs nothing that builds a stylesheet or draws a chart', () => {
             const installs: string = execSpy.mock.calls.map(([command]) => command).join(' ');
 
-            for (const name of ['tailwindcss', 'postcss', 'autoprefixer', 'css-loader', 'mini-css-extract-plugin', 'chart.js']) {
+            for (const name of ['tailwindcss', '@tailwindcss/postcss', 'postcss', 'css-loader', 'mini-css-extract-plugin', 'chart.js']) {
                 expect(installs).not.toContain(` ${name}`);
             }
             expect(installs).toContain(' webpack@');

@@ -24,7 +24,7 @@ export const MailingListUnsubscribeConfirmationPage: MailingListUnsubscribeConfi
                         {$ts`Unsubscribe from ${mailingList.name}?`}
                     </Heading>
                     <form method="post" action={unsubscribeUrl}>
-                        <Button type="submit" className="mx-auto">{$ts`Unsubscribe`}</Button>
+                        <Button type="submit" className="mx-auto py-4">{$ts`Unsubscribe`}</Button>
                     </form>
                     <div>
                         <hr/>

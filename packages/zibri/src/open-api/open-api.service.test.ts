@@ -1,17 +1,20 @@
 import assert from 'node:assert';
-import { Script } from 'node:vm';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { Response } from './decorators/response.decorator';
-import { OpenApiDefinition, OpenApiOperation, OpenApiReferenceObject, OpenApiSchemaObject } from './open-api.model';
+import { OpenApiExplorerMethod, OpenApiExplorerOperation, OpenApiExplorerTag } from './explorer/open-api-explorer-operation.model';
+import { OpenApiExplorerUtilities } from './explorer/open-api-explorer.utilities';
+import { OpenApiDefinition, OpenApiMediaTypeObject, OpenApiOperation, OpenApiReferenceObject, OpenApiSchemaObject, OpenApiServerObject } from './open-api.model';
 import { OpenApiService } from './open-api.service';
 import { TestTimeouts } from '../__testing__/constants';
+import { explorerTestProviders } from '../__testing__/explorer-test-providers';
 import { type Relation } from '../__testing__/relation.type';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerPermissions, defaultTestServerProviders, defaultTestServerRoles, rolesAndPermissionsProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { ZibriApplication } from '../application/application';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { definePermissions, definePlatformPermissions } from '../auth/roles/define-permissions.function';
 import { type PaginationResult } from '../data-source/models/pagination-result.model';
@@ -29,6 +32,7 @@ import { HttpStatus } from '../http/http-status.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { RedirectResponse } from '../http/redirect-response.model';
+import { $ts } from '../localization/translate.function';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
 import { XmlAttribute } from '../parsing/xml/xml-attribute.decorator';
@@ -44,6 +48,7 @@ import { Patch } from '../routing/decorators/patch.decorator';
 import { Post } from '../routing/decorators/post.decorator';
 import { type RouterInterface } from '../routing/router.interface';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { Version } from '../versioning/version.model';
 
 class Tag {
     @Property.string()
@@ -461,6 +466,10 @@ describe('OpenApiService', () => {
         expect(spec.tags).toEqual(expect.arrayContaining([{ name: 'ItemController' }]));
     });
 
+    it('names the application as its server, relative to where the document is read from', () => {
+        expect(spec.servers).toEqual([{ url: '/', description: expect.stringContaining('This application.') }]);
+    });
+
     it('registers a security scheme per auth strategy', () => {
         expect(spec.components?.securitySchemes).toBeDefined();
         expect(Object.keys(spec.components?.securitySchemes ?? {}).length).toBeGreaterThan(0);
@@ -820,13 +829,99 @@ describe('OpenApiService', () => {
         expect(res.status).toBe(404);
     });
 
-    it('serves the explorer HTML page, naming the document of the registered version', async () => {
-        const res: globalThis.Response = await fetch(`${baseUrl}/explorer`);
-        expect(res.status).toBe(200);
-        expect(res.headers.get('content-type')).toContain('text/html');
-        const html: string = await res.text();
-        expect(html).toContain('swagger-ui-init.js');
-        expect(html).toContain('"url":"/explorer/spec/1.0.0"');
+    it('serves no explorer without a template, and the document still', async () => {
+        expect((await fetch(`${baseUrl}/explorer`)).status).toBe(404);
+        expect((await fetch(`${baseUrl}/explorer/spec/1.0.0`)).status).toBe(200);
+    });
+
+    // what the explorer page reads of the document while it renders, checked against the routes the document
+    // describes: an example of a body is one the route accepts
+    describe('read by the explorer', () => {
+        function explorerOperation(path: string, method: OpenApiExplorerMethod): OpenApiExplorerOperation {
+            const found: OpenApiExplorerOperation | undefined = OpenApiExplorerUtilities.resolveTags(spec)
+                .flatMap(tag => tag.operations)
+                .find(operation => operation.path === path && operation.method === method);
+            assert(found, `no operation ${method} ${path}`);
+            return found;
+        }
+
+        function requestContent(path: string, method: OpenApiExplorerMethod, mimeType: string): OpenApiMediaTypeObject {
+            const content: OpenApiMediaTypeObject | undefined = explorerOperation(path, method).requestBody?.content[mimeType];
+            assert(content, `no ${mimeType} body of ${method} ${path}`);
+            return content;
+        }
+
+        it('groups the operations by controller, with the permissions and the schemes of each', () => {
+            const tags: OpenApiExplorerTag[] = OpenApiExplorerUtilities.resolveTags(spec);
+            const schemes: string[] = OpenApiExplorerUtilities.resolveSecuritySchemes(spec).map(scheme => scheme.name);
+
+            expect(tags.map(tag => tag.name)).toEqual(['ItemController', 'Manual']);
+            expect(explorerOperation('/items/{id}', 'get')).toMatchObject({
+                id: 'ItemController-get--items-id-',
+                securitySchemes: schemes,
+                parameters: [
+                    { name: 'id', in: 'path' },
+                    { name: 'verbose', in: 'query' },
+                    { name: 'tags', in: 'query' },
+                    { name: 'x-request-id', in: 'header' }
+                ]
+            });
+            expect(explorerOperation('/items/export', 'get').permissions).toEqual(['items.export']);
+            expect(explorerOperation('/items/purge', 'get').permissions).toEqual(['items.purge']);
+            expect(explorerOperation('/manual/ping', 'get').responses.map(response => response.status)).toEqual(['200']);
+        });
+
+        it('builds a json example of a request body, which the route accepts', async () => {
+            const example: string = OpenApiExplorerUtilities.resolveContentExample(spec, MimeType.JSON, requestContent('/items/', 'post', MimeType.JSON), 'request');
+
+            const res: globalThis.Response = await fetch(`${baseUrl}/items/`, { method: 'POST', headers: { 'content-type': MimeType.JSON }, body: example });
+
+            expect(res.status).toBe(200);
+            expect(JSON.parse(example)).toMatchObject({ name: 'string', tag: { label: 'string' }, secondaryTag: { shape: 'Tag', value: { label: 'string' } } });
+        });
+
+        it('builds an xml example of a request body, which the route reads as the document it describes', async () => {
+            const example: string = OpenApiExplorerUtilities.resolveContentExample(spec, MimeType.XML, requestContent('/items/orders', 'post', MimeType.XML), 'request');
+
+            const res: globalThis.Response = await fetch(`${baseUrl}/items/orders`, {
+                method: 'POST',
+                headers: { 'content-type': MimeType.XML, accept: MimeType.JSON },
+                body: example
+            });
+
+            expect(res.status).toBe(200);
+            expect(await res.json()).toEqual({ orderId: 'string', lines: [{ name: 'string' }] });
+            expect(example).toBe([
+                '<?xml version="1.0" encoding="UTF-8"?>',
+                '<Order xmlns="urn:example:orders" id="string">',
+                '    <Line>',
+                '        <name>string</name>',
+                '    </Line>',
+                '</Order>'
+            ].join('\n'));
+        });
+
+        it('builds an xml example of a response in the namespaces and prefixes of its document', async () => {
+            const content: OpenApiMediaTypeObject | undefined = explorerOperation('/items/envelope', 'get').responses
+                .find(response => response.status === '200')?.response.content?.[MimeType.XML];
+            assert(content);
+
+            const example: string = OpenApiExplorerUtilities.resolveContentExample(spec, MimeType.XML, content, 'response');
+
+            expect(example).toBe([
+                '<?xml version="1.0" encoding="UTF-8"?>',
+                '<e:Envelope xmlns:e="urn:example:envelope" version="string">',
+                // the element of a property is in the namespace of the model holding it, its own elements in its own
+                '    <e:header>',
+                '        <h:id xmlns:h="urn:example:header">string</h:id>',
+                '    </e:header>',
+                '    <e:Party>',
+                '        <e:name>string</e:name>',
+                '    </e:Party>',
+                '</e:Envelope>'
+            ].join('\n'));
+            expect(await XmlUtilities.parseFrom(XmlEnvelope, example)).toEqual({ version: 'string', header: { id: 'string' }, parties: [{ name: 'string' }] });
+        });
     });
 });
 
@@ -835,6 +930,14 @@ describe('OpenApiService', () => {
  */
 class ApiDocsService extends OpenApiService {
     override readonly openApiRoute: Route = '/docs';
+
+    override async createOpenApiDefinition(app: ZibriApplication, version: Version): Promise<OpenApiDefinition> {
+        const definition: OpenApiDefinition = await super.createOpenApiDefinition(app, version);
+        return {
+            ...definition,
+            servers: [{ url: 'https://api.example.com/v1' }, { url: '/relative' }, { url: 'https://{region}.example.com' }]
+        };
+    }
 }
 
 describe('OpenApiService extended under a route of its own', () => {
@@ -849,6 +952,7 @@ describe('OpenApiService extended under a route of its own', () => {
             dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
             providers: [
                 ...itemProviders,
+                ...explorerTestProviders,
                 defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_SERVICE, useClass: ApiDocsService })
             ]
         });
@@ -859,10 +963,16 @@ describe('OpenApiService extended under a route of its own', () => {
         await server?.shutdown();
     }, TestTimeouts.inMemory.shutdown);
 
+    it('lets the page send a request to each server the document names with a full url', async () => {
+        const explorer: globalThis.Response = await fetch(`${baseUrl}/docs`);
+
+        expect(explorer.headers.get('content-security-policy')).toContain('connect-src \'self\' https://api.example.com;');
+    });
+
     it('serves the explorer and the document under that route, and nothing under /explorer', async () => {
         const explorer: globalThis.Response = await fetch(`${baseUrl}/docs`);
         expect(explorer.status).toBe(200);
-        expect(await explorer.text()).toContain('/docs/swagger-ui-init.js');
+        expect(await explorer.text()).toContain('<li>1.0.0 (latest)|/docs/1.0.0|/docs/spec/1.0.0</li>');
 
         const document: globalThis.Response = await fetch(`${baseUrl}/docs/spec/1.0.0`);
         expect(document.status).toBe(200);
@@ -908,12 +1018,9 @@ describe('OpenApiService in an application that requires a login by default', ()
     }, TestTimeouts.inMemory.start);
 });
 
-// the explorer's scripts were string arrays in the service, and
-// the name of the application was written into one of them as it was, so a quote in it broke the script
-describe('OpenApiService explorer of an application whose name needs escaping', () => {
+describe('OpenApiService rendering the explorer template it is given', () => {
+    // a name the page has to escape, as it is written into its markup
     const name: string = 'Ada\'s "Tasks" </script><b>';
-    // the explorer's files as an application is scaffolded with them
-    const sandboxAssetsPath: FsPath = FsUtilities.getPath(__dirname, '..', '..', '..', 'sandbox', 'assets');
     let server: StartedTestServer;
     let baseUrl: string;
 
@@ -924,7 +1031,7 @@ describe('OpenApiService explorer of an application whose name needs escaping', 
             version: '1.0.0',
             // orphan allowed, since the suites above boot servers of their own while this class exists
             dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
-            providers: [...itemProviders, defineProvider({ token: ZIBRI_DI_TOKENS.ASSETS_PATH, useValue: sandboxAssetsPath })]
+            providers: [...itemProviders, ...explorerTestProviders]
         });
         baseUrl = await server.start();
     }, TestTimeouts.inMemory.start);
@@ -933,29 +1040,57 @@ describe('OpenApiService explorer of an application whose name needs escaping', 
         await server?.shutdown();
     }, TestTimeouts.inMemory.shutdown);
 
-    it('serves scripts that parse', async () => {
-        for (const file of ['swagger-ui-init.js', 'custom.js']) {
-            const res: globalThis.Response = await fetch(`${baseUrl}/explorer/${file}`);
-            expect(res.status).toBe(200);
-            const js: string = await res.text();
-            expect(() => new Script(js, { filename: file })).not.toThrow();
-        }
+    it.each([
+        ['/explorer', 'the latest version'],
+        ['/explorer/1.0.0', 'the version it names']
+    ])('renders it at %s on the document of %s, with every version and what a request is sent with', async path => {
+        const res: globalThis.Response = await fetch(`${baseUrl}${path}`);
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toContain('text/html');
+        const html: string = await res.text();
+
+        expect(html).toContain('<p id="version">1.0.0</p>');
+        expect(html).toContain('<li>1.0.0 (latest)|/explorer/1.0.0|/explorer/spec/1.0.0</li>');
+        expect(html).toMatch(/<p id="paths">[^<]*\/items\/\{id\}/);
+        expect(html).toContain('<p id="header">x-version</p>');
+        expect(html).toContain('<p id="assets">/assets</p>');
+        expect(res.headers.get('content-security-policy')).toContain('connect-src \'self\';');
     });
 
-    it('hands the scripts the name as it is, and keeps it out of the markup of the page', async () => {
+    it('escapes the name of the application in the page', async () => {
         const html: string = await (await fetch(`${baseUrl}/explorer`)).text();
-        const marker: string = '<script id="zibri-explorer-config" type="application/json">';
-        const start: number = html.indexOf(marker);
-        expect(start).toBeGreaterThan(-1);
-        const json: string = html.slice(start + marker.length, html.indexOf('</script>', start));
-        const config: unknown = JSON.parse(json);
-        expect(config).toEqual({
-            appName: name,
-            logoSrc: '/assets/logo.jpg',
-            urls: [{ url: '/explorer/spec/1.0.0', name: '1.0.0 (latest)' }],
-            primaryName: '1.0.0'
-        });
+
         expect(html).not.toContain('</script><b>');
-        expect(html).toContain('<title>Ada\'s &quot;Tasks&quot; &lt;/script&gt;&lt;b&gt; | Explorer</title>');
+        expect(html).toContain('<title>Ada\'s "Tasks" &lt;/script&gt;&lt;b&gt; | Explorer</title>');
     });
+
+    it('answers with a 404 for a version the application does not have', async () => {
+        expect((await fetch(`${baseUrl}/explorer/9.9.9`)).status).toBe(404);
+    });
+});
+describe('OpenApiService with the servers an application names', () => {
+    it('names them instead of the application itself', async () => {
+        // a factory, as $ts needs the application started
+        const servers: () => OpenApiServerObject[] = () => [
+            { url: '/', description: $ts`This application` },
+            { url: 'https://api.example.com', description: $ts`Production` }
+        ];
+        const server: StartedTestServer = await startTestServer({
+            controllers: [ItemController],
+            version: '1.0.0',
+            // orphan allowed, since the suites above boot servers of their own while this class exists
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
+            providers: [...itemProviders, defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_SERVERS, useFactory: servers })]
+        });
+        try {
+            const baseUrl: string = await server.start();
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const definition: OpenApiDefinition = await (await fetch(`${baseUrl}/explorer/spec/1.0.0`)).json();
+
+            expect(definition.servers).toEqual(servers());
+        }
+        finally {
+            await server.shutdown();
+        }
+    }, TestTimeouts.inMemory.start);
 });

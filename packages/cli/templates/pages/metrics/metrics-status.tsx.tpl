@@ -48,7 +48,7 @@ export const MetricsStatus: TsxComponent<Props> = ({
     return (
         <>
             <Card className={className}>
-                <Heading className='!text-xl' tag="h2">{$ts`Status`}</Heading>
+                <Heading className='text-xl!' tag="h2">{$ts`Status`}</Heading>
 
                 <div className="w-fit mx-auto">
                     <div className="flex justify-between gap-10">

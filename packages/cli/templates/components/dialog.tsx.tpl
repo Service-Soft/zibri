@@ -8,7 +8,8 @@ type Props = {
 };
 
 export const Dialog: TsxComponent<Props> = ({ children, id, className = '', dialogRef }) => {
-    return <dialog id={id} ref={dialogRef} className={`rounded-2xl border-none ${className}`}>
+    // m-auto, because Tailwind's reset takes away the margin the browser centers a modal dialog with
+    return <dialog id={id} ref={dialogRef} className={`m-auto rounded-2xl border-none ${className}`}>
         {children}
     </dialog>;
 };

@@ -118,6 +118,9 @@ These have no default either. An application using the feature provides them.
 | [`FILE_UPLOAD_TEMP_FOLDER`](./creating-endpoints.md) | `FsPath` | Where uploaded files are written. `.zibri/uploads` in the application's root by default |
 | [`DEFAULT_CSP_OPTIONS_INPUT`](./app-settings.md) | `CspOptionsInput` | The content security policy of a page. Everything from your own origin only, by default |
 | [`OPEN_API_AUTH`](./open-api.md#restricting-the-explorer) | `RouteAuthConfiguration` | Who may open the OpenAPI explorer and its documents. What `defaultAuth` says by default |
+| [`OPEN_API_EXPLORER_TEMPLATE`](./open-api.md#changing-the-explorer) | `OpenApiExplorerTemplate` | The page of the OpenAPI explorer. None by default, and there is no explorer, only the documents |
+| [`OPEN_API_SERVERS`](./open-api.md#naming-the-servers) | `OpenApiServerObject[]` | The servers the OpenAPI documents name. The application itself, at `/`, by default |
+| [`ASYNC_API_SERVERS`](./async-api.md#naming-the-servers) | `Record<string, AsyncApiServer>` | The servers the AsyncAPI documents name, under their keys. The application itself by default |
 | `VERSION_HEADER` | `string` | Which header names the version a request asks for. `x-version` by default |
 | `VERSION_QUERY_PARAM` | `string` | Which query parameter names the version a request asks for. `version` by default |
 | [`VERSIONS_PATH`](./versioning.md) | `FsPath` | Where the routes of each released version are recorded. `versions` in the application's root by default |
@@ -239,6 +242,7 @@ token to replace it.
 | [`BACKUP_SERVICE`](./backup.md) | `BackupServiceInterface` | Writes and restores backups. `BackupService` by default |
 | [`GLOBAL_ERROR_HANDLER`](./error-handling.md) | `GlobalErrorHandler` | Answers a request whose handler threw. The built-in handler by default |
 | [`OPEN_API_SERVICE`](./open-api.md) | `OpenApiServiceInterface` | Builds the OpenAPI documents and serves the explorer. `OpenApiService` by default |
+| [`ASYNC_API_SERVICE`](./async-api.md#changing-the-document) | `AsyncApiServiceInterface` | Builds the AsyncAPI documents of the websocket events. `AsyncApiService` by default |
 | [`AUTH_SERVICE`](./auth.md) | `AuthServiceInterface` | Logs users in and out. `AuthService` by default |
 | [`ROUTE_AUTH_SERVICE`](./auth.md) | `RouteAuthServiceInterface` | Resolves what each route requires of a caller. `RouteAuthService` by default |
 | [`ROLE_SERVICE`](./roles-and-permissions.md) | `RoleServiceInterface` | Reads, creates, changes, gives and takes roles. `RoleService` by default |

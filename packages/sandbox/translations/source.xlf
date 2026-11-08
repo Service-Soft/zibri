@@ -30,6 +30,10 @@
         <source>Allowed / Blocked</source>
         <note>src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:18</note>
       </trans-unit>
+      <trans-unit id="API Explorer" xml:space="preserve">
+        <source>API Explorer</source>
+        <note>src/templates/pages/error.tsx:36, src/templates/pages/home.tsx:19, src/templates/components/navbar.tsx:20</note>
+      </trans-unit>
       <trans-unit id="Assets" xml:space="preserve">
         <source>Assets</source>
         <note>src/templates/pages/assets.tsx:14, src/templates/pages/home.tsx:27, src/templates/components/navbar.tsx:23</note>
@@ -266,10 +270,6 @@
         <source>Only want to change what you receive?</source>
         <note>src/templates/pages/mailing-list-unsubscribe-confirmation.tsx:33</note>
       </trans-unit>
-      <trans-unit id="OpenAPI Explorer" xml:space="preserve">
-        <source>OpenAPI Explorer</source>
-        <note>src/templates/pages/error.tsx:36, src/templates/pages/home.tsx:19, src/templates/components/navbar.tsx:20</note>
-      </trans-unit>
       <trans-unit id="Operation" xml:space="preserve">
         <source>Operation</source>
         <note>src/templates/pages/metrics/cache/cache-detail.tsx:95</note>
@@ -382,8 +382,8 @@
         <source>The application recorded the following</source>
         <note>src/templates/emails/log.tsx:35</note>
       </trans-unit>
-      <trans-unit id="The official OpenAPI/Swagger documentation." xml:space="preserve">
-        <source>The official OpenAPI/Swagger documentation.</source>
+      <trans-unit id="The OpenAPI and AsyncAPI documentation of every version, to try each route out." xml:space="preserve">
+        <source>The OpenAPI and AsyncAPI documentation of every version, to try each route out.</source>
         <note>src/templates/pages/home.tsx:22</note>
       </trans-unit>
       <trans-unit id="This instance is shutting down." xml:space="preserve">
@@ -432,7 +432,7 @@
       </trans-unit>
       <trans-unit id="Update" xml:space="preserve">
         <source>Update</source>
-        <note>src/templates/pages/mailing-list-preferences.tsx:87</note>
+        <note>src/templates/pages/mailing-list-preferences.tsx:92</note>
       </trans-unit>
       <trans-unit id="Uptime" xml:space="preserve">
         <source>Uptime</source>
@@ -606,6 +606,10 @@
         <source>A row to delete was written while it was being deleted. Run the delete again.</source>
         <note>src/data-source/driver/val-key.repository-driver.ts:1535</note>
       </trans-unit>
+      <trans-unit id="A socket.io server. A client names the version in the handshake, in the version header or query parameter, and logs in with the credentials of the handshake or of each message." xml:space="preserve">
+        <source>A socket.io server. A client names the version in the handshake, in the version header or query parameter, and logs in with the credentials of the handshake or of each message.</source>
+        <note>src/async-api/async-api.service.ts:157</note>
+      </trans-unit>
       <trans-unit id="A tenant has a role of its own named '{$1}', so no role every tenant shares can be named so." xml:space="preserve">
         <source>A tenant has a role of its own named '<x id="$1" equiv-text="{$1}"/>', so no role every tenant shares can be named so.</source>
         <note>src/auth/roles/role.service.ts:427</note>
@@ -724,11 +728,11 @@
       </trans-unit>
       <trans-unit id="Could not find {$1}." xml:space="preserve">
         <source>Could not find <x id="$1" equiv-text="{$1}"/>.</source>
-        <note>src/data-source/repository/repository.ts:1421, src/auth/encryption/encryption.service.ts:463, src/auth/encryption/encryption.service.ts:528, src/auth/encryption/encryption.service.ts:588, src/auth/encryption/encryption.service.ts:796</note>
+        <note>src/data-source/repository/repository.ts:1421, src/auth/encryption/encryption.service.ts:466, src/auth/encryption/encryption.service.ts:531, src/auth/encryption/encryption.service.ts:591, src/auth/encryption/encryption.service.ts:799</note>
       </trans-unit>
       <trans-unit id="Could not find connection with id &#x22;{$1}&#x22;." xml:space="preserve">
         <source>Could not find connection with id "<x id="$1" equiv-text="{$1}"/>".</source>
-        <note>src/websocket/services/websocket.service.ts:1298</note>
+        <note>src/websocket/services/websocket.service.ts:1304</note>
       </trans-unit>
       <trans-unit id="Could not find cron job with name &#x22;{$1}&#x22;" xml:space="preserve">
         <source>Could not find cron job with name "<x id="$1" equiv-text="{$1}"/>"</source>
@@ -736,7 +740,7 @@
       </trans-unit>
       <trans-unit id="Could not find handler for websocket event for version &#x22;{$1}&#x22;" xml:space="preserve">
         <source>Could not find handler for websocket event for version "<x id="$1" equiv-text="{$1}"/>"</source>
-        <note>src/websocket/services/websocket.service.ts:1329</note>
+        <note>src/websocket/services/websocket.service.ts:1335</note>
       </trans-unit>
       <trans-unit id="Could not find route &#x22;{$1}&#x22; for version &#x22;{$2}&#x22;" xml:space="preserve">
         <source>Could not find route "<x id="$1" equiv-text="{$1}"/>" for version "<x id="$2" equiv-text="{$2}"/>"</source>
@@ -744,7 +748,7 @@
       </trans-unit>
       <trans-unit id="Could not find strategy for key with id {$1}" xml:space="preserve">
         <source>Could not find strategy for key with id <x id="$1" equiv-text="{$1}"/></source>
-        <note>src/auth/encryption/encryption.service.ts:807</note>
+        <note>src/auth/encryption/encryption.service.ts:810</note>
       </trans-unit>
       <trans-unit id="Could not find user with email &#x22;{$1}&#x22;." xml:space="preserve">
         <source>Could not find user with email "<x id="$1" equiv-text="{$1}"/>".</source>
@@ -756,7 +760,7 @@
       </trans-unit>
       <trans-unit id="Could not find websocket event &#x22;{$1}&#x22;" xml:space="preserve">
         <source>Could not find websocket event "<x id="$1" equiv-text="{$1}"/>"</source>
-        <note>src/websocket/services/websocket.service.ts:655</note>
+        <note>src/websocket/services/websocket.service.ts:656</note>
       </trans-unit>
       <trans-unit id="Could not reset the changes from the change set: The changeSet doesn't belong to the entity with the given id." xml:space="preserve">
         <source>Could not reset the changes from the change set: The changeSet doesn't belong to the entity with the given id.</source>
@@ -792,7 +796,7 @@
       </trans-unit>
       <trans-unit id="Exactly one message needs to be sent." xml:space="preserve">
         <source>Exactly one message needs to be sent.</source>
-        <note>src/websocket/services/websocket.service.ts:673</note>
+        <note>src/websocket/services/websocket.service.ts:674</note>
       </trans-unit>
       <trans-unit id="failOnErrors needs to be a whole number above 0." xml:space="preserve">
         <source>failOnErrors needs to be a whole number above 0.</source>
@@ -1004,7 +1008,7 @@
       </trans-unit>
       <trans-unit id="Not allowed to connect" xml:space="preserve">
         <source>Not allowed to connect</source>
-        <note>src/websocket/services/websocket.service.ts:510, src/websocket/services/websocket.service.ts:511</note>
+        <note>src/websocket/services/websocket.service.ts:511, src/websocket/services/websocket.service.ts:512</note>
       </trans-unit>
       <trans-unit id="Not Found" xml:space="preserve">
         <source>Not Found</source>
@@ -1284,7 +1288,7 @@
       </trans-unit>
       <trans-unit id="The offset needs to be a whole number of at least 0." xml:space="preserve">
         <source>The offset needs to be a whole number of at least 0.</source>
-        <note>src/websocket/services/websocket.service.ts:488</note>
+        <note>src/websocket/services/websocket.service.ts:489</note>
       </trans-unit>
       <trans-unit id="The operation refers in a circle to resources the request creates." xml:space="preserve">
         <source>The operation refers in a circle to resources the request creates.</source>
@@ -1510,6 +1514,10 @@
         <source>This account is locked after too many wrong two factor codes.</source>
         <note>src/error-handling/errors/account-locked.error.ts:13</note>
       </trans-unit>
+      <trans-unit id="This application. A request names the version in the version header, and logs in with the credentials of a security scheme." xml:space="preserve">
+        <source>This application. A request names the version in the version header, and logs in with the credentials of a security scheme.</source>
+        <note>src/open-api/open-api.service.ts:271</note>
+      </trans-unit>
       <trans-unit id="This is the address of the account already." xml:space="preserve">
         <source>This is the address of the account already.</source>
         <note>src/auth/email-verification/email-verification.service.ts:140</note>
@@ -1640,7 +1648,7 @@
       </trans-unit>
       <trans-unit id="Version &#x22;{$1}&#x22; not found" xml:space="preserve">
         <source>Version "<x id="$1" equiv-text="{$1}"/>" not found</source>
-        <note>src/versioning/versioning.service.ts:491, src/open-api/open-api.service.ts:153</note>
+        <note>src/versioning/versioning.service.ts:491, src/open-api/open-api.service.ts:126, src/open-api/open-api.service.ts:142, src/open-api/open-api.service.ts:196</note>
       </trans-unit>
       <trans-unit id="Wednesday" xml:space="preserve">
         <source>Wednesday</source>

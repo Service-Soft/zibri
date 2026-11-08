@@ -5,10 +5,10 @@ import { TsxComponent } from './tsx-component.model';
 import { TsxUtilities } from './tsx.utilities';
 import { compileTsxTemplate } from '../__testing__/compile-tsx-template.function';
 import { ZibriApplicationOptions } from '../application/application-options.model';
-import { GlobalRegistry } from '../global/global-registry';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { initDiContainer } from '../di/init-di-container.function';
 import { inject } from '../di/inject.function';
+import { GlobalRegistry } from '../global/global-registry';
 import { LocaleCode } from '../localization/models/locale-code.model';
 import { TranslationRegistry } from '../localization/translation.registry';
 

@@ -75,7 +75,7 @@ describe('AddCommand', () => {
         // the framework stays at the release it is on: adding a feature is not an upgrade
         const commands: string[] = execSpy.mock.calls.map(([command]) => command);
         expect(commands).toHaveLength(1);
-        expect(commands[0]).toMatch(/&& npm i -D autoprefixer@\S+ css-loader@\S+ mini-css-extract-plugin@\S+ postcss@\S+ postcss-loader@\S+ tailwindcss@3$/);
+        expect(commands[0]).toMatch(/&& npm i -D @tailwindcss\/postcss@4 css-loader@\S+ mini-css-extract-plugin@\S+ postcss@\S+ postcss-loader@\S+ tailwindcss@4$/);
     });
 
     it('is undone by removing the feature again', async () => {

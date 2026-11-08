@@ -99,9 +99,9 @@ export function resolveWebpackConfiguration(options: WebpackConfigurationOptions
         ? requireFromApplication(root, 'mini-css-extract-plugin')
         : undefined;
 
-    // the template directories compiled by zibri-tsx: pages, components, and the emails and their components too
-    const tsxTemplateDirs: string[] = ['pages', 'components', 'emails', 'email-components']
-        .map(folder => path.join(root, 'src', 'templates', folder));
+    // every template is compiled by zibri-tsx, in whichever folder of the templates it is, as the jest preset does:
+    // the pages and their components, the emails and theirs, the explorer, and a folder of the project's own
+    const tsxTemplateDirs: string[] = [path.join(root, 'src', 'templates')];
 
     return {
         target: 'node',

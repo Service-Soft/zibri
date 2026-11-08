@@ -1,9 +1,12 @@
+import { OpenApiExplorerTemplate, OpenApiExplorerVersion } from './explorer/open-api-explorer.model';
 import { OpenApiSchemaUtilities } from './open-api-schema.utilities';
 import { OpenApiServiceInterface } from './open-api-service.interface';
-import { OpenApiDefinition, OpenApiTagObject, OpenApiSecuritySchemeObject, OpenApiPaths, OpenApiResponse, OpenApiOperation, OpenApiSecurityRequirementObject } from './open-api.model';
+import { OpenApiDefinition, OpenApiTagObject, OpenApiSecuritySchemeObject, OpenApiPaths, OpenApiResponse, OpenApiOperation, OpenApiSecurityRequirementObject, OpenApiServerObject } from './open-api.model';
 import { resolveResponseClass } from './resolve-response-class.function';
 import { ZibriApplication } from '../application/application';
 import { type AssetServiceInterface } from '../assets/asset-service.interface';
+import { type AsyncApiServiceInterface } from '../async-api/async-api-service.interface';
+import { AsyncApiDefinition } from '../async-api/async-api.model';
 import { type AuthServiceInterface } from '../auth/auth-service.interface';
 import { ResolvedAuthMetadata } from '../auth/models/resolved-auth-metadata.model';
 import { type RouteAuthConfiguration } from '../auth/models/route-auth-configuration.model';
@@ -23,18 +26,16 @@ import { HttpMethod, httpMethodKey } from '../http/http-method.enum';
 import { $f } from '../localization/format.function';
 import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
-import { FileResponse } from '../parsing/form-data/file-response.model';
+import { CspSource } from '../parsing/html/csp-options.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
-import { HtmlUtilities } from '../parsing/html/html.utilities';
 import { Route, ControllerRouteConfiguration } from '../routing/controller-route-configuration.model';
 import { BodyMetadata } from '../routing/decorators/body-metadata.model';
 import { ControllerData } from '../routing/decorators/controller.decorator';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
 import { MissingBaseRouteError } from '../routing/missing-base-route.error';
 import { type RouterInterface } from '../routing/router.interface';
+import { TsxUtilities } from '../tsx/tsx.utilities';
 import { Newable } from '../types/newable.type';
-import { FsUtilities } from '../utilities/fs.utilities';
-import { JsonUtilities } from '../utilities/json.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { SemVerUtilities } from '../utilities/sem-ver.utilities';
 import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
@@ -53,42 +54,6 @@ type VersionWithDefinition = {
      * The open api document for that version.
      */
     definition: OpenApiDefinition
-};
-
-/**
- * One document the explorer offers.
- */
-type ExplorerDocument = {
-    /**
-     * Where the document is served.
-     */
-    url: string,
-    /**
-     * What the explorer calls it: the version, and when it was in use.
-     */
-    name: string
-};
-
-/**
- * What the scripts of the explorer read from its page.
- */
-type ExplorerConfiguration = {
-    /**
-     * The name of the application, shown beside its logo.
-     */
-    appName: string,
-    /**
-     * Where the logo is served.
-     */
-    logoSrc: string,
-    /**
-     * The document of every version, the latest first.
-     */
-    urls: ExplorerDocument[],
-    /**
-     * The name of the version the explorer opens with.
-     */
-    primaryName: string
 };
 
 /**
@@ -125,7 +90,15 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
         @Inject(ZIBRI_DI_TOKENS.VERSIONING_SERVICE)
         private readonly versioningService: VersioningServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.OPEN_API_AUTH)
-        private readonly auth: RouteAuthConfiguration
+        private readonly auth: RouteAuthConfiguration,
+        @Inject(ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE)
+        private readonly explorerTemplate: OpenApiExplorerTemplate | undefined,
+        @Inject(ZIBRI_DI_TOKENS.VERSION_HEADER)
+        private readonly versionHeader: string,
+        @Inject(ZIBRI_DI_TOKENS.ASYNC_API_SERVICE)
+        private readonly asyncApiService: AsyncApiServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.OPEN_API_SERVERS)
+        private readonly servers: OpenApiServerObject[] | undefined
     ) { }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -155,28 +128,33 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                 return version.definition;
             }
         });
+        this.router.registerRoute({
+            httpMethod: HttpMethod.GET,
+            route: `${this.openApiRoute}/asyncapi/:version`,
+            versions: 'all',
+            openApi: { useInOpenApi: false },
+            auth: this.auth,
+            pathParams: { version: { type: 'string' } },
+            handler: (req) => {
+                const versionValue: string = req.params['version'];
+                const definition: AsyncApiDefinition | undefined = this.asyncApiService.findAsyncApiDefinition(versionValue);
+                if (definition == undefined) {
+                    throw new NotFoundError($ts`Version "${versionValue}" not found`);
+                }
+                return definition;
+            }
+        });
+
+        const template: OpenApiExplorerTemplate | undefined = this.explorerTemplate;
+        if (template == undefined) {
+            this.logger.warn(
+                `No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at ${this.openApiRoute}.`
+                + ` The documents are served at ${this.openApiRoute}/spec/<version>.`
+            );
+            return;
+        }
 
         this.logger.info(`registers the OpenAPI Explorer at ${this.openApiRoute}`);
-
-        const assetFiles: string[] = [
-            'swagger-ui.css',
-            'swagger-ui-bundle.js',
-            'swagger-ui-standalone-preset.js',
-            'swagger-ui-init.js',
-            'custom.js'
-        ];
-        // the application's own files, in its assets next to custom.css, so that it can change what
-        // the explorer looks like and adds to swagger-ui
-        for (const file of assetFiles) {
-            this.router.registerRoute({
-                httpMethod: HttpMethod.GET,
-                route: `${this.openApiRoute}/${file}`,
-                versions: 'all',
-                openApi: { useInOpenApi: false },
-                auth: this.auth,
-                handler: () => FileResponse.fromPath(FsUtilities.getPath(this.assetService.publicAssetsPath, 'open-api', file))
-            });
-        }
 
         this.router.registerRoute({
             httpMethod: HttpMethod.GET,
@@ -184,61 +162,95 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
             versions: 'all',
             openApi: { useInOpenApi: false },
             auth: this.auth,
-            handler: () => {
-                const appName: string = app.options.name;
-                return HtmlResponse.fromString(
-                    `<!DOCTYPE html>
-                    <html lang="en">
-                    <head>
-                        <meta charset="UTF-8">
-                        <title>${HtmlUtilities.escape(appName)} | Explorer</title>
-                        <link rel="stylesheet" href="${this.openApiRoute}/swagger-ui.css">
-                        <link rel="icon" href="${this.assetService.assetsRoute}/favicon.png">
-                        <link rel="stylesheet" href="${this.assetService.assetsRoute}/open-api/custom.css">
-                    </head>
-                    <body>
-                        <div id="swagger-ui"></div>
-                        <script id="zibri-explorer-config" type="application/json">${this.resolveExplorerConfiguration(appName)}</script>
-                        <script src="${this.openApiRoute}/swagger-ui-bundle.js"></script>
-                        <script src="${this.openApiRoute}/swagger-ui-standalone-preset.js"></script>
-                        <script src="${this.openApiRoute}/swagger-ui-init.js"></script>
-                        <script src="${this.openApiRoute}/custom.js"></script>
-                    </body>
-                    </html>`,
-                    {
-                        csp: {
-                            styleSrc: ['\'self\'', '\'unsafe-hashes\'', '\'sha256-RL3ie0nH+Lzz2YNqQN83mnU0J1ot4QL7b99vMdIX99w=\''],
-                            imgSrc: ['\'self\'', 'data:']
-                        }
-                    }
-                );
-            }
+            handler: () => this.renderExplorer(app, template, undefined)
+        });
+        this.router.registerRoute({
+            httpMethod: HttpMethod.GET,
+            route: `${this.openApiRoute}/:version`,
+            versions: 'all',
+            openApi: { useInOpenApi: false },
+            auth: this.auth,
+            pathParams: { version: { type: 'string' } },
+            handler: (req) => this.renderExplorer(app, template, req.params['version'])
         });
     }
 
     /**
-     * What the scripts of the explorer read from its page.
-     * @param appName - The name of the application.
-     * @returns The configuration, as json that can stand inside a script element.
+     * Renders the explorer on the document of one version.
+     * @param app - The application.
+     * @param template - The page.
+     * @param versionValue - The version, or undefined for the latest.
+     * @returns The page.
+     * @throws A NotFoundError for a version the application does not have.
      */
-    private resolveExplorerConfiguration(appName: string): string {
-        const versions: VersionFile[] = this.versioningService
+    private renderExplorer(app: ZibriApplication, template: OpenApiExplorerTemplate, versionValue: string | undefined): HtmlResponse {
+        const versions: OpenApiExplorerVersion[] = this.resolveExplorerVersions();
+        const version: OpenApiExplorerVersion | undefined = versionValue == undefined
+            ? versions[0]
+            : versions.find(v => v.value === versionValue);
+        const definition: OpenApiDefinition | undefined = this.definitions.find(v => v.version.value === version?.value)?.definition;
+        const asyncApiDefinition: AsyncApiDefinition | undefined = version == undefined
+            ? undefined
+            : this.asyncApiService.findAsyncApiDefinition(version.value);
+        if (version == undefined || definition == undefined || asyncApiDefinition == undefined) {
+            throw new NotFoundError($ts`Version "${versionValue ?? ''}" not found`);
+        }
+        const html: string = TsxUtilities.renderPage(template, {
+            appName: app.options.name,
+            assetsRoute: this.assetService.assetsRoute,
+            versions,
+            version,
+            definition,
+            asyncApiDefinition,
+            versionHeader: this.versionHeader
+        });
+        // an example of an image is shown from a data url, and a server the document names is one a request
+        // can be tried against
+        return HtmlResponse.fromString(html, {
+            csp: { imgSrc: ['\'self\'', 'data:'], connectSrc: ['\'self\'', ...this.resolveServerOrigins(definition)] }
+        });
+    }
+
+    /**
+     * The versions the explorer offers, the latest first.
+     * @returns The versions.
+     */
+    private resolveExplorerVersions(): OpenApiExplorerVersion[] {
+        return this.versioningService
             .getVersions()
-            .sort((a, b) => SemVerUtilities.compare(a.value, b.value) === 'bigger' ? -1 : 1);
-        const configuration: ExplorerConfiguration = {
-            appName,
-            logoSrc: `${this.assetService.assetsRoute}/logo.jpg`,
-            urls: versions.map(v => ({
-                url: `${this.openApiRoute}/spec/${v.value}`,
+            .sort((a, b) => SemVerUtilities.compare(a.value, b.value) === 'bigger' ? -1 : 1)
+            .map(v => ({
+                value: v.value,
                 name: v.endsAt == undefined
                     ? `${v.value} (latest)`
-                    : `${v.value} (${$f.date(v.startsAt)} - ${$f.date(v.endsAt)})`
-            })),
-            primaryName: versions.find(v => v.endsAt == undefined)?.value ?? ''
-        };
-        // a "<" escaped inside the strings, where json allows it, so that no value can end the
-        // script element early with "</script>"
-        return JsonUtilities.stringify(configuration).replaceAll('<', '\\u003c');
+                    : `${v.value} (${$f.date(v.startsAt)} - ${$f.date(v.endsAt)})`,
+                url: `${this.openApiRoute}/${v.value}`,
+                documentUrl: `${this.openApiRoute}/spec/${v.value}`,
+                asyncApiDocumentUrl: `${this.openApiRoute}/asyncapi/${v.value}`
+            }));
+    }
+
+    /**
+     * The origins of the servers a document names, which the page may send a request to.
+     * @param definition - The document.
+     * @returns The origins of the servers named with a full url. One named by a path is the application itself.
+     */
+    private resolveServerOrigins(definition: OpenApiDefinition): CspSource[] {
+        const origins: CspSource[] = [];
+        for (const server of definition.servers ?? []) {
+            // a variable stands in the url as {name}, and the origin of a url with one in it cannot be known
+            if (!URL.canParse(server.url) || server.url.includes('{')) {
+                continue;
+            }
+            const url: URL = new URL(server.url);
+            if (url.protocol === 'https:') {
+                origins.push(`https://${url.host}`);
+            }
+            if (url.protocol === 'http:') {
+                origins.push(`http://${url.host}`);
+            }
+        }
+        return origins;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -252,6 +264,15 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                 title: app.options.name,
                 version: version.value
             },
+            // relative, so a request goes to wherever the document was read from: an absolute baseUrl crosses
+            // origins whenever the explorer is opened under another host, such as locally behind a proxy
+            servers: this.servers ?? [
+                {
+                    url: '/',
+                    // eslint-disable-next-line stylistic/max-len
+                    description: $ts`This application. A request names the version in the version header, and logs in with the credentials of a security scheme.`
+                }
+            ],
             tags,
             components: {
                 securitySchemes: this.resolveSecuritySchemes()

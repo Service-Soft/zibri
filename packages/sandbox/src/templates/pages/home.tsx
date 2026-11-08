@@ -15,11 +15,11 @@ export const HomePage: TsxComponent<Props> = ({ appName }) => {
             <Heading className="text-center">{appName}</Heading>
             <div className="max-w-fit mx-auto grid grid-cols-2 gap-4">
                 <Card className="flex flex-col gap-2 max-w-80">
-                    <Link href="/explorer" icon="/assets/open-api/swagger.png">
-                        {$ts`OpenAPI Explorer`}
+                    <Link href="/explorer" icon="/assets/explorer.svg">
+                        {$ts`API Explorer`}
                     </Link>
                     <p>
-                        {$ts`The official OpenAPI/Swagger documentation.`}
+                        {$ts`The OpenAPI and AsyncAPI documentation of every version, to try each route out.`}
                     </p>
                 </Card>
                 <Card className="flex flex-col gap-2 max-w-80">

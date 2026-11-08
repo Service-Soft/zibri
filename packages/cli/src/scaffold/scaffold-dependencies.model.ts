@@ -94,12 +94,12 @@ export const SCAFFOLD_FEATURE_DEPENDENCIES: Record<ScaffoldFeature, ScaffoldDepe
     pages: {
         dependencies: [],
         devDependencies: [
-            'autoprefixer@^10.4.27',
+            '@tailwindcss/postcss@4',
             'css-loader@^7.1.4',
             'mini-css-extract-plugin@^2.10.0',
             'postcss@^8.5.6',
             'postcss-loader@^8.2.1',
-            'tailwindcss@3'
+            'tailwindcss@4'
         ]
     },
     mailingList: { dependencies: [], devDependencies: [] },

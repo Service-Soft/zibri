@@ -35,13 +35,19 @@ export const SCAFFOLD_FEATURE_REQUIREMENTS: Record<ScaffoldFeature, ScaffoldFeat
 export const SCAFFOLD_FEATURE_FILES: Record<ScaffoldFeature, string[]> = {
     pages: [
         'postcss.config.js',
-        'tailwind.config.js',
         'assets/public/style.css',
         'assets/public/home.svg',
         'assets/public/assets.svg',
+        // the icon the home and error pages link the explorer with
+        'assets/public/explorer.svg',
+        // the lock the explorer marks a route that requires a login with, closed once a login is entered
+        'assets/public/lock.svg',
+        'assets/public/lock-open.svg',
         'src/controllers/page.controller.ts',
         'src/__testing__/home-page.test.ts',
         'src/templates/components/',
+        // styled with the stylesheet of the pages, and built of their components
+        'src/templates/explorer/',
         'src/templates/pages/home.tsx',
         'src/templates/pages/assets.tsx',
         'src/templates/pages/error.tsx'

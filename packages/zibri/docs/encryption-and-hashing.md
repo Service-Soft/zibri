@@ -57,14 +57,20 @@ key, and the data keys are encrypted with a [master key](./glossary.md#master-ke
 // src/providers.ts
 import { AesGcmEncryptionStrategy, defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
 
+import { requireEnv } from './env';
+
 defineProvider({
     token: ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS,
     useValue: {
         currentMasterStrategy: new AesGcmEncryptionStrategy(),
-        currentMasterKey: { id: 'k1', value: process.env['MASTER_KEY'] }
+        currentMasterKey: { id: 'k1', value: Buffer.from(requireEnv('MASTER_KEY'), 'base64url') }
     }
 })
 ```
+
+`AesGcmEncryptionStrategy` takes a key of 32 bytes. `zi new` writes `MASTER_KEY` as 32 random bytes,
+base64url encoded, and `Buffer.from` decodes them. `openssl rand -base64 32` writes one for another
+environment.
 
 The master key encrypts the data keys, not your values. Data keys are generated per strategy and
 stored in the key table. A copy of the database holds no master key, and rotating the master key

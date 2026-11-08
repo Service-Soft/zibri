@@ -13,7 +13,7 @@ export const TextArea: TsxComponent<Props> = ({ label, id, className, value }) =
             {label && <label className="cursor-pointer" for={id}>
                 {label}
             </label>}
-            <textarea className={'p-1 border-none rounded resize-none'}
+            <textarea className={'p-1 border-none rounded-sm resize-none'}
                 autocomplete="off"
                 id={id}
                 value={value}

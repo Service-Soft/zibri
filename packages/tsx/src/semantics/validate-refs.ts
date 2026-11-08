@@ -111,10 +111,9 @@ function resolveCreatedRef(call: ts.CallExpression, fn: ComponentFunction): Crea
                 + 'when the template compiles.');
     }
     const symbol: ts.Symbol | undefined = symbolOf(declaration.name);
-    if (symbol === undefined) {
-        return refusal(call, `'${hook}' needs to be assigned to a variable.`);
-    }
-    return { call, name: declaration.name.text, symbol, many, required };
+    return symbol === undefined
+        ? refusal(call, `'${hook}' needs to be assigned to a variable.`)
+        : { call, name: declaration.name.text, symbol, many, required };
 }
 
 /**
@@ -183,11 +182,10 @@ function validateUse(ref: CreatedRef, fn: ComponentFunction): Diagnostic | undef
             + 'Create it with useRefs for several elements.');
     }
     // a component it is handed to may put it on an element or not, which only the render shows
-    if (ref.required && sites.components.length === 0 && !rendersOnEveryPath(ref, fn)) {
-        return refusal(ref.call, `The ref '${ref.name}' is required, and a path of the component renders no element it is on. `
-            + 'Create it with useRef({ required: false }) when it may be on none.');
-    }
-    return undefined;
+    return ref.required && sites.components.length === 0 && !rendersOnEveryPath(ref, fn)
+        ? refusal(ref.call, `The ref '${ref.name}' is required, and a path of the component renders no element it is on. `
+        + 'Create it with useRef({ required: false }) when it may be on none.')
+        : undefined;
 }
 
 /**
@@ -248,10 +246,10 @@ function areExclusive(first: ts.Node, second: ts.Node, fn: ComponentFunction): b
     }
     const firstBranch: ts.Node | undefined = firstPath[firstPath.indexOf(common) - 1];
     const secondBranch: ts.Node | undefined = secondPath[secondPath.indexOf(common) - 1];
-    if (ts.isConditionalExpression(common)) {
-        return firstBranch !== secondBranch && firstBranch !== common.condition && secondBranch !== common.condition;
-    }
-    return ts.isIfStatement(common) && firstBranch !== secondBranch && firstBranch !== common.expression && secondBranch !== common.expression;
+    return ts.isConditionalExpression(common)
+        ? firstBranch !== secondBranch && firstBranch !== common.condition && secondBranch !== common.condition
+        // eslint-disable-next-line stylistic/max-len
+        : ts.isIfStatement(common) && firstBranch !== secondBranch && firstBranch !== common.expression && secondBranch !== common.expression;
 }
 
 /**
@@ -316,7 +314,6 @@ function isInFunctionOf(node: ts.Node, fn: ComponentFunction): boolean {
  * @param fn - The component.
  * @returns True when every way the markup can render includes such an element.
  */
-// eslint-disable-next-line sonar/cognitive-complexity
 function covers(node: ts.Node, ref: CreatedRef, fn: ComponentFunction): boolean {
     if (ts.isParenthesizedExpression(node) || ts.isJsxExpression(node)) {
         return node.expression !== undefined && covers(node.expression, ref, fn);
@@ -331,7 +328,9 @@ function covers(node: ts.Node, ref: CreatedRef, fn: ComponentFunction): boolean 
         const opening: ts.JsxOpeningElement | ts.JsxSelfClosingElement = ts.isJsxElement(node) ? node.openingElement : node;
         const values: [name: string, value: ts.Expression][] = opening.attributes.properties.flatMap(attribute => {
             const value: ts.Expression | undefined = ts.isJsxAttribute(attribute) ? attributeValue(attribute) : undefined;
-            return ts.isJsxAttribute(attribute) && value !== undefined ? [[attribute.name.getText(), value] satisfies [string, ts.Expression]] : [];
+            return ts.isJsxAttribute(attribute) && value !== undefined
+                ? [[attribute.name.getText(), value] satisfies [string, ts.Expression]]
+                : [];
         });
         const isOn: boolean = values.some(([name, value]) => name === 'ref' && readsRef(value, ref));
         const inAttributes: boolean = values.some(([, value]) => covers(value, ref, fn));

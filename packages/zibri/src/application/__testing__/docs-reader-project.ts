@@ -5,7 +5,7 @@
 // The shapes follow what a page that does show the file declares, and what `zi new` generates. What
 // the reader writes against a service of their own, such as a client of their mail provider, is only
 // declared.
-import { AuditServiceInterface, BaseEntity, BaseGoogleAuthenticator, BaseMembershipEntity, BaseRateLimitState, BaseRoleEntity, BaseTenantEntity, BaseUserEntity, Cache, type CacheServiceInterface, type CompanyInfo, Controller, DataSource, DefinedPermissions, definePermissions, DefinedPlatformPermissions, definePlatformPermissions, DiProvider, EmailChangedEmailTemplate, EmailVerificationEmailTemplate, EncryptionString, Entity, File, FsPath, HtmlResponse, HttpRequestContext, inject, Inject, Injectable, InjectionToken, InMemoryCacheStore, LocaleCode, Log, type LoggerInterface, MailingListController, type MetricsServiceInterface, Migration, MimeType, Newable, OAuthClientAuthentication, OidcDiscoveryAtBoot, OmitClass, OmitStrict, PartialClass, PostgresDataSource, PostgresOptions, PostgresPooler, Property, RateLimiterInterface, Repository, RepositoryClass, S3Credentials, SchemaManagement, Timezone, TraceSpanContext, TraceSpanInterface, TsxChildren, TsxComponent, ValKeyDataSource, ValKeyOptions, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS, ZIBRI_PERMISSIONS, ZIBRI_PLATFORM_PERMISSIONS, ZibriApplicationOptions } from '../../index';
+import { AuditServiceInterface, BaseEntity, BaseGoogleAuthenticator, BaseMembershipEntity, BaseRateLimitState, BaseRoleEntity, BaseTenantEntity, BaseUserEntity, Cache, type CacheServiceInterface, type CompanyInfo, Controller, DataSource, DefinedPermissions, definePermissions, DefinedPlatformPermissions, definePlatformPermissions, DiProvider, EmailChangedEmailTemplate, EmailVerificationEmailTemplate, EncryptionString, Entity, File, FsPath, HtmlResponse, HttpRequestContext, inject, Inject, Injectable, InjectionToken, InMemoryCacheStore, LocaleCode, Log, type LoggerInterface, MailingListController, type MetricsServiceInterface, Migration, MimeType, Newable, OAuthClientAuthentication, OidcDiscoveryAtBoot, OmitClass, OmitStrict, OpenApiExplorerTemplate, PartialClass, PostgresDataSource, PostgresOptions, PostgresPooler, Property, RateLimiterInterface, Repository, RepositoryClass, S3Credentials, SchemaManagement, Timezone, TraceSpanContext, TraceSpanInterface, TsxChildren, TsxComponent, ValKeyDataSource, ValKeyOptions, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS, ZIBRI_PERMISSIONS, ZIBRI_PLATFORM_PERMISSIONS, ZibriApplicationOptions } from '../../index';
 
 // src/models: the running example of the docs, a task tracker for teams
 
@@ -302,6 +302,7 @@ export declare const Link: TsxComponent<{
     iconClassName?: string
 }>;
 export declare const HomePage: TsxComponent<{ appName: string }>;
+export declare const ExplorerPage: OpenApiExplorerTemplate;
 export declare const MetricsPage: TsxComponent<{
     version: string,
     primary: string,

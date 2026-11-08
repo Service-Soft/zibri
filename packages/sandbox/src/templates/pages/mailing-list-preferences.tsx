@@ -83,11 +83,16 @@ export const MailingListPreferencesPage: MailingListPreferencesPageTemplate = ({
                             </Checkbox>
                         </li>)}
                     </ul>
-                    <Button onClick={() => void update()} className='mx-auto' disabled={isLoading.value || !isDirty()} id='update-button'>
+                    <Button
+                        onClick={() => void update()}
+                        className='mx-auto py-4'
+                        disabled={isLoading.value || !isDirty()}
+                        id='update-button'
+                    >
                         {$ts`Update`}
                     </Button>
                     <div
-                        className="flex items-center justify-center h-6 -mt-[9px] -m-[15px] transition duration-300 ease-in"
+                        className="flex items-center justify-center h-6 mt-[-9px] m-[-15px] transition duration-300 ease-in"
                         id="status-bar"
                         style={statusColor.value === '' ? undefined : { backgroundColor: statusColor.value }}
                     >

@@ -4,7 +4,7 @@ import baseConfig from '../../eslint.config.mjs';
 /** @type {import('eslint').Linter.Config} */
 export default [
     ...baseConfig,
-    { ignores: ['dist'] },
+    { ignores: ['dist', '**/__testing__/file-output/**'] },
     {
         files: ['**/*.ts'],
         languageOptions: {

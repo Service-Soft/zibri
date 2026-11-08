@@ -195,6 +195,9 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         this.validateMasterStrategyNamesAndVersions();
         this.validateNoDotsInMasterKeyIds();
         this.validateNoMissingMasterKeyIds([...keys, ...signingKeys]);
+        // encrypted with once while starting, because nothing else may use the master key until a cron
+        // job makes its first signing key, hours after a key the strategy cannot use was deployed
+        await this.masterEncrypt('');
         await this.reEncryptKeys(keys);
         await this.reEncryptSigningKeys(signingKeys);
     }

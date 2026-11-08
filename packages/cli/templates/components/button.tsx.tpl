@@ -22,7 +22,7 @@ export const Button: TsxComponent<Props> = ({
             id={id}
             type={type}
             disabled={disabled}
-            className={`inline-block rounded bg-gray w-fit text-white p-4 transition duration-300 ease-in
+            className={`inline-block rounded bg-gray w-fit text-white px-4 py-2 transition duration-300 ease-in
                 hover:bg-primary cursor-pointer disabled:bg-disabled-dark disabled:text-disabled 
                 disabled:cursor-not-allowed ${className}`}
             onClick={() => void onClick?.()}

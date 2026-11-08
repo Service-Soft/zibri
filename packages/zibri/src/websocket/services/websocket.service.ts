@@ -49,6 +49,7 @@ import { RequestDeadlineUtilities } from '../../http/request-deadline.utilities'
 import { $ts } from '../../localization/translate.function';
 import { errorToLoggedError } from '../../logging/error-to-logged-error.function';
 import { type LoggerInterface } from '../../logging/logger.interface';
+import { Route } from '../../routing/controller-route-configuration.model';
 import { BodyMetadata } from '../../routing/decorators/body-metadata.model';
 import { resolveMaxBodySize } from '../../routing/decorators/body.decorator';
 import { RouteParamUtilities } from '../../routing/route-param.utilities';
@@ -1289,6 +1290,11 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     // eslint-disable-next-line jsdoc/require-jsdoc
     getConnections(): SocketIOWebsocketConnection[] {
         return [...this.connections.values()];
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    getPath(): Route {
+        return this.options.path;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

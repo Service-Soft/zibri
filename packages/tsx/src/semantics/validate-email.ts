@@ -346,6 +346,7 @@ export function validateNoClientInEmail(
     return [
         {
             code: ValidationCode.CLIENT_CODE_IN_EMAIL,
+            // eslint-disable-next-line stylistic/max-len
             message: 'This email template contains client-only code (an onClient block, an event handler, a ref, a state, an input, an effect or a '
                 + '?client import). Emails render to static HTML with no script, so client code can never run - '
                 + 'remove it, or render this as a page instead of an email.',

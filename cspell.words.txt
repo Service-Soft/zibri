@@ -330,4 +330,4 @@ refreshable
 unshifted
 upserting
 unrestorable
-שלום
+pageerror

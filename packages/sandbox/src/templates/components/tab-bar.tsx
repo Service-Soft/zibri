@@ -27,7 +27,7 @@ export const TabBar: TsxComponent<Props> = ({ tabs, children, currentTabId, clas
                     role="tab"
                     aria-controls={tab.id}
                     aria-selected={current.value === tab.id ? 'true' : 'false'}
-                    className={`px-4 py-1 text-white transition duration-300 ease-in tracking-wider border-b-2 hover:border-secondary ${
+                    className={`px-4 py-1 first:rounded-l last:rounded-r text-white cursor-pointer transition duration-300 ease-in tracking-wider border-b-2 hover:border-secondary ${
                         current.value === tab.id ? 'bg-secondary border-secondary' : ''}`}
                     onClick={() => {
                         current.value = tab.id;

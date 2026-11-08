@@ -1,7 +1,13 @@
 import { version } from '../../../package.json';
+import { CPUtilities } from '../../encapsulation';
 import { ScaffoldAnswers, ScaffoldManifest, ScaffoldUtilities } from '../../scaffold';
 import { exitWithError, getPath, isLaterVersion, Path } from '../../utilities';
 import { RegeneratingCommand } from '../regenerating-command.model';
+
+/**
+ * The major release of Tailwind this release generates a project for.
+ */
+const TAILWIND_MAJOR: number = 4;
 
 /**
  * What an upgrade works on.
@@ -38,8 +44,28 @@ export class UpgradeCommand extends RegeneratingCommand<UpgradeInput> {
             );
         }
 
+        await this.migrateTailwind(projectPath);
         await this.installDependencies(projectPath, ScaffoldUtilities.resolveDependencies(answers.features), true);
         await this.regenerate(projectPath, manifest, answers, `zi new ${version}`);
+    }
+
+    /**
+     * Moves a project on Tailwind 3 to the Tailwind 4 this release generates, with Tailwind's own tool: its
+     * stylesheet, its PostCSS configuration, its packages, and the classes of its templates.
+     *
+     * First, while the project is all on Tailwind 3: the tool reads the configuration of 3, which the merge removes.
+     * What this release generates for Tailwind is what the tool writes from what an earlier one generated, so the merge
+     * after it finds both sides alike wherever the project left a file as it was generated.
+     * @param projectPath - The project.
+     */
+    private async migrateTailwind(projectPath: Path): Promise<void> {
+        const range: string | undefined = (await ScaffoldUtilities.resolvePackageJson(projectPath)).installed.get('tailwindcss');
+        const major: number = Number(/\d+/.exec(range ?? '')?.[0]);
+        if (range == undefined || !(major < TAILWIND_MAJOR)) {
+            return;
+        }
+        // the tool refuses a working tree with changes, and the upgrade is about to make some of its own
+        await CPUtilities.exec(`cd "${projectPath}" && npx --yes @tailwindcss/upgrade@${TAILWIND_MAJOR} --force`);
     }
 
     // `zi upgrade [ci] [defaultAuth]`: what the command line names replaces what was recorded, and a

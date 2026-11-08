@@ -1,7 +1,7 @@
 import { TsxComponent, TsxChildren } from 'zibri';
 
 type Props = {
-    tag?: 'h1' | 'h2' | 'h3',
+    tag?: 'h1' | 'h2' | 'h3' | 'h4',
     id?: string,
     children: TsxChildren,
     className?: string

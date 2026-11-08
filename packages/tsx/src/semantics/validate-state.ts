@@ -7,15 +7,27 @@ import { isFunctionNode, runsWhereItIsWritten, ValidationCode } from './validate
 import { forEachDescendant, isNamedAtTop } from './validate-refs';
 import { isHookCall } from './walk';
 import { nestedJsx, STATE_HANDLE_HOOKS, stateDeclarations, stateReach } from '../codegen/client/bindings';
-import { collectRegions, RegionCollection } from '../codegen/client/regions';
 import { attributeExpression, attributesOf, isEventHandlerName } from '../codegen/client/handlers';
+import { collectRegions, RegionCollection } from '../codegen/client/regions';
 import { Diagnostic, DiagnosticSeverity } from '../diagnostics/diagnostic.model';
 
 /**
  * The methods that change an array, a map or a set in place, which a state cannot see.
  */
 const CHANGING_METHODS: ReadonlySet<string> = new Set([
-    'push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse', 'fill', 'copyWithin', 'set', 'add', 'delete', 'clear'
+    'push',
+    'pop',
+    'shift',
+    'unshift',
+    'splice',
+    'sort',
+    'reverse',
+    'fill',
+    'copyWithin',
+    'set',
+    'add',
+    'delete',
+    'clear'
 ]);
 
 /**
@@ -70,7 +82,7 @@ function validateCreation(fn: ComponentFunction): Diagnostic[] {
         const hook: string | undefined = STATE_HANDLE_HOOKS.find(name => isHookCall(node, name));
         if (hook !== undefined && ts.isCallExpression(node) && !isNamedAtTop(node, fn)) {
             diagnostics.push(refusal(node, `'${hook}' needs to be called at the top of a component, as \`const name = ${hook}(value);\`: `
-                + 'the page finds the handle by the name of its variable, and a handle that is taken apart is no longer one.'));
+            + 'the page finds the handle by the name of its variable, and a handle that is taken apart is no longer one.'));
         }
     });
     return diagnostics;
@@ -97,7 +109,8 @@ function validateInputWrites(fn: ComponentFunction): Diagnostic[] {
             : undefined;
         if (symbol !== undefined && inputs.has(symbol)) {
             diagnostics.push(refusal(node, `'${symbol.name}' follows what the component is handed, and is read only. Hand the component `
-                + `the state itself and take it with useWritableInput to write it, such as \`const ${symbol.name} = useWritableInput(value);\`.`));
+            // eslint-disable-next-line stylistic/max-len
+            + `the state itself and take it with useWritableInput to write it, such as \`const ${symbol.name} = useWritableInput(value);\`.`));
         }
     });
     return diagnostics;
@@ -147,7 +160,7 @@ function validateMarkup(fn: ComponentFunction): Diagnostic[] {
         const stale: ts.Identifier | undefined = staleConstant(expression, fn, reaches);
         if (stale !== undefined) {
             diagnostics.push(refusal(stale, `'${stale.text}' is computed from a state once, so the markup reading it would not follow `
-                + `the state. Compute it in a function of the component, such as \`function ${stale.text}() { ... }\`, and call that.`));
+            + `the state. Compute it in a function of the component, such as \`function ${stale.text}() { ... }\`, and call that.`));
             continue;
         }
         if (reaches(expression) && !inRegion) {
@@ -158,7 +171,7 @@ function validateMarkup(fn: ComponentFunction): Diagnostic[] {
                 }
             });
             diagnostics.push(...raws.map(node => refusal(node, 'Markup that reads a state writes it again in the browser, where html is '
-                + 'never written raw. Write the text, or render the html on the server.')));
+            + 'never written raw. Write the text, or render the html on the server.')));
         }
     }
     return diagnostics;
@@ -210,8 +223,9 @@ function validateLets(fn: ComponentFunction): Diagnostic[] {
             // a warning, as such a template compiled in 3.0: refused from 4.0
             diagnostics.push({
                 ...refusal(node, `'${symbol.name}' is read by the markup and written by client code, and the markup is rendered `
-                    + `once, so it never follows it. Make it a state, as \`const ${symbol.name} = useState(...)\`, and read \`${symbol.name}.value\`. `
-                    + 'A write in onServer, which runs while the server renders, needs no state. This fails the build from 4.0.'),
+                // eslint-disable-next-line stylistic/max-len
+                + `once, so it never follows it. Make it a state, as \`const ${symbol.name} = useState(...)\`, and read \`${symbol.name}.value\`. `
+                + 'A write in onServer, which runs while the server renders, needs no state. This fails the build from 4.0.'),
                 severity: DiagnosticSeverity.WARNING
             });
         }
@@ -302,7 +316,8 @@ function readsValueOf(expression: ts.Expression, states: ReadonlySet<ts.Symbol>)
         const symbol: ts.Symbol | undefined = symbolOf(expression.expression);
         return symbol !== undefined && states.has(symbol);
     }
-    return (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) && readsValueOf(expression.expression, states);
+    return (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression))
+        && readsValueOf(expression.expression, states);
 }
 
 /**

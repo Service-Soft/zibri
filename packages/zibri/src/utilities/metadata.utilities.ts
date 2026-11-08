@@ -222,7 +222,10 @@ export abstract class MetadataUtilities {
     }
 
     static getFilePath(target: Object): string | undefined {
-        const declaredAt: NodeJS.CallSite | string | undefined = ReflectUtilities.getMetadata(MetadataInjectionKeys.FILE_LOCATION, this.toNewable(target));
+        const declaredAt: NodeJS.CallSite | string | undefined = ReflectUtilities.getMetadata(
+            MetadataInjectionKeys.FILE_LOCATION,
+            this.toNewable(target)
+        );
         // the frame is kept and resolved here, because reading a source map is expensive and every class
         // records this while its module loads, where only an error message ever asks for it
         return typeof declaredAt === 'object' ? resolveOriginalFile(declaredAt) ?? 'unknown' : declaredAt;

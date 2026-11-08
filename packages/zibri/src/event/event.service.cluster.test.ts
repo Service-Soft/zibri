@@ -133,7 +133,7 @@ describe('the event system across replicas', () => {
         // and the failure reached no handler, so node ended the replica over it. Losing a claim is a
         // normal outcome in a cluster and must never cost an instance.
         for (const instance of running.instances) {
-            const alive: Response = await fetch(`${instance.baseUrl}/explorer`);
+            const alive: Response = await fetch(`${instance.baseUrl}/explorer/spec/1.0.0`);
             expect({ instance: instance.id, ok: alive.ok }).toEqual({ instance: instance.id, ok: true });
         }
 

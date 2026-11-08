@@ -166,8 +166,10 @@ npm i -g zibri-cli@latest
 zi upgrade
 ```
 
-It installs `zibri` and `zibri-testing` of that release, and every package a new project gets that
-yours does not have. Then it brings each file `zi new` generated to what that release generates:
+A project on Tailwind 3 is first moved to Tailwind 4 with Tailwind's own tool, `npx @tailwindcss/upgrade`: its
+stylesheet, its `postcss.config.js`, its packages and the classes of its templates, your own templates included.
+Then `zi upgrade` installs `zibri` and `zibri-testing` of that release, and every package a new project gets that
+yours does not have, and brings each file `zi new` generated to what that release generates:
 
 - a file you never changed is replaced.
 - a file you changed is merged with what the release changed, the way git merges a branch. Where you

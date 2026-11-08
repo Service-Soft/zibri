@@ -14,8 +14,22 @@ What changed in each release of `zibri`, `zibri-tsx`, `zibri-testing` and `zibri
 - A mistake only the render can see, such as a required ref on no element, throws in `development` and is logged in `production`.
 - A `let` the markup reads and client code writes compiles with a `ZTSX016` warning, as the markup never follows it. It fails the build from 4.0.
 
+### OpenAPI explorer
+- **The explorer is a page of your application**, provided under `ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE`, in place of swagger-ui. It belongs to the `pages` feature and is styled with Tailwind like the other pages: `zi new` and `zi upgrade` write it into `src/templates/explorer/`, and delete the files of swagger-ui. A project that changed `custom.css`, `custom.js` or `swagger-ui-init.js` has a conflict to resolve. A project without `pages` serves the documents and no explorer, and `zi add pages` adds it. See [changing the explorer](https://service-soft.github.io/zibri/documents/open-api.html#changing-the-explorer).
+- **An AsyncAPI 3.0 document of the websocket events** of each version, at `/explorer/asyncapi/<version>`, which the explorer shows in a tab beside the OpenAPI document. `@Response` on a websocket route says what it answers with. `AsyncApiService` builds it, replaceable through `ZIBRI_DI_TOKENS.ASYNC_API_SERVICE`. See [the AsyncAPI document](https://service-soft.github.io/zibri/documents/async-api.html).
+- `WebsocketServiceInterface` has an optional `getPath`, the path the AsyncAPI document names. A websocket service of your own adds it to have the path in the document. It is required from 4.0.
+- The explorer shows each version at `/explorer/<version>`, and a request sent from it names its version, so it reaches the routes of that version.
+- An example of an XML body follows the `xml` of its schema: the names of its elements, its attributes, its namespaces and their prefixes. It is a document the route reads.
+- A file sent as an attachment is offered to download, and a request may be sent to each server the document names with a full URL.
+- **The OpenAPI document names a server**: the application, at `/`, with a description. `ZIBRI_DI_TOKENS.OPEN_API_SERVERS` names others in its place, and `ZIBRI_DI_TOKENS.ASYNC_API_SERVERS` does the same for the AsyncAPI document. The explorer starts each document with its servers and their descriptions. See [naming the servers](https://service-soft.github.io/zibri/documents/open-api.html#naming-the-servers).
+- `OpenApiExplorerUtilities` reads a document for the page, and resolves its references. A reference the document cannot resolve throws while the page renders, naming it.
+
 ### Application
 - **`stackTraceLimit`** says how many frames a stack trace keeps, in the process and in its thread jobs. It defaults to 50, which reaches your own code from inside a write to a data source. See [choosing how much of a stack trace to keep](https://service-soft.github.io/zibri/documents/app-settings.html#choosing-how-much-of-a-stack-trace-to-keep).
+
+### Generating and upgrading a project
+- `zi new` generates a project on Tailwind 4: the theme is in the `@theme` of `assets/public/style.css`, and there is no `tailwind.config.js`. See [the generated project](https://service-soft.github.io/zibri/documents/project-layout.html).
+- `zi upgrade` moves a project on Tailwind 3 to Tailwind 4 first, with Tailwind's own tool `npx @tailwindcss/upgrade`, which also renames the classes of your own templates. The project then merges what the release generates. See [upgrading a project](https://service-soft.github.io/zibri/documents/getting-started.html#upgrading-a-project).
 
 ### Testing
 - **`startPageBrowser`** of `zibri-testing` opens the pages of a test server in a real Chromium. See [testing a page in a browser](https://service-soft.github.io/zibri/documents/testing.html#testing-a-page-in-a-browser).
@@ -30,7 +44,10 @@ What changed in each release of `zibri`, `zibri-tsx`, `zibri-testing` and `zibri
 - A component destructuring `children` rendered them before it ran, so they missed a context it provided. They render when read.
 - The `value` of a `textarea` and a `select` was written as an attribute, which the browser ignores. It is the text of the `textarea` and the selected option.
 - A `.ts` file beside the templates had no loader in the build of `zibri/webpack`.
+- A template in a folder of `src/templates` other than `pages`, `components`, `emails` and `email-components` was built without zibri-tsx by `zibri/webpack`, and failed when it rendered, while the tests rendered it. Every template under `src/templates` is compiled by zibri-tsx.
+- Markup inside a condition or a list the browser renders that reads neither a state nor the row, such as `options.map(o => <option>{o}</option>)` of a prop, was refused for a missing key, or rendered empty when the browser built the branch. It is html of the server, the same in every copy.
 - In a bundled application, the origin of every log entry was the bundle, so `levelsByOrigin` matched no file of yours. Started with `node --enable-source-maps`, as a deployment is, the origin is the source file, read from the source map. See [what source maps cost](https://service-soft.github.io/zibri/documents/costs.html#what-source-maps-cost).
+- The generated `src/providers.ts` handed `MASTER_KEY` to `AesGcmEncryptionStrategy` as the string it was read as, 43 bytes where it takes 32, so the first value encrypted under the master key failed with `Invalid key length`, such as in the first audit cleanup at night. It decodes the variable with `Buffer.from(requireEnv('MASTER_KEY'), 'base64url')`, which `zi upgrade` merges in. A project whose `MASTER_KEY` you replaced by a string of exactly 32 characters keeps the line as it was. The application encrypts with the master key while it starts, so a key its strategy cannot use stops the start, and `AesGcmEncryptionStrategy` names the key and the length it needs. See [setting the master key](https://service-soft.github.io/zibri/documents/encryption-and-hashing.html#setting-the-master-key).
 - Validation messages say what a value needs to be, such as `needs to be of type string` and `A password needs to be at least 15 characters long.`, where they stated it as a fact. Translations of these messages are keyed by their new text.
 
 ## 3.0.1

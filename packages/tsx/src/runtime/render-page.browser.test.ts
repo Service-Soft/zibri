@@ -527,6 +527,27 @@ describe('a rendered page, in a browser', () => {
             expect(opened.errors).toEqual([]);
         }, TIMEOUT);
 
+        // a list of a prop reads neither a state nor a row, so it is the server's: the same html in every copy
+        it('renders a list of a prop inside a branch the browser builds, the same in every copy', async () => {
+            const page: string = `const Page = ({ kinds }) => { const open = useState(false); const kind = useState('xml');
+                return <div>${TOGGLE}{open.value && <select id="kinds" value={kind}>{kinds.map(k => <option value={k}>{k}</option>)}</select>}
+                <p id="kind">{kind.value}</p></div>; };`;
+            const opened: OpenedPage = await openPage(browser, compilePage(page), { kinds: ['json', 'xml'] });
+
+            await click(opened, 'toggle');
+            expect(await opened.page.locator('#kinds > option').allTextContents()).toEqual(['json', 'xml']);
+            expect(await opened.page.locator('#kinds').inputValue()).toBe('xml');
+            await opened.page.locator('#kinds').selectOption('json');
+            await settled(opened);
+            expect(await opened.page.locator('#kind').textContent()).toBe('json');
+
+            await click(opened, 'toggle');
+            await click(opened, 'toggle');
+            expect(await opened.page.locator('#kinds > option').allTextContents()).toEqual(['json', 'xml']);
+            expect(await opened.page.locator('#kinds').inputValue()).toBe('json');
+            expect(opened.errors).toEqual([]);
+        }, TIMEOUT);
+
         it('takes over the elements the server rendered, and builds none of them again', async () => {
             const page: string = `const Page = () => { const open = useState(true); const count = useState(0);
                 return <div><button id="count" onClick={() => { count.value = count.value + 1; }}>+</button>

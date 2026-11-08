@@ -40,6 +40,23 @@ describe('EncryptionService — starting', () => {
 
         await expect(start).rejects.toThrow('No provider for token "zi.encryption_master_options"');
     }, TestTimeouts.inMemory.start);
+
+    test('refuses to start with a master key its strategy cannot use, naming the key', async () => {
+        const start: Promise<void> = startAndStopTestServerWithout([], {
+            providers: [
+                ...defaultTestServerProviders,
+                defineProvider({
+                    token: ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS,
+                    // a variable of the environment handed over as it is read, instead of decoded into the bytes
+                    useValue: { currentMasterStrategy: new AesGcmEncryptionStrategy(), currentMasterKey: { id: 'k1', value: 'short' } }
+                })
+            ]
+        });
+
+        await expect(start).rejects.toThrow(
+            'The key "k1" needs to be 32 bytes long for aes-256-gcm (v1), got 5. Decode it into a Buffer, such as with Buffer.from(value, \'base64url\').'
+        );
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('EncryptionService', () => {

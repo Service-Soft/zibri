@@ -49,11 +49,10 @@ function validateEffect(call: ts.CallExpression, fn: ComponentFunction): Diagnos
             + 'once when the page starts.');
     }
     const spread: ts.Expression | undefined = list.elements.find(ts.isSpreadElement);
-    if (spread !== undefined) {
-        return refusal(spread, '\'useEffect\' needs each state and function of its list written in it, so it is seen what makes it '
-            + 'run again.');
-    }
-    return undefined;
+    return spread !== undefined
+        ? refusal(spread, '\'useEffect\' needs each state and function of its list written in it, so it is seen what makes it '
+        + 'run again.')
+        : undefined;
 }
 
 /**

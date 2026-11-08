@@ -662,7 +662,15 @@ class JsxLowering {
         }
         // html of the server, which the page takes over as it is
         if (this.stamps?.regionParts.opaque.has(expression) === true) {
-            return this.runtimeCall('opaque', [this.expression(expression)]);
+            // the markup in it reads nothing the browser writes, so it is printed as it is outside a region, and the
+            // template holds its values as the page does
+            this.inRegion = false;
+            try {
+                return this.runtimeCall('opaque', [this.expression(expression)]);
+            }
+            finally {
+                this.inRegion = true;
+            }
         }
         // checked when the regions were collected, so markup in it is one of the forms
         const nested: RegionForm | undefined = containsJsx(expression) ? resolveForm(expression, { diagnostics: [] }) : undefined;

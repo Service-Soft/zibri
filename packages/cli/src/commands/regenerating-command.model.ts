@@ -106,7 +106,7 @@ export abstract class RegeneratingCommand<Input extends object> extends BaseComm
 
     /**
      * The name of the package an install spec names.
-     * @param spec - The spec, such as `tailwindcss@3` or `@types/node@^24.0.0`.
+     * @param spec - The spec, such as `tailwindcss@4` or `@types/node@^24.0.0`.
      * @returns The name, such as `tailwindcss` or `@types/node`.
      */
     protected resolvePackageName(spec: string): string {

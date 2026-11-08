@@ -91,11 +91,11 @@ export const HomePage: TsxComponent<HomePageProps> = ({ appName }) => {
                     </p>
                 </Card>
                 <Card className="flex flex-col gap-2 max-w-80">
-                    <Link href="/explorer" icon="/assets/open-api/swagger.png">
-                        OpenAPI Explorer
+                    <Link href="/explorer" icon="/assets/explorer.svg">
+                        API Explorer
                     </Link>
                     <p>
-                        The official OpenAPI/Swagger documentation.
+                        The OpenAPI and AsyncAPI documentation of every version, to try each route out.
                     </p>
                 </Card>
             </div>

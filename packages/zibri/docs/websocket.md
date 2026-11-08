@@ -353,6 +353,7 @@ Your data source declares these entities:
 How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
 
 ## See also
+- [The AsyncAPI document](./async-api.md) — the events of each version, as a client generator and the explorer read them
 - [Replication](./replication.md) — everything else that changes once there is more than one instance
 - [Data source](./data-source.md) — accessing the data source used by `WebsocketChannel` repositories
 - [Request context](./request-context.md) — the connection context available while handling a websocket message

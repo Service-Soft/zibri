@@ -399,12 +399,42 @@ function validateMarkup(node: JsxMarkup, collection: RegionCollection, context: 
             }
             continue;
         }
+        // markup reading neither a state nor the row, such as a list of a prop, is the server's: the same html in every
+        // copy. Not when it holds code the page runs, which markup the browser renders attaches itself
+        if (!readsStateOrRow(child.expression, context) && !holdsClientCode(child.expression)) {
+            validateNoRaw(child.expression, collection);
+            collection.opaque.add(child.expression);
+            collection.serverOnly.add(child.expression);
+            holdsServerHtml = true;
+            continue;
+        }
         const nested: RegionForm | undefined = resolveForm(child.expression, collection);
         if (nested !== undefined) {
             holdsServerHtml = validateForm(child.expression, nested, collection, context) || holdsServerHtml;
         }
     }
     return holdsServerHtml;
+}
+
+/**
+ * Whether markup holds what the page runs or reaches: a handler, a ref, or a component, whose setup runs in the
+ * browser.
+ * @param expression - The expression holding the markup.
+ * @returns True when it does.
+ */
+function holdsClientCode(expression: ts.Expression): boolean {
+    let found: boolean = false;
+    walk(expression, node => {
+        if (ts.isJsxAttribute(node)) {
+            const name: string = node.name.getText();
+            found ||= isEventHandlerName(name) || name === 'ref';
+        }
+        if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
+            found ||= isComponentName(tagNameOf(node));
+        }
+        return !found;
+    });
+    return found;
 }
 
 /**

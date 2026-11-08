@@ -46,7 +46,7 @@ export const Chart: TsxComponent<Props> = ({ className = '', title, canvasId, ch
 
     return (
         <Card className={className}>
-            <Heading className='!text-xl' tag='h2'>{title}</Heading>
+            <Heading className='text-xl!' tag='h2'>{title}</Heading>
             <canvas id={canvasId} ref={canvas}></canvas>
         </Card>
     );

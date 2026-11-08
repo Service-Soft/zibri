@@ -53,10 +53,7 @@ function meets(condition: unknown, file: string): boolean {
     if (typeof condition === 'string') {
         return file.startsWith(condition);
     }
-    if (typeof condition === 'function') {
-        return Reflect.apply(condition, undefined, [file]) === true;
-    }
-    return Array.isArray(condition) && condition.some(entry => meets(entry, file));
+    return typeof condition === 'function' ? Reflect.apply(condition, undefined, [file]) === true : Array.isArray(condition) && condition.some(entry => meets(entry, file));
 }
 
 /**
@@ -162,7 +159,7 @@ describe('resolveWebpackConfiguration', () => {
         // the plugin keeps its options to itself, so they are read the way any other field would be
         expect(Reflect.get(plugin, 'options')).toEqual({
             tsconfig: path.join(sandboxDir, 'tsconfig.json'),
-            templateDirs: ['pages', 'components', 'emails', 'email-components'].map(folder => path.join(sandboxDir, 'src', 'templates', folder))
+            templateDirs: [path.join(sandboxDir, 'src', 'templates')]
         });
     });
 
@@ -174,6 +171,18 @@ describe('resolveWebpackConfiguration', () => {
         expect(loadersFor(configuration, path.join(components, 'tab-bar.tsx'))).toEqual(['zibri-tsx/webpack']);
         expect(loadersFor(configuration, path.join(components, 'current-tab.ts'))).toEqual(['ts-loader']);
         expect(loadersFor(configuration, path.join(sandboxDir, 'src', 'index.ts'))).toEqual(['ts-loader']);
+    });
+
+    // the jest preset compiles every template under src/templates, and the build compiled four folders of it only: a
+    // template elsewhere, such as the explorer, built with ts-loader and failed when rendered
+    it('compiles a template in any folder of the templates with zibri-tsx, as the tests do', () => {
+        const configuration: Configuration = resolveWebpackConfiguration({ root: sandboxDir, sourceMap: 'with-sources' });
+        const templates: string = path.join(sandboxDir, 'src', 'templates');
+
+        expect(loadersFor(configuration, path.join(templates, 'explorer', 'explorer.tsx'))).toEqual(['zibri-tsx/webpack']);
+        expect(loadersFor(configuration, path.join(templates, 'admin', 'users', 'user-list.tsx'))).toEqual(['zibri-tsx/webpack']);
+        expect(loadersFor(configuration, path.join(templates, 'explorer', 'explorer-context.ts'))).toEqual(['ts-loader']);
+        expect(loadersFor(configuration, path.join(sandboxDir, 'src', 'controllers', 'page.tsx'))).toEqual(['ts-loader']);
     });
 
     it('copies only folders a generated project has', () => {

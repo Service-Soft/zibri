@@ -3,15 +3,18 @@ import type { oas31 } from 'openapi3-ts';
 import { HttpStatus } from '../http/http-status.enum';
 import { JsonMimeType } from '../http/json-mime-type.type';
 import { MimeType } from '../http/mime-type.enum';
+import { TranslatedString } from '../localization/models/translated-string.model';
 import { Newable } from '../types/newable.type';
 import { OmitStrict } from '../types/omit-strict.type';
 
 /**
  * Alias for the root OpenAPI 3.1 document object.
  */
-export type OpenApiDefinition = OmitStrict<oas31.OpenAPIObject, 'components'> & {
+export type OpenApiDefinition = OmitStrict<oas31.OpenAPIObject, 'components' | 'servers'> & {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    components?: OpenApiComponentsObject
+    components?: OpenApiComponentsObject,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    servers?: OpenApiServerObject[]
 };
 
 /**
@@ -45,7 +48,12 @@ export type OpenApiRequestBodyObject = oas31.RequestBodyObject;
 /**
  * Schema definition object.
  */
-export type OpenApiSchemaObject = oas31.SchemaObject;
+export type OpenApiSchemaObject = oas31.SchemaObject & {
+    /**
+     * The schema of the document a string holds, of the media type `contentMediaType` names, such as an XML document.
+     */
+    contentSchema?: OpenApiSchemaObject | OpenApiReferenceObject
+};
 
 /**
  * A type a schema allows, such as 'string' or 'null'.
@@ -307,6 +315,12 @@ export type OpenApiResponsesObject = oas31.ResponsesObject;
 export type OpenApiTagObject = oas31.TagObject;
 
 /**
+ * A server the document names, which a request is sent to.
+ */
+// eslint-disable-next-line jsdoc/require-jsdoc
+export type OpenApiServerObject = OmitStrict<oas31.ServerObject, 'description'> & { description?: TranslatedString };
+
+/**
  * The location of a parameter, like 'query', 'header' etc.
  */
 export type OpenApiParameterLocation = oas31.ParameterLocation;
@@ -315,6 +329,21 @@ export type OpenApiParameterLocation = oas31.ParameterLocation;
  * Definition for a content object.
  */
 export type OpenApiContentObject = oas31.ContentObject;
+
+/**
+ * The content of one media type: its schema and its examples.
+ */
+export type OpenApiMediaTypeObject = oas31.MediaTypeObject;
+
+/**
+ * A parameter of an operation, as opposed to a reference to one.
+ */
+export type OpenApiParameterObject = oas31.ParameterObject;
+
+/**
+ * A header of a response, as opposed to a reference to one.
+ */
+export type OpenApiHeaderObject = oas31.HeaderObject;
 
 /**
  * Union of all supported OpenAPI response descriptors.

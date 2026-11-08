@@ -825,7 +825,8 @@ describe('what a page receives from a template', () => {
 
         it.each([
             ['a hole', '<p>{name}</p>'],
-            ['a prop of a component', '<Label text={name}/>']
+            ['a prop of a component', '<Label text={name}/>'],
+            ['a list', '<ul>{[name].map(n => <li title={n}>{n}</li>)}</ul>']
         ])('renders a value of the server in %s of such markup as html, and puts nothing of it into the script', (_where, markup) => {
             const document: string | undefined = documentOf(
                 'import { useState } from \'zibri\';\n'
