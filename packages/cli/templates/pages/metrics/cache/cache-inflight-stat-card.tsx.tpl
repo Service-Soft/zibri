@@ -12,12 +12,11 @@ export const CacheInFlightStatCard: TsxComponent<Props> = ({ className = '' }) =
 
     function inFlight(): string {
         const latest: MetricsSnapshot | undefined = snapshots.value.at(-1);
-        if (!latest) {
-            return '...';
-        }
-        return String(latest.metrics
-            .filter(m => m.name === 'cache_in_flight')
-            .reduce((p, c) => p + c.value, 0));
+        return !latest
+            ? '...'
+            : String(latest.metrics
+                .filter(m => m.name === 'cache_in_flight')
+                .reduce((p, c) => p + c.value, 0));
     }
 
     return <StatCard id="cacheInFlightStat" title={$ts`Ongoing cache operations`} className={className}>{inFlight()}</StatCard>;

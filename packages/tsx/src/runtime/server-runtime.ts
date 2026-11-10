@@ -2,7 +2,7 @@ import { AccessShape, projectValue, ReferencedProps } from './access-shape';
 import { ATTRIBUTE_NAME, ATTRIBUTE_NAME_MAP, URL_ATTRIBUTES } from './attribute-rules';
 import { isRefMarker, REF_MARKER, RefEntry, RefMarker } from './refs';
 import { RenderEnvironment, reportRenderMistake } from './render-environment';
-import type { TranslationSources } from '../semantics/translation-sources';
+import type { TranslationSources } from './translation-sources.model';
 
 // What tells the runtime's own objects apart from a value that only looks like one: a property keyed
 // by a symbol, which json cannot write, so nothing that came in as data - a json column, a body, a
@@ -151,7 +151,7 @@ function kebabCase(name: string): string {
  * Renders a single attribute to its ` name="value"` HTML form. Event handlers and functions are
  * skipped (they are attached client-side), as are null/undefined/false values.
  * @param name - The JSX prop name.
- * @param value - The prop value.
+ * @param written - The prop value, or the input of a state it follows.
  * @returns The serialized attribute (including a leading space) or an empty string.
  */
 export function attr(name: string, written: unknown): string {
@@ -250,6 +250,19 @@ function primitiveToString(value: unknown): string {
         : '';
 }
 
+/**
+ * Converts the key of a row to the string a message names it by.
+ * @param key - The key.
+ * @returns The key as String writes it, or its kind, such as `[object Object]`, when it is an object or a function.
+ */
+function keyToString(key: unknown): string {
+    if (key === null || key === undefined) {
+        return String(key);
+    }
+    // what String writes for an object is whatever its own toString returns, which the type of a key does not say
+    return typeof key === 'object' || typeof key === 'function' ? Object.prototype.toString.call(key) : primitiveToString(key);
+}
+
 // eslint-disable-next-line jsdoc/require-jsdoc
 function isEventHandler(name: string): boolean {
     return name.length > 2 && name.startsWith('on') && name[2] === name[2].toUpperCase();
@@ -304,7 +317,7 @@ export function selectOption(options: string, written: unknown): string {
     if (value == undefined || typeof value === 'object' || typeof value === 'function' || typeof value === 'symbol') {
         return options;
     }
-    const text: string = String(value);
+    const text: string = primitiveToString(value);
     let found: boolean = false;
     return options.replaceAll(/<option\b([^>]*)>([^<]*)/g, (option: string, attributes: string, content: string) => {
         const valueAttribute: RegExpExecArray | null = / value="([^"]*)"/.exec(attributes);
@@ -713,8 +726,9 @@ function renderDynamicElement(
     }
 
     const stamp: string = on(specs, props['ref']);
+    // closing itself, as the compiler prints a void element written by its name
     return VOID_ELEMENTS.has(tag)
-        ? raw(`<${tag}${attributes}${stamp}>`)
+        ? raw(`<${tag}${attributes}${stamp}/>`)
         : raw(`<${tag}${attributes}${stamp}>${renderChild(props['children'])}</${tag}>`);
 }
 
@@ -1282,7 +1296,7 @@ export function createServerRuntime(environment: RenderEnvironment, page?: strin
  * @deprecated Pass the environment the page is rendered in, which decides whether such a mistake throws.
  */
 export function createServerRuntime(): RenderServerRuntime;
-// eslint-disable-next-line jsdoc/require-jsdoc
+
 export function createServerRuntime(environment: RenderEnvironment = 'production', page: string = 'the page'): RenderServerRuntime {
     // what is registered goes to the page, or to the part or the template being rendered, whose copies set it up
     const root: RenderRegistry = createRegistry();
@@ -1322,8 +1336,8 @@ export function createServerRuntime(environment: RenderEnvironment = 'production
                 const value: unknown = contextStack[i].value;
                 if (isInputMarker(value) && !forInput) {
                     reportRenderMistake(environment, `'${currentComponent}' reads a context holding a value that follows a state with `
-                        + 'useContext alone, which reads the value it has while the server renders. Read it with '
-                        + 'useInput(useContext(...)) to follow it.');
+                    + 'useContext alone, which reads the value it has while the server renders. Read it with '
+                    + 'useInput(useContext(...)) to follow it.');
                     return value.value as T;
                 }
                 return value as T;
@@ -1351,7 +1365,12 @@ export function createServerRuntime(environment: RenderEnvironment = 'production
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     function createRef(entry: Omit<RefEntry, 'id'>): RefMarker {
-        const registered: RefRegistryEntry = { entry: { id: `r${counter++}`, ...entry }, owner: currentOwner, stamped: 0, template: templating > 0 };
+        const registered: RefRegistryEntry = {
+            entry: { id: `r${counter++}`, ...entry },
+            owner: currentOwner,
+            stamped: 0,
+            template: templating > 0
+        };
         refs.push(registered);
         current().refs.push(registered);
         const marker: RefMarker = { [REF_MARKER]: true, entry: registered.entry };
@@ -1360,7 +1379,7 @@ export function createServerRuntime(environment: RenderEnvironment = 'production
             enumerable: false,
             get: (): undefined => {
                 reportRenderMistake(environment, `The ref '${entry.name}' of '${entry.component}' was read while the server renders, `
-                    + 'where it holds no element. Read .current in onClient or in a handler.');
+                + 'where it holds no element. Read .current in onClient or in a handler.');
                 return undefined;
             }
         });
@@ -1481,7 +1500,7 @@ export function createServerRuntime(environment: RenderEnvironment = 'production
         if (templateFalse && whenFalse !== undefined) {
             templated.push(['n', whenFalse]);
         }
-        return { form, render: () => (condition() ? whenTrue : whenFalse)?.(), templates: templated };
+        return { form, render: () => (Boolean(condition()) ? whenTrue : whenFalse)?.(), templates: templated };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1496,10 +1515,12 @@ export function createServerRuntime(environment: RenderEnvironment = 'production
             const value: unknown = items();
             const list: unknown[] = Array.isArray(value) ? value : [];
             const keys: unknown[] = list.map((item, index) => key(item, index));
-            const duplicate: unknown = keys.find((written, index) => keys.indexOf(written) !== index);
-            if (duplicate !== undefined) {
-                reportRenderMistake(environment, `Two rows of a list of '${currentComponent}' have the key '${String(duplicate)}'. Give each `
-                    + 'row a key of its own: the page keeps a row by its key when the list changes.');
+            // by its index, as a key that is undefined is a duplicate too
+            const duplicateAt: number = keys.findIndex((written, index) => keys.indexOf(written) !== index);
+            if (duplicateAt !== -1) {
+                const duplicate: string = keyToString(keys[duplicateAt]);
+                reportRenderMistake(environment, `Two rows of a list of '${currentComponent}' have the key '${duplicate}'. `
+                + 'Give each row a key of its own: the page keeps a row by its key when the list changes.');
             }
             return raw(list.map((item, index) => renderChild(row(item, index))).join(''));
         };
@@ -1510,28 +1531,6 @@ export function createServerRuntime(environment: RenderEnvironment = 'production
     // eslint-disable-next-line jsdoc/require-jsdoc
     function opaque(value: unknown): Raw {
         return raw(`<!--{-->${renderChild(value)}<!--}-->`);
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    function part(compiled: CompiledComponent | string, handed: Record<string, unknown>, children?: () => unknown): Raw {
-        const id: string = `p${counter++}`;
-        const props: Record<string, unknown> = Object.fromEntries(Object.entries(handed)
-            .map(([name, value]) => [name, isPartProp(value) ? partMarker({ part: id, prop: name }, value) : value]));
-        const registry: RenderRegistry = createRegistry();
-        registries.push(registry);
-        let html: string;
-        try {
-            // where the component places them, between the comments the page finds them by
-            const placed: (() => unknown) | undefined = children === undefined
-                ? undefined
-                : () => raw(`<!--(${id}-->${renderChild(children())}<!--)-->`);
-            html = renderChild(runtime.component(compiled, props, placed));
-        }
-        finally {
-            registries.pop();
-        }
-        parts.push({ id, registry });
-        return raw(`<!--{${id}-->${html}<!--}-->`);
     }
 
     /**
@@ -1589,12 +1588,14 @@ export function createServerRuntime(environment: RenderEnvironment = 'production
     }
 
     /**
-     * Where the page finds the handle a value following a state is read through: the prop of its part, or the function
-     * the instance handing it builds.
-     * @param marker - The value.
-     * @returns The reference.
+     * Where the page finds what a component is handed for its client code: the prop of its part, or the function the
+     * instance handing it builds, with the values it captured. For a value following a state that is the handle it is
+     * read through. A handler a component's client code reads as a prop, wrapping it instead of forwarding it to an
+     * element, is not reached by stamping there, so it becomes a function prop of the instance that declared it.
+     * @param marker - The value following a state, or the handler.
+     * @returns The reference the component's setup call picks it up with.
      */
-    function inputSource(marker: InputMarker): ClientPropMarker | PartReference {
+    function markPropReference(marker: InputMarker | HandlerMarker): ClientPropMarker | PartReference {
         return marker.part === undefined
             ? markProp(marker.site, marker.captured, marker.owner)
             : { [PART_REFERENCE]: true, ...marker.part };
@@ -1609,26 +1610,28 @@ export function createServerRuntime(environment: RenderEnvironment = 'production
             current().states.push({ owner: currentOwner, name, handle });
             return handle;
         }
-        current().inputs.push({ owner: currentOwner, name, source: inputSource(value) });
-        return { get value(): unknown {
-            const held: unknown = value.value;
-            if (held === UNREAD) {
-                reportRenderMistake(environment, `'${component}' reads the value of '${name}' while the server renders the markup the `
+        current().inputs.push({ owner: currentOwner, name, source: markPropReference(value) });
+        return {
+            get value(): unknown {
+                const held: unknown = value.value;
+                if (held === UNREAD) {
+                    reportRenderMistake(environment, `'${component}' reads the value of '${name}' while the server renders the markup the `
                     + 'page copies for a branch or a row it builds, where it has none. Read it in the markup or in client code.');
-                return undefined;
+                    return undefined;
+                }
+                return held;
             }
-            return held;
-        } };
+        };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     function useWritableInput(value: unknown, component: string, name: string): ServerState {
         if (isInputMarker(value) && value.state !== undefined) {
-            current().inputs.push({ owner: currentOwner, name, source: inputSource(value) });
+            current().inputs.push({ owner: currentOwner, name, source: markPropReference(value) });
             return value.state;
         }
         reportRenderMistake(environment, `The input '${name}' of '${component}' is handed a value that is not a state, and `
-            + 'useWritableInput writes to the state it is handed. Hand the component the state itself, such as value={email}.');
+        + 'useWritableInput writes to the state it is handed. Hand the component the state itself, such as value={email}.');
         // read only in the page, where a write throws
         return useInput(isInputMarker(value) ? value.value : value, component, name);
     }
@@ -1679,19 +1682,6 @@ export function createServerRuntime(environment: RenderEnvironment = 'production
         const marker: ClientPropMarker = { [CLIENT_PROP_MARKER]: true, site, id: `${site}_${counter++}`, captured, owner };
         current().clientProps.push({ id: marker.id, site, captured, owner });
         return marker;
-    }
-
-    /**
-     * A handler a component's client code reads as a prop, wrapping it instead of forwarding it to an
-     * element. Stamping does not reach it there, so it becomes a function prop of the instance that
-     * declared it, with the values it captured. A function of a part the page computes from its branch or row.
-     * @param marker - The handler's marker.
-     * @returns The reference the component's setup call picks the function up with.
-     */
-    function markHandlerProp(marker: HandlerMarker): ClientPropMarker | PartReference {
-        return marker.part === undefined
-            ? markProp(marker.site, marker.captured, marker.owner)
-            : { [PART_REFERENCE]: true, ...marker.part };
     }
 
     /**
@@ -1812,7 +1802,7 @@ export function createServerRuntime(environment: RenderEnvironment = 'production
                     // Deliberately the original props: reading the lazy children here would render
                     // them before the component runs, which is exactly what they are lazy to avoid.
                     // Rendered markup never reaches the page as a prop anyway.
-                    props: pickSerializable(props, referencedProps, propShapes ?? {}, markHandlerProp)
+                    props: pickSerializable(props, referencedProps, propShapes ?? {}, markPropReference)
                 });
             }
             // Handlers and client props declared while this component renders belong to this instance.
@@ -1835,6 +1825,29 @@ export function createServerRuntime(environment: RenderEnvironment = 'production
         }
     };
 
+    // below the runtime, whose component it renders
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    function part(compiled: CompiledComponent | string, handed: Record<string, unknown>, children?: () => unknown): Raw {
+        const id: string = `p${counter++}`;
+        const props: Record<string, unknown> = Object.fromEntries(Object.entries(handed)
+            .map(([name, value]) => [name, isPartProp(value) ? partMarker({ part: id, prop: name }, value) : value]));
+        const registry: RenderRegistry = createRegistry();
+        registries.push(registry);
+        let html: string;
+        try {
+            // where the component places them, between the comments the page finds them by
+            const placed: (() => unknown) | undefined = children === undefined
+                ? undefined
+                : () => raw(`<!--(${id}-->${renderChild(children())}<!--)-->`);
+            html = renderChild(runtime.component(compiled, props, placed));
+        }
+        finally {
+            registries.pop();
+        }
+        parts.push({ id, registry });
+        return raw(`<!--{${id}-->${html}<!--}-->`);
+    }
+
     /**
      * The props a component renders with: a value following a state in a prop it cannot follow is reported, and handed
      * in as the value it has now.
@@ -1851,8 +1864,8 @@ export function createServerRuntime(environment: RenderEnvironment = 'production
         const taken: Record<string, unknown> = { ...props };
         for (const name of refused) {
             reportRenderMistake(environment, `'${name}' of '${compiled.name}' is handed a value that follows a state, and `
-                + `'${compiled.name}' uses it where the page cannot follow it. Forward it to an element or a component as it is, `
-                + `or read it with useInput(${name}).`);
+            + `'${compiled.name}' uses it where the page cannot follow it. Forward it to an element or a component as it is, `
+            + `or read it with useInput(${name}).`);
             const marker: unknown = props[name];
             taken[name] = isInputMarker(marker) ? marker.value : marker;
         }
@@ -1973,6 +1986,19 @@ export function isInputMarker(value: unknown): value is InputMarker {
  */
 export function isClientPropMarker(value: unknown): value is ClientPropMarker {
     return typeof value === 'object' && value !== null && CLIENT_PROP_MARKER in value && value[CLIENT_PROP_MARKER] === true;
+}
+
+/**
+ * Whether a value is a component the compiler emitted, which a template declares as a function so that it type checks
+ * as tsx.
+ * @param value - The value to test.
+ * @returns True when it can be rendered.
+ */
+export function isCompiledComponent(value: unknown): value is CompiledComponent {
+    return typeof value === 'object' && value !== null
+        && 'name' in value && typeof value.name === 'string'
+        && 'render' in value && typeof value.render === 'function'
+        && 'client' in value && typeof value.client === 'object';
 }
 
 /**

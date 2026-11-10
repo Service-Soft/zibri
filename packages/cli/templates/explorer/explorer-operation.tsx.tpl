@@ -37,7 +37,9 @@ function toText(value: unknown): string {
     if (value == undefined) {
         return '';
     }
-    return typeof value === 'object' ? JsonUtilities.stringify(value) : String(value);
+    return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+        ? String(value)
+        : JsonUtilities.stringify(value);
 }
 
 /**
@@ -79,10 +81,14 @@ function toRequestParameter(definition: OpenApiExplorerSchemaSource, parameter: 
  * @returns A field for each property of its schema.
  */
 function toFormFields(definition: OpenApiExplorerSchemaSource, content: OpenApiMediaTypeObject): ExplorerFormField[] {
-    const schema: OpenApiSchemaObject | undefined = content.schema == undefined ? undefined : OpenApiExplorerUtilities.resolveSchema(definition, content.schema);
+    const schema: OpenApiSchemaObject | undefined = content.schema == undefined
+        ? undefined
+        : OpenApiExplorerUtilities.resolveSchema(definition, content.schema);
     return Object.entries(schema?.properties ?? {}).map(([name, declared]) => {
         const property: OpenApiSchemaObject = OpenApiExplorerUtilities.resolveSchema(definition, declared);
-        const items: OpenApiSchemaObject | undefined = property.items == undefined ? undefined : OpenApiExplorerUtilities.resolveSchema(definition, property.items);
+        const items: OpenApiSchemaObject | undefined = property.items == undefined
+            ? undefined
+            : OpenApiExplorerUtilities.resolveSchema(definition, property.items);
         const isFile: boolean = property.format === 'binary' || items?.format === 'binary';
         return {
             name,
@@ -150,13 +156,20 @@ export const ExplorerOperation: TsxComponent<Props> = ({ operation, schemes, ver
     return (
         <details id={operation.id} className={`my-2 rounded border ${classes.frame}`}>
             <summary className="flex flex-wrap gap-3 items-center p-1.5 cursor-pointer">
-                <span className={`min-w-20 py-1.5 rounded-sm text-center font-bold text-[#111] ${classes.badge}`}>{operation.method.toUpperCase()}</span>
-                <span id={`${operation.id}-path`} className={operation.deprecated ? 'font-mono font-semibold break-all line-through' : 'font-mono font-semibold break-all'}>
+                <span className={`min-w-20 py-1.5 rounded-sm text-center font-bold text-[#111] ${classes.badge}`}>
+                    {operation.method.toUpperCase()}
+                </span>
+                <span
+                    id={`${operation.id}-path`}
+                    className={`font-mono font-semibold break-all ${operation.deprecated ? 'line-through' : ''}`}
+                >
                     {operation.path}
                 </span>
                 <span className="flex-1 text-disabled">{operation.summary}</span>
                 <span id={`${operation.id}-permissions`} className="flex gap-2 items-center">
-                    {operation.permissions.map(permission => <span className="px-2 pb-0.5 rounded-full border border-white bg-dark-gray text-sm">{permission}</span>)}
+                    {operation.permissions.map(permission => <span
+                        className="px-2 pb-0.5 rounded-full border border-white bg-dark-gray text-sm"
+                    >{permission}</span>)}
                 </span>
                 {operation.securitySchemes.length > 0 && <ExplorerLock id={`${operation.id}-lock`} schemes={operation.securitySchemes}/>}
             </summary>
@@ -176,7 +189,7 @@ export const ExplorerOperation: TsxComponent<Props> = ({ operation, schemes, ver
                     accepts={resolveAccepts(operation)}
                     schemes={toCredentialSchemes(operation, schemes)}
                 />
-                <Heading tag="h4" className="text-lg! font-semibold">Responses</Heading>
+                <Heading tag="h4">Responses</Heading>
                 <table className="w-full border-collapse">
                     <thead>
                         <tr>
@@ -193,8 +206,12 @@ export const ExplorerOperation: TsxComponent<Props> = ({ operation, schemes, ver
                                     <h5 className="font-semibold">Headers</h5>
                                     {headers.map(({ name, header }) => <div className="font-mono text-sm">
                                         <span className="font-semibold">{name}</span>
-                                        {header.schema != undefined && <span className="text-secondary"> {OpenApiExplorerUtilities.resolveTypeName(definition, header.schema)}</span>}
-                                        {header.description != undefined && <span className="font-sans text-disabled"> {header.description}</span>}
+                                        {header.schema != undefined && <span className="text-secondary">
+                                            {' '}{OpenApiExplorerUtilities.resolveTypeName(definition, header.schema)}
+                                        </span>}
+                                        {header.description != undefined && <span className="font-sans text-disabled">
+                                            {' '}{header.description}
+                                        </span>}
                                     </div>)}
                                 </div>}
                                 {Object.entries(response.content ?? {}).map(([mimeType, content]) => <ExplorerContent

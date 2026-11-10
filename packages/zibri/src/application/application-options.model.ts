@@ -177,21 +177,20 @@ export type ZibriApplicationOptions = {
      */
     bodyParsers?: Newable<AnyBodyParser>[],
     /**
-     * The auth strategies to register.
+     * The auth strategies to register. `JwtAuthStrategy` when left out.
      *
-     * If nothing is provided, the Zibri default jwt auth strategy will be used.
+     * An empty list runs the application without logins: it registers no strategy, and neither an authenticator nor
+     * a two factor method unless they are named, and a route needing a login fails the start.
      */
     authStrategies?: AuthStrategies,
     /**
-     * The authenticators to register.
-     *
-     * If nothing is provided, the Zibri default password authenticator will be used.
+     * The authenticators to register. `PasswordAuthenticator` when left out and the application registers a strategy,
+     * none for an empty list.
      */
     authenticators?: Authenticators,
     /**
-     * The two factor methods to register.
-     *
-     * If nothing is provided, the Zibri default otp two factor method will be used.
+     * The two factor methods to register. `OtpTwoFactorMethod` when left out and the application registers a strategy,
+     * none for an empty list.
      */
     twoFactorMethods?: TwoFactorMethods,
     /**

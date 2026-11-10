@@ -1,8 +1,8 @@
 # Goals of zibri-tsx
 
 What this compiler is for, and the rule every change to it is measured against. Read this before
-you change anything in `semantics/` or `codegen/`, or anything that decides what a rendered page
-holds.
+you change anything in `semantics/` or `codegen/` of `packages/tsx-compiler`, or anything of either package that
+decides what a rendered page holds.
 
 # The guarantee
 
@@ -63,6 +63,27 @@ neither is the server's, rendered the same into every copy. The components in a 
 whose setup data is narrowed like any other. What a branch not shown renders is in the page, as a user can change a
 state.
 
+**Markdown pages.** A `.md` or `.mdx` file is printed as a template, which is then compiled like any other: the
+guarantee holds for the printed template, as it does for one written by hand. Its markdown is markup the server
+renders, and holds no code. The import and export lines, `{}` expressions and JSX elements of an `.mdx` file are
+printed into the template as written, and checked like the source of any other: a handler on an element is client code
+of the page.
+
+The component a markdown construct renders, such as `heading`, is chosen while the page renders: from the
+`components` prop, then from the `MdxComponentsContext` a component above or the render provides, then the plain
+element. The mapping is a value of the server, which the printed template reads on the server only. The frontmatter is
+an export of the module, which the page does not render.
+
+**Markdown at runtime.** `<Markdown source={...}/>` of zibri renders markdown the server gets while it runs, such as
+from a database, in an application that switches it on. Its source is a value of the server, and it is never compiled:
+it is markdown alone, without the JSX, expressions and imports of an `.mdx` file, so nothing of it is code. Each
+construct renders the component a `.md` page renders for it, with the same props, chosen the same way, and its text is
+escaped like any text of the page. What reaches the page is the html those components render, and the props their
+client code reads, narrowed like any other prop. Html in the source is a mistake only the render can see.
+
+**Contexts a render provides** (`contexts` of `renderPage`) are the values a component around the page would provide
+with `provideContext`, and cross like those.
+
 **Effects** (`useEffect`) cross as neither. The effect and its list are client code, printed from the template's own
 source like a callback of `onClient`. The server render drops the call, so neither runs while the server renders.
 
@@ -78,7 +99,7 @@ source like a callback of `onClient`. The server render drops the call, so neith
 - **Projection** writes only the fields client code reads from a prop, a capture or an initial state, through
   aliases, destructuring, rests, loops and array callbacks.
 
-**The tests that hold it** are in `codegen/client/server-code-isolation.test.ts`, under "what a page
+**The tests that hold it** are in `codegen/client/server-code-isolation.test.ts` of `packages/tsx-compiler`, under "what a page
 receives from a template". They run a template all the way through: they compile it with every check,
 render it against a real server module, and search the finished document.
 

@@ -63,8 +63,9 @@ export async function openPage(
     });
     await page.route('**/*', async route => {
         if (route.request().url() === PAGE_URL) {
+            // the charset zibri sends with a page, without which the browser reads it as windows-1252
             await route.fulfill({
-                contentType: 'text/html',
+                contentType: 'text/html; charset=utf-8',
                 headers: { 'Content-Security-Policy': CONTENT_SECURITY_POLICY },
                 body: html
             });

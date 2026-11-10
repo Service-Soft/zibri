@@ -2,6 +2,9 @@ import { AesGcmEncryptionStrategy, defineProvider, DiProvider, EmailConfigInput,
 
 import { optionalEnv, requireEnv, requirePortEnv, requireUrlEnv } from './env';
 import { permissions } from './models';
+{{#pages}}
+import { markdownComponents } from './templates/components/markdown-components';
+{{/pages}}
 {{#mailingList}}
 import { MailingListBaseEmail } from './templates/email-components/mailing-list-base-email';
 import { MailingListSubscribeConfirmationEmail } from './templates/emails/mailing-list-subscribe-confirmation';
@@ -26,6 +29,11 @@ export const providers: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE,
         useFactory: () => ExplorerPage
+    }),
+    defineProvider({
+        // what the pages written in markdown render, see the templating docs
+        token: ZIBRI_DI_TOKENS.MDX_COMPONENTS,
+        useValue: markdownComponents
     }),
 {{/pages}}
     defineProvider({

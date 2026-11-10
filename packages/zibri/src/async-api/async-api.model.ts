@@ -210,6 +210,7 @@ export type AsyncApiMessage = {
  * The kinds of security scheme of AsyncAPI.
  */
 export type AsyncApiSecuritySchemeType = 'userPassword' | 'apiKey' | 'X509' | 'symmetricEncryption' | 'asymmetricEncryption'
+    // eslint-disable-next-line cspell/spellchecker
     | 'httpApiKey' | 'http' | 'oauth2' | 'openIdConnect' | 'plain' | 'scramSha256' | 'scramSha512' | 'gssapi';
 
 /**

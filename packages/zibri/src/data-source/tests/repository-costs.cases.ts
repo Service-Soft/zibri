@@ -11,7 +11,7 @@ import { Repository } from '../repository/repository';
 
 /**
  * What each repository call costs in round trips, measured on every data source and compared with
- * the table in `docs/costs.md` - so the page cannot say something the code stopped doing. A file per
+ * the table in `docs/data/costs.md` - so the page cannot say something the code stopped doing. A file per
  * data source runs them against repositories of its own, on a data source that holds nothing else.
  */
 
@@ -159,13 +159,13 @@ function freshRow(m: Measured): Pick<CostItem, 'name' | 'count' | 'batch' | 'gro
  * @returns Each call's row as it would be written with only that column, in the page's order.
  */
 async function resolvePageRows(column: string): Promise<string[]> {
-    const page: string = await FsUtilities.readFile(FsUtilities.getPath(__dirname, '..', '..', '..', 'docs', 'costs.md'));
+    const page: string = await FsUtilities.readFile(FsUtilities.getPath(__dirname, '..', '..', '..', 'docs', 'data', 'costs.md'));
     const lines: string[] = page.split('\n');
     const headingAt: number = lines.findIndex(l => l.startsWith('| Call |'));
     const headings: string[] = cellsOf(lines[headingAt] ?? '');
     const index: number = headings.indexOf(column);
     if (headingAt === -1 || index === -1) {
-        throw new Error(`docs/costs.md has no table with a "${column}" column.`);
+        throw new Error(`docs/data/costs.md has no table with a "${column}" column.`);
     }
 
     const rows: string[] = [];
@@ -229,7 +229,7 @@ export function describeRepositoryCosts(column: string, dataSourceOf: () => Cost
             forManyRows = await resolveMeasuredCosts(MANY_ROWS);
         }, 120000);
 
-        it('costs what docs/costs.md says', async () => {
+        it('costs what docs/data/costs.md says', async () => {
             const measured: string[] = Object.keys(CALLS).map(call => rowOf(call, forOneRow.get(call) ?? '—'));
 
             // compared as the page's own rows, so a difference shows the row to write instead

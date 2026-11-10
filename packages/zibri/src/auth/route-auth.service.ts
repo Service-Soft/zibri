@@ -47,6 +47,11 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
      */
     private defaultAuth!: DefaultAuth;
 
+    /**
+     * Whether the application registers an auth strategy, without which nobody can log in.
+     */
+    private hasAuthStrategies: boolean = true;
+
     private get roleService(): RoleServiceInterface {
         return inject(ZIBRI_DI_TOKENS.ROLE_SERVICE);
     }
@@ -63,6 +68,7 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
         // initialized before this service is. Read any later and every route would have been
         // resolved against a default the application had not stated yet.
         this.defaultAuth = app.options.defaultAuth;
+        this.hasAuthStrategies = app.options.authStrategies.length > 0;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -79,13 +85,12 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
 
         this.warnAboutRedundantSkips(controllerClass, controllerMethod, routeSkip, controllerSkip);
 
-        return {
+        const requiresLogin: boolean = this.requiresLoginGiven(
             metadata,
-            requiresLogin: this.requiresLoginGiven(
-                metadata,
-                this.defaultAuthApplies(controllerClass, controllerMethod, routeSkip, controllerSkip)
-            )
-        };
+            this.defaultAuthApplies(controllerClass, controllerMethod, routeSkip, controllerSkip)
+        );
+        this.validateLoginPossible(requiresLogin, `${controllerClass.name}.${controllerMethod}`);
+        return { metadata, requiresLogin };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -116,6 +121,23 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
     validateRouteAuth(auth: RouteAuthConfiguration | undefined, route: string): void {
         this.validateRoutePermissionIsDeclared('tenant', auth?.hasPermission, route, 'auth.hasPermission');
         this.validateRoutePermissionIsDeclared('platform', auth?.hasPlatformPermission, route, 'auth.hasPlatformPermission');
+        this.validateLoginPossible(this.resolveManualRouteAuth(auth).requiresLogin, route);
+    }
+
+    /**
+     * Checks that a route needing a login can be reached by anyone at all: an application without an auth strategy
+     * logs nobody in, so such a route would refuse every request.
+     * @param requiresLogin - Whether the route needs a login.
+     * @param route - The route, for the message.
+     * @throws When it needs one, and the application registers no strategy.
+     */
+    private validateLoginPossible(requiresLogin: boolean, route: string): void {
+        if (requiresLogin && !this.hasAuthStrategies) {
+            throw new InternalError([
+                `${route} needs a login, and the application registers no auth strategy, so nobody can log in.`,
+                'Name one in the authStrategies of the application options, or let anyone reach the route with @Auth.skip().'
+            ]);
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

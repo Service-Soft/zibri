@@ -1,5 +1,5 @@
 import { optionalPeer, resolveAppRoot } from 'zibri';
-import { vendorFileName } from 'zibri-tsx';
+import { vendorFileName } from 'zibri-tsx/internal';
 
 import { PageBrowserOptions } from './page-browser-options.model';
 import { PageBrowser } from './page-browser.model';
@@ -17,9 +17,9 @@ export async function startPageBrowser(options: PageBrowserOptions = {}): Promis
     const { chromium } = optionalPeer<typeof import('playwright')>('playwright', FEATURE);
     const vendorScripts: Map<string, string> = new Map();
     if (options.vendorPackages?.length) {
-        // not an optional peer, as zibri needs it, but loaded only here: the compiler loads TypeScript,
-        // which nothing else a test imports from this package needs
-        const { resolveVendorBundleCode } = optionalPeer<typeof import('zibri-tsx/compiler')>('zibri-tsx/compiler', FEATURE);
+        // a peer, as the jest preset compiles the templates with it, but loaded only here: the compiler loads
+        // TypeScript, which nothing else a test imports from this package needs
+        const { resolveVendorBundleCode } = optionalPeer<typeof import('zibri-tsx-compiler')>('zibri-tsx-compiler', FEATURE);
         const root: string = resolveAppRoot();
         await Promise.all(options.vendorPackages.map(async packageName => {
             vendorScripts.set(vendorFileName(packageName), await resolveVendorBundleCode(packageName, root));

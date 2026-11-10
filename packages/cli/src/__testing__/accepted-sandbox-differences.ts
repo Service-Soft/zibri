@@ -18,18 +18,19 @@ export const acceptedSandboxDifferences: Record<string, string> = {
         '      "name": "sandbox",',
         '-     "version": "1.0.0",',
         '+     "version": "1.0.1",',
-        '      "main": "./dist/index.js",',
+        '      "main": "./dist/bundle.js",',
         '      "scripts": {',
         '          "start": "webpack --watch",',
         '          "build": "webpack",',
-        // the sandbox tests its pages in a browser, apart from the rest. A generated project has no such test
-        '-         "test": "jest",',
-        '+         "test": "jest --testPathPatterns=\\"^(?!.*\\\\.browser\\\\.test\\\\.ts$).*\\"",',
-        '+         "test:browser": "jest --testPathPatterns=\\"\\\\.browser\\\\.test\\\\.ts$\\"",',
+        // the sandbox tests its pages in a browser, apart from the rest. A generated project has no such test. And it
+        // runs the jest the repository installs above it, where a generated project has its own
+        '-         "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",',
+        '+         "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --testPathPatterns=\\"^(?!.*\\\\.browser\\\\.test\\\\.ts$).*\\"",',
+        '+         "test:browser": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --testPathPatterns=\\"\\\\.browser\\\\.test\\\\.ts$\\"",',
         // `zi new` scaffolds no eslint setup, and so has no lint script to write
         '+         "lint": "eslint . --max-warnings 0",',
-        '          "migrate:list": "node dist/index.js migrate list",',
-        '          "migrate:down": "node dist/index.js migrate down"',
+        '          "migrate:list": "node dist/bundle.js migrate list",',
+        '          "migrate:down": "node dist/bundle.js migrate down"',
         '      },',
         '      "keywords": [',
         '          "zibri"',
@@ -86,7 +87,9 @@ export const acceptedSandboxDifferences: Record<string, string> = {
         '          "typescript": "^5.9.2",',
         '          "webpack": "^5.105.3",',
         '          "webpack-cli": "^6.0.1",',
-        '          "zibri-testing": "<locally linked>"',
+        '          "zibri-mdx": "<locally linked>",',
+        '          "zibri-testing": "<locally linked>",',
+        '          "zibri-tsx-compiler": "<locally linked>"',
         '      }',
         '  }',
         ''
@@ -102,6 +105,19 @@ export const acceptedSandboxDifferences: Record<string, string> = {
         '+     export * from \'socket.io-client\';',
         '+ }'
     ].join('\n'),
+    // the sandbox is linted, which takes the trailing comma out. A generated project keeps what Tailwind's upgrade
+    // tool writes, so `zi upgrade` merges the file without a conflict
+    'postcss.config.js': [
+        '- generated',
+        '+ sandbox',
+        '',
+        '  module.exports = {',
+        '      plugins: {',
+        '-         \'@tailwindcss/postcss\': {},',
+        '+         \'@tailwindcss/postcss\': {}',
+        '      }',
+        '  };'
+    ].join('\n'),
     // the sandbox exercises more of the framework than a new project does, so it declares more of
     // everything. What both say is the shape: one module for what the application is, another for
     // where it stores that, and a third for what a test replaces.
@@ -113,8 +129,8 @@ export const acceptedSandboxDifferences: Record<string, string> = {
 
         '+ import { OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOptions, ZibriInvoicingPlugin, ZibriMailingListPlugin } from \'zibri\';',
         '',
-        '- import { AppAuthController, AppMailingListController, HealthController, PageController } from \'./controllers\';',
-        '+ import { AppAuthController, AppMailingListController, CronController, FileController, HealthController, MetricsController, PageController, TemplateController, TestController, TestCrudController, TestWebsocketController } from \'./controllers\';',
+        '- import { AppAuthController, AppMailingListController, DocsController, HealthController, PageController } from \'./controllers\';',
+        '+ import { AppAuthController, AppMailingListController, CronController, DocsController, FileController, HealthController, MetricsController, PageController, TemplateController, TestController, TestCrudController, TestWebsocketController } from \'./controllers\';',
         '+ import { StatusCronJob } from \'./cron\';',
         '  import { requireOneOfEnv, requireUrlEnv } from \'./env\';',
         '  import { version } from \'../package.json\';',
@@ -138,7 +154,7 @@ export const acceptedSandboxDifferences: Record<string, string> = {
         '      baseUrl: requireUrlEnv(\'BASE_URL\'),',
         '-     plugins: [new ZibriMailingListPlugin()],',
         '+     plugins: [new ZibriInvoicingPlugin(), new ZibriMailingListPlugin()],',
-        '-     controllers: [HealthController, PageController, AppMailingListController, AppAuthController],',
+        '-     controllers: [HealthController, PageController, DocsController, AppMailingListController, AppAuthController],',
         '+     controllers: [',
         '+         HealthController,',
         '+         TestController,',
@@ -149,6 +165,7 @@ export const acceptedSandboxDifferences: Record<string, string> = {
         '+         MetricsController,',
         '+         TestCrudController,',
         '+         PageController,',
+        '+         DocsController,',
         '+         AppMailingListController',
         '+     ],',
         '-     websocketControllers: [],',
@@ -179,6 +196,7 @@ export const acceptedSandboxDifferences: Record<string, string> = {
         '  import { optionalEnv, requireEnv, requirePortEnv, requireUrlEnv } from \'./env\';',
         '- import { permissions } from \'./models\';',
         '+ import { permissions, Tenant } from \'./models\';',
+        '  import { markdownComponents } from \'./templates/components/markdown-components\';',
         '  import { MailingListBaseEmail } from \'./templates/email-components/mailing-list-base-email\';',
         '  import { MailingListSubscribeConfirmationEmail } from \'./templates/emails/mailing-list-subscribe-confirmation\';',
         '  import { PasswordResetEmail } from \'./templates/emails/password-reset\';',
@@ -196,6 +214,11 @@ export const acceptedSandboxDifferences: Record<string, string> = {
         '      defineProvider({',
         '          token: ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE,',
         '          useFactory: () => ExplorerPage',
+        '      }),',
+        '      defineProvider({',
+        '          // what the pages written in markdown render, see the templating docs',
+        '          token: ZIBRI_DI_TOKENS.MDX_COMPONENTS,',
+        '          useValue: markdownComponents',
         '      }),',
         '      defineProvider({',
         '+         token: ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS,',
@@ -513,6 +536,7 @@ export const acceptedSandboxDifferences: Record<string, string> = {
         '+ sandbox',
         '',
         '  export * from \'./auth.controller\';',
+        '  export * from \'./docs.controller\';',
         '  export * from \'./health.controller\';',
         '+ export * from \'./test.controller\';',
         '+ export * from \'./cron.controller\';',

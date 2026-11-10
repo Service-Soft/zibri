@@ -102,12 +102,50 @@ const EXPLORER_FILES: string[] = [
 ];
 
 /**
+ * The files of the pages written in markdown this release generates, which 3.0 did not.
+ */
+const MARKDOWN_FILES: string[] = [
+    'src/markdown.d.ts',
+    'src/templates/components/blockquote.tsx',
+    'src/templates/components/code-block.tsx',
+    'src/templates/components/divider.tsx',
+    'src/templates/components/emphasis.tsx',
+    'src/templates/components/image.tsx',
+    'src/templates/components/inline-code.tsx',
+    'src/templates/components/list.tsx',
+    'src/templates/components/list-item.tsx',
+    'src/templates/components/markdown-components.ts',
+    'src/templates/components/paragraph.tsx',
+    'src/templates/components/strikethrough.tsx',
+    'src/templates/components/strong.tsx',
+    'src/templates/components/table.tsx',
+    'src/templates/components/table-body.tsx',
+    'src/templates/components/table-cell.tsx',
+    'src/templates/components/table-head.tsx',
+    'src/templates/components/table-row.tsx'
+];
+
+/**
+ * The package that builds the pages written in markdown, which 3.0 did not install.
+ */
+const MARKDOWN_PACKAGE: string = 'zibri-mdx';
+
+/**
  * What 3.0 generated of `src/providers.ts` where this release changed it, as `[now, then]`: the explorer it
- * provides, and the master key it decodes.
+ * provides, the components of the pages written in markdown, and the master key it decodes.
  */
 const PROVIDER_CHANGES: [string, string][] = [
     ['import { ExplorerPage } from \'./templates/explorer/explorer\';\n', ''],
     ['    defineProvider({\n        token: ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE,\n        useFactory: () => ExplorerPage\n    }),\n', ''],
+    ['import { markdownComponents } from \'./templates/components/markdown-components\';\n', ''],
+    [
+        '    defineProvider({\n'
+        + '        // what the pages written in markdown render, see the templating docs\n'
+        + '        token: ZIBRI_DI_TOKENS.MDX_COMPONENTS,\n'
+        + '        useValue: markdownComponents\n'
+        + '    }),\n',
+        ''
+    ],
     // 3.0 handed the master key over as the string it was read as, which aes-256-gcm cannot use
     ['value: Buffer.from(requireEnv(\'MASTER_KEY\'), \'base64url\')', 'value: requireEnv(\'MASTER_KEY\')']
 ];
@@ -199,7 +237,7 @@ describe('UpgradeCommand (real npm install)', () => {
             'src/templates/components/navbar.tsx': EXPLORER_LABEL_CHANGES
         };
         const generated: Record<string, string> = Object.fromEntries(await Promise.all(
-            [...Object.keys(olderChanges), ...EXPLORER_FILES, 'assets/public/style.css'].map(async file => [file, await read(file)] as const)
+            [...Object.keys(olderChanges), ...EXPLORER_FILES, ...MARKDOWN_FILES, 'assets/public/style.css'].map(async file => [file, await read(file)] as const)
         ));
         git('init', '--quiet');
         git('add', '--all');
@@ -214,13 +252,13 @@ describe('UpgradeCommand (real npm install)', () => {
         const stylesheet: string = generated['assets/public/style.css'];
         await writeAsGenerated('assets/public/style.css', `${TAILWIND_3_DIRECTIVES}${stylesheet.slice(stylesheet.indexOf('html, body'))}`);
         await writeAsGenerated('tailwind.config.js', TAILWIND_3_CONFIG);
-        for (const file of EXPLORER_FILES) {
+        for (const file of [...EXPLORER_FILES, ...MARKDOWN_FILES]) {
             await removeAsNotGenerated(file);
         }
         for (const file of SWAGGER_FILES) {
             await writeAsGenerated(file, `/* ${file} of swagger-ui */\n`);
         }
-        execSync('npm uninstall @tailwindcss/postcss && npm i -D tailwindcss@3 autoprefixer@^10.4.27', { cwd: appDir, stdio: 'ignore' });
+        execSync(`npm uninstall @tailwindcss/postcss ${MARKDOWN_PACKAGE} && npm i -D tailwindcss@3 autoprefixer@^10.4.27`, { cwd: appDir, stdio: 'ignore' });
         git('add', '--all');
         git('commit', '--quiet', '--message', 'zi new, of 3.0');
 
@@ -238,6 +276,7 @@ describe('UpgradeCommand (real npm install)', () => {
         const packageJson: { devDependencies: Record<string, string> } = JSON.parse(await read('package.json'));
         expect(packageJson.devDependencies['tailwindcss']).toMatch(/^\^4\./);
         expect(packageJson.devDependencies['autoprefixer']).toBeUndefined();
+        expect(packageJson.devDependencies[MARKDOWN_PACKAGE]).toBeDefined();
         execSync('npm run build', { cwd: appDir, stdio: 'ignore' });
     }, TEST_TIMEOUT_MS);
 });

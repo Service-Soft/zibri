@@ -5,12 +5,23 @@ import { TsxComponent } from './tsx-component.model';
 import { TsxUtilities } from './tsx.utilities';
 import { compileTsxTemplate } from '../__testing__/compile-tsx-template.function';
 import { ZibriApplicationOptions } from '../application/application-options.model';
+import { AssetService } from '../assets/asset.service';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { initDiContainer } from '../di/init-di-container.function';
 import { inject } from '../di/inject.function';
+import { defineProvider } from '../di/models/di-provider.model';
+import { register } from '../di/register.function';
 import { GlobalRegistry } from '../global/global-registry';
 import { LocaleCode } from '../localization/models/locale-code.model';
 import { TranslationRegistry } from '../localization/translation.registry';
+import { Route } from '../routing/controller-route-configuration.model';
+
+/**
+ * Assets served below a path of their own, as a site published under one serves them.
+ */
+class DocsAssetService extends AssetService {
+    override readonly assetsRoute: Route = '/docs/assets';
+}
 
 /**
  * Globals the pages these templates stand for provide, so client code in the tests can call something
@@ -47,6 +58,8 @@ function templateOf<T>(source: string): TsxComponent<T> {
 describe('TsxUtilities', () => {
     beforeAll(() => {
         initDiContainer();
+        // registered before anything injects it, as an injected value is kept
+        register(defineProvider({ token: ZIBRI_DI_TOKENS.ASSET_SERVICE, useClass: DocsAssetService }));
         // the application a template renders in, whose environment decides what a mistake of the render does
         GlobalRegistry.setAppData(applicationOptions);
     });
@@ -72,6 +85,16 @@ describe('TsxUtilities', () => {
                 'export const Home = () => <html><body><h1>Hi</h1></body></html>;'
             );
             expect(TsxUtilities.renderPage(page)).toBe('<!DOCTYPE html>\n<html><body><h1>Hi</h1></body></html>');
+        });
+
+        it('renders a page whose props are all optional without them, as a page written in markdown is', () => {
+            const page: TsxComponent<{ title?: string }> = templateOf('export const Home = ({ title = \'Tasks\' }) => <p>{title}</p>;');
+            const required: TsxComponent<{ title: string }> = templateOf('export const Home = ({ title }) => <p>{title}</p>;');
+
+            expect(TsxUtilities.renderPage(page)).toBe('<!DOCTYPE html>\n<p>Tasks</p>');
+            expect(TsxUtilities.renderPage(page, { title: 'Projects' })).toBe('<!DOCTYPE html>\n<p>Projects</p>');
+            // @ts-expect-error a page that requires a prop is rendered with it
+            expect(TsxUtilities.renderPage(required)).toBe('<!DOCTYPE html>\n<p></p>');
         });
 
         it('escapes interpolated props', () => {
@@ -187,20 +210,21 @@ describe('TsxUtilities', () => {
             expect(html).not.toContain('const $f =');
         });
 
-        it('emits a vendor script tag for a ?client package', () => {
+        it('emits a vendor script tag for a ?client package, under the route the assets are served at', () => {
             const page: TsxComponent = templateOf(
                 'import { Chart } from \'chart.js?client\';\n'
                 + 'export const Home = () => { onClient(() => { new Chart(); }); '
                 + 'return <html><head></head><body></body></html>; };'
             );
 
-            expect(TsxUtilities.renderPage(page)).toContain('<script src="/assets/vendor/chart-js.js"></script>');
+            // the build writes the vendor bundles into the public assets, which the asset service serves
+            expect(TsxUtilities.renderPage(page)).toContain('<script src="/docs/assets/vendor/chart-js.js"></script>');
         });
 
         it('throws an actionable error for a template that was not compiled', () => {
             const notCompiled: TsxComponent = (() => undefined) as unknown as TsxComponent;
             expect(() => TsxUtilities.renderPage(notCompiled)).toThrow(/was not compiled by zibri-tsx/);
-            expect(() => TsxUtilities.renderPage(notCompiled)).toThrow(/zibri-tsx\/webpack/);
+            expect(() => TsxUtilities.renderPage(notCompiled)).toThrow(/zibri-tsx-compiler\/webpack/);
         });
     });
 

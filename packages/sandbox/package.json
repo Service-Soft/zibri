@@ -1,15 +1,15 @@
 {
     "name": "sandbox",
     "version": "1.0.1",
-    "main": "./dist/index.js",
+    "main": "./dist/bundle.js",
     "scripts": {
         "start": "webpack --watch",
         "build": "webpack",
-        "test": "jest --testPathPatterns=\"^(?!.*\\.browser\\.test\\.ts$).*\"",
-        "test:browser": "jest --testPathPatterns=\"\\.browser\\.test\\.ts$\"",
+        "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --testPathPatterns=\"^(?!.*\\.browser\\.test\\.ts$).*\"",
+        "test:browser": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --testPathPatterns=\"\\.browser\\.test\\.ts$\"",
         "lint": "eslint . --max-warnings 0",
-        "migrate:list": "node dist/index.js migrate list",
-        "migrate:down": "node dist/index.js migrate down"
+        "migrate:list": "node dist/bundle.js migrate list",
+        "migrate:down": "node dist/bundle.js migrate down"
     },
     "keywords": [
         "zibri"
@@ -54,6 +54,8 @@
         "typescript": "^5.9.2",
         "webpack": "^5.105.3",
         "webpack-cli": "^6.0.1",
-        "zibri-testing": "*"
+        "zibri-mdx": "*",
+        "zibri-testing": "*",
+        "zibri-tsx-compiler": "*"
     }
 }

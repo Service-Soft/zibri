@@ -45,14 +45,25 @@ const NO_CLIENT_BEHAVIOR: ComponentClientMeta = {
 };
 
 /**
- * Builds a framework-owned email component from a hand-written render function. Keeps the one
- * inherent compiled-object-to-component cast in a single place, and fills in the empty client
- * metadata every email shares.
+ * Builds a framework-owned email component from a hand-written render function.
  * @param name - The component name, used in diagnostics.
  * @param render - Builds the component's HTML from its props and the render runtime.
  * @returns The component, typed for use in JSX.
  */
 export function defineEmailComponent<T>(name: string, render: EmailRender<T>): TsxComponent<T> {
+    return defineServerComponent(name, render);
+}
+
+/**
+ * Builds a framework-owned component without client behavior of its own from a hand-written render function, such as
+ * an email component or a page of markdown rendered at runtime. What it renders may have client behavior, which the
+ * runtime registers as for any component. Keeps the one inherent compiled-object-to-component cast in a single place,
+ * and fills in the empty client metadata.
+ * @param name - The component name, used in diagnostics.
+ * @param render - Builds the component's HTML from its props and the render runtime.
+ * @returns The component, typed for use in JSX.
+ */
+export function defineServerComponent<T>(name: string, render: EmailRender<T>): TsxComponent<T> {
     const compiled: CompiledComponent = {
         name,
         render: (props: Record<string, unknown>, $ssr: RenderServerRuntime) => render(props as EmailProps<T>, $ssr),

@@ -14,6 +14,16 @@ export default [
         }
     },
     {
+        // the entry points only re-export: the JSDoc of every name sits where it is declared, and the
+        // shared config's ExportNamedDeclaration context also matches `export { X } from` lines. No-deprecated reports a
+        // name re-exported here when one overload of it is deprecated, as of renderPage, though a re-export calls none
+        files: ['src/index.ts', 'src/email/index.ts', 'src/internal.ts'],
+        rules: {
+            'jsdoc/require-jsdoc': 'off',
+            'typescript/no-deprecated': 'off'
+        }
+    },
+    {
         rules: {
             'cspell/spellchecker': [
                 'warn',

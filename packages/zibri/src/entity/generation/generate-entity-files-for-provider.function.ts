@@ -75,7 +75,6 @@ export async function generateEntityFilesForProvider(
                     }
 
                     for (const value of ObjectUtilities.values(operation.responses ?? {})) {
-                        // eslint-disable-next-line typescript/no-unsafe-assignment
                         const response: OpenApiResponseObject | OpenApiReferenceObject | undefined = value;
                         if (response == undefined) {
                             continue;

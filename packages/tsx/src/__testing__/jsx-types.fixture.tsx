@@ -184,6 +184,10 @@ function refs(): TsxElement {
  */
 function effects(): TsxElement {
     const count: State<number> = useState(0);
+    /**
+     * Whether the count has more than one digit, a function an effect runs again for.
+     * @returns True above 9.
+     */
     function isBig(): boolean {
         return count.value > 9;
     }
@@ -212,7 +216,12 @@ function effects(): TsxElement {
  * @param props.text - The text.
  * @returns The rendered element.
  */
-function Preview({ text }: { text: string }): TsxElement {
+function Preview({ text }: {
+    /**
+     * The text.
+     */
+    text: string
+}): TsxElement {
     const shown: Input<string> = useInput(text);
     return <p>{shown.value}</p>;
 }
@@ -223,7 +232,12 @@ function Preview({ text }: { text: string }): TsxElement {
  * @param props.value - The state.
  * @returns The rendered element.
  */
-function Field({ value }: { value: State<string> }): TsxElement {
+function Field({ value }: {
+    /**
+     * The state.
+     */
+    value: State<string>
+}): TsxElement {
     const text: State<string> = useWritableInput(value);
     return <input value={text.value}/>;
 }
@@ -239,7 +253,7 @@ function inputs(): TsxElement {
     // @ts-expect-error the handle useInput returns is read only
     tags.value = [];
     // @ts-expect-error what useInput holds is read only as well
-    tags.value.push('owner');
+    tags.value[0] = 'owner';
     void first;
 
     return <div>

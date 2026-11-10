@@ -10,13 +10,14 @@ export const RateLimiterSizeStatCard: TsxComponent<Props> = ({ className = '' })
 
     function activeKeys(): string {
         const latest: MetricsSnapshot | undefined = snapshots.value.at(-1);
-        if (!latest) {
-            return '...';
-        }
-        return String(latest.metrics
-            .filter(m => m.name === 'rate_limit_active_keys')
-            .reduce((p, c) => p + c.value, 0));
+        return !latest
+            ? '...'
+            : String(latest.metrics
+                .filter(m => m.name === 'rate_limit_active_keys')
+                .reduce((p, c) => p + c.value, 0));
     }
 
-    return <StatCard id="rateLimiterSizeStat" title={$ts`Tracked identities`} unit={$ts`keys`} className={className}>{activeKeys()}</StatCard>;
+    return <StatCard id="rateLimiterSizeStat" title={$ts`Tracked identities`} unit={$ts`keys`} className={className}>
+        {activeKeys()}
+    </StatCard>;
 };

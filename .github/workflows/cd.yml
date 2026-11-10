@@ -47,7 +47,7 @@ jobs:
             # registry answers its publish with a 404 after the attestation is already logged
             - name: refuse a package the registry has never seen, and a version it already has
               run: |
-                for package in zibri-tsx zibri zibri-testing zibri-cli; do
+                for package in zibri-tsx zibri-tsx-compiler zibri-mdx zibri zibri-testing zibri-cli; do
                   if ! npm view "$package" name > /dev/null 2>&1; then
                     echo "$package is not on the registry, and trusted publishing cannot create it: request to let it be published once by hand"
                     exit 1
@@ -74,9 +74,13 @@ jobs:
 
             # every build before any publish: a build failing after a publish is the likeliest way
             # to lose a release halfway, and ordering alone removes it.
-            # zibri-tsx first: zibri type checks against its built dist and depends on it as a peer.
-            # zibri-testing after zibri, which it peer depends on and type checks against.
+            # zibri-tsx first: zibri type checks against its built dist and depends on it as a peer, and
+            # zibri-tsx-compiler and zibri-mdx type check against it too. zibri-mdx and zibri after the
+            # compiler, whose types they name. zibri-testing after zibri, which it peer depends on and
+            # type checks against.
             - run: npm run build -w zibri-tsx
+            - run: npm run build -w zibri-tsx-compiler
+            - run: npm run build -w zibri-mdx
             - run: npm run build:prod -w zibri
             - run: npm run build -w zibri-testing
             - run: npm run build -w zibri-cli
@@ -84,6 +88,8 @@ jobs:
             # and a rehearsal of each, because npm refuses a package for reasons a build never
             # sees - a file the packer cannot read, a name this account may not publish under
             - run: npm publish -w zibri-tsx --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
+            - run: npm publish -w zibri-tsx-compiler --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
+            - run: npm publish -w zibri-mdx --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
             - run: npm publish -w zibri --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
             - run: npm publish -w zibri-testing --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
             - run: npm publish -w zibri-cli --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
@@ -92,6 +98,8 @@ jobs:
             # for the permission and never producing the attestation left consumers with no
             # supply-chain provenance while the setup implied there was some.
             - run: npm publish -w zibri-tsx --provenance --tag "${{ steps.version.outputs.dist_tag }}"
+            - run: npm publish -w zibri-tsx-compiler --provenance --tag "${{ steps.version.outputs.dist_tag }}"
+            - run: npm publish -w zibri-mdx --provenance --tag "${{ steps.version.outputs.dist_tag }}"
             - run: npm publish -w zibri --provenance --tag "${{ steps.version.outputs.dist_tag }}"
             - run: npm publish -w zibri-testing --provenance --tag "${{ steps.version.outputs.dist_tag }}"
             - run: npm publish -w zibri-cli --provenance --tag "${{ steps.version.outputs.dist_tag }}"
@@ -125,9 +133,16 @@ jobs:
                 node-version: '24'
             - run: npm ci
             - run: npm run build -w zibri-tsx
+            - run: npm run build -w zibri-tsx-compiler
+            - run: npm run build -w zibri-mdx
+            # typedoc's json of the exports, which the site renders as its API reference
             - run: npm run build:prod -w zibri
+            - run: npm run build -w zibri-testing
+            # the site, exported as files, which refuses a link that leads nowhere
+            - run: npm run build -w zibri-docs-site
+            - run: npm run export -w zibri-docs-site
             - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
             - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
               with:
-                path: packages/zibri/docs/generated
+                path: packages/docs-site/.generated
             - uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

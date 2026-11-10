@@ -2,7 +2,8 @@
 import { BaseCommand } from './base-command.model';
 import { version } from '../../package.json';
 import { ChalkUtilities, CPUtilities, FsUtilities, GitUtilities, MergeLabels, MergeResult } from '../encapsulation';
-import { SCAFFOLD_MANIFEST_FILE,
+import { SCAFFOLD_FRAMEWORK_DEV_DEPENDENCIES,
+    SCAFFOLD_MANIFEST_FILE,
     ScaffoldAnswers,
     ScaffoldDependencies,
     ScaffoldManifest,
@@ -82,7 +83,7 @@ export abstract class RegeneratingCommand<Input extends object> extends BaseComm
      */
     protected async installDependencies(projectPath: Path, packages: ScaffoldDependencies, withFramework: boolean): Promise<void> {
         const { installed } = await ScaffoldUtilities.resolvePackageJson(projectPath);
-        const { dependencies, devDependencies }: ScaffoldDependencies = packages;
+        const { dependencies, devDependencies, frameworkDevDependencies }: ScaffoldDependencies = packages;
         // what the project has stays at the version it has: a range it chose is the project's to change
         const lacking: (packages: string[]) => string[] = packages => packages.filter(
             spec => !installed.has(this.resolvePackageName(spec))
@@ -94,11 +95,13 @@ export abstract class RegeneratingCommand<Input extends object> extends BaseComm
         if (runtime.length) {
             await CPUtilities.exec(`cd "${projectPath}" && npm i ${runtime.join(' ')}`);
         }
-        // after the framework, which the harness peer depends on
+        // after the framework, which the harness peer depends on. The framework's own packages at its release whether
+        // the project has them or not, as they build with the zibri-tsx of that release
         const development: string[] = [
-            ...withFramework ? [ScaffoldUtilities.resolveFrameworkDependency('testing', 'zibri-testing')] : [],
-            ...lacking(devDependencies)
-        ];
+            ...withFramework ? SCAFFOLD_FRAMEWORK_DEV_DEPENDENCIES : [],
+            ...frameworkDevDependencies
+        ].map(({ folder, name }) => ScaffoldUtilities.resolveFrameworkDependency(folder, name))
+            .concat(lacking(devDependencies));
         if (development.length) {
             await CPUtilities.exec(`cd "${projectPath}" && npm i -D ${development.join(' ')}`);
         }

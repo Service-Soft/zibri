@@ -16,8 +16,12 @@ export class RemoveCommand extends RegeneratingCommand<FeatureChange> {
     protected override async run(input: FeatureChange): Promise<void> {
         const { projectPath, manifest, features, changed } = input;
         await this.regenerate(projectPath, manifest, { ...manifest.answers, features }, `zi remove ${changed.join(',')}`);
-        const { dependencies, devDependencies }: ScaffoldDependencies = ScaffoldUtilities.resolveFeatureDependencies(changed);
-        const packages: string[] = [...dependencies, ...devDependencies].map(spec => this.resolvePackageName(spec));
+        const { dependencies, devDependencies, frameworkDevDependencies }: ScaffoldDependencies = ScaffoldUtilities
+            .resolveFeatureDependencies(changed);
+        const packages: string[] = [
+            ...[...dependencies, ...devDependencies].map(spec => this.resolvePackageName(spec)),
+            ...frameworkDevDependencies.map(({ name }) => name)
+        ];
         if (packages.length) {
             await CPUtilities.exec(`cd "${projectPath}" && npm uninstall ${packages.join(' ')}`);
         }

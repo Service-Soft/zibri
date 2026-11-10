@@ -291,7 +291,14 @@ export declare const BasePage: TsxComponent<{
     scripts?: string[]
 }>;
 export declare const Card: TsxComponent<{ className?: string, children: TsxChildren }>;
-export declare const Heading: TsxComponent<{ tag?: 'h1' | 'h2' | 'h3', id?: string, children: TsxChildren, className?: string }>;
+export declare const Heading: TsxComponent<{
+    tag?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6',
+    size?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6',
+    id?: string,
+    children: TsxChildren,
+    className?: string
+}>;
+export declare const CodeBlock: TsxComponent<{ language?: string, meta?: string, code: string, children: TsxChildren }>;
 export declare const Checkbox: TsxComponent<{ label: string, className?: string, onChange?: () => void, checked?: boolean, id?: string }>;
 export declare const Link: TsxComponent<{
     href: string,

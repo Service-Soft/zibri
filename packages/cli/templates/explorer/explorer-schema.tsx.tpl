@@ -12,6 +12,11 @@ type Props = {
 };
 
 /**
+ * A schema a schema is made of: the name it is shown with, the schema, and whether it is required.
+ */
+type SchemaPart = [string, OpenApiSchemaObject | OpenApiReferenceObject, boolean];
+
+/**
  * What a schema allows besides its type, such as `min 0` or `one of: a, b`.
  * @param schema - The schema.
  * @returns One text for each restriction.
@@ -24,7 +29,7 @@ function resolveRestrictions(schema: OpenApiSchemaObject): string[] {
     if (schema.default !== undefined) {
         restrictions.push(`default: ${JsonUtilities.stringify(schema.default)}`);
     }
-    const bounds: [string, unknown][] = [
+    const bounds: [string, string | number | boolean | undefined][] = [
         ['min', schema.minimum],
         ['max', schema.maximum],
         ['more than', schema.exclusiveMinimum],
@@ -55,8 +60,8 @@ function resolveRestrictions(schema: OpenApiSchemaObject): string[] {
  * @param schema - The schema.
  * @returns Each part under the name it is shown with, and whether it is required.
  */
-function resolveParts(definition: OpenApiExplorerSchemaSource, schema: OpenApiSchemaObject): [string, OpenApiSchemaObject | OpenApiReferenceObject, boolean][] {
-    const parts: [string, OpenApiSchemaObject | OpenApiReferenceObject, boolean][] = [];
+function resolveParts(definition: OpenApiExplorerSchemaSource, schema: OpenApiSchemaObject): SchemaPart[] {
+    const parts: SchemaPart[] = [];
     for (const [key, property] of Object.entries(schema.properties ?? {})) {
         parts.push([key, property, schema.required?.includes(key) === true]);
     }
@@ -96,13 +101,17 @@ export const ExplorerSchema: TsxComponent<Props> = ({ schema, name, required = f
     const circular: boolean = reference != undefined && references.includes(reference);
     const resolved: OpenApiSchemaObject | undefined = circular ? undefined : OpenApiExplorerUtilities.resolveSchema(definition, schema);
     const nextReferences: string[] = reference == undefined ? references : [...references, reference];
-    const parts: [string, OpenApiSchemaObject | OpenApiReferenceObject, boolean][] = resolved == undefined ? [] : resolveParts(definition, resolved);
+    const parts: SchemaPart[] = resolved == undefined ? [] : resolveParts(definition, resolved);
     const head: TsxElement = <span className="inline-flex flex-wrap gap-2 items-baseline">
-        {name != undefined && <span className={resolved?.deprecated === true ? 'font-semibold line-through' : 'font-semibold'}>{name}</span>}
+        {name != undefined && <span className={resolved?.deprecated === true ? 'font-semibold line-through' : 'font-semibold'}>
+            {name}
+        </span>}
         {required && <span className="text-[#f93e3e]" title="required">*</span>}
         <span className="text-secondary">{OpenApiExplorerUtilities.resolveTypeName(definition, schema)}</span>
         {circular && <span className="italic text-disabled">refers to itself, shown above</span>}
-        {resolved != undefined && resolveRestrictions(resolved).map(restriction => <span className="italic text-disabled">{restriction}</span>)}
+        {resolved != undefined && resolveRestrictions(resolved).map(restriction => <span className="italic text-disabled">
+            {restriction}
+        </span>)}
     </span>;
     const description: TsxElement | undefined = resolved?.description == undefined
         ? undefined

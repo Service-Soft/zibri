@@ -1,5 +1,9 @@
+---
+keywords: [versions, changelog, semver, support, lts, release cycle]
+---
+
 # Releases
-`zibri`, `zibri-tsx`, `zibri-testing` and `zibri-cli` are released together, at one version, and follow [semantic versioning](https://semver.org). Install them at the same version.
+`zibri`, `zibri-tsx`, `zibri-tsx-compiler`, `zibri-mdx`, `zibri-testing` and `zibri-cli` are released together, at one version, and follow [semantic versioning](https://semver.org). Install them at the same version.
 
 ## What is public
 The public API is what you can import from a package's entry points:
@@ -8,17 +12,20 @@ The public API is what you can import from a package's entry points:
 |---|---|
 | `zibri` | `zibri`, `zibri/webpack`, `zibri/tsconfig.application.json` |
 | `zibri-testing` | `zibri-testing`, `zibri-testing/jest-config`, `zibri-testing/jest-preset` |
-| `zibri-tsx` | `zibri-tsx`, `zibri-tsx/compiler`, `zibri-tsx/webpack`, `zibri-tsx/jest`, `zibri-tsx/email`, `zibri-tsx/jsx-runtime` |
+| `zibri-tsx` | `zibri-tsx`, `zibri-tsx/email`, `zibri-tsx/jsx-runtime`, and `zibri-tsx/compiler`, `zibri-tsx/webpack`, `zibri-tsx/jest`, which are deprecated |
+| `zibri-tsx-compiler` | `zibri-tsx-compiler`, `zibri-tsx-compiler/webpack`, `zibri-tsx-compiler/jest` |
+| `zibri-mdx` | `zibri-mdx` |
 | `zibri-cli` | the `zi` commands and their arguments |
 
 Files inside a package can only be reached through these entry points.
 
 `zibri/internal` holds what the other Zibri packages use from `zibri`. Any release can change it.
 
-`zibri-tsx` also exports what the templates it compiles call while they render and in the page:
-`createServerRuntime`, the `RenderServerRuntime` type with the registries and markers it holds, and the sources of
-the client script, such as `CLIENT_HOOK_SOURCES`, `REATTACH_RUNTIME` and `BIND_RUNTIME`. Any release can change
-them, along with the code the compiler emits.
+`zibri-tsx/internal` holds what the templates `zibri-tsx-compiler` compiles call while they render and in the page,
+and what the other Zibri packages use from `zibri-tsx`: `createServerRuntime`, the `RenderServerRuntime` type with
+the registries and markers it holds, the sources of the client script, such as `CLIENT_HOOK_SOURCES`, and what the
+email components are built from, such as `defineEmailComponent`. Any release can change it, along with the code the
+compiler emits.
 
 ## What a version number tells you
 | Release | Contains |
@@ -46,4 +53,4 @@ Fixes, security fixes included, are released for the newest major only. To get t
 ## See also
 - [Upgrading to 3](./upgrading-to-3.md) — what to change in your code for 3.0.0
 - [Getting started](./getting-started.md#upgrading-a-project) — bringing a project to what a new version generates, with `zi upgrade`
-- [Versioning](./versioning.md) — the version of your own application, and what it decides
+- [Versioning](./endpoints/versioning.md) — the version of your own application, and what it decides

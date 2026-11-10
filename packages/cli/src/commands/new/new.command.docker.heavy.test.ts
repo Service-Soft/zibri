@@ -44,7 +44,18 @@ const REGISTRY_IMAGE: string = 'verdaccio/verdaccio:6';
 const REGISTRY_PORT: number = 4873;
 
 /**
- * The registry as the machine running this test reaches it, which is where the three workspace
+ * The folders of the workspace packages the generated project installs, under `packages`, in the order of a release:
+ * each is built before it is published, against the build of those it names.
+ */
+const PUBLISHED_FOLDERS: string[] = ['tsx', 'tsx-compiler', 'mdx', 'zibri', 'testing'];
+
+/**
+ * The names of those packages on the registry, which only it holds.
+ */
+const PUBLISHED_PACKAGES: string[] = PUBLISHED_FOLDERS.map(folder => folder === 'zibri' ? 'zibri' : `zibri-${folder}`);
+
+/**
+ * The registry as the machine running this test reaches it, which is where the workspace
  * packages are published and where the generator installs them from.
  */
 const REGISTRY_FROM_HOST: string = `http://127.0.0.1:${REGISTRY_PORT}`;
@@ -237,7 +248,7 @@ async function assertPublished(packageName: string): Promise<void> {
 /**
  * Builds a workspace package and publishes it to the throwaway registry.
  *
- * None of the three are on the public registry yet, and the generated Dockerfile installs before it
+ * None of them are on the public registry at this version, and the generated Dockerfile installs before it
  * copies any sources - deliberately, so that a source change reuses the dependency layer. That
  * ordering leaves no way to reach a local file, so the packages are served the way a real consumer
  * gets them instead. It is also the more faithful test: what is exercised is the published shape.
@@ -337,7 +348,7 @@ async function waitForApplication(container: string, port: number): Promise<void
 }
 
 /**
- * Starts the registry the three workspace packages are served from, and waits for it to answer.
+ * Starts the registry the workspace packages are served from, and waits for it to answer.
  *
  * Its storage stays inside the container, so every run starts from an empty registry and the publish
  * below cannot collide with a version it already holds.
@@ -350,19 +361,11 @@ async function startRegistry(): Promise<void> {
         '    npmjs:',
         '        url: https://registry.npmjs.org/',
         'packages:',
-        // the three that are only here. Named before the catch-all and without an uplink, so that a
+        // the ones that are only here. Named before the catch-all and without an uplink, so that a
         // name which also exists publicly resolves to what this run published rather than to npm
-        '    \'zibri\':',
-        '        access: $all',
-        '        publish: $all',
-        '    \'zibri-tsx\':',
-        '        access: $all',
-        '        publish: $all',
-        '    \'zibri-testing\':',
-        '        access: $all',
-        '        publish: $all',
+        ...PUBLISHED_PACKAGES.flatMap(name => [`    '${name}':`, '        access: $all', '        publish: $all']),
         // everything else is proxied, which is what makes this a registry the whole install can go
-        // through rather than one holding three packages and nothing they depend on
+        // through rather than one holding the framework and nothing it depends on
         '    \'**\':',
         '        access: $all',
         '        proxy: npmjs',
@@ -430,17 +433,17 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         runQuietly(`docker network create ${NETWORK_NAME}`);
         await startRegistry();
 
-        publishWorkspacePackage(path.join('packages', 'zibri'));
-        publishWorkspacePackage(path.join('packages', 'tsx'));
-        publishWorkspacePackage(path.join('packages', 'testing'));
+        for (const folder of PUBLISHED_FOLDERS) {
+            publishWorkspacePackage(path.join('packages', folder));
+        }
 
         // asked of the registry rather than assumed from the publish exiting zero. The install below
         // reports a version it cannot find as "no matching version", which reads identically whether
         // the registry never received the package or whether the request went somewhere else
         // entirely - and those want opposite fixes.
-        await assertPublished('zibri');
-        await assertPublished('zibri-tsx');
-        await assertPublished('zibri-testing');
+        for (const name of PUBLISHED_PACKAGES) {
+            await assertPublished(name);
+        }
 
         // ZIBRI_CLI_LOCAL_DEV is deliberately not set: the generator is asked for the same project it
         // writes for anybody else, one that depends on the framework by name. What makes that

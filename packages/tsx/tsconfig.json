@@ -16,12 +16,18 @@
         "noImplicitReturns": true,
         "noPropertyAccessFromIndexSignature": true,
         "outDir": "dist",
-        // Resolves the jsx runtime from source, so the type fixture does not depend on a built dist.
+        // Resolves the jsx runtime from source, so the type fixture does not depend on a built dist. The tests compile
+        // their templates with the sources of zibri-tsx-compiler, which renders against these sources, as
+        // jest.config.mjs maps them: one runtime, never a built copy beside the sources
         "paths": {
-            "zibri-tsx/jsx-runtime": ["./src/jsx-runtime.ts"]
+            "zibri-tsx": ["./src/index.ts"],
+            "zibri-tsx-compiler": ["../tsx-compiler/src/index.ts"],
+            "zibri-tsx-compiler/*": ["../tsx-compiler/src/*"],
+            "zibri-tsx/*": ["./src/*"]
         },
         "resolveJsonModule": true,
-        "rootDir": "src",
+        // over both packages, as the sources of zibri-tsx-compiler are part of what the tests are checked with
+        "rootDir": "..",
         "skipLibCheck": true,
         "sourceMap": true,
         "strict": true,
@@ -32,5 +38,6 @@
     },
     // what tests write there, such as projects whose type errors a test builds on purpose
     "exclude": ["src/__testing__/file-output"],
-    "include": ["src", "jest.config.mjs"]
+    // forward/ is written by hand rather than built, and checked here that what it forwards to exists
+    "include": ["src", "forward/*.d.ts", "jest.config.mjs"]
 }

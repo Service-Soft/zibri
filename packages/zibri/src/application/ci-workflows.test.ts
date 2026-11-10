@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from '@jest/globals';
 
 import { testFileFolder } from '../__testing__/constants';
+import { DOCS_DIR } from '../__testing__/docs-pages.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
 
 /**
@@ -167,7 +168,7 @@ function resolveJestPatternsRunBy(script: string): (RegExp | undefined)[] {
             if (called != undefined) {
                 return resolveJestPatternsRunBy(called);
             }
-            if (!part.startsWith('jest')) {
+            if (!/^(?:jest|node --experimental-vm-modules \S+\/jest\.js)\b/.test(part)) {
                 return [];
             }
             const pattern: string | undefined = /--testPathPatterns="([^"]*)"/.exec(part)?.[1];
@@ -612,7 +613,7 @@ describe('the tree a consumer installs', () => {
         const policy: { allowed: string[], allowedFor: Record<string, { licenses: string[] }> } = JsonUtilities.parse(
             readFileSync(path.join(repoRoot, '.github', 'license-policy.json'), 'utf8')
         );
-        const deployment: string = readFileSync(path.join(packagesDir, 'zibri', 'docs', 'deployment.md'), 'utf8');
+        const deployment: string = readFileSync(path.join(DOCS_DIR, 'operations', 'deployment.md'), 'utf8');
         const section: string = deployment.slice(deployment.indexOf('## What the application is made of'), deployment.indexOf('## Running more than one instance'));
 
         expect(policy.allowed.filter(license => !section.includes(license))).toStrictEqual([]);
@@ -1052,44 +1053,16 @@ describe('the release workflow', () => {
 
 });
 
-// the pages are written for a developer and for the assistant that developer asks, and an
-// assistant finds a site's pages through llms.txt, and all of them at once in llms-full.txt
+// typedoc checks what the entry point exports, and the documentation site in packages/docs-site renders what it read
 describe('the docs build', () => {
     const zibriDir: string = path.join(repoRoot, 'packages', 'zibri');
-    const docsDir: string = path.join(zibriDir, 'docs');
-    const llmsTxtPath: string = path.join(zibriDir, 'scripts', 'llms-txt.mjs');
 
-    it('writes llms.txt and llms-full.txt beside the generated site', () => {
+    it('reads the exports with typedoc into the json the site renders, and writes no site of its own', () => {
         const manifest: { scripts: Record<string, string> } = JsonUtilities.parse(readFileSync(path.join(zibriDir, 'package.json'), 'utf8'));
+        const typedoc: Record<string, unknown> = JsonUtilities.parse(readFileSync(path.join(zibriDir, 'typedoc.json'), 'utf8'));
 
-        expect(manifest.scripts['build:prod']).toMatch(/&& typedoc && node scripts\/llms-txt\.mjs$/);
-    });
-
-    it('lists every page in llms.txt with what it is, and holds every page whole in llms-full.txt', () => {
-        // the whole text is checked in the child, since it is larger than what a child may print
-        const res: { index: string, missingFromFull: string[] } = inResolverProcess(`
-            const { readdirSync, readFileSync } = await import('node:fs');
-            const path = await import('node:path');
-            const { resolveLlmsTxt, resolveLlmsFullTxt } = await import('${pathToFileURL(llmsTxtPath).href}');
-            const docsDir = ${JsonUtilities.stringify(docsDir)};
-            const full = resolveLlmsFullTxt(docsDir);
-            const missingFromFull = readdirSync(docsDir)
-                .filter(name => name.endsWith('.md'))
-                .filter(name => !full.includes(readFileSync(path.join(docsDir, name), 'utf8').trim()));
-            console.log(JSON.stringify({ index: resolveLlmsTxt(docsDir), missingFromFull }));
-        `);
-        const pages: string[] = readdirSync(docsDir).filter(name => name.endsWith('.md'));
-
-        expect(res.index).toMatch(/^# Zibri\n\n> \S/);
-        expect(res.missingFromFull).toEqual([]);
-        for (const page of pages) {
-            const content: string = readFileSync(path.join(docsDir, page), 'utf8');
-            const title: string = (content.split('\n')[0] ?? '').replace(/^# /, '');
-            const url: string = `https://service-soft.github.io/zibri/documents/${page.replace(/\.md$/, '')}.html`;
-            expect({ page, line: res.index.split('\n').find(line => line.startsWith(`- [${title}](${url}): `)) })
-                .toEqual({ page, line: expect.stringMatching(/\): \S/) });
-        }
-        // in the order of the site, which opens with getting started
-        expect(res.index.indexOf('getting-started.html')).toBeLessThan(res.index.indexOf('architecture.html'));
+        expect(manifest.scripts['build:prod']).toBe('npm run build && typedoc');
+        expect(typedoc['json']).toBe('docs/.generated/api.json');
+        expect(typedoc['out']).toBeUndefined();
     });
 });

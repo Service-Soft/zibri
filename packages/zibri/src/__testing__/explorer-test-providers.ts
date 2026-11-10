@@ -22,5 +22,8 @@ const explorerTestTemplate: OpenApiExplorerTemplate = compileTsxTemplate<OpenApi
  * offers is a list item of its name, its url and the url of its document, separated by `|`.
  */
 export const explorerTestProviders: DiProvider<unknown>[] = [
-    defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE, useValue: explorerTestTemplate })
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE,
+        useValue: explorerTestTemplate
+    })
 ];

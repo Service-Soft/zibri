@@ -6,8 +6,9 @@ type Props = {
 };
 
 // the band a document starts with, the same on both tabs
-export const ExplorerBar: TsxComponent<Props> = ({ id, children }) => (
-    <div id={id} className="flex flex-wrap gap-4 items-center p-4 rounded bg-dark-gray">
-        {children}
-    </div>
-);
+export const ExplorerBar: TsxComponent<Props> = ({ id, children }) => <div
+    id={id}
+    className="flex flex-wrap gap-4 items-center p-4 rounded bg-dark-gray"
+>
+    {children}
+</div>;

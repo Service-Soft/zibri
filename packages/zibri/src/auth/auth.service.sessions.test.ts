@@ -294,7 +294,7 @@ async function callWithoutCode(accessToken: string, path: string): Promise<Respo
 beforeAll(async () => {
     server = await startTestServer({
         controllers: [JwtTestAuthController, TwoFactorController, RevocationController],
-        // two strategies, as docs/auth.md recommends, so that a request carrying both can be refused
+        // two strategies, as docs/auth/auth.md recommends, so that a request carrying both can be refused
         authStrategies: [JwtAuthStrategy, ApiKeyAuthStrategy],
         twoFactorMethods: [OtpTwoFactorMethod],
         providers: [

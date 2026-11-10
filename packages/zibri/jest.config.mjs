@@ -1,3 +1,13 @@
+import vm from 'node:vm';
+
+// @faker-js/faker ships as ESM-only .js since v10, and jose, openid-client and the oauth4webapi it is built on always
+// have, as do the markdown parser of zibri-mdx and what it is built on. Run with --experimental-vm-modules, as the
+// scripts of package.json run it, jest loads such a package as it is, and one compiled to commonjs it would still load
+// as an es module, failing on `exports`. Run without, by an editor say, matching them here (and un-ignoring them below)
+// lets ts-jest down-compile "import"/"export" to CommonJS for Jest's runtime. The framework's optionalPeer goes through
+// it too: inside a test, the require createRequire hands back is Jest's own. Asked the way jest asks
+const loadsEsModules = typeof vm.SourceTextModule?.prototype?.hasAsyncGraph === 'function';
+const esmPackages = '@faker-js/faker|jose|openid-client|oauth4webapi';
 
 /** @type {import('ts-jest').JestConfigWithTsJest} **/
 const config = {
@@ -5,22 +15,21 @@ const config = {
     rootDir: 'src',
     transform: {
         '^.+.tsx?$': ['ts-jest'],
-        // @faker-js/faker ships as ESM-only .js since v10, and jose, openid-client and the
-        // oauth4webapi it is built on always have; matching them here (and un-ignoring them below)
-        // lets ts-jest down-compile "import"/"export" to CommonJS for Jest's runtime. The framework's
-        // optionalPeer goes through it too: inside a test, the require createRequire hands back is
-        // Jest's own.
-        '/node_modules/(@faker-js/faker|jose|openid-client|oauth4webapi)/.+\\.js$': [
-            'ts-jest',
-            {
-                tsconfig: {
-                    allowJs: true,
-                    module: 'commonjs'
-                }
+        ...loadsEsModules
+            ? {}
+            : {
+                [`/node_modules/(${esmPackages})/.+\\.js$`]: [
+                    'ts-jest',
+                    {
+                        tsconfig: {
+                            allowJs: true,
+                            module: 'commonjs'
+                        }
+                    }
+                ]
             }
-        ]
     },
-    transformIgnorePatterns: ['/node_modules/(?!(@faker-js/faker|jose|openid-client|oauth4webapi)/)'],
+    transformIgnorePatterns: loadsEsModules ? ['/node_modules/'] : [`/node_modules/(?!(${esmPackages})/)`],
     // The harness is a package of its own, and this suite is its consumer - but it is also the
     // framework the harness imports. Both names resolve to the sources beside this file rather than
     // to a built `dist`: one physical copy of the framework in the process (two would be refused at

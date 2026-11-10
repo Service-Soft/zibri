@@ -9,7 +9,7 @@ import { toScriptValue } from './script-value';
  */
 function evaluate(source: string): unknown {
     // eslint-disable-next-line typescript/no-implied-eval
-    return new Function(`return ${source};`)();
+    return Reflect.apply(new Function(`return ${source};`), undefined, []);
 }
 
 describe('toScriptValue', () => {

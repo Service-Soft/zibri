@@ -1,5 +1,12 @@
+import type { CheerioAPI } from 'cheerio';
+
+import { COMPONENT_HEAD_STYLES } from './component-head-styles';
 import { defineEmailComponent, TsxComponent } from './define-email-component';
+import { EmailPeerUtilities } from './email-peers.utilities';
+import { EmailRegionContext } from './email-region.context';
 import { HeadChannel } from './head-channels';
+import { EmailFont, EmailHtmlAttribute } from './head-records';
+import { RenderServerRuntime } from '../runtime/server-runtime';
 
 /**
  * Props for {@link Mjml}.
@@ -43,12 +50,75 @@ const HEAD_PREFIX: string = '<!--[if !mso]><!--><meta http-equiv="X-UA-Compatibl
     + '<!--[if lte mso 11]><style type="text/css">.mj-outlook-group-fix { width:100% !important; }</style><![endif]-->';
 
 /**
- * The Ubuntu font import MJML emits by default, hidden from Outlook.
+ * The fonts MJML knows without an `mj-font`, by name, each imported once the email uses it.
  */
-const FONTS: string = '<!--[if !mso]><!-->'
-    + '<link href="https://fonts.googleapis.com/css?family=Ubuntu:300,400,500,700" rel="stylesheet" type="text/css">'
-    + '<style type="text/css">@import url(https://fonts.googleapis.com/css?family=Ubuntu:300,400,500,700);</style>'
-    + '<!--<![endif]-->';
+const DEFAULT_FONTS: Readonly<Record<string, string>> = {
+    'Open Sans': 'https://fonts.googleapis.com/css?family=Open+Sans:300,400,500,700',
+    'Droid Sans': 'https://fonts.googleapis.com/css?family=Droid+Sans:300,400,500,700',
+    Lato: 'https://fonts.googleapis.com/css?family=Lato:300,400,500,700',
+    Roboto: 'https://fonts.googleapis.com/css?family=Roboto:300,400,500,700',
+    Ubuntu: 'https://fonts.googleapis.com/css?family=Ubuntu:300,400,500,700'
+};
+
+/**
+ * The width below which columns stack, unless an `MjBreakpoint` says otherwise.
+ */
+const DEFAULT_BREAKPOINT: string = '480px';
+
+/**
+ * The imports of the fonts the body uses. Mirrors MJML's `buildFontsTags`: a font is imported when an inline style of
+ * the body names it in a `font-family`, hidden from Outlook, which cannot load one.
+ * @param body - The rendered body.
+ * @param fonts - The fonts the email knows, by name.
+ * @returns The imports, or an empty string when the body uses none.
+ */
+function fontImports(body: string, fonts: Record<string, string>): string {
+    const used: string[] = Object.entries(fonts)
+        // a name is matched as it is written, so a character a pattern reads otherwise is escaped
+        .filter(([name]) => new RegExp(`"[^"]*font-family:[^"]*${name.replaceAll(/[$()*+.?[\\\]^{|}]/g, '\\$&')}[^"]*"`, 'mi').test(body))
+        .map(([, href]) => href);
+    const fontStyles: string = used.map(href => `@import url(${href});`).join('');
+    return used.length === 0
+        ? ''
+        : '<!--[if !mso]><!-->'
+            + used.map(href => `<link href="${href}" rel="stylesheet" type="text/css">`).join('')
+            + `<style type="text/css">${fontStyles}</style>`
+            + '<!--<![endif]-->';
+}
+
+/**
+ * The styles the components of the body need in the head: those of single instances first, then those each component
+ * shares between its instances, in one style block. Mirrors MJML's `buildStyleFromComponents`.
+ * @param $ssr - The render runtime the body was rendered with.
+ * @param breakpoint - The breakpoint of the document.
+ * @returns The style block, or an empty string when no component needs one.
+ */
+function componentStyles($ssr: RenderServerRuntime, breakpoint: string): string {
+    const styles: string[] = [
+        ...$ssr.collected(HeadChannel.instanceStyle),
+        ...$ssr.collected(HeadChannel.componentStyle).map(component => COMPONENT_HEAD_STYLES[component]?.(breakpoint) ?? '')
+    ];
+    return styles.length === 0 ? '' : `<style type="text/css">${styles.join('\n')}</style>`;
+}
+
+/**
+ * Sets the attributes the `MjHtmlAttributes` of the email declare on the elements of the body their selectors match.
+ * Mirrors what MJML does with `mj-html-attributes`, with the same selector engine.
+ * @param body - The rendered body.
+ * @param attributes - The recorded attributes.
+ * @returns The body with the attributes set.
+ */
+function applyHtmlAttributes(body: string, attributes: string[]): string {
+    if (attributes.length === 0) {
+        return body;
+    }
+    const $: CheerioAPI = EmailPeerUtilities.resolveCheerio().load(body, { xml: { xmlMode: true, decodeEntities: false } });
+    for (const blob of attributes) {
+        const { path, name, value } = JSON.parse(blob) as EmailHtmlAttribute;
+        $(path).attr(name, value);
+    }
+    return $.root().html() ?? body;
+}
 
 /**
  * Escapes the characters that must not appear literally in an HTML attribute or text.
@@ -68,9 +138,10 @@ function escapeHtml(value: string): string {
  * keeps its width, and the default (mobile) makes it full width, so columns stack. Nothing is emitted
  * when no columns were rendered.
  * @param widths - The distinct column width percentages the body registered.
+ * @param breakpoint - The width from which columns keep their width.
  * @returns The two style blocks, or an empty string.
  */
-function mediaQueries(widths: string[]): string {
+function mediaQueries(widths: string[], breakpoint: string): string {
     if (widths.length === 0) {
         return '';
     }
@@ -78,8 +149,8 @@ function mediaQueries(widths: string[]): string {
         .map(width => `${prefix}.mj-column-per-${width} { width:${width}% !important; max-width: ${width}%; }`)
         .join('');
 
-    return `<style type="text/css">@media only screen and (min-width:480px) {${rule('')}}</style>`
-        + `<style media="screen and (min-width:480px)">${rule('.moz-text-html ')}</style>`;
+    return `<style type="text/css">@media only screen and (min-width:${breakpoint}) {${rule('')}}</style>`
+        + `<style media="screen and (min-width:${breakpoint})">${rule('.moz-text-html ')}</style>`;
 }
 
 /**
@@ -93,23 +164,34 @@ function mediaQueries(widths: string[]): string {
 export const Mjml: TsxComponent<MjmlProps> = defineEmailComponent<MjmlProps>('Mjml', (props, $ssr) => {
     const lang: string = escapeHtml(props.lang ?? 'und');
     const dir: string = escapeHtml(props.dir ?? 'auto');
-    const body: string = $ssr.child(props.children);
+    $ssr.provideContext(EmailRegionContext, 'document');
+    const body: string = applyHtmlAttributes($ssr.child(props.children), $ssr.collected(HeadChannel.htmlAttribute));
     const title: string = $ssr.collected(HeadChannel.title)[0] ?? props.title ?? '';
+    const breakpoint: string = $ssr.collected(HeadChannel.breakpoint).at(-1) ?? DEFAULT_BREAKPOINT;
+    const fonts: Record<string, string> = { ...DEFAULT_FONTS };
+    for (const blob of $ssr.collected(HeadChannel.font)) {
+        const font: EmailFont = JSON.parse(blob) as EmailFont;
+        fonts[font.name] = font.href;
+    }
     const customStyles: string = $ssr.collected(HeadChannel.style)
         .map(css => `<style type="text/css">${css}</style>`)
         .join('');
     const head: string = `<title>${escapeHtml(title)}</title>`
         + HEAD_PREFIX
-        + FONTS
-        + mediaQueries($ssr.collected(HeadChannel.columnWidth))
-        + customStyles;
+        + fontImports(body, fonts)
+        + mediaQueries($ssr.collected(HeadChannel.columnWidth), breakpoint)
+        + componentStyles($ssr, breakpoint)
+        + customStyles
+        + $ssr.collected(HeadChannel.raw).join('');
 
     const preview: string = $ssr.collected(HeadChannel.preview)
         .map(text => `<div style="${PREVIEW_STYLE}">${escapeHtml(text)}</div>`)
         .join('');
+    const beforeDoctype: string[] = $ssr.collected(HeadChannel.beforeDoctype);
 
     return $ssr.raw(
-        '<!doctype html>'
+        (beforeDoctype.length === 0 ? '' : `${beforeDoctype.join('\n')}\n`)
+        + '<!doctype html>'
         + `<html lang="${lang}" dir="${dir}" xmlns="http://www.w3.org/1999/xhtml" `
         + 'xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">'
         + `<head>${head}</head>`

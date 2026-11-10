@@ -1,4 +1,5 @@
-import { CompiledPage, createServerRuntime, renderChild, renderPage, RenderServerRuntime } from 'zibri-tsx';
+import { CompiledPage, MdxComponentsContext, renderPage } from 'zibri-tsx';
+import { createServerRuntime, isCompiledComponent, renderChild, RenderServerRuntime } from 'zibri-tsx/internal';
 
 import { TsxComponent } from './tsx-component.model';
 import { TsxEmailComponent } from './tsx-email-component.model';
@@ -22,7 +23,8 @@ import { GlobalRegistry } from '../global/global-registry';
  */
 export abstract class TsxUtilities {
     /**
-     * Renders the given component as an email, so no script injection is happening.
+     * Renders the given component as an email, so no script injection is happening. A page written in markdown the
+     * email renders renders the components `ZIBRI_DI_TOKENS.MDX_EMAIL_COMPONENTS` names for its constructs.
      * @example
      * ```ts
      * TsxUtilities.renderEmail(TestEmail, { recipient: 'James Smith' });
@@ -41,32 +43,41 @@ export abstract class TsxUtilities {
         // A fresh runtime per render; its handler and client instance registries are simply ignored,
         // which is what makes this the script free variant of renderPage.
         const runtime: RenderServerRuntime = createServerRuntime(this.resolveEnvironment());
+        // an email client loads no stylesheet, so an email has components of its own for markdown
+        runtime.provideContext(MdxComponentsContext, inject(ZIBRI_DI_TOKENS.MDX_EMAIL_COMPONENTS));
 
         return `<!DOCTYPE html>\n${renderChild(compiled.render(this.toPropsRecord(props), runtime))}`;
     }
 
     /**
      * Renders the given component as a page, including the script tag that restores client side
-     * interactivity for any `onClient` blocks and event handlers the template declares.
+     * interactivity for any `onClient` blocks and event handlers the template declares. A page written in markdown,
+     * and every one the page renders, renders the components `ZIBRI_DI_TOKENS.MDX_COMPONENTS` names for its
+     * constructs.
      * @example
      * ```ts
      * TsxUtilities.renderPage(TestPage, { initialCount: 1 });
      * ```
      * @param args - The function component to render, followed by the properties to pass into it
-     * when it takes any.
+     * when it takes any. They may be left out when every one of them is optional.
      * @returns The fully rendered html string, with the client script attached in a script tag.
      */
     static renderPage<T = {}>(
         ...args: keyof T extends never
             ? [component: TsxComponent<T>]
-            : [component: TsxComponent<T>, props: T]
+            : {} extends T
+                ? [component: TsxComponent<T>, props?: T]
+                : [component: TsxComponent<T>, props: T]
     ): string {
         const [component, props] = args;
 
         return renderPage(this.toCompiledComponent(component), this.toPropsRecord(props), {
             environment: this.resolveEnvironment(),
             nonce: this.resolveNonce(),
-            localeData: new TsxLocaleData()
+            localeData: new TsxLocaleData(),
+            // the build writes the vendor bundles into the public assets, so they are served where those are
+            vendorUrlPrefix: `${inject(ZIBRI_DI_TOKENS.ASSET_SERVICE).assetsRoute}/vendor/`,
+            contexts: [{ context: MdxComponentsContext, value: inject(ZIBRI_DI_TOKENS.MDX_COMPONENTS) }]
         });
     }
 
@@ -107,29 +118,14 @@ export abstract class TsxUtilities {
      */
     private static toCompiledComponent<T>(component: TsxComponent<T>): CompiledPage {
         const value: unknown = component;
-        if (this.isCompiledComponent(value)) {
+        if (isCompiledComponent(value)) {
             return value;
         }
         throw new InternalError([
             `The template '${this.nameOf(component)}' was not compiled by zibri-tsx.`,
-            'Route your template files through the zibri-tsx webpack loader, for example:',
-            '{ test: /\\.tsx$/, include: /src[\\\\/]templates/, use: \'zibri-tsx/webpack\' }'
+            'Route your template files through the webpack loader of zibri-tsx-compiler, for example:',
+            '{ test: /\\.(tsx|mdx?)$/, include: /src[\\\\/]templates/, use: \'zibri-tsx-compiler/webpack\' }'
         ].join('\n'));
-    }
-
-    /**
-     * Whether the given value is a compiled component emitted by zibri-tsx.
-     * @param value - The value to check.
-     * @returns True when the value can be rendered.
-     */
-    private static isCompiledComponent(value: unknown): value is CompiledPage {
-        if (typeof value !== 'object' || value === null) {
-            return false;
-        }
-        const candidate: Partial<CompiledPage> = value;
-        return typeof candidate.name === 'string'
-            && typeof candidate.render === 'function'
-            && typeof candidate.client === 'object';
     }
 
     /**

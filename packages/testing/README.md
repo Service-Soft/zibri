@@ -22,4 +22,4 @@ const response: Response = await fetch(baseUrl);
 `zi new` sets this up for you, including a first test to copy.
 
 The full documentation is at
-[service-soft.github.io/zibri/documents/testing](https://service-soft.github.io/zibri/documents/testing.html).
+[service-soft.github.io/zibri/testing](https://service-soft.github.io/zibri/testing/).

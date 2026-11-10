@@ -8,6 +8,8 @@ This repository is an npm-workspaces monorepo. It currently contains:
 - [packages/zibri](packages/zibri) — the Zibri framework itself. See its [README](packages/zibri/README.md) for what Zibri is and how to use it.
 - [packages/cli](packages/cli) — the Zibri CLI (`zibri-cli`, binary `zi`), used to scaffold new Zibri projects. See its [README](packages/cli/README.md).
 - [packages/tsx](packages/tsx) — a custom tsx dialect specific for server side html templating. Restores some client side functionality without hydration, so security leakages are impossible by design. See its [README](packages/tsx/README.md).
+- [packages/tsx-compiler](packages/tsx-compiler) — `zibri-tsx-compiler`, which compiles the templates for `zibri-tsx`: the webpack loader, the jest transform and the type check. A devDependency, so a deployment carries neither it nor TypeScript. See its [README](packages/tsx-compiler/README.md).
+- [packages/mdx](packages/mdx) — `zibri-mdx`, which builds the `.md` and `.mdx` page templates that `zibri-tsx-compiler` then compiles. A devDependency, so a deployment carries none of it. See its [README](packages/mdx/README.md).
 - [packages/testing](packages/testing) — `zibri-testing`, the harness Zibri tests itself with, published so an application can use the same one. See its [README](packages/testing/README.md).
 - [packages/sandbox](packages/sandbox) — what `zi new` generates, plus demos to exercise Zibri during development. Not a reference application.
 

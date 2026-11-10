@@ -2,20 +2,26 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/glob
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
+import { AsyncApiDefinition, AsyncApiMessage, AsyncApiServer } from './async-api.model';
+import { $ts } from '../localization/translate.function';
 import { AsyncApiExplorerOperation, AsyncApiExplorerTag } from './explorer/async-api-explorer-operation.model';
 import { AsyncApiExplorerUtilities } from './explorer/async-api-explorer.utilities';
-import { AsyncApiDefinition, AsyncApiMessage, AsyncApiServer } from './async-api.model';
 import { TestTimeouts } from '../__testing__/constants';
+import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Auth } from '../auth/decorators/auth.decorator';
+import { AuthStrategyInterface } from '../auth/strategies/auth-strategy.interface';
+import { CredentialEntity } from '../auth/strategies/credential-entity.model';
+import { JwtAuthStrategy } from '../auth/strategies/jwt/jwt.auth-strategy';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { defineProvider, DiProvider } from '../di/models/di-provider.model';
 import { Property } from '../entity/decorators/property.decorator';
 import { MimeType } from '../http/mime-type.enum';
 import { Response } from '../open-api/decorators/response.decorator';
 import { OpenApiExplorerUtilities } from '../open-api/explorer/open-api-explorer.utilities';
+import { OpenApiSecuritySchemeObject } from '../open-api/open-api.model';
 import { XmlRoot } from '../parsing/xml/xml-root.decorator';
 import { Ms } from '../utilities/ms';
 import { WebsocketBody } from '../websocket/decorators/websocket-body.decorator';
@@ -53,6 +59,53 @@ class ChatWebsocketController {
     @WebsocketRoute('history')
     history(): ChatMessage[] {
         return [];
+    }
+}
+
+/**
+ * A strategy that accepts the tokens of an OAuth2 provider, for the scheme it names. It recognizes no
+ * request, as only its scheme is looked at.
+ */
+class ProviderTokenAuthStrategy implements AuthStrategyInterface<string, JwtUser> {
+
+    readonly name: string = 'provider-token';
+
+    readonly credentialEntities: CredentialEntity[] = [];
+
+    // the extension beside the flows is what AsyncAPI has no place for
+    readonly securityScheme: OpenApiSecuritySchemeObject = {
+        type: 'oauth2',
+        flows: {
+            clientCredentials: {
+                tokenUrl: 'https://auth.example.com/token',
+                scopes: { 'tasks:read': 'Read the tasks' }
+            },
+            authorizationCode: {
+                authorizationUrl: 'https://auth.example.com/authorize',
+                tokenUrl: 'https://auth.example.com/token',
+                scopes: {}
+            },
+            'x-provider': { name: 'example' }
+        }
+    };
+
+    hasCredential(): boolean {
+        return false;
+    }
+
+    // eslint-disable-next-line typescript/require-await
+    async resolveUser(): Promise<undefined> {
+        return undefined;
+    }
+
+    // eslint-disable-next-line typescript/require-await
+    async resolveAuthenticatedAt(): Promise<undefined> {
+        return undefined;
+    }
+
+    // eslint-disable-next-line typescript/require-await
+    async resolveExpiresAt(): Promise<undefined> {
+        return undefined;
     }
 }
 
@@ -127,7 +180,8 @@ describe('AsyncApiService', () => {
     it('describes every websocket event as a channel the application receives on, with the server a client connects to', () => {
         expect(definition.asyncapi).toBe('3.0.0');
         expect(definition.info).toEqual({ title: expect.any(String), version: '1.0.0' });
-        expect(Object.values(definition.channels ?? {}).map(channel => channel.address).sort())
+        expect(Object.values(definition.channels ?? {}).map(channel => channel.address)
+            .sort())
             .toEqual(['chat:history', 'chat:note', 'chat:send', 'ws:replay-incomplete']);
         expect(definition.servers?.['application']).toMatchObject({ protocol: expect.stringMatching(/^wss?$/), pathname: '/socket.io' });
     });
@@ -176,22 +230,55 @@ describe('AsyncApiService', () => {
 
 describe('AsyncApiService with the servers an application names', () => {
     it('names them instead of the application itself', async () => {
-        const servers: Record<string, AsyncApiServer> = {
-            production: { host: 'api.example.com', protocol: 'wss', pathname: '/socket.io', description: 'Production' }
-        };
+        // a factory, as $ts needs the application started
+        const servers: () => Record<string, AsyncApiServer> = () => ({
+            production: { host: 'api.example.com', protocol: 'wss', pathname: '/socket.io', description: $ts`Production` }
+        });
         const server: StartedTestServer = await startTestServer({
             version: '1.0.0',
             websocketControllers: [ChatWebsocketController],
             // orphan allowed, since the suite above boots a server of its own while this class exists
             dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
-            providers: [...providers, defineProvider({ token: ZIBRI_DI_TOKENS.ASYNC_API_SERVERS, useValue: servers })]
+            providers: [...providers, defineProvider({ token: ZIBRI_DI_TOKENS.ASYNC_API_SERVERS, useFactory: servers })]
         });
         try {
             const baseUrl: string = await server.start();
             // eslint-disable-next-line typescript/no-unsafe-assignment
             const definition: AsyncApiDefinition = await (await fetch(`${baseUrl}/explorer/asyncapi/1.0.0`)).json();
 
-            expect(definition.servers).toEqual(servers);
+            expect(definition.servers).toEqual(servers());
+        }
+        finally {
+            await server.shutdown();
+        }
+    }, TestTimeouts.inMemory.start);
+});
+
+describe('AsyncApiService with an oauth2 strategy', () => {
+    it('names each flow of its scheme, with the description of each scope', async () => {
+        const server: StartedTestServer = await startTestServer({
+            version: '1.0.0',
+            websocketControllers: [ChatWebsocketController],
+            authStrategies: [JwtAuthStrategy, ProviderTokenAuthStrategy],
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
+            providers
+        });
+        try {
+            const baseUrl: string = await server.start();
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const definition: AsyncApiDefinition = await (await fetch(`${baseUrl}/explorer/asyncapi/1.0.0`)).json();
+
+            expect(definition.components?.securitySchemes?.['provider-token']).toEqual({
+                type: 'oauth2',
+                flows: {
+                    clientCredentials: { tokenUrl: 'https://auth.example.com/token', availableScopes: { 'tasks:read': 'Read the tasks' } },
+                    authorizationCode: {
+                        authorizationUrl: 'https://auth.example.com/authorize',
+                        tokenUrl: 'https://auth.example.com/token',
+                        availableScopes: {}
+                    }
+                }
+            });
         }
         finally {
             await server.shutdown();

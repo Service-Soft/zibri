@@ -1,0 +1,81 @@
+{
+    "name": "zibri-tsx-compiler",
+    "publishConfig": {
+        "access": "public"
+    },
+    "version": "3.0.1",
+    "license": "MIT",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        },
+        "./webpack": {
+            "types": "./dist/webpack/index.d.ts",
+            "default": "./dist/webpack/index.js"
+        },
+        "./jest": {
+            "types": "./dist/jest/index.d.ts",
+            "default": "./dist/jest/index.js"
+        },
+        "./package.json": "./package.json"
+    },
+    "typesVersions": {
+        "*": {
+            "webpack": [
+                "./dist/webpack/index.d.ts"
+            ],
+            "jest": [
+                "./dist/jest/index.d.ts"
+            ]
+        }
+    },
+    "repository": {
+        "url": "https://github.com/Service-Soft/zibri",
+        "directory": "packages/tsx-compiler"
+    },
+    "files": [
+        "./dist",
+        "./README.md",
+        "./LICENSE"
+    ],
+    "engines": {
+        "node": ">=24"
+    },
+    "keywords": [
+        "zibri",
+        "tsx",
+        "compiler"
+    ],
+    "author": "Tim Fabian",
+    "description": "Compiles the TSX templates of Zibri applications for zibri-tsx: the webpack loader, the jest transform and the type check.",
+    "scripts": {
+        "build": "npm run build:clean && tsc -p tsconfig.build.json",
+        "build:clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+        "typecheck": "tsc -p tsconfig.json --noEmit",
+        "lint": "eslint . --max-warnings=0",
+        "lint:fix": "eslint . --max-warnings=0 --fix",
+        "prepublishOnly": "npm run build",
+        "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js && node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --config jest.typescript-6.config.mjs",
+        "test:coverage": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --coverage"
+    },
+    "peerDependencies": {
+        "typescript": "^5.9.2 || ^6.0.0",
+        "zibri-tsx": "^3.0.1"
+    },
+    "devDependencies": {
+        "@jest/globals": "^30.4.1",
+        "@types/node": "^24.0.0",
+        "eslint": "^9.36.0",
+        "eslint-config-service-soft": "^2.1.6",
+        "jest": "^30.4.2",
+        "ts-jest": "^29.4.11",
+        "ts-loader": "^9.5.2",
+        "typescript": "^5.9.2",
+        "typescript-6": "npm:typescript@^6.0.2",
+        "webpack": "^5.105.3",
+        "zibri-mdx": "^3.0.1"
+    }
+}

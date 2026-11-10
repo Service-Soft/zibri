@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { beforeAll, describe, expect, it } from '@jest/globals';
 import ts from 'typescript';
-import { compile, CompileResult } from 'zibri-tsx/compiler';
+import { compile, CompileResult } from 'zibri-tsx-compiler';
 
 import { JsonUtilities } from '../utilities/json.utilities';
 

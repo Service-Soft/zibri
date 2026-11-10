@@ -47,7 +47,12 @@ export abstract class AsyncApiExplorerUtilities {
         }));
     }
 
-    private static resolveOperation(definition: AsyncApiDefinition, tag: string, key: string, operation: AsyncApiOperation): AsyncApiExplorerOperation {
+    private static resolveOperation(
+        definition: AsyncApiDefinition,
+        tag: string,
+        key: string,
+        operation: AsyncApiOperation
+    ): AsyncApiExplorerOperation {
         const channel: AsyncApiChannel = this.resolveChannel(definition, operation.channel);
         return {
             id: `asyncapi-${tag}-${key}`.replaceAll(/[^\w-]+/g, '-'),
@@ -87,11 +92,14 @@ export abstract class AsyncApiExplorerUtilities {
         while ('$ref' in current) {
             const reference: string = current.$ref;
             if (seen.includes(reference)) {
-                throw new InternalError(`The AsyncAPI document refers from "${reference}" to itself: ${[...seen, reference].join(' -> ')}.`);
+                throw new InternalError(
+                    `The AsyncAPI document refers from "${reference}" to itself: ${[...seen, reference].join(' -> ')}.`
+                );
             }
             seen.push(reference);
             const [kind, name, part, messageName] = this.parseReference(current);
-            const found: AsyncApiMessage | AsyncApiReference | undefined = kind === 'channels' && part === 'messages' && name != undefined && messageName != undefined
+            const found: AsyncApiMessage | AsyncApiReference | undefined = kind === 'channels' && part === 'messages'
+                && name != undefined && messageName != undefined
                 ? definition.channels?.[name]?.messages?.[messageName]
                 : kind === 'messages' && name != undefined
                     ? definition.components?.messages?.[name]

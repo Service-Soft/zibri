@@ -40,6 +40,8 @@ jobs:
                 cache: npm
             - run: npm ci
             - run: npm run build -w zibri-tsx
+            - run: npm run build -w zibri-tsx-compiler
+            - run: npm run build -w zibri-mdx
             - run: npm run build:prod -w zibri
             # the sandbox's tests import it, and its types are read from what the build writes
             - run: npm run build -w zibri-testing
@@ -79,6 +81,8 @@ jobs:
                 sudo apt-get install -y postgresql-client-17
             - run: npm ci
             - run: npm run build -w zibri-tsx
+            - run: npm run build -w zibri-tsx-compiler
+            - run: npm run build -w zibri-mdx
             - run: npm run build:prod -w zibri
             # loaded built, the way a consumer gets it, by the check that it loads without its optional peers
             - run: npm run build -w zibri-testing
@@ -116,6 +120,8 @@ jobs:
                 sudo apt-get install -y postgresql-client-17
             - run: npm ci
             - run: npm run build -w zibri-tsx
+            - run: npm run build -w zibri-tsx-compiler
+            - run: npm run build -w zibri-mdx
             - run: npm run build:prod -w zibri
             - run: npm run build -w zibri-testing
             - run: npm run test:heavy -w zibri -- --coverage --coverageDirectory=__testing__/coverage/raw/heavy --coverageReporters=lcovonly
@@ -148,6 +154,8 @@ jobs:
                 sudo apt-get install -y postgresql-client-17
             - run: npm ci
             - run: npm run build -w zibri-tsx
+            - run: npm run build -w zibri-tsx-compiler
+            - run: npm run build -w zibri-mdx
             - run: npm run build:prod -w zibri
             - run: npm run build -w zibri-testing
             - run: npm run test:cluster -w zibri
@@ -167,7 +175,10 @@ jobs:
                 cache: npm
             - run: npm ci
             - run: npm run build -w zibri-tsx
+            - run: npm run build -w zibri-tsx-compiler
+            - run: npm run build -w zibri-mdx
             - run: npm run test -w zibri-tsx
+            - run: npm run test -w zibri-tsx-compiler
     # what runs in a browser: the client scripts the compiler writes, and the pages of the sandbox opened
     # from its own routes, in a real Chromium. One job on one node line: the browser is what these test,
     # and it is the same browser on every one of them. The sandbox's other suites run here as well, as
@@ -193,12 +204,35 @@ jobs:
             - run: npm ci
             - run: npx playwright install --with-deps chromium
             - run: npm run build -w zibri-tsx
+            - run: npm run build -w zibri-tsx-compiler
+            - run: npm run build -w zibri-mdx
             - run: npm run build:prod -w zibri
             - run: npm run build -w zibri-testing
             - run: npm run test:browser -w zibri-tsx
             - run: cp packages/sandbox/.env.example packages/sandbox/.env
             - run: npm run test -w sandbox
             - run: npm run test:browser -w sandbox
+    # the documentation site, and the export a reader gets from the bundle, which fails on a link that leads nowhere
+    test-docs-site:
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                node-version: '24'
+                cache: npm
+            - run: npm ci
+            - run: npm run build -w zibri-tsx
+            - run: npm run build -w zibri-tsx-compiler
+            - run: npm run build -w zibri-mdx
+            - run: npm run build:prod -w zibri
+            - run: npm run build -w zibri-testing
+            - run: npm run test -w zibri-docs-site
+            - run: npx playwright install --with-deps chromium
+            - run: npm run test:browser -w zibri-docs-site
+            - run: npm run build -w zibri-docs-site
+            - run: npm run export -w zibri-docs-site
     # the cli's whole suite in one in-band run, which is what lets it report coverage without
     # merging two of them: its heavy tests need --runInBand anyway
     test-cli:
@@ -225,6 +259,8 @@ jobs:
                 sudo apt-get install -y postgresql-client-17
             - run: npm ci
             - run: npm run build -w zibri-tsx
+            - run: npm run build -w zibri-tsx-compiler
+            - run: npm run build -w zibri-mdx
             - run: npm run build:prod -w zibri
             - run: npm run build -w zibri-testing
             - run: npm run test:ci -w zibri-cli
@@ -264,9 +300,12 @@ jobs:
                 cache: npm
             - run: npm ci
             - run: npm run build -w zibri-tsx
+            - run: npm run build -w zibri-tsx-compiler
+            - run: npm run build -w zibri-mdx
             - run: npm run build -w zibri
             - run: npm run build -w zibri-cli
             - run: npm run test -w zibri-tsx
+            - run: npm run test -w zibri-tsx-compiler
             # the fast suite only, because the cli's heavy ones build and run container images - which
             # is the same reason the container-backed suites above cannot join this job
             - run: npm run test:normal -w zibri-cli
@@ -286,6 +325,8 @@ jobs:
                 cache: npm
             - run: npm ci
             - run: npm run build -w zibri-tsx
+            - run: npm run build -w zibri-tsx-compiler
+            - run: npm run build -w zibri-mdx
             - run: npm run build:prod -w zibri
             - run: git fetch --depth=1 origin +release:refs/remotes/origin/release
             - run: npm run test:benchmark:compare -w zibri

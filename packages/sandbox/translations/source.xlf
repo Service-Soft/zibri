@@ -20,7 +20,7 @@
       </trans-unit>
       <trans-unit id="Active reservations" xml:space="preserve">
         <source>Active reservations</source>
-        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-reservation-stat-card.tsx:23</note>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-reservation-stat-card.tsx:22</note>
       </trans-unit>
       <trans-unit id="Allowed" xml:space="preserve">
         <source>Allowed</source>
@@ -90,6 +90,10 @@
         <source>Confirm Email for mailing list <x id="$1" equiv-text="{$1}"/></source>
         <note>src/templates/emails/mailing-list-subscribe-confirmation.tsx:17</note>
       </trans-unit>
+      <trans-unit id="Copy the link to this section" xml:space="preserve">
+        <source>Copy the link to this section</source>
+        <note>src/templates/docs/docs-heading-link.tsx:31</note>
+      </trans-unit>
       <trans-unit id="Count" xml:space="preserve">
         <source>Count</source>
         <note>src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:48, src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:164, src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:169</note>
@@ -117,6 +121,10 @@
       <trans-unit id="Decision &#x26; Store duration" xml:space="preserve">
         <source>Decision &#x26; Store duration</source>
         <note>src/templates/pages/metrics/rate-limiter/rate-limiter-detail.tsx:87</note>
+      </trans-unit>
+      <trans-unit id="Docs" xml:space="preserve">
+        <source>Docs</source>
+        <note>src/templates/components/navbar.tsx:26</note>
       </trans-unit>
       <trans-unit id="Entries" xml:space="preserve">
         <source>Entries</source>
@@ -200,7 +208,7 @@
       </trans-unit>
       <trans-unit id="keys" xml:space="preserve">
         <source>keys</source>
-        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-size-stat-card.tsx:21</note>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-size-stat-card.tsx:20</note>
       </trans-unit>
       <trans-unit id="Kind regards," xml:space="preserve">
         <source>Kind regards,</source>
@@ -262,9 +270,13 @@
         <source>Network</source>
         <note>src/templates/pages/metrics/network-chart.tsx:51</note>
       </trans-unit>
+      <trans-unit id="On this page" xml:space="preserve">
+        <source>On this page</source>
+        <note>src/templates/docs/docs-on-this-page-button.tsx:18, src/templates/docs/docs-on-this-page.tsx:54, src/templates/docs/docs-on-this-page.tsx:55</note>
+      </trans-unit>
       <trans-unit id="Ongoing cache operations" xml:space="preserve">
         <source>Ongoing cache operations</source>
-        <note>src/templates/pages/metrics/cache/cache-inflight-stat-card.tsx:23</note>
+        <note>src/templates/pages/metrics/cache/cache-inflight-stat-card.tsx:22</note>
       </trans-unit>
       <trans-unit id="Only want to change what you receive?" xml:space="preserve">
         <source>Only want to change what you receive?</source>
@@ -281,6 +293,10 @@
       <trans-unit id="Overview" xml:space="preserve">
         <source>Overview</source>
         <note>src/templates/pages/metrics/metrics.tsx:86, src/templates/pages/metrics/rate-limiter/rate-limiter-overview-chart.tsx:65, src/templates/pages/metrics/cache/cache-overview-chart.tsx:69</note>
+      </trans-unit>
+      <trans-unit id="Pages" xml:space="preserve">
+        <source>Pages</source>
+        <note>src/templates/docs/docs-layout.tsx:29, src/templates/docs/docs-sidebar.tsx:31</note>
       </trans-unit>
       <trans-unit id="Password Reset" xml:space="preserve">
         <source>Password Reset</source>
@@ -334,6 +350,18 @@
         <source>Resource Usage</source>
         <note>src/templates/pages/metrics/resource-usage-chart.tsx:50</note>
       </trans-unit>
+      <trans-unit id="Results" xml:space="preserve">
+        <source>Results</source>
+        <note>src/templates/docs/docs-search-box.tsx:253</note>
+      </trans-unit>
+      <trans-unit id="Search" xml:space="preserve">
+        <source>Search</source>
+        <note>src/templates/docs/docs-search-box.tsx:242</note>
+      </trans-unit>
+      <trans-unit id="Search the documentation" xml:space="preserve">
+        <source>Search the documentation</source>
+        <note>src/templates/docs/docs-search-box.tsx:243</note>
+      </trans-unit>
       <trans-unit id="Server Error" xml:space="preserve">
         <source>Server Error</source>
         <note>src/templates/pages/metrics/requests-per-second-chart.tsx:100</note>
@@ -386,6 +414,10 @@
         <source>The OpenAPI and AsyncAPI documentation of every version, to try each route out.</source>
         <note>src/templates/pages/home.tsx:22</note>
       </trans-unit>
+      <trans-unit id="There is no page at {$1}." xml:space="preserve">
+        <source>There is no page at <x id="$1" equiv-text="{$1}"/>.</source>
+        <note>src/controllers/docs.controller.ts:50</note>
+      </trans-unit>
       <trans-unit id="This instance is shutting down." xml:space="preserve">
         <source>This instance is shutting down.</source>
         <note>src/controllers/health.controller.ts:15</note>
@@ -396,7 +428,7 @@
       </trans-unit>
       <trans-unit id="Total cached entries" xml:space="preserve">
         <source>Total cached entries</source>
-        <note>src/templates/pages/metrics/cache/cache-size-stat-card.tsx:21</note>
+        <note>src/templates/pages/metrics/cache/cache-size-stat-card.tsx:20</note>
       </trans-unit>
       <trans-unit id="Total caches" xml:space="preserve">
         <source>Total caches</source>
@@ -408,7 +440,7 @@
       </trans-unit>
       <trans-unit id="Tracked identities" xml:space="preserve">
         <source>Tracked identities</source>
-        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-size-stat-card.tsx:21</note>
+        <note>src/templates/pages/metrics/rate-limiter/rate-limiter-size-stat-card.tsx:20</note>
       </trans-unit>
       <trans-unit id="unsubscribe" xml:space="preserve">
         <source>unsubscribe</source>
@@ -608,7 +640,7 @@
       </trans-unit>
       <trans-unit id="A socket.io server. A client names the version in the handshake, in the version header or query parameter, and logs in with the credentials of the handshake or of each message." xml:space="preserve">
         <source>A socket.io server. A client names the version in the handshake, in the version header or query parameter, and logs in with the credentials of the handshake or of each message.</source>
-        <note>src/async-api/async-api.service.ts:157</note>
+        <note>src/async-api/async-api.service.ts:166</note>
       </trans-unit>
       <trans-unit id="A tenant has a role of its own named '{$1}', so no role every tenant shares can be named so." xml:space="preserve">
         <source>A tenant has a role of its own named '<x id="$1" equiv-text="{$1}"/>', so no role every tenant shares can be named so.</source>
@@ -1516,7 +1548,7 @@
       </trans-unit>
       <trans-unit id="This application. A request names the version in the version header, and logs in with the credentials of a security scheme." xml:space="preserve">
         <source>This application. A request names the version in the version header, and logs in with the credentials of a security scheme.</source>
-        <note>src/open-api/open-api.service.ts:271</note>
+        <note>src/open-api/open-api.service.ts:273</note>
       </trans-unit>
       <trans-unit id="This is the address of the account already." xml:space="preserve">
         <source>This is the address of the account already.</source>

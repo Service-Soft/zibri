@@ -1,4 +1,5 @@
 export * from './auth.controller';
+export * from './docs.controller';
 export * from './health.controller';
 export * from './test.controller';
 export * from './cron.controller';

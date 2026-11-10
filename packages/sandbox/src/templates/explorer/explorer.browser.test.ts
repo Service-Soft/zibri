@@ -1,42 +1,17 @@
 import assert from 'node:assert';
-import { execFileSync } from 'node:child_process';
-import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { Page, Request, Response as PlaywrightResponse } from 'playwright';
-import { $ts, AsyncApiDefinition, AsyncApiService, Auth, Controller, defineProvider, Get, inject, PasswordCredentials, PasswordCredentialsCreateData, Repository, repositoryTokenFor, UUIDUtilities, Version, ZibriApplication, ZIBRI_DI_TOKENS } from 'zibri';
+import { $ts, AsyncApiDefinition, AsyncApiService, Auth, Controller, defineProvider, Get, inject, JsonUtilities, PasswordCredentials, PasswordCredentialsCreateData, Repository, repositoryTokenFor, UUIDUtilities, Version, ZibriApplication, ZIBRI_DI_TOKENS } from 'zibri';
 import { PageBrowser, startPageBrowser, StartedTestServer, startTestServer } from 'zibri-testing';
 
 import { version } from '../../../package.json';
+import { buildStylesheet } from '../../__testing__/build-stylesheet.function';
 import { testApplicationOptions } from '../../__testing__/test-application-options';
 import { Permissions, User } from '../../models';
 import { UserRepository } from '../../repositories';
 
 const TIMEOUT: number = 30000;
-
-const PROJECT_ROOT: string = path.join(__dirname, '..', '..', '..');
-
-/**
- * Builds the stylesheet the way the build does, with Tailwind through postcss.
- *
- * In a process of its own, because Tailwind and what it loads ship as es modules, which jest cannot require.
- * @returns The stylesheet the pages are served with.
- */
-function buildStylesheet(): string {
-    const script: string = [
-        'import { readFileSync } from \'node:fs\';',
-        'import postcss from \'postcss\';',
-        'import tailwind from \'@tailwindcss/postcss\';',
-        'const from = process.argv[1];',
-        'const result = await postcss([tailwind()]).process(readFileSync(from, \'utf8\'), { from });',
-        'process.stdout.write(result.css);'
-    ].join('\n');
-    return execFileSync(
-        process.execPath,
-        ['--input-type=module', '--eval', script, path.join(PROJECT_ROOT, 'assets', 'public', 'style.css')],
-        { cwd: PROJECT_ROOT, encoding: 'utf8' }
-    );
-}
 
 /**
  * What a login with a password answers with, as far as a test reads it.
@@ -266,7 +241,7 @@ describe('the OpenAPI explorer, in a browser', () => {
         await expand(LOGIN);
         await page.locator(`#${LOGIN}-body-application-json`).fill(JSON.stringify({ email, password }));
         expect(await execute(LOGIN)).toBe('200 OK');
-        const answer: LoginAnswer = JSON.parse(await page.locator(`#${LOGIN}-result-body`).textContent() ?? '');
+        const answer: LoginAnswer = JsonUtilities.parse(await page.locator(`#${LOGIN}-result-body`).textContent() ?? '');
         const { accessToken } = answer;
 
         await expand(LOGINS);
@@ -323,8 +298,8 @@ describe('the OpenAPI explorer, in a browser', () => {
         const dialog: { x: number, y: number, width: number, height: number } | null = await page.locator('#explorer-authorize-dialog').boundingBox();
         const viewport: { width: number, height: number } | null = page.viewportSize();
         assert(dialog && viewport);
-        expect(Math.abs(dialog.x + dialog.width / 2 - viewport.width / 2)).toBeLessThanOrEqual(1);
-        expect(Math.abs(dialog.y + dialog.height / 2 - viewport.height / 2)).toBeLessThanOrEqual(1);
+        expect(Math.abs(dialog.x + (dialog.width / 2) - (viewport.width / 2))).toBeLessThanOrEqual(1);
+        expect(Math.abs(dialog.y + (dialog.height / 2) - (viewport.height / 2))).toBeLessThanOrEqual(1);
     }, TIMEOUT);
 
     it('keeps what was entered under authorize across a reload, until logged out', async () => {
@@ -370,7 +345,8 @@ describe('the OpenAPI explorer, in a browser', () => {
         // the file is answered back as an attachment, which is offered to download rather than shown
         expect(await page.locator(`#${FILE_UPLOAD}-result-download`).isVisible()).toBe(true);
         expect(disposition).toMatch(/^attachment; filename="[^"]+\.json"/);
-        expect(disposition).toContain(`filename="${await page.locator(`#${FILE_UPLOAD}-result-download`).getAttribute('download')}"`);
+        const downloadName: string | null = await page.locator(`#${FILE_UPLOAD}-result-download`).getAttribute('download');
+        expect(disposition).toContain(`filename="${downloadName ?? ''}"`);
         expect(await page.locator(`#${FILE_UPLOAD}-result-body`).isVisible()).toBe(false);
     }, TIMEOUT);
 

@@ -81,6 +81,15 @@ type ExplorerResult = {
     error: string
 };
 
+/**
+ * What a response answered with, as the result shows it.
+ */
+type ExplorerResponseContent = {
+    body: string,
+    downloadUrl: string,
+    imageUrl: string
+};
+
 type Props = {
     id: string,
     method: string,
@@ -117,6 +126,10 @@ export const ExplorerTryItOut: TsxComponent<Props> = ({
     const parameterInputs: Refs<HTMLInputElement | HTMLSelectElement> = useRefs<HTMLInputElement | HTMLSelectElement>();
     const bodyInputs: Refs<HTMLTextAreaElement> = useRefs<HTMLTextAreaElement>();
     const fieldInputs: Refs<HTMLInputElement> = useRefs<HTMLInputElement>();
+    const fieldClasses: string = 'px-2 py-1.5 rounded border border-disabled-dark bg-dark-gray text-white';
+    // the blocks the result shows the curl, the url, the body and the headers in
+    const resultBlockClasses: string = 'my-1 p-2.5 overflow-auto max-h-96 rounded bg-[#111119] '
+        + 'font-mono text-sm whitespace-pre-wrap break-all';
 
     function quote(value: string): string {
         return `'${value.replaceAll('\'', '\'\\\'\'')}'`;
@@ -137,90 +150,83 @@ export const ExplorerTryItOut: TsxComponent<Props> = ({
         return { values, missing };
     }
 
+    function readForm(body: ExplorerRequestBody, curl: string[]): FormData | URLSearchParams {
+        const form: FormData = new FormData();
+        for (const input of fieldInputs.current.filter(field => field.dataset['mimeType'] === body.mimeType)) {
+            const name: string = input.dataset['name'] ?? '';
+            const texts: string[] = input.dataset['array'] === 'true' ? input.value.split(',') : [input.value];
+            const values: (string | File)[] = input.type === 'file' ? [...input.files ?? []] : texts.filter(v => v !== '');
+            for (const value of values) {
+                form.append(name, value);
+                const field: string = typeof value === 'string' ? `${name}=${value}` : `${name}=@${value.name}`;
+                curl.push(`-F ${quote(field)}`);
+            }
+        }
+        if (body.mimeType !== 'application/x-www-form-urlencoded') {
+            return form;
+        }
+        const encoded: URLSearchParams = new URLSearchParams();
+        for (const [name, value] of form.entries()) {
+            encoded.append(name, typeof value === 'string' ? value : value.name);
+        }
+        return encoded;
+    }
+
     function readBody(curl: string[]): BodyInit | undefined {
         const body: ExplorerRequestBody | undefined = bodies.find(b => b.mimeType === bodyType.value);
         if (body == undefined) {
             return undefined;
         }
-        if (!body.isForm) {
-            const text: string = bodyInputs.current.find(input => input.dataset['mimeType'] === body.mimeType)?.value ?? '';
-            if (text === '') {
-                return undefined;
-            }
-            curl.push(`-H ${quote(`Content-Type: ${body.mimeType}`)}`, `-d ${quote(text)}`);
-            return text;
+        if (body.isForm) {
+            return readForm(body, curl);
         }
-        const form: FormData = new FormData();
-        for (const input of fieldInputs.current.filter(field => field.dataset['mimeType'] === body.mimeType)) {
-            const name: string = input.dataset['name'] ?? '';
-            if (input.type === 'file') {
-                for (const file of input.files ?? []) {
-                    form.append(name, file);
-                    curl.push(`-F ${quote(`${name}=@${file.name}`)}`);
-                }
-                continue;
-            }
-            const values: string[] = input.dataset['array'] === 'true' ? input.value.split(',').filter(v => v !== '') : [input.value];
-            for (const value of values.filter(v => v !== '')) {
-                form.append(name, value);
-                curl.push(`-F ${quote(`${name}=${value}`)}`);
-            }
+        const text: string = bodyInputs.current.find(input => input.dataset['mimeType'] === body.mimeType)?.value ?? '';
+        if (text === '') {
+            return undefined;
         }
-        if (body.mimeType === 'application/x-www-form-urlencoded') {
-            const encoded: URLSearchParams = new URLSearchParams();
-            for (const [name, value] of form.entries()) {
-                encoded.append(name, typeof value === 'string' ? value : value.name);
-            }
-            return encoded;
-        }
-        return form;
+        const contentType: string = `Content-Type: ${body.mimeType}`;
+        curl.push(`-H ${quote(contentType)}`, `-d ${quote(text)}`);
+        return text;
     }
 
-    async function readImage(blob: Blob): Promise<string> {
-        return await new Promise(resolve => {
-            const reader: FileReader = new FileReader();
-            reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
-            reader.readAsDataURL(blob);
-        });
+    function resolveUrl(values: Map<string, string>): URL {
+        const base: string = server.value === ''
+            ? location.origin
+            : new URL(server.value, location.origin).href.replace(/\/$/, '');
+        const filled: string = path.replaceAll(/\{([^}]+)\}/g, (_, name: string) => encodeURIComponent(values.get(`path:${name}`) ?? ''));
+        return new URL(base + filled);
     }
 
-    async function execute(): Promise<void> {
-        const { values, missing } = readParameters();
-        if (missing.length) {
-            result.value = {
-                url: '',
-                curl: '',
-                status: '',
-                durationInMs: 0,
-                headers: '',
-                body: '',
-                downloadUrl: '',
-                downloadName: '',
-                imageUrl: '',
-                error: `Required: ${missing.join(', ')}`
-            };
-            return;
-        }
-        const base: string = server.value === '' ? location.origin : new URL(server.value, location.origin).href.replace(/\/$/, '');
-        const url: URL = new URL(base + path.replaceAll(/\{([^}]+)\}/g, (_, name: string) => encodeURIComponent(values.get(`path:${name}`) ?? '')));
-        const headers: Headers = new Headers();
+    function applyParameters(values: Map<string, string>, url: URL, headers: Headers): void {
         for (const parameter of parameters) {
             const value: string | undefined = values.get(`${parameter.location}:${parameter.name}`);
             if (value == undefined) {
                 continue;
             }
-            if (parameter.location === 'query') {
-                for (const item of parameter.isArray ? value.split(',') : [value]) {
-                    url.searchParams.append(parameter.name, item);
+            switch (parameter.location) {
+                case 'path': {
+                    // already in the url
+                    break;
+                }
+                case 'query': {
+                    for (const item of parameter.isArray ? value.split(',') : [value]) {
+                        url.searchParams.append(parameter.name, item);
+                    }
+                    break;
+                }
+                case 'header': {
+                    headers.set(parameter.name, value);
+                    break;
+                }
+                case 'cookie': {
+                    document.cookie = `${encodeURIComponent(parameter.name)}=${encodeURIComponent(value)}; path=/`;
+                    break;
                 }
             }
-            if (parameter.location === 'header') {
-                headers.set(parameter.name, value);
-            }
-            if (parameter.location === 'cookie') {
-                document.cookie = `${encodeURIComponent(parameter.name)}=${encodeURIComponent(value)}; path=/`;
-            }
         }
+    }
+
+    function applyCredentials(url: URL, headers: Headers): void {
         for (const scheme of schemes) {
             const credential: string | undefined = credentials.value[scheme.name];
             if (credential == undefined || credential === '') {
@@ -239,13 +245,76 @@ export const ExplorerTryItOut: TsxComponent<Props> = ({
                 url.searchParams.set(scheme.parameterName, credential);
             }
         }
+    }
+
+    async function readImage(blob: Blob): Promise<string> {
+        return await new Promise(resolve => {
+            const reader: FileReader = new FileReader();
+            reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    async function readResponse(response: Response): Promise<ExplorerResponseContent> {
+        const contentType: string = response.headers.get('content-type') ?? '';
+        // a file sent as an attachment is offered to download, whatever it holds
+        if ((response.headers.get('content-disposition') ?? '').startsWith('attachment')) {
+            return { body: '', downloadUrl: URL.createObjectURL(await response.blob()), imageUrl: '' };
+        }
+        if (contentType.includes('json')) {
+            const text: string = await response.text();
+            try {
+                return { body: JSON.stringify(JSON.parse(text), undefined, 2), downloadUrl: '', imageUrl: '' };
+            }
+            catch {
+                // shown as it came
+                return { body: text, downloadUrl: '', imageUrl: '' };
+            }
+        }
+        if (contentType === '' || contentType.startsWith('text/') || contentType.includes('xml')) {
+            return { body: await response.text(), downloadUrl: '', imageUrl: '' };
+        }
+        const blob: Blob = await response.blob();
+        return {
+            body: '',
+            downloadUrl: URL.createObjectURL(blob),
+            imageUrl: contentType.startsWith('image/') ? await readImage(blob) : ''
+        };
+    }
+
+    function resolveFailure(error: string, url: string, curl: string[], durationInMs: number): ExplorerResult {
+        return {
+            url,
+            curl: curl.join(' \\\n    '),
+            status: '',
+            durationInMs,
+            headers: '',
+            body: '',
+            downloadUrl: '',
+            downloadName: '',
+            imageUrl: '',
+            error
+        };
+    }
+
+    async function execute(): Promise<void> {
+        const { values, missing } = readParameters();
+        if (missing.length) {
+            result.value = resolveFailure(`Required: ${missing.join(', ')}`, '', [], 0);
+            return;
+        }
+        const url: URL = resolveUrl(values);
+        const headers: Headers = new Headers();
+        applyParameters(values, url, headers);
+        applyCredentials(url, headers);
         headers.set(versionHeader, version);
         if (accept.value !== '') {
             headers.set('Accept', accept.value);
         }
         const curl: string[] = [`curl -X ${method.toUpperCase()} ${quote(url.href)}`];
         for (const [name, value] of headers.entries()) {
-            curl.push(`-H ${quote(`${name}: ${value}`)}`);
+            const header: string = `${name}: ${value}`;
+            curl.push(`-H ${quote(header)}`);
         }
         const body: BodyInit | undefined = readBody(curl);
         if (typeof body === 'string') {
@@ -256,58 +325,20 @@ export const ExplorerTryItOut: TsxComponent<Props> = ({
         const started: number = performance.now();
         try {
             const response: Response = await fetch(url, { method: method.toUpperCase(), headers, body, credentials: 'same-origin' });
-            const contentType: string = response.headers.get('content-type') ?? '';
-            const disposition: string = response.headers.get('content-disposition') ?? '';
-            let text: string = '';
-            let downloadUrl: string = '';
-            let imageUrl: string = '';
-            // a file sent as an attachment is offered to download, whatever it holds
-            if (disposition.startsWith('attachment')) {
-                downloadUrl = URL.createObjectURL(await response.blob());
-            }
-            else if (contentType.includes('json')) {
-                text = await response.text();
-                try {
-                    text = JSON.stringify(JSON.parse(text), undefined, 2);
-                }
-                catch {
-                    // shown as it came
-                }
-            }
-            else if (contentType === '' || contentType.startsWith('text/') || contentType.includes('xml')) {
-                text = await response.text();
-            }
-            else {
-                const blob: Blob = await response.blob();
-                downloadUrl = URL.createObjectURL(blob);
-                imageUrl = contentType.startsWith('image/') ? await readImage(blob) : '';
-            }
+            const content: ExplorerResponseContent = await readResponse(response);
             result.value = {
                 url: url.href,
                 curl: curl.join(' \\\n    '),
                 status: `${response.status} ${response.statusText}`,
                 durationInMs: Math.round(performance.now() - started),
                 headers: [...response.headers.entries()].map(([name, value]) => `${name}: ${value}`).join('\n'),
-                body: text,
-                downloadUrl,
-                downloadName: /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? 'download',
-                imageUrl,
+                ...content,
+                downloadName: /filename="?([^";]+)"?/.exec(response.headers.get('content-disposition') ?? '')?.[1] ?? 'download',
                 error: ''
             };
         }
         catch (error) {
-            result.value = {
-                url: url.href,
-                curl: curl.join(' \\\n    '),
-                status: '',
-                durationInMs: Math.round(performance.now() - started),
-                headers: '',
-                body: '',
-                downloadUrl: '',
-                downloadName: '',
-                imageUrl: '',
-                error: `The request failed: ${String(error)}`
-            };
+            result.value = resolveFailure(`The request failed: ${String(error)}`, url.href, curl, Math.round(performance.now() - started));
         }
         finally {
             running.value = false;
@@ -317,7 +348,7 @@ export const ExplorerTryItOut: TsxComponent<Props> = ({
     return (
         <div className="flex flex-col gap-3">
             <div className="flex gap-4 items-center justify-between py-2 border-b border-gray">
-                <Heading tag="h4" className="text-lg! font-semibold">Parameters</Heading>
+                <Heading tag="h4">Parameters</Heading>
             </div>
             {parameters.length
                 ? <table className="w-full border-collapse">
@@ -338,10 +369,12 @@ export const ExplorerTryItOut: TsxComponent<Props> = ({
                                         data-name={parameter.name}
                                         data-location={parameter.location}
                                         data-required={String(parameter.required)}
-                                        className="px-2 py-1.5 rounded border border-disabled-dark bg-dark-gray text-white"
+                                        className={fieldClasses}
                                     >
                                         <option value="">--</option>
-                                        {parameter.options.map(option => <option value={option} selected={option === parameter.value}>{option}</option>)}
+                                        {parameter.options.map(option => <option value={option} selected={option === parameter.value}>
+                                            {option}
+                                        </option>)}
                                     </select>
                                     : <input
                                         id={`${id}-parameter-${parameter.location}-${parameter.name}`}
@@ -351,7 +384,7 @@ export const ExplorerTryItOut: TsxComponent<Props> = ({
                                         data-required={String(parameter.required)}
                                         value={parameter.value}
                                         placeholder={parameter.isArray ? `${parameter.name}, separated by commas` : parameter.name}
-                                        className="w-full px-2 py-1.5 rounded border border-disabled-dark bg-dark-gray text-white"
+                                        className={`w-full ${fieldClasses}`}
                                     />}
                             </td>
                         </tr>)}
@@ -360,10 +393,10 @@ export const ExplorerTryItOut: TsxComponent<Props> = ({
                 : <p className="text-disabled">No parameters</p>}
             {bodies.length > 0 && <div className="flex flex-col gap-2">
                 <div className="flex gap-4 items-center justify-between py-2 border-b border-gray">
-                    <Heading tag="h4" className="text-lg! font-semibold">
+                    <Heading tag="h4">
                         Request body{bodyRequired && <span className="text-[#f93e3e]" title="required">*</span>}
                     </Heading>
-                    <select id={`${id}-body-type`} value={bodyType} className="px-2 py-1.5 rounded border border-disabled-dark bg-dark-gray text-white">
+                    <select id={`${id}-body-type`} value={bodyType} className={fieldClasses}>
                         {bodies.map(body => <option value={body.mimeType}>{body.mimeType}</option>)}
                     </select>
                 </div>
@@ -389,7 +422,7 @@ export const ExplorerTryItOut: TsxComponent<Props> = ({
                                             type={field.isFile ? 'file' : 'text'}
                                             multiple={field.isFile && field.isArray}
                                             value={field.isFile ? undefined : field.value}
-                                            className="w-full px-2 py-1.5 rounded border border-disabled-dark bg-dark-gray text-white"
+                                            className={`w-full ${fieldClasses}`}
                                         />
                                     </td>
                                 </tr>)}
@@ -409,7 +442,7 @@ export const ExplorerTryItOut: TsxComponent<Props> = ({
             <div className="flex flex-wrap gap-3 items-center">
                 {accepts.length > 0 && <label className="inline-flex gap-2 items-center">
                     Accept
-                    <select id={`${id}-accept`} value={accept} className="px-2 py-1.5 rounded border border-disabled-dark bg-dark-gray text-white">
+                    <select id={`${id}-accept`} value={accept} className={fieldClasses}>
                         {accepts.map(type => <option value={type}>{type}</option>)}
                     </select>
                 </label>}
@@ -426,21 +459,41 @@ export const ExplorerTryItOut: TsxComponent<Props> = ({
                 </Button>
             </div>
             {result.value != undefined && <div id={`${id}-result`} className="flex flex-col gap-1">
-                <p id={`${id}-result-error`} className="text-[#f93e3e] font-semibold" hidden={result.value.error === ''}>{result.value.error}</p>
+                <p id={`${id}-result-error`} className="text-[#f93e3e] font-semibold" hidden={result.value.error === ''}>
+                    {result.value.error}
+                </p>
                 <h5 className="font-semibold" hidden={result.value.curl === ''}>Curl</h5>
-                <pre id={`${id}-result-curl`} className="my-1 p-2.5 overflow-auto max-h-96 rounded bg-[#111119] font-mono text-sm whitespace-pre-wrap break-all" hidden={result.value.curl === ''}>{result.value.curl}</pre>
+                <pre id={`${id}-result-curl`} className={resultBlockClasses} hidden={result.value.curl === ''}>{result.value.curl}</pre>
                 <h5 className="font-semibold" hidden={result.value.url === ''}>Request URL</h5>
-                <pre id={`${id}-result-url`} className="my-1 p-2.5 overflow-auto max-h-96 rounded bg-[#111119] font-mono text-sm whitespace-pre-wrap break-all" hidden={result.value.url === ''}>{result.value.url}</pre>
+                <pre id={`${id}-result-url`} className={resultBlockClasses} hidden={result.value.url === ''}>{result.value.url}</pre>
                 <h5 className="font-semibold" hidden={result.value.status === ''}>Response</h5>
                 <p hidden={result.value.status === ''}>
                     <span id={`${id}-result-status`} className="font-bold">{result.value.status}</span>
                     <span className="text-disabled"> in {result.value.durationInMs} ms</span>
                 </p>
-                <pre id={`${id}-result-body`} className="my-1 p-2.5 overflow-auto max-h-96 rounded bg-[#111119] font-mono text-sm whitespace-pre-wrap break-all" hidden={result.value.body === ''}>{result.value.body}</pre>
-                <img id={`${id}-result-image`} className="max-w-full" alt="The image the response holds" src={result.value.imageUrl} hidden={result.value.imageUrl === ''}/>
-                <a id={`${id}-result-download`} className="text-secondary underline" href={result.value.downloadUrl} download={result.value.downloadName} hidden={result.value.downloadUrl === ''}>Download the file</a>
+                <pre id={`${id}-result-body`} className={resultBlockClasses} hidden={result.value.body === ''}>{result.value.body}</pre>
+                <img
+                    id={`${id}-result-image`}
+                    className="max-w-full"
+                    alt="The image the response holds"
+                    src={result.value.imageUrl}
+                    hidden={result.value.imageUrl === ''}
+                />
+                <a
+                    id={`${id}-result-download`}
+                    className="text-secondary underline"
+                    href={result.value.downloadUrl}
+                    download={result.value.downloadName}
+                    hidden={result.value.downloadUrl === ''}
+                >
+                    Download the file
+                </a>
                 <h5 className="font-semibold" hidden={result.value.headers === ''}>Response headers</h5>
-                <pre id={`${id}-result-headers`} className="my-1 p-2.5 overflow-auto max-h-96 rounded bg-[#111119] font-mono text-sm whitespace-pre-wrap break-all" hidden={result.value.headers === ''}>{result.value.headers}</pre>
+                <pre
+                    id={`${id}-result-headers`}
+                    className={resultBlockClasses}
+                    hidden={result.value.headers === ''}
+                >{result.value.headers}</pre>
             </div>}
         </div>
     );

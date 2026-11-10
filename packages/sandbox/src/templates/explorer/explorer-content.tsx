@@ -20,7 +20,10 @@ export const ExplorerContent: TsxComponent<Props> = ({ id, mimeType, content, di
             {content.schema != undefined && <ExplorerSchema schema={content.schema}/>}
             {example !== '' && <details>
                 <summary className="cursor-pointer">Example</summary>
-                <pre id={`${id}-example`} className="my-1 p-2.5 overflow-auto max-h-96 rounded bg-[#111119] font-mono text-sm whitespace-pre-wrap break-all">{example}</pre>
+                <pre
+                    id={`${id}-example`}
+                    className="my-1 p-2.5 overflow-auto max-h-96 rounded bg-[#111119] font-mono text-sm whitespace-pre-wrap break-all"
+                >{example}</pre>
             </details>}
         </div>
     );

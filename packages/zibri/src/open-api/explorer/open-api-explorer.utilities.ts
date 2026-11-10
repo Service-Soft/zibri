@@ -267,7 +267,10 @@ export abstract class OpenApiExplorerUtilities {
                     operation.requestBody
                 ),
             responses: this.resolveResponses(definition, operation),
-            securitySchemes: [...new Set((operation.security ?? definition.security ?? []).flatMap(requirement => ObjectUtilities.keys(requirement)))],
+            securitySchemes: [
+                ...new Set((operation.security ?? definition.security ?? [])
+                    .flatMap(requirement => ObjectUtilities.keys(requirement)))
+            ],
             permissions: [
                 operation['x-permission'],
                 operation['x-platform-permission']
@@ -281,8 +284,6 @@ export abstract class OpenApiExplorerUtilities {
             if (status.startsWith('x-')) {
                 continue;
             }
-            // the index of the responses object types every status as anything, as it shares it with the extensions
-            // eslint-disable-next-line typescript/no-unsafe-assignment
             const declared: OpenApiResponseObject | OpenApiReferenceObject = value;
             const response: OpenApiResponseObject = this.resolveComponent(definition.components?.responses, 'responses', declared);
             const headers: OpenApiExplorerHeader[] = ObjectUtilities.entries(response.headers ?? {}).map(([name, header]) => ({
@@ -292,7 +293,15 @@ export abstract class OpenApiExplorerUtilities {
             responses.push({ status, response, headers });
         }
         // `default` last, after the statuses in order
-        return responses.sort((a, b) => a.status === b.status ? 0 : a.status === 'default' ? 1 : b.status === 'default' ? -1 : a.status.localeCompare(b.status));
+        return responses.sort((a, b) => {
+            if (a.status === b.status) {
+                return 0;
+            }
+            if (a.status === 'default') {
+                return 1;
+            }
+            return b.status === 'default' ? -1 : a.status.localeCompare(b.status);
+        });
     }
 
     /**
@@ -374,7 +383,10 @@ export abstract class OpenApiExplorerUtilities {
                 const value: Record<string, unknown> = {};
                 for (const [key, property] of ObjectUtilities.entries(schema.properties ?? {})) {
                     const resolved: OpenApiSchemaObject = this.resolveSchema(definition, property);
-                    if ((direction === 'request' && resolved.readOnly === true) || (direction === 'response' && resolved.writeOnly === true)) {
+                    if (
+                        (direction === 'request' && resolved.readOnly === true)
+                        || (direction === 'response' && resolved.writeOnly === true)
+                    ) {
                         continue;
                     }
                     const example: unknown = this.buildExample(definition, property, direction, references);
@@ -388,7 +400,9 @@ export abstract class OpenApiExplorerUtilities {
                 return value;
             }
             case 'array': {
-                const item: unknown = schema.items == undefined ? undefined : this.buildExample(definition, schema.items, direction, references);
+                const item: unknown = schema.items == undefined
+                    ? undefined
+                    : this.buildExample(definition, schema.items, direction, references);
                 return item === undefined ? [] : [item];
             }
             case 'string': {
@@ -440,6 +454,7 @@ export abstract class OpenApiExplorerUtilities {
             case 'byte': {
                 return '';
             }
+            case undefined:
             default: {
                 return 'string';
             }
@@ -478,6 +493,7 @@ export abstract class OpenApiExplorerUtilities {
         const namespace: string | undefined = resolved.xml?.namespace;
         // a namespace is declared where it starts, and the elements inside it inherit the declaration
         const declares: boolean = namespace != undefined && namespaces.get(prefix) !== namespace;
+        // eslint-disable-next-line sonar/no-nested-template-literals
         const declaration: string = declares ? ` xmlns${prefix === '' ? '' : `:${prefix}`}="${HtmlUtilities.escape(namespace ?? '')}"` : '';
         const inner: ReadonlyMap<string, string> = declares ? new Map([...namespaces, [prefix, namespace ?? '']]) : namespaces;
 
@@ -495,6 +511,7 @@ export abstract class OpenApiExplorerUtilities {
             }
             const propertyName: string = resolvedProperty.xml?.name ?? key;
             if (resolvedProperty.xml?.attribute === true) {
+                // eslint-disable-next-line stylistic/max-len
                 attributes += ` ${propertyName}="${HtmlUtilities.escape(this.toText(this.buildExample(definition, property, 'request', nextReferences)))}"`;
                 continue;
             }
@@ -553,6 +570,7 @@ export abstract class OpenApiExplorerUtilities {
         if (value == undefined) {
             return '';
         }
+        // eslint-disable-next-line typescript/no-base-to-string
         return typeof value === 'object' ? JsonUtilities.stringify(value) : String(value);
     }
 

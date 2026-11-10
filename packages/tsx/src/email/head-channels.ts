@@ -21,7 +21,35 @@ export type HeadChannels = {
     /**
      * Serialized default-attribute declarations.
      */
-    attributes: string
+    attributes: string,
+    /**
+     * The width below which columns stack.
+     */
+    breakpoint: string,
+    /**
+     * Serialized fonts the document may import.
+     */
+    font: string,
+    /**
+     * The names of the components whose shared styles the head carries.
+     */
+    componentStyle: string,
+    /**
+     * Blocks of CSS one component instance needs.
+     */
+    instanceStyle: string,
+    /**
+     * Raw markup placed in the head.
+     */
+    raw: string,
+    /**
+     * Raw markup placed before the doctype.
+     */
+    beforeDoctype: string,
+    /**
+     * Serialized attributes set on the elements a selector matches.
+     */
+    htmlAttribute: string
 };
 
 /**
@@ -48,5 +76,33 @@ export const HeadChannel: HeadChannels = {
     /**
      * Serialized default-attribute declarations.
      */
-    attributes: 'mjAttributes'
+    attributes: 'mjAttributes',
+    /**
+     * The width below which columns stack.
+     */
+    breakpoint: 'mjBreakpoint',
+    /**
+     * Serialized fonts the document may import.
+     */
+    font: 'mjFont',
+    /**
+     * The names of the components whose shared styles the head carries.
+     */
+    componentStyle: 'mjComponentStyle',
+    /**
+     * Blocks of CSS one component instance needs.
+     */
+    instanceStyle: 'mjInstanceStyle',
+    /**
+     * Raw markup placed in the head.
+     */
+    raw: 'mjRaw',
+    /**
+     * Raw markup placed before the doctype.
+     */
+    beforeDoctype: 'mjBeforeDoctype',
+    /**
+     * Serialized attributes set on the elements a selector matches.
+     */
+    htmlAttribute: 'mjHtmlAttribute'
 } as const;

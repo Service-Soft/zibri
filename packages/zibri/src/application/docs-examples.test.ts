@@ -1,9 +1,10 @@
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import ts from 'typescript';
 
+import { DOCS_DIR, DocsPagesUtilities } from '../__testing__/docs-pages.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
 
 /**
@@ -11,8 +12,8 @@ import { UUIDUtilities } from '../utilities/uuid.utilities';
  *
  * Documentation examples are the one kind of code in a repository that nothing ever runs, so they
  * rot silently: the framework moves, the snippet stays, and the first person to find out is whoever
- * copied it. `docs/events.md` carried an example that produced TS2322 on its first line for long
- * enough to be written up as a finding rather than fixed, and `docs/caching.md` an import with no
+ * copied it. `docs/background-work/events.md` carried an example that produced TS2322 on its first line for long
+ * enough to be written up as a finding rather than fixed, and `docs/data/caching.md` an import with no
  * `from` in it.
  *
  * **A page is the unit the compiler sees, a block is the unit for imports.** Many blocks build on
@@ -21,8 +22,6 @@ import { UUIDUtilities } from '../utilities/uuid.utilities';
  * reader copies a block, not a page: each block imports exactly the names it uses. Checked per
  * block, because the merge alone lets a block that forgot an import pass on another block's.
  */
-
-const DOCS_DIR: string = path.join(__dirname, '..', '..', 'docs');
 
 const COMPILED_LANGUAGES: string[] = ['ts', 'tsx', 'typescript'];
 
@@ -387,13 +386,13 @@ describe('the examples in docs/', () => {
         workDir = path.join(__dirname, '__testing__', 'file-output', `docs-examples-${UUIDUtilities.generate()}`);
         mkdirSync(workDir, { recursive: true });
 
-        for (const name of readdirSync(DOCS_DIR).filter(entry => entry.endsWith('.md'))) {
+        for (const name of DocsPagesUtilities.resolvePageNames()) {
             const assembled: AssembledPage = assemblePage(readFileSync(path.join(DOCS_DIR, name), 'utf8'));
             if (assembled.lines.length === 0) {
                 continue;
             }
             // .tsx throughout: the templating pages hold jsx, and a page without any is unaffected
-            const filePath: string = path.join(workDir, `${name.replace('.md', '')}.tsx`);
+            const filePath: string = path.join(workDir, `${name.replace(/\.md$/, '').replaceAll('/', '_')}.tsx`);
             writeFileSync(filePath, assembled.lines.join('\n'));
             pages.push({
                 documentation: name,

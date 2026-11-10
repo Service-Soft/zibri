@@ -56,7 +56,9 @@ export const ExplorerPage: TsxComponent<OpenApiExplorerProps> = ({ versions, ver
         <BasePage title="Explorer" activeRoute="/explorer" className="flex flex-col gap-4 w-full max-w-7xl mx-auto px-8 py-8 text-white">
             <div className="flex flex-wrap gap-4 items-center">
                 <Heading id="explorer-title" className="mr-auto">
-                    {definition.info.title} <span className="align-middle px-2 py-0.5 rounded-full bg-primary text-sm">{definition.info.version}</span>
+                    {definition.info.title} <span className="align-middle px-2 py-0.5 rounded-full bg-primary text-sm">
+                        {definition.info.version}
+                    </span>
                 </Heading>
                 <label className="inline-flex gap-2 items-center">
                     Version

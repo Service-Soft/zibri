@@ -12,13 +12,14 @@ export const RateLimiterReservationsStatCard: TsxComponent<Props> = ({ className
 
     function activeReservations(): string {
         const latest: MetricsSnapshot | undefined = snapshots.value.at(-1);
-        if (!latest) {
-            return '...';
-        }
-        return String(latest.metrics
-            .filter(m => m.name === 'rate_limit_active_reservations')
-            .reduce((p, c) => p + c.value, 0));
+        return !latest
+            ? '...'
+            : String(latest.metrics
+                .filter(m => m.name === 'rate_limit_active_reservations')
+                .reduce((p, c) => p + c.value, 0));
     }
 
-    return <StatCard id="rateLimiterReservationsStat" title={$ts`Active reservations`} className={className}>{activeReservations()}</StatCard>;
+    return <StatCard id="rateLimiterReservationsStat" title={$ts`Active reservations`} className={className}>
+        {activeReservations()}
+    </StatCard>;
 };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { compilePage, renderTestPage } from '../__testing__/server-render.helper';
+import { compilePage, renderTestPage } from '../../../tsx-compiler/src/__testing__/server-render.helper';
 
 /**
  * A value as it arrives from outside: through json, which can hold any plain object.

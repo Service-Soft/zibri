@@ -1,3 +1,4 @@
+import { FrameworkPackage } from './framework-package.model';
 import { ScaffoldFeature } from './scaffold-feature.model';
 
 /**
@@ -11,7 +12,12 @@ export type ScaffoldDependencies = {
     /**
      * What it is built and tested with.
      */
-    devDependencies: string[]
+    devDependencies: string[],
+    /**
+     * The framework's own packages it is built and tested with, which follow the release of the cli: `zi upgrade`
+     * installs them at its version whatever the project has.
+     */
+    frameworkDevDependencies: FrameworkPackage[]
 };
 
 /**
@@ -87,10 +93,21 @@ export const SCAFFOLD_DEPENDENCIES: string[] = [
 ];
 
 /**
+ * The framework's own packages a generated project is built and tested with, whatever its features: the test
+ * harness, and the compiler of the templates. Installed after the framework, which both name as a peer, and at the
+ * release of the cli, which `zi upgrade` moves them to.
+ */
+export const SCAFFOLD_FRAMEWORK_DEV_DEPENDENCIES: FrameworkPackage[] = [
+    { folder: 'testing', name: 'zibri-testing' },
+    { folder: 'tsx-compiler', name: 'zibri-tsx-compiler' }
+];
+
+/**
  * What each feature installs on top, which `zi add` installs with it and `zi remove` uninstalls.
  */
 export const SCAFFOLD_FEATURE_DEPENDENCIES: Record<ScaffoldFeature, ScaffoldDependencies> = {
-    // the stylesheet: tailwind run over it, and webpack writing it out beside the bundle
+    // the stylesheet: tailwind run over it, and webpack writing it out beside the bundle. And what builds the pages
+    // written in markdown, which zibri-tsx then compiles
     pages: {
         dependencies: [],
         devDependencies: [
@@ -100,9 +117,11 @@ export const SCAFFOLD_FEATURE_DEPENDENCIES: Record<ScaffoldFeature, ScaffoldDepe
             'postcss@^8.5.6',
             'postcss-loader@^8.2.1',
             'tailwindcss@4'
-        ]
+        ],
+        frameworkDevDependencies: [{ folder: 'mdx', name: 'zibri-mdx' }]
     },
-    mailingList: { dependencies: [], devDependencies: [] },
-    metricsDashboard: { dependencies: ['chart.js'], devDependencies: [] },
-    logEmail: { dependencies: [], devDependencies: [] }
+    docs: { dependencies: [], devDependencies: [], frameworkDevDependencies: [] },
+    mailingList: { dependencies: [], devDependencies: [], frameworkDevDependencies: [] },
+    metricsDashboard: { dependencies: ['chart.js'], devDependencies: [], frameworkDevDependencies: [] },
+    logEmail: { dependencies: [], devDependencies: [], frameworkDevDependencies: [] }
 };

@@ -36,13 +36,13 @@ Great Bug Reports tend to have:
 Read [CODE_STYLE.md](./CODE_STYLE.md) before your first change. It covers the conventions this repository follows for file naming, types, comments, documentation and tests, and applies to every package here. Before you write or change a page under `packages/zibri/docs/`, also read [DOCS_STYLE.md](./DOCS_STYLE.md).
 
 # Releasing
-`zibri`, `zibri-tsx`, `zibri-testing` and `zibri-cli` are released together, at one version.
+`zibri`, `zibri-tsx`, `zibri-tsx-compiler`, `zibri-mdx`, `zibri-testing` and `zibri-cli` are released together, at one version.
 
-1. Run `npm run release:bump -- <version>`. It writes the version into all four packages, into the ranges they name each other by and into `package-lock.json`, and adds an empty section for it to the top of [CHANGELOG.md](./CHANGELOG.md).
+1. Run `npm run release:bump -- <version>`. It writes the version into all six packages, into the ranges they name each other by and into `package-lock.json`, and adds an empty section for it to the top of [CHANGELOG.md](./CHANGELOG.md).
 2. Write what the release changes into that section. For a new major, also write `packages/zibri/docs/upgrading-to-<major>.md` and link it from the section.
 3. Merge into `release`.
 
-The release refuses to publish when the packages declare different versions or name each other at another one, when the registry or a tag already has the version, or when its changelog section is missing or empty. Once all four packages are published, it tags the commit `v<version>` and creates a GitHub release with that section as its notes.
+The release refuses to publish when the packages declare different versions or name each other at another one, when the registry or a tag already has the version, or when its changelog section is missing or empty. Once all six packages are published, it tags the commit `v<version>` and creates a GitHub release with that section as its notes.
 
 What counts as a breaking change, and which majors get fixes, is in [releases.md](./packages/zibri/docs/releases.md).
 

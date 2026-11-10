@@ -135,7 +135,6 @@ export * from './logging/audit.utilities';
 export { createLogToEmail } from './logging/transport/log-to-email.function';
 
 // openapi
-export { type OpenApiContentObject, type OpenApiOperation, type OpenApiParameter, type OpenApiParameterLocation, type OpenApiPaths, type OpenApiResponsesObject, type OpenApiSchemaObjectType, type OpenApiSchemas, type OpenApiSecurityRequirementObject, type OpenApiTagObject, type OpenApiXmlObject } from './open-api/open-api.model';
 export { KeysetPageClass, PaginationResultClass } from './data-source/models/pagination-result.model';
 
 // entity

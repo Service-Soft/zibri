@@ -89,6 +89,9 @@ import { TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { OpenTelemetrySpanExporter } from '../../tracing/open-telemetry/open-telemetry-api.model';
 import { TraceBufferInterface } from '../../tracing/trace-buffer.interface';
 import { TracerInterface } from '../../tracing/tracer.interface';
+import { MarkdownOptions } from '../../tsx/markdown-options.model';
+import { MarkdownServiceInterface } from '../../tsx/markdown-service.interface';
+import { MdxComponents } from '../../tsx/mdx';
 import { Newable } from '../../types/newable.type';
 import { type RetentionInMs } from '../../types/retention-in-ms.type';
 import { FsPath } from '../../utilities/fs.utilities';
@@ -144,6 +147,10 @@ export const ZIBRI_DI_TOKENS = {
     BACKUP_SERVICE: ziToken<BackupServiceInterface>('zi.backup_service'),
     GLOBAL_ERROR_HANDLER: ziToken<GlobalErrorHandler>('zi.global_error_handler'),
     ERROR_PAGE_TEMPLATE: ziToken<ErrorPageTemplate | undefined>('zi.error_page_template'),
+    MDX_COMPONENTS: ziToken<MdxComponents>('zi.mdx_components'),
+    MDX_EMAIL_COMPONENTS: ziToken<MdxComponents>('zi.mdx_email_components'),
+    MARKDOWN_OPTIONS: ziToken<MarkdownOptions>('zi.markdown_options'),
+    MARKDOWN_SERVICE: ziToken<MarkdownServiceInterface>('zi.markdown_service'),
     OPEN_API_SERVICE: ziToken<OpenApiServiceInterface>('zi.open_api_service'),
     OPEN_API_AUTH: ziToken<RouteAuthConfiguration>('zi.open_api_auth'),
     OPEN_API_EXPLORER_TEMPLATE: ziToken<OpenApiExplorerTemplate | undefined>('zi.open_api_explorer_template'),

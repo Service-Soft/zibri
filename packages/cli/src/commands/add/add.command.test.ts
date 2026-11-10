@@ -75,7 +75,11 @@ describe('AddCommand', () => {
         // the framework stays at the release it is on: adding a feature is not an upgrade
         const commands: string[] = execSpy.mock.calls.map(([command]) => command);
         expect(commands).toHaveLength(1);
-        expect(commands[0]).toMatch(/&& npm i -D @tailwindcss\/postcss@4 css-loader@\S+ mini-css-extract-plugin@\S+ postcss@\S+ postcss-loader@\S+ tailwindcss@4$/);
+        expect(commands[0]).toMatch(new RegExp([
+            // what builds the pages written in markdown, a package of the framework at the release of the cli
+            String.raw`&& npm i -D (zibri-mdx@\S+|file:\S+mdx)`,
+            String.raw`@tailwindcss\/postcss@4 css-loader@\S+ mini-css-extract-plugin@\S+ postcss@\S+ postcss-loader@\S+ tailwindcss@4$`
+        ].join(' ')));
     });
 
     it('is undone by removing the feature again', async () => {

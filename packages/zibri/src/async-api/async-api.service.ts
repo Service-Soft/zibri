@@ -14,7 +14,7 @@ import { HttpStatus } from '../http/http-status.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { $ts } from '../localization/translate.function';
 import { OpenApiSchemaUtilities } from '../open-api/open-api-schema.utilities';
-import { OpenApiContentObject, OpenApiReferenceObject, OpenApiResponse, OpenApiResponseObject, OpenApiSchemaObject, OpenApiSecuritySchemeObject } from '../open-api/open-api.model';
+import { isOpenApiReferenceObject, OpenApiContentObject, OpenApiOAuthFlowObject, OpenApiReferenceObject, OpenApiResponse, OpenApiResponseObject, OpenApiSchemaObject, OpenApiSecuritySchemeObject } from '../open-api/open-api.model';
 import { BodyMetadata } from '../routing/decorators/body-metadata.model';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
@@ -22,10 +22,17 @@ import { ObjectUtilities } from '../utilities/object.utilities';
 import { Version } from '../versioning/version.model';
 import { type VersioningServiceInterface } from '../versioning/versioning-service.interface';
 import { WebsocketControllerData } from '../websocket/decorators/websocket-controller.decorator';
-import { BaseWebsocketConnection } from '../websocket/models/connection/base-websocket-connection.model';
 import { WebsocketControllerRouteConfiguration } from '../websocket/models/websocket-controller-route-configuration.model';
 import { WebsocketEvent } from '../websocket/models/websocket-event.enum';
-import { type WebsocketServiceInterface } from '../websocket/services/websocket-service.interface';
+/**
+ * The flows of an `oauth2` scheme, which OpenAPI and AsyncAPI name alike.
+ */
+type OAuthFlowName = 'implicit' | 'password' | 'clientCredentials' | 'authorizationCode';
+
+/**
+ * Every flow an `oauth2` scheme may have.
+ */
+const OAUTH_FLOW_NAMES: OAuthFlowName[] = ['implicit', 'password', 'clientCredentials', 'authorizationCode'];
 
 /**
  * The key of the server of the document.
@@ -77,12 +84,15 @@ export class AsyncApiService implements AsyncApiServiceInterface, OnAppStart {
         return this.definitions.get(version);
     }
 
+    // the type of the interface, so a service extending this one may build it asynchronously, such as by
+    // awaiting what this one builds
     // eslint-disable-next-line jsdoc/require-jsdoc
-    createAsyncApiDefinition(app: ZibriApplication, version: Version): AsyncApiDefinition {
+    async createAsyncApiDefinition(app: ZibriApplication, version: Version): Promise<AsyncApiDefinition> {
         const channels: Record<string, AsyncApiChannel> = {};
         const operations: Record<string, AsyncApiOperation> = {};
         const securitySchemes: Record<string, AsyncApiSecurityScheme> = this.resolveSecuritySchemes();
-        const security: AsyncApiReference[] = ObjectUtilities.keys(securitySchemes).map(name => ({ $ref: `#/components/securitySchemes/${name}` }));
+        const security: AsyncApiReference[] = ObjectUtilities.keys(securitySchemes)
+            .map(name => ({ $ref: `#/components/securitySchemes/${name}` }));
 
         for (const controllerClass of [...app.options.websocketControllers].sort((a, b) => a.name.localeCompare(b.name))) {
             const controllerData: WebsocketControllerData | undefined = MetadataUtilities.getWebsocketControllerData(controllerClass);
@@ -119,7 +129,7 @@ export class AsyncApiService implements AsyncApiServiceInterface, OnAppStart {
                     messages: [{ $ref: `#/channels/${channelKey}/messages/${REQUEST_MESSAGE_KEY}` }],
                     reply: { channel, messages: [{ $ref: `#/channels/${channelKey}/messages/${REPLY_MESSAGE_KEY}` }] },
                     tags: [{ name: controllerClass.name }],
-                    ...this.resolveOperationAuth(controllerClass, route, security)
+                    ...await this.resolveOperationAuth(controllerClass, route, security)
                 };
             }
         }
@@ -148,11 +158,10 @@ export class AsyncApiService implements AsyncApiServiceInterface, OnAppStart {
      */
     private resolveServer(app: ZibriApplication, security: AsyncApiReference[]): AsyncApiServer {
         const url: URL = new URL(app.options.baseUrl);
-        const websocketService: WebsocketServiceInterface<BaseWebsocketConnection> = inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
         return {
             host: url.host,
             protocol: url.protocol === 'https:' ? 'wss' : 'ws',
-            pathname: websocketService.getPath?.(),
+            pathname: inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE).getPath?.(),
             // eslint-disable-next-line stylistic/max-len
             description: $ts`A socket.io server. A client names the version in the handshake, in the version header or query parameter, and logs in with the credentials of the handshake or of each message.`,
             security: security.length ? security : undefined
@@ -197,15 +206,20 @@ export class AsyncApiService implements AsyncApiServiceInterface, OnAppStart {
      * @param security - Every scheme of the document.
      * @returns The fields of the operation.
      */
-    private resolveOperationAuth(
+    private async resolveOperationAuth(
         controllerClass: Newable<unknown>,
         route: WebsocketControllerRouteConfiguration,
         security: AsyncApiReference[]
-    ): Pick<AsyncApiOperation, 'security' | 'x-permission' | 'x-platform-permission'> {
-        const { hasPermission, hasPlatformPermission }: ResolvedAuthMetadata = RouteRegistry.get(controllerClass, route.controllerMethod).auth.metadata;
+    ): Promise<Pick<AsyncApiOperation, 'security' | 'x-permission' | 'x-platform-permission'>> {
+        const { hasPermission, hasPlatformPermission }: ResolvedAuthMetadata = RouteRegistry.get(
+            controllerClass,
+            route.controllerMethod
+        ).auth.metadata;
         return {
             // a route following `defaultAuth` requires a login without a decorator saying so, see the open api service
-            security: this.routeAuthService.requiresAuthentication(controllerClass, route.controllerMethod) && security.length ? security : undefined,
+            security: await this.routeAuthService.requiresAuthentication(controllerClass, route.controllerMethod) && security.length
+                ? security
+                : undefined,
             'x-permission': hasPermission?.permission,
             'x-platform-permission': hasPlatformPermission?.permission
         };
@@ -229,7 +243,11 @@ export class AsyncApiService implements AsyncApiServiceInterface, OnAppStart {
             type: 'object',
             properties: {
                 ...bodySchema == undefined ? {} : { body: bodySchema },
-                headers: { type: 'object', description: 'Headers of the message, such as the credentials it is sent with', additionalProperties: { type: 'string' } },
+                headers: {
+                    type: 'object',
+                    description: 'Headers of the message, such as the credentials it is sent with',
+                    additionalProperties: { type: 'string' }
+                },
                 query: { type: 'object', description: 'Query parameters of the message', additionalProperties: { type: 'string' } }
             },
             ...bodySchema == undefined || body?.required === false ? {} : { required: ['body'] }
@@ -246,15 +264,18 @@ export class AsyncApiService implements AsyncApiServiceInterface, OnAppStart {
         const declared: OpenApiResponseObject[] = ObjectUtilities.entries(OpenApiSchemaUtilities.resolveResponses(responses) ?? {})
             // a response that names no status is under `default`, and an error always names one
             .filter(([status]) => status.startsWith('2') || status === 'default')
-            // eslint-disable-next-line typescript/no-unsafe-return
-            .map(([, response]) => response);
+            .flatMap(([, response]) => isOpenApiReferenceObject(response) ? [] : [response]);
         const data: (OpenApiSchemaObject | OpenApiReferenceObject)[] = declared.flatMap(response => {
             const schema: OpenApiSchemaObject | OpenApiReferenceObject | undefined = response.content?.[MimeType.JSON]?.schema;
             return schema == undefined ? [] : [schema];
         });
-        const errorResponse: OpenApiResponseObject | undefined = OpenApiSchemaUtilities
+        const errorResponse: OpenApiResponseObject | OpenApiReferenceObject | undefined = OpenApiSchemaUtilities
             .resolveResponses([{ type: 'error', status: HttpStatus.BAD_REQUEST }])?.[`${HttpStatus.BAD_REQUEST}`];
-        const error: OpenApiSchemaObject | OpenApiReferenceObject = errorResponse?.content?.[MimeType.JSON]?.schema ?? { type: 'object' };
+        const errorSchema: OpenApiSchemaObject | OpenApiReferenceObject | undefined = errorResponse == undefined
+            || isOpenApiReferenceObject(errorResponse)
+            ? undefined
+            : errorResponse.content?.[MimeType.JSON]?.schema;
+        const error: OpenApiSchemaObject | OpenApiReferenceObject = errorSchema ?? { type: 'object' };
         return {
             oneOf: [
                 this.buildEnvelope(data.length > 1 ? { oneOf: data } : data[0] ?? {}),
@@ -317,16 +338,16 @@ export class AsyncApiService implements AsyncApiServiceInterface, OnAppStart {
             }
             case 'oauth2': {
                 const flows: Record<string, AsyncApiOAuthFlow> = {};
-                for (const [name, flow] of ObjectUtilities.entries(scheme.flows ?? {})) {
-                    if (typeof flow !== 'object' || flow == undefined || name.startsWith('x-')) {
+                for (const name of OAUTH_FLOW_NAMES) {
+                    const flow: OpenApiOAuthFlowObject | undefined = scheme.flows?.[name];
+                    if (flow == undefined) {
                         continue;
                     }
                     flows[name] = {
                         authorizationUrl: flow.authorizationUrl,
                         tokenUrl: flow.tokenUrl,
                         refreshUrl: flow.refreshUrl,
-                        // eslint-disable-next-line typescript/no-unsafe-assignment
-                        availableScopes: { ...flow.scopes }
+                        availableScopes: flow.scopes
                     };
                 }
                 return { type: 'oauth2', description, flows };

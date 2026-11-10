@@ -91,6 +91,23 @@ describe('NewCommand', () => {
         expect(owned).toStrictEqual(['/app/.zibri']);
     });
 
+    // what `zi migrate` and the migrate scripts start is the build, as the image starts it: a name of another file
+    // fails every one of them with "Cannot find module"
+    it('names the file the image starts as main, and runs the migrate scripts with it', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
+
+        const appDir: Path = path.join(workDir, 'api') as Path;
+        const dockerfile: string = await FsUtilities.readFile(path.join(appDir, 'Dockerfile') as Path);
+        const started: string | undefined = /^CMD \[.*"([^"]+\.js)"\]$/m.exec(dockerfile)?.[1];
+        const packageJson: unknown = JSON.parse(await FsUtilities.readFile(path.join(appDir, 'package.json') as Path));
+
+        expect(started).toBe('dist/bundle.js');
+        expect(packageJson).toMatchObject({
+            main: `./${started}`,
+            scripts: { 'migrate:list': `node ${started} migrate list`, 'migrate:down': `node ${started} migrate down` }
+        });
+    });
+
     it('writes a package.json with the app name, without going through "npm init"', async () => {
         await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
 
@@ -99,14 +116,14 @@ describe('NewCommand', () => {
         expect(packageJson).toEqual({
             name: 'api',
             version: '1.0.0',
-            main: './dist/index.js',
+            main: './dist/bundle.js',
             scripts: {
                 start: 'webpack --watch',
                 build: 'webpack',
-                test: 'jest',
+                test: 'node --experimental-vm-modules node_modules/jest/bin/jest.js',
                 // run by the build, which carries the migrations to revert: a deployment has no cli
-                'migrate:list': 'node dist/index.js migrate list',
-                'migrate:down': 'node dist/index.js migrate down'
+                'migrate:list': 'node dist/bundle.js migrate list',
+                'migrate:down': 'node dist/bundle.js migrate down'
             },
             keywords: ['zibri'],
             // the author is read off the machine this runs on, the way npm reads it, so the only
@@ -249,7 +266,7 @@ describe('NewCommand', () => {
         expect(unresolved).toEqual([]);
     }, 20000);
 
-    it('asks for the features, offering every one checked but the mailing list', async () => {
+    it('asks for the features, offering every one checked but the docs and the mailing list', async () => {
         const promptSpy: jest.SpiedFunction<typeof InquirerUtilities.prompt> = jest.spyOn(InquirerUtilities, 'prompt')
             .mockResolvedValue({ features: ['pages'] });
 
@@ -260,6 +277,7 @@ describe('NewCommand', () => {
             type: 'checkbox',
             choices: [
                 { value: 'pages', checked: true },
+                { value: 'docs', checked: false },
                 { value: 'mailingList', checked: false },
                 { value: 'metricsDashboard', checked: true },
                 { value: 'logEmail', checked: true }

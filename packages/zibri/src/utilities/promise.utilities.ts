@@ -39,7 +39,7 @@ export abstract class PromiseUtilities {
      * each freed connection its next item immediately. Far above the pool would buy nothing on the
      * database and cost the heap, since everything queued is held until its turn.
      *
-     * A caller that knows better passes its own. See `docs/replication.md`.
+     * A caller that knows better passes its own. See `docs/data/replication.md`.
      */
     private static readonly defaultChunkSize: number = 50;
 

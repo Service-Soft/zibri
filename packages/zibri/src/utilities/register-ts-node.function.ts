@@ -1,5 +1,11 @@
-import { optionalPeer } from './optional-peer.function';
+import { resolveApplicationPackage } from './optional-peer.function';
 import { InternalError } from '../error-handling/internal-error.model';
+
+/**
+ * What installs the compiler of TypeScript files loaded at runtime: as dependencies, since a deployment that runs
+ * worker files written in TypeScript loads them with it too.
+ */
+const TS_NODE_INSTALL: string = 'npm i ts-node typescript';
 
 /**
  * Whether the compiler has already been hooked into `require`, which only ever needs doing once.
@@ -15,9 +21,8 @@ let registered: boolean = false;
  * a TypeScript file is actually named means the cost - startup latency, the tree, the supply chain
  * surface - is paid by the deployments that asked for it.
  *
- * `ts-node` is reached through `require` rather than an import for the same reason: an import is
- * resolved when this module loads, which would make an optional peer dependency mandatory again by
- * the back door.
+ * `ts-node` is loaded from the application rather than imported: an import is resolved when this module loads, and
+ * the framework declares no dependency on it, so that a deployment pruned of its devDependencies carries none.
  * @param reason - What is being loaded, so a consumer without `ts-node` is told why it was needed.
  * @throws If `ts-node` is not installed.
  */
@@ -27,12 +32,11 @@ export function registerTsNode(reason: string): void {
     }
     let tsNode: typeof import('ts-node');
     try {
-        // eslint-disable-next-line typescript/no-require-imports, typescript/no-var-requires
-        tsNode = require('ts-node') as typeof import('ts-node');
+        tsNode = resolveApplicationPackage<typeof import('ts-node')>('ts-node', reason, TS_NODE_INSTALL);
     }
     catch (error) {
         throw new InternalError(
-            `${reason} is TypeScript, which needs the optional peer dependency "ts-node" to be installed.`
+            `${reason} is TypeScript, which needs the package "ts-node" to be installed.`
             + ' Install it, or point this at the compiled JavaScript instead.',
             { cause: error }
         );
@@ -51,10 +55,10 @@ export function registerTsNode(reason: string): void {
  * @throws If `ts-node` or `typescript` is not installed.
  */
 export function validateTsNodeInstalled(neededFor: string): void {
-    optionalPeer('ts-node', neededFor);
+    resolveApplicationPackage('ts-node', neededFor, TS_NODE_INSTALL);
     // asked for on its own: ts-node resolves it only once it compiles something, and an image that
     // pruned its devDependencies has ts-node without it
-    optionalPeer('typescript', neededFor);
+    resolveApplicationPackage('typescript', neededFor, TS_NODE_INSTALL);
 }
 
 /**

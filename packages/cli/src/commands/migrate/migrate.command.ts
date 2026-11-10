@@ -271,7 +271,7 @@ export class MigrateCommand extends BaseCommand<MigrateInput> {
         const main: unknown = typeof packageJson === 'object' && packageJson != undefined && 'main' in packageJson
             ? packageJson.main
             : undefined;
-        return typeof main === 'string' ? main : 'dist/index.js';
+        return typeof main === 'string' ? main : 'dist/bundle.js';
     }
 
     /**

@@ -4,22 +4,25 @@
  * | | |
  * |---|---|
  * | `pages` | the home page, the assets explorer, the error page and the stylesheet they share |
+ * | `docs` | documentation written in markdown at `/docs`, with its navigation and a search |
  * | `mailingList` | the mailing list plugin, with its pages and its email |
  * | `metricsDashboard` | an example of a page with charts that run in the browser |
  * | `logEmail` | an example of an email built from data |
  */
-export type ScaffoldFeature = 'pages' | 'mailingList' | 'metricsDashboard' | 'logEmail';
+export type ScaffoldFeature = 'pages' | 'docs' | 'mailingList' | 'metricsDashboard' | 'logEmail';
 
 /**
  * Every feature a project can be generated with, in the order they are offered.
  */
-export const SCAFFOLD_FEATURES: ScaffoldFeature[] = ['pages', 'mailingList', 'metricsDashboard', 'logEmail'];
+export const SCAFFOLD_FEATURES: ScaffoldFeature[] = ['pages', 'docs', 'mailingList', 'metricsDashboard', 'logEmail'];
 
 /**
  * The features each feature is built on, which a project has whenever it has the feature.
  */
 export const SCAFFOLD_FEATURE_REQUIREMENTS: Record<ScaffoldFeature, ScaffoldFeature[]> = {
     pages: [],
+    // pages of the documentation inside the pages of the application, written with the components of every markdown page
+    docs: ['pages'],
     // both render pages made of the components and the stylesheet the pages bring
     mailingList: ['pages'],
     metricsDashboard: ['pages'],
@@ -45,12 +48,19 @@ export const SCAFFOLD_FEATURE_FILES: Record<ScaffoldFeature, string[]> = {
         'assets/public/lock-open.svg',
         'src/controllers/page.controller.ts',
         'src/__testing__/home-page.test.ts',
+        // what a page written in markdown is, which the components of the pages render
+        'src/markdown.d.ts',
         'src/templates/components/',
         // styled with the stylesheet of the pages, and built of their components
         'src/templates/explorer/',
         'src/templates/pages/home.tsx',
         'src/templates/pages/assets.tsx',
         'src/templates/pages/error.tsx'
+    ],
+    docs: [
+        'src/controllers/docs.controller.ts',
+        'src/__testing__/docs.test.ts',
+        'src/templates/docs/'
     ],
     mailingList: [
         'src/controllers/mailing-list.controller.ts',

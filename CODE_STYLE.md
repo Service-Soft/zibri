@@ -2,8 +2,8 @@
 
 Conventions for every package in this repository. Read this before your first change.
 
-Changing `packages/tsx`? Read [its goals](./packages/tsx/GOALS.md) first: they are what every change to
-the compiler is measured against.
+Changing `packages/tsx` or `packages/tsx-compiler`? Read [their goals](./packages/tsx/GOALS.md) first: they are what
+every change to the compiler is measured against.
 
 Where this and the surrounding code disagree, this wins — the code predates some of it. Where this
 and the linter disagree, the linter wins and this file is wrong; open an issue.
@@ -87,6 +87,13 @@ thing it is:
 follow the same idea for their own kinds.
 
 **A test sits next to what it tests.** `repository.ts` and `repository.test.ts` share a directory.
+
+**A name is public unless only Zibri needs it.** A package has its main entry point and an `internal` one
+(`zibri/internal`, `zibri-tsx/internal`), which any release can change. A name goes on the main one when an
+application writes or calls it, when a public signature reaches it, when it is an error class or the `is…` guard of a
+public type, and whenever it could be useful to an application, such as `escapeText`. `internal` holds only what
+compiled code, the other Zibri packages or a custom version of something Zibri ships need. A name a minor release
+moves off the main entry point stays there, `@deprecated`, until the next major.
 
 # Shape of the code
 
@@ -227,7 +234,7 @@ which later runs are reported against.
 
 **What runs in the browser is tested in a browser.** A fake DOM missed that handlers wrapped by a child
 component never ran, on every page. The sandbox opens its pages from its own routes with
-`startPageBrowser` of `zibri-testing`; the compiler, which builds before it, uses
+`startPageBrowser` of `zibri-testing`; zibri-tsx, which builds before it, uses
 `packages/tsx/src/__testing__/browser.helper.ts`.
 
 **A browser test finds an element by its id, and checks accessibility in assertions of their own.**

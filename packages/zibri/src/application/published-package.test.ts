@@ -1,11 +1,13 @@
 import assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { builtinModules } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { describe, expect, it } from '@jest/globals';
 
+import { PACKAGES_LEFT_TO_THE_APPLICATION } from '../__testing__/packages-left-to-the-application';
 import { JsonUtilities } from '../utilities/json.utilities';
 
 /**
@@ -75,6 +77,91 @@ function inConsumerProcess<T>(script: string): T {
         stdio: ['ignore', 'pipe', 'pipe']
     });
     return JsonUtilities.parse(output);
+}
+
+/**
+ * The sections of a manifest that decide what a consumer has installed beside the package.
+ */
+type InstalledBeside = {
+    /**
+     * What is installed with the package.
+     */
+    dependencies?: Record<string, string>,
+    /**
+     * What the consumer installs, the package asking for it.
+     */
+    peerDependencies?: Record<string, string>
+};
+
+/**
+ * The fields of a manifest that tell TypeScript where a package's declarations are.
+ */
+type PackageManifest = {
+    /**
+     * The file a require of the package loads.
+     */
+    main?: string,
+    /**
+     * The declarations of the main file.
+     */
+    types?: string,
+    /**
+     * The older name of `types`.
+     */
+    typings?: string,
+    /**
+     * The declarations per version of TypeScript.
+     */
+    typesVersions?: unknown,
+    /**
+     * The entry points, each of which may name its declarations.
+     */
+    exports?: unknown
+};
+
+/**
+ * The packages the built declarations import, by the name a consumer installs them under.
+ * @returns The names, without node's own modules and without the package itself.
+ */
+function findDeclarationImports(): string[] {
+    const declarations: string[] = readdirSync(path.join(packageDir, 'dist', 'cjs'), { recursive: true, encoding: 'utf8' })
+        .filter(file => file.endsWith('.d.ts'));
+    const names: Set<string> = new Set();
+    for (const file of declarations) {
+        const source: string = readFileSync(path.join(packageDir, 'dist', 'cjs', file), 'utf8');
+        for (const [, specifier = ''] of source.matchAll(/(?:from |import\()'([^'.][^']*)'/g)) {
+            // a scoped package is named by its first two segments, any other by its first
+            const name: string = specifier.split('/').slice(0, specifier.startsWith('@') ? 2 : 1)
+                .join('/');
+            if (!name.startsWith('node:') && !builtinModules.includes(name) && name !== 'zibri') {
+                names.add(name);
+            }
+        }
+    }
+    return [...names].sort();
+}
+
+/**
+ * Whether a package carries declarations of its own, rather than leaving them to `@types`.
+ * @param name - The package.
+ * @returns True when its manifest names its declarations, or it has an `index.d.ts`.
+ */
+function hasOwnDeclarations(name: string): boolean {
+    // looked up the way node looks for a package rather than resolved, which a package's `exports`
+    // can refuse for its manifest
+    const manifestPath: string | undefined = [packageDir, repoRoot]
+        .map(directory => path.join(directory, 'node_modules', name, 'package.json'))
+        .find(candidate => existsSync(candidate));
+    assert(manifestPath, `${name} is not installed`);
+    const manifest: PackageManifest = JsonUtilities.parse(readFileSync(manifestPath, 'utf8'));
+    const main: string = path.join(path.dirname(manifestPath), manifest.main ?? 'index.js');
+    // where TypeScript looks for them: what the manifest names, and otherwise beside the main file
+    return manifest.types != undefined
+        || manifest.typings != undefined
+        || manifest.typesVersions != undefined
+        || JsonUtilities.stringify(manifest.exports ?? {}).includes('"types"')
+        || existsSync(main.replace(/\.c?js$/, '.d.ts'))
+        || existsSync(path.join(main, 'index.d.ts'));
 }
 
 describe('the published package', () => {
@@ -168,6 +255,28 @@ describe('the published package', () => {
         expect(declarations).toContain('/**');
     });
 
+    it('has a consumer install the declarations of every package its own declarations import', () => {
+        const manifest: InstalledBeside = JsonUtilities.parse(readFileSync(path.join(packageDir, 'package.json'), 'utf8'));
+        const installed: Set<string> = new Set([
+            ...Object.keys(manifest.dependencies ?? {}),
+            ...Object.keys(manifest.peerDependencies ?? {}),
+            // such as the webpack whose configuration `zibri/webpack` answers, which the application builds with
+            ...PACKAGES_LEFT_TO_THE_APPLICATION
+        ]);
+        const missing: string[] = findDeclarationImports().filter(name => {
+            // DefinitelyTyped writes a scoped package's name without its @ and with __ for its /
+            const typesPackage: string = `@types/${name.replace(/^@/, '').replace('/', '__')}`;
+            return hasOwnDeclarations(name) ? !installed.has(name) : !installed.has(typesPackage);
+        });
+
+        // a consumer's build skips the declarations of its libraries, so an import of a package it
+        // never installed is no error there: every type built from it silently becomes `any`. Only a
+        // template looping over such a type with an untyped callback showed it, as the generated
+        // project's build failing on implicit `any`s. This workspace hoists every package, so nothing
+        // else here can see it
+        expect(missing).toStrictEqual([]);
+    });
+
     it('advertises no entry point that the build does not produce', () => {
         const advertised: string[] = [
             'dist/cjs/index.js',
@@ -243,7 +352,7 @@ describe('the published package', () => {
 describe('the packages released together', () => {
     // npm shows a package's README as its page, and the repository's README links each one,
     // so an empty one is the first thing a reader of the package meets
-    it.each(['zibri', 'cli', 'tsx', 'testing'])('give %s a README saying how to install it and where its documentation is', name => {
+    it.each(['zibri', 'cli', 'tsx', 'tsx-compiler', 'mdx', 'testing'])('give %s a README saying how to install it and where its documentation is', name => {
         const readme: string = readFileSync(path.join(repoRoot, 'packages', name, 'README.md'), 'utf8');
 
         expect(readme).toMatch(/^# /m);

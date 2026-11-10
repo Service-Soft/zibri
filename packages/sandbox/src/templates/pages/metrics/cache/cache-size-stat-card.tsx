@@ -10,12 +10,11 @@ export const CacheSizeStatCard: TsxComponent<Props> = ({ className = '' }) => {
 
     function size(): string {
         const latest: MetricsSnapshot | undefined = snapshots.value.at(-1);
-        if (!latest) {
-            return '...';
-        }
-        return String(latest.metrics
-            .filter(m => m.name === 'cache_size')
-            .reduce((p, c) => p + c.value, 0));
+        return !latest
+            ? '...'
+            : String(latest.metrics
+                .filter(m => m.name === 'cache_size')
+                .reduce((p, c) => p + c.value, 0));
     }
 
     return <StatCard id="cacheSizeStat" title={$ts`Total cached entries`} unit="entries" className={className}>{size()}</StatCard>;

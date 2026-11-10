@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { createContext } from './server-runtime';
-import { RenderResult, renderTemplateDocument, renderWithComponents } from '../__testing__/server-render.helper';
+import { RenderResult, renderTemplateDocument, renderWithComponents } from '../../../tsx-compiler/src/__testing__/server-render.helper';
 
 const BUTTON: string = '<Card><button onClick={greet}>Hi</button></Card>';
 

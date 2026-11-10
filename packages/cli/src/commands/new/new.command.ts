@@ -7,6 +7,7 @@ import { CPUtilities, FsUtilities, InquirerUtilities } from '../../encapsulation
 import { ProjectTemplateUtilities,
     ProjectTemplateValues,
     SCAFFOLD_FEATURES,
+    SCAFFOLD_FRAMEWORK_DEV_DEPENDENCIES,
     ScaffoldAnswers,
     ScaffoldDependencies,
     ScaffoldFeature,
@@ -97,16 +98,18 @@ export class NewCommand extends BaseCommand<ScaffoldAnswers> {
             // broken file
             author: JSON.stringify(resolveAuthor())
         }));
-        const { dependencies, devDependencies }: ScaffoldDependencies = ScaffoldUtilities.resolveDependencies(configuration.features);
+        const { dependencies, devDependencies, frameworkDevDependencies }: ScaffoldDependencies = ScaffoldUtilities
+            .resolveDependencies(configuration.features);
         // the path quoted, as one with a space in it is otherwise two arguments to `cd`
         await CPUtilities.exec(`cd "${appPath}" && npm i -D ${devDependencies.join(' ')}`);
         const zibriDependency: string = ScaffoldUtilities.resolveFrameworkDependency('zibri', 'zibri');
         await CPUtilities.exec(`cd "${appPath}" && npm i ${[zibriDependency, ...dependencies].join(' ')}`);
-        // the test harness, which peer depends on zibri and is therefore installed after it. A
-        // devDependency: it starts the application a test drives, and nothing a deployment runs
-        // imports it.
-        const zibriTestingDependency: string = ScaffoldUtilities.resolveFrameworkDependency('testing', 'zibri-testing');
-        await CPUtilities.exec(`cd "${appPath}" && npm i -D ${zibriTestingDependency}`);
+        // the test harness and the compiler of the templates, which peer depend on zibri and are therefore installed
+        // after it. devDependencies: they test and build the application, and nothing a deployment runs imports them.
+        // The framework's packages of a feature's build, such as zibri-mdx, are the same
+        const frameworkDevDependencySpecs: string[] = [...SCAFFOLD_FRAMEWORK_DEV_DEPENDENCIES, ...frameworkDevDependencies]
+            .map(({ folder, name }) => ScaffoldUtilities.resolveFrameworkDependency(folder, name));
+        await CPUtilities.exec(`cd "${appPath}" && npm i -D ${frameworkDevDependencySpecs.join(' ')}`);
 
         await this.generateFiles(appPath, configuration);
         await ScaffoldUtilities.writeManifest(

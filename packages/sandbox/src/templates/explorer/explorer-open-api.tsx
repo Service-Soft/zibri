@@ -51,7 +51,11 @@ const ExplorerServerSelect: TsxComponent<ServerSelectProps> = ({ servers, server
         <div className="flex flex-col gap-1">
             <label className="inline-flex gap-2 items-center">
                 Server
-                <select id="explorer-server" value={selected} className="px-2 py-1.5 rounded border border-disabled-dark bg-gray text-white">
+                <select
+                    id="explorer-server"
+                    value={selected}
+                    className="px-2 py-1.5 rounded border border-disabled-dark bg-gray text-white"
+                >
                     {servers.map(option => <option value={option.url}>{option.url}</option>)}
                 </select>
             </label>
@@ -108,24 +112,29 @@ export const ExplorerOpenApi: TsxComponent<Props> = ({ definition, version, docu
     provideContext(ExplorerCredentials, credentials.value);
 
     // what the user entered is kept in this browser, so a reload keeps them logged in
+    const storageKey: string = 'zibri-explorer-credentials';
     onClient(() => {
         try {
-            credentials.value = JSON.parse(localStorage.getItem('zibri-explorer-credentials') ?? '{}');
+            const stored: unknown = JSON.parse(localStorage.getItem(storageKey) ?? '{}');
+            const entries: [string, unknown][] = typeof stored === 'object' && stored != null ? Object.entries(stored) : [];
+            credentials.value = Object.fromEntries(entries.filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
         }
         catch {
-            localStorage.removeItem('zibri-explorer-credentials');
+            localStorage.removeItem(storageKey);
         }
     });
 
     useEffect(() => {
-        localStorage.setItem('zibri-explorer-credentials', JSON.stringify(credentials.value));
+        localStorage.setItem(storageKey, JSON.stringify(credentials.value));
     }, [credentials]);
 
     return (
         <div className="flex flex-col gap-4">
             <div className="flex flex-wrap gap-2 items-center">
                 <Link id="explorer-document" href={documentUrl} className="underline">OpenAPI document</Link>
-                <span id="explorer-document-version" className="px-2 py-0.5 rounded-full bg-primary text-sm">OpenAPI {definition.openapi}</span>
+                <span id="explorer-document-version" className="px-2 py-0.5 rounded-full bg-primary text-sm">
+                    OpenAPI {definition.openapi}
+                </span>
             </div>
             {definition.info.description != undefined && <p>{definition.info.description}</p>}
             {(servers.length > 0 || schemes.length > 0) && <ExplorerBar id="explorer-bar">
@@ -138,7 +147,7 @@ export const ExplorerOpenApi: TsxComponent<Props> = ({ definition, version, docu
             {tags.length
                 ? tags.map(tag => <details id={`tag-${tag.name}`} open>
                     <summary className="py-3 border-b border-white cursor-pointer">
-                        <Heading tag="h2" className="inline text-2xl!">{tag.name}</Heading>
+                        <Heading tag="h2" className="inline">{tag.name}</Heading>
                         {tag.description != undefined && <span className="ml-4 text-disabled">{tag.description}</span>}
                     </summary>
                     {tag.operations.map(operation => <ExplorerOperation

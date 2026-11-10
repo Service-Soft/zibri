@@ -1,3 +1,7 @@
+---
+keywords: [questions, frequently asked, help, why]
+---
+
 # FAQ
 The decisions behind Zibri that span many pages. Each answer is short and links to the page that
 covers the topic.
@@ -9,12 +13,12 @@ or the startup error asks for them once, in the one place they can be answered:
 
 | Option | Two answers |
 |---|---|
-| [`defaultAuth`](./auth.md#what-an-undecorated-route-requires) | A route without `@Auth` is public, or needs a login |
+| [`defaultAuth`](./auth/auth.md#what-an-undecorated-route-requires) | A route without `@Auth` is public, or needs a login |
 | [`environment`](./architecture.md#saying-where-the-application-runs) | The application runs on a developer's machine, or serves its users |
-| [`twoFactorAtLogin`](./two-factor.md#asking-for-a-second-factor-at-login) | Whether a login asks for a [second factor](./glossary.md#second-factor) |
-| [`textOrder`](./localization.md#which-order-text-is-in) | Which order text is sorted in, when the supported locales disagree |
-| [`backupScope`](./backup.md#backing-up-a-data-source) | What a backup of a Postgres data source covers |
-| [`EVENT_FAILED_RETENTION_IN_MS`](./events.md#when-an-event-cannot-be-handled), [`THREAD_JOB_RETENTION_IN_MS`](./multithreading.md#what-happens-to-a-finished-job), `AUDIT_RETENTION_IN_MS` | Keeping rows forever, or deleting them after a while |
+| [`twoFactorAtLogin`](./auth/two-factor.md#asking-for-a-second-factor-at-login) | Whether a login asks for a [second factor](./glossary.md#second-factor) |
+| [`textOrder`](./templates/localization.md#which-order-text-is-in) | Which order text is sorted in, when the supported locales disagree |
+| [`backupScope`](./data/backup.md#backing-up-a-data-source) | What a backup of a Postgres data source covers |
+| [`EVENT_FAILED_RETENTION_IN_MS`](./background-work/events.md#when-an-event-cannot-be-handled), [`THREAD_JOB_RETENTION_IN_MS`](./background-work/multithreading.md#what-happens-to-a-finished-job), `AUDIT_RETENTION_IN_MS` | Keeping rows forever, or deleting them after a while |
 
 `defaultAuth` has exactly two values. Every other check, such as a permission or a second factor,
 needs a login first, so it implies `'isLoggedIn'`.
@@ -23,14 +27,14 @@ needs a login first, so it implies `'isLoggedIn'`.
 They are building blocks that features and plugins rely on being there, such as a password reset
 sending a mail. So every application provides what they need, such as an email transport, and its
 data source declares their entities. An application that does without one replaces its service, see
-[running without email, events or thread jobs](./configuration.md#running-without-email-events-or-thread-jobs).
+[running without email, events or thread jobs](./application/configuration.md#running-without-email-events-or-thread-jobs).
 
 ## Why does every entity have a tenant?
 Every application has [tenants](./glossary.md#tenant), even one with a single customer, so isolation never depends on a
 setting someone has to turn on. Each entity says where its rows belong: in one tenant, or shared by
 all. A forgotten tenant does not compile, and a row without one never ends up where every tenant
 sees it. Crossing tenants is always explicit, with `runAs` for one tenant or `acrossTenants` on a
-single call. See [declaring the tenant of an entity](./tenancy.md#declaring-the-tenant-of-an-entity).
+single call. See [declaring the tenant of an entity](./data/tenancy.md#declaring-the-tenant-of-an-entity).
 
 ## See also
 - [Getting started](./getting-started.md) — the first application

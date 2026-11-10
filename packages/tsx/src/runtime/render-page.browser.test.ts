@@ -1,15 +1,15 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { Browser, chromium } from 'playwright';
-
 import assert from 'node:assert';
 
-import { openPage, OpenedPage } from '../__testing__/browser.helper';
-import { compilePage, loadTemplatePage } from '../__testing__/server-render.helper';
+import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { Browser, chromium } from 'playwright';
+
 import { CompiledPage } from './render-page';
 import { attr, createContext, renderChild } from './server-runtime';
+import { compilePage, loadTemplatePage } from '../../../tsx-compiler/src/__testing__/server-render.helper';
+import { openPage, OpenedPage } from '../__testing__/browser.helper';
 
 declare global {
-    // eslint-disable-next-line typescript/consistent-type-definitions
+
     interface Window {
         // the writers of a page that uses state, which a test calls with the cases the server renders
         __zibriAttribute: (element: HTMLElement, name: string, value: unknown) => void,
@@ -340,9 +340,24 @@ describe('a rendered page, in a browser', () => {
             }
 
             const attributes: [name: string, value: unknown][] = [
-                ['title', 'a'], ['title', 5], ['title', 0], ['title', true], ['title', false], ['title', null], ['title', undefined],
-                ['title', '<b>&"x"'], ['title', { a: 1 }], ['className', 'on'], ['htmlFor', 'field'], ['data-row', 2], ['aria-label', 'Close'],
-                ['href', '/tasks'], ['href', 'javascript:alert(1)'], ['href', ' java\tscript:alert(1)'], ['src', 'vbscript:x'], ['disabled', true]
+                ['title', 'a'],
+                ['title', 5],
+                ['title', 0],
+                ['title', true],
+                ['title', false],
+                ['title', null],
+                ['title', undefined],
+                ['title', '<b>&"x"'],
+                ['title', { a: 1 }],
+                ['className', 'on'],
+                ['htmlFor', 'field'],
+                ['data-row', 2],
+                ['aria-label', 'Close'],
+                ['href', '/tasks'],
+                ['href', 'javascript:alert(1)'],
+                ['href', ' java\tscript:alert(1)'],
+                ['src', 'vbscript:x'],
+                ['disabled', true]
             ];
 
             it.each(attributes)('writes the attribute %s of %j as the server does', async (name, value) => {
@@ -595,22 +610,22 @@ describe('a rendered page, in a browser', () => {
                     <button id="rename" onClick={() => { todos.value = todos.value.map(t => t.id === 'a' ? { ...t, text: 'Write more' } : t); }}>r</button>
                     <button id="reverse" onClick={() => { todos.value = [...todos.value].reverse(); }}>v</button>
                     <ul id="list">{todos.value.map(todo => <li key={todo.id} id={'todo-' + todo.id}>{todo.text}
-                        <button id={'remove-' + todo.id} onClick={() => { todos.value = todos.value.filter(t => t.id !== todo.id); }}>x</button></li>)}</ul>
+                        <button id={'remove-' + todo.id} onClick={() => { todos.value = todos.value.filter(t => t.id !== todo.id); }}>×</button></li>)}</ul>
                 </div>; };`;
             const opened: OpenedPage = await openPage(browser, compilePage(page));
             // an element the page keeps keeps this property, one built again does not
             await opened.page.evaluate(() => Object.assign(document.getElementById('todo-a') ?? {}, { kept: true }));
 
             await click(opened, 'add');
-            expect(await rowTexts(opened)).toEqual(['Writex', 'Readx', 'Sleepx']);
+            expect(await rowTexts(opened)).toEqual(['Write×', 'Read×', 'Sleep×']);
             await click(opened, 'rename');
-            expect(await rowTexts(opened)).toEqual(['Write morex', 'Readx', 'Sleepx']);
+            expect(await rowTexts(opened)).toEqual(['Write more×', 'Read×', 'Sleep×']);
             await click(opened, 'remove-b');
-            expect(await rowTexts(opened)).toEqual(['Write morex', 'Sleepx']);
+            expect(await rowTexts(opened)).toEqual(['Write more×', 'Sleep×']);
             await click(opened, 'reverse');
 
-            expect(await rowTexts(opened)).toEqual(['Sleepx', 'Write morex']);
-            expect(await opened.page.evaluate(() => Reflect.get(document.getElementById('todo-a') ?? {}, 'kept'))).toBe(true);
+            expect(await rowTexts(opened)).toEqual(['Sleep×', 'Write more×']);
+            expect(await opened.page.evaluate((): unknown => Reflect.get(document.getElementById('todo-a') ?? {}, 'kept'))).toBe(true);
             expect(opened.errors).toEqual([]);
         }, TIMEOUT);
 
@@ -643,13 +658,13 @@ describe('a rendered page, in a browser', () => {
         it('follows a condition inside a row with the item of the row', async () => {
             const page: string = `const Page = () => { ${TODOS}
                 return <div><button id="finish" onClick={() => { todos.value = todos.value.map(t => ({ ...t, done: true })); }}>f</button>
-                <ul id="list">{todos.value.map(todo => <li key={todo.id}>{todo.text}{todo.done && <b>done</b>}</li>)}</ul></div>; };`;
+                <ul id="list">{todos.value.map(todo => <li key={todo.id}>{todo.text}{todo.done && <b>✓</b>}</li>)}</ul></div>; };`;
             const opened: OpenedPage = await openPage(browser, compilePage(page));
-            expect(await rowTexts(opened)).toEqual(['Write', 'Readdone']);
+            expect(await rowTexts(opened)).toEqual(['Write', 'Read✓']);
 
             await click(opened, 'finish');
 
-            expect(await rowTexts(opened)).toEqual(['Writedone', 'Readdone']);
+            expect(await rowTexts(opened)).toEqual(['Write✓', 'Read✓']);
         }, TIMEOUT);
 
         it('binds a state both ways and writes a spread in markup it renders', async () => {
@@ -699,7 +714,7 @@ describe('a rendered page, in a browser', () => {
             expect(opened.errors).toEqual([]);
         }, TIMEOUT);
 
-        const READ_REF: string ='<button id="read" onClick={() => { document.getElementById(\'out\').textContent = String(shown.current?.id); }}>r</button><p id="out"></p>';
+        const READ_REF: string = '<button id="read" onClick={() => { document.getElementById(\'out\').textContent = String(shown.current?.id); }}>r</button><p id="out"></p>';
 
         it('hands a ref that is not required the element of a condition while it is shown, and nothing while it is not', async () => {
             const page: string = `const Page = () => { const open = useState(true); const shown = useRef<HTMLElement>({ required: false });
@@ -801,7 +816,7 @@ describe('a rendered page, in a browser', () => {
 
         it('renders a component per row, following the item and calling a handler of the row', async () => {
             const item: string = `const Item = ({ todo, onRemove }) => { const t = useInput(todo);
-                return <li id={'item-' + t.value.id}>{t.value.text}<button id={'remove-' + t.value.id} onClick={() => onRemove()}>x</button></li>; };`;
+                return <li id={'item-' + t.value.id}>{t.value.text}<button id={'remove-' + t.value.id} onClick={() => onRemove()}>×</button></li>; };`;
             const page: string = `const Page = () => { ${TODOS}
                 return <div>${ADD}${RENAME}${REVERSE}<ul id="list">{todos.value.map(todo => <Item key={todo.id} todo={todo}
                     onRemove={() => { todos.value = todos.value.filter(t => t.id !== todo.id); }}/>)}</ul></div>; };`;
@@ -810,16 +825,16 @@ describe('a rendered page, in a browser', () => {
             await opened.page.evaluate(() => Object.assign(document.getElementById('item-a') ?? {}, { kept: true }));
 
             await click(opened, 'add');
-            expect(await rowTexts(opened)).toEqual(['Writex', 'Readx', 'Sleepx']);
+            expect(await rowTexts(opened)).toEqual(['Write×', 'Read×', 'Sleep×']);
             await click(opened, 'rename');
-            expect(await rowTexts(opened)).toEqual(['Write morex', 'Readx', 'Sleepx']);
+            expect(await rowTexts(opened)).toEqual(['Write more×', 'Read×', 'Sleep×']);
             await click(opened, 'reverse');
-            expect(await rowTexts(opened)).toEqual(['Sleepx', 'Readx', 'Write morex']);
+            expect(await rowTexts(opened)).toEqual(['Sleep×', 'Read×', 'Write more×']);
             await click(opened, 'remove-b');
             await click(opened, 'remove-c');
 
-            expect(await rowTexts(opened)).toEqual(['Write morex']);
-            expect(await opened.page.evaluate(() => Reflect.get(document.getElementById('item-a') ?? {}, 'kept'))).toBe(true);
+            expect(await rowTexts(opened)).toEqual(['Write more×']);
+            expect(await opened.page.evaluate((): unknown => Reflect.get(document.getElementById('item-a') ?? {}, 'kept'))).toBe(true);
             expect(opened.errors).toEqual([]);
         }, TIMEOUT);
 
@@ -1149,14 +1164,13 @@ describe('a rendered page, in a browser', () => {
             const field: string = 'const Field = ({ inputRef }) => <p>no input</p>;';
             const page: string = 'const Page = () => { const input = useRef<HTMLInputElement>(); onClient(() => console.log(input.current)); '
                 + 'return <Field inputRef={input}/>; };';
-            const original: typeof console.error = console.error;
-            console.error = () => undefined;
+            const error: jest.SpiedFunction<typeof console.error> = jest.spyOn(console, 'error').mockImplementation(() => undefined);
             let opened: OpenedPage;
             try {
                 opened = await openPage(browser, compilePage(page, { Field: field }), {}, 'production');
             }
             finally {
-                console.error = original;
+                error.mockRestore();
             }
 
             expect(opened.errors).toEqual(['Error: The ref \'input\' of \'Page\' is on no element in the page.']);

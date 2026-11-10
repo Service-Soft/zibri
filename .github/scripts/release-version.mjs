@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-export const published = ['tsx', 'zibri', 'testing', 'cli'];
+export const published = ['tsx', 'tsx-compiler', 'mdx', 'zibri', 'testing', 'cli'];
 export const dependencyFields = ['dependencies', 'devDependencies', 'peerDependencies'];
 
 // this needs to be exported, as its manually string imported into the ci-workflows.test.ts
@@ -93,7 +93,7 @@ export function resolveDistTag(version, publishedVersions) {
     return `latest-${major}`;
 }
 
-// the four are released in lockstep, so zibri's versions are the release's versions
+// the packages are released in lockstep, so zibri's versions are the release's versions
 function findPublishedVersions() {
     try {
         const versions = JSON.parse(execFileSync('npm', ['view', 'zibri', 'versions', '--json'], { encoding: 'utf8' }));

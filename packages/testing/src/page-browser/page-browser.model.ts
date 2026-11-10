@@ -1,6 +1,7 @@
 import type { Browser, Page } from 'playwright';
 
 import { PageBrowserProxy } from './page-browser-options.model';
+import type { TestBrowser } from '../test-browser.model';
 
 /**
  * A real Chromium that opens the pages of a started test server, so what runs in the browser is
@@ -44,7 +45,8 @@ export class PageBrowser {
             // fetched and handed back rather than continued to another url, which moves the page to that
             // url's origin. A redirect is the page's to follow, as it would be behind a real proxy
             await page.route(requested => requested.href.startsWith(baseUrl), async route => {
-                const url: string = `${appUrl}${route.request().url().slice(baseUrl.length)}`;
+                const url: string = `${appUrl}${route.request().url()
+                    .slice(baseUrl.length)}`;
                 await route.fulfill({ response: await route.fetch({ url, maxRedirects: 0 }) });
             });
         }

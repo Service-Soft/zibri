@@ -6,7 +6,7 @@ import { createInMemoryDataSource } from 'zibri-testing';
 import { Response } from './decorators/response.decorator';
 import { OpenApiExplorerMethod, OpenApiExplorerOperation, OpenApiExplorerTag } from './explorer/open-api-explorer-operation.model';
 import { OpenApiExplorerUtilities } from './explorer/open-api-explorer.utilities';
-import { OpenApiDefinition, OpenApiMediaTypeObject, OpenApiOperation, OpenApiReferenceObject, OpenApiSchemaObject, OpenApiServerObject } from './open-api.model';
+import { OpenApiContentObject, OpenApiDefinition, OpenApiMediaTypeObject, OpenApiOperation, OpenApiReferenceObject, OpenApiResponseObject, OpenApiSchemaObject, OpenApiServerObject } from './open-api.model';
 import { OpenApiService } from './open-api.service';
 import { TestTimeouts } from '../__testing__/constants';
 import { explorerTestProviders } from '../__testing__/explorer-test-providers';
@@ -377,6 +377,12 @@ function schemaOf(value: OpenApiSchemaObject | OpenApiReferenceObject | undefine
     return value;
 }
 
+function responseOf(operation: OpenApiOperation, status: string): OpenApiResponseObject {
+    const response: OpenApiResponseObject | OpenApiReferenceObject | undefined = operation.responses?.[status];
+    assert(response && !('$ref' in response), `no response for ${status}`);
+    return response;
+}
+
 // a route with no controller behind it, registered from a lifecycle hook the way AssetService
 // registers /favicon.ico. It has to be an init hook rather than a line in beforeAll: the document is
 // built once in afterAppInit, so a route registered after the app is up is not in it.
@@ -524,8 +530,7 @@ describe('OpenApiService', () => {
 
     it('resolves a hasOne relation schema, excluding the inverse back-reference key', () => {
         const operation: OpenApiOperation = op('/items/{id}/owner', 'get');
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
-        const schema: OpenApiSchemaObject = schemaOf(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema);
+        const schema: OpenApiSchemaObject = schemaOf(responseOf(operation, '200').content?.[MimeType.JSON]?.schema);
         expect(schema.properties?.['pet']).toMatchObject({
             type: 'object',
             properties: { name: { type: 'string' } }
@@ -536,8 +541,7 @@ describe('OpenApiService', () => {
 
     it('resolves a oneToMany relation as an array of the target entity schema', () => {
         const operation: OpenApiOperation = op('/items/{id}/team', 'get');
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
-        const schema: OpenApiSchemaObject = schemaOf(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema);
+        const schema: OpenApiSchemaObject = schemaOf(responseOf(operation, '200').content?.[MimeType.JSON]?.schema);
         expect(schema.properties?.['players']).toMatchObject({
             type: 'array',
             items: { type: 'object', properties: { name: { type: 'string' } } }
@@ -548,8 +552,7 @@ describe('OpenApiService', () => {
 
     it('still omits a genuine multi-hop cycle (A -> B -> C -> A) that back-reference exclusion cannot break', () => {
         const operation: OpenApiOperation = op('/items/{id}/chain', 'get');
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
-        const schema: OpenApiSchemaObject = schemaOf(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema);
+        const schema: OpenApiSchemaObject = schemaOf(responseOf(operation, '200').content?.[MimeType.JSON]?.schema);
         const nodeB: OpenApiSchemaObject = schemaOf(schema.properties?.['next']);
         expect(nodeB.properties?.['name']).toMatchObject({ type: 'string' });
         const nodeC: OpenApiSchemaObject = schemaOf(nodeB.properties?.['next']);
@@ -561,8 +564,7 @@ describe('OpenApiService', () => {
 
     it('builds a response schema with primitive, enum, regex, nested object and array properties', () => {
         const operation: OpenApiOperation = op('/items/{id}', 'get');
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
-        const schema: OpenApiSchemaObject = schemaOf(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema);
+        const schema: OpenApiSchemaObject = schemaOf(responseOf(operation, '200').content?.[MimeType.JSON]?.schema);
         expect(schema.type).toBe('object');
         expect(schema.properties?.['category']).toMatchObject({ type: 'string', enum: ['books', 'toys'] });
         expect(schemaOf(schema.properties?.['category']).pattern).toBeTruthy();
@@ -576,8 +578,7 @@ describe('OpenApiService', () => {
 
     it('describes a property with what openapi defines, and nothing only the framework reads', () => {
         const operation: OpenApiOperation = op('/items/{id}', 'get');
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
-        const schema: OpenApiSchemaObject = schemaOf(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema);
+        const schema: OpenApiSchemaObject = schemaOf(responseOf(operation, '200').content?.[MimeType.JSON]?.schema);
 
         // `primary` is a storage fact, and a regex is a pattern without the slashes that delimit it
         expect(schema.properties?.['id']).toStrictEqual({ type: 'string', format: 'uuid' });
@@ -598,16 +599,14 @@ describe('OpenApiService', () => {
 
     it('builds an array response schema for @Response.array()', () => {
         const operation: OpenApiOperation = op('/items/', 'post');
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
-        const schema: OpenApiSchemaObject = schemaOf(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema);
+        const schema: OpenApiSchemaObject = schemaOf(responseOf(operation, '200').content?.[MimeType.JSON]?.schema);
         expect(schema.type).toBe('array');
         expect(schemaOf(schema.items).type).toBe('object');
     });
 
     it('builds an items/totalAmount envelope schema for @Response.paginated()', () => {
         const operation: OpenApiOperation = op('/items/paginated', 'get');
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
-        const schema: OpenApiSchemaObject = schemaOf(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema);
+        const schema: OpenApiSchemaObject = schemaOf(responseOf(operation, '200').content?.[MimeType.JSON]?.schema);
         expect(schema.type).toBe('object');
         expect(schema.properties?.['totalAmount']).toMatchObject({ type: 'integer', format: 'int64' });
         const items: OpenApiSchemaObject = schemaOf(schema.properties?.['items']);
@@ -619,9 +618,7 @@ describe('OpenApiService', () => {
         const operation: OpenApiOperation = op('/items/export', 'get');
         // 204 rather than 200: a route that returns nothing says so, and the document has to agree
         // with what the router actually answers
-        expect(operation.responses?.['204']).toBeDefined();
-        // eslint-disable-next-line typescript/no-unsafe-member-access
-        expect(operation.responses?.['204']?.content).toBeUndefined();
+        expect(responseOf(operation, '204').content).toBeUndefined();
     });
 
     it('builds a request body schema with a nested object property and a required list', () => {
@@ -711,11 +708,8 @@ describe('OpenApiService', () => {
 
     it('describes a response that can be json or xml under both, the xml one naming its root', () => {
         const operation: OpenApiOperation = op('/items/orders', 'post');
-        // eslint-disable-next-line typescript/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
-        const content = operation.responses?.['200']?.content;
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
+        const content: OpenApiContentObject | undefined = responseOf(operation, '200').content;
         const json: OpenApiSchemaObject = schemaOf(content?.[MimeType.JSON]?.schema);
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
         const xml: OpenApiSchemaObject = schemaOf(content?.[MimeType.XML]?.schema);
 
         expect(json.xml).toBeUndefined();
@@ -726,11 +720,8 @@ describe('OpenApiService', () => {
 
     it('names the namespace of every element a prefixed root puts in one, as the document is written', async () => {
         const operation: OpenApiOperation = op('/items/envelope', 'get');
-        // eslint-disable-next-line typescript/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
-        const content = operation.responses?.['200']?.content;
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
+        const content: OpenApiContentObject | undefined = responseOf(operation, '200').content;
         const json: OpenApiSchemaObject = schemaOf(content?.[MimeType.JSON]?.schema);
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
         const xml: OpenApiSchemaObject = schemaOf(content?.[MimeType.XML]?.schema);
         const envelopeNamespace: { namespace: string, prefix: string } = { namespace: 'urn:example:envelope', prefix: 'e' };
         const header: OpenApiSchemaObject = schemaOf(xml.properties?.['header']);
@@ -780,17 +771,13 @@ describe('OpenApiService', () => {
 
     it('builds a binary schema for a file response', () => {
         const operation: OpenApiOperation = op('/items/download', 'get');
-        // eslint-disable-next-line typescript/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
-        const content = operation.responses?.['200']?.content;
-        // eslint-disable-next-line typescript/no-unsafe-member-access
+        const content: OpenApiContentObject | undefined = responseOf(operation, '200').content;
         expect(content?.[MimeType.OCTET_STREAM]?.schema).toEqual({ type: 'string', format: 'binary' });
     });
 
     it('builds an html schema for an html response', () => {
         const operation: OpenApiOperation = op('/items/page', 'get');
-        // eslint-disable-next-line typescript/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
-        const content = operation.responses?.['200']?.content;
-        // eslint-disable-next-line typescript/no-unsafe-member-access
+        const content: OpenApiContentObject | undefined = responseOf(operation, '200').content;
         expect(content?.[MimeType.HTML]?.schema).toEqual({ type: 'string', format: 'html' });
     });
 
@@ -805,20 +792,14 @@ describe('OpenApiService', () => {
 
     it('merges multiple responses declared for the same status into a oneOf schema', () => {
         const operation: OpenApiOperation = op('/items/multi-status', 'get');
-        // eslint-disable-next-line typescript/typedef, typescript/no-unsafe-assignment
-        const badRequest = operation.responses?.['400'];
-        // eslint-disable-next-line typescript/strict-boolean-expressions
-        assert(badRequest && !('$ref' in badRequest));
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
-        const schema: OpenApiSchemaObject = schemaOf(badRequest.content?.[MimeType.JSON]?.schema);
+        const schema: OpenApiSchemaObject = schemaOf(responseOf(operation, '400').content?.[MimeType.JSON]?.schema);
         expect(schema.oneOf).toBeDefined();
     });
 
     it('includes a manually registered route marked useInOpenApi: true', () => {
         const operation: OpenApiOperation = op('/manual/ping', 'get');
         expect(operation.tags).toEqual(['Manual']);
-        // eslint-disable-next-line typescript/no-unsafe-member-access
-        expect(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema).toMatchObject({
+        expect(responseOf(operation, '200').content?.[MimeType.JSON]?.schema).toMatchObject({
             type: 'object',
             properties: { ok: { type: 'boolean' } }
         });

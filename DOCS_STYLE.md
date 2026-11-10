@@ -7,7 +7,8 @@ developer asks for help. Both need the same things. Exact names, tables that lis
 examples that compile, and one topic in one place. A page that serves one of them well serves the
 other.
 
-typedoc publishes every `.md` file in `docs/`, which is why this file lives at the root.
+The documentation site in `packages/docs-site` publishes every page in `docs/`, which is why this file lives at the
+root.
 
 `packages/zibri/src/application/docs-style.test.ts` checks what a single word gives away: history,
 references into the repository, store internals, framing, pronouns, made-up names, em dashes,
@@ -27,6 +28,7 @@ this file takes a reader.
   - [Warnings and limits](#warnings-and-limits)
   - [Words and punctuation](#words-and-punctuation)
 - [A page](#a-page)
+  - [Keywords](#keywords)
   - [The intro](#the-intro)
   - [Key exports](#key-exports)
   - [Sections](#sections)
@@ -146,13 +148,27 @@ the separator in a [See also](#see-also) list.
 
 Every page has the same parts, in this order:
 
-1. `# Title`: the topic, in the reader's words
-2. The intro paragraph
-3. `## Key exports`
-4. The sections, one per task, starting with setting it up when there is anything to set up
-5. `## Requirements`, when a default implementation stands on another package or stores rows in an
+1. The frontmatter, with the [keywords](#keywords) the search finds it by
+2. `# Title`: the topic, in the reader's words
+3. The intro paragraph
+4. `## Key exports`
+5. The sections, one per task, starting with setting it up when there is anything to set up
+6. `## Requirements`, when a default implementation stands on another package or stores rows in an
    entity of the framework
-6. `## See also`
+7. `## See also`
+
+## Keywords
+
+```md
+---
+keywords: [2fa, mfa, otp, one time password, authenticator app]
+---
+```
+
+**The words a reader searches with that the title does not use**: other names for the topic, its
+abbreviations, the standards and products it covers. The search finds a page by its title and the
+headings of its sections already, and by other forms of their words, such as `logs` for "Logging".
+A keyword is lowercase. One that YAML reads as a number is quoted: `'429'`.
 
 ## The intro
 
@@ -174,6 +190,10 @@ No scenario openers ("At some point you will probably stumble across…"), no "T
 **Every name from `zibri` that an example uses is in the table of the page that owns it.** A page
 using `inject` in passing does not list it again; `di.md` does. The style test checks that every
 imported name is in the table of at least one page.
+
+**What a reader starts with comes first**: the decorator, class or service the page is about, and what setting it up
+takes. The site shows the first 8 rows of a table longer than 12, so those are the ones a reader sees. The options,
+errors and types a signature reaches follow.
 
 **Kind** is one of: class, interface, type, entity, decorator, function, constant, enum, error,
 cron job, DI token. Two names that belong together share a row ("interface, class").

@@ -1,10 +1,10 @@
 import assert from 'node:assert';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 
 import { CompiledPage, LocaleData, renderPage, wrapDocument } from './render-page';
 import { createContext } from './server-runtime';
-import { compilePage, renderTemplateDocument, renderTestPage } from '../__testing__/server-render.helper';
+import { compilePage, renderTemplateDocument, renderTestPage } from '../../../tsx-compiler/src/__testing__/server-render.helper';
 
 // --- minimal DOM stub -------------------------------------------------------
 
@@ -441,8 +441,12 @@ describe('renderPage', () => {
             }
         };
 
-        // eslint-disable-next-line typescript/no-implied-eval
-        new Function('document', 'console', 'picked', scriptBodyOf(out))(document, console, (v: string) => picked.push(v));
+        Reflect.apply(
+            // eslint-disable-next-line typescript/no-implied-eval
+            new Function('document', 'console', 'picked', scriptBodyOf(out)),
+            undefined,
+            [document, console, (v: string) => picked.push(v)]
+        );
         elements[2].fire('click');
 
         expect(lookups).toBe(1);
@@ -574,6 +578,14 @@ describe('markup the page renders again in the browser', () => {
         expect(() => renderTestPage(compilePage(list))).toThrow(/'Page'[\S\s]*'a'/);
     });
 
+    it('throws for two rows whose key is undefined, as the browser refuses them', () => {
+        // a key read from a field the rows do not have
+        const page: string = 'const Page = () => { const todos = useState([{ text: \'Write\' }, { text: \'Read\' }]); '
+            + 'return <ul>{todos.value.map(todo => <li key={todo.id}>{todo.text}</li>)}</ul>; };';
+
+        expect(() => renderTestPage(compilePage(page))).toThrow(/'Page'[\S\s]*'undefined'/);
+    });
+
     it('renders a branch with a component that is not shown into a template the page copies', () => {
         const badge: string = 'const Badge = ({ label }) => <b class="badge">{label}</b>;';
         const out: string = renderTestPage(compilePage('const Page = () => { const open = useState(false); '
@@ -642,13 +654,14 @@ describe('the value of a textarea and a select', () => {
  */
 function renderInProduction(page: CompiledPage): { document: string, logged: string[] } {
     const logged: string[] = [];
-    const original: typeof console.error = console.error;
-    console.error = (message: unknown) => logged.push(String(message));
+    const error: jest.SpiedFunction<typeof console.error> = jest.spyOn(console, 'error').mockImplementation((message: unknown) => {
+        logged.push(String(message));
+    });
     try {
         return { document: renderPage(page, {}, { environment: 'production' }), logged };
     }
     finally {
-        console.error = original;
+        error.mockRestore();
     }
 }
 
@@ -674,14 +687,16 @@ describe('the mistakes of a ref the render shows', () => {
     // what 3.0 called it with, which 3.x keeps compiling
     it('renders as in production when it is not told the environment, and logs a mistake', () => {
         const logged: string[] = [];
-        const original: typeof console.error = console.error;
-        console.error = (message: unknown) => logged.push(String(message));
+        const error: jest.SpiedFunction<typeof console.error> = jest.spyOn(console, 'error').mockImplementation((message: unknown) => {
+            logged.push(String(message));
+        });
         try {
+            // eslint-disable-next-line typescript/no-deprecated
             expect(renderPage(compilePage(required, { Field: unused }))).toContain('<p>no input</p>');
             expect(logged).toEqual([expect.stringMatching(/'input' of 'Page' is on no element/)]);
         }
         finally {
-            console.error = original;
+            error.mockRestore();
         }
     });
 

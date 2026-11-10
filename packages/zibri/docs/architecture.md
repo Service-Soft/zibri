@@ -1,3 +1,7 @@
+---
+keywords: [overview, design, concepts, request flow, how it works]
+---
+
 # Architecture
 A Zibri application is one `ZibriApplication`, built from the options that say what it is made of, and one container holding everything it uses. Each section below covers one piece and links to the page about it.
 
@@ -42,24 +46,24 @@ async function start(): Promise<void> {
 }
 ```
 
-A plugin adds its controllers, providers, cron jobs, body parsers and auth strategies to the ones the application names. See [plugins](./plugin.md).
+A plugin adds its controllers, providers, cron jobs, body parsers and auth strategies to the ones the application names. See [plugins](./application/plugin.md).
 
 ## Saying where the application runs
 `environment` says where the application runs: `'development'` on a developer's machine, `'production'` serving its users. It is required.
 
 | Environment | What changes |
 |---|---|
-| `'development'` | An application that provides no email transport gets one that logs every mail instead of sending it, see [configuring email](./email.md#configuring-email) |
+| `'development'` | An application that provides no email transport gets one that logs every mail instead of sending it, see [configuring email](./templates/email.md#configuring-email) |
 | `'production'` | An application that provides no email transport does not start |
 
-`zi new` reads it from the `ENVIRONMENT` variable. The `.env` it writes says `development`, and `.env.example` leaves it blank, so a deployment sets it, see [deployment](./deployment.md).
+`zi new` reads it from the `ENVIRONMENT` variable. The `.env` it writes says `development`, and `.env.example` leaves it blank, so a deployment sets it, see [deployment](./operations/deployment.md).
 
 ## The container
 Everything the application uses is a provider in one container: your services, the repository of every entity, and every service of the framework, such as the logger, the router, the parser, the validation service, the auth service, the error handler and the email service.
 
 Each service of the framework is provided under a token in `ZIBRI_DI_TOKENS`. Naming one of those tokens in your `providers` array replaces that service everywhere it is used, including inside the framework. A class becomes a provider when it is decorated with `@Injectable`, and any other value when it is listed in `providers`.
 
-A provider lives for the application, for one request, or for one injection. See [dependency injection](./di.md).
+A provider lives for the application, for one request, or for one injection. See [dependency injection](./application/di.md).
 
 ## Starting up and shutting down
 `new ZibriApplication(options)` sets up the security part of the request pipeline. `app.init()` builds the container's values and runs the init hooks. `app.start(port)` runs the start hooks and binds the port, with the pipeline assembled in between. A class takes part in a phase by implementing its hook.
@@ -73,7 +77,7 @@ A provider lives for the application, for one request, or for one injection. See
 | *listening* | the port is bound |
 | `afterAppStart` | work that changes shared state begins, such as scheduled cron jobs |
 
-`app.shutdown()`, or a `SIGTERM`, `SIGINT` or `SIGHUP`, stops accepting requests, waits for the ones still running, and then runs `beforeAppShutdown`, `onAppShutdown` and `afterAppShutdown`. The data sources close in `afterAppShutdown`, so every other hook can still use them. See [application lifecycle](./application-lifecycle.md).
+`app.shutdown()`, or a `SIGTERM`, `SIGINT` or `SIGHUP`, stops accepting requests, waits for the ones still running, and then runs `beforeAppShutdown`, `onAppShutdown` and `afterAppShutdown`. The data sources close in `afterAppShutdown`, so every other hook can still use them. See [application lifecycle](./application/application-lifecycle.md).
 
 ## A request, from arriving to answered
 An http request passes through the pipeline phases in order. Your own middleware runs in `BEFORE_ROUTING` unless it names another phase.
@@ -91,11 +95,11 @@ An http request passes through the pipeline phases in order. Your own middleware
     6. what it returned is checked against the responses the route declares, serialized and sent.
 6. **`AFTER_ROUTING`**: a request nothing answered becomes a 404.
 
-An error thrown at any of these steps goes to the one global error handler, which logs it when it is not an expected outcome and answers the caller in the format it accepts. See [error handling](./error-handling.md).
+An error thrown at any of these steps goes to the one global error handler, which logs it when it is not an expected outcome and answers the caller in the format it accepts. See [error handling](./application/error-handling.md).
 
-From the moment the context exists until the response is sent, any service the request reaches can `inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT)` and read the current user, locale, version or trace from it, without them being passed along as arguments. See [request context](./request-context.md).
+From the moment the context exists until the response is sent, any service the request reaches can `inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT)` and read the current user, locale, version or trace from it, without them being passed along as arguments. See [request context](./application/request-context.md).
 
-A websocket message takes the same path from its own entry: it is validated, gets a `WebsocketRequestContext`, the route's access rules are checked, its parameters are parsed and validated, and the handler runs within its deadline. See [websockets](./websocket.md).
+A websocket message takes the same path from its own entry: it is validated, gets a `WebsocketRequestContext`, the route's access rules are checked, its parameters are parsed and validated, and the handler runs within its deadline. See [websockets](./endpoints/websocket.md).
 
 ## One declaration, read everywhere
 A model is declared once, with `@Property` on each field, and that one declaration is what:
@@ -105,19 +109,19 @@ A model is declared once, with `@Property` on each field, and that one declarati
 - a data source stores, along with the encryption, hashing and defaults it declares,
 - the http client checks a response against.
 
-A route is declared once as well. Its decorators are what the router mounts, what the auth service checks, and what the OpenAPI document describes. See [models](./models.md) and [creating endpoints](./creating-endpoints.md).
+A route is declared once as well. Its decorators are what the router mounts, what the auth service checks, and what the OpenAPI document describes. See [models](./data/models.md) and [creating endpoints](./endpoints/creating-endpoints.md).
 
 ## Reading and writing data
 A data source declares its entities, and each entity gets a `Repository` in the container. A repository call applies the entity's scope, runs the hooks that set defaults, encrypt, hash, decrypt and leave out excluded properties, and hands the rest to the data source. Every data source answers the same calls with the same results, so code using a repository works the same on any of them.
 
-A transaction is passed along as an option. A repository used inside a request also stops when the request's deadline passes. See [data sources](./data-source.md), and [costs](./costs.md) for what each call costs.
+A transaction is passed along as an option. A repository used inside a request also stops when the request's deadline passes. See [data sources](./data/data-source.md), and [costs](./data/costs.md) for what each call costs.
 
 ## Work outside a request
 Cron jobs, event subscribers, the email queue and thread jobs run outside any request. There is no request context there: `CURRENT_REQUEST_CONTEXT` is `undefined`, and a request scoped provider cannot be built.
 
-Each of them takes a [lease](./glossary.md#lease) before it runs, so a job runs on one instance at a time when several instances share a data source. See [cron](./cron.md), [events](./events.md), [email](./email.md), [multithreading](./multithreading.md) and [replication](./replication.md).
+Each of them takes a [lease](./glossary.md#lease) before it runs, so a job runs on one instance at a time when several instances share a data source. See [cron](./background-work/cron.md), [events](./background-work/events.md), [email](./templates/email.md), [multithreading](./background-work/multithreading.md) and [replication](./data/replication.md).
 
 ## See also
 - [Getting started](./getting-started.md) — creating a project that is already wired this way
-- [Deployment](./deployment.md) — running the application in a container behind a proxy
+- [Deployment](./operations/deployment.md) — running the application in a container behind a proxy
 - [Testing](./testing.md) — booting the whole application in a test

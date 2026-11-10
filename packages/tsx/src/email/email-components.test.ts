@@ -1,18 +1,31 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { MjAccordion } from './mj-accordion';
+import { MjAccordionElement } from './mj-accordion-element';
+import { MjAccordionTitle } from './mj-accordion-title';
 import { MjAttributes, MjAttributesProps } from './mj-attributes';
 import { MjBody } from './mj-body';
+import { MjBreakpoint } from './mj-breakpoint';
 import { MjButton } from './mj-button';
+import { MjCarousel } from './mj-carousel';
+import { MjCarouselImage } from './mj-carousel-image';
 import { MjColumn } from './mj-column';
 import { MjDivider } from './mj-divider';
 import { MjGroup } from './mj-group';
 import { MjHead } from './mj-head';
+import { MjHero } from './mj-hero';
+import { MjHtmlAttribute, MjHtmlAttributes, MjSelector } from './mj-html-attributes';
 import { MjImage } from './mj-image';
+import { MjNavbar } from './mj-navbar';
+import { MjNavbarLink } from './mj-navbar-link';
 import { MjPreview } from './mj-preview';
 import { MjRaw } from './mj-raw';
 import { MjSection } from './mj-section';
+import { MjSocial } from './mj-social';
+import { MjSocialElement } from './mj-social-element';
 import { MjSpacer } from './mj-spacer';
 import { MjStyle } from './mj-style';
+import { MjTable } from './mj-table';
 import { MjText } from './mj-text';
 import { MjTitle } from './mj-title';
 import { MjWrapper } from './mj-wrapper';
@@ -240,6 +253,128 @@ describe('email head two-pass', () => {
     it('keeps the css of a style made of several parts', () => {
         const html: string = renderEmail((mount: Mount) => mount(Mjml, {}, () => mount(MjHead, {}, () => mount(MjStyle, {}, () => ['.a > b{}', '.c{}']))));
         expect(html).toContain('.a > b{}.c{}');
+    });
+});
+
+describe('email components passing attributes to their parts', () => {
+    it('gives a social element the attributes of its social, unless it sets its own', () => {
+        const html: string = inColumn((mount: Mount) => mount(MjSocial, { color: '#123456', iconSize: '30px' }, () => [
+            mount(MjSocialElement, { name: 'github', href: 'https://x.com' }, () => 'Inherited'),
+            mount(MjSocialElement, { name: 'github', href: 'https://x.com', color: '#654321' }, () => 'Own')
+        ]));
+        expect(html).toMatch(/color:#123456;[^"]*">Inherited<\/a>/);
+        expect(html).toMatch(/color:#654321;[^"]*">Own<\/a>/);
+        expect(html).toContain('width="30"');
+    });
+
+    it('lets a declared default of a social element beat what its social passes, like MJML', () => {
+        const html: string = renderEmail((mount: Mount) => mount(Mjml, {}, () => [
+            mount(MjHead, {}, () => mount(MjAttributes, { defaults: { MjSocialElement: { color: '#abcdef' } } })),
+            mount(MjBody, {}, () => mount(MjSection, {}, () => mount(MjColumn, {}, () => mount(
+                MjSocial,
+                { color: '#123456' },
+                () => mount(MjSocialElement, { name: 'web' }, () => 'Site')
+            ))))
+        ]));
+        expect(html).toMatch(/color:#abcdef;[^"]*">Site<\/span>/);
+    });
+
+    it('shares a url on the network an element names, and links to it directly with -noshare', () => {
+        const html: string = inColumn((mount: Mount) => mount(MjSocial, {}, () => [
+            mount(MjSocialElement, { name: 'facebook', href: 'https://x.com/a' }),
+            mount(MjSocialElement, { name: 'facebook-noshare', href: 'https://x.com/b' })
+        ]));
+        expect(html).toContain('href="https://www.facebook.com/sharer/sharer.php?u=https://x.com/a"');
+        expect(html).toContain('href="https://x.com/b"');
+        expect(html).toContain('background:#3b5998;');
+    });
+
+    it('puts the base url of a navbar before the href of its links', () => {
+        const html: string = inColumn((mount: Mount) => mount(MjNavbar, { baseUrl: 'https://x.com' }, () => mount(MjNavbarLink, { href: '/docs' }, () => 'Docs')));
+        expect(html).toContain('href="https://x.com/docs"');
+    });
+
+    it('gives an accordion element the attributes of its accordion, unless it sets its own, and empty missing parts', () => {
+        const html: string = inColumn((mount: Mount) => mount(MjAccordion, { border: '1px solid red' }, () => [
+            mount(MjAccordionElement, {}, () => mount(MjAccordionTitle, {}, () => 'First')),
+            mount(MjAccordionElement, { border: '3px dotted blue' })
+        ]));
+        expect(html).toContain('border-bottom:1px solid red;');
+        expect(html).toContain('border-bottom:3px dotted blue;');
+        // the first element has no text, the second neither title nor text: three empty parts
+        expect(html.match(/class="mj-accordion-content"/g)).toHaveLength(2);
+        expect(html.match(/class="mj-accordion-title"/g)).toHaveLength(2);
+        expect(html).toContain('>First</td>');
+    });
+
+    it('writes a radio for each image of a carousel, the first checked, and no thumbnails when they are hidden', () => {
+        const html: string = inColumn((mount: Mount) => mount(MjCarousel, { thumbnails: 'hidden' }, () => [
+            mount(MjCarouselImage, { src: 'https://x.com/a.png' }),
+            mount(MjCarouselImage, { src: 'https://x.com/b.png' })
+        ]));
+        expect(html.match(/type="radio"/g)).toHaveLength(2);
+        expect(html.match(/checked="checked"/g)).toHaveLength(1);
+        expect(html).not.toContain('mj-carousel-thumbnail');
+    });
+
+    it('lays the content of a hero out within the body width less its padding', () => {
+        const html: string = renderEmail((mount: Mount) => mount(MjBody, {}, () => mount(MjHero, { padding: '0 50px' }, () => mount(MjImage, { src: 'a.png' }))));
+        // 600px less 100px of padding, less the 50px of the image's own padding
+        expect(html).toContain('<td style="width:450px;">');
+    });
+});
+
+describe('values the new components write into attributes', () => {
+    it('leaves out a link that runs script', () => {
+        const html: string = inColumn((mount: Mount) => [
+            mount(MjSocial, {}, () => mount(MjSocialElement, { href: 'javascript:alert(1)', src: 'javascript:alert(2)' }, () => 'x')),
+            mount(MjNavbar, {}, () => mount(MjNavbarLink, { href: 'javascript:alert(3)' }, () => 'x')),
+            mount(MjCarousel, {}, () => mount(MjCarouselImage, { src: 'javascript:alert(4)', href: 'javascript:alert(5)' }))
+        ]);
+        expect(html).not.toContain('alert(');
+    });
+
+    it('escapes the props of the components', () => {
+        const html: string = inColumn((mount: Mount) => mount(MjTable, { color: 'red;" onclick="x' }, () => ''));
+        expect(html).toContain('color:red;&quot; onclick=&quot;x;');
+    });
+
+    it('escapes the value of an html attribute, and leaves out a name an attribute cannot have', () => {
+        const html: string = renderEmail((mount: Mount) => mount(Mjml, {}, () => [
+            mount(MjHead, {}, () => mount(MjHtmlAttributes, {}, () => mount(MjSelector, { path: '.mj-column-per-100' }, () => [
+                mount(MjHtmlAttribute, { name: 'data-a' }, () => 'say "hi"'),
+                mount(MjHtmlAttribute, { name: 'x onload="y"' }, () => 'z')
+            ]))),
+            mount(MjBody, {}, () => mount(MjSection, {}, () => mount(MjColumn, {}, () => mount(MjText, {}, () => 'x'))))
+        ]));
+        expect(html).toContain('data-a="say &quot;hi&quot;"');
+        expect(html).not.toContain('onload');
+    });
+});
+
+describe('email head and document', () => {
+    it('builds the shared styles of a navbar for the breakpoint of the email', () => {
+        const html: string = renderEmail((mount: Mount) => mount(Mjml, {}, () => [
+            mount(MjBody, {}, () => mount(MjSection, {}, () => mount(MjColumn, {}, () => mount(MjNavbar, {}, () => mount(MjNavbarLink, {}, () => 'x'))))),
+            // after the body, which the styles of the head still follow
+            mount(MjHead, {}, () => mount(MjBreakpoint, { width: '320px' }))
+        ]));
+        expect(html).toContain('@media only screen and (max-width:319px)');
+        expect(html.match(/noinput\.mj-menu-checkbox/g)).toHaveLength(1);
+    });
+
+    it('leaves out raw markup directly in the document unless it goes before the doctype', () => {
+        const html: string = renderEmail((mount: Mount) => mount(Mjml, {}, () => mount(MjRaw, {}, () => '<b>nowhere</b>')));
+        expect(html).not.toContain('nowhere');
+    });
+
+    it('imports a font MJML knows only once the body uses it', () => {
+        const html: string = renderEmail((mount: Mount) => mount(Mjml, {}, () => mount(MjBody, {}, () => mount(MjSection, {}, () => mount(
+            MjColumn,
+            {},
+            () => mount(MjText, { fontFamily: 'Georgia, serif' }, () => 'x')
+        )))));
+        expect(html).not.toContain('fonts.googleapis.com');
     });
 });
 

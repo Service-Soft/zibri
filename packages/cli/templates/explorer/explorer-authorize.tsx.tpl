@@ -101,12 +101,18 @@ export const ExplorerAuthorize: TsxComponent<Props> = ({ schemes, credentials })
                 />
                 <span id="explorer-authorize-label">{Object.keys(entered.value).length ? 'Authorized' : 'Authorize'}</span>
             </Button>
-            <Dialog id="explorer-authorize-dialog" dialogRef={dialog} className="w-[min(600px,90vw)] p-6 bg-gray text-white backdrop:bg-[rgba(0,0,0,0.6)]">
+            <Dialog
+                id="explorer-authorize-dialog"
+                dialogRef={dialog}
+                className="w-[min(600px,90vw)] p-6 bg-gray text-white backdrop:bg-[rgba(0,0,0,0.6)]"
+            >
                 <Form onSubmit={() => save()}>
-                    <Heading tag="h3" className="text-2xl!">Available authorizations</Heading>
+                    <Heading tag="h3" size="h2">Available authorizations</Heading>
                     {schemes.map(scheme => <div className="flex flex-col gap-1.5 py-3 border-b border-disabled-dark">
-                        <Heading tag="h4" className="text-lg! font-semibold">
-                            {scheme.name} <span className="font-normal text-disabled">({scheme.type}{scheme.scheme === '' ? '' : `, ${scheme.scheme}`})</span>
+                        <Heading tag="h4">
+                            {scheme.name} <span className="font-normal text-disabled">
+                                ({scheme.type}{scheme.scheme === '' ? '' : `, ${scheme.scheme}`})
+                            </span>
                         </Heading>
                         {scheme.description !== '' && <p>{scheme.description}</p>}
                         {resolveLabel(scheme) == undefined

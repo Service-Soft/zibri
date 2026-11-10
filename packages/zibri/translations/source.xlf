@@ -124,7 +124,7 @@
       </trans-unit>
       <trans-unit id="A socket.io server. A client names the version in the handshake, in the version header or query parameter, and logs in with the credentials of the handshake or of each message." xml:space="preserve">
         <source>A socket.io server. A client names the version in the handshake, in the version header or query parameter, and logs in with the credentials of the handshake or of each message.</source>
-        <note>src/async-api/async-api.service.ts:157</note>
+        <note>src/async-api/async-api.service.ts:166</note>
       </trans-unit>
       <trans-unit id="A tenant has a role of its own named '{$1}', so no role every tenant shares can be named so." xml:space="preserve">
         <source>A tenant has a role of its own named '<x id="$1" equiv-text="{$1}"/>', so no role every tenant shares can be named so.</source>
@@ -1032,7 +1032,7 @@
       </trans-unit>
       <trans-unit id="This application. A request names the version in the version header, and logs in with the credentials of a security scheme." xml:space="preserve">
         <source>This application. A request names the version in the version header, and logs in with the credentials of a security scheme.</source>
-        <note>src/open-api/open-api.service.ts:271</note>
+        <note>src/open-api/open-api.service.ts:273</note>
       </trans-unit>
       <trans-unit id="This is the address of the account already." xml:space="preserve">
         <source>This is the address of the account already.</source>

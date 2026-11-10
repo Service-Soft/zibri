@@ -140,7 +140,7 @@ export const SocketIoTestPage: TsxComponent<Props> = ({ primary, secondary }: Pr
                 <Heading className="text-center">Socket Test</Heading>
                 <div className="flex h-[65vh] bg-disabled-dark rounded-xl shadow-elevation">
                     <div className="rounded-l-xl bg-dark-gray w-1/3 p-4">
-                        <Heading className='text-2xl!' tag='h2'>Chats</Heading>
+                        <Heading tag='h2'>Chats</Heading>
                         <hr className="text-white"/>
                     </div>
                     <div className="flex flex-col w-full">

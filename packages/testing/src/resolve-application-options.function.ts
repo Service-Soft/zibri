@@ -80,12 +80,11 @@ export function resolveApplicationOptions(
         defaultAuth: options.defaultAuth ?? base.defaultAuth ?? 'public',
         dataSources: options.dataSources ?? base.dataSources ?? fallback.dataSources(),
         providers: options.providers ?? base.providers ?? fallback.providers,
-        // an empty array (rather than undefined) so ZibriApplication's own JwtAuthStrategy fallback
-        // still applies
-        authStrategies: options.authStrategies ?? base.authStrategies ?? [],
-        // the same, for ZibriApplication's own PasswordAuthenticator fallback
-        authenticators: options.authenticators ?? base.authenticators ?? [],
-        twoFactorMethods: options.twoFactorMethods ?? base.twoFactorMethods ?? [],
+        // undefined when neither names them, for ZibriApplication's own defaults: an empty list is an application
+        // with none
+        authStrategies: options.authStrategies ?? base.authStrategies,
+        authenticators: options.authenticators ?? base.authenticators,
+        twoFactorMethods: options.twoFactorMethods ?? base.twoFactorMethods,
         // never, as the one answer a test that is about something else can run on
         twoFactorAtLogin: options.twoFactorAtLogin ?? base.twoFactorAtLogin ?? 'never',
         // false rather than undefined, which is what ZibriApplication falls back to anyway

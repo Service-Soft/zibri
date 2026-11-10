@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
+import { PACKAGES_LEFT_TO_THE_APPLICATION } from '../__testing__/packages-left-to-the-application';
 import { JsonUtilities } from '../utilities/json.utilities';
 
 /**
@@ -29,6 +30,8 @@ const builtWorker: string = path.join(
 );
 const fixtureDir: string = path.join(packageDir, 'src', 'multithreading', 'services');
 const builtRegister: string = path.join(packageDir, 'dist', 'cjs', 'utilities', 'register-ts-node.function.js');
+// the reference copy of a generated project, with a stylesheet, so its configuration names every loader
+const sandboxDir: string = path.resolve(packageDir, '..', 'sandbox');
 const builtXlfExtraction: string = path.join(
     packageDir, 'dist', 'cjs', 'localization', 'xlf', 'extract-translation-strings.function.js'
 );
@@ -49,6 +52,17 @@ function optionalPeers(manifestDir: string = packageDir): string[] {
     return Object.entries(manifest.peerDependenciesMeta ?? {})
         .filter(([, meta]) => meta.optional === true)
         .map(([name]) => name);
+}
+
+/**
+ * Every package the framework's manifest has installed with it or beside it.
+ * @returns Their names, from its dependencies and peer dependencies.
+ */
+function declaredPackages(): string[] {
+    const manifest: { dependencies?: Record<string, string>, peerDependencies?: Record<string, string> } = JsonUtilities.parse(
+        readFileSync(path.join(packageDir, 'package.json'), 'utf8')
+    );
+    return [...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.peerDependencies ?? {})];
 }
 
 /**
@@ -191,13 +205,6 @@ function runningJob(filePath: string, data: Record<string, unknown> = {}): strin
 
 describe('ts-node', () => {
 
-    it('is an optional peer dependency', () => {
-        // it was listed as a peer and left out of the meta, which made it mandatory - so installing
-        // `zibri` installed a TypeScript compiler, in every environment, whether or not anything
-        // would ever hand it a TypeScript file.
-        expect(optionalPeers()).toContain('ts-node');
-    });
-
     // the startup check answered for ts-node alone, and ts-node compiles nothing without
     // typescript - which a production image prunes with its devDependencies. The first job naming
     // a .ts file then failed with a bare "Cannot find module 'typescript'", days after a startup
@@ -219,8 +226,11 @@ describe('ts-node', () => {
         `);
 
         expect(res.message).toContain(`"${missing}"`);
-        expect(res.message).toContain(`npm i ${missing}`);
+        // both, and as dependencies rather than devDependencies: the deployment loads its worker files with them
+        expect(res.message).toContain('npm i ts-node typescript');
         expect(res.message).toContain('Running worker files written in TypeScript');
+        // the application installs them itself, as zibri names neither
+        expect(res.message).not.toContain('peer');
     });
 
     it('is not needed to load the framework', () => {
@@ -330,14 +340,6 @@ describe('saxes', () => {
 
 describe('typescript', () => {
 
-    it('is an optional peer dependency', () => {
-        // the source translation extractor reads templates with TypeScript's parser, which is a build
-        // step - it runs from a webpack config and nowhere else. Listed only as a devDependency it was
-        // a dependency nobody declared, and imported at the top of a file the barrel exports it was
-        // one every consumer resolved anyway.
-        expect(optionalPeers()).toContain('typescript');
-    });
-
     it('is not needed to load the framework', () => {
         const res: { loaded: boolean } = inConsumerProcess(`
             ${hiding(['typescript'])}
@@ -376,18 +378,19 @@ describe('typescript', () => {
         expect(res.message).toContain('npm i typescript');
     });
 
-    // the extractor runs on the application's own TypeScript, so every major the peer
-    // range admits is one it reads the sources with. TypeScript 6 is installed here as `typescript-6`
-    describe('on every major the peer range admits', () => {
+    // the extractor runs on the application's own TypeScript, the one the templates are compiled with, so
+    // every major the compiler admits is one it reads the sources with. TypeScript 6 is installed here as
+    // `typescript-6`
+    describe('on every major the compiler of the templates admits', () => {
         let extractions: Extraction[];
 
         beforeAll(() => {
             extractions = ['typescript', 'typescript-6'].map(installedAs => extractingWith(installedAs));
         }, 240_000);
 
-        it('is admitted by the peer range', () => {
+        it('is admitted by the compiler\'s peer range', () => {
             const manifest: { peerDependencies: Record<string, string> } = JsonUtilities.parse(
-                readFileSync(path.join(packageDir, 'package.json'), 'utf8')
+                readFileSync(path.join(packageDir, '..', 'tsx-compiler', 'package.json'), 'utf8')
             );
             const majors: (string | undefined)[] = (manifest.peerDependencies['typescript'] ?? '')
                 .split('||')
@@ -403,20 +406,102 @@ describe('typescript', () => {
     });
 });
 
-describe('openapi3-ts', () => {
+describe('the packages only building an application uses', () => {
 
-    it('is not needed to load the framework', () => {
-        const res: { loaded: boolean } = inConsumerProcess(`
-            ${hiding(['openapi3-ts'])}
+    // loaded from the application, which builds with its devDependencies: `zibri/webpack` loads webpack and its
+    // plugins. Declared, even as optional peers, npm kept them and webpack's whole tree in every deployment pruned
+    // of its devDependencies
+    it.each(PACKAGES_LEFT_TO_THE_APPLICATION)('leave %s to the application', name => {
+        expect(declaredPackages()).not.toContain(name);
+    });
+
+    // webpack resolves a loader once a module needs one, and fails that module with "Can't resolve", naming neither
+    // zibri/webpack nor what to install
+    it.each(['ts-loader', 'source-map-loader', 'handlebars-loader', 'css-loader', 'postcss-loader'])(
+        'name %s before the build starts, when the application has not installed it',
+        missing => {
+            const res: { message: string } = inConsumerProcess(`
+                ${hiding([missing])}
+                const { createRequire } = await import('node:module');
+                const require = createRequire(process.cwd() + '/index.cjs');
+                const { resolveWebpackConfiguration } = require('zibri/webpack');
+                let message = 'it did not fail';
+                try {
+                    resolveWebpackConfiguration({ root: ${JsonUtilities.stringify(sandboxDir)}, sourceMap: 'with-sources' });
+                }
+                catch (error) {
+                    message = error.message;
+                }
+                console.log(JSON.stringify({ message }));
+            `);
+
+            expect(res.message).toContain(`needs "${missing}", which it does not have installed`);
+            expect(res.message).toContain(`npm i -D ${missing}`);
+        }
+    );
+
+    // jest refuses a transform it cannot find with "Module … in the transform option was not found", which says
+    // neither that zibri-testing names it nor what to install
+    it.each(['zibri-tsx-compiler/jest', 'ts-jest'])(
+        'name %s when the jest configuration of zibri-testing is built, when the application has not installed it',
+        missing => {
+            const res: { message: string } = inConsumerProcess(`
+                ${hiding([missing])}
+                const { createRequire } = await import('node:module');
+                const require = createRequire(process.cwd() + '/index.cjs');
+                const { createJestConfig } = require(${JsonUtilities.stringify(path.join(harnessDir, 'dist', 'jest-config.js'))});
+                let message = 'it did not fail';
+                try {
+                    createJestConfig({ rootDir: 'src' });
+                }
+                catch (error) {
+                    message = error.message;
+                }
+                console.log(JSON.stringify({ message }));
+            `);
+            const name: string = missing.replace(/\/jest$/, '');
+
+            expect(res.message).toContain(`need "${missing}", which it does not have installed`);
+            expect(res.message).toContain(`npm i -D ${name}`);
+        }
+    );
+});
+
+describe('zibri-mdx', () => {
+
+    /**
+     * Starts the markdown service of an application without the package installed.
+     * @param renderAtRuntime - Whether the application renders markdown at runtime.
+     * @returns What starting it threw, or that it did not.
+     */
+    function startMarkdownServiceWithoutPackage(renderAtRuntime: boolean): { message: string } {
+        return inConsumerProcess(`
+            ${hiding(['zibri-mdx'])}
             const { createRequire } = await import('node:module');
             const require = createRequire(process.cwd() + '/index.cjs');
-            const zibri = require('zibri');
-            console.log(JSON.stringify({ loaded: typeof zibri.ZibriApplication === 'function' }));
+            const { MarkdownService } = require('zibri');
+            let message = 'it did not fail';
+            try {
+                new MarkdownService({ renderAtRuntime: ${renderAtRuntime} }).onAppInit();
+            }
+            catch (error) {
+                message = error.message;
+            }
+            console.log(JSON.stringify({ message }));
         `);
+    }
 
-        // a devDependency, which a consumer never installs, so the framework may use its types and
-        // nothing else. A type guard taken from it once made every generated project's build fail
-        expect(res.loaded).toBe(true);
+    // the application lists it in its dependencies once it renders markdown at runtime, and a deployment that left it
+    // out fails while it starts rather than on the first page rendering markdown
+    it('is named while the application starts, when it renders markdown at runtime without it', () => {
+        const res: { message: string } = startMarkdownServiceWithoutPackage(true);
+
+        expect(res.message).toContain('Rendering markdown at runtime (renderAtRuntime of ZIBRI_DI_TOKENS.MARKDOWN_OPTIONS) needs "zibri-mdx"');
+        expect(res.message).toContain('npm i zibri-mdx');
+    });
+
+    it('is not needed by an application rendering no markdown at runtime', () => {
+        expect(startMarkdownServiceWithoutPackage(false).message).toBe('it did not fail');
     });
 });
 
@@ -597,7 +682,7 @@ describe('the optional peers', () => {
     // each declared by something an application may not use - the invoicing plugin, a websocket
     // controller, the otp method - and checked while that starts, so a plain REST API installs none
     it('include those of the features a plain api does without', () => {
-        expect(optionalPeers()).toEqual(expect.arrayContaining(['pdfmake', 'socket.io', 'socket.io-adapter', 'otpauth', 'saxes', 'ts-node']));
+        expect(optionalPeers()).toEqual(expect.arrayContaining(['pdfmake', 'socket.io', 'socket.io-adapter', 'otpauth', 'saxes']));
     });
 
     // refused only where the framework's own files ask, since that is the whole of what optional

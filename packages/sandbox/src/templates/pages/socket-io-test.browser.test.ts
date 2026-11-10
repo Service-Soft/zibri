@@ -10,7 +10,7 @@ type SocketStub = {
 };
 
 declare global {
-    // eslint-disable-next-line typescript/consistent-type-definitions
+
     interface Window {
         socket: SocketStub,
         socketAnswer?: unknown

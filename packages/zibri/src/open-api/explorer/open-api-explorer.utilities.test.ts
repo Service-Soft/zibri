@@ -118,6 +118,7 @@ describe('OpenApiExplorerUtilities', () => {
             password: 'string',
             kind: 'dog',
             tags: [{ label: 'string' }],
+            // eslint-disable-next-line stylistic/newline-per-chained-call
             born: new Date().toISOString().slice(0, 10)
         });
     });
@@ -141,6 +142,7 @@ describe('OpenApiExplorerUtilities', () => {
             '    <tags>',
             '        <tag label="string"/>',
             '    </tags>',
+            // eslint-disable-next-line stylistic/newline-per-chained-call
             `    <born>${new Date().toISOString().slice(0, 10)}</born>`,
             '</pet>'
         ].join('\n'));

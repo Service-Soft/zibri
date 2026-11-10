@@ -30,7 +30,7 @@ export type CspOptions = {
      */
     baseUri: CspSource[],
     /**
-     * Restricts the sources from which plugins such as <object>, <embed>, and <applet> may load.
+     * Restricts the sources from which plugins such as `<object>`, `<embed>`, and `<applet>` may load.
      */
     objectSrc: CspSource[],
     /**

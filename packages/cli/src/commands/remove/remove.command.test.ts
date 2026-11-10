@@ -57,7 +57,7 @@ describe('RemoveCommand', () => {
         expect(await project.exists('src/templates/pages/subscribe-success.tsx')).toBe(false);
         expect(await project.exists('src/templates/emails/mailing-list-subscribe-confirmation.tsx')).toBe(false);
         expect(await project.read(PREFERENCES_PAGE)).toBe(changed);
-        expect((await project.resolveManifest()).answers.features).toEqual(['pages', 'metricsDashboard', 'logEmail']);
+        expect((await project.resolveManifest()).answers.features).toEqual(['pages', 'docs', 'metricsDashboard', 'logEmail']);
     });
 
     it('takes the lines of the feature out of the files it shares with the project', async () => {

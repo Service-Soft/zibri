@@ -1,9 +1,11 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
+import { DOCS_DIR, DocsPagesUtilities } from '../__testing__/docs-pages.utilities';
 import { EntryPointUtilities, TESTING_ENTRY_POINT } from '../__testing__/entry-point.utilities';
+import { PACKAGES_LEFT_TO_THE_APPLICATION } from '../__testing__/packages-left-to-the-application';
 import { GlobalRegistry } from '../global/global-registry';
 // the barrel, for the entities it declares on GlobalRegistry as it loads
 // eslint-disable-next-line eslintImport/no-unassigned-import
@@ -17,8 +19,6 @@ import '../index';
  * punctuation the style replaced. Each rule reports what it finds as `page:line "match"`, so a
  * failure reads as the list of places to fix.
  */
-
-const DOCS_DIR: string = path.join(__dirname, '..', '..', 'docs');
 
 /**
  * A single line named import from one of the zibri packages, which is the form every page uses.
@@ -38,7 +38,7 @@ const REQUIREMENT_ENTITY_HEADER: string = '| Entity | Needed when |';
 /**
  * The page that says of every framework table how large it grows and what deletes its rows.
  */
-const FRAMEWORK_TABLES_PAGE: string = 'framework-tables.md';
+const FRAMEWORK_TABLES_PAGE: string = 'data/framework-tables.md';
 
 /**
  * The header of the table on that page.
@@ -150,7 +150,7 @@ type CodeBlock = {
  */
 type Page = {
     /**
-     * The page's file name.
+     * The page's path below `docs/`.
      */
     name: string,
     /**
@@ -199,7 +199,7 @@ const RULES: StyleRule[] = [
         name: 'says nothing about how it works underneath',
         pattern: /\b(MULTI|EXEC|WATCH|Lua|redis\.call|pg_\w+|advisory lock|RxJS|node-cron|ICU|under the hood|socket\.io adapter)\b/g,
         readsCode: true,
-        exceptFor: ['costs.md']
+        exceptFor: ['data/costs.md']
     },
     {
         // DOCS_STYLE, "The voice": write it plainly
@@ -292,7 +292,7 @@ function resolveTermPattern(term: string): RegExp {
 
 /**
  * Reads one page into the lines the rules read and the anchors its headings give.
- * @param name - The page's file name.
+ * @param name - The page's path below `docs/`.
  * @returns The page.
  */
 // eslint-disable-next-line sonar/cognitive-complexity
@@ -307,7 +307,12 @@ function resolvePage(name: string): Page {
     let inSeeAlso: boolean = false;
     let inKeyExports: boolean = false;
     const fileContent: string[] = readFileSync(path.join(DOCS_DIR, name), 'utf8').split('\n');
+    // the frontmatter, such as the keywords the search of the site finds the page by, is neither prose nor code
+    const frontmatterEnd: number = fileContent[0] === '---' ? fileContent.indexOf('---', 1) : -1;
     for (const [index, raw] of fileContent.entries()) {
+        if (index <= frontmatterEnd) {
+            continue;
+        }
         const fence: RegExpExecArray | null = /^\s*```(\w*)/.exec(raw);
         if (fence) {
             if (block == undefined) {
@@ -469,7 +474,7 @@ const pages: Page[] = [];
 describe('the pages in docs/', () => {
 
     beforeAll(() => {
-        for (const name of readdirSync(DOCS_DIR).filter(entry => entry.endsWith('.md'))) {
+        for (const name of DocsPagesUtilities.resolvePageNames()) {
             pages.push(resolvePage(name));
         }
     });
@@ -490,9 +495,9 @@ describe('the pages in docs/', () => {
         const broken: string[] = [];
         for (const page of pages) {
             for (const line of page.lines.filter(entry => !entry.inCode)) {
-                for (const link of line.raw.replaceAll(/`[^`]*`/g, '').matchAll(/]\((\.\/)?([\w-]+\.md)?(?:#([^\s)]+))?\)/g)) {
-                    const target: Page | undefined = link[2] == undefined ? page : byName.get(link[2]);
-                    if (target == undefined || (link[3] != undefined && !target.anchors.has(link[3]))) {
+                for (const link of line.raw.replaceAll(/`[^`]*`/g, '').matchAll(/]\(((?:\.{1,2}\/)*[\w/-]+\.md)?(?:#([^\s)]+))?\)/g)) {
+                    const target: Page | undefined = link[1] == undefined ? page : byName.get(DocsPagesUtilities.resolveLinkedPage(page.name, link[1]));
+                    if (target == undefined || (link[2] != undefined && !target.anchors.has(link[2]))) {
                         broken.push(`${page.name}:${line.line} "${link[0]}"`);
                     }
                 }
@@ -587,12 +592,17 @@ describe('the pages in docs/', () => {
     it('lists every package zibri stands on under Requirements, and only those', () => {
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const manifest: PackageManifest = JSON.parse(readFileSync(path.join(DOCS_DIR, '..', 'package.json'), 'utf8'));
-        const optional: Set<string> = new Set(Object.entries(manifest.peerDependenciesMeta)
-            .filter(([, meta]) => meta.optional)
-            .map(([name]) => name));
+        // what the framework loads from the application without declaring it is installed by the reader too
+        const optional: Set<string> = new Set([
+            ...Object.entries(manifest.peerDependenciesMeta)
+                .filter(([, meta]) => meta.optional)
+                .map(([name]) => name),
+            ...PACKAGES_LEFT_TO_THE_APPLICATION
+        ]);
         const dependencies: Set<string> = new Set([
             ...Object.keys(manifest.dependencies),
-            ...Object.keys(manifest.peerDependencies)
+            ...Object.keys(manifest.peerDependencies),
+            ...PACKAGES_LEFT_TO_THE_APPLICATION
         ]);
 
         const wrong: string[] = [];
@@ -693,8 +703,8 @@ describe('the pages in docs/', () => {
         let entry: string | undefined = undefined;
         for (const line of glossary?.lines ?? []) {
             entry = /^## (.*)$/.exec(line.raw)?.[1] ?? entry;
-            for (const link of line.raw.matchAll(/]\(\.\/([\w-]+\.md)/g)) {
-                owners.set(entry ?? '', (owners.get(entry ?? '') ?? new Set()).add(link[1] ?? ''));
+            for (const link of line.raw.matchAll(/]\(((?:\.{1,2}\/)*[\w/-]+\.md)/g)) {
+                owners.set(entry ?? '', (owners.get(entry ?? '') ?? new Set()).add(DocsPagesUtilities.resolveLinkedPage(GLOSSARY_PAGE, link[1] ?? '')));
             }
         }
 
@@ -714,8 +724,8 @@ describe('the pages in docs/', () => {
                 const target: string = `${GLOSSARY_PAGE}#${resolveAnchor(term)})`;
                 const toGlossary: boolean = page.lines.some(line => line.line <= first.line && line.raw.includes(target));
                 // a first use that already links to the page the entry sends its reader to keeps that link
-                const toOwner: boolean = [...first.raw.matchAll(/\[([^\]]*)]\(\.\/([\w-]+\.md)[^)]*\)/g)]
-                    .some(link => pattern.test(link[1] ?? '') && owners.get(term)?.has(link[2] ?? '') === true);
+                const toOwner: boolean = [...first.raw.matchAll(/\[([^\]]*)]\(((?:\.{1,2}\/)*[\w/-]+\.md)[^)]*\)/g)]
+                    .some(link => pattern.test(link[1] ?? '') && owners.get(term)?.has(DocsPagesUtilities.resolveLinkedPage(page.name, link[2] ?? '')) === true);
                 if (!toGlossary && !toOwner) {
                     unlinked.push(`${page.name}:${first.line} "${term}"`);
                 }

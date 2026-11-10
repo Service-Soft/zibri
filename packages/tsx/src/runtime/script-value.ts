@@ -32,8 +32,8 @@ export function toScriptValue(value: unknown): string {
  * @param value - The value.
  * @param ancestors - The objects the value is inside of, to refuse one that contains itself.
  * @returns The source, or undefined for a function or a symbol.
+ * @throws A TypeError when the value contains itself.
  */
-// eslint-disable-next-line sonar/cognitive-complexity
 function writeValue(value: unknown, ancestors: Set<object>): string | undefined {
     switch (typeof value) {
         case 'undefined': {
@@ -84,8 +84,11 @@ function writeObject(value: object, ancestors: Set<object>): string | undefined 
         return `new Date(${value.getTime()})`;
     }
     if (value instanceof Map) {
-        const entries: string[] = [...value.entries()]
-            .map(([key, entry]: [unknown, unknown]) => `[${writeValue(key, ancestors) ?? 'undefined'},${writeValue(entry, ancestors) ?? 'undefined'}]`);
+        const entries: string[] = [...value.entries()].map(([key, entry]: [unknown, unknown]) => {
+            const writtenKey: string = writeValue(key, ancestors) ?? 'undefined';
+            const writtenEntry: string = writeValue(entry, ancestors) ?? 'undefined';
+            return `[${writtenKey},${writtenEntry}]`;
+        });
         return `new Map([${entries.join(',')}])`;
     }
     if (value instanceof Set) {

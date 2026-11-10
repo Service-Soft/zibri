@@ -59,7 +59,8 @@
         "xml-crypto": "^6.3.3",
         "xml-encryption": "^3.1.0",
         "zibri": "^3.0.1",
-        "zibri-tsx": "^3.0.1"
+        "zibri-tsx": "^3.0.1",
+        "zibri-tsx-compiler": "^3.0.1"
     },
     "peerDependenciesMeta": {
         "@peculiar/x509": {

@@ -549,7 +549,8 @@ export { type EmailLoggerTransportConfig, type EmailLoggerTransportConfigInput }
 // openapi
 export * from './open-api/open-api.service';
 export * from './open-api/open-api-service.interface';
-export { type EmptyOpenApiResponse, type ErrorOpenApiResponse, type FileOpenApiResponse, type HtmlOpenApiResponse, isOpenApiReferenceObject, type JsonOpenApiResponse, type OpenApiComponentsObject, type OpenApiDefinition, type OpenApiHeaderObject, type OpenApiMediaTypeObject, type OpenApiParameterObject, type OpenApiReferenceObject, type OpenApiRequestBodyObject, type OpenApiResponse, type OpenApiResponseObject, type OpenApiSchemaObject, type OpenApiSecuritySchemeObject, type OpenApiSecuritySchemeType, type OpenApiServerObject, type RedirectHttpStatus, type RedirectOpenApiResponse } from './open-api/open-api.model';
+// every part of the document, as each is reached through `OpenApiDefinition`
+export * from './open-api/open-api.model';
 export * from './open-api/explorer/open-api-explorer.model';
 export * from './open-api/explorer/open-api-explorer-operation.model';
 export * from './open-api/explorer/open-api-explorer-security-scheme.model';
@@ -903,6 +904,14 @@ export * from './tsx/tsx.utilities';
 export * from './tsx/tsx-component.model';
 export * from './tsx/tsx-email-component.model';
 export * from './tsx/email';
+export * from './tsx/mdx';
+export * from './tsx/markdown.component';
+export * from './tsx/markdown-options.model';
+export * from './tsx/markdown-service.interface';
+export * from './tsx/markdown.service';
+export * from './tsx/docs/docs-site.model';
+export * from './tsx/docs/docs-search-entry.model';
+export * from './tsx/docs/docs.utilities';
 export * from './tsx/on-client.hook';
 export * from './tsx/on-server.hook';
 

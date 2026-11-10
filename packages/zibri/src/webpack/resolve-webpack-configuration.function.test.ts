@@ -6,7 +6,7 @@ import { setTimeout as wait } from 'node:timers/promises';
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
 import { Configuration, validate } from 'webpack';
-import { ZibriTsxTypeCheckPlugin } from 'zibri-tsx/webpack';
+import { ZibriTsxTypeCheckPlugin } from 'zibri-tsx-compiler/webpack';
 
 import { resolveWebpackConfiguration } from './resolve-webpack-configuration.function';
 import { RestartServerOnBuildPlugin, WebpackStats } from './restart-server-on-build.plugin';
@@ -149,6 +149,26 @@ describe('resolveWebpackConfiguration', () => {
         expect(resolveWebpackConfiguration({ root: sandboxDir, sourceMap: 'file-and-line' }).devtool).toBe('nosources-source-map');
     });
 
+    // what a cached module was built with: the build, the compiler of the templates, and the printer of markdown, which
+    // the compiler loads from the application where webpack follows no require. A deployment's image copies
+    // node_modules, where the cache is
+    it('caches a build for an editor, starting over when the build changes, and nothing for a deployment', () => {
+        const cache: Configuration['cache'] = resolveWebpackConfiguration({ root: sandboxDir, sourceMap: 'with-sources' }).cache;
+
+        expect(cache).toMatchObject({
+            type: 'filesystem',
+            cacheDirectory: path.join(sandboxDir, 'node_modules', '.cache', 'webpack'),
+            buildDependencies: {
+                config: expect.arrayContaining([path.join(sandboxDir, 'webpack.config.js')]),
+                templates: [
+                    expect.stringMatching(/tsx-compiler[/\\]dist[/\\]webpack[/\\]index\.js$/),
+                    expect.stringMatching(/mdx[/\\]dist[/\\]/)
+                ]
+            }
+        });
+        expect(resolveWebpackConfiguration({ root: sandboxDir, sourceMap: 'file-and-line' }).cache).toBe(false);
+    });
+
     // ts-loader skips the templates, so their type errors are reported by a check of their own
     it('type-checks the templates in the program of the project\'s tsconfig', () => {
         const configuration: Configuration = resolveWebpackConfiguration({ root: sandboxDir, sourceMap: 'with-sources' });
@@ -168,7 +188,7 @@ describe('resolveWebpackConfiguration', () => {
         const configuration: Configuration = resolveWebpackConfiguration({ root: sandboxDir, sourceMap: 'with-sources' });
         const components: string = path.join(sandboxDir, 'src', 'templates', 'components');
 
-        expect(loadersFor(configuration, path.join(components, 'tab-bar.tsx'))).toEqual(['zibri-tsx/webpack']);
+        expect(loadersFor(configuration, path.join(components, 'tab-bar.tsx'))).toEqual(['zibri-tsx-compiler/webpack']);
         expect(loadersFor(configuration, path.join(components, 'current-tab.ts'))).toEqual(['ts-loader']);
         expect(loadersFor(configuration, path.join(sandboxDir, 'src', 'index.ts'))).toEqual(['ts-loader']);
     });
@@ -179,8 +199,8 @@ describe('resolveWebpackConfiguration', () => {
         const configuration: Configuration = resolveWebpackConfiguration({ root: sandboxDir, sourceMap: 'with-sources' });
         const templates: string = path.join(sandboxDir, 'src', 'templates');
 
-        expect(loadersFor(configuration, path.join(templates, 'explorer', 'explorer.tsx'))).toEqual(['zibri-tsx/webpack']);
-        expect(loadersFor(configuration, path.join(templates, 'admin', 'users', 'user-list.tsx'))).toEqual(['zibri-tsx/webpack']);
+        expect(loadersFor(configuration, path.join(templates, 'explorer', 'explorer.tsx'))).toEqual(['zibri-tsx-compiler/webpack']);
+        expect(loadersFor(configuration, path.join(templates, 'admin', 'users', 'user-list.tsx'))).toEqual(['zibri-tsx-compiler/webpack']);
         expect(loadersFor(configuration, path.join(templates, 'explorer', 'explorer-context.ts'))).toEqual(['ts-loader']);
         expect(loadersFor(configuration, path.join(sandboxDir, 'src', 'controllers', 'page.tsx'))).toEqual(['ts-loader']);
     });

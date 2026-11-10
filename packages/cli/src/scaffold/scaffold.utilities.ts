@@ -1,3 +1,4 @@
+import { FrameworkPackage } from './framework-package.model';
 import { CONTINUOUS_INTEGRATIONS,
     ContinuousIntegration,
     DEFAULT_AUTHS,
@@ -193,7 +194,8 @@ export abstract class ScaffoldUtilities {
         const ofFeatures: ScaffoldDependencies = this.resolveFeatureDependencies(features);
         return {
             dependencies: [...SCAFFOLD_DEPENDENCIES, ...ofFeatures.dependencies],
-            devDependencies: [...SCAFFOLD_DEV_DEPENDENCIES, ...ofFeatures.devDependencies]
+            devDependencies: [...SCAFFOLD_DEV_DEPENDENCIES, ...ofFeatures.devDependencies],
+            frameworkDevDependencies: ofFeatures.frameworkDevDependencies
         };
     }
 
@@ -205,7 +207,8 @@ export abstract class ScaffoldUtilities {
     static resolveFeatureDependencies(features: ScaffoldFeature[]): ScaffoldDependencies {
         return {
             dependencies: features.flatMap(feature => SCAFFOLD_FEATURE_DEPENDENCIES[feature].dependencies),
-            devDependencies: features.flatMap(feature => SCAFFOLD_FEATURE_DEPENDENCIES[feature].devDependencies)
+            devDependencies: features.flatMap(feature => SCAFFOLD_FEATURE_DEPENDENCIES[feature].devDependencies),
+            frameworkDevDependencies: features.flatMap(feature => SCAFFOLD_FEATURE_DEPENDENCIES[feature].frameworkDevDependencies)
         };
     }
 
@@ -219,7 +222,7 @@ export abstract class ScaffoldUtilities {
      * @param name - Its name on npm.
      * @returns The argument to give "npm i".
      */
-    static resolveFrameworkDependency(folder: 'zibri' | 'testing', name: string): string {
+    static resolveFrameworkDependency(folder: FrameworkPackage['folder'], name: string): string {
         // ZIBRI_CLI_LOCAL_DEV is only set by this package's own "start"/"clear" scripts, so a
         // published install always resolves the real packages from npm
         return process.env['ZIBRI_CLI_LOCAL_DEV']

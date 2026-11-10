@@ -3,7 +3,7 @@ import { isRefMarker } from './refs';
 import { RenderEnvironment, reportRenderMistake } from './render-environment';
 import { toScriptValue } from './script-value';
 import { ClientInstanceEntry, CompiledComponent, createServerRuntime, isClientPropMarker, isPartReference, PartRecord, renderChild,
-    RenderRegistry, RenderServerRuntime, resolveReferencedKeys, TemplateRecord } from './server-runtime';
+    RenderContext, RenderRegistry, RenderServerRuntime, resolveReferencedKeys, TemplateRecord } from './server-runtime';
 import { CLIENT_HOOK_SOURCES, HookData, substituteHookPlaceholders } from '../codegen/client/hooks';
 import { vendorFileName } from '../vendor-file-name';
 
@@ -64,7 +64,26 @@ export type RenderPageOptions = {
     /**
      * URL prefix the vendor bundles are served under. Defaults to `/assets/vendor/`.
      */
-    vendorUrlPrefix?: string
+    vendorUrlPrefix?: string,
+    /**
+     * Values of contexts for every component of the page, as a component around it would provide them with
+     * `provideContext`. A component of the page providing one of them goes over it.
+     */
+    contexts?: ProvidedContext[]
+};
+
+/**
+ * The value of a context, as a render provides it.
+ */
+export type ProvidedContext = {
+    /**
+     * The context.
+     */
+    context: RenderContext<unknown>,
+    /**
+     * Its value.
+     */
+    value: unknown
 };
 
 /**
@@ -79,7 +98,12 @@ export type RenderPageOptions = {
 export function renderPage(
     page: CompiledPage,
     props: Record<string, unknown>,
-    options: RenderPageOptions & { environment: RenderEnvironment }
+    options: RenderPageOptions & {
+        /**
+         * Where the page is rendered, which decides whether a mistake only the render can see throws.
+         */
+        environment: RenderEnvironment
+    }
 ): string;
 /**
  * Renders a compiled page as in `production`, where a mistake only the render can see is logged.
@@ -90,7 +114,7 @@ export function renderPage(
  * @deprecated Pass the `environment` the page is rendered in, which decides whether such a mistake throws.
  */
 export function renderPage(page: CompiledPage, props?: Record<string, unknown>, options?: RenderPageOptions): string;
-// eslint-disable-next-line jsdoc/require-jsdoc
+
 export function renderPage(
     page: CompiledPage,
     props: Record<string, unknown> = {},
@@ -104,6 +128,10 @@ export function renderPage(
         if (!ssr.vendorPackages.includes(packageName)) {
             ssr.vendorPackages.push(packageName);
         }
+    }
+    // provided before any component renders, so the whole render reads them
+    for (const { context, value } of options.contexts ?? []) {
+        ssr.provideContext(context, value);
     }
     const html: string = renderChild(page.render(props, ssr));
     // only once everything rendered: a ref can be put on an element by any component it is handed to
@@ -145,11 +173,11 @@ function validateRefs(ssr: RenderServerRuntime): void {
         }
         if (entry.required && stamped === 0) {
             reportRenderMistake(ssr.environment, `The ref '${entry.name}' of '${entry.component}' is on no element. Put it on one `
-                + `with ref={${entry.name}}, or create it with useRef({ required: false }) when it may stay on none.`);
+            + `with ref={${entry.name}}, or create it with useRef({ required: false }) when it may stay on none.`);
         }
         if (stamped > 1) {
             reportRenderMistake(ssr.environment, `The ref '${entry.name}' of '${entry.component}' is on ${stamped} elements, and `
-                + 'useRef holds one. Create it with useRefs for a ref on several elements.');
+            + 'useRef holds one. Create it with useRefs for a ref on several elements.');
         }
     }
 }
@@ -197,7 +225,11 @@ export function buildClientScript(
     localeData?: LocaleData
 ): string {
     const pageEntries: ClientInstanceEntry[] = pageEntry(page, props);
-    const registries: RenderRegistry[] = [ssr.registry, ...ssr.parts.map(part => part.registry), ...ssr.templates.map(template => template.registry)];
+    const registries: RenderRegistry[] = [
+        ssr.registry,
+        ...ssr.parts.map(part => part.registry),
+        ...ssr.templates.map(template => template.registry)
+    ];
     const entries: ClientInstanceEntry[] = [...pageEntries, ...registries.flatMap(registry => registry.instances)];
     if (entries.length === 0) {
         return '';
@@ -252,8 +284,10 @@ function recordEntries(records: (PartRecord | TemplateRecord)[], ssr: RenderServ
 function setupCalls(registry: RenderRegistry, pageEntries: ClientInstanceEntry[], ssr: RenderServerRuntime): string[] {
     const instances: ClientInstanceEntry[] = [...pageEntries, ...registry.instances];
     const own: Set<number> = new Set(instances.map(entry => entry.owner));
-    const outer: number[] = [...new Set([...registry.handlers, ...registry.bindings, ...registry.regions, ...registry.clientProps]
-        .map(entry => entry.owner))]
+    const outer: number[] = [
+        ...new Set([...registry.handlers, ...registry.bindings, ...registry.regions, ...registry.clientProps]
+            .map(entry => entry.owner))
+    ]
         .filter(owner => !own.has(owner));
     const calls: string[] = outer.map(owner => `__zibriAttachTo(${owner}, ${toScriptValue(attachData(registry, owner, ssr))});`);
     if (registry.partBindings.length > 0 || registry.partHandlers.length > 0) {

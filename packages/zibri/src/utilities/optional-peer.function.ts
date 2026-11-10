@@ -62,6 +62,33 @@ function applicationRequire(): ReturnType<typeof createRequire> {
  * @throws If the package is not installed, or cannot be loaded.
  */
 export function optionalPeer<T>(name: string, neededFor: string): T {
+    return loadFromApplication(name, `${neededFor} needs the optional peer dependency "${name}"`, `npm i ${name}`);
+}
+
+/**
+ * Loads a package zibri names nowhere, which the application installs itself, such as `ts-node` for worker files
+ * written in TypeScript.
+ *
+ * Call it where a feature is set up, as with {@link optionalPeer}.
+ * @param name - The package to load.
+ * @param neededFor - The feature that wants it, so the error says why it was asked for.
+ * @param install - The command that installs what the feature needs, such as `npm i ts-node typescript`.
+ * @returns The package's exports.
+ * @throws If the package is not installed, or cannot be loaded.
+ */
+export function resolveApplicationPackage<T>(name: string, neededFor: string, install: string): T {
+    return loadFromApplication(name, `${neededFor} needs "${name}"`, install);
+}
+
+/**
+ * Loads a package from where the application keeps its packages, once.
+ * @param name - The package to load.
+ * @param needs - The start of the message when it fails, saying what needs which package.
+ * @param install - The command that installs it.
+ * @returns The package's exports.
+ * @throws If the package is not installed, or cannot be loaded.
+ */
+function loadFromApplication<T>(name: string, needs: string, install: string): T {
     const cached: unknown = loadedPeers.get(name);
     if (cached != undefined) {
         return cached as T;
@@ -73,12 +100,12 @@ export function optionalPeer<T>(name: string, neededFor: string): T {
         loaded = runOutsideAnyCall(() => applicationRequire()(name)) as T;
     }
     catch (error) {
-        // a peer that resolves is installed, and telling its user to install it again hides the
+        // a package that resolves is installed, and telling its user to install it again hides the
         // reason it failed, such as an es module only package in a runtime that cannot load one
         if (hasOptionalPeer(name)) {
             throw new InternalError(
                 [
-                    `${neededFor} needs the optional peer dependency "${name}", which is installed but could not be loaded:`,
+                    `${needs}, which is installed but could not be loaded:`,
                     error instanceof Error ? error.message : String(error)
                 ],
                 { cause: error }
@@ -86,8 +113,8 @@ export function optionalPeer<T>(name: string, neededFor: string): T {
         }
         throw new InternalError(
             [
-                `${neededFor} needs the optional peer dependency "${name}", which is not installed.`,
-                `Run "npm i ${name}" to use it.`
+                `${needs}, which is not installed.`,
+                `Run "${install}" to use it.`
             ],
             { cause: error }
         );

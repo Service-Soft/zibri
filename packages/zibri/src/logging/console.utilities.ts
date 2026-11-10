@@ -17,6 +17,14 @@ export abstract class ConsoleUtilities {
     private static readonly spacing: string = ' ';
 
     /**
+     * Prints an information.
+     * @param message - The information to print.
+     */
+    static info(message: string): void {
+        console.info(this.resolveTimestamp(), `${this.blue}${this.bright}INFO${this.reset} ${this.spacing}`, message);
+    }
+
+    /**
      * Prints a warning.
      * @param message - The warning to print.
      */
@@ -38,7 +46,7 @@ export abstract class ConsoleUtilities {
                 return;
             }
             case LogLevel.INFO: {
-                console.info(timeStamp, `${this.blue}${this.bright}INFO${this.reset} ${this.spacing}`, log.message);
+                this.info(log.message);
                 return;
             }
             case LogLevel.WARN: {

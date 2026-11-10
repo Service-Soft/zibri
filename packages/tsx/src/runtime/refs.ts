@@ -56,15 +56,27 @@ export function useRef<T extends Element>(): Ref<T>;
 /**
  * Gives client code the element it is put on with `ref`.
  * @param options - `{ required: true }`, the same as passing nothing.
+ * @param options.required - That the ref needs an element.
  * @returns The handle, whose `current` is the element.
  */
-export function useRef<T extends Element>(options: { required: true }): Ref<T>;
+export function useRef<T extends Element>(options: {
+    /**
+     * That the ref needs an element.
+     */
+    required: true
+}): Ref<T>;
 /**
  * Gives client code the element it is put on with `ref`, or `undefined` when it is on none.
  * @param options - `{ required: false }`.
+ * @param options.required - That the ref may stay on no element.
  * @returns The handle, whose `current` is the element or `undefined`.
  */
-export function useRef<T extends Element>(options: { required: false }): Ref<T | undefined>;
+export function useRef<T extends Element>(options: {
+    /**
+     * That the ref may stay on no element.
+     */
+    required: false
+}): Ref<T | undefined>;
 /**
  * What a call the compiler never saw runs.
  * @throws Always, as there is no render to create a ref in.
@@ -122,7 +134,7 @@ export type RefEntry = {
 };
 
 /**
- * A ref while the server renders: the entry, which `ref` stamps on an element, travelling through props
+ * A ref while the server renders: the entry, which `ref` stamps on an element, traveling through props
  * like any other value.
  */
 export type RefMarker = {

@@ -76,7 +76,7 @@ export type MjTextProps = {
      */
     height?: string,
     /**
-     * A CSS class added to the text `div`.
+     * A CSS class added to the cell around the text.
      */
     cssClass?: string
 };
@@ -109,8 +109,9 @@ export const MjText: TsxComponent<MjTextProps> = defineEmailComponent<MjTextProp
         + `color:${p.color ?? layout.color};`;
 
     return $ssr.raw(
-        `<tr><td align="${align}" style="${containerBackground}${height}font-size:0px;padding:${padding};word-break:break-word;">`
-        + `<div${cssClass} style="${textStyle}">`
+        `<tr><td align="${align}"${cssClass} `
+        + `style="${containerBackground}${height}font-size:0px;padding:${padding};word-break:break-word;">`
+        + `<div style="${textStyle}">`
         + $ssr.child(props.children)
         + '</div></td></tr>'
     );

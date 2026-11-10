@@ -90,7 +90,7 @@ describe('MigrateCommand', () => {
         expect(execSpy.mock.calls.map(([command]) => command.split(' ').slice(0, 3)
             .join(' '))).toStrictEqual([
             'npm run build',
-            'node "./dist/index.js" migrate'
+            'node "./dist/bundle.js" migrate'
         ]);
         expect(requests).toStrictEqual([{ dataSources: { DbDataSource: { import: '../db.data-source' } } }]);
     });

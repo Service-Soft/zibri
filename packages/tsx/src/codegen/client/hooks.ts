@@ -127,7 +127,12 @@ function __zibriPartValues(props) {
     for (const name of Object.keys(props)) {
         const [kind, get] = props[name];
         kinds[name] = kind;
-        if (kind === 'f') { values[name] = (...args) => { const run = get(); return typeof run === 'function' ? run(...args) : undefined; }; }
+        if (kind === 'f') {
+            values[name] = (...args) => {
+                const run = get();
+                return typeof run === 'function' ? run(...args) : undefined;
+            };
+        }
         else if (kind === 's') { values[name] = { get value() { return get().value; }, set value(next) { get().value = next; } }; }
         else { values[name] = __zibriDerived(get); }
     }
@@ -231,7 +236,9 @@ function __zibriElement(desc, cursor, ctx) {
         const write = () => {
             const next = get() || {};
             for (const name of Object.keys(last)) { if (!(name in next)) { __zibriAttribute(element, name, undefined); } }
-            for (const [name, value] of Object.entries(next)) { if (!Object.is(value, last[name])) { __zibriAttribute(element, name, value); } }
+            for (const [name, value] of Object.entries(next)) {
+                if (!Object.is(value, last[name])) { __zibriAttribute(element, name, value); }
+            }
             last = { ...next };
         };
         if (adopt) { try { last = { ...(get() || {}) }; } catch (error) { reportError(error); } }
@@ -281,7 +288,9 @@ function __zibriIf(desc, cursor, templates) {
 function __zibriList(desc, cursor, templates) {
     let items = [];
     try { items = Array.from(desc.l() || []); } catch (error) { reportError(error); }
-    const make = (row, adopt) => adopt ? __zibriView(desc.row(row), adopt, templates) : __zibriBuild(desc.row(row), desc.id, 'row', templates);
+    const make = (row, adopt) => adopt
+        ? __zibriView(desc.row(row), adopt, templates)
+        : __zibriBuild(desc.row(row), desc.id, 'row', templates);
     let rows = items.map((item, index) => {
         const row = { item, index };
         row.key = desc.key(row);
@@ -297,7 +306,8 @@ function __zibriList(desc, cursor, templates) {
             const seen = new Set();
             for (const key of keys) {
                 if (seen.has(key)) {
-                    throw new Error('Two rows of a list have the key \\'' + String(key) + '\\', and the list keeps the rows it has. Give each row a key of its own.');
+                    throw new Error('Two rows of a list have the key \\'' + String(key) + '\\', and the list keeps the rows it has.'
+                        + ' Give each row a key of its own.');
                 }
                 seen.add(key);
             }
@@ -320,7 +330,9 @@ function __zibriList(desc, cursor, templates) {
             for (const row of rows) { if (!kept.has(row)) { __zibriRemove(row.view); } }
             // moving the element holding the focus takes it away, so it is given back with its selection
             const focused = document.activeElement;
-            const selection = focused && typeof focused.selectionStart === 'number' ? [focused.selectionStart, focused.selectionEnd] : undefined;
+            const selection = focused && typeof focused.selectionStart === 'number'
+                ? [focused.selectionStart, focused.selectionEnd]
+                : undefined;
             let place = end;
             for (let index = next.length - 1; index >= 0; index--) {
                 const nodes = next[index].view.nodes;
@@ -357,9 +369,15 @@ function __zibriRegion(id, desc, templates) {
  * the scope it runs in and those above, as the ids in each copy of a template are the same.
  */
 const SCOPE_SOURCE: string = `function __zibriScope(parent, fresh) {
-    return { parent, fresh, stamps: new Map(), markers: new Map(), instances: new Map(), parts: new Map(), adopters: new Map(), placements: [], lifted: [], undo: [] };
+    return {
+        parent, fresh, stamps: new Map(), markers: new Map(), instances: new Map(), parts: new Map(), adopters: new Map(),
+        placements: [], lifted: [], undo: []
+    };
 }
-const __zibriPage = { parent: undefined, fresh: false, stamps: __zibriStamps, markers: undefined, instances: new Map(), parts: new Map(), adopters: new Map(), placements: [], lifted: [], undo: [] };
+const __zibriPage = {
+    parent: undefined, fresh: false, stamps: __zibriStamps, markers: undefined, instances: new Map(), parts: new Map(),
+    adopters: new Map(), placements: [], lifted: [], undo: []
+};
 let __zibriCurrent = __zibriPage;
 function __zibriIn(scope, run) {
     const outer = __zibriCurrent;
@@ -419,6 +437,11 @@ function __zibriDispose(scope) {
 }`;
 
 /**
+ * The first line of a hook that keeps the scope it was called in, for what it runs later.
+ */
+const KEEP_CURRENT_SCOPE: string = '    const scope = __zibriCurrent;';
+
+/**
  * Client-side, dependency-free source of the framework hooks the client script may reference.
  * The `$t`/`$ts` translation tables and `$f` format options are placeholders filled per render.
  */
@@ -442,13 +465,14 @@ export const CLIENT_HOOK_SOURCES: Readonly<Record<string, string>> = {
         // the handle of a ref, reading the elements of its scope that are still in the document, those of copies of
         // templates in it, and those the page rendered later, in the order of the document
         'function __zibriRef(entry) {',
-        '    const scope = __zibriCurrent;',
+        KEEP_CURRENT_SCOPE,
         '    const elements = () => (scope.stamps.get(entry.id) || []).map(stamp => stamp.element).filter(element => element.isConnected)',
         '        .sort((a, b) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1);',
         '    return entry.many ? { entry, scope, get current() { return elements(); } } : { entry, scope, get current() {',
         '        const element = elements()[0];',
         '        if (element === undefined && entry.required) {',
-        '            throw new Error(\'The ref \\\'\' + entry.name + \'\\\' of \\\'\' + entry.component + \'\\\' is on no element in the page.\');',
+        '            throw new Error(\'The ref \\\'\' + entry.name + \'\\\' of \\\'\' + entry.component',
+        '                + \'\\\' is on no element in the page.\');',
         '        }',
         '        return element;',
         '    } };',
@@ -461,7 +485,7 @@ export const CLIENT_HOOK_SOURCES: Readonly<Record<string, string>> = {
         'const __zibriStartup = { queue: [], pending: undefined, started: false, running: false };',
         'const onClient = (callback) => {',
         // in the scope it was called in, and what it returns runs when that is removed
-        '    const scope = __zibriCurrent;',
+        KEEP_CURRENT_SCOPE,
         '    const run = () => __zibriIn(scope, () => {',
         '        const cleanup = callback();',
         '        if (typeof cleanup === \'function\') { scope.undo.push(cleanup); }',
@@ -535,7 +559,10 @@ export const CLIENT_HOOK_SOURCES: Readonly<Record<string, string>> = {
         '}',
         // what a component reads with useInput: a value a component above derived from a state, computed when read
         'function __zibriDerived(compute) {',
-        '    return { get value() { return compute(); }, set value(next) { throw new Error(\'A value a component is handed is read only.\'); } };',
+        '    return {',
+        '        get value() { return compute(); },',
+        '        set value(next) { throw new Error(\'A value a component is handed is read only.\'); }',
+        '    };',
         '}',
         // the handle useInput and useWritableInput return: the one the component handing it built, or the value it
         // was handed, which follows no state
@@ -575,7 +602,10 @@ export const CLIENT_HOOK_SOURCES: Readonly<Record<string, string>> = {
         '        else if (typeof value === \'object\' && value !== null) {',
         '            for (const [key, entry] of Object.entries(value)) {',
         '                if (entry == null || entry === false) { continue; }',
-        '                element.style.setProperty(key.startsWith(\'--\') ? key : key.replace(/[A-Z]/g, letter => \'-\' + letter.toLowerCase()), String(entry));',
+        '                element.style.setProperty(',
+        '                    key.startsWith(\'--\') ? key : key.replace(/[A-Z]/g, letter => \'-\' + letter.toLowerCase()),',
+        '                    String(entry)',
+        '                );',
         '            }',
         '        }',
         '        return;',
@@ -605,21 +635,25 @@ export const CLIENT_HOOK_SOURCES: Readonly<Record<string, string>> = {
         '    const end = __zibriMarkerOf(scope, \'/\' + id);',
         '    if (start === undefined || end === undefined) { return; }',
         '    const only = start.nextSibling;',
-        '    if (only !== null && only.nodeType === Node.TEXT_NODE && only.nextSibling === end) { if (only.data !== text) { only.data = text; } return; }',
+        '    if (only !== null && only.nodeType === Node.TEXT_NODE && only.nextSibling === end) {',
+        '        if (only.data !== text) { only.data = text; }',
+        '        return;',
+        '    }',
         '    while (start.nextSibling !== null && start.nextSibling !== end) { start.nextSibling.remove(); }',
         '    start.after(document.createTextNode(text));',
         '}',
         // a state itself on a control: what the user enters is written back, `input` for a value and `change` for checked
         'function __zibriWriteBack(id, attribute, write) {',
         '    for (const stamp of __zibriCurrent.stamps.get(id) || []) {',
-        '        stamp.element.addEventListener(attribute === \'checked\' ? \'change\' : \'input\', () => write(stamp.element[attribute]));',
+        '        const event = attribute === \'checked\' ? \'change\' : \'input\';',
+        '        stamp.element.addEventListener(event, () => write(stamp.element[attribute]));',
         '    }',
         '}',
         // a binding is computed once now, as the server already wrote what it is, and written again when it changes. A
         // copy of a template holds none of it, so there it is written now
         'const __zibriUnset = {};',
         'function __zibriBind(id, kind, attribute, compute) {',
-        '    const scope = __zibriCurrent;',
+        KEEP_CURRENT_SCOPE,
         '    let last = __zibriUnset;',
         '    const write = () => {',
         '        const next = compute();',
@@ -733,8 +767,16 @@ export const CLIENT_HOOK_SOURCES: Readonly<Record<string, string>> = {
  * over the document found. A setup reads it, and client code a template writes may not.
  */
 export const PAGE_RUNTIME_NAMES: readonly string[] = [
-    '__zibriStamps', '__zibriCurrent', '__zibriOwn', '__zibriRef', '__zibriState', '__zibriBind', '__zibriDerived', '__zibriInput',
-    '__zibriWriteBack', '__zibriRegion'
+    '__zibriStamps',
+    '__zibriCurrent',
+    '__zibriOwn',
+    '__zibriRef',
+    '__zibriState',
+    '__zibriBind',
+    '__zibriDerived',
+    '__zibriInput',
+    '__zibriWriteBack',
+    '__zibriRegion'
 ];
 
 /**

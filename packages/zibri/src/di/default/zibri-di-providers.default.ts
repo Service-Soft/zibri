@@ -1,7 +1,7 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import os from 'node:os';
 
-import { EmailService } from '../../email/email.service';
+import { AsyncApiService } from '../../async-api/async-api.service';
 import { errorHandler } from '../../error-handling/error-handler';
 import { inject } from '../inject.function';
 import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
@@ -39,6 +39,7 @@ import { DataSourceService } from '../../data-source/data-source.service';
 import { RepositoryHooks } from '../../data-source/hooks/repository-hooks.model';
 import { PdfFontOptions } from '../../document/pdf-font-options.model';
 import { EmailRateLimiter } from '../../email/email.rate-limiter';
+import { EmailService } from '../../email/email.service';
 import { LoggingEmailTransport } from '../../email/transports/logging.email-transport';
 import { EventService } from '../../event/event.service';
 import { GlobalRegistry } from '../../global/global-registry';
@@ -58,7 +59,6 @@ import { LoggerTransport } from '../../logging/transport/logger-transport.model'
 import { PrometheusMetricsService } from '../../metrics/metrics.service';
 import { MultithreadingService } from '../../multithreading/services/multithreading.service';
 import { OpenApiService } from '../../open-api/open-api.service';
-import { AsyncApiService } from '../../async-api/async-api.service';
 import { CspOptionsInput } from '../../parsing/html/csp-options.model';
 import { Parser } from '../../parsing/parser';
 import { WakeUpService } from '../../polling/wake-up.service';
@@ -69,6 +69,7 @@ import { MembershipService } from '../../tenancy/membership/membership.service';
 import { TenantService } from '../../tenancy/tenant.service';
 import { InMemoryTraceBuffer } from '../../tracing/in-memory.trace-buffer';
 import { OpenTelemetryTracer } from '../../tracing/open-telemetry/open-telemetry.tracer';
+import { MarkdownService } from '../../tsx/markdown.service';
 import { FsUtilities } from '../../utilities/fs.utilities';
 import { Ms } from '../../utilities/ms';
 import { resolveAppRoot } from '../../utilities/resolve-app-root.function';
@@ -141,6 +142,12 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     BACKUP_SERVICE: { useClass: BackupService },
     GLOBAL_ERROR_HANDLER: { useFactory: () => errorHandler },
     ERROR_PAGE_TEMPLATE: { useFactory: () => undefined },
+    // none, so each construct renders as its plain element
+    MDX_COMPONENTS: { useFactory: () => ({}) },
+    MDX_EMAIL_COMPONENTS: { useFactory: () => ({}) },
+    // off, so an application rendering no markdown at runtime needs no package for it
+    MARKDOWN_OPTIONS: { useFactory: () => ({ renderAtRuntime: false }) },
+    MARKDOWN_SERVICE: { useClass: MarkdownService },
     OPEN_API_SERVICE: { useClass: OpenApiService },
     // the explorer, its scripts and the spec, behind `defaultAuth` like every route that says nothing
     // of its own: the document is every route, model and permission name, which an application

@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { renderComponent, renderComponentResult, RenderResult, renderWithComponents } from '../__testing__/server-render.helper';
+import { renderComponent, renderComponentResult, RenderResult, renderWithComponents } from '../../../tsx-compiler/src/__testing__/server-render.helper';
 
 // A capitalized identifier holding a tag name is valid tsx, and indistinguishable from a component
 // at compile time — the compiler lowers both to `$ssr.component`, so the runtime resolves the
@@ -58,9 +58,13 @@ describe('dynamic tag names', () => {
         expect(renderComponent(source, { tag: 'div' })).toBe('<div style="background-color:red"></div>');
     });
 
-    it('self closes a void element without emitting a closing tag', () => {
+    it('renders a void element as the element written by its name renders, closing itself', () => {
         const source: string = 'const El = ({ tag, src }) => { const TagName = tag; return <TagName src={src}/>; };';
-        expect(renderComponent(source, { tag: 'img', src: '/a.png' })).toBe('<img src="/a.png">');
+        const written: string = 'const El = ({ src }) => <img src={src}/>;';
+
+        // markdown rendered at runtime renders its plain elements this way, and a .md page renders them by name
+        expect(renderComponent(source, { tag: 'img', src: '/a.png' })).toBe(renderComponent(written, { src: '/a.png' }));
+        expect(renderComponent(source, { tag: 'img', src: '/a.png' })).toBe('<img src="/a.png"/>');
     });
 
     it('renders nested elements and components as children', () => {

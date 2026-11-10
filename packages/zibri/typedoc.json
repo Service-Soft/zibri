@@ -14,6 +14,7 @@
         "json",
         "jsonc",
         "json5",
+        "md",
         "nginx",
         "tsx",
         "typescript",
@@ -138,12 +139,13 @@
         "XmlBodyMetadata",
         "XmlRootMetadata"
     ],
-    "out": "docs/generated",
+    "json": "docs/.generated/api.json",
     "projectDocuments": [
         "./docs/getting-started.md",
         "./docs/architecture.md",
-        "./docs/creating-endpoints.md",
-        "./docs/!(getting-started|architecture|creating-endpoints).md"
+        "./docs/endpoints/creating-endpoints.md",
+        "./docs/!(getting-started|architecture).md",
+        "./docs/*/!(creating-endpoints).md"
     ],
     "readme": "none",
     "treatValidationWarningsAsErrors": true,

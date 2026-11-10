@@ -1191,13 +1191,15 @@ export class ZibriApplication {
             res.additionalLifecycleServices = [...plugin.additionalLifecycleServices, ...res.additionalLifecycleServices];
         }
 
-        if (!res.authStrategies.length) {
+        // a default only for a list the application left out: an empty one says it wants none. And none of
+        // logging in for an application without a strategy, which nobody can log in to
+        if (this.providedOptions.authStrategies == undefined && !res.authStrategies.length) {
             res.authStrategies.push(JwtAuthStrategy);
         }
-        if (!res.authenticators.length) {
+        if (this.providedOptions.authenticators == undefined && !res.authenticators.length && res.authStrategies.length) {
             res.authenticators.push(PasswordAuthenticator);
         }
-        if (!res.twoFactorMethods.length) {
+        if (this.providedOptions.twoFactorMethods == undefined && !res.twoFactorMethods.length && res.authStrategies.length) {
             res.twoFactorMethods.push(OtpTwoFactorMethod);
         }
         if (!res.bodyParsers.length) {
@@ -1208,19 +1210,19 @@ export class ZibriApplication {
     }
 
     private logDefaults(): void {
-        if (!this.providedOptions.authStrategies) {
+        if (!this.providedOptions.authStrategies && this.options.authStrategies.length) {
             this.logger.info('No auth strategies provided, defaults to:');
             for (const strategy of this.options.authStrategies) {
                 this.logger.info(`  - ${strategy.name}`);
             }
         }
-        if (!this.providedOptions.authenticators) {
+        if (!this.providedOptions.authenticators && this.options.authenticators.length) {
             this.logger.info('No authenticators provided, defaults to:');
             for (const authenticator of this.options.authenticators) {
                 this.logger.info(`  - ${authenticator.name}`);
             }
         }
-        if (!this.providedOptions.twoFactorMethods) {
+        if (!this.providedOptions.twoFactorMethods && this.options.twoFactorMethods.length) {
             this.logger.info('No two factor methods provided, defaults to:');
             for (const strategy of this.options.twoFactorMethods) {
                 this.logger.info(`  - ${strategy.name}`);

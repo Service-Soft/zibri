@@ -351,6 +351,8 @@ describe('UpgradeCommand', () => {
         // the backslashes of a windows path are escapes in a pattern
         expect(dependencies).toContain(`cd "${appDir}" && npm i zibri@${version} `);
         expect(devDependencies).toContain(`cd "${appDir}" && npm i -D zibri-testing@${version} `);
+        // the compiler of the templates, which a 3.0 project had inside zibri-tsx
+        expect(devDependencies).toContain(` zibri-tsx-compiler@${version} `);
         // what the project has stays at the version it has, and what it lacks is what a new project gets
         expect(dependencies).toContain(' pg-query-stream@^4.10.3');
         expect(dependencies).not.toContain('chart.js');
