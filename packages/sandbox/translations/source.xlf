@@ -124,7 +124,7 @@
       </trans-unit>
       <trans-unit id="Docs" xml:space="preserve">
         <source>Docs</source>
-        <note>src/templates/components/navbar.tsx:26</note>
+        <note>src/templates/pages/home.tsx:35, src/templates/components/navbar.tsx:26</note>
       </trans-unit>
       <trans-unit id="Entries" xml:space="preserve">
         <source>Entries</source>
@@ -409,6 +409,10 @@
       <trans-unit id="The application recorded the following" xml:space="preserve">
         <source>The application recorded the following</source>
         <note>src/templates/emails/log.tsx:35</note>
+      </trans-unit>
+      <trans-unit id="The documentation, written in markdown, with a search." xml:space="preserve">
+        <source>The documentation, written in markdown, with a search.</source>
+        <note>src/templates/pages/home.tsx:38</note>
       </trans-unit>
       <trans-unit id="The OpenAPI and AsyncAPI documentation of every version, to try each route out." xml:space="preserve">
         <source>The OpenAPI and AsyncAPI documentation of every version, to try each route out.</source>

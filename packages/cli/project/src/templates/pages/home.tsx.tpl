@@ -30,6 +30,16 @@ export const HomePage: TsxComponent<Props> = ({ appName }) => {
                         {$ts`Lists all publicly registered assets.`}
                     </p>
                 </Card>
+{{#docs}}
+                <Card className="flex flex-col gap-2 max-w-80">
+                    <Link href="/docs" id="home-docs" icon="/assets/docs.svg">
+                        {$ts`Docs`}
+                    </Link>
+                    <p>
+                        {$ts`The documentation, written in markdown, with a search.`}
+                    </p>
+                </Card>
+{{/docs}}
                 {/* <Card className="flex flex-col gap-2 max-w-80">
                     <Link href="/metrics/dashboard" icon="/assets/metrics.svg">
                         {$ts`Metrics`}

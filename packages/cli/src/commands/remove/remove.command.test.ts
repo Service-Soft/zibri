@@ -70,6 +70,16 @@ describe('RemoveCommand', () => {
         expect(await project.read('src/data-sources/db/entities.ts')).not.toContain('MailingList');
     });
 
+    it('takes the links to the documentation off the home page and the navbar', async () => {
+        expect(await project.read('src/templates/pages/home.tsx')).toContain('id="home-docs"');
+
+        await remove('docs');
+
+        expect(await project.read('src/templates/pages/home.tsx')).not.toContain('/docs');
+        expect(await project.read('src/templates/components/navbar.tsx')).not.toContain('/docs');
+        expect(await project.exists('assets/public/docs.svg')).toBe(false);
+    });
+
     it('uninstalls what only the feature needs', async () => {
         await remove('metricsDashboard');
 

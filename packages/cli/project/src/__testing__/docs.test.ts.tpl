@@ -19,6 +19,12 @@ afterAll(async () => {
 
 describe('the documentation', () => {
 
+    it('is linked from the home page', async () => {
+        const home: string = await (await fetch(baseUrl)).text();
+
+        expect(home).toMatch(/<a href="\/docs" id="home-docs"/);
+    });
+
     it('serves every page of the navigation at the address its file gives it', async () => {
         for (const page of DocsUtilities.resolvePages(DOCS_SITE)) {
             const response: Response = await fetch(`${baseUrl}${DocsUtilities.resolveAddress(DOCS_SITE, page.file)}`);

@@ -58,6 +58,8 @@ export const SCAFFOLD_FEATURE_FILES: Record<ScaffoldFeature, string[]> = {
         'src/templates/pages/error.tsx'
     ],
     docs: [
+        // the icon the home page links the documentation with
+        'assets/public/docs.svg',
         'src/controllers/docs.controller.ts',
         'src/__testing__/docs.test.ts',
         'src/templates/docs/'
