@@ -196,20 +196,36 @@ export class StartedTestServer {
     /**
      * Runs a command of the application, the way a process started with these arguments does: in an
      * application of its own on the same containers, which is shut down once the command is done.
-     * `reInit` starts the application again afterwards.
+     * Arguments that name no command initialize the application instead, as the entry point does
+     * next. `reInit` starts the application again afterwards.
      * @param args - The arguments, as `process.argv.slice(2)` holds them.
      * @param options - What the application running the command is built from. Anything left out is
      * taken from the application that is being replaced.
-     * @returns Whether the arguments named a command, and what the application logged at info while
-     * it ran.
+     * @returns Whether the arguments named a command, and what the application logged at info and at
+     * warn while it ran.
      */
     async runCommand(args: string[], options: StartTestServerOptions = {}): Promise<TestCommandRun> {
         const restoreLogger: () => LoggerInterface = await this.replaceApplication(options, 'runs a command on the test server...');
+        const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+        const warn: typeof logger.warn = logger.warn;
+        const warnings: string[] = [];
+        // recorded and still written, unlike the info lines: a warning a test did not expect is worth
+        // seeing in its output
+        logger.warn = (message, context): void => {
+            warnings.push(message);
+            warn.call(logger, message, context);
+        };
         try {
             const ran: boolean = await this.app.runCommand(args);
-            return { ran, log: this.bootLog };
+            if (!ran) {
+                // what the entry point does with arguments that name no command, which is where what
+                // runCommand found about them is logged
+                await this.app.init();
+            }
+            return { ran, log: this.bootLog, warnings };
         }
         finally {
+            logger.warn = warn;
             restoreLogger();
         }
     }

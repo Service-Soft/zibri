@@ -26,6 +26,7 @@ import { ConfirmPasswordResetData } from './authenticators/password/confirm-pass
 import { PasswordChangeRequiredError } from './authenticators/password/password-change-required.error';
 import { PasswordAuthenticator } from './authenticators/password/password.authenticator';
 import { RequestPasswordResetData } from './authenticators/password/request-password-reset-data.model';
+import { SetPasswordData } from './authenticators/password/set-password-data.model';
 import { isProviderAccessAuthenticator, ProviderAccessAuthenticatorInterface } from './authenticators/provider-access-authenticator.interface';
 import { ProviderAccessFailure } from './authenticators/provider-access-failure.enum';
 import { ProviderAccessError } from './authenticators/provider-access.error';
@@ -596,6 +597,17 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             });
             throw error;
         }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async setPassword(userId: string, data: SetPasswordData, transaction: RepositoryTransaction | undefined): Promise<void> {
+        await this.auditUserChange(AuditAction.PASSWORD_SET, userId, transaction, async () => {
+            // the user first, so that an id naming nobody is refused rather than given credentials
+            await this.userService.findById(userId, { transaction });
+            await inject(PasswordAuthenticator).setPassword(userId, data, transaction);
+            // whoever held the old password may hold a login of any strategy
+            await this.endLogins(userId, transaction);
+        });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -2130,6 +2142,31 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     // eslint-disable-next-line jsdoc/require-jsdoc
     async endLogins(userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         await Promise.all(this.findLoginStrategies().map(async strategy => await strategy.endLogins(userId, transaction)));
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async endEveryLogin(transaction: RepositoryTransaction | undefined): Promise<void> {
+        try {
+            const strategies: LoginAuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown>[] = this.findLoginStrategies();
+            // every strategy that can, before the ones that cannot are named: this runs during an
+            // incident, where ending most logins now beats ending none until the code is fixed
+            await Promise.all(strategies.map(async strategy => await strategy.endEveryLogin?.(transaction)));
+            const unable: string[] = strategies.filter(strategy => strategy.endEveryLogin == undefined).map(strategy => strategy.name);
+            if (unable.length) {
+                throw new InternalError(
+                    `The logins of ${unable.join(', ')} were not ended: a login strategy ends every login by implementing endEveryLogin.`
+                );
+            }
+            this.auditService.record({ action: AuditAction.EVERY_LOGIN_ENDED, outcome: AuditOutcome.SUCCESS }, transaction);
+        }
+        catch (error) {
+            this.auditService.record({
+                action: AuditAction.EVERY_LOGIN_ENDED,
+                outcome: AuditOutcome.FAILURE,
+                reason: AuditUtilities.resolveReason(error)
+            });
+            throw error;
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

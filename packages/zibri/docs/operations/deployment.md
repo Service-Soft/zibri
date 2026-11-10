@@ -239,3 +239,4 @@ executions, claimed events, and the leases underneath both.
 - [Application lifecycle](../application/application-lifecycle.md) — the hooks that run on the way up and down
 - [Logging](./logging.md) — where a deployment sends what it records
 - [Recovering work that stopped](../background-work/troubleshooting.md) — what to do when a job, an event, a mail or a backup failed
+- [Responding to an incident](./incidents.md) — what to do when a release, the database or a secret is the problem

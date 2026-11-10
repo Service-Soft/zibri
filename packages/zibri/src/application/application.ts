@@ -4,6 +4,7 @@ import { Duplex } from 'node:stream';
 
 import express, { ErrorRequestHandler, RequestHandler } from 'express';
 
+import { AppCommand } from './app-command.model';
 import { HstsOptions, ZibriApplicationOptions, ZibriApplicationSecurityOptions } from './application-options.model';
 import { ZIBRI_ENVIRONMENTS } from './zibri-environment.type';
 import { OtpTwoFactorMethod } from '../auth/2fa/methods/otp/otp.two-factor-method';
@@ -191,9 +192,17 @@ export class ZibriApplication {
      */
     readonly options: FullZibriApplicationOptions;
 
+    /**
+     * What `runCommand` found the process started with a word naming no command, for `init` to log.
+     */
+    private unknownCommandWarning: string | undefined;
+
     constructor(private readonly providedOptions: ZibriApplicationOptions) {
         this.validateNoPluginProviderCollisions();
         this.options = this.createFullOptions();
+        // here rather than once a command runs: a command is what an operator reaches for when
+        // something already broke, which is the worst moment to learn that its name was never valid
+        this.validateCommands();
 
         // first, so that whatever fails while the application starts has the whole trace. A write through
         // a repository takes up the 10 frames node keeps by default before it reaches the code that asked
@@ -376,6 +385,9 @@ export class ZibriApplication {
         await HandlebarUtilities.init();
 
         this.logDefaults();
+        if (this.unknownCommandWarning != undefined) {
+            this.logger.warn(this.unknownCommandWarning);
+        }
 
         this.dropUndeclaredOrphanControllers();
         this.registerAdditionalLifecycleServices();
@@ -443,18 +455,22 @@ export class ZibriApplication {
      *
      * `migrate list` lists the migrations every data source has applied. `migrate down <version |
      * migration name>` reverts every migration applied after it, newest first, and `migrate down
-     * --all` every applied migration. The application is
-     * initialized for the command, without listening, and shut down once it is done.
+     * --all` every applied migration. Every other command is one of the application's `commands`,
+     * named by its first word. The application is initialized for the command, without listening,
+     * and shut down once it is done.
      * @param args - The arguments the process was started with, after the script:
      * `process.argv.slice(2)`.
-     * @returns Whether a command ran, in which case the application must not be started.
-     * @throws When the arguments start with `migrate` and name no command of it, or the command fails.
+     * @returns Whether a command ran, in which case the application must not be started. When the
+     * application has commands and the first argument is a word naming none of them, false, and
+     * initializing logs a warning listing the commands.
+     * @throws When the arguments start with `migrate` and name no command of it, or when the command
+     * fails.
      */
     async runCommand(args: string[]): Promise<boolean> {
         // read before initializing, so that a mistyped command fails before it touches anything
         const command: MigrationCommand | undefined = MigrationCommandUtilities.resolveCommand(args);
         if (command == undefined) {
-            return false;
+            return await this.runAppCommand(args);
         }
         // what generating reads is what the data sources declare, which needs no connection: it runs
         // where the application is developed, with no database to reach
@@ -480,6 +496,66 @@ export class ZibriApplication {
             await this.shutdown();
         }
         return true;
+    }
+
+    /**
+     * Runs the command of the application the arguments name.
+     * @param args - The arguments the process was started with, after the script.
+     * @returns Whether a command ran.
+     */
+    private async runAppCommand(args: string[]): Promise<boolean> {
+        const [name, ...rest] = args;
+        if (name == undefined) {
+            return false;
+        }
+        const command: AppCommand | undefined = this.options.commands.find(c => c.name === name);
+        if (command == undefined) {
+            // an application with commands is handed a word to run one, so a word that names none is
+            // most likely a typo, and starting another instance in place of the command an operator
+            // meant is the worse answer. Warned about rather than refused in 3.x: an application
+            // started with an argument of its own before it had commands would stop starting.
+            // Logged once init has built the logger, which is not there yet
+            // TODO 4.0: throw an InternalError with these lines instead of starting
+            if (this.options.commands.length && !name.startsWith('-')) {
+                this.unknownCommandWarning = [
+                    `"${name}" is no command of this application, so it starts. Its commands are:`,
+                    ...this.options.commands.map(c => `  ${c.name.padEnd(39)} ${c.description}`)
+                ].join('\n');
+            }
+            return false;
+        }
+        // initialized the way a start initializes, schema setup included, unlike the migration
+        // commands: those exist to change or read the schema, and a command of the application reads
+        // and writes rows in the schema its build expects. A database a newer build migrated is
+        // refused here as it is at a start
+        await this.init();
+        try {
+            await command.run(rest);
+        }
+        finally {
+            await this.shutdown();
+        }
+        return true;
+    }
+
+    /**
+     * Refuses a command whose name could not be run: one holding whitespace, one starting with `-`,
+     * one named `migrate` and two of the same name.
+     * @throws An InternalError naming the command.
+     */
+    private validateCommands(): void {
+        const seen: Set<string> = new Set();
+        for (const { name } of this.options.commands) {
+            if (!/^[^\s-]\S*$/.test(name) || name === 'migrate') {
+                throw new InternalError(
+                    `The command "${name}" needs a name of one word that does not start with "-" and is not "migrate".`
+                );
+            }
+            if (seen.has(name)) {
+                throw new InternalError(`Two commands are named "${name}". A command needs a name of its own.`);
+            }
+            seen.add(name);
+        }
     }
 
     /**
@@ -1156,6 +1232,7 @@ export class ZibriApplication {
             providers: [...this.providedOptions.providers ?? []],
             cronJobs: [...this.providedOptions.cronJobs ?? []],
             backupTransports: [...this.providedOptions.backupTransports ?? []],
+            commands: [...this.providedOptions.commands ?? []],
             controllers: [...this.providedOptions.controllers],
             websocketControllers: [...this.providedOptions.websocketControllers],
             // after the spread rather than among the defaults above, because an option that is

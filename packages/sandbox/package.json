@@ -9,7 +9,9 @@
         "test:browser": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --testPathPatterns=\"\\.browser\\.test\\.ts$\"",
         "lint": "eslint . --max-warnings 0",
         "migrate:list": "node dist/bundle.js migrate list",
-        "migrate:down": "node dist/bundle.js migrate down"
+        "migrate:down": "node dist/bundle.js migrate down",
+        "reset-admin": "node dist/bundle.js reset-admin",
+        "end-every-login": "node dist/bundle.js end-every-login"
     },
     "keywords": [
         "zibri"

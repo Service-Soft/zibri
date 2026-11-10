@@ -4,6 +4,7 @@ import 'reflect-metadata';
 
 // application
 export * from './application/application';
+export * from './application/app-command.model';
 export * from './application/application-options.model';
 export * from './application/zibri-environment.type';
 
@@ -204,6 +205,7 @@ export * from './auth/authenticators/password/password-reset-email-template.mode
 export * from './auth/authenticators/password/request-password-reset-data.model';
 export * from './auth/authenticators/password/confirm-password-reset-data.model';
 export * from './auth/authenticators/password/change-password-data.model';
+export * from './auth/authenticators/password/set-password-data.model';
 export * from './auth/authenticators/password/change-password-at-login-input.model';
 export * from './auth/authenticators/password/password-change-required.error';
 export * from './auth/email-verification/email-verification-options.model';

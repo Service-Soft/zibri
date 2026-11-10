@@ -93,6 +93,8 @@ export function resolveApplicationOptions(
         // undefined when neither names it, which is ZibriApplication's own default
         stackTraceLimit: options.stackTraceLimit ?? base.stackTraceLimit,
         cronJobs: options.cronJobs ?? base.cronJobs ?? [],
+        backupTransports: options.backupTransports ?? base.backupTransports ?? [],
+        commands: options.commands ?? base.commands ?? [],
         additionalLifecycleServices: options.additionalLifecycleServices
             ?? base.additionalLifecycleServices
             ?? [],

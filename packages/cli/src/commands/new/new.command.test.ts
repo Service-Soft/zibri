@@ -123,7 +123,9 @@ describe('NewCommand', () => {
                 test: 'node --experimental-vm-modules node_modules/jest/bin/jest.js',
                 // run by the build, which carries the migrations to revert: a deployment has no cli
                 'migrate:list': 'node dist/bundle.js migrate list',
-                'migrate:down': 'node dist/bundle.js migrate down'
+                'migrate:down': 'node dist/bundle.js migrate down',
+                'reset-admin': 'node dist/bundle.js reset-admin',
+                'end-every-login': 'node dist/bundle.js end-every-login'
             },
             keywords: ['zibri'],
             // the author is read off the machine this runs on, the way npm reads it, so the only

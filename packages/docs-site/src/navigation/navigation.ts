@@ -2,6 +2,7 @@ import { DocsNavigationEntry } from 'zibri';
 
 import * as appSettings from '../../../zibri/docs/application/app-settings.md';
 import * as applicationLifecycle from '../../../zibri/docs/application/application-lifecycle.md';
+import * as commands from '../../../zibri/docs/application/commands.md';
 import * as configuration from '../../../zibri/docs/application/configuration.md';
 import * as di from '../../../zibri/docs/application/di.md';
 import * as errorHandling from '../../../zibri/docs/application/error-handling.md';
@@ -55,6 +56,7 @@ import * as faq from '../../../zibri/docs/faq.md';
 import * as gettingStarted from '../../../zibri/docs/getting-started.md';
 import * as glossary from '../../../zibri/docs/glossary.md';
 import * as deployment from '../../../zibri/docs/operations/deployment.md';
+import * as incidents from '../../../zibri/docs/operations/incidents.md';
 import * as logging from '../../../zibri/docs/operations/logging.md';
 import * as metrics from '../../../zibri/docs/operations/metrics.md';
 import * as tracing from '../../../zibri/docs/operations/tracing.md';
@@ -83,6 +85,7 @@ export const navigation: DocsNavigationEntry[] = [
             { file: 'application/configuration.md', module: configuration },
             { file: 'application/di.md', module: di },
             { file: 'application/application-lifecycle.md', module: applicationLifecycle },
+            { file: 'application/commands.md', module: commands },
             { file: 'application/request-context.md', module: requestContext },
             { file: 'application/error-handling.md', module: errorHandling },
             { file: 'application/plugin.md', module: plugin }
@@ -174,7 +177,8 @@ export const navigation: DocsNavigationEntry[] = [
             { file: 'operations/deployment.md', module: deployment },
             { file: 'operations/logging.md', module: logging },
             { file: 'operations/metrics.md', module: metrics },
-            { file: 'operations/tracing.md', module: tracing }
+            { file: 'operations/tracing.md', module: tracing },
+            { file: 'operations/incidents.md', module: incidents }
         ]
     },
     { file: 'testing.md', module: testing },

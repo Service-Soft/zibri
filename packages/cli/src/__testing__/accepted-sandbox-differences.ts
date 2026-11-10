@@ -30,7 +30,9 @@ export const acceptedSandboxDifferences: Record<string, string> = {
         // `zi new` scaffolds no eslint setup, and so has no lint script to write
         '+         "lint": "eslint . --max-warnings 0",',
         '          "migrate:list": "node dist/bundle.js migrate list",',
-        '          "migrate:down": "node dist/bundle.js migrate down"',
+        '          "migrate:down": "node dist/bundle.js migrate down",',
+        '          "reset-admin": "node dist/bundle.js reset-admin",',
+        '          "end-every-login": "node dist/bundle.js end-every-login"',
         '      },',
         '      "keywords": [',
         '          "zibri"',
@@ -129,6 +131,7 @@ export const acceptedSandboxDifferences: Record<string, string> = {
 
         '+ import { OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOptions, ZibriInvoicingPlugin, ZibriMailingListPlugin } from \'zibri\';',
         '',
+        '  import { endEveryLoginCommand, resetAdminCommand } from \'./commands\';',
         '- import { AppAuthController, AppMailingListController, DocsController, HealthController, PageController } from \'./controllers\';',
         '+ import { AppAuthController, AppMailingListController, CronController, DocsController, FileController, HealthController, MetricsController, PageController, TemplateController, TestController, TestCrudController, TestWebsocketController } from \'./controllers\';',
         '+ import { StatusCronJob } from \'./cron\';',
@@ -172,6 +175,7 @@ export const acceptedSandboxDifferences: Record<string, string> = {
         '+     websocketControllers: [TestWebsocketController],',
         '-     cronJobs: [],',
         '+     cronJobs: [StatusCronJob],',
+        '      commands: [resetAdminCommand, endEveryLoginCommand],',
         '      version,',
         '      environment: requireOneOfEnv(\'ENVIRONMENT\', ZIBRI_ENVIRONMENTS),',
         '      // what an endpoint with no @Auth decorator requires. Switch to \'isLoggedIn\' to have',

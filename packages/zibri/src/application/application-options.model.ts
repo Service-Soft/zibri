@@ -1,3 +1,4 @@
+import { AppCommand } from './app-command.model';
 import { ZibriEnvironment } from './zibri-environment.type';
 import { TwoFactorAtLogin } from '../auth/2fa/two-factor-at-login.type';
 import { TwoFactorFailureLimit } from '../auth/2fa/two-factor-failure-limit.model';
@@ -228,6 +229,11 @@ export type ZibriApplicationOptions = {
      * The configured backup transports of the app.
      */
     backupTransports?: Newable<BackupTransportInterface>[],
+    /**
+     * The commands of the app, which `runCommand` runs in place of starting it, beside the migration
+     * commands.
+     */
+    commands?: AppCommand[],
     /**
      * The plugins to be used.
      */

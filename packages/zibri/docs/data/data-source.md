@@ -2212,14 +2212,14 @@ A release that changed the [indexes and uniques](#keeping-indexes-and-uniques) c
 
 A migration is reverted by the build that carries it, since its `down()` is part of that build. To go back to an older build:
 
+> [!WARNING]
+> Step 2 takes the schema away from any newer instance still serving, and a `down()` that drops a column drops its data. Stop the newer instances first.
+
 1. Stop the instances running the newer build.
 2. Run `npm run migrate:down -- RenameTaskNameMigration` with the newer build, naming the newest migration the older build carries. It runs `down()` for every migration applied after that one, newest first.
 3. Deploy the older build.
 
 A version in place of the name, such as `npm run migrate:down -- 1.2.0`, reverts every migration of a newer version. `npm run migrate:down -- --all` reverts every applied migration, for an older build that carries none of them. `npm run migrate:list` lists the migrations every data source applied, in the order they ran, and marks the ones the build does not carry. Without npm, run the build directly: `node dist/bundle.js migrate down RenameTaskNameMigration`.
-
-> [!WARNING]
-> Step 2 takes the schema away from any newer instance still serving, and a `down()` that drops a column drops its data. Stop the newer instances first.
 
 The commands run through your application, which sets up no schema for them. `runCommand` runs the command the process was started with, and returns `false` when it names none:
 

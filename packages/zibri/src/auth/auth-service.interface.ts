@@ -1,3 +1,4 @@
+import { BaseEntity } from '../entity/base-entity.model';
 import { BaseMembership } from '../tenancy/membership/base-membership.model';
 import { type CurrentMembership } from '../tenancy/membership/current-membership.model';
 import { Newable } from '../types/newable.type';
@@ -13,6 +14,7 @@ import { LinkedIdentity } from './authenticators/linked-identity.model';
 import { ChangePasswordData } from './authenticators/password/change-password-data.model';
 import { ConfirmPasswordResetData } from './authenticators/password/confirm-password-reset-data.model';
 import { RequestPasswordResetData } from './authenticators/password/request-password-reset-data.model';
+import { SetPasswordData } from './authenticators/password/set-password-data.model';
 import { type CurrentUser } from './decorators/current-user.decorator';
 import { BaseUser } from './models/base-user.model';
 import { LogoutResult } from './models/logout-result.model';
@@ -20,7 +22,7 @@ import { RouteAuthConfiguration } from './models/route-auth-configuration.model'
 import { UserLogin } from './models/user-login.model';
 import { type Permission } from './roles/permission.type';
 import { type PlatformPermission } from './roles/platform-permission.type';
-import { BaseEntity } from '../entity/base-entity.model';
+import { HttpRequestContext } from '../context/request/http-request.context';
 import { ApiKeyClientAuthentication } from './strategies/api-key/api-key-client-authentication.model';
 import { ApiKeyCreateData } from './strategies/api-key/api-key-create-data.model';
 import { ApiKey } from './strategies/api-key/api-key.model';
@@ -28,7 +30,6 @@ import { CreatedApiKey } from './strategies/api-key/created-api-key.model';
 import { AuthStrategies } from './strategies/auth-strategies.model';
 import { AuthStrategyInterface } from './strategies/auth-strategy.interface';
 import { LoginAuthStrategyInterface } from './strategies/login-auth-strategy.interface';
-import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 
@@ -449,6 +450,17 @@ export interface AuthServiceInterface {
      */
     endLogins: (userId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
+     * Ends every login of every user, in every auth strategy, and records it: everybody logs in again.
+     * For when the database, a backup or a secret got out.
+     *
+     * An access token already issued works until it expires, unless access tokens are revoked
+     * immediately. Api keys stay.
+     * @throws An InternalError naming each strategy that cannot end every login, once the others
+     * ended theirs.
+     */
+    // TODO 4.0: required. Optional in 3.x, so that an auth service of an application's own keeps compiling
+    endEveryLogin?: (transaction: RepositoryTransaction | undefined) => Promise<void>,
+    /**
      * Finds the live logins of a user, in every strategy that lists them, the most recently used
      * first. With the request asking, the login it carries is marked `current`.
      */
@@ -477,6 +489,15 @@ export interface AuthServiceInterface {
         data: ChangePasswordData,
         context: HttpRequestContext | WebsocketRequestContext | undefined
     ) => Promise<void>,
+    /**
+     * Sets the password of a user without the one they have, such as from a support tool or a command,
+     * gives them one when they have none, lifts a lock of wrong passwords, ends every login of theirs
+     * and records it.
+     * @throws A NotFoundError when there is no such user, and what the password policy throws for a
+     * password it refuses.
+     */
+    // TODO 4.0: required. Optional in 3.x, so that an auth service of an application's own keeps compiling
+    setPassword?: (userId: string, data: SetPasswordData, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Has a user choose a new password before their next login starts, and ends every login of theirs,
      * such as after their password got out. Setting a password in any way clears it.

@@ -7,7 +7,9 @@
         "build": "webpack",
         "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
         "migrate:list": "node dist/bundle.js migrate list",
-        "migrate:down": "node dist/bundle.js migrate down"
+        "migrate:down": "node dist/bundle.js migrate down",
+        "reset-admin": "node dist/bundle.js reset-admin",
+        "end-every-login": "node dist/bundle.js end-every-login"
     },
 {{! the rest of what "npm init" writes, in the order it writes it. npm warns about every one of these
     a package.json leaves out, and "description" is read by anything that lists the project - so they

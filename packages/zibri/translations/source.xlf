@@ -148,7 +148,7 @@
       </trans-unit>
       <trans-unit id="Access tokens work until they expire, so they cannot be revoked." xml:space="preserve">
         <source>Access tokens work until they expire, so they cannot be revoked.</source>
-        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:646, src/auth/strategies/client-access-token/client-access-token.auth-strategy.ts:228</note>
+        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:652, src/auth/strategies/client-access-token/client-access-token.auth-strategy.ts:228</note>
       </trans-unit>
       <trans-unit id="An amount in {$1} needs to have at most {$2} decimals." xml:space="preserve">
         <source>An amount in <x id="$1" equiv-text="{$1}"/> needs to have at most <x id="$2" equiv-text="{$2}"/> decimals.</source>
@@ -224,7 +224,7 @@
       </trans-unit>
       <trans-unit id="Choose a password other than the one you have." xml:space="preserve">
         <source>Choose a password other than the one you have.</source>
-        <note>src/auth/authenticators/password/password.authenticator.ts:385</note>
+        <note>src/auth/authenticators/password/password.authenticator.ts:415</note>
       </trans-unit>
       <trans-unit id="Confirm your new email address" xml:space="preserve">
         <source>Confirm your new email address</source>
@@ -284,7 +284,7 @@
       </trans-unit>
       <trans-unit id="Could not resolve the currently logged in user." xml:space="preserve">
         <source>Could not resolve the currently logged in user.</source>
-        <note>src/auth/auth.service.ts:862, src/auth/auth.service.ts:876, src/auth/auth.service.ts:1189, src/auth/auth.service.ts:1518</note>
+        <note>src/auth/auth.service.ts:874, src/auth/auth.service.ts:888, src/auth/auth.service.ts:1201, src/auth/auth.service.ts:1530</note>
       </trans-unit>
       <trans-unit id="Could not resolve version" xml:space="preserve">
         <source>Could not resolve version</source>
@@ -300,11 +300,11 @@
       </trans-unit>
       <trans-unit id="Enroll a second factor to finish logging in." xml:space="preserve">
         <source>Enroll a second factor to finish logging in.</source>
-        <note>src/auth/auth.service.ts:513</note>
+        <note>src/auth/auth.service.ts:514</note>
       </trans-unit>
       <trans-unit id="Error generating token" xml:space="preserve">
         <source>Error generating token</source>
-        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:786</note>
+        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:792</note>
       </trans-unit>
       <trans-unit id="Every member of a group needs to name the id of a user or a group as its value." xml:space="preserve">
         <source>Every member of a group needs to name the id of a user or a group as its value.</source>
@@ -348,7 +348,7 @@
       </trans-unit>
       <trans-unit id="Invalid email or password." xml:space="preserve">
         <source>Invalid email or password.</source>
-        <note>src/error-handling/errors/password-locked.error.ts:13, src/auth/authenticators/password/password.authenticator.ts:157, src/auth/authenticators/password/password.authenticator.ts:194</note>
+        <note>src/error-handling/errors/password-locked.error.ts:13, src/auth/authenticators/password/password.authenticator.ts:158, src/auth/authenticators/password/password.authenticator.ts:195</note>
       </trans-unit>
       <trans-unit id="invalid JSON in request body" xml:space="preserve">
         <source>invalid JSON in request body</source>
@@ -356,7 +356,7 @@
       </trans-unit>
       <trans-unit id="Invalid refresh token." xml:space="preserve">
         <source>Invalid refresh token.</source>
-        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:426, src/auth/strategies/jwt/jwt.auth-strategy.ts:437, src/auth/strategies/jwt/jwt.auth-strategy.ts:443, src/auth/strategies/jwt/jwt.auth-strategy.ts:447, src/auth/strategies/jwt/jwt.auth-strategy.ts:457, src/auth/strategies/jwt/jwt.auth-strategy.ts:485</note>
+        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:432, src/auth/strategies/jwt/jwt.auth-strategy.ts:443, src/auth/strategies/jwt/jwt.auth-strategy.ts:449, src/auth/strategies/jwt/jwt.auth-strategy.ts:453, src/auth/strategies/jwt/jwt.auth-strategy.ts:463, src/auth/strategies/jwt/jwt.auth-strategy.ts:491</note>
       </trans-unit>
       <trans-unit id="Invalid username or password." xml:space="preserve">
         <source>Invalid username or password.</source>
@@ -384,11 +384,11 @@
       </trans-unit>
       <trans-unit id="Link expired" xml:space="preserve">
         <source>Link expired</source>
-        <note>src/plugin/mailing-list/services/mailing-list.service.ts:289, src/auth/email-verification/email-verification.service.ts:282, src/auth/authenticators/password/password.authenticator.ts:299</note>
+        <note>src/plugin/mailing-list/services/mailing-list.service.ts:289, src/auth/email-verification/email-verification.service.ts:282, src/auth/authenticators/password/password.authenticator.ts:300</note>
       </trans-unit>
       <trans-unit id="Link invalid" xml:space="preserve">
         <source>Link invalid</source>
-        <note>src/plugin/mailing-list/services/mailing-list.service.ts:145, src/plugin/mailing-list/services/mailing-list.service.ts:286, src/plugin/mailing-list/services/mailing-list.service.ts:302, src/plugin/mailing-list/services/mailing-list.service.ts:337, src/auth/email-verification/email-verification.service.ts:119, src/auth/email-verification/email-verification.service.ts:278, src/auth/authenticators/password/password.authenticator.ts:295</note>
+        <note>src/plugin/mailing-list/services/mailing-list.service.ts:145, src/plugin/mailing-list/services/mailing-list.service.ts:286, src/plugin/mailing-list/services/mailing-list.service.ts:302, src/plugin/mailing-list/services/mailing-list.service.ts:337, src/auth/email-verification/email-verification.service.ts:119, src/auth/email-verification/email-verification.service.ts:278, src/auth/authenticators/password/password.authenticator.ts:296</note>
       </trans-unit>
       <trans-unit id="Log in again to access this route." xml:space="preserve">
         <source>Log in again to access this route.</source>
@@ -500,15 +500,15 @@
       </trans-unit>
       <trans-unit id="No valid context" xml:space="preserve">
         <source>No valid context</source>
-        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:426</note>
+        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:433</note>
       </trans-unit>
       <trans-unit id="No valid csrf token" xml:space="preserve">
         <source>No valid csrf token</source>
-        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:449</note>
+        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:456</note>
       </trans-unit>
       <trans-unit id="No valid refresh session" xml:space="preserve">
         <source>No valid refresh session</source>
-        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:432, src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:442, src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:446, src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:454</note>
+        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:439, src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:449, src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:453, src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:461</note>
       </trans-unit>
       <trans-unit id="No valid session" xml:space="preserve">
         <source>No valid session</source>
@@ -552,7 +552,7 @@
       </trans-unit>
       <trans-unit id="Password Reset" xml:space="preserve">
         <source>Password Reset</source>
-        <note>src/auth/authenticators/password/password.authenticator.ts:236</note>
+        <note>src/auth/authenticators/password/password.authenticator.ts:237</note>
       </trans-unit>
       <trans-unit id="Present a second factor to finish logging in." xml:space="preserve">
         <source>Present a second factor to finish logging in.</source>
@@ -688,7 +688,7 @@
       </trans-unit>
       <trans-unit id="The current password is wrong." xml:space="preserve">
         <source>The current password is wrong.</source>
-        <note>src/auth/authenticators/password/password.authenticator.ts:345</note>
+        <note>src/auth/authenticators/password/password.authenticator.ts:346</note>
       </trans-unit>
       <trans-unit id="The cursor could not be read." xml:space="preserve">
         <source>The cursor could not be read.</source>
@@ -752,7 +752,7 @@
       </trans-unit>
       <trans-unit id="The given refresh session has already been used." xml:space="preserve">
         <source>The given refresh session has already been used.</source>
-        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:506, src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:533</note>
+        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:513, src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:540</note>
       </trans-unit>
       <trans-unit id="The id of a resource cannot change." xml:space="preserve">
         <source>The id of a resource cannot change.</source>
@@ -768,7 +768,7 @@
       </trans-unit>
       <trans-unit id="The login is bound to a DPoP key, which the request proves no hold of." xml:space="preserve">
         <source>The login is bound to a DPoP key, which the request proves no hold of.</source>
-        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:525</note>
+        <note>src/auth/strategies/jwt/jwt.auth-strategy.ts:531</note>
       </trans-unit>
       <trans-unit id="The login was started in another browser." xml:space="preserve">
         <source>The login was started in another browser.</source>
@@ -832,7 +832,7 @@
       </trans-unit>
       <trans-unit id="The permission '{$1}' is not declared." xml:space="preserve">
         <source>The permission '<x id="$1" equiv-text="{$1}"/>' is not declared.</source>
-        <note>src/auth/auth.service.ts:1399</note>
+        <note>src/auth/auth.service.ts:1411</note>
       </trans-unit>
       <trans-unit id="The provided two factor code is invalid." xml:space="preserve">
         <source>The provided two factor code is invalid.</source>
@@ -972,7 +972,7 @@
       </trans-unit>
       <trans-unit id="The user has no such identity." xml:space="preserve">
         <source>The user has no such identity.</source>
-        <note>src/auth/auth.service.ts:1431</note>
+        <note>src/auth/auth.service.ts:1443</note>
       </trans-unit>
       <trans-unit id="The user is no member of the tenant &#x22;{$1}&#x22;." xml:space="preserve">
         <source>The user is no member of the tenant "<x id="$1" equiv-text="{$1}"/>".</source>
@@ -1008,7 +1008,7 @@
       </trans-unit>
       <trans-unit id="There is no such login." xml:space="preserve">
         <source>There is no such login.</source>
-        <note>src/auth/auth.service.ts:2196</note>
+        <note>src/auth/auth.service.ts:2233</note>
       </trans-unit>
       <trans-unit id="There is no user {$1}." xml:space="preserve">
         <source>There is no user <x id="$1" equiv-text="{$1}"/>.</source>
@@ -1016,7 +1016,7 @@
       </trans-unit>
       <trans-unit id="This account has a second factor. Present it to log in." xml:space="preserve">
         <source>This account has a second factor. Present it to log in.</source>
-        <note>src/auth/auth.service.ts:749</note>
+        <note>src/auth/auth.service.ts:761</note>
       </trans-unit>
       <trans-unit id="This account has no second factor of this kind." xml:space="preserve">
         <source>This account has no second factor of this kind.</source>
@@ -1044,7 +1044,7 @@
       </trans-unit>
       <trans-unit id="This login ticket is unknown, spent or expired. Log in again." xml:space="preserve">
         <source>This login ticket is unknown, spent or expired. Log in again.</source>
-        <note>src/auth/auth.service.ts:709, src/auth/auth.service.ts:725</note>
+        <note>src/auth/auth.service.ts:721, src/auth/auth.service.ts:737</note>
       </trans-unit>
       <trans-unit id="This phone number was sent too many codes today." xml:space="preserve">
         <source>This phone number was sent too many codes today.</source>
@@ -1052,11 +1052,11 @@
       </trans-unit>
       <trans-unit id="This request carries a session, but not its csrf token." xml:space="preserve">
         <source>This request carries a session, but not its csrf token.</source>
-        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:633</note>
+        <note>src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:640</note>
       </trans-unit>
       <trans-unit id="This request carries more than one credential ({$1}). Send exactly one." xml:space="preserve">
         <source>This request carries more than one credential (<x id="$1" equiv-text="{$1}"/>). Send exactly one.</source>
-        <note>src/auth/auth.service.ts:2124</note>
+        <note>src/auth/auth.service.ts:2136</note>
       </trans-unit>
       <trans-unit id="This request names no tenant." xml:space="preserve">
         <source>This request names no tenant.</source>
@@ -1180,7 +1180,7 @@
       </trans-unit>
       <trans-unit id="You cannot be logged in when accessing this route." xml:space="preserve">
         <source>You cannot be logged in when accessing this route.</source>
-        <note>src/auth/auth.service.ts:1499</note>
+        <note>src/auth/auth.service.ts:1511</note>
       </trans-unit>
       <trans-unit id="You cannot write a {$1} outside what you are allowed to see." xml:space="preserve">
         <source>You cannot write a <x id="$1" equiv-text="{$1}"/> outside what you are allowed to see.</source>
@@ -1188,7 +1188,7 @@
       </trans-unit>
       <trans-unit id="You do not have permission to access this route." xml:space="preserve">
         <source>You do not have permission to access this route.</source>
-        <note>src/auth/auth.service.ts:1507, src/auth/auth.service.ts:1572, src/auth/auth.service.ts:1590, src/auth/auth.service.ts:1835</note>
+        <note>src/auth/auth.service.ts:1519, src/auth/auth.service.ts:1584, src/auth/auth.service.ts:1602, src/auth/auth.service.ts:1847</note>
       </trans-unit>
       <trans-unit id="You do not have permission to manage this role." xml:space="preserve">
         <source>You do not have permission to manage this role.</source>
@@ -1200,7 +1200,7 @@
       </trans-unit>
       <trans-unit id="You need to be logged in to access this route." xml:space="preserve">
         <source>You need to be logged in to access this route.</source>
-        <note>src/auth/auth.service.ts:1491</note>
+        <note>src/auth/auth.service.ts:1503</note>
       </trans-unit>
       <trans-unit id="You need to provide a second factor to access this route." xml:space="preserve">
         <source>You need to provide a second factor to access this route.</source>

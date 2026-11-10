@@ -129,6 +129,8 @@ it concerns. "The ticket logs in once."
 undone, something that fails silently. `NOTE` is for a limit: what a feature covers and where it
 ends, phrased as what is.
 
+A warning about steps the reader follows comes before the steps.
+
 ## Words and punctuation
 
 **American spelling.** Enroll, honor, behavior, organization.

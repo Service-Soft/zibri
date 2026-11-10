@@ -59,6 +59,7 @@ Logging users in, and deciding what each request may do. An [authenticator](../g
 | `AccountDeactivatedError` | class | What a login of a [deactivated user](#deactivating-a-user) is refused with |
 | `ClaimedUser` | type | Who a credential says its caller is, by `id` and `roles`, as `resolveClaimedUser` of a strategy answers it, see [what a credential is worth](#what-a-credential-is-worth) |
 | `LoginAuthStrategyInterface` | interface | Contract for an auth strategy that also starts, refreshes and ends logins |
+| `SetPasswordData` | type | What `setPassword` of `AuthServiceInterface` takes: the password, and whether the user chooses one of their own at their next login. See [setting a password for a user](#setting-a-password-for-a-user) |
 | `isAuthStrategy`, `isLoginAuthStrategy`, `AuthStrategies` | function, function, type | Tell an auth strategy and one carrying logins apart, and a list of auth strategy classes |
 | `EndedLogin` | type | A login a strategy ended: whose it was, and the session at a provider it started from |
 | `CredentialLimits` | type | What the credential of a request may do beyond being its user, such as an [api key](./api-keys.md): the permissions it may use and the [tenant](../glossary.md#tenant) it is bound to |
@@ -176,7 +177,7 @@ A strategy turns a request into a user. The auth service answers every check wit
 
 Once a write ending such a row commits, the [websocket connections](../endpoints/websocket.md#logins) of its user are checked again, however the row was written. A strategy whose logins live outside a data source calls `disconnectEndedLogins` on the websocket service with the user and the transaction where it ends one.
 
-A strategy that starts logins implements `LoginAuthStrategyInterface`, which adds starting, refreshing and ending them. Before a refresh rotates anything, it hands the user to `AuthService.resolveRefreshUser` with the transaction, and continues the login as the user it answers. An authenticator such as a [directory](./login-through-a-directory.md#a-disabled-entry) may update the user there, or refuse the refresh.
+A strategy that starts logins implements `LoginAuthStrategyInterface`, which adds starting, refreshing and ending them. Before a refresh rotates anything, it hands the user to `AuthService.resolveRefreshUser` with the transaction, and continues the login as the user it answers. An authenticator such as a [directory](./login-through-a-directory.md#a-disabled-entry) may update the user there, or refuse the refresh. The strategy's `endEveryLogin` ends the logins of every user, see [logging everybody out](#logging-everybody-out).
 
 The user is resolved once per request, however many checks a route carries, and `@CurrentUser` shares that lookup. A `@CurrentUser` naming a narrower set of strategies than the checks is resolved on its own, so a credential it excludes never fills it.
 
@@ -626,6 +627,14 @@ set a new one.
 
 Declare `LoginTicket` in your data source.
 
+## Setting a password for a user
+`setPassword` of `ZIBRI_DI_TOKENS.AUTH_SERVICE` sets the password of a user without the one they
+have, such as from a support tool or a [command](../application/commands.md). It gives a user without
+a password one, lifts a [lock](#locking-an-account-after-too-many-wrong-passwords), ends every login of
+theirs, and is recorded as `auth.password.set`. With `requireChange: true` the password logs in once,
+and the user [chooses a new one](#requiring-a-new-password) at that login, so a password somebody else
+knows does not stay theirs.
+
 ## Deactivating a user
 `AuthService.deactivateUser` takes a user's access away and keeps the user: their logins end, their api keys are revoked, and until `reactivateUser` they cannot log in, by password, provider, directory or passkey alike, and no request acts as them. A login of a deactivated user answers `403` with an `AccountDeactivatedError`. A reactivated user logs in again; their api keys stay revoked.
 
@@ -650,7 +659,9 @@ subsystem records its own events in the [audit trail](../data/audit.md) instead:
 | `auth.password.locked` | success | `userId`, see [locking an account](#locking-an-account-after-too-many-wrong-passwords) |
 | `auth.password.changed` | success / failure | `userId`, `reason: refused` for a wrong current password, see [changing a password](#changing-a-password). A new password set with a login ticket too |
 | `auth.password.change-required` | success | `userId`, see [requiring a new password](#requiring-a-new-password) |
+| `auth.password.set` | success / failure | `userId`, see [setting a password for a user](#setting-a-password-for-a-user) |
 | `auth.login.ended`, `auth.logins.ended` | success / failure | `userId`, for one login and for every login a user ended, see [where a user is logged in](#where-a-user-is-logged-in) |
+| `auth.every-login.ended` | success / failure | Nothing else, see [logging everybody out](#logging-everybody-out) |
 | `auth.2fa` | failure | `userId` |
 | `auth.2fa.enrolled` | success / failure | `userId`, see [enrolling a user](./two-factor.md#enrolling-a-user) |
 | `auth.2fa.removed` | success / failure | `userId` |
@@ -757,6 +768,21 @@ For your UI:
 - A success does not mean an email was sent. Say "if that address is registered, check your inbox", not that an email went out.
 - While a reset token is still live, asking again sends nothing. Tokens last 5 minutes by default.
 - While addresses are [verified](./email-verification.md), a reset link goes to a verified address only.
+
+## Logging everybody out
+`endEveryLogin` of `ZIBRI_DI_TOKENS.AUTH_SERVICE` ends every login of every user, in every strategy,
+such as once the database, a backup or a secret got out. Everybody logs in again, and it is recorded as
+`auth.every-login.ended`. Api keys stay, see [listing and revoking](./api-keys.md#listing-and-revoking).
+
+An access token already issued works until it expires, unless
+[`ACCESS_TOKEN_REVOCATION`](#what-a-credential-is-worth) is `'immediately'`. Replacing the keys
+without keeping the old ones takes those away too, see [replacing a key](#replacing-a-key).
+
+A login strategy of your own ends its logins by implementing `endEveryLogin`. `endEveryLogin` fails
+naming each strategy that does not, once the others ended theirs.
+
+An auth service of your own, provided under `ZIBRI_DI_TOKENS.AUTH_SERVICE`, implements `endEveryLogin`
+and `setPassword` for the code that calls them. Both are optional on `AuthServiceInterface`.
 
 ## Creating and registering user models
 A user holds at least an email and an array of roles: their own roles, whose permissions `@Auth.hasPlatformPermission` checks, each one [declared](./roles-and-permissions.md) as a platform role. The roles a user holds in a tenant live on their [membership](../data/tenancy.md#members-and-their-roles) in it. A password is optional, since a user who logs in through a provider has none.

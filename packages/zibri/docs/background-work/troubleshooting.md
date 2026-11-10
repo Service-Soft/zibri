@@ -122,3 +122,4 @@ Nothing has to be done but wait. Work taken over runs again from the start, see
 - [Backup](../data/backup.md) — backups, restores and what a restore checks
 - [Leases](../data/leases.md) — holding work on one instance
 - [Logging](../operations/logging.md) — where the errors above are written
+- [Responding to an incident](../operations/incidents.md) — a failed release, a database that is down, a secret that got out

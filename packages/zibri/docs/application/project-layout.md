@@ -82,6 +82,9 @@ Most changes start in four places:
 | `src/controllers/index.ts` | Exports the controllers |
 | `src/cron/index.ts` | Your cron jobs, see [cron](../background-work/cron.md). Empty |
 | `src/services/index.ts` | Your services, see [dependency injection](./di.md). Empty |
+| `src/commands/reset-admin.command.ts` | `reset-admin`, which lets the default admin in again, see [letting the default admin in again](./commands.md#letting-the-default-admin-in-again) |
+| `src/commands/end-every-login.command.ts` | `end-every-login`, which logs every user out, see [logging everybody out](./commands.md#logging-everybody-out) |
+| `src/commands/index.ts` | Exports the commands, which `src/application-options.base.ts` lists, see [commands](./commands.md) |
 
 ## Pages and emails
 
@@ -119,6 +122,8 @@ Most changes start in four places:
 | `src/__testing__/health.test.ts` | A first test, which asks whether the application is ready |
 | `src/__testing__/home-page.test.ts` | A test that asks for the home page |
 | `src/__testing__/docs.test.ts` | A test that asks for every page of the documentation, and checks that the search finds each |
+| `src/__testing__/reset-admin.test.ts` | A test that runs `reset-admin` for an admin nobody can log in as, and logs them in |
+| `src/__testing__/end-every-login.test.ts` | A test that runs `end-every-login`, and refreshes the logins it ended |
 
 ## Deploying
 
