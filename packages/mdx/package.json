@@ -3,7 +3,7 @@
     "publishConfig": {
         "access": "public"
     },
-    "version": "3.0.1",
+    "version": "3.1.0",
     "license": "MIT",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -53,7 +53,7 @@
         "yaml": "^2.9.1"
     },
     "peerDependencies": {
-        "zibri-tsx": "^3.0.1"
+        "zibri-tsx": "^3.1.0"
     },
     "devDependencies": {
         "@service-soft/eslint-config": "^2.1.7",
