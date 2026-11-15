@@ -69,7 +69,10 @@ export abstract class HighlightUtilities {
         }
         const highlighter: HighlighterCore = this.resolveHighlighter(packages);
         this.loadLanguage(highlighter, packages, id);
-        const tokens: ThemedToken[][] = highlighter.codeToTokensBase(code, { lang: id, theme: THEME });
+        // no time limit: the limit is wall-clock time, so a line tokenized while the process is busy came out as one
+        // token from wherever the limit hit, and the same code highlighted differently under load. The code is the
+        // project's own markdown, with no input of a user to bound
+        const tokens: ThemedToken[][] = highlighter.codeToTokensBase(code, { lang: id, theme: THEME, tokenizeTimeLimit: 0 });
         return { lines: tokens.map(line => line.map(token => ({ text: token.content, className: this.toClassName(token.color) }))) };
     }
 

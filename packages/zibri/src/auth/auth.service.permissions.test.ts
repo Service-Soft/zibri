@@ -4,6 +4,7 @@ import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 import { type AuthServiceInterface } from './auth-service.interface';
 import { Auth } from './decorators/auth.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { type CurrentUserMembership } from './models/current-user-membership.model';
 import { type RouteAuthConfiguration } from './models/route-auth-configuration.model';
 import { definePermissions, definePlatformPermissions } from './roles/define-permissions.function';
 import { type Permission } from './roles/permission.type';
@@ -158,6 +159,13 @@ class CallerController {
     }
 
     @Auth.isLoggedIn()
+    @Get('/memberships')
+    async findMemberships(): Promise<CurrentUserMembership[]> {
+        const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
+        return await authService.resolveCurrentMemberships?.(currentRequest(), authService.strategies) ?? [];
+    }
+
+    @Auth.isLoggedIn()
     @Get('/code-checks')
     async check(): Promise<CodeChecks> {
         const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
@@ -177,6 +185,7 @@ class CallerController {
  */
 type Member = {
     user: JwtUser,
+    tenantId: string,
     key: string
 };
 
@@ -209,7 +218,7 @@ async function createMember(
         { name, permissions, expiresAt: undefined, tenantId, clientAuthentication: undefined, requireDpop: false },
         undefined
     );
-    return { user, key: created.key };
+    return { user, tenantId, key: created.key };
 }
 
 /**
@@ -303,6 +312,39 @@ describe('AuthService - what a request is handed about its caller', () => {
 
         expect(user.permissions).toEqual([Permissions.NOTES_READ]);
         expect(user.platformPermissions).toEqual([]);
+    });
+
+    // what GET /me answers, so a frontend switches tenants without asking again
+    it('answers every membership with what its roles carry, narrowed to the credential and its tenant', async () => {
+        const commuter: Member = await createMember('commuter', [Roles.USER], [MemberRoles.USER]);
+        const otherTenantId: string = UUIDUtilities.generate();
+        await inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(otherTenantId, async () => await inject(DefaultTestServerMembershipRepository)
+            .create({ tenantId: otherTenantId, userId: commuter.user.id, roles: [MemberRoles.ADMIN] }));
+        const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
+        const createKey: (permissions: (Permission | PlatformPermission)[]) => Promise<string> = async permissions => (await authService.createApiKey(
+            commuter.user.id,
+            { name: 'every tenant', permissions, expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
+            undefined
+        )).key;
+        const byTenant: (memberships: CurrentUserMembership[]) => CurrentUserMembership[] = memberships => memberships
+            .map(m => ({ tenantId: m.tenantId, permissions: sorted(m.permissions) }))
+            .sort((a, b) => a.tenantId.localeCompare(b.tenantId));
+
+        // the key of createMember is bound to the first tenant, which is all it acts in
+        expect(await call<CurrentUserMembership[]>('/caller/memberships', commuter.key))
+            .toEqual([{ tenantId: commuter.tenantId, permissions: [Permissions.NOTES_READ] }]);
+
+        const everyTenant: string = await createKey(await authService.resolveUserPermissions(commuter.user, undefined));
+        expect(byTenant(await call<CurrentUserMembership[]>('/caller/memberships', everyTenant))).toEqual(byTenant([
+            { tenantId: commuter.tenantId, permissions: [Permissions.NOTES_READ] },
+            { tenantId: otherTenantId, permissions: [Permissions.NOTES_READ, Permissions.NOTES_READ_ALL] }
+        ]));
+
+        const narrowed: string = await createKey([Permissions.NOTES_READ]);
+        expect(byTenant(await call<CurrentUserMembership[]>('/caller/memberships', narrowed))).toEqual(byTenant([
+            { tenantId: commuter.tenantId, permissions: [Permissions.NOTES_READ] },
+            { tenantId: otherTenantId, permissions: [Permissions.NOTES_READ] }
+        ]));
     });
 
     it('hands a scope the same permissions', async () => {

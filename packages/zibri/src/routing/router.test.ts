@@ -494,6 +494,22 @@ describe('Router — HTTP dispatch', () => {
         expect(await res.text()).toBe('');
     });
 
+    // a route registered without an OpenAPI declaration has nothing to take a status from, and a 200 naming a
+    // location is a page no browser follows
+    it('sends a RedirectResponse of a manually registered route with 303 See Other', async () => {
+        inject(ZIBRI_DI_TOKENS.ROUTER).registerRoute({
+            httpMethod: HttpMethod.GET,
+            route: '/manual/redirect',
+            openApi: { useInOpenApi: false },
+            handler: () => RedirectResponse.to('/greet/hello')
+        });
+
+        const res: Response = await fetch(`${baseUrl}/manual/redirect`, { redirect: 'manual' });
+
+        expect(res.status).toBe(303);
+        expect(res.headers.get(KnownHeader.LOCATION)).toBe('/greet/hello');
+    });
+
     it('returns 500 when a route declaring only redirects does not return one', async () => {
         const logged: jest.Spied<LoggerInterface['error']> = jest.spyOn(inject(ZIBRI_DI_TOKENS.LOGGER), 'error');
 

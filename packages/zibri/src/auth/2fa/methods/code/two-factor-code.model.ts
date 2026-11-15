@@ -8,7 +8,8 @@ import { OmitClass } from '../../../../entity/omit-class.model';
  *
  * One at a time for each pair of credentials: sending a new code replaces the old one.
  */
-@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate' })
+// not backed up: a restore keeps the codes of now, so that one used since the backup stays used
+@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate', backedUp: false })
 export class TwoFactorCode extends BaseEntity {
     /**
      * The credentials the code was sent for.

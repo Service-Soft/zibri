@@ -42,6 +42,10 @@ type ProjectFiles = {
      */
     'src/templates/pages/about.mdx'?: string,
     /**
+     * A markdown file beside the templates that is no page.
+     */
+    'src/templates/pages/README.md'?: string,
+    /**
      * What the application declares a page has in its frontmatter.
      */
     'src/frontmatter.d.ts'?: string,
@@ -71,6 +75,8 @@ const EMAIL_ROW_OF_A_COLUMN: string = 'import { MjColumn, MjText } from \'zibri-
     + 'export const EmailRow = ({ text }: { text: string }) => <MjColumn><MjText>{text}</MjText></MjColumn>;\n';
 
 const FRONTMATTER_WITH_TITLE: string = 'declare module \'zibri-tsx\' {\n    interface MdxFrontmatter {\n        title: string\n    }\n}\nexport {};\n';
+
+const PAGE_OF_THE_IMPRINT: string = 'import Imprint from \'./imprint.md\';\nexport const Page = () => <main><Imprint/></main>;\n';
 
 /**
  * Writes a project of its own: an entry ts-loader builds, and a template, which the build hands a loader of
@@ -189,21 +195,49 @@ async function build(root: string): Promise<string[]> {
     return (await buildMessages(root)).errors;
 }
 
+/**
+ * Builds a project in watch mode, changes it once the first build is done, and stops after the rebuild.
+ * @param root - The project's directory.
+ * @param change - Changes a file of the project.
+ * @returns The messages of the warnings of both builds.
+ */
+async function watchBuilds(root: string, change: () => void): Promise<string[][]> {
+    const compiler: Compiler = compilerFor(root);
+    const builds: string[][] = [];
+    await new Promise<void>((resolve, reject) => {
+        const watching: Watching | undefined = compiler.watch({ aggregateTimeout: 50 }, (error, stats) => {
+            if (error != undefined || stats == undefined) {
+                reject(error ?? new Error('webpack answered no stats'));
+                return;
+            }
+            builds.push(stats.compilation.warnings.map(entry => entry.message));
+            if (builds.length === 1) {
+                change();
+                return;
+            }
+            watching?.close(() => resolve());
+        });
+    });
+    return builds;
+}
+
 describe('ZibriTsxTypeCheckPlugin', () => {
-    it('fails the build on a type error in a template, naming the file and the line', async () => {
+    it('warns about a type error in a template, naming the file and the line, which fails the build from 4.0', async () => {
         const root: string = writeProject({ 'src/index.ts': 'export const ready: boolean = true;\n', 'src/templates/pages/page.tsx': TEMPLATE_WITH_TYPE_ERROR });
 
-        const errors: string[] = await build(root);
+        const { errors, warnings } = await buildMessages(root);
 
-        expect(errors).toHaveLength(1);
-        expect(errors[0]).toContain(`${path.join(root, 'src', 'templates', 'pages', 'page.tsx')}:2:11`);
-        expect(errors[0]).toContain('TS2322');
+        expect(errors).toEqual([]);
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toContain(`${path.join(root, 'src', 'templates', 'pages', 'page.tsx')}:2:11`);
+        expect(warnings[0]).toContain('TS2322');
+        expect(warnings[0]).toContain('This fails the build from 4.0.');
     }, TIMEOUT);
 
     it('passes a build whose templates have no type error', async () => {
         const root: string = writeProject({ 'src/index.ts': 'export const ready: boolean = true;\n', 'src/templates/pages/page.tsx': TEMPLATE });
 
-        expect(await build(root)).toEqual([]);
+        expect(await buildMessages(root)).toEqual({ errors: [], warnings: [] });
     }, TIMEOUT);
 
     it('leaves a type error outside the templates to the loader that reports it', async () => {
@@ -215,7 +249,7 @@ describe('ZibriTsxTypeCheckPlugin', () => {
         expect(errors[0]).toContain('index.ts');
     }, TIMEOUT);
 
-    it('passes the next build once the component a template renders takes the prop it is passed', async () => {
+    it('stops warning in the next build once the component a template renders takes the prop it is passed', async () => {
         // the order an editor saves them in: the template first, which a build in between checks against the old component
         const root: string = writeProject({
             'src/index.ts': 'export const ready: boolean = true;\n',
@@ -224,44 +258,71 @@ describe('ZibriTsxTypeCheckPlugin', () => {
             'src/templates/pages/heading.tsx': 'type Props = { title: string };\n'
                 + 'export const Heading = ({ title }: Props) => <h1>{title}</h1>;\n'
         });
-        const before: string[] = await build(root);
+        const before: string[] = (await buildMessages(root)).warnings;
 
         writeFile(root, 'src/templates/pages/heading.tsx', 'type Props = { title: string, subtitle: string };\n'
         + 'export const Heading = ({ title, subtitle }: Props) => <h1>{title}<small>{subtitle}</small></h1>;\n');
 
         expect(before).toHaveLength(1);
         expect(before[0]).toContain('subtitle');
-        expect(await build(root)).toEqual([]);
+        expect(await buildMessages(root)).toEqual({ errors: [], warnings: [] });
     }, TIMEOUT);
 
-    it('fails the build on frontmatter the application does not declare, naming the line of the markdown', async () => {
+    it('warns about frontmatter the application does not declare, naming the line of the markdown', async () => {
         const root: string = writeProject({
             'src/index.ts': 'export const ready: boolean = true;\n',
-            'src/templates/pages/page.tsx': TEMPLATE,
+            'src/templates/pages/page.tsx': PAGE_OF_THE_IMPRINT,
             'src/frontmatter.d.ts': FRONTMATTER_WITH_TITLE,
             'src/templates/pages/imprint.md': '---\ntitle: 2020\n---\n# Imprint\n'
         });
 
-        const errors: string[] = await build(root);
+        const { errors, warnings } = await buildMessages(root);
 
-        expect(errors).toHaveLength(1);
-        expect(errors[0]).toContain(`${path.join(root, 'src', 'templates', 'pages', 'imprint.md')}:2:1`);
-        expect(errors[0]).toContain('TS2322');
+        expect(errors).toEqual([]);
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toContain(`${path.join(root, 'src', 'templates', 'pages', 'imprint.md')}:2:1`);
+        expect(warnings[0]).toContain('TS2322');
     }, TIMEOUT);
 
-    it('fails the build on a prop the component of an mdx template does not take, naming the line of the markdown', async () => {
+    it('warns about a prop the component of an mdx template does not take, naming the line of the markdown', async () => {
         const root: string = writeProject({
             'src/index.ts': 'export const ready: boolean = true;\n',
-            'src/templates/pages/page.tsx': TEMPLATE,
+            'src/templates/pages/page.tsx': 'import About from \'./about.mdx\';\nexport const Page = () => <main><About/></main>;\n',
             'src/templates/pages/heading.tsx': 'export const Heading = ({ title }: { title: string }) => <h1>{title}</h1>;\n',
             'src/templates/pages/about.mdx': 'import { Heading } from \'./heading\';\n\nSome text.\n\n<Heading title="About" subtitle="us"/>\n'
         });
 
-        const errors: string[] = await build(root);
+        const { errors, warnings } = await buildMessages(root);
 
-        expect(errors).toHaveLength(1);
-        expect(errors[0]).toContain(`${path.join(root, 'src', 'templates', 'pages', 'about.mdx')}:5:1`);
-        expect(errors[0]).toContain('subtitle');
+        expect(errors).toEqual([]);
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toContain(`${path.join(root, 'src', 'templates', 'pages', 'about.mdx')}:5:1`);
+        expect(warnings[0]).toContain('subtitle');
+    }, TIMEOUT);
+
+    it('leaves a markdown file beside the templates that no file imports alone', async () => {
+        const root: string = writeProject({
+            'src/index.ts': 'export const ready: boolean = true;\n',
+            'src/templates/pages/page.tsx': TEMPLATE,
+            'src/frontmatter.d.ts': FRONTMATTER_WITH_TITLE,
+            'src/templates/pages/README.md': '# The pages of the application\n'
+        });
+
+        expect(await buildMessages(root)).toEqual({ errors: [], warnings: [] });
+    }, TIMEOUT);
+
+    it('stops warning in the rebuild of watch mode once the frontmatter of a markdown template is fixed', async () => {
+        const root: string = writeProject({
+            'src/index.ts': 'export const ready: boolean = true;\n',
+            'src/templates/pages/page.tsx': PAGE_OF_THE_IMPRINT,
+            'src/frontmatter.d.ts': FRONTMATTER_WITH_TITLE,
+            'src/templates/pages/imprint.md': '---\ntitle: 2020\n---\n# Imprint\n'
+        });
+
+        const builds: string[][] = await watchBuilds(root, () => writeFile(root, 'src/templates/pages/imprint.md', '---\ntitle: Imprint\n---\n# Imprint\n'));
+
+        expect(builds[0]).toHaveLength(1);
+        expect(builds[1]).toEqual([]);
     }, TIMEOUT);
 
     it('passes a build whose markdown templates have the frontmatter the application declares', async () => {
@@ -273,7 +334,7 @@ describe('ZibriTsxTypeCheckPlugin', () => {
             'src/templates/pages/imprint.md': '---\ntitle: Imprint\n---\n# Imprint\n\nRun by **us**.\n'
         });
 
-        expect(await build(root)).toEqual([]);
+        expect(await buildMessages(root)).toEqual({ errors: [], warnings: [] });
     }, TIMEOUT);
 
     it('passes a build whose email places what the components of other files render where MJML allows it', async () => {
@@ -368,25 +429,10 @@ describe('ZibriTsxTypeCheckPlugin', () => {
         expect(await buildMessages(root)).toEqual({ errors: [], warnings: [] });
     }, TIMEOUT);
 
-    it('passes the rebuild of watch mode once the template is fixed', async () => {
+    it('stops warning in the rebuild of watch mode once the template is fixed', async () => {
         const root: string = writeProject({ 'src/index.ts': 'export const ready: boolean = true;\n', 'src/templates/pages/page.tsx': TEMPLATE_WITH_TYPE_ERROR });
-        const compiler: Compiler = compilerFor(root);
-        const builds: string[][] = [];
 
-        await new Promise<void>((resolve, reject) => {
-            const watching: Watching | undefined = compiler.watch({ aggregateTimeout: 50 }, (error, stats) => {
-                if (error != undefined || stats == undefined) {
-                    reject(error ?? new Error('webpack answered no stats'));
-                    return;
-                }
-                builds.push(stats.compilation.errors.map(entry => entry.message));
-                if (builds.length === 1) {
-                    writeFile(root, 'src/templates/pages/page.tsx', TEMPLATE);
-                    return;
-                }
-                watching?.close(() => resolve());
-            });
-        });
+        const builds: string[][] = await watchBuilds(root, () => writeFile(root, 'src/templates/pages/page.tsx', TEMPLATE));
 
         expect(builds[0]).toHaveLength(1);
         expect(builds[1]).toEqual([]);

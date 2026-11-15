@@ -1,5 +1,4 @@
 /* eslint-disable sonar/no-duplicate-string */
-/* eslint-disable jsdoc/require-jsdoc */
 import { describe, expect, it } from '@jest/globals';
 
 import { BaseEntity } from '../../entity/base-entity.model';

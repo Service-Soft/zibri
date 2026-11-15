@@ -1,76 +1,87 @@
-import assert from 'node:assert';
+import { utimes } from 'node:fs/promises';
+import { Readable } from 'node:stream';
 
-import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
-import { InMemoryDataSource } from 'zibri-testing';
+import { afterAll, describe, expect, it, jest } from '@jest/globals';
 
-import { BaseFsBackupTransport } from './fs.backup-transport';
-import { testFileFolder, TestTimeouts } from '../../__testing__/constants';
-import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { DataSource } from '../../data-source/decorators/data-source.decorator';
-import { Repository } from '../../data-source/repository/repository';
-import { RepositoryClass } from '../../data-source/repository/repository-class.type';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { LoggerInterface } from '../../logging/logger.interface';
-import { Newable } from '../../types/newable.type';
+import { BackupTransportSessionInterface } from './backup-transport-session.interface';
+import { describeBackupTransport } from './backup-transport.cases';
+import { FsBackupTransport } from './fs.backup-transport';
+import { testFileFolder } from '../../__testing__/constants';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
-import { BackupEntity } from '../backup-entity.model';
-import { BackupResourceEntity } from '../backup-resource-entity.model';
-import { BackupServiceInterface } from '../backup-service.interface';
-import { Backup } from '../decorators/backup-resource.decorator';
-import { BackupTransport } from '../decorators/backup-transport.decorator';
+import { Ms } from '../../utilities/ms';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
 
-const backupsPath: FsPath = FsUtilities.getPath(testFileFolder, 'fs-backup-transport');
+const folder: FsPath = FsUtilities.getPath(testFileFolder, `fs-backup-transport-${UUIDUtilities.generate()}`);
 
-@BackupTransport()
-class TestFsBackupTransport extends BaseFsBackupTransport {
-    override readonly name: string = 'fs-backup-transport';
-    protected override readonly backupBasePath: FsPath = backupsPath;
-}
+afterAll(async () => {
+    await FsUtilities.rm(folder);
+});
 
-@DataSource()
-@Backup({ transports: [TestFsBackupTransport], encrypt: false })
-class BackedUpDataSource extends InMemoryDataSource {
-    override readonly entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, BackupEntity, BackupResourceEntity];
-    override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
-}
+describeBackupTransport('FsBackupTransport', () => new FsBackupTransport('fs-backup-transport', folder));
 
-describe('BaseFsBackupTransport', () => {
-    let server: StartedTestServer;
-
-    beforeAll(async () => {
-        await FsUtilities.rm(backupsPath);
-        server = await startTestServer({ dataSources: [BackedUpDataSource] });
-    }, TestTimeouts.inMemory.start);
-
-    afterAll(async () => {
-        await server.shutdown();
-        await FsUtilities.rm(backupsPath);
-    }, 30000);
-
-    it('deletes a backup with its folder, so that syncing warns about nothing', async () => {
-        const backupService: BackupServiceInterface = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
-        const backupRepository: Repository<BackupEntity> = inject(repositoryTokenFor(BackupEntity));
-        const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-        await backupService.waitForBackup(await backupService.queueBackup({ name: 'deleted-for-good' }));
-        const [backup]: BackupEntity[] = await backupRepository.findAll({ where: { name: 'deleted-for-good' }, relations: ['resources'] });
-        assert(backup, 'the backup was not created');
-        expect(await FsUtilities.exists(FsUtilities.getPath(backupsPath, 'deleted-for-good'))).toBe(true);
-
-        await backupService.delete(backup);
-        const warn: jest.SpiedFunction<LoggerInterface['warn']> = jest.spyOn(logger, 'warn');
+describe('FsBackupTransport on the disk', () => {
+    // a crash cannot be had in a test, so what is checked is the order a crash depends on: written to the
+    // disk before it takes its name, and the name on the disk before the put returns
+    it('puts a blob on the disk before its name, and its name, and each folder made for it, before it returns', async () => {
+        const storeFolder: FsPath = FsUtilities.getPath(folder, `durable-${UUIDUtilities.generate()}`);
+        await FsUtilities.mkdir(storeFolder);
+        const session: BackupTransportSessionInterface = await new FsBackupTransport('fs-backup-transport', storeFolder).openSession();
+        const sync: jest.Spied<typeof FsUtilities.sync> = jest.spyOn(FsUtilities, 'sync');
+        const rename: jest.Spied<typeof FsUtilities.rename> = jest.spyOn(FsUtilities, 'rename');
+        const syncDirectory: jest.Spied<typeof FsUtilities.syncDirectory> = jest.spyOn(FsUtilities, 'syncDirectory');
         try {
-            await backupService.syncBackupEntities();
+            // into two folders new to the store
+            await session.put('first/second/blob', Readable.from([Buffer.from('held')]));
 
-            // left behind, the empty folder read as a backup that was interrupted, on every sync
-            expect(await FsUtilities.exists(FsUtilities.getPath(backupsPath, 'deleted-for-good'))).toBe(false);
-            expect(warn).not.toHaveBeenCalled();
+            const [[synced] = []] = sync.mock.calls;
+            const [[renamed] = []] = rename.mock.calls;
+            expect(synced).toBe(renamed);
+            expect(synced == undefined ? undefined : FsUtilities.dirName(synced)).toBe(FsUtilities.getPath(storeFolder, '.partial'));
+            expect(sync.mock.invocationCallOrder[0]).toBeLessThan(rename.mock.invocationCallOrder[0] ?? 0);
+            expect(syncDirectory.mock.calls.map(([p]) => FsUtilities.relative(storeFolder, p))).toEqual(['first/second', 'first', '']);
+            expect(Math.min(...syncDirectory.mock.invocationCallOrder)).toBeGreaterThan(rename.mock.invocationCallOrder[0] ?? Infinity);
         }
         finally {
-            warn.mockRestore();
+            await session.close();
+            sync.mockRestore();
+            rename.mockRestore();
+            syncDirectory.mockRestore();
         }
+        expect(await FsUtilities.readFile(FsUtilities.getPath(storeFolder, 'first', 'second', 'blob'))).toBe('held');
+    });
+
+    // a process going down in the middle of a put left its file behind, which nothing listed and nothing
+    // removed, and which kept the folder of its backup from being removed with the backup
+    it('deletes what puts left in the staging folder a day ago at its first put, neither what one still writes nor when only reading, and lists none of it', async () => {
+        const storeFolder: FsPath = FsUtilities.getPath(folder, `staging-${UUIDUtilities.generate()}`);
+        const leftBehind: FsPath = FsUtilities.getPath(storeFolder, '.partial', 'left-behind');
+        const beingWritten: FsPath = FsUtilities.getPath(storeFolder, '.partial', 'being-written');
+        await FsUtilities.createFile(leftBehind, 'part of a blob');
+        await FsUtilities.createFile(beingWritten, 'part of a blob');
+        const twoDaysAgo: Date = new Date(Date.now() - (2 * Ms.DAY));
+        await utimes(leftBehind, twoDaysAgo, twoDaysAgo);
+        const session: BackupTransportSessionInterface = await new FsBackupTransport('fs-backup-transport', storeFolder).openSession();
+        const keys: string[] = [];
+        const names: string[] = [];
+        try {
+            await expect(session.get('backup/blob', 1024)).rejects.toThrow();
+            expect(await FsUtilities.exists(leftBehind)).toBe(true);
+
+            await session.put('backup/blob', Readable.from([Buffer.from('whole')]));
+            for await (const page of session.findKeys('')) {
+                keys.push(...page);
+            }
+            for await (const page of session.findNames('')) {
+                names.push(...page);
+            }
+        }
+        finally {
+            await session.close();
+        }
+
+        expect(await FsUtilities.exists(leftBehind)).toBe(false);
+        expect(await FsUtilities.exists(beingWritten)).toBe(true);
+        expect(keys).toEqual(['backup/blob']);
+        expect(names).toEqual(['backup']);
     });
 });

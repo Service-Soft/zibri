@@ -4,6 +4,7 @@ import { Diagnostic, DiagnosticSeverity, SourceSpan } from 'zibri-tsx';
 import { isBindingIdentifier } from './binding';
 import { browserGlobals, browserOnlyGlobals, declaredValueNames } from './browser-globals';
 import { ComponentInfo, findComponents, hasModifier } from './component';
+import { isHookModule } from './hook-names';
 import { readImports, TemplateImport } from './imports';
 import { isAmbient, symbolOf } from './symbols';
 import { isHookCall, walk } from './walk';
@@ -202,7 +203,7 @@ export function validateRenderSyntaxOutsideComponents(
     serverInlinedHooks: readonly string[]
 ): Diagnostic[] {
     const insideComponents: Set<ts.Node> = new Set(components.map(component => component.fn));
-    const renderHooks: Set<string> = new Set(serverInlinedHooks);
+    const hooks: string[] = [...serverInlinedHooks, ...CLIENT_COMPONENT_HOOKS];
     const clientHooks: Set<string> = new Set(CLIENT_COMPONENT_HOOKS);
     const diagnostics: Diagnostic[] = [];
     const visit: (node: ts.Node) => void = (node: ts.Node): void => {
@@ -210,10 +211,7 @@ export function validateRenderSyntaxOutsideComponents(
             return;
         }
         const isJsx: boolean = ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node);
-        const hook: string | undefined = ts.isCallExpression(node) && ts.isIdentifier(node.expression)
-            && (renderHooks.has(node.expression.text) || clientHooks.has(node.expression.text))
-            ? node.expression.text
-            : undefined;
+        const hook: string | undefined = hooks.find(name => isHookCall(node, name));
         if (isJsx || hook !== undefined) {
             const message: string = hook !== undefined && clientHooks.has(hook)
                 ? `'${hook}' is written outside a component, where nothing runs it: client code runs in the setup of `
@@ -460,7 +458,14 @@ function checksTypeof(condition: ts.Node, name: string): boolean {
  * @returns The diagnostic.
  */
 function browserNameDiagnostic(identifier: ts.Identifier, message: string): Diagnostic {
-    return { code: ValidationCode.BROWSER_NAME_DURING_RENDER, message, severity: DiagnosticSeverity.ERROR, span: spanOf(identifier) };
+    // TODO 4.0: refused. A warning, as such a template compiled in 3.0, and rendered whenever a check this does not
+    // follow, such as a const holding a typeof check or a prop, kept the read from running on the server
+    return {
+        code: ValidationCode.BROWSER_NAME_DURING_RENDER,
+        message: `${message} This fails the build from 4.0.`,
+        severity: DiagnosticSeverity.WARNING,
+        span: spanOf(identifier)
+    };
 }
 
 /**
@@ -529,7 +534,7 @@ export function validateClientImports(
 ): Diagnostic[] {
     const provided: Set<string> = new Set(providedByFramework);
     const reads: Map<string, OuterName> = new Map(outerNames
-        .filter(outer => outer.origin === 'import' && !provided.has(outer.name))
+        .filter(outer => outer.origin === 'import')
         .map(outer => [outer.name, outer]));
     const diagnostics: Diagnostic[] = [];
 
@@ -545,7 +550,7 @@ export function validateClientImports(
         ];
         for (const [imported, local] of bindings) {
             const read: OuterName | undefined = reads.get(local);
-            if (read === undefined) {
+            if (read === undefined || isProvidedHookImport(item, imported, provided)) {
                 continue;
             }
             const inBinding: boolean = bindingSpans.some(span => read.span.start >= span.start && read.span.end <= span.end);
@@ -562,6 +567,18 @@ export function validateClientImports(
         }
     }
     return diagnostics;
+}
+
+/**
+ * Whether an import binds a hook the framework provides the page, under whichever name the template imports it.
+ * Another module's function under the name of a hook is an import of the server like any other.
+ * @param item - The import.
+ * @param imported - The name the module exports.
+ * @param provided - The hooks the framework provides the page.
+ * @returns True for such a hook.
+ */
+function isProvidedHookImport(item: TemplateImport, imported: string, provided: ReadonlySet<string>): boolean {
+    return isHookModule(item.source) && provided.has(imported);
 }
 
 /**
@@ -619,16 +636,22 @@ export function validateClientJsx(sites: SourceSpan[]): Diagnostic[] {
  */
 export function validateClientNames(file: ts.SourceFile, outerNames: OuterName[], providedByFramework: readonly string[]): Diagnostic[] {
     const provided: Set<string> = new Set(providedByFramework);
-    const clientBindings: Set<string> = new Set(readImports(file)
+    const imports: TemplateImport[] = readImports(file);
+    const clientBindings: Set<string> = new Set(imports
         .filter(item => item.client && !item.typeOnly)
         .flatMap(importedBindings));
+    const providedImports: Set<string> = new Set(imports
+        .filter(item => !item.client)
+        .flatMap(item => item.specifiers
+            .filter(specifier => !specifier.typeOnly && isProvidedHookImport(item, specifier.imported, provided)))
+        .map(specifier => specifier.local));
     const available: (outer: OuterName) => boolean = outer => {
         switch (outer.origin) {
             case 'ambient': {
                 return true;
             }
             case 'import': {
-                return provided.has(outer.name) || clientBindings.has(outer.name);
+                return providedImports.has(outer.name) || clientBindings.has(outer.name);
             }
             case 'undeclared': {
                 return provided.has(outer.name) || browserGlobals().has(outer.name);

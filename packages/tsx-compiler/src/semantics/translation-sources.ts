@@ -1,6 +1,7 @@
 import ts from 'typescript';
 import { TranslationSources } from 'zibri-tsx/internal';
 
+import { resolveFrameworkName } from './hook-names';
 import { unwrapTypeSyntax, walk, WalkVisitor } from './walk';
 
 /**
@@ -41,13 +42,14 @@ export function collectTranslationSources(nodes: ts.Node[], skip?: ReadonlySet<t
 }
 
 /**
- * Whether a tagged template is tagged with `$t` or `$ts`.
+ * Whether a tagged template is tagged with `$t` or `$ts`, under whichever name the template imports it.
  * @param expression - The tagged template to check.
  * @returns True for a translation tag.
  */
 function isTranslationTag(expression: ts.TaggedTemplateExpression): boolean {
     const tag: ts.Expression = unwrapTypeSyntax(expression.tag);
-    return ts.isIdentifier(tag) && (tag.text === '$t' || tag.text === '$ts');
+    const name: string | undefined = ts.isIdentifier(tag) ? resolveFrameworkName(tag) : undefined;
+    return name === '$t' || name === '$ts';
 }
 
 /**

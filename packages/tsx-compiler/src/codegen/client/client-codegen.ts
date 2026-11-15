@@ -4,6 +4,7 @@ import ts from 'typescript';
 import { SourceSpan } from 'zibri-tsx';
 import { AccessShape,
     BIND_RUNTIME,
+    CLIENT_HOOK_SOURCES,
     decodeJsxEntities,
     mergeAccessShapes,
     normalizeJsxText,
@@ -22,6 +23,7 @@ import { collectRegions, RegionCollection } from './regions';
 import { collectOuterNames, collectOuterReferences, collectPatternBindings, collectReferencedSymbols, declaredSymbols, OuterOrigin } from '../../semantics/binding';
 import { ClientGlobalAlias } from '../../semantics/client-packages';
 import { ComponentFunction, isJsxExpression, nestedStatements } from '../../semantics/component';
+import { collectHookAliases, HookAlias } from '../../semantics/hook-names';
 import { symbolOf } from '../../semantics/symbols';
 import { collectTranslationSources } from '../../semantics/translation-sources';
 import { isHookCall, unwrapTypeSyntax, walk } from '../../semantics/walk';
@@ -149,6 +151,11 @@ export const CLIENT_SETUP_HOOKS: Readonly<Record<string, string>> = {
 };
 
 /**
+ * The hooks client code calls, which the page or the setup defines.
+ */
+const CLIENT_HOOK_NAMES: readonly string[] = [...Object.keys(CLIENT_HOOK_SOURCES), ...Object.keys(CLIENT_SETUP_HOOKS)];
+
+/**
  * Label of the block wrapping the component's client setup. JSX returns become `break` to this
  * label so an early exit skips the remaining setup without aborting the whole script, while the
  * handler table and reattachment (emitted inside the block) can still close over the body's locals.
@@ -229,6 +236,10 @@ export function compileClientScript(fn: ComponentFunction, name: string, clientA
         ...fn.parameters.length === 0 ? [] : collectReadDefaults(fn.parameters[0], referenced)
     ];
     const outer: Set<string> = new Set(clientNodes.flatMap(node => [...collectOuterNames(node, fn, omitted)]));
+    // the hooks client code reads, by the names the framework exports them under: a hook imported under another name
+    // is bound to the one the page defines, as a renamed ?client import is to its global
+    const hookAliases: HookAlias[] = collectHookAliases(file, CLIENT_HOOK_NAMES).filter(alias => outer.has(alias.local));
+    const hooksRead: Set<string> = new Set([...outer, ...hookAliases.map(alias => alias.hook)]);
 
     // what the client reads from the props object as a whole, so a prop is picked by its own key however
     // the parameter names it: `props.label`, `{ label: text }` and `{ item: { label } }` alike
@@ -237,7 +248,7 @@ export function compileClientScript(fn: ComponentFunction, name: string, clientA
         : patternShape(fn.parameters[0].name, referenced, clientNodes, omitted);
     const referencedProps: ReferencedProps = resolveReferencedProps(propsShape);
     const propShapes: Record<string, AccessShape> = propsShape === undefined || propsShape === 'whole' ? {} : propsShape.fields;
-    const referencedHooks: string[] = resolveHooks(outer);
+    const referencedHooks: string[] = resolveHooks(hooksRead);
     const referencedTranslations: TranslationSources = collectTranslationSources(clientNodes, omitted);
 
     // A component only runs on the client when it stamps an event handler, hands a function to a
@@ -245,7 +256,7 @@ export function compileClientScript(fn: ComponentFunction, name: string, clientA
     // server work (an `onServer` block, a computed class name), so emitting a setup for it would ship
     // dead code - and possibly a server-only reference like `GlobalRegistry` - to every page using it.
     const hasClientBehavior: boolean = sites.length > 0 || propSites.length > 0 || bindingSites.length > 0 || regions.sites.length > 0
-        || outer.has('onClient') || outer.has('useEffect');
+        || hooksRead.has('onClient') || hooksRead.has('useEffect');
     if (!hasClientBehavior) {
         return {
             code: undefined,
@@ -299,7 +310,9 @@ export function compileClientScript(fn: ComponentFunction, name: string, clientA
 
     const setupBody: string = [
         clientAliasDefinitions(clientAliases, outer),
-        hookDefinitions(outer),
+        hookDefinitions(hooksRead),
+        // after the hooks a setup defines for itself, which the aliases name
+        hookAliases.map(alias => `const ${alias.local} = ${alias.hook};`).join('\n'),
         buildsClientProps ? `const ${CLIENT_PROP_VALUES} = {};` : '',
         setupBlock,
         // Handed back so the emitted call of a child component can pass in the functions this

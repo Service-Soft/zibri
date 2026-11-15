@@ -417,7 +417,7 @@ describe('the packages only building an application uses', () => {
 
     // webpack resolves a loader once a module needs one, and fails that module with "Can't resolve", naming neither
     // zibri/webpack nor what to install
-    it.each(['ts-loader', 'source-map-loader', 'handlebars-loader', 'css-loader', 'postcss-loader'])(
+    it.each(['ts-loader', 'source-map-loader', 'handlebars-loader', 'css-loader', 'postcss-loader', 'zibri-tsx-compiler/webpack'])(
         'name %s before the build starts, when the application has not installed it',
         missing => {
             const res: { message: string } = inConsumerProcess(`
@@ -436,7 +436,8 @@ describe('the packages only building an application uses', () => {
             `);
 
             expect(res.message).toContain(`needs "${missing}", which it does not have installed`);
-            expect(res.message).toContain(`npm i -D ${missing}`);
+            // the package to install, not the path of the module in it
+            expect(res.message).toContain(`Run "npm i -D ${missing.replace(/\/webpack$/, '')}" there.`);
         }
     );
 
@@ -543,13 +544,33 @@ describe('ssh2', () => {
             const { createRequire } = await import('node:module');
             const require = createRequire(process.cwd() + '/index.cjs');
             const zibri = require('zibri');
-            console.log(JSON.stringify({ loaded: typeof zibri.BaseSftpBackupTransport === 'function' }));
+            console.log(JSON.stringify({ loaded: typeof zibri.SftpBackupTransport === 'function' && typeof zibri.BaseSftpBackupTransport === 'function' }));
         `);
 
         expect(res.loaded).toBe(true);
     });
 
     it('says so by name when an sftp backup transport is built without it', () => {
+        const res: { message: string } = inConsumerProcess(`
+            ${hiding(['ssh2'])}
+            const { createRequire } = await import('node:module');
+            const require = createRequire(process.cwd() + '/index.cjs');
+            const { SftpBackupTransport } = require('zibri');
+            let message = 'it did not fail';
+            try {
+                new SftpBackupTransport('sftp', { host: 'backups.example.com', username: 'app', authentication: { password: 'x' }, hostKeyFingerprint: 'SHA256:x', path: '/backups' });
+            }
+            catch (error) {
+                message = error.message;
+            }
+            console.log(JSON.stringify({ message }));
+        `);
+
+        expect(res.message).toContain('ssh2');
+        expect(res.message).toContain('npm i ssh2');
+    });
+
+    it('says so by name when a transport built on the deprecated sftp backup transport is built without it', () => {
         const res: { message: string } = inConsumerProcess(`
             ${hiding(['ssh2'])}
             const { createRequire } = await import('node:module');

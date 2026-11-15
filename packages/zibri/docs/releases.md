@@ -3,7 +3,7 @@ keywords: [versions, changelog, semver, support, lts, release cycle]
 ---
 
 # Releases
-`zibri`, `zibri-tsx`, `zibri-tsx-compiler`, `zibri-mdx`, `zibri-testing` and `zibri-cli` are released together, at one version, and follow [semantic versioning](https://semver.org). Install them at the same version.
+`zibri`, `zibri-contract`, `zibri-tsx`, `zibri-tsx-compiler`, `zibri-mdx`, `zibri-testing` and `zibri-cli` are released together, at one version, and follow [semantic versioning](https://semver.org). Install them at the same version.
 
 ## What is public
 The public API is what you can import from a package's entry points:
@@ -11,6 +11,7 @@ The public API is what you can import from a package's entry points:
 | Package | Entry points |
 |---|---|
 | `zibri` | `zibri`, `zibri/webpack`, `zibri/tsconfig.application.json` |
+| `zibri-contract` | `zibri-contract` |
 | `zibri-testing` | `zibri-testing`, `zibri-testing/jest-config`, `zibri-testing/jest-preset` |
 | `zibri-tsx` | `zibri-tsx`, `zibri-tsx/email`, `zibri-tsx/jsx-runtime`, and `zibri-tsx/compiler`, `zibri-tsx/webpack`, `zibri-tsx/jest`, which are deprecated |
 | `zibri-tsx-compiler` | `zibri-tsx-compiler`, `zibri-tsx-compiler/webpack`, `zibri-tsx-compiler/jest` |

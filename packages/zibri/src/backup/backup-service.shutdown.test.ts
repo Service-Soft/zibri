@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import { Dirent } from 'node:fs';
 import { copyFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { afterEach, beforeAll, describe, expect, it } from '@jest/globals';
@@ -15,8 +16,12 @@ import { BackupServiceInterface } from './backup-service.interface';
 import { BackupStatus } from './backup-status.enum';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BackupTransport } from './decorators/backup-transport.decorator';
+import { RestoreJournal } from './restore-journal.model';
 import { RestoreJournalUtilities } from './restore-journal.utilities';
-import { BaseFsBackupTransport } from './transports/fs.backup-transport';
+import { StagedFile } from './staged-file.model';
+import { StagingUtilities } from './staging.utilities';
+import { FsBackupTransport } from './transports/fs.backup-transport';
+import { BackupLayoutTestUtilities } from '../__testing__/backup/backup-layout-test.utilities';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -36,9 +41,10 @@ import { Ms } from '../utilities/ms';
 const backupFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups-shutdown');
 
 @BackupTransport()
-class ShutdownFsBackupTransport extends BaseFsBackupTransport {
-    override readonly name: string = 'shutdown-fs-backup-transport';
-    protected override readonly backupBasePath: FsPath = backupFolder;
+class ShutdownFsBackupTransport extends FsBackupTransport {
+    constructor() {
+        super('shutdown-fs-backup-transport', backupFolder);
+    }
 }
 
 @DataSource()
@@ -118,7 +124,8 @@ abstract class ValueStore implements BackupResourceInterface {
 @Backup({ transports: [ShutdownFsBackupTransport], encrypt: false })
 class FirstStore extends ValueStore {}
 
-@Backup({ transports: [ShutdownFsBackupTransport], encrypt: false })
+// encrypted, so that a restore that stops keeps a snapshot only the master key reads back, and the other one none
+@Backup({ transports: [ShutdownFsBackupTransport], encrypt: true })
 class SecondStore extends ValueStore {}
 
 function getBackupService(): BackupServiceInterface {
@@ -250,7 +257,7 @@ describe('BackupService — a backup when the application stops', () => {
         server = undefined;
 
         expect(await running.ended).toMatchObject({ status: BackupStatus.COMPLETED });
-        expect(await FsUtilities.exists(FsUtilities.getPath(backupFolder, 'waited-for', 'metadata.json'))).toBe(true);
+        expect(await FsUtilities.exists(BackupLayoutTestUtilities.resolveRecordPath(backupFolder, running.backup))).toBe(true);
     }, TestTimeouts.inMemory.start);
 
     it('hands a running backup over once BACKUP_SHUTDOWN_WAIT_IN_MS is over', async () => {
@@ -398,6 +405,32 @@ describe('BackupService — a restore the process was killed in', () => {
 
         await server.reInit();
 
+        expect(inject(SecondStore).value).toBe('current');
+        expect(await FsUtilities.glob(FsUtilities.getPath(stagingFolder, '*.restore-journal.json'))).toEqual([]);
+    }, 60000);
+
+    it('puts back the uncompressed snapshots a killed restore of an older release left', async () => {
+        server = await startServer();
+        const stagingFolder: FsPath = await leaveRestoreKilledWhileApplyingTheSecondResource('killed-restore-older-release');
+        const [journalPath] = await RestoreJournalUtilities.findPaths(stagingFolder);
+        assert(journalPath, 'the restore left no journal');
+        const journal: RestoreJournal = await RestoreJournalUtilities.resolve(journalPath);
+        // what a release that staged its snapshots uncompressed leaves: each snapshot the resource's data as it
+        // handed it over, and a journal that does not say how they are stored
+        for (const entry of journal.applied) {
+            const uncompressed: FsPath = FsUtilities.getPath(`${entry.snapshotPath}.uncompressed`);
+            const snapshot: StagedFile = await RestoreJournalUtilities.resolveSnapshot(entry, inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE));
+            await pipeline(StagingUtilities.read(snapshot), FsUtilities.createWriteStream(uncompressed));
+            await FsUtilities.rename(uncompressed, entry.snapshotPath);
+        }
+        await RestoreJournalUtilities.write(journalPath, {
+            ...journal,
+            applied: journal.applied.map(e => ({ resourceName: e.resourceName, snapshotPath: e.snapshotPath, snapshotDigest: e.snapshotDigest }))
+        });
+
+        await server.reInit();
+
+        expect(inject(FirstStore).value).toBe('current');
         expect(inject(SecondStore).value).toBe('current');
         expect(await FsUtilities.glob(FsUtilities.getPath(stagingFolder, '*.restore-journal.json'))).toEqual([]);
     }, 60000);

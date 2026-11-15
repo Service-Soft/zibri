@@ -156,6 +156,11 @@ export enum AuditAction {
      */
     MEMBERSHIP_DELETED = 'auth.membership.deleted',
     /**
+     * Replacing a tenant's rows with those of a backup of the tenant. Recorded in that tenant, with the
+     * name of the backup as `subject`.
+     */
+    TENANT_RESTORED = 'backup.tenant.restored',
+    /**
      * A client asking the authorization server for an access token with its api key.
      */
     TOKEN_ISSUED = 'auth.token.issued',

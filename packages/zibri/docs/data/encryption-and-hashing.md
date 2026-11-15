@@ -35,7 +35,9 @@ key, and the data keys are encrypted with a [master key](../glossary.md#master-k
 | `EncryptionContent`, `EncryptionUtilities` | type, class | What an encrypted value holds, its strategy, version, key id and the encrypted value, and turns an `EncryptionString` into it and back |
 | `EncryptionServiceInterface`, `ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE` | interface, DI token | Encrypts and decrypts values, and creates, deprecates and counts the data keys |
 | `EncryptionService` | class | Encrypts and decrypts values, and keeps the data keys. Replaceable through `ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE` |
-| `EncryptOptions`, `DeleteEncryptionKeyOptions` | type, type | Which strategy encrypts a value and with what options, and whether deleting keys may delete the default one |
+| `EncryptOptions`, `DeleteEncryptionKeyOptions` | type, type | Which strategy encrypts a value and with what options, and whether deleting keys may delete the default one or one still needed |
+| `EncryptionKeyInUseError` | error | Deleting a [data key](../glossary.md#data-key) that stored values or recorded backups still need, see [rotating a key](#rotating-a-key) |
+| `KeptEncryptionKeys` | type | The keys stored when a restore begins, which `resolveKeptKeys` of the encryption service reads and `putBackKeptKeys` writes back beside those of the backup, see [encrypting backups](./backup.md#encrypting-backups) |
 | `KeysInUse` | type | The keys the encrypted values depend on: the current master key, every master key a [data key](../glossary.md#data-key) is encrypted under, the data keys, and the data source storing them |
 | `HashServiceInterface`, `ZIBRI_DI_TOKENS.HASH_SERVICE` | interface, DI token | Hashes values, compares a value with a hash, and says when a hash needs to be made again |
 | `HashService` | class | Hashes values and compares them with hashes. Replaceable through `ZIBRI_DI_TOKENS.HASH_SERVICE` |
@@ -218,6 +220,11 @@ Register both entities in the data source that holds `EncryptionKey`.
 
 Once the job has nothing left to do, delete the old key. Deprecating the *default* key throws: make
 another key the default first.
+
+`deleteKey` and `deleteAllKeys` refuse a key that stored values or recorded backups still need, with
+an `EncryptionKeyInUseError` that names each key and how much needs it. Deleting it would leave that
+data unreadable. `allowInUse: true` deletes it regardless. The check reads every row holding an
+encrypted property, as [`resolveRetiredKeyUsage()`](#telling-when-a-rotation-is-done) does.
 
 ## Telling when a rotation is done
 `resolveRetiredKeyUsage()` counts what is still encrypted under every key being retired: the stored

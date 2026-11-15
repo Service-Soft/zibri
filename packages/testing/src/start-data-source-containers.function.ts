@@ -260,7 +260,12 @@ async function provisionApplicationRole(container: StartedTestContainer, dataSou
         // operator's to set, the way the data source names it
         ...findTransactionPooler(dataSource) == undefined
             ? []
-            : dataSource.resolveRoleSettingsSql().flatMap(statement => ['--command', statement])
+            : dataSource.resolveRoleSettingsSql().flatMap(statement => ['--command', statement]),
+        // what an operator grants the role backups run as for backups reading only what changed, which the
+        // data source checks at boot
+        ...dataSource.incrementalRead
+            ? ['--command', `ALTER ROLE ${role} REPLICATION`, '--command', `GRANT SET ON PARAMETER session_replication_role TO ${role}`]
+            : []
     ]);
     if (result.exitCode !== 0) {
         throw new Error(`Could not provision the role of ${dataSource.constructor.name}:\n${result.output}`);
@@ -441,6 +446,8 @@ export function createPostgresTestContainer({ username, password, database }: Po
     const { GenericContainer: Container, Wait } = optionalPeer<typeof import('testcontainers')>('testcontainers', CONTAINERS_FEATURE);
     return new Container(POSTGRES_TEST_IMAGE)
         .withEnvironment({ POSTGRES_USER: username, POSTGRES_PASSWORD: password, POSTGRES_DB: database })
+        // what a data source reading only what changed for its backups needs, `incrementalRead`
+        .withCommand(['postgres', '-c', 'wal_level=logical', '-c', 'max_slot_wal_keep_size=1GB'])
         .withExposedPorts(POSTGRES_PORT)
         // twice: once by the server that initializes the database, which accepts no connections over
         // the network, and once by the one that serves it

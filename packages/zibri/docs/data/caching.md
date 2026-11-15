@@ -27,16 +27,17 @@ A cache keeps what a method returned, so a repeated call is answered without run
 | `CacheTagMatcher`, `matchesTag`, `matchesAnyTag` | type, function, function | A tag as a string, a regular expression or a function, and the checks whether it matches a tag or any of several |
 | `MultiTierCache` | class | Combines multiple caches into tiers, checked in order |
 | `MultiWrapOptions`, `MultiWrapWriteOptions` | type, type | The options of a read and of a write through a `MultiTierCache`, per tier |
-| `CacheStoreInterface`, `CacheStoreConfig`, `RemoveOnOverflowStrategy` | interface, type, type | What a cache store implements, its `maxEntries` and `maxBytes`, and which entry it removes on overflow: the least or most recently used, the least frequently used, or the first in |
+| `CacheStoreInterface`, `CacheStoreConfig`, `RemoveOnOverflowStrategy` | interface, type, type | What a cache store implements, its `maxEntries`, `maxBytes` and `perTenant`, and which entry it removes on overflow: the least or most recently used, the least frequently used, or the first in |
 | `CachedValue` | class | An entry of a store: the value, its tags, when it was created and when it expires |
 | `InMemoryCacheStore` | class | In-memory cache store implementation |
 | `InMemoryCacheStoreConfig` | type | What an `InMemoryCacheStore` is built with: the `CacheStoreConfig`, and `perTenant`. Each [tenant](../glossary.md#tenant) has entries of its own by default; `perTenant: false` is for keys that already name the tenant they are for |
-| `Bytes` | class | Sizes in bytes, such as `5 * Bytes.MB`, for a store's `maxBytes` |
+| `Bytes` | class | Sizes in bytes, such as `5 * Bytes.MB`, for a store's `maxBytes`, and `Bytes.format` to write one as a person reads it, such as `112.4 GB` |
 | `DoublyLinkedList`, `LinkedListNode` | class, class | A list that removes any node and moves one to its end at constant cost, the order an in-memory store evicts in |
 | `ValKeyCacheStore` | class | Cache store shared by every instance of an app |
 | `ValKeyCacheStoreConfig`, `CacheModel` | type, type | What a `ValKeyCacheStore` is built with. Its `model` is the class the values are read back as, or `'plain'` for values without one, and is required |
 | `CacheExpiryCleanupCronJob` | cron job | Gives back the room held by values whose time to live has run out. Registered for you |
 | `cacheKeyOf` | function | The value a store keys an entry by, holding the active [tenant](../glossary.md#tenant) |
+| `CacheRestoreTagUtilities` | class | The tags a restore invalidates on every instance, which a listener keeping rows in memory listens for |
 | `SelfDescribing` | type | A value that names its class in a `className` property, so a shared store can read it back as that class |
 | `CacheServiceInterface` | interface | Service tracking the registered caches |
 | `CacheService` | class | The default `CacheServiceInterface`. Replaceable through `ZIBRI_DI_TOKENS.CACHE_SERVICE` |
@@ -176,7 +177,7 @@ reads and fills its own entries under the same key. A tag invalidates its entrie
 To invalidate the entries of one tenant only, put the tenant id in the tag.
 
 A store of your own keys each entry by what `cacheKeyOf(key)` returns. Both stores Zibri ships
-compare keys that way.
+compare keys that way. One keying by `cacheKeyOf(key, false)` sets `perTenant: false` in its `config`.
 
 ### One call per key at a time
 
@@ -246,7 +247,7 @@ A listener takes a tag, a regular expression or a function that says which tags 
 
 ```ts
 // src/services/price-list.service.ts
-import { CacheServiceInterface, inject, Injectable, OnAppInit, ZIBRI_DI_TOKENS, ZibriApplication } from 'zibri';
+import { CacheRestoreTagUtilities, CacheServiceInterface, inject, Injectable, OnAppInit, ZIBRI_DI_TOKENS, ZibriApplication } from 'zibri';
 
 @Injectable()
 export class PriceList implements OnAppInit {
@@ -255,6 +256,7 @@ export class PriceList implements OnAppInit {
     onAppInit(app: ZibriApplication): void {
         const cacheService: CacheServiceInterface = inject(ZIBRI_DI_TOKENS.CACHE_SERVICE);
         cacheService.registerInvalidationListener(app, PriceList.name, 'prices', async () => await this.readPrices());
+        cacheService.registerInvalidationListener(app, PriceList.name, CacheRestoreTagUtilities.APPLICATION_TAG, async () => await this.readPrices());
     }
 
     async updatePrice(product: string, price: number): Promise<void> {
@@ -267,6 +269,21 @@ export class PriceList implements OnAppInit {
     }
 }
 ```
+
+The second listener reads the prices again after a restore, see [restoring a backup](#restoring-a-backup).
+
+## Restoring a backup
+
+A [restore](./backup.md#creating-and-restoring-backups) replaces rows without invalidating the tags your writes invalidate. Once it is done, the caches are invalidated on every instance:
+
+| Restored | What is invalidated |
+|---|---|
+| The application | Every entry of every cache |
+| A [tenant](../glossary.md#tenant) | The entries written for the tenant, and those written outside every tenant or to a store with `perTenant: false` |
+
+Every entry carries the tag of the tenant it was written for, whatever tags its cache declares, so a cache needs nothing for this.
+
+A listener keeping rows in memory also listens for the tags of `CacheRestoreTagUtilities`: `APPLICATION_TAG` after a restore of the application, and `getTenantTag(tenantId)` and `UNTENANTED_TAG` after one of a tenant. `isRestoreTag(tag)` matches all of them, and `findTenantId(tag)` reads the tenant out of a tag. The prices above are shared by every tenant, which a restore of a tenant leaves as they are, so `PriceList` listens for `APPLICATION_TAG` alone. The roles of an application are read again the same way.
 
 ## Requirements
 Your data source declares these entities:

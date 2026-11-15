@@ -10,7 +10,8 @@ import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
  * An api key of a user, as `ApiKeyAuthStrategy` keeps it. At the token endpoint of the authorization
  * server, the key is a client, whose `client_id` is the key's id.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+// kept for the current users: a key revoked since the backup stays revoked, and one created since keeps working
+@Entity({ tenant: 'shared', allowOrphan: true, backedUp: 'keptForCurrentUsers' })
 export class ApiKey extends BaseEntity {
     /**
      * The id of the user the key acts as.

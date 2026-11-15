@@ -29,7 +29,7 @@ Three transports come with the framework, and you can write your own:
 | `ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS` | DI token | Overrides the transports used by the logger |
 | `ZIBRI_DI_TOKENS.LOGGER_BUFFER_CAPACITY` | DI token | How many entries may queue before the least important are dropped |
 | `ZIBRI_DI_TOKENS.ACCESS_LOG` | DI token | Turns on one log entry per finished request |
-| `Log` | entity | One log entry: its `level`, `message`, `context` and `tenantId`. What a transport is handed, and what the db transport stores |
+| `Log` | entity | One log entry: its `level`, `message`, `context`, `tenantId` and `application`, the `name` of the application options. What a transport is handed, and what the db transport stores |
 | `LoggedError` | class | An error as an entry carries it: its `name`, its `paragraphs` (the message and the chain of causes) and its `stackTrace` |
 | `errorToLoggedError` | function | Turns an error into a `LoggedError`, its causes included |
 

@@ -1,5 +1,5 @@
 /**
- * Why a link to verify an address is mailed: to verify the address a user has, or to change to a new
- * one.
+ * Why a link to verify an address is mailed: to verify the address a user has, to change to a new
+ * one, or, with `previousAddressConfirms`, to approve that change from the previous address.
  */
-export type EmailVerificationPurpose = 'verification' | 'change';
+export type EmailVerificationPurpose = 'verification' | 'change' | 'change-approval';

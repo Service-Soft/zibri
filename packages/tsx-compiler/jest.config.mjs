@@ -2,6 +2,8 @@
 const config = {
     testEnvironment: 'node',
     rootDir: 'src',
+    // on disk rather than in the temp folder, for the reason the config of zibri gives
+    cacheDirectory: '<rootDir>/../node_modules/.cache/jest',
     transform: {
         '^.+.tsx?$': ['ts-jest']
     },

@@ -349,6 +349,23 @@ export async function holdsMemberAdmin(userId: string, tenantId: string): Promis
 }
 ```
 
+## Checking permissions in a frontend
+`GET /me` of the [auth routes](./auth-routes.md#the-routes), there with `currentUserRoute: true` in the options of `AuthController`, answers a `CurrentUserProfile`: the logged in user's id and email, the `platformPermissions` that `@Auth.hasPlatformPermission` checks, and their active `memberships`. Each membership has its `tenantId` and the `permissions` that `@Auth.hasPermission` checks in a request for that tenant. A frontend keeps the profile, shows and hides its parts by the permissions of the tenant its user acts in, and switches tenants without asking again. The roles stay out, like on a `CurrentUser`.
+
+```json
+{
+    "id": "8c0f…",
+    "email": "ada@example.com",
+    "platformPermissions": [],
+    "memberships": [
+        { "tenantId": "3e1a…", "permissions": ["invoices.read", "invoices.export"] },
+        { "tenantId": "f72b…", "permissions": ["invoices.read"] }
+    ]
+}
+```
+
+Like every check, the permissions are those the [credential](./api-keys.md#what-a-key-may-do) of the request may use, and a credential bound to a tenant answers only that membership.
+
 ## Api keys
 An [api key](./api-keys.md#what-a-key-may-do) lists the permissions it may use, and holds those of them its user's roles carry, so a key listing `Permissions.INVOICES_READ` cannot export even when its user is a `MemberRoles.ADMIN`. The `scope` of a token the [authorization server](./authorization-server.md#issuing-a-token) issues names permissions the same way.
 

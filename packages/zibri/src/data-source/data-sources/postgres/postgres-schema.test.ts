@@ -129,8 +129,14 @@ function withRelated(entities: Newable<BaseEntity>[]): Newable<BaseEntity>[] {
  */
 const COLUMNS_ADDED_SINCE_RECORDING: Record<string, string[]> = {
     audit_entry: ['mac', 'recordedAt'],
+    // 3.1, a migration of its own: the tenant a backup is of, and what a backup reading only what changed builds on
+    backup_entity: ['tenantId'],
+    // and what each resource took as staged, which says what restoring it takes
+    backup_resource_entity: ['baseBackupId', 'readCursor', 'stagedSize'],
     jwt_refresh_token: ['authenticatedAt', 'ipAddress', 'issuedAt', 'userAgent'],
     jwt_user: ['emailVerifiedAt'],
+    // 3.1, a migration of its own: the application that logged an entry
+    log: ['application'],
     login_ticket: ['passwordChangeRequired', 'purpose'],
     password_credentials: ['changeRequired'],
     thread_job_entity: ['checkpoint', 'instanceId']

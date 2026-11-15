@@ -211,7 +211,9 @@
         "express": "^5.2.1",
         "node-cron": "^4.2.1",
         "path-to-regexp": "^8.0.0",
-        "reflect-metadata": "^0.2.2"
+        "reflect-metadata": "^0.2.2",
+        "undici": "^8.12.3",
+        "zibri-contract": "^3.0.1"
     },
     "devDependencies": {
         "@faker-js/faker": "^10.6.0",
@@ -224,6 +226,7 @@
         "@opentelemetry/sdk-trace-node": "^2.11.0",
         "@peculiar/x509": "^2.1.0",
         "@prometheus-io/client": "^0.16.1",
+        "@service-soft/eslint-config": "^2.1.7",
         "@simplewebauthn/server": "^14.0.3",
         "@swc/core": "^1.15.40",
         "@types/node": "^24.0.0",
@@ -234,7 +237,6 @@
         "copy-webpack-plugin": "^14.0.0",
         "esbuild": "^0.25.12",
         "eslint": "^9.36.0",
-        "eslint-config-service-soft": "^2.1.6",
         "form-data": "^4.0.6",
         "handlebars": "^4.7.10",
         "jest": "^30.4.2",

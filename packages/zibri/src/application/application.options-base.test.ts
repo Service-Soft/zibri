@@ -10,12 +10,12 @@ import { ZibriApplicationOptions } from './application-options.model';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { Authenticators } from '../auth/authenticators/authenticators.model';
 import { AuthStrategies } from '../auth/strategies/auth-strategies.model';
-import { BaseFsBackupTransport } from '../backup/transports/fs.backup-transport';
+import { FsBackupTransport } from '../backup/transports/fs.backup-transport';
 import { CronJob } from '../cron/cron-job.model';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
 import { Newable } from '../types/newable.type';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { FsUtilities } from '../utilities/fs.utilities';
 
 /**
  * Testing an application by building it from the options it ships with.
@@ -49,9 +49,10 @@ class ReplacementController {
 }
 
 // undecorated, since only the merge reads it and no application of this file boots with it
-class ShippedFsBackupTransport extends BaseFsBackupTransport {
-    override readonly name: string = 'shipped-fs-backup-transport';
-    protected override readonly backupBasePath: FsPath = FsUtilities.getPath(testFileFolder, 'options-base-backups');
+class ShippedFsBackupTransport extends FsBackupTransport {
+    constructor() {
+        super('shipped-fs-backup-transport', FsUtilities.getPath(testFileFolder, 'options-base-backups'));
+    }
 }
 
 // one class for the whole file: each call builds a new one, and a data source that is declared and

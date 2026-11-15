@@ -56,6 +56,7 @@
         "testcontainers": "^12.0.0",
         "ts-jest": "^29.4.11",
         "ts-node": "^10.9.2",
+        "typescript": "^5.9.2 || ^6.0.0",
         "xml-crypto": "^6.3.3",
         "xml-encryption": "^3.1.0",
         "zibri": "^3.0.1",
@@ -81,6 +82,9 @@
         "ts-node": {
             "optional": true
         },
+        "typescript": {
+            "optional": true
+        },
         "xml-crypto": {
             "optional": true
         },
@@ -90,9 +94,9 @@
     },
     "devDependencies": {
         "@peculiar/x509": "^2.1.0",
+        "@service-soft/eslint-config": "^2.1.7",
         "@types/node": "^24.0.0",
         "eslint": "^9.36.0",
-        "eslint-config-service-soft": "^2.1.6",
         "jest": "^30.4.2",
         "ldapts": "^9.2.0",
         "playwright": "^1.61.1",

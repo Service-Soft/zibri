@@ -12,7 +12,6 @@ import { Inject } from '../../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../../di/inject.function';
 import { Property } from '../../../../entity/decorators/property.decorator';
-import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error';
 import { InternalError } from '../../../../error-handling/internal-error.model';
 import { findHeader } from '../../../../http/find-header.function';
 import { $ts } from '../../../../localization/translate.function';
@@ -23,6 +22,7 @@ import { type HashString } from '../../../hash/hash.utilities';
 import { Sha256HashStrategy } from '../../../hash/strategies/sha256.hash-strategy';
 import { UserAccount } from '../../../models/user-account.model';
 import { InvalidTwoFactorCodeError } from '../../invalid-two-factor-code.error';
+import { SecondFactorMissingError } from '../../second-factor-missing.error';
 import { NoRegistrationRequestData } from '../no-registration-request-data.model';
 import { base32Encode } from '../otp/base32-encode.function';
 import { TwoFactorMethod } from '../two-factor-method.interface';
@@ -177,7 +177,7 @@ export class RecoveryCodeTwoFactorMethod implements TwoFactorMethod<void, Recove
     ): Promise<void> {
         const presented: string | undefined = findHeader(context.request.headers, this.recoveryCodeHeader);
         if (!presented) {
-            throw new UnauthorizedError($ts`"${this.recoveryCodeHeader}" header not found`);
+            throw new SecondFactorMissingError($ts`"${this.recoveryCodeHeader}" header not found`);
         }
         const found: TwoFactorRecoveryCode | undefined = await this.recoveryCodeRepository.findOne({
             where: { userId: user.id, code: await this.hash(presented), confirmed: true },

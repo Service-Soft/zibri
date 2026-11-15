@@ -298,6 +298,7 @@ export class Logger implements LoggerInterface, OnAppInit {
             // Null rather than undefined for no tenant, since the write fills an undefined one with
             // the tenant it runs in - which is whichever entry happened to start it
             tenantId: AlsUtilities.getCurrentTenant() ?? null,
+            application: GlobalRegistry.getAppData('name') ?? null,
             createdAt: new Date(),
             cleanupAt: new Date(Date.now() + this.cleanupAfterInMs[level]),
             message,
@@ -418,6 +419,7 @@ export class Logger implements LoggerInterface, OnAppInit {
             id: UUIDUtilities.generate(),
             // of no tenant, since it counts the entries of every tenant
             tenantId: null,
+            application: GlobalRegistry.getAppData('name') ?? null,
             createdAt: new Date(),
             cleanupAt: new Date(Date.now() + this.cleanupAfterInMs[LogLevel.WARN]),
             message: `dropped ${count} log entries because the write queue was full`,

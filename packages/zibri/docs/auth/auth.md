@@ -484,7 +484,7 @@ defineProvider({ token: ZIBRI_DI_TOKENS.ACCESS_TOKEN_REVOCATION, useValue: 'imme
 > With `ACCESS_TOKEN_REVOCATION` at its default `'onExpiry'`, a logout, a password reset and ending a user's logins leave the access tokens already issued working until they expire, an hour by default. Set it to `'immediately'` where a logout has to end access at once.
 
 ## How often a caller may try
-The builtin auth endpoints, login and the three password reset routes, are rate limited per caller. They share one budget of 20 attempts per 10 minutes. A caller is an IPv4 address or an IPv6 /64, the block one subscriber holds. A login that succeeds costs nothing of the budget, so the budget counts wrong passwords, whichever accounts they were for. Exceeding it answers `429`.
+The builtin auth endpoints that take a secret or start a login are rate limited per caller: logging in, continuing a login with a second factor or a new password, changing a password, the three password reset routes, confirming an email address or its change, the passkey challenge and registration, and the routes of a login at a provider. They share one budget of 20 attempts per 10 minutes. A caller is an IPv4 address or an IPv6 /64, the block one subscriber holds. A login or a password change that succeeds costs nothing of the budget, so the budget counts wrong passwords, whichever accounts they were for. Exceeding it answers `429`.
 
 Tune the numbers without replacing anything:
 
@@ -678,6 +678,7 @@ subsystem records its own events in the [audit trail](../data/audit.md) instead:
 | `auth.user.reactivated` | success / failure | `userId` |
 | `auth.access.ended` | success / failure | `userId`, see [deactivating a user](#deactivating-a-user) |
 | `auth.membership.deactivated`, `auth.membership.reactivated`, `auth.membership.deleted` | success / failure | `userId` of the member, in the tenant of the membership, see [members and their roles](../data/tenancy.md#members-and-their-roles) |
+| `backup.tenant.restored` | success / failure | The name of the backup as `subject`, in the tenant restored, see [backing up a tenant](../data/backup.md#backing-up-a-tenant) |
 | `authz.check` | failure | `userId`, and which check said no |
 
 A failed login records the submitted address in the clear, so one client trying many accounts and many clients trying one account both show. A recorded subject says what was submitted, not that the account exists.

@@ -1,6 +1,7 @@
 import { MigrationEntity } from './migration-entity.model';
 import { MigrationRevertTarget } from './migration-revert-target.model';
 import { Migration } from './migration.model';
+import { RecordedMigration } from './recorded-migration.model';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
 import { InternalError } from '../../error-handling/internal-error.model';
@@ -49,6 +50,21 @@ export async function runMigrations(
     validateDatabaseIsNotAhead(applied, migrations, appVersion);
 
     await runUpMissing(applied, migrations, logger, appVersion);
+}
+
+/**
+ * Whether data recording these migrations is what this build migrates to: a restore of it would run no
+ * migration, and refuse none as ahead of the build.
+ * @param recorded - The migrations the data records.
+ * @param migrations - The migration classes of the data source.
+ * @returns Whether it is.
+ * @throws When no app version could be resolved.
+ */
+export function isMigratedAsOf(recorded: RecordedMigration[], migrations: Newable<Migration>[]): boolean {
+    const appVersion: SemVerVersion = resolveAppVersion();
+    const names: Set<string> = new Set(recorded.map(m => m.name));
+    const toRun: boolean = migrations.some(m => !names.has(m.name) && SemVerUtilities.compare(inject(m).version, appVersion) !== 'bigger');
+    return !toRun && !findAhead(recorded, migrations, appVersion).length;
 }
 
 /**
@@ -310,9 +326,9 @@ function validateDatabaseIsNotAhead(applied: MigrationEntity[], migrations: Newa
  * @param appVersion - The version of the running app.
  * @returns The ones a newer build applied.
  */
-function findAhead(applied: MigrationEntity[], migrations: Newable<Migration>[], appVersion: SemVerVersion): MigrationEntity[] {
+function findAhead<T extends RecordedMigration>(applied: T[], migrations: Newable<Migration>[], appVersion: SemVerVersion): T[] {
     const carried: Set<string> = new Set(migrations.map(m => m.name));
-    const newestCarried: MigrationEntity | undefined = findNewestCarried(applied, migrations);
+    const newestCarried: T | undefined = findNewestCarried(applied, migrations);
     return applied.filter(m => SemVerUtilities.compare(m.version, appVersion) === 'bigger'
         || (
             m.name !== KEY_RECONCILIATION_NAME
@@ -327,13 +343,13 @@ function findAhead(applied: MigrationEntity[], migrations: Newable<Migration>[],
  * @param migrations - The migration classes this build carries.
  * @returns The one that ran last, if this build carries any that ran.
  */
-function findNewestCarried(applied: MigrationEntity[], migrations: Newable<Migration>[]): MigrationEntity | undefined {
+function findNewestCarried<T extends RecordedMigration>(applied: T[], migrations: Newable<Migration>[]): T | undefined {
     const carried: Set<string> = new Set(migrations.map(m => m.name));
     // by when they ran rather than by a version, which is the order they were applied in: each is
     // recorded after every one before it, whatever the clock of the instance that ran it says
     return applied
         .filter(m => carried.has(m.name))
-        .reduce<MigrationEntity | undefined>((newest, m) => newest == undefined || m.ranAt > newest.ranAt ? m : newest, undefined);
+        .reduce<T | undefined>((newest, m) => newest == undefined || m.ranAt > newest.ranAt ? m : newest, undefined);
 }
 
 /**

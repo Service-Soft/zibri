@@ -6,9 +6,8 @@ keywords: [tsx, jsx, pages, html, views, components, markdown, mdx, templates]
 HTML pages and emails are rendered from `.tsx` templates, which `zibri-tsx-compiler` compiles at
 build time, for `zibri-tsx` to render. Pages and emails differ in the components you use and in how you render them.
 
-The build type-checks the templates with your `tsconfig.json`, and a type error in a template fails it,
-naming the file and the line. In `npm start`, it fails that rebuild, and the running application keeps
-running until the error is fixed.
+The build type-checks the templates with your `tsconfig.json`, and reports a type error in a template as a warning,
+naming the file and the line. It fails the build from 4.0.
 
 For string templates, [Handlebars](#rendering-a-handlebars-template) is available as an alternative.
 
@@ -294,6 +293,10 @@ can read:
 - globals the page provides and the template declares, such as `declare const gtag: (...args: unknown[]) => void;`
 - the hooks listed below
 
+A hook is the function `zibri` exports under its name, whatever name you import it as, such as
+`import { useState as state } from 'zibri'`. A function your template declares, or imports from another file, under
+the name of a hook is your function, called as it is written.
+
 Any other name is a compile error (`ZTSX009`). That includes a declaration of the template outside the
 component: the markup can render it, and client code declares or receives what it needs itself. The
 generated client script is checked a second time on its own, against the same set of names.
@@ -388,9 +391,13 @@ These are compile errors as well:
 | `ZTSX010` | `onClient`, `useEffect`, `useState`, `useRef` or `useRefs` outside a component, where nothing runs it |
 | `ZTSX012` | JSX in client code. The markup is rendered on the server, and client code changes the page through the DOM |
 | `ZTSX013` | A `?client` import of a file of your application. Only a package has a script the page can load |
-| `ZTSX014` | A name only the browser has, read while the server renders: a global such as `document` or `window`, or a `?client` import, at module level, in the body of a component or in its markup |
 
-A read under a `typeof` check of the same name is allowed, such as
+A name only the browser has, read while the server renders, compiles with a `ZTSX014` warning: a global such as
+`document` or `window`, or a `?client` import, at module level, in the body of a component or in its markup. It
+throws when the server renders the page, unless a check keeps it from running there. Read it in `onClient` or in a
+handler. The build reports the warning, and so does a test rendering the template.
+
+A read under a `typeof` check of the same name has no warning, such as
 `typeof window === 'undefined' ? '' : window.location.href`, and so is a global the template declares. A
 function the component calls while it renders is not followed, so a browser name read there throws when
 the page is rendered.
@@ -811,7 +818,8 @@ ref on no element throws when client code reads it, and a ref on several element
 ## Writing a page in markdown
 A `.md` or `.mdx` file in the templates is a page, which the build compiles like a `.tsx` template. Its default
 export is the page: a component, which a `.tsx` page renders inside its layout, or `TsxUtilities.renderPage` renders
-as it is. Such as `src/templates/pages/imprint.md`:
+as it is. The build type-checks a page that a file imports, so a markdown file nothing imports, such as a README, is
+left as it is. Such as `src/templates/pages/imprint.md`:
 
 ```md
 ---

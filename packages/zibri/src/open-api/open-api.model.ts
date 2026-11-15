@@ -1,7 +1,6 @@
 import { HttpStatus } from '../http/http-status.enum';
 import { JsonMimeType } from '../http/json-mime-type.type';
 import { MimeType } from '../http/mime-type.enum';
-import { TranslatedString } from '../localization/models/translated-string.model';
 import { Newable } from '../types/newable.type';
 
 // The document types follow the oas31 model of openapi3-ts (MIT, Copyright (c) 2017-2022 Metadev,
@@ -927,9 +926,9 @@ export type OpenApiServerObject = OpenApiSpecificationExtensions & {
      */
     url: string,
     /**
-     * What the server is.
+     * What the server is, such as a `$ts` text in the locale the document is built in.
      */
-    description?: TranslatedString,
+    description?: string,
     /**
      * The variables of the url, by name.
      */

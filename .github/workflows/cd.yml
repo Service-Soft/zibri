@@ -47,7 +47,7 @@ jobs:
             # registry answers its publish with a 404 after the attestation is already logged
             - name: refuse a package the registry has never seen, and a version it already has
               run: |
-                for package in zibri-tsx zibri-tsx-compiler zibri-mdx zibri zibri-testing zibri-cli; do
+                for package in zibri-contract zibri-tsx zibri-tsx-compiler zibri-mdx zibri zibri-testing zibri-cli; do
                   if ! npm view "$package" name > /dev/null 2>&1; then
                     echo "$package is not on the registry, and trusted publishing cannot create it: request to let it be published once by hand"
                     exit 1
@@ -77,7 +77,8 @@ jobs:
             # zibri-tsx first: zibri type checks against its built dist and depends on it as a peer, and
             # zibri-tsx-compiler and zibri-mdx type check against it too. zibri-mdx and zibri after the
             # compiler, whose types they name. zibri-testing after zibri, which it peer depends on and
-            # type checks against.
+            # type checks against. zibri-contract before zibri, which names its types.
+            - run: npm run build -w zibri-contract
             - run: npm run build -w zibri-tsx
             - run: npm run build -w zibri-tsx-compiler
             - run: npm run build -w zibri-mdx
@@ -87,6 +88,7 @@ jobs:
 
             # and a rehearsal of each, because npm refuses a package for reasons a build never
             # sees - a file the packer cannot read, a name this account may not publish under
+            - run: npm publish -w zibri-contract --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
             - run: npm publish -w zibri-tsx --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
             - run: npm publish -w zibri-tsx-compiler --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
             - run: npm publish -w zibri-mdx --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
@@ -97,6 +99,7 @@ jobs:
             # --provenance on each publish, because `id-token: write` above is granted for it. Asking
             # for the permission and never producing the attestation left consumers with no
             # supply-chain provenance while the setup implied there was some.
+            - run: npm publish -w zibri-contract --provenance --tag "${{ steps.version.outputs.dist_tag }}"
             - run: npm publish -w zibri-tsx --provenance --tag "${{ steps.version.outputs.dist_tag }}"
             - run: npm publish -w zibri-tsx-compiler --provenance --tag "${{ steps.version.outputs.dist_tag }}"
             - run: npm publish -w zibri-mdx --provenance --tag "${{ steps.version.outputs.dist_tag }}"
@@ -132,6 +135,7 @@ jobs:
               with:
                 node-version: '24'
             - run: npm ci
+            - run: npm run build -w zibri-contract
             - run: npm run build -w zibri-tsx
             - run: npm run build -w zibri-tsx-compiler
             - run: npm run build -w zibri-mdx

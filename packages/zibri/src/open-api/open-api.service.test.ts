@@ -15,9 +15,13 @@ import { defaultTestServerEntities, defaultTestServerRepositories } from '../__t
 import { defaultTestServerPermissions, defaultTestServerProviders, defaultTestServerRoles, rolesAndPermissionsProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZibriApplication } from '../application/application';
+import { type AssetServiceInterface } from '../assets/asset-service.interface';
+import { type AuthServiceInterface } from '../auth/auth-service.interface';
 import { Auth } from '../auth/decorators/auth.decorator';
+import { type RouteAuthConfiguration } from '../auth/models/route-auth-configuration.model';
 import { definePermissions, definePlatformPermissions } from '../auth/roles/define-permissions.function';
 import { type PaginationResult } from '../data-source/models/pagination-result.model';
+import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider, DiProvider } from '../di/models/di-provider.model';
@@ -33,6 +37,7 @@ import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { RedirectResponse } from '../http/redirect-response.model';
 import { $ts } from '../localization/translate.function';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
 import { XmlAttribute } from '../parsing/xml/xml-attribute.decorator';
@@ -49,6 +54,7 @@ import { Post } from '../routing/decorators/post.decorator';
 import { type RouterInterface } from '../routing/router.interface';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { Version } from '../versioning/version.model';
+import { type VersioningServiceInterface } from '../versioning/versioning-service.interface';
 
 class Tag {
     @Property.string()
@@ -810,8 +816,13 @@ describe('OpenApiService', () => {
         expect(res.status).toBe(404);
     });
 
-    it('serves no explorer without a template, and the document still', async () => {
-        expect((await fetch(`${baseUrl}/explorer`)).status).toBe(404);
+    // a link or a bookmark of the explorer, such as one 3.0 served there without a template, leads to what is
+    // there in its place
+    it('sends the explorer on to the document of the latest version without a template', async () => {
+        const res: globalThis.Response = await fetch(`${baseUrl}/explorer`, { redirect: 'manual' });
+
+        expect(res.status).toBe(303);
+        expect(res.headers.get(KnownHeader.LOCATION)).toBe('/explorer/spec/1.0.0');
         expect((await fetch(`${baseUrl}/explorer/spec/1.0.0`)).status).toBe(200);
     });
 
@@ -964,6 +975,62 @@ describe('OpenApiService extended under a route of its own', () => {
         expect((await fetch(`${baseUrl}/explorer`)).status).toBe(404);
     });
 });
+/**
+ * The default service as an application of 3.0 extended it, with a constructor of its own handing its parameters on.
+ */
+class AuditedOpenApiService extends OpenApiService {
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        logger: LoggerInterface,
+        @Inject(ZIBRI_DI_TOKENS.ASSET_SERVICE)
+        assetService: AssetServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.AUTH_SERVICE)
+        authService: AuthServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.ROUTER)
+        router: RouterInterface,
+        @Inject(ZIBRI_DI_TOKENS.VERSIONING_SERVICE)
+        versioningService: VersioningServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.OPEN_API_AUTH)
+        auth: RouteAuthConfiguration
+    ) {
+        super(logger, assetService, authService, router, versioningService, auth);
+    }
+}
+
+describe('OpenApiService extended with a constructor of its own, as 3.0 took it', () => {
+    let server: StartedTestServer;
+    let baseUrl: string;
+
+    beforeAll(async () => {
+        server = await startTestServer({
+            controllers: [ItemController],
+            version: '1.0.0',
+            // orphan allowed, since the suites around it boot servers of their own while this class exists
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
+            providers: [
+                ...itemProviders,
+                ...explorerTestProviders,
+                defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_SERVICE, useClass: AuditedOpenApiService })
+            ]
+        });
+        baseUrl = await server.start();
+    }, TestTimeouts.inMemory.start);
+
+    afterAll(async () => {
+        await server?.shutdown();
+    }, TestTimeouts.inMemory.shutdown);
+
+    it('serves the explorer and the document', async () => {
+        const explorer: globalThis.Response = await fetch(`${baseUrl}/explorer`);
+        const document: globalThis.Response = await fetch(`${baseUrl}/explorer/spec/1.0.0`);
+        // eslint-disable-next-line typescript/no-unsafe-assignment
+        const spec: OpenApiDefinition = await document.json();
+
+        expect(explorer.status).toBe(200);
+        expect(spec.openapi).toBe('3.1.0');
+    });
+});
+
 // the explorer and the document answered everyone whatever the
 // application's default said, the permission names of every route included
 describe('OpenApiService in an application that requires a login by default', () => {

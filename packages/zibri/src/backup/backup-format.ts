@@ -10,7 +10,7 @@
  * says nothing about what a resource's own `createBackupData` produces: that format belongs to the
  * resource, such as a dump that only the database it came from reads.
  */
-export const BACKUP_FORMAT_VERSION: number = 1;
+export const BACKUP_FORMAT_VERSION: number = 2;
 
 // A list rather than a lowest supported version, so that dropping one is something somebody writes
 // down rather than something a comparison starts doing. Refusing by name is the case worth catching,
@@ -19,4 +19,13 @@ export const BACKUP_FORMAT_VERSION: number = 1;
  * The shapes this build knows how to restore from. An archive written in a shape that is not here is
  * refused by name.
  */
-export const READABLE_BACKUP_FORMAT_VERSIONS: number[] = [BACKUP_FORMAT_VERSION];
+// format 1 stays readable through 4.x, so that a backup a retention keeps that long still restores
+export const READABLE_BACKUP_FORMAT_VERSIONS: number[] = [1, BACKUP_FORMAT_VERSION];
+
+// one segment at the top, so that format 1, which keeps every backup under its name there, only has
+// to skip it. With a dot, since a backup is named by a date unless somebody names it
+/**
+ * The folder at the top of a transport that the chunks, keys and records of deduplicated backups are
+ * kept under. No backup may have it as its name.
+ */
+export const BACKUP_REPOSITORY_FOLDER: string = '.zibri-repository';

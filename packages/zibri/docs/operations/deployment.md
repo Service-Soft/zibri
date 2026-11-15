@@ -206,6 +206,9 @@ services:
 ```
 
 > [!WARNING]
+> A `tmpfs` holds what is written to it in memory, and a restore stages its backup and a copy of what each data source holds in `.zibri/backups`: hundreds of gigabytes for a large database. Mount a volume on a disk with the room [sizing the server](../data/backup.md#sizing-the-server-for-backups-and-restores) names there, rather than a `tmpfs` or an `emptyDir`.
+
+> [!WARNING]
 > A [restore](../data/backup.md#a-restore-of-several-resources) killed halfway is put back at the next start from the snapshots it keeps in `.zibri/backups`. A container restarted with an empty `.zibri` has none of them, and the resources stay half restored. Restore on an instance whose `.zibri/backups` outlives its container, such as one with a persistent volume there or `ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER` pointing at one.
 
 `versions` stays as the image ships it, so build the image from a `versions` folder that already records the release. A container that starts on a version the record lacks stops at startup, and the error says how to record it.

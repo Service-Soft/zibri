@@ -3,6 +3,7 @@ import { escapeAttribute, escapeText } from 'zibri-tsx';
 import { AccessShape, decodeJsxEntities, normalizeJsxText, VOID_ELEMENTS } from 'zibri-tsx/internal';
 
 import { isBindingIdentifier } from '../../semantics/binding';
+import { resolveFrameworkName } from '../../semantics/hook-names';
 import { symbolOf } from '../../semantics/symbols';
 import { tagNameOf } from '../../semantics/validate-email';
 import { isHookCall, unwrapTypeSyntax } from '../../semantics/walk';
@@ -227,8 +228,9 @@ class JsxLowering {
             return this.lowerNamedHook(node);
         }
         const callee: ts.Expression = unwrapTypeSyntax(node.expression);
-        const inlined: string | undefined = ts.isIdentifier(callee) && Object.hasOwn(SERVER_INLINED_HOOKS, callee.text)
-            ? SERVER_INLINED_HOOKS[callee.text]
+        const hook: string | undefined = ts.isIdentifier(callee) ? resolveFrameworkName(callee) : undefined;
+        const inlined: string | undefined = hook !== undefined && Object.hasOwn(SERVER_INLINED_HOOKS, hook)
+            ? SERVER_INLINED_HOOKS[hook]
             : undefined;
         // A context hook is a call on the per-render runtime, so it is lowered to a `$ssr` method
         // rather than resolved as an import. That also keeps it server-only: client code that

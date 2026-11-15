@@ -78,7 +78,7 @@ side.
 | `KeysetPage` | type | A page `findAllAfter` reads: the items, how many rows match, and the cursor of the next page |
 | `EntityRelations`, `RelationKeysOf`, `ToOneRelationKeysOf`, `ColumnKeysOf` | type, type, type, type | What `relations` takes, `true` or the relations below it, and the properties of an entity that hold other entities, exactly one other entity, or a value of their own |
 | `EntitySelection`, `Selected`, `Projected` | type, type, type | What `select` takes, a value narrowed to what it names, and what a read hands back per entity |
-| `EntityOrder`, `OrderDirection`, `SimilarityOrder` | type, type, type | What `order` takes: `'ASC'` or `'DESC'` per property, or `{ similarTo }` to put the values most similar to a search first |
+| `EntityOrder`, `OrderDirection`, `SimilarityOrder` | type, type, type | What `order` takes: `'ASC'` or `'DESC'` per property, nested for an object or a relation to one row, or `{ similarTo }` to put the values most similar to a search first |
 | `CreateOptions`, `CreateAllOptions`, `UpdateByIdOptions`, `UpdateAllOptions`, `UpsertOptions`, `UpsertAllOptions`, `DeleteByIdOptions`, `DeleteAllOptions` | type, type, type, type, type, type, type, type | What `create`, `createAll`, `updateById`, `updateAll`, `upsert`, `upsertAll`, `deleteById` and `deleteAll` take |
 | `WriteRelationsOptions`, `BulkWriteOptions` | type, type | The relations to resolve on the row a write hands back, and on the rows a bulk write hands back, and what the write does with a soft deleted row of a relation |
 | `DeletedRelatedRows` | type | What a write does with a soft deleted row it is given by its `id` in a `oneToMany` or `hasOne` value: `'refuse'` or `'restore'`. Defaults to `'refuse'` |
@@ -107,6 +107,7 @@ side.
 | `IsolationLevel` | enum | The isolation level a transaction is started with |
 | `StartTransactionOptions`, `RunInTransactionOptions` | type, type | What `startTransaction` takes, the isolation level and idle timeout, and what `runInTransaction` takes on top, `maxAttempts` |
 | `TransactionConflictError`, `TransactionSerializationError` | error, error | Thrown when a transaction was ended for a conflict with another one, and that conflict for a `REPEATABLE READ` or `SERIALIZABLE` transaction whose rows changed meanwhile. Nothing it wrote is applied |
+| `TransactionLocksLostError` | error | Thrown at the commit of a Valkey transaction whose hold on the rows it wrote lapsed. Nothing it wrote is applied |
 | `TransactionUpsertConflictError` | error | Thrown when an `upsert` in a transaction found its row inserted by another transaction at the same moment. Nothing it wrote is applied |
 | `KeyDeclarationsChangedError` | error | Thrown at the commit of a transaction after the indexes or uniques of an entity it wrote changed. Nothing it wrote is applied |
 | `TransactionAlreadyFinishedError` | error | Thrown when a transaction is used after its commit or rollback |
@@ -343,7 +344,20 @@ A Valkey data source answers every call the way a Postgres one does. Where they 
   own writes. Two transactions writing the same row run one after the other, and two writing
   different rows do not wait for each other. A read outside the transaction sees the rows as they
   were until the commit.
-- The isolation level of a transaction is ignored, and a warning says so.
+- A transaction holds the rows it writes thirty seconds at a time, renewed while it runs. When its
+  process is kept from renewing the hold for longer, its commit
+  fails with a `TransactionLocksLostError` and nothing it wrote is applied, since another transaction
+  may have written those rows meanwhile. It is a `TransactionConflictError`, so `runInTransaction` runs
+  the work again.
+- A transaction started with `REPEATABLE READ` reads every row as it was at its first read: each write
+  through the data source meanwhile copies the row it writes first, which the transaction reads. The
+  server holds those copies until the transaction ends. Of a set, such as the ids of a table, a write
+  notes only the members it adds or removes. Its commit fails with a
+  `TransactionSerializationError` when another transaction wrote a row it writes since then, and when
+  the process was kept from renewing its hold on those copies for 15 minutes, as nothing can tell then
+  what was written since. One started
+  with `SERIALIZABLE` runs as `REPEATABLE READ`, and a warning says so. A write past the data source,
+  through `connection`, copies nothing.
 - A migration changes the stored values only: `addPropertyToEntity` writes the default, or `null`,
   into every stored row, and `changePropertyOfEntity` moves each value to its new name and converts
   it to its new type.
@@ -575,11 +589,18 @@ index or a unique, changing which rows it covers, or deleting it is all a releas
 
 - Creating one does not block writes to the entity, so instances still serving the previous version
   keep working while it is built.
+- On Postgres, an index that is no unique, which only makes reads faster, is built once the application
+  started, by one instance at a time, and the start waits for none of them. Reads it serves are slower
+  until it is built, which on a large table takes minutes. Uniques and checks are in place before the
+  start is done. Each index built is logged at `info`.
 - A unique the stored rows already break stops the start, naming the values they share. Remove the
   duplicates in a migration, which runs before the unique is created.
 - Checks are kept the same way. A check a stored row breaks stops the start, naming the row.
 - An index you create yourself on an entity's table is left alone, whatever you name it. Every index
   the data source removes is logged at `info`.
+- On Postgres, the column a `manyToOne` or `belongsToOne` keeps its related row's key in is indexed as
+  well, unless an index or unique the entity declares over every row starts with it. Deleting a related
+  row looks up the rows pointing at it by that column.
 - Once a release has changed the indexes and uniques, an older release refuses to start, the same way
   it refuses a database migrated past it, see [going back](#going-back).
 - A transaction that commits while a newer release next to it changes the indexes and uniques of an
@@ -1575,6 +1596,10 @@ undefined is absent once it is stored. `{ not: null }` finds exactly the rows `n
 the two together cover every row that has the object. A row whose object property is empty is in
 neither of them.
 
+An order reaches into an object property the same way, `order: { metadata: { color: 'ASC' } }`, and
+sorts each value the way a property of its type on the entity sorts. An array is not something to
+order by.
+
 ### Filtering an array
 
 `includes` asks for an array holding every value it lists. `isIncludedIn` asks for an array holding at
@@ -1886,7 +1911,7 @@ way when another one changed what it read in a way that level does not allow, an
 Two `upsert` calls naming the same row at the same moment insert it once and update it once. When
 the row has a unique besides its identity, an `upsert` inside your transaction can find the row
 inserted by the other one and fail with a `TransactionUpsertConflictError`. Running the transaction
-again updates the row. All three errors are a `TransactionConflictError`.
+again updates the row. These errors, and the `TransactionLocksLostError` of a [Valkey transaction](#differences-to-a-sql-data-source), are a `TransactionConflictError`.
 
 `runInTransaction` starts a transaction, commits it once your work is done, rolls it back when your
 work fails, and runs your work again from the start after a `TransactionConflictError`, until it has
@@ -2132,6 +2157,7 @@ The migration names every entity by its table and writes every property out, so 
 - A renamed property is removed and added again, empty. To keep what it holds, replace both with one `changePropertyOfEntity`.
 - An entity whose class keeps its name and moves to another table is renamed, with what it stores.
 - A change of the indexes, uniques or checks of an entity gets a migration that calls nothing, since they are kept as the entities declare them once the migrations have run. Change the stored rows that break a new unique or check in its `up()`.
+- A column a release of Zibri adds to one of its own entities, such as `application` of `Log`, is left out. The data source adds it to a table that lacks it when it starts, once your migrations ran.
 
 `zi migrate create --empty` writes a migration that changes nothing, for a change of the data of your own, such as removing duplicates before a unique is declared.
 
@@ -2241,7 +2267,7 @@ export async function start(app: ZibriApplication): Promise<void> {
 During a rolling deploy, instances of both versions serve at the same time. Keep each migration backward compatible with the version before it: add a nullable column instead of renaming one in place, and remove the old column in a later release.
 
 ### Running more than one instance
-Schema setup runs on one instance at a time: creating the migration table, running migrations, keeping the indexes and uniques, and whatever `schemaManagement` asks for. The first instance to start sets the schema up, and the others find the work done. There is nothing to configure.
+Schema setup runs on one instance at a time: creating the migration table, running migrations, keeping the uniques and checks, and whatever `schemaManagement` asks for. The other indexes are built once the instance started, see [keeping indexes and uniques](#keeping-indexes-and-uniques). The first instance to start sets the schema up, and the others find the work done. There is nothing to configure.
 
 An instance waits for the schema setup of another for one minute at most, then fails to start. `ZIBRI_DI_TOKENS.SCHEMA_LOCK_TIMEOUT_IN_MS` sets the wait:
 

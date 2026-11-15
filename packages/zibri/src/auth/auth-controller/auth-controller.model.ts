@@ -32,6 +32,7 @@ import { Post } from '../../routing/decorators/post.decorator';
 import { Newable } from '../../types/newable.type';
 import { TwoFactorMethod } from '../2fa/methods/two-factor-method.interface';
 import { TwoFactorMethods } from '../2fa/two-factor-methods.model';
+import { TwoFactorRegistrations } from '../2fa/two-factor-registrations.model';
 import { type TwoFactorServiceInterface } from '../2fa/two-factor-service.interface';
 import { type AuthServiceInterface } from '../auth-service.interface';
 import { FederatedAuthenticatorInterface, isFederatedAuthenticator } from '../authenticators/federated/federated-authenticator.interface';
@@ -53,10 +54,12 @@ import { RequestPasswordResetInput } from '../authenticators/password/request-pa
 import { isRegistrationAuthenticator, RegistrationAuthenticatorInterface } from '../authenticators/registration-authenticator.interface';
 import { Auth } from '../decorators/auth.decorator';
 import { CurrentUser } from '../decorators/current-user.decorator';
+import { EmailConfirmation } from '../email-verification/email-confirmation.model';
 import { type EmailVerificationServiceInterface } from '../email-verification/email-verification-service.interface';
 import { EmailVerificationTokenInput } from '../email-verification/email-verification-token-input.model';
 import { RequestEmailChangeInput } from '../email-verification/request-email-change-input.model';
 import { type BaseUser } from '../models/base-user.model';
+import { CurrentUserProfile } from '../models/current-user-profile.model';
 import { LogoutResult } from '../models/logout-result.model';
 import { UserLogin } from '../models/user-login.model';
 import { isAuthStrategy } from '../strategies/auth-strategy.interface';
@@ -152,10 +155,29 @@ export function AuthController<
     Strategies extends AuthControllerStrategyClass[],
     Authenticators extends AuthControllerAuthenticatorClass[],
     Methods extends TwoFactorMethods,
-    EmailVerification extends boolean = false
+    EmailVerification extends boolean = false,
+    CurrentUserRoute extends boolean = false,
+    ConfirmEmailRoute extends boolean = false,
+    TwoFactorRegistrationsRoute extends boolean = false
 >(
-    options: AuthControllerOptions<Strategies, Authenticators, Methods, EmailVerification>
-): AuthControllerClass<Strategies, Authenticators, Methods, EmailVerification> {
+    options: AuthControllerOptions<
+        Strategies,
+        Authenticators,
+        Methods,
+        EmailVerification,
+        CurrentUserRoute,
+        ConfirmEmailRoute,
+        TwoFactorRegistrationsRoute
+    >
+): AuthControllerClass<
+    Strategies,
+    Authenticators,
+    Methods,
+    EmailVerification,
+    CurrentUserRoute,
+    ConfirmEmailRoute,
+    TwoFactorRegistrationsRoute
+> {
     const strategies: AuthControllerStrategyClass[] = options.strategies;
     const authenticators: AuthControllerAuthenticatorClass[] = options.authenticators;
     const twoFactorMethods: TwoFactorMethods = options.twoFactorMethods;
@@ -182,7 +204,15 @@ export function AuthController<
         /**
          * What the routes were built from, which also marks the class as the auth controller.
          */
-        static readonly authControllerOptions: AuthControllerOptions<Strategies, Authenticators, Methods, EmailVerification> = options;
+        static readonly authControllerOptions: AuthControllerOptions<
+            Strategies,
+            Authenticators,
+            Methods,
+            EmailVerification,
+            CurrentUserRoute,
+            ConfirmEmailRoute,
+            TwoFactorRegistrationsRoute
+        > = options;
 
         private get authService(): AuthServiceInterface {
             return inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
@@ -280,6 +310,32 @@ export function AuthController<
             await this.authService.endOwnLogins(user.id, undefined);
         }
 
+        // seeing yourself is something every logged in user may do. Only what the framework knows of a
+        // user, so an application's own fields never reach a client by default: an application that
+        // wants them writes its own route in place of this one. The roles stay out, like on the
+        // CurrentUser handlers are given, because routes check permissions. Every membership rather than
+        // the one of the active tenant, so a frontend keeps them and switches tenants without asking again
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.isLoggedIn()
+        @Response.object(CurrentUserProfile)
+        @Get('/me')
+        async getCurrentUser(
+            @CurrentUser()
+            user: CurrentUser
+        ): Promise<CurrentUserProfile> {
+            const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+            if (context == undefined || this.authService.resolveCurrentMemberships == undefined) {
+                throw new InternalError('GET /me needs a request and resolveCurrentMemberships of the AuthService.');
+            }
+            return {
+                id: user.id,
+                email: user.email,
+                emailVerifiedAt: user.emailVerifiedAt ?? undefined,
+                memberships: await this.authService.resolveCurrentMemberships(context, this.authService.strategies),
+                platformPermissions: user.platformPermissions
+            };
+        }
+
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.isLoggedIn()
         @Response.array(UserLogin)
@@ -356,6 +412,27 @@ export function AuthController<
         ): Promise<void> {
             await AuthControllerUtilities.runInTransaction(
                 async transaction => await this.emailVerificationService.confirmEmailChange(input.token, transaction)
+            );
+        }
+
+        // the one route every link can go to: the links look alike, so the page they open can't tell
+        // which of the routes above to call
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.skip({ allowRedundant: true })
+        @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
+        @Response.object(EmailConfirmation)
+        @Post('/confirm-email')
+        async confirmEmail(
+            @Body(EmailVerificationTokenInput)
+            input: EmailVerificationTokenInput
+        ): Promise<EmailConfirmation> {
+            const emailVerificationService: EmailVerificationServiceInterface = this.emailVerificationService;
+            const confirm: EmailVerificationServiceInterface['confirmEmail'] = emailVerificationService.confirmEmail;
+            if (confirm == undefined) {
+                throw new InternalError('POST /confirm-email needs confirmEmail of the EmailVerificationService.');
+            }
+            return await AuthControllerUtilities.runInTransaction(
+                async transaction => await confirm.call(emailVerificationService, input.token, transaction)
             );
         }
 
@@ -730,6 +807,19 @@ export function AuthController<
             await this.authService.unlinkIdentity(user.id, identityId, undefined);
         }
 
+        // a frontend asks before it offers to enroll or remove a factor, or shows that one is enrolled
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.isLoggedIn()
+        @Response.object(TwoFactorRegistrations)
+        @Get('/2fa/registrations')
+        async findTwoFactorRegistrations(
+            @CurrentUser()
+            user: CurrentUser
+        ): Promise<TwoFactorRegistrations> {
+            const registered: TwoFactorMethods = await this.twoFactorService.findRegisteredMethods(user, twoFactorMethods);
+            return { methods: registered.map(m => inject(m).name) };
+        }
+
         // a password must not be enough to add a factor of the attacker's own to an account that has one,
         // so a user who holds one presents it. A user without one could otherwise never enrol their
         // first, and logs in again instead
@@ -830,6 +920,7 @@ export function AuthController<
             return await this.authService.requestTwoFactorRegistrationAtLogin(this.resolveLoginTicket(), instance, data);
         }
 
+        // the login continues at /login/2fa/confirm, which the code that turned the factor on passes too
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @Response.empty()
@@ -947,6 +1038,10 @@ export function AuthController<
             routes: ['requestEmailVerification', 'confirmEmailVerification', 'requestEmailChange', 'confirmEmailChange'],
             present: options.emailVerification === true
         },
+        // asked for, as GET /me is: an application of 3.0 can have a route of its own at either path
+        { routes: ['confirmEmail'], present: options.emailVerification === true && options.confirmEmailRoute === true },
+        // asked for: a GET /me of the application's own beside it refused to start
+        { routes: ['getCurrentUser'], present: options.currentUserRoute === true },
         { routes: ['findLogins', 'endLogin'], present: listing.length > 0 },
         { routes: ['loginOptions'], present: challenging.length > 0 },
         { routes: ['requestRegistration', 'confirmRegistration'], present: registering.length > 0 },
@@ -979,7 +1074,8 @@ export function AuthController<
                 'confirmSecondFactorAtLogin'
             ],
             present: twoFactorMethods.length > 0
-        }
+        },
+        { routes: ['findTwoFactorRegistrations'], present: twoFactorMethods.length > 0 && options.twoFactorRegistrationsRoute === true }
     ];
     const omitted: (keyof Temp)[] = groups
         .filter(g => !g.present)
@@ -991,7 +1087,15 @@ export function AuthController<
     ClassPropertyUtilities.copy(AuthControllerRoutes, Temp, omitted);
     // put together at runtime from the groups the classes call for, which the type works out from their
     // types the same way: nothing in between is something the compiler can follow
-    return AuthControllerRoutes as AuthControllerClass<Strategies, Authenticators, Methods, EmailVerification>;
+    return AuthControllerRoutes as AuthControllerClass<
+        Strategies,
+        Authenticators,
+        Methods,
+        EmailVerification,
+        CurrentUserRoute,
+        ConfirmEmailRoute,
+        TwoFactorRegistrationsRoute
+    >;
 }
 
 /**

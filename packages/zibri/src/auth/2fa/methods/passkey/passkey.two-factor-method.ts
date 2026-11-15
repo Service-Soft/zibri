@@ -19,6 +19,7 @@ import { PasskeyRegistrationResponse } from '../../../authenticators/passkey/pas
 import { PasskeyRequestOptions } from '../../../authenticators/passkey/passkey-request-options.model';
 import { type PasskeyServiceInterface } from '../../../authenticators/passkey/passkey-service.interface';
 import { UserAccount } from '../../../models/user-account.model';
+import { SecondFactorMissingError } from '../../second-factor-missing.error';
 import { TwoFactorMethod } from '../two-factor-method.interface';
 
 /**
@@ -103,7 +104,7 @@ implements TwoFactorMethod<PasskeyAdditionRequest, PasskeyRegistrationResponse, 
     private async resolveResponse(context: HttpRequestContext | WebsocketRequestContext): Promise<PasskeyAuthenticationResponse> {
         const header: string | undefined = findHeader(context.request.headers, this.passkeyHeader);
         if (!header) {
-            throw new UnauthorizedError($ts`"${this.passkeyHeader}" header not found`);
+            throw new SecondFactorMissingError($ts`"${this.passkeyHeader}" header not found`);
         }
         let response: PasskeyAuthenticationResponse;
         try {

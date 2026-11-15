@@ -86,14 +86,18 @@ describe('an application whose database goes away and comes back', () => {
         await server?.shutdown();
     }, TestTimeouts.postgres.shutdown);
 
-    it('serves again once its connections were dropped, as a restart of the database drops them', async () => {
+    // at once, not once the pool noticed: a connection the server ends tells its client a moment later, and a
+    // request taking it before then failed. Several times, since a request does not lose that race every time
+    it('serves at once once its connections were dropped, as a restart of the database drops them', async () => {
         const email: string = await createUser();
         expect(await login(email)).toBe(200);
 
-        await getServer().runAsSuperuser(dataSourceClass, [`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename = '${resolveApplicationRole()}'`]);
+        for (let i: number = 0; i < 5; i++) {
+            await getServer().runAsSuperuser(dataSourceClass, [`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename = '${resolveApplicationRole()}'`]);
 
-        expect(await login(email)).toBe(200);
-    });
+            expect(await login(email)).toBe(200);
+        }
+    }, 30000);
 
     it('fails what needs the database while it takes no connections, and serves again once it does', async () => {
         const email: string = await createUser();
@@ -103,7 +107,6 @@ describe('an application whose database goes away and comes back', () => {
         // the server stays up and refuses the application, so that nothing about its address or its
         // port changes the way a restarted container could
         await getServer().runAsSuperuser(dataSourceClass, [
-            // eslint-disable-next-line cspell/spellchecker
             `ALTER ROLE "${role}" NOLOGIN`,
             `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename = '${role}'`
         ]);

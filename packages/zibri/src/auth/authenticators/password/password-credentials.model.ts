@@ -7,7 +7,8 @@ import { type HashString, PASSWORD_MAX_LENGTH } from '../../hash/hash.utilities'
 /**
  * The password of a user, as `PasswordAuthenticator` stores it.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+// kept for the current users: a password changed since the backup stays the one a user logs in with
+@Entity({ tenant: 'shared', allowOrphan: true, backedUp: 'keptForCurrentUsers' })
 export class PasswordCredentials extends BaseEntity {
     /**
      * The id of the user the password belongs to.

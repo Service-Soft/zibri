@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import ts from 'typescript';
@@ -70,12 +70,12 @@ export type TypeCheckCompilerLike = {
  */
 type TemplateTypeCheck = {
     /**
-     * One error per type error in a template, and per email component one places where MJML does not allow it.
+     * One error per email component a template places where MJML does not allow it.
      */
     errors: Error[],
     /**
-     * One warning per email component a template places where MJML does not allow it, as long as such a template
-     * builds.
+     * One warning per type error in a template, and per email component a template places where MJML does not allow
+     * it, as long as such a template builds.
      */
     warnings: Error[],
     /**
@@ -85,13 +85,14 @@ type TemplateTypeCheck = {
 };
 
 /**
- * A webpack plugin that fails the build on a type error in a template, and warns about an email component a template
- * places where MJML does not allow it through a component of another file.
+ * A webpack plugin that warns about a type error in a template, and about an email component a template places where
+ * MJML does not allow it through a component of another file.
  *
- * The templates are compiled by the zibri-tsx loader rather than by the loader of the rest of the code, which
- * reports the type errors of the files it compiles. This checks the templates in the program of the
- * application's tsconfig and reports theirs, each with its file, line and column. A `.md` or `.mdx` template is
- * checked as the tsx template it is printed as, and its errors name the line of the markdown. What it learns is kept in
+ * The templates are compiled by the zibri-tsx loader, not by the loader of the rest of the code, which reports the
+ * type errors of the files it compiles. This checks the templates in the program of the application's tsconfig and
+ * reports theirs, each with its file, line and column, as a warning, which fails the build from 4.0. A `.md` or `.mdx`
+ * template a file of the program imports is checked as the tsx template it is printed as, and its errors name the line
+ * of the markdown. A markdown file nothing imports, such as a README, is left alone. What it learns is kept in
  * `node_modules/.cache/zibri-tsx` beside the tsconfig, so a later build checks only what changed.
  *
  * The loader checks the nesting of email components in each template alone. In the program, a component a template
@@ -137,18 +138,17 @@ export class ZibriTsxTypeCheckPlugin {
             composite: false,
             tsBuildInfoFile: buildInfo
         };
-        // a markdown template is checked as the tsx template it is printed as, a file beside it only this program has
-        const markdown: Map<string, MarkdownTemplateFile> = this.resolveMarkdownTemplates(templateDirs);
+        const dirs: string[] = templateDirs.map(dir => `${path.resolve(dir)}${path.sep}`);
+        // a markdown template is checked as the tsx template it is printed as, a file beside it only this program has.
+        // It is printed once a file of the program imports it, so a markdown file nothing imports, such as a README,
+        // is no template
+        const markdown: Map<string, MarkdownTemplateFile> = new Map();
         const program: ts.EmitAndSemanticDiagnosticsBuilderProgram = ts.createIncrementalProgram({
-            rootNames: [
-                ...config.fileNames,
-                ...[...markdown.values()].filter(file => file.template.tsx !== undefined).map(file => file.printedPath)
-            ],
+            rootNames: config.fileNames,
             options,
-            host: this.createHost(options, markdown),
+            host: this.createHost(options, dirs, markdown),
             configFileParsingDiagnostics: config.errors
         });
-        const dirs: string[] = templateDirs.map(dir => `${path.resolve(dir)}${path.sep}`);
         const isTemplate: (file: ts.SourceFile) => boolean = file => file.fileName.endsWith('.tsx')
             && dirs.some(dir => path.resolve(file.fileName).startsWith(dir));
         // the diagnostics of a file are answered from what the last build learned, which only stops counting once
@@ -168,62 +168,46 @@ export class ZibriTsxTypeCheckPlugin {
                 'zibri-tsx found an email component placed where MJML does not allow it:\n'
                 + `${resolveLocation(file, diagnostic.span.start, markdown)} ${diagnostic.code} ${diagnostic.message}`
             )));
-        const errors: Error[] = [
-            ...templates
-                .flatMap(file => program.getSemanticDiagnostics(file))
-                .filter(diagnostic => diagnostic.category === ts.DiagnosticCategory.Error)
-                .map(diagnostic => toError(diagnostic, markdown)),
-            ...nestingReports(DiagnosticSeverity.ERROR)
-        ];
+        // TODO 4.0: a type error of a template fails the build. 3.0 checked no template, so one that built then warns
+        const typeErrors: Error[] = templates
+            .flatMap(file => program.getSemanticDiagnostics(file))
+            .filter(diagnostic => diagnostic.category === ts.DiagnosticCategory.Error)
+            .map(diagnostic => toTypeErrorReport(diagnostic, markdown));
         // with noEmit, emitting writes what was learned and nothing else
         mkdirSync(path.dirname(buildInfo), { recursive: true });
         program.emit();
-        const printed: Set<string> = new Set([...markdown.values()].map(file => file.printedPath));
         return {
-            errors,
-            warnings: nestingReports(DiagnosticSeverity.WARNING),
+            errors: nestingReports(DiagnosticSeverity.ERROR),
+            warnings: [...typeErrors, ...nestingReports(DiagnosticSeverity.WARNING)],
             templates: [
-                ...templates.map(file => path.resolve(file.fileName)).filter(file => !printed.has(file)),
-                ...markdown.keys()
+                ...templates.map(file => path.resolve(file.fileName)).filter(file => !markdown.has(file)),
+                ...[...markdown.values()].map(file => file.path)
             ]
         };
     }
 
     /**
-     * Prints the markdown templates of the template directories.
-     * @param templateDirs - The directories.
-     * @returns Each printed template, by the path of the file it is printed as.
-     */
-    private resolveMarkdownTemplates(templateDirs: string[]): Map<string, MarkdownTemplateFile> {
-        const files: Map<string, MarkdownTemplateFile> = new Map();
-        for (const file of findMarkdownFiles(templateDirs.map(dir => path.resolve(dir)))) {
-            const kind: MarkdownKind | undefined = MarkdownCompilerUtilities.findMarkdownKind(file);
-            if (kind === undefined) {
-                continue;
-            }
-            const printedPath: string = `${file}.tsx`;
-            files.set(
-                printedPath,
-                {
-                    path: file,
-                    printedPath,
-                    template: MarkdownCompilerUtilities.resolveMarkdownTemplate(readFileSync(file, 'utf8'), kind, file)
-                }
-            );
-        }
-        return files;
-    }
-
-    /**
-     * A compiler host that reads the printed markdown templates from memory, and every other file from the disk.
+     * A compiler host that prints a markdown template of the template directories once the program asks for the file
+     * it is printed as, and reads every other file from the disk.
      * @param options - The options of the program.
-     * @param markdown - The printed markdown templates.
+     * @param dirs - The template directories, each ending in a separator.
+     * @param markdown - Collects the printed markdown templates, by the path of the file each is printed as.
      * @returns The host.
      */
-    private createHost(options: ts.CompilerOptions, markdown: Map<string, MarkdownTemplateFile>): ts.CompilerHost {
+    private createHost(options: ts.CompilerOptions, dirs: string[], markdown: Map<string, MarkdownTemplateFile>): ts.CompilerHost {
         const host: ts.CompilerHost = ts.createIncrementalCompilerHost(options);
-        const printedText: (fileName: string) => string | undefined = fileName => markdown.get(path.resolve(fileName))?.template.tsx;
         const { fileExists, readFile } = host;
+        const printedText: (fileName: string) => string | undefined = fileName => {
+            const printedPath: string = path.resolve(fileName);
+            if (!markdown.has(printedPath)) {
+                const printed: MarkdownTemplateFile | undefined = printMarkdownTemplate(printedPath, dirs, fileExists);
+                if (printed === undefined) {
+                    return undefined;
+                }
+                markdown.set(printedPath, printed);
+            }
+            return markdown.get(printedPath)?.template.tsx;
+        };
         // replaced on the host itself, as its getSourceFile reads through it, and gives each file the version a
         // later build compares
         host.fileExists = fileName => printedText(fileName) !== undefined || fileExists(fileName);
@@ -251,31 +235,36 @@ type MarkdownTemplateFile = {
 };
 
 /**
- * Finds the markdown templates under the given directories.
- * @param dirs - The directories, missing ones ignored.
- * @returns The paths of the `.md` and `.mdx` files.
+ * Prints the markdown template a file of the program would be printed from.
+ * @param printedPath - The file the program asks for, such as `imprint.md.tsx` for `imprint.md`.
+ * @param dirs - The template directories, each ending in a separator.
+ * @param fileExists - Whether a file exists on the disk.
+ * @returns The printed template, or undefined when the file is none printed from a markdown template.
  */
-function findMarkdownFiles(dirs: string[]): string[] {
-    return dirs.flatMap(dir => {
-        try {
-            return readdirSync(dir, { recursive: true, encoding: 'utf8' })
-                .filter(file => file.endsWith('.md') || file.endsWith('.mdx'))
-                .map(file => path.join(dir, file));
-        }
-        catch {
-            return [];
-        }
-    });
+function printMarkdownTemplate(
+    printedPath: string,
+    dirs: string[],
+    fileExists: (fileName: string) => boolean
+): MarkdownTemplateFile | undefined {
+    if (!printedPath.endsWith('.tsx') || !dirs.some(dir => printedPath.startsWith(dir))) {
+        return undefined;
+    }
+    const file: string = printedPath.slice(0, -'.tsx'.length);
+    const kind: MarkdownKind | undefined = MarkdownCompilerUtilities.findMarkdownKind(file);
+    return kind === undefined || !fileExists(file)
+        ? undefined
+        : { path: file, printedPath, template: MarkdownCompilerUtilities.resolveMarkdownTemplate(readFileSync(file, 'utf8'), kind, file) };
 }
 
 /**
- * A type error of a template, as the build reports it. One of a markdown template names the line of the markdown.
+ * A type error of a template, as the build reports it: a warning, which fails the build from 4.0. One of a markdown
+ * template names the line of the markdown.
  * @param diagnostic - The type error.
  * @param markdown - The printed markdown templates, by the path of the file each is printed as.
- * @returns The error.
+ * @returns The warning.
  */
-function toError(diagnostic: ts.Diagnostic, markdown: Map<string, MarkdownTemplateFile>): Error {
-    const message: string = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
+function toTypeErrorReport(diagnostic: ts.Diagnostic, markdown: Map<string, MarkdownTemplateFile>): Error {
+    const message: string = `${ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')}\nThis fails the build from 4.0.`;
     return new Error(
         diagnostic.file === undefined || diagnostic.start === undefined
             ? `zibri-tsx found a type error in a template:\nTS${diagnostic.code} ${message}`

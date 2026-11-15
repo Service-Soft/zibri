@@ -28,7 +28,9 @@ Code crosses only as the template's own source. A statement client code reads is
 browser, never evaluated on the server and written as a literal; so a statement that reads an import
 is refused (`ZTSX003`), and `const x = MaskUtilities.mask(value)` compiles only while `x` stays on
 the server, in the markup. A name client code reads from outside the component is one of the
-browser's globals, a `?client` global, a global the template declares, or a hook (`ZTSX009`).
+browser's globals, a `?client` global, a global the template declares, or a hook (`ZTSX009`). A hook is what zibri
+exports under its name, whatever name the template imports it as, which the client script binds to the hook the page
+defines; a function the template declares or imports from another module under the name of a hook is not one.
 
 Values cross in three places, all narrowed to the fields client code reads:
 1. **Props**, which the caller passes into the component function.

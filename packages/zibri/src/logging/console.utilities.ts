@@ -55,17 +55,26 @@ export abstract class ConsoleUtilities {
             }
             case LogLevel.ERROR: {
                 console.error(timeStamp, `${this.red}${this.bright}ERROR${this.reset}${this.spacing}${log.context.origin}`);
-                for (const p of log.context.error?.paragraphs ?? []) {
-                    console.error(p);
-                }
+                this.printError(log);
                 return;
             }
             case LogLevel.CRITICAL: {
                 console.error(timeStamp, `${this.purple}${this.bright}CRITICAL${this.reset}${this.spacing}${log.context.origin}`);
-                for (const p of log.context.error?.paragraphs ?? []) {
-                    console.error(p);
-                }
+                this.printError(log);
                 return;
+            }
+        }
+    }
+
+    private static printError(log: Log): void {
+        for (const p of log.context.error?.paragraphs ?? []) {
+            console.error(p);
+        }
+        const stackTrace: string[] = log.context.error?.stackTrace ?? [];
+        if (stackTrace.length) {
+            console.error('stack trace:');
+            for (const line of stackTrace) {
+                console.error(`    ${line}`);
             }
         }
     }

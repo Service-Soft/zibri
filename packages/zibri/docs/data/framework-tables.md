@@ -50,6 +50,9 @@ A cleanup cron job is registered for you with the feature that needs it. An expi
 | `MigrationEntity` | One row per migration applied, see [data source](./data-source.md) | Kept for good |
 | `ChangeSet`, `Change` | One row per write to a [change set](../glossary.md#change-set) entity, and one per property it changed | Deleted with the row they describe |
 | `BackupEntity`, `BackupResourceEntity` | One row per [backup](./backup.md), and one per resource it holds | Deleted when the backup is deleted, by you or by the [retention](./backup.md#deleting-old-backups) |
+| `TenantBackupTransport` | One row per transport a tenant [keeps its backups on](./backup.md#letting-a-tenant-back-up-to-its-own-storage) | Deleted by `deleteTenantBackupTransport` |
+| `TenantBackupSettings` | One row per tenant that set a retention of its own | Kept while the tenant is |
+| `BackupChunkEntity` | One row per [chunk](./backup.md#storing-unchanged-data-once) a transport holds: about one per MiB of data that changed, per transport | Deleted by `BackupGarbageCollectionCronJob`, once a day, with the chunks no backup names, and once the transport is found not to hold them, see [freeing the space of deleted backups](./backup.md#freeing-the-space-of-deleted-backups) |
 | `HashStrategyEntity`, `EncryptionStrategyEntity` | One row per hash or encryption strategy, see [encryption and hashing](./encryption-and-hashing.md) | Kept for good |
 | `EncryptionKey` | One row per encryption key | Deleted when you delete the key, once a rotation moved every value off it |
 | `EncryptionRotationProgress` | One row | Kept for good |

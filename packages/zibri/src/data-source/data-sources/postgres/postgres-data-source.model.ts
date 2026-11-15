@@ -7,10 +7,11 @@ import { pgTypeParsers } from './pg-type-parsers.function';
 import { PostgresBackupScope } from './postgres-backup-scope.model';
 import { PostgresBackupRunner } from './postgres-backup.runner';
 import { Pg, PgClient, PgPool, PgPoolClient, PgQueryResult, PgSessionClient } from './postgres-client.model';
+import { PostgresIncrementalReader } from './postgres-incremental-reader.model';
 import { ListeningConnection, PostgresNotificationListener } from './postgres-notification-listener.model';
 import { PostgresPooler, PostgresTransactionPooler } from './postgres-pooler.model';
 import { PostgresQueryBuilder } from './postgres-query-builder.model';
-import { PostgresRun, PostgresSchemaManager } from './postgres-schema-manager.model';
+import { KeyReconciliation, PostgresRun, PostgresSchemaManager } from './postgres-schema-manager.model';
 import { ColumnPropertyMetadata, PostgresColumnSettings, PostgresSchema } from './postgres-schema.model';
 import { PostgresSqlUtilities, PostgresStatement } from './postgres-sql.utilities';
 import { PostgresStatementErrorUtilities } from './postgres-statement-error.utilities';
@@ -18,6 +19,10 @@ import { PostgresKey, PostgresTable } from './postgres-table.model';
 import { PostgresWhereFilterConverter, TrigramSupport } from './postgres-where-filter.converter';
 import { sendPostgresCancelRequest } from './send-postgres-cancel-request.function';
 import { type AuthServiceInterface } from '../../../auth/auth-service.interface';
+import { type BackupDataOptions } from '../../../backup/backup-data-options.model';
+import { type BackupEntity } from '../../../backup/backup-entity.model';
+import { type IncrementalBackupData } from '../../../backup/incremental-backup-data.model';
+import { type IncrementalBackupResourceInterface } from '../../../backup/incremental-backup-resource.interface';
 import { AlsUtilities } from '../../../context/als.utilities';
 import { OperationLimit } from '../../../context/operation-limit.model';
 import { OperationLimitUtilities } from '../../../context/operation-limit.utilities';
@@ -33,15 +38,18 @@ import { GlobalRegistry } from '../../../global/global-registry';
 import { keyGroupsOf } from '../../../global/model-registry/key-descriptor';
 import { type LoggerInterface } from '../../../logging/logger.interface';
 import { Newable } from '../../../types/newable.type';
+import { Bytes } from '../../../utilities/bytes';
 import { hasOptionalPeer, optionalPeer } from '../../../utilities/optional-peer.function';
 import { PromiseUtilities } from '../../../utilities/promise.utilities';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { PostgresRepositoryDriver } from '../../driver/postgres.repository-driver';
 import { registerRepositoryProvidersFor } from '../../entity-ownership.function';
 import { MigratedEntityUtilities } from '../../migration/migrated-entity.utilities';
 import { MigrationEntity } from '../../migration/migration-entity.model';
 import { MigrationRevertTarget } from '../../migration/migration-revert-target.model';
 import { Migration } from '../../migration/migration.model';
-import { recordKeyReconciliation, revertMigrationsAfter, runMigrations, runMigrationsAfterRestore } from '../../migration/run-migrations.function';
+import { RecordedMigration } from '../../migration/recorded-migration.model';
+import { isMigratedAsOf, recordKeyReconciliation, revertMigrationsAfter, runMigrations, runMigrationsAfterRestore } from '../../migration/run-migrations.function';
 import { AddPropertyToEntityInput } from '../../models/add-property-to-entity-input.model';
 import { ChangePropertyOfEntityInput } from '../../models/change-property-of-entity-input.model';
 import { ColumnType } from '../../models/column-type.model';
@@ -176,6 +184,23 @@ type StatementWatch = {
 const SCHEMA_LOCK_RETRY_IN_MS: number = 100;
 
 /**
+ * The lock the indexes a start left are built under, one instance at a time, beside the schema lock rather than
+ * under it: an instance starting while another builds waits for neither.
+ */
+const INDEX_BUILDS_LOCK_KEY: string = 'zibri.index-builds';
+
+/**
+ * How long an instance waits between two attempts at taking the lock of the index builds, in milliseconds. Another
+ * instance holds it for as long as its builds take, which is minutes on a large table.
+ */
+const INDEX_BUILDS_LOCK_RETRY_IN_MS: number = 1000;
+
+/**
+ * How many connections the pool keeps open at most, when the options do not say.
+ */
+const DEFAULT_POOL_SIZE: number = 20;
+
+/**
  * The number postgres identifies the advisory lock on a key by, in the schema the session's tables
  * are created in. Postgres identifies advisory locks by number, so the two are hashed into one.
  */
@@ -197,6 +222,11 @@ const MAX_NOTIFY_PAYLOAD_BYTES: number = 7999;
 const MAX_IDENTIFIER_BYTES: number = 63;
 
 /**
+ * How many rows a stream in a transaction fetches from its cursor at a time.
+ */
+const CURSOR_FETCH_ROWS: number = 500;
+
+/**
  * What postgres answers a statement it stopped on request with.
  */
 const QUERY_CANCELED_SQL_STATE: string = '57014';
@@ -204,7 +234,7 @@ const QUERY_CANCELED_SQL_STATE: string = '57014';
 /**
  * A base postgres data source definition.
  */
-export abstract class PostgresDataSource implements SqlDataSourceInterface, PubSubDataSourceInterface {
+export abstract class PostgresDataSource implements SqlDataSourceInterface, PubSubDataSourceInterface, IncrementalBackupResourceInterface {
     abstract readonly entities: Newable<BaseEntity>[];
 
     abstract readonly repositories: RepositoryClass[];
@@ -261,6 +291,16 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
      * same schema.
      */
     readonly backupScope: PostgresBackupScope | undefined;
+
+    /**
+     * Whether a backup reads only what changed since the backup before it, through logical decoding.
+     * When false, every backup dumps everything. Off by default.
+     *
+     * Needs `wal_level` set to `logical`, `max_slot_wal_keep_size` set, two free replication slots, and
+     * the role backups run as allowed to replicate, to own the tables backed up, and to set
+     * `session_replication_role`. Checked at boot.
+     */
+    readonly incrementalRead: boolean = false;
 
     /**
      * The similarity from which this data source answers a search out of an index.
@@ -331,6 +371,18 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
     private notificationListener: PostgresNotificationListener | undefined;
 
     private readonly openTransactions: OpenTransactions = new OpenTransactions();
+    // from when the shutdown begins, after which a connection failing is expected and told to nobody
+    private shuttingDown: boolean = false;
+
+    /**
+     * The builds of the indexes the start left, done once they are, or once nothing is left.
+     */
+    private indexBuilds: Promise<void> = Promise.resolve();
+
+    /**
+     * The server process of the session the indexes are built on, while one is, which the shutdown cancels.
+     */
+    private indexBuildProcess: number | undefined;
 
     /**
      * The tables a write changes more than its own rows of, by table, with what else it changes.
@@ -338,6 +390,8 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
     private unrestorableTables: Map<string, string> = new Map();
 
     private backupRunner: PostgresBackupRunner | undefined;
+
+    private incrementalReader: PostgresIncrementalReader | undefined;
 
     /**
      * What stops a statement when the request it belongs to ends first, by connection: the
@@ -457,9 +511,18 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
         const schema: PostgresSchema = new PostgresSchema(entities, this.columnSettings);
         this.schema = schema;
         const pg: Pg = optionalPeer<Pg>('pg', 'Talking to postgres');
+        this.shuttingDown = false;
         const pool: PgPool = new pg.Pool(this.resolveConnectionConfig(this.options, true));
-        // a connection that fails while it sits in the pool is dropped by the pool, which tells nobody
-        pool.on('error', error => this.logger.error(new InternalError('A pooled postgres connection failed.', { cause: error })));
+        // a connection the server ends says so as an event, which nothing listening turns into a crash of the
+        // process. The pool listens only while a connection sits in it, and stops while it is taken: one
+        // ended between two statements of whoever took it, such as work holding a lock or a listener about
+        // to hand it back, crashed it. So each connection is listened on for as long as it lives, which also
+        // says it for one in the pool. Whoever holds one learns from its next statement failing
+        pool.on('connect', client => {
+            client.on('error', error => this.logConnectionFailure('A pooled postgres connection failed.', error));
+        });
+        // what the pool hands on of a connection in it, which the listener above said already
+        pool.on('error', () => undefined);
         this.pool = pool;
 
         await this.beforeMigrations();
@@ -479,14 +542,20 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
         // the first instance sets the schema up under the lock and the rest find the work done. Under
         // the migration timeout: an index built over a large table, or a migration rewriting one, is the
         // work this block exists for
-        await OperationLimitUtilities.runWithin(
+        const indexesLeft: boolean = await OperationLimitUtilities.runWithin(
             this.migrationTimeoutInMs,
             `Setting up the schema of "${this.constructor.name}"`,
             async () => await this.schemaLock(SCHEMA_LOCK_KEY, async () => {
                 await this.runMigrations();
-                await this.reconcileSchema();
+                // the indexes that only make reads faster after the start rather than before it: on a large table
+                // a build takes minutes, which a start waiting for it spent unable to answer, and an orchestrator
+                // restarting it as unresponsive cut short over and over
+                return await this.reconcileSchema(true);
             })
         );
+        if (indexesLeft) {
+            this.startIndexBuilds();
+        }
         // read after the schema is set up, so that what it finds is what nothing here is going to fix
         await manager.warnAboutColumnsOrderedDifferently(this.bindRun(undefined), this.textCollation);
         if (this.schemaManagement === 'external') {
@@ -524,8 +593,101 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
         ]);
     }
 
+    /**
+     * Waits for the indexes the start left to build in the background, which only make reads faster. Resolves at
+     * once when none are left, or when another instance builds them.
+     * @returns Once they are built, or their build ended.
+     */
+    async waitForIndexBuilds(): Promise<void> {
+        await this.indexBuilds;
+    }
+
+    /**
+     * Starts building the indexes the start left, in the background.
+     */
+    private startIndexBuilds(): void {
+        this.indexBuilds = this.buildIndexes();
+    }
+
+    /**
+     * Builds the indexes the start left on a session of its own, once no other instance builds them. Whatever
+     * fails is logged: the indexes make reads faster and nothing more, and the next start builds what is missing.
+     */
+    private async buildIndexes(): Promise<void> {
+        let session: PgSessionClient;
+        try {
+            session = await this.openSession();
+        }
+        catch (error) {
+            this.reportIndexBuildFailure(error);
+            return;
+        }
+        try {
+            const run: PostgresRun = async (sql, values = []) => await this.runOn(session, sql, values);
+            const [process] = await run('SELECT pg_backend_pid() AS "process"');
+            this.indexBuildProcess = Number(process?.['process']);
+            // the statement timeout of the migrations, none by default, rather than the one of a request: the build
+            // of an index on a large table takes minutes
+            await run('SELECT set_config(\'statement_timeout\', $1, false)', [String(this.migrationTimeoutInMs)]);
+            if (!await this.waitForIndexBuildsLock(run)) {
+                return;
+            }
+            const built: string[] = await this.getManager().buildIndexes(run);
+            if (built.length) {
+                this.logger.info(`Built the indexes of "${this.constructor.name}" its start left: ${built.join(', ')}`);
+            }
+        }
+        catch (error) {
+            this.reportIndexBuildFailure(error);
+        }
+        finally {
+            this.indexBuildProcess = undefined;
+            // which also lets go of the lock
+            await session.end().catch(() => undefined);
+        }
+    }
+
+    /**
+     * Logs that building the indexes the start left failed, unless the data source shuts down, which ends the build.
+     * @param error - What it failed with.
+     */
+    private reportIndexBuildFailure(error: unknown): void {
+        if (this.shuttingDown) {
+            return;
+        }
+        this.logger.error(new InternalError(
+            `Building the indexes of "${this.constructor.name}" its start left failed. The next start builds them.`,
+            { cause: error }
+        ));
+    }
+
+    /**
+     * Takes the lock of the index builds, asking for it until it is free or the data source shuts down.
+     * @param run - Runs a statement on the session the indexes are built on.
+     * @returns Whether it was taken.
+     */
+    private async waitForIndexBuildsLock(run: PostgresRun): Promise<boolean> {
+        while (!this.shuttingDown) {
+            // named apart from the schema lock, which pg_stat_activity tells an operator by
+            const [row] = await run(`SELECT pg_try_advisory_lock(${ADVISORY_LOCK_ID_SQL}) AS "indexBuildsTaken"`, [INDEX_BUILDS_LOCK_KEY]);
+            if (row?.['indexBuildsTaken'] === true) {
+                return true;
+            }
+            await sleep(INDEX_BUILDS_LOCK_RETRY_IN_MS);
+        }
+        return false;
+    }
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     async shutDown(): Promise<void> {
+        this.shuttingDown = true;
+        // ended rather than waited for: a build takes minutes. The index it leaves invalid is dropped and built again
+        // once the next start left it. Cancelled through the pool, since a connection ended while the server builds
+        // is not noticed until the build is done
+        if (this.indexBuildProcess != undefined) {
+            await this.bindRun(undefined)('SELECT pg_cancel_backend($1)', [this.indexBuildProcess]).catch(() => undefined);
+        }
+        await this.indexBuilds;
         // before the pool closes, which waits for every connection it handed out: one held by a
         // transaction nothing ends kept the shutdown waiting until the server timed it out
         await this.openTransactions.rollBackAll(this.constructor.name, this.logger);
@@ -568,11 +730,14 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
     /**
      * Brings the tables, and the indexes, uniques and checks the entities declare, in line with what
      * the entities declare. Runs once the migrations have, while the schema lock is held.
+     * @param leaveIndexes - Whether the indexes that only make reads faster are left to be built in the background,
+     * by {@link startIndexBuilds}.
+     * @returns Whether indexes are left.
      * @throws When stored rows break a declared unique or check.
      */
-    private async reconcileSchema(): Promise<void> {
+    private async reconcileSchema(leaveIndexes: boolean): Promise<boolean> {
         if (this.schemaManagement === 'external') {
-            return;
+            return false;
         }
         const manager: PostgresSchemaManager = this.getManager();
         if (this.schemaManagement === 'synchronize') {
@@ -581,10 +746,16 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
         // before the keys, which are built on the tables and would otherwise be what finds one missing
         if (this.schemaManagement === 'migrations') {
             await this.onSession(async run => await manager.validateTablesExist(run));
+            // after the application's migrations, which on an empty database create the tables, and before the
+            // keys, an index among them reading one of the columns
+            const added: string[] = await this.onSession(async run => await manager.addFrameworkColumns(run));
+            if (added.length) {
+                this.logger.info(`    > adds what the framework added to its entities: ${added.join(', ')}`);
+            }
         }
         // a session of its own, and no transaction on it: an index is built concurrently, which cannot
         // happen inside one - and is the point, since writes go on while it is built
-        const changed: boolean = await this.onSession(async (run, client, pooled) => {
+        const reconciled: KeyReconciliation = await this.onSession(async (run, client, pooled) => {
             const limit: OperationLimit | undefined = AlsUtilities.findCurrentOperationLimit();
             const restore: (() => Promise<void>) | undefined = limit == undefined
                 ? undefined
@@ -593,15 +764,18 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
                 // kept like the keys under migrations, which describe columns alone: synchronizing keeps
                 // them with the rest of the schema
                 const relationsChanged: boolean = this.schemaManagement === 'migrations' && await manager.reconcileRelations(run);
-                return await manager.reconcileKeys(run) || relationsChanged;
+                const keys: KeyReconciliation = await manager.reconcileKeys(run, leaveIndexes);
+                return { ...keys, changed: keys.changed || relationsChanged };
             }
             finally {
                 await restore?.();
             }
         });
-        if (this.schemaManagement === 'migrations' && changed) {
+        // with the indexes left to build: an older release refuses to start on what this one declares either way
+        if (this.schemaManagement === 'migrations' && reconciled.changed) {
             await recordKeyReconciliation(this.constructor as Newable<DataSourceInterface>);
         }
+        return reconciled.indexesLeft;
     }
 
     // ── repositories and transactions ───────────────────────────
@@ -633,7 +807,6 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
     // eslint-disable-next-line jsdoc/require-jsdoc
     async startTransaction(options?: StartTransactionOptions): Promise<Transaction> {
         const limit: OperationLimit | undefined = AlsUtilities.findCurrentOperationLimit();
-        const client: PgPoolClient = await this.connectFromPool();
         const idleTimeoutInMs: number = options?.idleTimeoutInMs ?? this.transactionIdleTimeoutInMs;
         // one round trip for all of it. LOCAL, so each setting covers this transaction and reverts with
         // it: set on the connection instead it would outlive the transaction and apply to every later
@@ -648,13 +821,18 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
             // a transaction begun under a limit gives every statement in it the limit's time
             ...limit == undefined ? [] : [`SET LOCAL statement_timeout = ${Math.trunc(limit.timeoutInMs)}`]
         ].join('; ');
-        try {
-            await this.runOn(client, begin, []);
-        }
-        catch (error) {
-            client.release(error instanceof Error ? error : undefined);
-            throw error;
-        }
+        // a transaction begun on a connection ended meanwhile has run nothing, and begins on the next one
+        const client: PgPoolClient = await this.retryOnEndedConnection(async () => {
+            const connected: PgPoolClient = await this.connectFromPool();
+            try {
+                await this.runOn(connected, begin, []);
+                return connected;
+            }
+            catch (error) {
+                connected.release(error instanceof Error ? error : undefined);
+                throw error;
+            }
+        });
         const transaction: PostgresTransaction = new PostgresTransaction(
             client,
             limit,
@@ -752,26 +930,59 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
                     async () => await this.runOn(held.client, sql, values, entityClass)
                 );
         }
-        const client: PgPoolClient = await this.connectFromPool();
-        let failed: unknown;
-        try {
-            return limit == undefined
-                ? await this.runOn(client, sql, values, entityClass)
-                : await this.whileLimited(client, limit, false, true, async () => await this.runOn(client, sql, values, entityClass));
-        }
-        catch (error) {
-            failed = error;
-            throw error;
-        }
-        finally {
-            // a connection that failed itself, rather than a statement on it, is not handed out again
-            client.release(
-                failed instanceof Error
-                && !(failed instanceof QueryFailedError)
-                && PostgresStatementErrorUtilities.findField(failed, 'code') == undefined
-                    ? failed
-                    : undefined
-            );
+        return await this.retryOnEndedConnection(async () => {
+            const client: PgPoolClient = await this.connectFromPool();
+            let failed: unknown;
+            try {
+                return limit == undefined
+                    ? await this.runOn(client, sql, values, entityClass)
+                    : await this.whileLimited(client, limit, false, true, async () => await this.runOn(client, sql, values, entityClass));
+            }
+            catch (error) {
+                failed = error;
+                throw error;
+            }
+            finally {
+                // a connection that failed itself, rather than a statement on it, is not handed out again: one the
+                // server ended says so with a code of its own
+                client.release(
+                    failed instanceof Error
+                    && (PostgresStatementErrorUtilities.isEndedBeforeCommit(failed)
+                        || (
+                            !(failed instanceof QueryFailedError)
+                            && PostgresStatementErrorUtilities.findField(failed, 'code') == undefined
+                        ))
+                        ? failed
+                        : undefined
+                );
+            }
+        });
+    }
+
+    /**
+     * Runs work on a connection of the pool again, on the next one, when the connection it got was ended before
+     * the work could commit anything, such as by a restart of the server, which ends every connection the pool
+     * keeps. Each attempt gives the ended connection up, so that the pool opens a new one.
+     * @param attempt - The work, taking a connection of its own.
+     * @returns What the work returned.
+     * @throws What the last attempt failed with, or what one failed with that may have committed.
+     */
+    private async retryOnEndedConnection<T>(attempt: () => Promise<T>): Promise<T> {
+        // every connection the pool keeps may be ended, and the one after them is a new one
+        const attempts: number = (this.options.poolSize ?? DEFAULT_POOL_SIZE) + 1;
+        for (let tried: number = 1; ; tried++) {
+            try {
+                return await attempt();
+            }
+            catch (error) {
+                if (
+                    tried >= attempts
+                    || !PostgresStatementErrorUtilities.isEndedBeforeCommit(error)
+                    || AlsUtilities.findCurrentSignal()?.aborted === true
+                ) {
+                    throw error;
+                }
+            }
         }
     }
 
@@ -783,12 +994,15 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
      * @yields The rows.
      */
     async* streamStatement(statement: ParameterizedSql, transaction?: Transaction): AsyncIterable<Record<string, unknown>> {
+        if (transaction != undefined) {
+            yield* this.streamThroughCursor(statement, transaction);
+            return;
+        }
         const QueryStream: PgQueryStream = optionalPeer<PgQueryStream>('pg-query-stream', 'Streaming rows from postgres');
         const { sql, values }: PostgresStatement = PostgresSqlUtilities.toStatement(statement);
-        const own: PgPoolClient | undefined = transaction == undefined ? await this.connectFromPool() : undefined;
-        const client: PgClient = own ?? this.toPostgresTransaction(transaction).client;
+        const own: PgPoolClient = await this.connectFromPool();
         this.onStatementSent(sql);
-        const stream: Readable = client.query(new QueryStream(sql, values));
+        const stream: Readable = own.query(new QueryStream(sql, values));
         try {
             for await (const row of stream) {
                 yield row;
@@ -797,8 +1011,87 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
         finally {
             // a caller that stopped early leaves the cursor open, and the connection it reads through
             stream.destroy();
-            own?.release();
+            own.release();
         }
+    }
+
+    /**
+     * Streams the rows of a statement in a transaction, through a cursor declared in it.
+     *
+     * Not the driver's stream, which holds the transaction's one connection until it is read to its end:
+     * whatever the reader runs in the transaction meanwhile, such as reading back the rows a batch of ids
+     * names, queued behind it, while the stream waited for the reader, and neither went on. A cursor of
+     * the server's is fetched from a statement at a time, which leaves the connection free in between. It
+     * reads the rows as of its declaration, the transaction's own writes included, as the stream did.
+     * @param statement - The statement.
+     * @param transaction - The transaction.
+     * @yields Each row.
+     */
+    private async* streamThroughCursor(statement: ParameterizedSql, transaction: Transaction): AsyncIterable<Record<string, unknown>> {
+        const cursor: string = PostgresSqlUtilities.escapeIdentifier(`zibri_stream_${UUIDUtilities.generate()}`);
+        const sql: string = await this.resolveInlinedSql(statement, transaction);
+        await this.runPositional({ sql: `DECLARE ${cursor} NO SCROLL CURSOR FOR ${sql}`, values: [] }, transaction, undefined);
+        try {
+            for (;;) {
+                const rows: Record<string, unknown>[] = await this.runPositional(
+                    { sql: `FETCH ${CURSOR_FETCH_ROWS} FROM ${cursor}`, values: [] },
+                    transaction,
+                    undefined
+                );
+                yield* rows;
+                if (rows.length < CURSOR_FETCH_ROWS) {
+                    return;
+                }
+            }
+        }
+        finally {
+            try {
+                // a reader that stopped early leaves the cursor open until the transaction ends
+                await this.runPositional({ sql: `CLOSE ${cursor}`, values: [] }, transaction, undefined);
+            }
+            catch {
+                // a transaction that failed took its cursors with it, and refuses the close as every statement
+            }
+        }
+    }
+
+    /**
+     * The sql of a statement with each of its values as a literal, for a cursor, whose declaration takes no
+     * parameters.
+     *
+     * The server quotes them rather than this process: each value goes to it as the text the driver sends for
+     * a parameter, and comes back quoted by `quote_nullable`, whatever the connection's settings say about
+     * backslashes. A literal in quotes has no type until its place in the statement gives it one, as a
+     * parameter has, so each compares and casts as the value it stands for would have.
+     * @param statement - The statement with named placeholders.
+     * @param transaction - The transaction it runs in.
+     * @returns The sql.
+     */
+    private async resolveInlinedSql(statement: ParameterizedSql, transaction: Transaction): Promise<string> {
+        const names: string[] = Object.keys(statement.parameters);
+        if (!names.length) {
+            return statement.sql;
+        }
+        const quotedColumns: string = names.map((_, i) => `pg_catalog.quote_nullable($${i + 1}::text) AS "${i}"`).join(', ');
+        const [quoted] = await this.runPositional(
+            {
+                sql: `SELECT ${quotedColumns}`,
+                values: names.map(name => this.toTextValue(statement.parameters[name]))
+            },
+            transaction,
+            undefined
+        );
+        return PostgresSqlUtilities.toInlinedSql(statement, new Map(names.map((name, i) => [name, String(quoted?.[String(i)])])));
+    }
+
+    /**
+     * A value as the driver sends it as text. Every value but bytes is sent as text already; bytes go in the
+     * binary format, which a text parameter would read as characters, so they go as the hex form instead.
+     * @param value - The value.
+     * @returns The value to send.
+     */
+    private toTextValue(value: unknown): unknown {
+        return Buffer.isBuffer(value) ? `\\x${value.toString('hex')}` : value;
     }
 
     /**
@@ -1038,9 +1331,23 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
         // a connection the server ends while it waits between statements says so as an event, which
         // nothing listening for it turns into a crash of the process. Whoever uses it learns from the
         // next statement failing
-        session.on('error', error => this.logger.error(new InternalError('A postgres session connection failed.', { cause: error })));
+        session.on('error', error => this.logConnectionFailure('A postgres session connection failed.', error));
         await session.connect();
         return session;
+    }
+
+    /**
+     * Logs a connection failing, unless the data source is shutting down.
+     * @param message - What failed.
+     * @param error - What it failed with.
+     */
+    private logConnectionFailure(message: string, error: Error): void {
+        // ended by the shutdown, or failing after it, when the application whose logger this is may be gone:
+        // the logger then throws, inside an event of the connection, which ended the process
+        if (this.shuttingDown) {
+            return;
+        }
+        this.logger.error(new InternalError(message, { cause: error }));
     }
 
     /**
@@ -1080,7 +1387,7 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
             // per process, and a deployment is many processes: what the database sees is this times the
             // number of replicas. Twenty is what one instance can keep genuinely busy; a deployment that
             // outgrows it wants a pooler in front rather than a bigger number here
-            max: pooled ? options.poolSize ?? 20 : 1,
+            max: pooled ? options.poolSize ?? DEFAULT_POOL_SIZE : 1,
             // how long a call waits for a connection before it fails, rather than forever behind a pool
             // held by something stuck
             connectionTimeoutMillis: options.connectTimeoutInMs ?? 30000,
@@ -1333,10 +1640,26 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
      * the restored rows break a declared unique or check.
      */
     async restoreBackup(backupData: Readable): Promise<void> {
+        await this.restoreIncrementalBackup(backupData, []);
+    }
+
+    /**
+     * Replaces what this data source stores with a backup of it in full and the changes of each backup
+     * after it, in one transaction, and brings the result in line with this version of the app as
+     * {@link restoreBackup} does.
+     * @param full - The data of the backup in full.
+     * @param increments - The changes of each backup after it, the oldest first.
+     */
+    async restoreIncrementalBackup(full: Readable, increments: Readable[]): Promise<void> {
         // the whole of it under the lock, so that an instance starting meanwhile neither migrates the
         // schema while it is replaced nor finds it replaced and not yet migrated
         await this.schemaLock(SCHEMA_LOCK_KEY, async () => {
-            await this.resolveBackupRunner().applyBackup(backupData);
+            try {
+                await this.resolveBackupRunner().applyBackup(full, increments);
+            }
+            catch (error) {
+                throw await this.resolveOutOfDiskError(error);
+            }
             // under the migration timeout, as booting is, and only once the backup is in place
             await OperationLimitUtilities.runWithin(
                 this.migrationTimeoutInMs,
@@ -1344,15 +1667,123 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
                 async () => {
                     await this.createMigrationTableIfNotExists();
                     await runMigrationsAfterRestore(this.constructor as Newable<DataSourceInterface>, this.migrations, this.logger);
-                    await this.reconcileSchema();
+                    // every index built before the restore returns, which is done once it is
+                    await this.reconcileSchema(false);
                 }
             );
         });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteBackedUpData(): Promise<void> {
+        await this.schemaLock(SCHEMA_LOCK_KEY, async () => await this.resolveBackupRunner().deleteBackedUpRows());
+    }
+
+    /**
+     * What a restore that failed tells: of a server that ran out of disk, what it needs and what to do, and
+     * otherwise the error as it is.
+     * @param error - What the restore failed with.
+     * @returns The error to throw.
+     */
+    private async resolveOutOfDiskError(error: unknown): Promise<unknown> {
+        if (!(error instanceof Error) || !error.message.includes('No space left on device')) {
+            return error;
+        }
+        // rolled back, so the tables are as they were and say what replacing them takes
+        let held: string = 'as much as they hold now';
+        try {
+            held = Bytes.format(await this.resolveBackupRunner().resolveBackedUpBytes());
+        }
+        catch {
+            // the advice holds without the number
+        }
+        return new InternalError(
+            [
+                `The Postgres server of "${this.constructor.name}" ran out of disk while the restore replaced its tables. The restore was`,
+                'rolled back, and nothing changed.',
+                `Until it is done, the server holds the tables twice: those of now, which take ${held}, and those of the backup.`,
+                'Any one of these lets it go on:',
+                `- Give the database server ${held} more free disk than it has.`,
+                '- Restore with restore(backup, { deleteFirst: true }), which empties the tables before the backup\'s are written,'
+                + ' so that the',
+                '  server holds the backup\'s alone. Downside: what the tables hold is gone until a restore succeeds.'
+                + ' With putBack, the default,',
+                '  the restore keeps a copy on this instance\'s disk, and puts it back when it fails.'
+            ],
+            { cause: error }
+        );
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async validateBackupConfiguration(): Promise<void> {
         await this.resolveBackupRunner().validateConfiguration();
+        if (this.incrementalRead) {
+            await this.resolveIncrementalReader().validateConfiguration();
+            return;
+        }
+        try {
+            await this.resolveIncrementalReader().dropLeftovers();
+        }
+        catch (error) {
+            // the application runs all the same, and the next boot tries again
+            this.logger.warn(
+                `Could not drop the replication slot "${this.constructor.name}" kept while it read only what changed,`
+                + ' which holds back the WAL: '
+                + (error instanceof Error ? error.message : String(error))
+            );
+        }
+    }
+
+    /**
+     * Whether restoring a dump changes everything or nothing by itself: its data goes in in one
+     * transaction, and what runs after it, the migrations and the indexes and uniques, is all or nothing
+     * only when no migration runs. So it is when the dump records exactly the migrations of this build,
+     * and what changed after it records none.
+     * @param backupData - The dump.
+     * @param increments - The changes of each backup after the dump, the oldest first.
+     * @returns Whether it does, false when the dump or the changes cannot be read for their migrations.
+     */
+    async resolveRestoresWhole(backupData: Readable, increments: Readable[]): Promise<boolean> {
+        try {
+            const archived: RecordedMigration[] = await this.resolveBackupRunner().findArchivedMigrations(backupData);
+            // a migration that changes no table leaves the schema as it was, so the backups after the dump
+            // still build on it, and record it as a change of the migration table alone: the dump's record
+            // is then not what the restore ends up with
+            return isMigratedAsOf(archived, this.migrations)
+                && !await this.resolveBackupRunner().resolveIncrementsChangeMigrations(increments);
+        }
+        catch (error) {
+            // kept rather than skipped: the copy to put back costs disk, a restore without one when a
+            // migration fails costs the data the application held
+            this.logger.warn(
+                `Could not read which migrations the backup of "${this.constructor.name}" records,`
+                + ' so the restore keeps a copy to put back: '
+                + (error instanceof Error ? error.message : String(error))
+            );
+            return false;
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async createIncrementalBackupData(
+        backup: BackupEntity,
+        options: BackupDataOptions,
+        since: string | undefined
+    ): Promise<IncrementalBackupData> {
+        return await this.resolveIncrementalReader().read(options.chunked, since);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async confirmReadCursor(cursor: string): Promise<void> {
+        await this.resolveIncrementalReader().confirm(cursor);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async forgetReadCursor(): Promise<void> {
+        // without incrementalRead there is no slot to forget: one left from before is dropped at boot
+        if (this.incrementalRead) {
+            await this.resolveIncrementalReader().forget();
+        }
     }
 
     /**
@@ -1365,10 +1796,13 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
      * is scoped there. Who owns each of the schema's objects, and the grants and comments on them, are
      * part of it. Written as an archive, so that a restore can leave out what the schema itself
      * carries, which belongs to whoever owns the schema.
+     * @param backup - The backup being taken.
+     * @param options - What the backup does with the dump. Cut into chunks, the dump is left uncompressed,
+     * and compressed as one piece otherwise, also when no options are given.
      * @returns A stream of the dump, which fails when the dump fails.
      */
-    async createBackupData(): Promise<Readable> {
-        return await this.resolveBackupRunner().createBackupData();
+    async createBackupData(backup?: BackupEntity, options?: BackupDataOptions): Promise<Readable> {
+        return await this.resolveBackupRunner().createBackupData(options?.chunked === true);
     }
 
     /**
@@ -1378,6 +1812,15 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
     private resolveBackupRunner(): PostgresBackupRunner {
         this.backupRunner ??= new PostgresBackupRunner(this, () => this.getSchema());
         return this.backupRunner;
+    }
+
+    /**
+     * Resolves what reads only what changed for the backups of this data source, built on first use.
+     * @returns The reader.
+     */
+    private resolveIncrementalReader(): PostgresIncrementalReader {
+        this.incrementalReader ??= new PostgresIncrementalReader(this, this.resolveBackupRunner(), this.logger);
+        return this.incrementalReader;
     }
 
     // ── publishing ──────────────────────────────────────────────

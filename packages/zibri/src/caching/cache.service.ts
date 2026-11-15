@@ -3,6 +3,7 @@ import { MultiTierCache } from './cache/multi-tier.cache';
 import { CacheExpiryCleanupCronJob } from './cache-expiry-cleanup.cron-job';
 import { CacheInvalidationCronJob } from './cache-invalidation.cron-job';
 import { CacheInvalidation, CreateCacheInvalidationData } from './cache-invalidation.model';
+import { CacheRestoreTagUtilities } from './cache-restore-tag.utilities';
 import { CacheServiceInterface } from './cache-service.interface';
 import { CacheTagMatcher, matchesAnyTag, matchesTag } from './cache-tag-matchers';
 import { ZibriApplication } from '../application/application';
@@ -158,7 +159,10 @@ export class CacheService implements CacheServiceInterface, OnAppInit {
         // and tell the other instances, whose caches this one cannot reach. Published after the
         // local invalidation, so the instance that handled the write is never the stale one.
         const repository: Repository<CacheInvalidation, CreateCacheInvalidationData> = inject(repositoryTokenFor(CacheInvalidation));
-        await repository.create({ tags });
+        const published: CacheInvalidation = await repository.create({ tags });
+        // applied here already: read back at the next poll, it emptied what was filled since a second time.
+        // A poll reading the row before this line applies it once more, which costs a refill and nothing else
+        this.appliedInvalidationIds.add(published.id);
         await inject(ZIBRI_DI_TOKENS.WAKE_UP_SERVICE).wake(repository.dataSource, WAKE_UP_TOPICS.CACHE_INVALIDATIONS);
     }
 
@@ -235,14 +239,20 @@ export class CacheService implements CacheServiceInterface, OnAppInit {
         // Only hit caches that actually declared these tags. Multi tier caches are included: they
         // report the tags of their tiers, and invalidate through to those tiers' stores. Skipping
         // them - which this did, twice - made @CacheInvalidate against one silently do nothing.
-        const affectedCaches: AnyCache[] = this.caches.filter(c => c.tags === 'all' || matchesAnyTag(c.tags, tags));
+        // the tags of a restore reach every cache: every entry carries one, whatever its cache declares
+        const restores: boolean = tags.some(tag => CacheRestoreTagUtilities.isRestoreTag(tag));
+        const affectedCaches: AnyCache[] = this.caches.filter(c => restores || c.tags === 'all' || matchesAnyTag(c.tags, tags));
+        const clears: boolean = tags.includes(CacheRestoreTagUtilities.APPLICATION_TAG);
 
         await Promise.all(affectedCaches.map(async c => {
             if (c instanceof MultiTierCache) {
-                await c.invalidateTags(tags);
+                // its tiers are registered beside it, and emptied as caches of their own
+                if (!clears) {
+                    await c.invalidateTags(tags);
+                }
                 return;
             }
-            await c.store.invalidateTags(tags);
+            await (clears ? c.store.clear() : c.store.invalidateTags(tags));
         }));
         await Promise.all(tags.flatMap(tag => this.invalidationListeners
             .filter(({ matcher }) => matchesTag(matcher, tag))

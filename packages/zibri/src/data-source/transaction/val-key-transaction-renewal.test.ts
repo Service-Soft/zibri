@@ -3,6 +3,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import type { GlideClient } from '@valkey/valkey-glide';
 
+import { TransactionLocksLostError } from './transaction-locks-lost.error';
 import { Transaction } from './transaction.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { createTestDataSource } from '../../__testing__/test-server/create-test-data-source.function';
@@ -20,6 +21,8 @@ import { LoggerInterface } from '../../logging/logger.interface';
 import { Newable } from '../../types/newable.type';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
+import { ValKeyLockKeyUtilities } from '../data-sources/val-key/val-key-lock-key.utilities';
+import { ValKeyScanUtilities } from '../data-sources/val-key/val-key-scan.utilities';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { Repository } from '../repository/repository';
 
@@ -94,5 +97,24 @@ describe('a valkey transaction whose commit outlasts a renewal of its locks', ()
 
         expect(warn.mock.calls.map(([message]) => message).filter(message => String(message).includes('while still working')))
             .toEqual([]);
+        jest.restoreAllMocks();
+    }, 30000);
+
+    // a transaction whose locks lapsed, in a pause of its process longer than a hold, warned and committed
+    // all the same: over what another one wrote to the same rows once it had taken the locks
+    it('refuses to commit once its locks lapsed, and keeps what another one wrote meanwhile', async () => {
+        const item: RenewedItem = await repo.create({ value: 'before' });
+        const lapsed: Transaction = dataSource.startTransaction();
+        await repo.updateById(item.id, { value: 'of the transaction whose locks lapsed' }, { transaction: lapsed });
+        // what a lock lapsing looks like to the server: gone, free for the next one to take
+        const lockKeys: string[] = await ValKeyScanUtilities.findKeys(dataSource.connection, `${ValKeyLockKeyUtilities.getLockKey('')}*`);
+        expect(lockKeys.length).toBeGreaterThan(0);
+        await dataSource.connection.del(lockKeys);
+
+        await repo.updateById(item.id, { value: 'written meanwhile' });
+
+        await expect(lapsed.commit()).rejects.toThrow(TransactionLocksLostError);
+        await expect(lapsed.commit()).rejects.toThrow();
+        expect((await repo.findById(item.id)).value).toBe('written meanwhile');
     }, 30000);
 });

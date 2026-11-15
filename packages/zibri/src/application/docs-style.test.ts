@@ -58,11 +58,11 @@ const GLOSSARY_PAGE: string = 'glossary.md';
 
 /**
  * Terms the glossary defines that the pages also use in their everyday sense, such as a DI provider
- * beside an identity provider, a JWT claim beside the claim on a slot, or the credentials of a mail
- * server beside the credential of a request. A link on their first use would as often point at the
- * wrong meaning as the right one.
+ * beside an identity provider, a JWT claim beside the claim on a slot, the credentials of a mail
+ * server beside the credential of a request, or a replication slot of Postgres beside the slot of a
+ * cron job. A link on their first use would as often point at the wrong meaning as the right one.
  */
-const UNCHECKED_TERMS: string[] = ['Login', 'Session', 'Provider', 'Claim', 'Grant', 'Identity', 'Credential', 'Scope'];
+const UNCHECKED_TERMS: string[] = ['Login', 'Session', 'Provider', 'Claim', 'Grant', 'Identity', 'Credential', 'Scope', 'Slot'];
 
 /**
  * What the Requirements test reads of `package.json`.

@@ -34,9 +34,18 @@ type BenchmarkAllowance = {
  * What the comparison answers.
  */
 type BenchmarkComparison = {
-    rows: { name: string, ratio: number | null, limit: number | null, verdict: 'ok' | 'slower' | 'new' }[],
+    rows: { name: string, ratio: number | null, limit: number | null, verdict: 'ok' | 'worse' | 'new' }[],
     staleAllowances: BenchmarkAllowance[],
     failed: boolean
+};
+
+/**
+ * One run of the suites as the comparison reads it from their reports: each measured value by its
+ * name, and what each is counted in.
+ */
+type BenchmarkReadRound = {
+    values: Record<string, number>,
+    units: Record<string, string>
 };
 
 /**
@@ -45,14 +54,36 @@ type BenchmarkComparison = {
  * @param current - The rounds run on the checkout.
  * @param allowances - The allowances the repository records.
  * @param releaseVersion - The version of the release.
+ * @param units
  * @returns The comparison.
  */
-function compare(release: BenchmarkRound[], current: BenchmarkRound[], allowances: BenchmarkAllowance[], releaseVersion: string): BenchmarkComparison {
+function compare(
+    release: BenchmarkRound[],
+    current: BenchmarkRound[],
+    allowances: BenchmarkAllowance[],
+    releaseVersion: string,
+    units: Record<string, string> = {}
+): BenchmarkComparison {
     const output: string = execFileSync(process.execPath, [
         '--input-type=module', '--eval', `
         const { resolveComparison } = await import('${pathToFileURL(scriptPath).href}');
-        const args = ${JsonUtilities.stringify([release, current, allowances, releaseVersion])};
+        const args = ${JsonUtilities.stringify([release, current, allowances, releaseVersion, units])};
         console.log(JSON.stringify(resolveComparison(...args)));
+    `
+    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return JsonUtilities.parse(output);
+}
+
+/**
+ * Reads the entries of one run's reports in the script's own process.
+ * @param reports - The parsed content of each report file.
+ * @returns The round.
+ */
+function readRound(reports: unknown[][]): BenchmarkReadRound {
+    const output: string = execFileSync(process.execPath, [
+        '--input-type=module', '--eval', `
+        const { resolveRound } = await import('${pathToFileURL(scriptPath).href}');
+        console.log(JSON.stringify(resolveRound(${JsonUtilities.stringify(reports)})));
     `
     ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     return JsonUtilities.parse(output);
@@ -81,7 +112,7 @@ describe('comparing the benchmarks with the release', () => {
         const slower: BenchmarkComparison = compare(rounds([1, 1, 1, 1]), rounds([1.4, 1.4, 1.4, 1.4]), [], '3.0.0');
         const within: BenchmarkComparison = compare(rounds([1, 1, 1, 1]), rounds([1.2, 1.2, 1.2, 1.2]), [], '3.0.0');
 
-        expect(slower.rows).toMatchObject([{ name: 'GET one row', verdict: 'slower', limit: 1.3 }]);
+        expect(slower.rows).toMatchObject([{ name: 'GET one row', verdict: 'worse', limit: 1.3 }]);
         expect(slower.failed).toBe(true);
         expect(within.rows).toMatchObject([{ name: 'GET one row', verdict: 'ok' }]);
         expect(within.failed).toBe(false);
@@ -113,6 +144,49 @@ describe('comparing the benchmarks with the release', () => {
 
         expect(comparison.failed).toBe(false);
         expect(comparison.staleAllowances).toStrictEqual([allowance]);
+    });
+
+    // only durations were compared, so a change that doubled what a backup holds in memory passed
+    it('reads timings and figures from the reports, each with what it is counted in', () => {
+        const round: BenchmarkReadRound = readRound([
+            [{ timing: { name: 'GET one row', medianMs: 0.8, p95Ms: 1.1 }, baseline: undefined }],
+            [{ figure: { name: 'peak memory of a backup', value: 52_000_000, unit: 'bytes' } }]
+        ]);
+
+        expect(round).toEqual({
+            values: { 'GET one row': 0.8, 'peak memory of a backup': 52_000_000 },
+            units: { 'GET one row': 'ms', 'peak memory of a backup': 'bytes' }
+        });
+    });
+
+    it('fails on a figure more than the limit above the release, as on a timing', () => {
+        const figure: (bytes: number[]) => BenchmarkRound[] = bytes => bytes.map(value => ({ 'peak memory of a backup': value }));
+
+        const comparison: BenchmarkComparison = compare(figure([50, 50, 50, 50]), figure([80, 80, 80, 80]), [], '3.0.0');
+
+        expect(comparison.rows).toMatchObject([{ name: 'peak memory of a backup', verdict: 'worse' }]);
+        expect(comparison.failed).toBe(true);
+    });
+
+    // peak memory of a few dozen MiB moves by more than the ratio from one run to the next, with when
+    // the collector happens to run
+    it('passes memory within 16 MiB of the release whatever its ratio, and fails it beyond', () => {
+        const mib: number = 1024 * 1024;
+        const figure: (bytes: number) => BenchmarkRound[] = bytes => [1, 2, 3, 4].map(() => ({ 'peak memory of a backup': bytes }));
+        const units: Record<string, string> = { 'peak memory of a backup': 'bytes' };
+
+        const within: BenchmarkComparison = compare(figure(30 * mib), figure(42 * mib), [], '3.0.0', units);
+        const beyond: BenchmarkComparison = compare(figure(30 * mib), figure(50 * mib), [], '3.0.0', units);
+
+        expect(within.failed).toBe(false);
+        expect(beyond.failed).toBe(true);
+    });
+
+    it('refuses two measurements of the same name, since neither could be compared', () => {
+        expect(() => readRound([
+            [{ timing: { name: 'GET one row', medianMs: 0.8, p95Ms: 1.1 } }],
+            [{ figure: { name: 'GET one row', value: 3, unit: 'bytes' } }]
+        ])).toThrow('Two benchmarks are named "GET one row"');
     });
 
     it('reports an operation the release does not measure without comparing it', () => {

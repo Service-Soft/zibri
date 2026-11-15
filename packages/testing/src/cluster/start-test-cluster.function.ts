@@ -1,4 +1,4 @@
-import { ChildProcess, fork } from 'node:child_process';
+import { ChildProcess, fork, ForkOptions } from 'node:child_process';
 import { createRequire } from 'node:module';
 
 import type { ExecResult, StartedTestContainer } from 'testcontainers';
@@ -8,12 +8,12 @@ import { DiContainer, initDiContainer } from 'zibri/internal';
 import { clusterInstanceBootTimeoutInMs } from './cluster-boot-timeout';
 import { defaultClusterDataSources } from './cluster-data-sources';
 import { ClusterMarkRow } from './cluster-mark.model';
-import { CLUSTER_DATA_SOURCE_PORTS_ENV, CLUSTER_INSTANCE_ID_ENV, CLUSTER_INSTANCE_OPTIONS_ENV, CLUSTER_MODULE_PATHS_ENV, CLUSTER_SCRATCH_PATH_ENV, ClusterInstanceMessage } from './cluster-message.model';
-import { clusterModulePaths } from './cluster-module-paths';
+import { CLUSTER_DATA_SOURCE_PORTS_ENV, CLUSTER_INSTANCE_ID_ENV, CLUSTER_INSTANCE_OPTIONS_ENV, CLUSTER_SCRATCH_PATH_ENV, ClusterInstanceMessage } from './cluster-message.model';
 import { createScratchDirectory, removeScratchDirectory } from '../scratch-directory.function';
 import { settleAfterFailure } from '../settle-after-failure.function';
 import { StartedDataSourceContainer, startDataSourceContainers, stopDataSourceContainer } from '../start-data-source-containers.function';
 import { StartTestServerOptions } from '../start-test-server-options.model';
+import { resolveTypeScriptForkOptions } from '../type-script-fork-options.function';
 
 const requireModule: NodeJS.Require = createRequire(__filename);
 
@@ -25,13 +25,6 @@ const requireModule: NodeJS.Require = createRequire(__filename);
  * leaves the other forking a file that is not there.
  */
 const instanceEntry: FsPath = FsUtilities.getPath(__dirname, `cluster-instance.entry${__filename.endsWith('.ts') ? '.ts' : '.js'}`);
-
-/**
- * The module that points the shared packages at the parent's files, preloaded into each instance.
- *
- * Named by this file's own extension, for the same reason as {@link instanceEntry}.
- */
-const modulePathsPreload: FsPath = FsUtilities.getPath(__dirname, `cluster-module-paths${__filename.endsWith('.ts') ? '.ts' : '.js'}`);
 
 const killTimeoutInMs: number = 5000;
 
@@ -486,32 +479,20 @@ export class StartedTestCluster {
      */
     private forkInstance(): ClusterInstance {
         const id: string = `instance-${this.nextInstanceIndex++}`;
+        const { execArgv, env }: Required<Pick<ForkOptions, 'execArgv' | 'env'>> = resolveTypeScriptForkOptions('A test cluster');
         const child: ChildProcess = fork(instanceEntry, [], {
             // the directory the test run started from, which is where the project's tsconfig and
             // node_modules are - the instance loads the caller's own options module through ts-node
             // and has to resolve both the way the caller would.
             cwd: process.cwd(),
-            // jest's transform only exists inside the jest process, so the instance needs a
-            // typescript hook of its own. ts-node rather than swc: it is already an optional peer of
-            // the framework, and it is the same compiler the framework is built with, so
-            // emitDecoratorMetadata behaves identically instead of merely similarly. Checked for in
-            // startTestCluster, before anything is forked.
-            // The module paths are preloaded rather than imported by the entry, because a worker
-            // thread starts with the execArgv of the thread that created it and never runs the entry:
-            // imported there, they reached the instance's main thread only, and every thread job
-            // loaded the built packages instead of the copy the instance runs.
-            execArgv: ['-r', 'ts-node/register', '-r', modulePathsPreload],
+            // a worker thread starts with the execArgv of the thread that created it and never runs
+            // the entry, which is why the module paths are a preload: imported by the entry, they
+            // reached the instance's main thread only, and every thread job loaded the built packages
+            // instead of the copy the instance runs
+            execArgv,
             stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
             env: {
-                ...process.env,
-                TS_NODE_TRANSPILE_ONLY: 'true',
-                TS_NODE_COMPILER_OPTIONS: '{"module":"commonjs"}',
-                // which copy of the framework to use. A bare `zibri` in the instance resolves
-                // through node_modules to the built package, while the options module it boots from
-                // reaches the framework however its own imports say - inside this repository, the
-                // source tree beside it. That is two copies in one process, and the framework
-                // refuses the second one.
-                [CLUSTER_MODULE_PATHS_ENV]: JSON.stringify(clusterModulePaths()),
+                ...env,
                 [CLUSTER_SCRATCH_PATH_ENV]: this.scratchPath,
                 [CLUSTER_INSTANCE_ID_ENV]: id,
                 [CLUSTER_INSTANCE_OPTIONS_ENV]: this.instanceOptionsPath,
@@ -564,7 +545,8 @@ export async function startTestCluster(options: StartTestClusterOptions): Promis
     const { instanceOptions, instances = 2, bootMode = 'sequential' }: StartTestClusterOptions = options;
 
     // every instance is forked with `-r ts-node/register`, and one that cannot find it dies before
-    // it can say why - so the cluster asks first, where the error reaches the test
+    // it can say why - so the cluster asks first, where the error reaches the test. Forking asks
+    // again, which is the same check
     optionalPeer('ts-node', 'A test cluster');
 
     // loaded before the container is initialized, not after: @DataSource decorates at module load

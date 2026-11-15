@@ -37,7 +37,8 @@ const config = {
     moduleNameMapper: {
         '^zibri$': '<rootDir>/index.ts',
         '^zibri/internal$': '<rootDir>/internal.ts',
-        '^zibri-testing$': '<rootDir>/../../testing/src/index.ts'
+        '^zibri-testing$': '<rootDir>/../../testing/src/index.ts',
+        '^zibri-contract$': '<rootDir>/../../contract/src/index.ts'
     },
     globalSetup: '<rootDir>/jest.global-setup.ts',
     setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
@@ -47,6 +48,10 @@ const config = {
     // whole environment alive. `node scripts/find-retained-test-environments.mjs <files>` names what
     // does; this restarts a worker before whatever is left adds up
     workerIdleMemoryLimit: '1GB',
+    // on disk rather than in the temp folder, jest's default, which on many machines is a tmpfs: the
+    // transformed sources of every run, gigabytes of them, sat in memory and swap there, and were
+    // gone after every reboot
+    cacheDirectory: '<rootDir>/../node_modules/.cache/jest',
     // with coverage, jest's own process received the sources of every module once per test file that
     // loaded it, and kept them all until the run was done: past 4 GB for this suite
     runner: '<rootDir>/__testing__/deduplicating-coverage.test-runner.ts',

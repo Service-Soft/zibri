@@ -4,6 +4,7 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { IsolationLevel } from '../data-sources/data-source.interface';
 import { Repository, UNBOUNDED_FIND_ALL_LIMIT } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';
 import { UnboundedReturnError } from '../unbounded-return.error';
@@ -86,6 +87,24 @@ export function describeBoundedReturns(dataSourceName: string, rowsOf: () => Rep
             const seen: Set<string> = new Set();
             for await (const row of rowsOf().stream({ where: { batch } })) {
                 seen.add(row.id);
+            }
+
+            expect(seen.size).toBe(UNBOUNDED_FIND_ALL_LIMIT + 1);
+        }, SEED_TIMEOUT_IN_MS);
+
+        // a stream reads its rows back a batch at a time while it goes on reading which rows: in a transaction
+        // both went through its one connection, the batch queued behind the read that waited on the batch,
+        // and a stream of more than a batch, such as a backup of a tenant, waited forever
+        it('streams past a batch in a transaction, as a read as of one moment does', async () => {
+            const transaction: Transaction = await rowsOf().dataSource.startTransaction({ isolationLevel: IsolationLevel.REPEATABLE_READ });
+            const seen: Set<string> = new Set();
+            try {
+                for await (const row of rowsOf().stream({ where: { batch }, transaction })) {
+                    seen.add(row.id);
+                }
+            }
+            finally {
+                await transaction.rollback();
             }
 
             expect(seen.size).toBe(UNBOUNDED_FIND_ALL_LIMIT + 1);

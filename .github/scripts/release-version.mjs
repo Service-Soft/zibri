@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-export const published = ['tsx', 'tsx-compiler', 'mdx', 'zibri', 'testing', 'cli'];
+export const published = ['contract', 'tsx', 'tsx-compiler', 'mdx', 'zibri', 'testing', 'cli'];
 export const dependencyFields = ['dependencies', 'devDependencies', 'peerDependencies'];
 
 // this needs to be exported, as its manually string imported into the ci-workflows.test.ts

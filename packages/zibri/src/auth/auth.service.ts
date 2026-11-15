@@ -37,6 +37,7 @@ import { Sha256HashStrategy } from './hash/strategies/sha256.hash-strategy';
 import { Authentication } from './models/authentication.model';
 import { BaseUser } from './models/base-user.model';
 import { ClaimedUser } from './models/claimed-user.model';
+import { CurrentUserMembership } from './models/current-user-membership.model';
 import { EndedLogin } from './models/ended-login.model';
 import { HasPermissionMetadata } from './models/has-permission-metadata.model';
 import { IsLoggedInMetadata } from './models/is-logged-in-metadata.model';
@@ -1857,6 +1858,27 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveCurrentMemberships(
+        context: HttpRequestContext | WebsocketRequestContext,
+        allowedStrategies: AuthStrategies
+    ): Promise<CurrentUserMembership[]> {
+        const account: BaseUser<string> | undefined = await this.resolveCurrentAccount(context, allowedStrategies);
+        if (account == undefined) {
+            return [];
+        }
+        const [memberships, limits] = await Promise.all([
+            this.membershipService.findActiveMemberships<string, BaseMembership<string>>(account.id),
+            this.resolveCredentialLimits(context, allowedStrategies)
+        ]);
+        // a credential bound to a tenant acts in no other, so the others are none of its business
+        const usable: BaseMembership<string>[] = memberships.filter(m => limits?.tenantId == undefined || m.tenantId === limits.tenantId);
+        return await Promise.all(usable.map(async membership => ({
+            tenantId: membership.tenantId,
+            permissions: this.narrowToCredential(await this.roleService.resolvePermissionsOf(membership.roles, membership.tenantId), limits)
+        })));
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveCredentialTenant(context: HttpRequestContext | WebsocketRequestContext): Promise<string | undefined> {
         // every strategy, for the reason isMemberOfActiveTenant gives
         const limits: CredentialLimits | undefined = await this.resolveCredentialLimits(context, this.strategies);
@@ -2147,7 +2169,8 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     // eslint-disable-next-line jsdoc/require-jsdoc
     async endEveryLogin(transaction: RepositoryTransaction | undefined): Promise<void> {
         try {
-            const strategies: LoginAuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown>[] = this.findLoginStrategies();
+            const strategies: LoginAuthStrategyInterface<string, BaseUser<string>, unknown, unknown, unknown>[]
+                = this.findLoginStrategies();
             // every strategy that can, before the ones that cannot are named: this runs during an
             // incident, where ending most logins now beats ending none until the code is fixed
             await Promise.all(strategies.map(async strategy => await strategy.endEveryLogin?.(transaction)));

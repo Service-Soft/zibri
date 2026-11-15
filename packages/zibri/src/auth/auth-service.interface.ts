@@ -17,6 +17,7 @@ import { RequestPasswordResetData } from './authenticators/password/request-pass
 import { SetPasswordData } from './authenticators/password/set-password-data.model';
 import { type CurrentUser } from './decorators/current-user.decorator';
 import { BaseUser } from './models/base-user.model';
+import { CurrentUserMembership } from './models/current-user-membership.model';
 import { LogoutResult } from './models/logout-result.model';
 import { RouteAuthConfiguration } from './models/route-auth-configuration.model';
 import { UserLogin } from './models/user-login.model';
@@ -131,6 +132,18 @@ export interface AuthServiceInterface {
         allowedStrategies: AuthStrategies,
         required: B
     ) => Promise<B extends false ? CurrentMembership<MembershipType> | undefined : CurrentMembership<MembershipType>>,
+    /**
+     * Resolves the active memberships of the currently logged in user in every tenant, each with the
+     * permissions its roles carry there, narrowed to what the credential of the request may use. Only
+     * the membership in the tenant a credential is bound to, such as that of an api key. What
+     * `GET /me` of the `AuthController` answers.
+     * @returns The memberships, or none when nobody is logged in.
+     */
+    // TODO 4.0: required. Optional in 3.x, so that an auth service of an application's own keeps compiling
+    resolveCurrentMemberships?: (
+        context: HttpRequestContext | WebsocketRequestContext,
+        allowedStrategies: AuthStrategies
+    ) => Promise<CurrentUserMembership[]>,
     /**
      * Resolves the tenant the credential of a request is bound to, such as an api key bound to one.
      *

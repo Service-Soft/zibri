@@ -260,7 +260,8 @@ marked `Secure` and whether HSTS is sent.
 ## Choosing how much of a stack trace to keep
 
 `stackTraceLimit` says how many frames a stack trace keeps, in the process and in its thread jobs. It
-defaults to 50, which reaches your own code from inside a write to a data source:
+defaults to 50, which reaches your own code from inside a write to a data source. A process started with
+another limit than node's 10, such as with `node --stack-trace-limit=200`, keeps it:
 
 ```ts
 // src/application-options.base.ts

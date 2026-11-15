@@ -68,8 +68,15 @@ An endpoint is a method of a controller class. Its decorators give it a route, r
 | `PickClass` | function | Creates a class that picks given properties from a base class |
 | `IntersectionClass` | function | Combines multiple classes into one |
 | `CrudController` | function | Base controller providing generic CRUD endpoints |
-| `CrudControllerOptions` | type | The options of `CrudController`: `maxLimit`, the largest page `findAll` reads. Defaults to 100 |
+| `CrudControllerOptions` | type | The options of `CrudController`: `maxLimit`, the largest page `findAll` reads, the `filter` it takes and the properties it may be `order`ed by |
 | `CrudControllerInterface` | interface | The endpoints of a `CrudController`: `create`, `findAll`, `findById`, `updateById` and `deleteById` |
+| `FilterConfig` | type | How each property of a model filters a list, by property: a match, or the config of the properties inside |
+| `FilterValue`, `FilterRange` | type, type | The filter a list takes for a `FilterConfig`, and the `from` and `to` of a range in it |
+| `FilterMatch` | type | How a filter matches: `StringFilterMatch`, `RangeFilterMatch`, `BooleanFilterMatch` and `ArrayFilterMatch` by the type of the property |
+| `StringFilterMatch`, `RangeFilterMatch`, `BooleanFilterMatch`, `ArrayFilterMatch` | type, type, type, type | The matches of a string, of a number or a date, of a boolean and of an array of values |
+| `OrderConfig` | type | The properties a list may be ordered by: `true` for a property, or the config of the properties inside |
+| `OrderValue` | type | The order a list takes for an `OrderConfig`: `'ASC'` or `'DESC'` by property |
+| `FilterUtilities` | class | Validates a `FilterConfig` against an entity, and resolves the where of a repository from a filter, for a list of your own |
 | `HttpStatus` | enum | HTTP status code constants |
 | `PaginationResult` | type | Shape of a paginated response |
 | `CompressionOptions` | type | Whether responses are compressed, and from what size on, via `ZIBRI_DI_TOKENS.COMPRESSION_OPTIONS`. Defaults to on, from one kilobyte |
@@ -187,6 +194,49 @@ import { Task, TaskCreateDTO, TaskUpdateDTO } from '../models';
 @Controller('/task-exports')
 export class TaskExportController extends CrudController(Task, TaskCreateDTO, TaskUpdateDTO, { maxLimit: 500 }) {}
 ```
+
+## Filtering and ordering a list
+`GET /tasks` of a `CrudController` takes an `order`, one JSON value with a direction per property, nested like the entity: `?order={"dueAt":"ASC","priority":"DESC"}`. The first property orders the list, and each one after it orders the rows the ones before it leave equal. A list can be ordered by every string, number, boolean and date of its entity, and of the objects inside it at any depth, that is not excluded, encrypted, hashed or a password. An object that holds one of its own kind, such as a `parent`, is followed as deep as the rows hold it. `order` in the options narrows that to the properties it names, and reaches into a relation to one row, such as `{ project: { name: true } }`. `order: false` takes no order. An array or a relation to many rows orders nothing. Any other property or direction is answered with a 400.
+
+With `filter` in the options, `GET /tasks` also takes a filter. The config says how each property matches:
+
+```ts
+// src/controllers/task.controller.ts
+import { Controller, CrudController, FilterConfig, OrderConfig } from 'zibri';
+
+import { Task, TaskCreateDTO, TaskUpdateDTO } from '../models';
+
+const taskFilter: FilterConfig<Task> = {
+    title: 'iLike',
+    status: 'oneOf',
+    priority: 'range',
+    dueAt: 'range',
+    labels: 'includes'
+};
+
+const taskOrder: OrderConfig<Task> = { dueAt: true, priority: true };
+
+@Controller('/tasks')
+export class FilteredTaskController extends CrudController(Task, TaskCreateDTO, TaskUpdateDTO, { filter: taskFilter, order: taskOrder }) {}
+```
+
+The filter is one JSON value, and every property of it may be left out: `?filter={"title":"invoice","dueAt":{"from":"2026-01-01"}}`. A row needs to meet every filter that has a value. An empty text or an empty list filters nothing, so the empty fields of a table can be sent as they are.
+
+| Match | Of | Takes | Finds the rows whose property |
+|---|---|---|---|
+| `'equals'` | a string, number, date or boolean | a value | is the value |
+| `'iLike'` | a string | a text | contains the text, ignoring the case. `%` and `_` in it are taken as they are |
+| `'fuzzy'` | a string | a text | is similar to the text, like a name with a typo |
+| `'oneOf'` | a string, number or date | a list of values | is one of the values |
+| `'range'` | a number or date | `{ from, to }` | lies between `from` and `to`, both included. Either may be left out |
+| `'includes'` | an array of values | a list of values | holds every one of the values |
+| `'oneOf'` | an array of values | a list of values | holds at least one of the values |
+
+An object, the items of an array of objects and a related row are filtered by the properties inside, with a config of their own: `{ project: { name: 'equals' } }` takes `?filter={"project":{"name":"Website"}}`. An array of objects matches when one of its items does. A filter takes each value as its property declares it, its format and enum included, and answers anything else with a 400. A config that can't filter its entity stops the application from starting: one that names a property the entity lacks, an excluded, encrypted or hashed property or a password, or a match the type of its property doesn't have. `'fuzzy'` needs a string that holds text, not a uuid or an enum. Without `filter`, `findAll` takes no filter.
+
+`FilterValue<Task, typeof taskFilter>` and `OrderValue<Task, typeof taskOrder>` are the types of what a client sends, for a config declared `as const satisfies FilterConfig<Task>`. The package `zibri-contract` holds these types without the rest of the framework, so a frontend builds its requests from the same config.
+
+For a list route of your own, `FilterUtilities.resolveWhere(taskFilter, Task, filter)` turns a filter into the where of a repository, which [filtering data](../data/data-source.md#filtering-data) describes.
 
 ## Accessing request data
 
@@ -932,6 +982,7 @@ defineProvider({
 | `express` | Receiving HTTP requests and sending the responses |
 | `@types/express` | The types of the requests and the responses |
 | `path-to-regexp` | Matching request paths to routes and their path parameters |
+| `zibri-contract` | The models a frontend shares, such as the filter and the order of a list and the error body |
 | `@fastify/busboy` | Reading multipart bodies, the ones carrying file uploads. You install it |
 | `swagger2openapi` | Reading a Swagger 2.0 document when generating entities from an OpenAPI document. You install it |
 

@@ -120,16 +120,25 @@ export abstract class WebsocketReplayUtilities {
     }
 
     /**
-     * Whether messages after an offset are no longer kept.
+     * Whether messages after an offset are no longer kept, or the client saw messages the store no longer holds.
      * @param offset - The seq of the last message the client saw.
-     * @returns True when some of what came after it was deleted.
+     * @returns True when some of what came after it was deleted, or when it is past the newest seq.
      */
     private static async hasLostMessagesAfter(offset: number): Promise<boolean> {
         // the cleanup deletes from the oldest message on, so what is kept starts right after what was
         // deleted. Messages the client could not have read count as well: telling a client to reload
         // when it did not have to costs a reload, the other way round costs what it never receives
-        const [oldest] = await this.messageRepository.findAll({ order: { seq: 'ASC' }, limit: 1, acrossTenants: true });
-        return oldest != undefined ? oldest.seq > offset + 1 : await this.resolveNewestSeq() > offset;
+        const [[oldest], newestSeq] = await Promise.all([
+            this.messageRepository.findAll({ order: { seq: 'ASC' }, limit: 1, acrossTenants: true }),
+            this.resolveNewestSeq()
+        ]);
+        // past the newest seq, the client saw what the store no longer holds, such as after a restore of an
+        // earlier moment: the messages sent from then on carry sequences it already has, and a replay after its
+        // offset would leave them out
+        if (newestSeq < offset) {
+            return true;
+        }
+        return oldest != undefined ? oldest.seq > offset + 1 : newestSeq > offset;
     }
 
     /**

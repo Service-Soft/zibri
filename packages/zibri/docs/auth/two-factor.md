@@ -40,6 +40,7 @@ A [second factor](../glossary.md#second-factor) is a further proof a user presen
 | `OtpRegistrationConfirmData` | class | What confirming a TOTP enrollment takes: a code the authenticator app shows |
 | `OtpCodeAlreadyUsedError` | error | Thrown when a code is presented a second time |
 | `InvalidTwoFactorCodeError` | error | Thrown when a presented code is wrong. Throw it from your own method for the same |
+| `SecondFactorMissingError` | error | Thrown when a request carries no second factor for a route that needs one. Answers `401`. Throw it from your own method when its header is missing |
 | `TwoFactorThrottledError` | error | Thrown while a user has to wait after wrong codes. Answers `429` |
 | `TwoFactorFailureStreak` | entity | A user's wrong codes in a row, when the next one is checked, and when they locked the second factor |
 | `ZIBRI_DI_TOKENS.TWO_FACTOR_FAILURE_DELAY_IN_MS` | DI token | The wait after the first wrong code. Defaults to 1 second |
@@ -99,6 +100,8 @@ class AccountController {
 ```
 
 Reading the account takes a login, changing the payment details a second factor beside it. Called with no argument, any method the app has configured is accepted. Pass `allowedMethods` to narrow it.
+
+A request without a second factor answers `401` with the name `SecondFactorMissingError`. A frontend asks its user for a code and sends the request again with it, instead of refreshing the login.
 
 ## Accepting a recent login instead
 
@@ -230,7 +233,7 @@ x-authorization-email-code: 123456
 
 `confirm` takes the second factor in its header, exactly as a guarded route does, and names the strategy in `strategy` like the login route. A wrong code is refused as on any guarded route, and the ticket stays. The ticket is spent by the login it completes, and expires after 5 minutes, or after what `ZIBRI_DI_TOKENS.LOGIN_TICKET_EXPIRES_IN_MS` says. A user who has to [choose a new password](./auth.md#requiring-a-new-password) is asked for it once the second factor is confirmed, with a new ticket.
 
-An empty `methods` list means the user has no second factor, and `twoFactorAtLogin` is `'required'`: the ticket enrolls their first, at `POST /auth/login/2fa/registration/request` and `POST /auth/login/2fa/registration/confirm`, which take what [enrolling](#enrolling-a-user) takes. A user who has a second factor is refused there with `403`.
+An empty `methods` list means the user has no second factor, and `twoFactorAtLogin` is `'required'`: the ticket enrolls their first, at `POST /auth/login/2fa/registration/request` and `POST /auth/login/2fa/registration/confirm`, which take what [enrolling](#enrolling-a-user) takes. A user who has a second factor is refused there with `403`. The login then continues at `POST /auth/login/2fa/confirm` with the factor just enrolled. A one time password that turned the factor on is accepted there once more within its 30 seconds, so the user does not wait for the next one.
 
 Rename the header through `ZIBRI_DI_TOKENS.LOGIN_TICKET_HEADER`. CORS follows the token.
 
@@ -248,7 +251,7 @@ POST /auth/2fa/registration/confirm?method=otp
 { "token": "123456" }
 ```
 
-`DELETE /auth/2fa/{method}` removes it again. In routes of your own, `TwoFactorServiceInterface` does the same:
+`DELETE /auth/2fa/registration/{method}` removes it again, and `GET /auth/2fa/registrations`, there with `twoFactorRegistrationsRoute: true` in the options of `AuthController`, answers the methods the user has enrolled, such as `{ "methods": ["otp"] }`. In routes of your own, `TwoFactorServiceInterface` does the same:
 
 ```ts
 // src/services/two-factor-enrollment.function.ts
@@ -324,7 +327,7 @@ defineProvider({ token: ZIBRI_DI_TOKENS.TWO_FACTOR_FAILURE_DELAY_IN_MS, useFacto
 
 Declare `TwoFactorFailureStreak` in your data source.
 
-A method of your own throws `InvalidTwoFactorCodeError` for a wrong code, so that it counts, and its own error for everything else.
+A method of your own throws `InvalidTwoFactorCodeError` for a wrong code, so that it counts, `SecondFactorMissingError` when its header is missing, and its own error for everything else.
 
 ### Locking after too many wrong codes
 With `twoFactorFailureLimit` in your app options, a user's second factor is locked once they present that many wrong codes in a row:

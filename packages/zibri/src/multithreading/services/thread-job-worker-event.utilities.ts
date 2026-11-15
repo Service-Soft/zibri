@@ -123,7 +123,11 @@ export abstract class ThreadJobWorkerEventUtilities {
             unknown
         > | undefined = events.findJob(threadId);
         if (!job) {
-            events.replaceDeadWorker(exitCode, threadId);
+            // a job queued while this worker was on its way out found no worker free, such as one queued right
+            // after the job of a worker that ended itself was settled: the replacement is the worker it waits for
+            if (events.replaceDeadWorker(exitCode, threadId)) {
+                await events.startQueuedJobs();
+            }
             return;
         }
 

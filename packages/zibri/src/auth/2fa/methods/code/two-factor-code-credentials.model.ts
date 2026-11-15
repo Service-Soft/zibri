@@ -6,7 +6,8 @@ import { OmitClass } from '../../../../entity/omit-class.model';
 /**
  * Where a user receives their two factor codes, and whether they have shown they receive them.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+// kept for the current users: where codes are sent stays where they are sent now
+@Entity({ tenant: 'shared', allowOrphan: true, backedUp: 'keptForCurrentUsers' })
 export class TwoFactorCodeCredentials extends BaseEntity {
     /**
      * The user that these credentials belong to.

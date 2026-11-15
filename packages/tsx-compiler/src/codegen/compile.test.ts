@@ -520,6 +520,8 @@ describe('the errors a template is refused with', () => {
     });
 
     describe('a name only the browser has, read while the server renders', () => {
+        // a warning in 3.x, as such a template compiled in 3.0, and rendered when a check the rule does not follow
+        // kept the read from running on the server
         it.each([
             ['in the body of a component', 'export const A = () => { const title = document.title; return <p>{title}</p>; };', 'document'],
             ['in the markup', 'export const A = () => <p>{window.location.href}</p>;', 'window'],
@@ -527,13 +529,31 @@ describe('the errors a template is refused with', () => {
             ['in a callback the markup calls', 'export const A = ({ items }) => <ul>{items.map(item => <li>{document.title}{item}</li>)}</ul>;', 'document'],
             ['in onServer', 'export const A = () => { onServer(() => console.log(window.name)); return <p/>; };', 'window'],
             ['from a ?client import, in the body', 'import { Chart } from \'chart.js?client\';\nexport const A = () => { Chart.defaults.color = \'red\'; return <p/>; };', 'Chart'],
-            ['from a ?client import, at module level', 'import { Chart } from \'chart.js?client\';\nChart.defaults.color = \'red\';\nexport const A = () => <p/>;', 'Chart']
-        ])('is refused %s', (_where, source, name) => {
-            const refusal: Refusal = refusalOf(source);
+            ['from a ?client import, at module level', 'import { Chart } from \'chart.js?client\';\nChart.defaults.color = \'red\';\nexport const A = () => <p/>;', 'Chart'],
+            [
+                'under a check held in a const',
+                'const isBrowser = typeof window !== \'undefined\';\nexport const A = () => <p>{isBrowser ? window.innerWidth : 0}</p>;',
+                'window'
+            ],
+            ['under a check of a prop', 'export const A = ({ inBrowser }) => <p>{inBrowser ? document.title : \'\'}</p>;', 'document'],
+            [
+                'in a callback handed to a function of the template',
+                'function later(run: () => void): void { console.log(run); }\nexport const A = () => { later(() => { document.title = \'x\'; }); return <p/>; };',
+                'document'
+            ]
+        ])('warns %s, failing the build from 4.0, and compiles the template', (_where, source, name) => {
+            const result: CompileResult = compile(source);
 
-            expect(refusal.code).toBe(ValidationCode.BROWSER_NAME_DURING_RENDER);
-            expect(refusal.at).toBe(name);
-            expect(refusal.message).toContain(`'${name}'`);
+            expect(result.code).toBeDefined();
+            expect(result.diagnostics).toEqual([
+                expect.objectContaining({
+                    code: ValidationCode.BROWSER_NAME_DURING_RENDER,
+                    severity: DiagnosticSeverity.WARNING,
+                    message: expect.stringContaining(`'${name}'`)
+                })
+            ]);
+            expect(result.diagnostics[0].message).toContain('This fails the build from 4.0.');
+            expect(source.slice(result.diagnostics[0].span.start, result.diagnostics[0].span.end)).toBe(name);
         });
 
         it.each([
@@ -550,6 +570,123 @@ describe('the errors a template is refused with', () => {
         ])('is allowed %s', (_where, source) => {
             expect(compile(source).diagnostics).toEqual([]);
         });
+    });
+});
+
+// a hook is what zibri exports under its name: a function of the template or of another module named like one compiled
+// as what it is in 3.0, and took the rules of the hook it is named like
+describe('a function named like a hook that is not the hook', () => {
+    it.each([
+        [
+            'declared by the template, called in a component',
+            'function useEffect(run: () => void): void { run(); }\nexport const A = () => { useEffect(() => console.log(1)); return <p/>; };'
+        ],
+        [
+            'imported from a file of the application, called in a component',
+            'import { useEffect } from \'../my-hooks\';\nexport const A = () => { useEffect(() => console.log(1)); return <p/>; };'
+        ],
+        [
+            'declared by the template, with an argument the hook does not take',
+            'function useRef(size: number): number { return size * 2; }\nexport const A = () => { const size = useRef(2); return <p>{size}</p>; };'
+        ],
+        [
+            'declared by the template, called at module level',
+            'function useState(value: number): number { return value; }\nconst start = useState(1);\nexport const A = () => <p>{start}</p>;'
+        ],
+        [
+            'imported from a file of the application, named like a hook of the render',
+            'import { useContext } from \'../my-context\';\nexport const A = () => <p>{useContext()}</p>;'
+        ]
+    ])('compiles as the function it is, %s', (_how, source) => {
+        expect(compile(source).diagnostics).toEqual([]);
+    });
+
+    it('calls a function the template declares under the name of a hook while the server renders', () => {
+        const result: CompileResult = compile(
+            'function useEffect(run: () => void): void { run(); }\nexport const A = () => { useEffect(() => console.log(1)); return <p/>; };'
+        );
+
+        assert(result.code);
+        expect(result.code).toContain('useEffect(() => console.log(1))');
+    });
+
+    it('keeps the import of a function of another module named like a hook of the render', () => {
+        const result: CompileResult = compile('import { useContext } from \'../my-context\';\nexport const A = () => <p>{useContext()}</p>;');
+
+        assert(result.code);
+        expect(result.code).toMatch(/import \{ useContext \} from "\.\.\/my-context"/);
+    });
+
+    it('refuses client code reading a function of another module named like a hook, as any import of the server', () => {
+        const refusal: Refusal = refusalOf(
+            'import { useEffect } from \'../my-hooks\';\nexport const A = () => <button onClick={() => useEffect(() => 1)}>x</button>;'
+        );
+
+        expect(refusal.code).toBe(ValidationCode.SERVER_IMPORT_IN_CLIENT_CODE);
+        expect(refusal.at).toBe('useEffect');
+    });
+
+    it('takes a hook imported from zibri as the hook', () => {
+        expect(refusalOf('import { useState } from \'zibri\';\nconst start = useState(1);\nexport const A = () => <p>{start.value}</p>;').code)
+            .toBe(ValidationCode.RENDER_SYNTAX_OUTSIDE_COMPONENT);
+    });
+});
+
+// a hook is what zibri exports under its name, whatever name the template imports it as
+describe('a hook imported under another name', () => {
+    it('takes the rules of the hook', () => {
+        expect(refusalOf('import { useState as state } from \'zibri\';\nconst start = state(1);\nexport const A = () => <p>{start.value}</p>;').code)
+            .toBe(ValidationCode.RENDER_SYNTAX_OUTSIDE_COMPONENT);
+    });
+
+    it('binds the name client code calls it by to the hook', () => {
+        const result: CompileResult = compile(
+            'import { onClient as whenShown } from \'zibri\';\nexport const A = () => { whenShown(() => console.log(1)); return <p/>; };'
+        );
+
+        expect(result.diagnostics).toEqual([]);
+        expect(result.client?.code).toContain('const whenShown = onClient;');
+    });
+
+    it('reads a context on the server, and leaves the import out of the module', () => {
+        const result: CompileResult = compile(
+            'import { createContext, useContext as read } from \'zibri\';\nconst Title = createContext(\'x\');\n'
+            + 'export const A = () => <p>{read(Title)}</p>;'
+        );
+
+        assert(result.code);
+        expect(result.code).toContain('.useContext(');
+        expect(result.code).not.toMatch(/useContext as read/);
+    });
+
+    it.each([
+        [
+            'an export of zibri that is no hook',
+            'import { escapeText as escape } from \'zibri\';\nexport const A = () => <button onClick={() => console.log(escape(\'x\'))}>x</button>;',
+            'escape'
+        ],
+        [
+            'a hook that reads the render on the server',
+            'import { createContext, useContext as read } from \'zibri\';\nconst Title = createContext(\'x\');\n'
+            + 'export const A = () => <button onClick={() => console.log(read(Title))}>x</button>;',
+            'read'
+        ]
+    ])('binds client code to nothing else zibri exports under another name: refuses %s', (_what, source, name) => {
+        const refusal: Refusal = refusalOf(source);
+
+        expect(refusal.code).toBe(ValidationCode.SERVER_IMPORT_IN_CLIENT_CODE);
+        expect(refusal.at).toBe(name);
+    });
+
+    it('collects the translations client code reads through it', () => {
+        const result: CompileResult = compile(
+            'import { $t as t } from \'zibri\';\nexport const A = () => <button onClick={() => console.log(t`Saved`)}>x</button>;'
+        );
+
+        expect(result.diagnostics).toEqual([]);
+        expect(result.client?.referencedHooks).toContain('$t');
+        expect(result.client?.referencedTranslations.sources).toEqual(['Saved']);
+        expect(result.client?.code).toContain('const t = $t;');
     });
 });
 

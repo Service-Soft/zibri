@@ -122,7 +122,7 @@ These have no default either. An application using the feature provides them.
 | [`FILE_UPLOAD_TEMP_FOLDER`](../endpoints/creating-endpoints.md) | `FsPath` | Where uploaded files are written. `.zibri/uploads` in the application's root by default |
 | [`DEFAULT_CSP_OPTIONS_INPUT`](./app-settings.md) | `CspOptionsInput` | The content security policy of a page. Everything from your own origin only, by default |
 | [`OPEN_API_AUTH`](../endpoints/open-api.md#restricting-the-explorer) | `RouteAuthConfiguration` | Who may open the OpenAPI explorer and its documents. What `defaultAuth` says by default |
-| [`OPEN_API_EXPLORER_TEMPLATE`](../endpoints/open-api.md#changing-the-explorer) | `OpenApiExplorerTemplate` | The page of the OpenAPI explorer. None by default, and there is no explorer, only the documents |
+| [`OPEN_API_EXPLORER_TEMPLATE`](../endpoints/open-api.md#changing-the-explorer) | `OpenApiExplorerTemplate` | The page of the OpenAPI explorer. None by default, and there is no explorer, only the documents, and `/explorer` redirects to the latest one |
 | [`OPEN_API_SERVERS`](../endpoints/open-api.md#naming-the-servers) | `OpenApiServerObject[]` | The servers the OpenAPI documents name. The application itself, at `/`, by default |
 | [`ASYNC_API_SERVERS`](../endpoints/async-api.md#naming-the-servers) | `Record<string, AsyncApiServer>` | The servers the AsyncAPI documents name, under their keys. The application itself by default |
 | `VERSION_HEADER` | `string` | Which header names the version a request asks for. `x-version` by default |
@@ -213,8 +213,12 @@ These have no default either. An application using the feature provides them.
 | [`BACKUP_SHUTDOWN_WAIT_IN_MS`](../data/backup.md) | `number` | How long the application waits for a running backup or restore when it stops. 0 by default |
 | [`BACKUP_STOPPING_TIMEOUT_IN_MS`](../data/backup.md) | `number` | How long stopping a running backup or restore may take after that wait. 30 seconds by default |
 | [`BACKUP_MAX_ATTEMPTS`](../data/backup.md#creating-and-restoring-backups) | `number` | How many times a resource of a backup is tried before the backup fails. 3 by default |
+| [`BACKUP_MAX_CONCURRENT_RESOURCES`](../data/backup.md#creating-and-restoring-backups) | `number` | How many resources of backups one instance stores at once. 1 by default |
 | [`BACKUP_RETRY_DELAY_IN_MS`](../data/backup.md#creating-and-restoring-backups) | `number` | How long the first retry of a resource waits, doubling for each one after it. One minute by default |
 | [`BACKUP_RETENTION`](../data/backup.md#deleting-old-backups) | `BackupRetention \| undefined` | Which completed backups are kept each time a backup completes. None by default, which keeps every backup |
+| [`BACKUP_CHUNKING_OPTIONS`](../data/backup.md#storing-unchanged-data-once) | `BackupChunkingOptions` | How the data of a resource is cut into chunks and compressed. Chunks of 256 KiB to 4 MiB, about 1 MiB on average, at level 3 by default |
+| [`BACKUP_SCRUB_OPTIONS`](../data/backup.md#checking-the-stored-chunks) | `BackupScrubOptions \| undefined` | In how many days the garbage collection reads every stored chunk back once to check it. None by default, which reads no chunk back |
+| [`BACKUP_TENANT_TRANSPORT_OPTIONS`](../data/backup.md#letting-a-tenant-back-up-to-its-own-storage) | `TenantBackupTransportOptions` | What [tenants](../glossary.md#tenant) may configure as transports of their own backups. S3 and SFTP at public addresses by default |
 
 ## Configuring pages, translations and outgoing requests
 

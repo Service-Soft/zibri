@@ -267,6 +267,26 @@ describe('replaying what a reconnecting client missed', () => {
         expect(caughtUp.incomplete).toEqual([]);
     }, 15000);
 
+    it('tells a client that saw messages the store no longer holds, such as after a restore, where things stand', async () => {
+        await sendNote();
+        await sendNote();
+        await sendNote();
+        const offset: number = await resolveNewestSeq();
+        // what a restore of a backup taken two messages ago leaves: the sequence and the messages of then
+        const restoredSeq: number = offset - 2;
+        await messageRepository().deleteAll({ seq: { greaterThan: restoredSeq } }, { acrossTenants: true });
+        await sequenceRepository().updateAll({}, { seq: restoredSeq }, { acrossTenants: true });
+        // given a seq the client already has
+        await sendNote();
+
+        const received: Received = await connect(offset);
+
+        await waitUntil(() => received.incomplete.length === 1);
+        await new Promise(resolve => setTimeout(resolve, quietPeriodInMs));
+        expect(received.incomplete).toEqual([{ seq: restoredSeq + 1 }]);
+        expect(received.notes).toEqual([]);
+    }, 15000);
+
     it('gives every message its own seq, however many are sent at once', async () => {
         const offset: number = await resolveNewestSeq();
 

@@ -5,7 +5,7 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { BackupStagingCleanupCronJob } from './backup-staging-cleanup.cron-job';
 import { RestoreJournalUtilities } from './restore-journal.utilities';
-import { resolveStagedDigest } from './staging.function';
+import { StagingUtilities } from './staging.utilities';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -68,7 +68,7 @@ describe('BackupStagingCleanupCronJob', () => {
         const journal: FsPath = RestoreJournalUtilities.getPath(stagingFolder, 'interrupted');
         await RestoreJournalUtilities.write(journal, {
             backupName: 'interrupted',
-            applied: [{ resourceName: 'settings', snapshotPath: needed, snapshotDigest: await resolveStagedDigest(needed) }]
+            applied: [{ resourceName: 'settings', snapshotPath: needed, snapshotDigest: await StagingUtilities.resolveDigest({ path: needed, compression: 'none', encryption: undefined }) }]
         });
         await utimes(journal, new Date(Date.now() - Ms.DAY), new Date(Date.now() - Ms.DAY));
 

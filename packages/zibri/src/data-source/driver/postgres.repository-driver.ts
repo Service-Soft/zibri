@@ -428,34 +428,58 @@ export class PostgresRepositoryDriver<T extends BaseEntity> implements Repositor
      * @param select - The statement.
      * @param order - The order.
      * @param related - What the rows each relation reaches are narrowed to.
-     * @throws When the order reaches through a property that is no relation.
+     * @throws When the order reaches through a property that is neither a relation nor an object.
      */
     private order(select: PostgresSelect, order: DriverFindOptions<T>['order'], related: RelatedNarrowing | undefined): void {
         const aliases: Map<string, string> = new Map();
         for (const key of EntityOrderUtilities.resolveKeys(order, this.entityClass)) {
-            let alias: string = ROW;
-            let entityClass: Newable<BaseEntity> = this.entityClass;
-            for (const [i, property] of key.path.slice(0, -1).entries()) {
-                const path: string = key.path.slice(0, i + 1).join('.');
-                const metadata: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(entityClass)[property];
-                if (!isRelationMetadata(metadata)) {
-                    throw new InternalError(`The order names "${path}", which is no relation.`);
-                }
-                alias = aliases.get(path) ?? this.joinRelated(select, alias, entityClass, property, related);
-                aliases.set(path, alias);
-                entityClass = metadata.target();
-            }
-            const column: string = PostgresSqlUtilities.qualify(alias, this.schema.getColumn(entityClass, key.path.at(-1) ?? 'id').name);
-            select.orderBy(this.orderExpression(key, column));
+            select.orderBy(this.orderExpression(key, this.resolveOrderValue(select, key, aliases, related)));
         }
     }
 
-    private orderExpression(key: OrderKey, column: string): string | ParameterizedSql {
+    /**
+     * Resolves the value a key of an order sorts by, joining the relations it reaches through.
+     * @param select - The statement.
+     * @param key - The key.
+     * @param aliases - The relations joined for the keys before it, by path, which this one reuses.
+     * @param related - What the rows each relation reaches are narrowed to.
+     * @returns The column, or the value inside the json of an object column.
+     * @throws When the key reaches through a property that is neither a relation nor an object.
+     */
+    private resolveOrderValue(
+        select: PostgresSelect,
+        key: OrderKey,
+        aliases: Map<string, string>,
+        related: RelatedNarrowing | undefined
+    ): ParameterizedSql {
+        let alias: string = ROW;
+        let entityClass: Newable<BaseEntity> = this.entityClass;
+        for (const [i, property] of key.path.slice(0, -1).entries()) {
+            const path: string = key.path.slice(0, i + 1).join('.');
+            const metadata: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(entityClass)[property];
+            if (metadata?.type === 'object') {
+                // an object is stored as json in one column, so the rest of the path is inside it
+                const leaf: PropertyMetadata | undefined = EntityOrderUtilities.findMetadataAt(entityClass, key.path.slice(i));
+                const column: string = PostgresSqlUtilities.qualify(alias, this.schema.getColumn(entityClass, property).name);
+                return this.converter.jsonValueExpression(column, property, key.path.slice(i + 1), leaf);
+            }
+            if (!isRelationMetadata(metadata)) {
+                throw new InternalError(`The order names "${path}", which is neither a relation nor an object.`);
+            }
+            alias = aliases.get(path) ?? this.joinRelated(select, alias, entityClass, property, related);
+            aliases.set(path, alias);
+            entityClass = metadata.target();
+        }
+        const column: string = PostgresSqlUtilities.qualify(alias, this.schema.getColumn(entityClass, key.path.at(-1) ?? 'id').name);
+        return { sql: column, parameters: {} };
+    }
+
+    private orderExpression(key: OrderKey, value: ParameterizedSql): ParameterizedSql {
         if (key.similarTo == undefined) {
-            return `${column} ${key.direction}`;
+            return { sql: `${value.sql} ${key.direction}`, parameters: value.parameters };
         }
         // a row holding no text is similar to nothing, and sorts after every row that holds some
-        const similarity: ParameterizedSql = this.converter.similarityExpression(column, key.similarTo);
+        const similarity: ParameterizedSql = this.converter.similarityExpression(value, key.similarTo);
         return { sql: `${similarity.sql} DESC NULLS LAST`, parameters: similarity.parameters };
     }
 

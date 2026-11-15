@@ -22,7 +22,7 @@ Your application describes its routes as an [OpenAPI](https://spec.openapis.org/
 | `OpenApiSecurityRequirementObject`, `OpenApiOAuthFlowsObject`, `OpenApiOAuthFlowObject` | type, type, type | The schemes an operation needs with their scopes, and the OAuth2 flows of a scheme, each with its URLs and scopes |
 | `OpenApiSpecificationExtensions` | type | The fields starting with `x-` an object of the document may carry, each `unknown` |
 | `ZIBRI_DI_TOKENS.OPEN_API_AUTH` | DI token | Who may open the explorer and the document. Defaults to what `defaultAuth` says |
-| `ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE` | DI token | The page of the explorer. Defaults to none, which serves the documents without an explorer |
+| `ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE` | DI token | The page of the explorer. Defaults to none, which serves the documents without an explorer, and `/explorer` redirects to the latest one |
 | `ZIBRI_DI_TOKENS.OPEN_API_SERVERS`, `OpenApiServerObject` | DI token, type | The servers the document names, see [naming the servers](#naming-the-servers). Defaults to the application itself, at `/` |
 | `OpenApiExplorerTemplate`, `OpenApiExplorerProps`, `OpenApiExplorerVersion` | type, type, type | The page of the explorer, the props it is rendered with, and a version it offers |
 | `OpenApiExplorerUtilities` | class | Reads the document for the page: the operations by tag, the security schemes, references, the name of a type, and an example of a value as JSON or XML |
@@ -212,7 +212,7 @@ renders, naming the reference.
 
 Without a template, as in a project without the `pages` feature, the application serves the documents at
 `/explorer/spec/<version>` and `/explorer/asyncapi/<version>` and no explorer, and warns once when it starts.
-`zi add pages` adds the explorer.
+`/explorer` redirects to the OpenAPI document of the latest version. `zi add pages` adds the explorer.
 
 ## See also
 - [Creating endpoints](./creating-endpoints.md) — the decorators the document is built from

@@ -43,6 +43,9 @@ import { JwtServiceInterface } from '../../auth/strategies/jwt/jwt-service.inter
 import { UserServiceInterface } from '../../auth/user/user-service.interface';
 import { BackupRetention } from '../../backup/backup-retention.model';
 import { BackupServiceInterface } from '../../backup/backup-service.interface';
+import { BackupChunkingOptions } from '../../backup/repository/backup-chunking-options.model';
+import { BackupScrubOptions } from '../../backup/repository/backup-scrub-options.model';
+import { TenantBackupTransportOptions } from '../../backup/tenant/tenant-backup-transport-options.model';
 import { WriteThroughReadThroughCache } from '../../caching/cache/read-through/write-through-read-through.cache';
 import { CacheServiceInterface } from '../../caching/cache-service.interface';
 import { CacheContext } from '../../context/cache/cache.context';
@@ -297,9 +300,13 @@ export const ZIBRI_DI_TOKENS = {
     BACKUP_SHUTDOWN_WAIT_IN_MS: ziToken<number>('zi.backup_shutdown_wait_in_ms'),
     BACKUP_STOPPING_TIMEOUT_IN_MS: ziToken<number>('zi.backup_stopping_timeout_in_ms'),
     BACKUP_MAX_ATTEMPTS: ziToken<number>('zi.backup_max_attempts'),
+    BACKUP_MAX_CONCURRENT_RESOURCES: ziToken<number>('zi.backup_max_concurrent_resources'),
     BACKUP_RETRY_DELAY_IN_MS: ziToken<number>('zi.backup_retry_delay_in_ms'),
     // undefined for an application that keeps every backup until it deletes one itself
     BACKUP_RETENTION: ziToken<BackupRetention | undefined>('zi.backup_retention'),
+    BACKUP_CHUNKING_OPTIONS: ziToken<BackupChunkingOptions>('zi.backup_chunking_options'),
+    BACKUP_SCRUB_OPTIONS: ziToken<BackupScrubOptions | undefined>('zi.backup_scrub_options'),
+    BACKUP_TENANT_TRANSPORT_OPTIONS: ziToken<TenantBackupTransportOptions>('zi.backup_tenant_transport_options'),
     VERSIONS_PATH: ziToken<FsPath>('zi.versions_path'),
     TRANSLATIONS_PATH: ziToken<FsPath>('zi.translations_path'),
     ASSETS_PATH: ziToken<FsPath>('zi.assets_path'),

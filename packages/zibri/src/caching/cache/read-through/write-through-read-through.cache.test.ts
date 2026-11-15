@@ -9,6 +9,7 @@ import { inject } from '../../../di/inject.function';
 import { type LoggerInterface } from '../../../logging/logger.interface';
 import { type MetricsServiceInterface } from '../../../metrics/metrics-service.interface';
 import { Ms } from '../../../utilities/ms';
+import { CacheRestoreTagUtilities } from '../../cache-restore-tag.utilities';
 import { type CacheServiceInterface } from '../../cache-service.interface';
 import { CacheService } from '../../cache.service';
 import { Cache } from '../../decorators/cache.decorator';
@@ -242,7 +243,8 @@ describe('WriteThroughReadThroughCache', () => {
             const cached: CachedValue<{ id: string }> | undefined = await cache.store.get('key:abc');
             expect(cached).toBeDefined();
             expect(cached?.value).toEqual({ id: 'id:abc' });
-            expect(cached?.tags).toEqual(['tag:id:abc', 'name:abc']);
+            // and the tag of a restore, which every entry carries: written outside every tenant here
+            expect(cached?.tags).toEqual(['tag:id:abc', 'name:abc', CacheRestoreTagUtilities.UNTENANTED_TAG]);
             expect(cached?.createdAt).toEqual(new Date('2025-01-01T00:00:00.000Z'));
             expect(cached?.expiresAt).toEqual(new Date('2025-01-01T00:01:00.000Z'));
         }
@@ -304,7 +306,7 @@ describe('WriteThroughReadThroughCache', () => {
         await expect(wrapped('abc')).resolves.toEqual({ id: 'id:abc' });
 
         expect((await mainCache.store.get('id:abc:abc'))?.value).toEqual({ id: 'id:abc' });
-        expect((await mainCache.store.get('id:abc:abc'))?.tags).toEqual(['written:id:abc', 'name:abc']);
+        expect((await mainCache.store.get('id:abc:abc'))?.tags).toEqual(['written:id:abc', 'name:abc', CacheRestoreTagUtilities.UNTENANTED_TAG]);
         expect(await affectedCache.store.get('a1')).toBeUndefined();
         expect((await unaffectedCache.store.get('b1'))?.value).toBe('safe');
     });

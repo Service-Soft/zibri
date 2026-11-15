@@ -14,7 +14,8 @@ export type OrderKey = {
     /**
      * The property names to follow from the entity, ending in the one being sorted by.
      *
-     * One name for a property of the entity itself, and one more per relation it is reached through.
+     * One name for a property of the entity itself, and one more per relation or object it is reached
+     * through.
      */
     path: string[],
     /**
@@ -44,16 +45,39 @@ export abstract class EntityOrderUtilities {
     /**
      * Reads an order into the properties it sorts by, in the order they decide anything.
      *
-     * Flattened, because a property two relations down is sorted by exactly as one of the entity is
-     * - the only difference is how far the value is reached through.
+     * Flattened, because a property two relations or objects down is sorted by exactly as one of the
+     * entity is - the only difference is how far the value is reached through.
      * @param order - The order as the caller wrote it, or none.
-     * @param entityClass - The entity the order is for, which says which keys are relations.
+     * @param entityClass - The entity the order is for, which says which keys are relations and objects.
      * @returns One key per property, in the order the keys were written.
      * @throws When the order names something that is neither a direction, a similarity, nor a relation
-     * leading to one.
+     * or an object leading to one.
      */
     static resolveKeys<T>(order: EntityOrder<T> | undefined, entityClass: Newable<T>): OrderKey[] {
         return this.keysOf(order, MetadataUtilities.getModelProperties(entityClass), []);
+    }
+
+    /**
+     * Follows the path of an order key to the metadata of the property it ends in.
+     * @param entityClass - The entity the path starts at.
+     * @param path - The property names to follow, through relations and objects.
+     * @returns The metadata, or undefined when the path does not lead to a declared property.
+     */
+    static findMetadataAt(entityClass: Newable<unknown>, path: readonly string[]): PropertyMetadata | undefined {
+        let properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
+        let metadata: PropertyMetadata | undefined;
+        for (const [i, key] of path.entries()) {
+            metadata = properties[key];
+            if (i === path.length - 1) {
+                break;
+            }
+            const next: Newable<unknown> | undefined = this.findNestedClass(metadata);
+            if (next == undefined) {
+                return undefined;
+            }
+            properties = MetadataUtilities.getModelProperties(next);
+        }
+        return metadata;
     }
 
     /**
@@ -155,11 +179,11 @@ export abstract class EntityOrderUtilities {
                 res.push({ path, direction: entry, similarTo: undefined });
                 continue;
             }
-            // told apart by the metadata rather than by the shape, because a relation's entity may
-            // well have a property called `similarTo` of its own
-            const metadata: PropertyMetadata | undefined = properties[key];
-            if (isRelationMetadata(metadata)) {
-                res.push(...this.keysOf(entry, MetadataUtilities.getModelProperties(metadata.target()), path));
+            // told apart by the metadata rather than by the shape, because a relation's entity or an
+            // object may well have a property called `similarTo` of its own
+            const nested: Newable<unknown> | undefined = this.findNestedClass(properties[key]);
+            if (nested != undefined) {
+                res.push(...this.keysOf(entry, MetadataUtilities.getModelProperties(nested), path));
                 continue;
             }
             if (this.isSimilarityOrder(entry)) {
@@ -171,6 +195,19 @@ export abstract class EntityOrderUtilities {
             );
         }
         return res;
+    }
+
+    /**
+     * The class whose properties an order names below a property: the related entity, or the class
+     * of an object.
+     * @param metadata - The property.
+     * @returns The class, or undefined when the property holds a value an order sorts by itself.
+     */
+    private static findNestedClass(metadata: PropertyMetadata | undefined): Newable<unknown> | undefined {
+        if (isRelationMetadata(metadata)) {
+            return metadata.target();
+        }
+        return metadata?.type === 'object' ? metadata.cls() : undefined;
     }
 
     /**

@@ -223,6 +223,25 @@ export class UserService implements UserServiceInterface, OnAppInit {
         return held.some(count => count > 0);
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async* streamUserIds(): AsyncIterable<string> {
+        for (const repository of this.userEntityRepositories) {
+            for await (const user of repository.streamAsStored({}, undefined)) {
+                yield user.id;
+            }
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findStoredUserIds(userIds: string[]): Promise<string[]> {
+        if (!userIds.length) {
+            return [];
+        }
+        const found: unknown[][] = await Promise.all(this.userEntityRepositories
+            .map(async repository => await repository.resolveDistinctAsStored('id', { id: { oneOf: userIds } }, undefined)));
+        return found.flat().filter(id => typeof id === 'string');
+    }
+
     /**
      * Resolves the first answer any user repository gives.
      *

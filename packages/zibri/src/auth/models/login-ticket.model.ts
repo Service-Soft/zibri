@@ -11,7 +11,8 @@ import { Sha256HashStrategy } from '../hash/strategies/sha256.hash-strategy';
  *
  * Spent once, by the step it is for.
  */
-@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate' })
+// not backed up: a login under way when a restore runs, which a restore keeps, and one used since the backup stays used
+@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate', backedUp: false })
 export class LoginTicket extends BaseEntity {
     /**
      * The ticket.

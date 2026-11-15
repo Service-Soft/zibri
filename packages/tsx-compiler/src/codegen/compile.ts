@@ -11,6 +11,7 @@ import { compileServerRender, ServerRenderCode } from './server/render-codegen';
 import { concatLines, emitLines, EmittedLines, emitVerbatim, resolveOrigin, resolveOriginAt, resolveTemplateSourceMap, SourceMap } from './source-map';
 import { collectClientGlobalAliases, collectClientPackages } from '../semantics/client-packages';
 import { ComponentInfo, findComponents } from '../semantics/component';
+import { isHookModule } from '../semantics/hook-names';
 import { readImports, TemplateImport, TemplateImportSpecifier } from '../semantics/imports';
 import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols';
 import { namesAvailableInBrowser, validate, validateBrowserNamesDuringRender, validateClientImports, validateClientJsx, validateClientModuleLoading, validateClientNames, validateComponentArguments, validateRenderSyntaxOutsideComponents, ValidationCode } from '../semantics/validate';
@@ -474,9 +475,10 @@ function hasBindings(declaration: TemplateImport): boolean {
  * @returns The value specifiers.
  */
 function valueSpecifiers(declaration: TemplateImport): TemplateImportSpecifier[] {
-    return declaration.specifiers.filter(
-        specifier => !specifier.typeOnly && !(specifier.local in SERVER_INLINED_HOOKS)
-    );
+    // under whichever name the template imports it. A function of another module under the name of such a hook is
+    // called as it is
+    return declaration.specifiers.filter(specifier => !specifier.typeOnly
+        && !(isHookModule(declaration.source) && specifier.imported in SERVER_INLINED_HOOKS));
 }
 
 /**

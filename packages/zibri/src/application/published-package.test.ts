@@ -237,12 +237,17 @@ describe('the published package', () => {
     it('installs at a size a consumer would accept', () => {
         const megabytes: number = packed().unpackedSize / 1024 / 1024;
 
-        // measured 2026-11-01: `dist` is 10.9MB, of which 4 is the code that runs and the rest its
-        // declarations and the maps of both, and the sources the maps lead into are 6.8MB, 17.7 all
+        // measured 2026-11-11: `dist` is 11.1MB, of which 4 is the code that runs and the rest its
+        // declarations and the maps of both, and the sources the maps lead into are 6.8MB, 18.05 all
         // told. The ceiling sits just above that: growing past it is a reason to look at what grew,
         // which once found test cases, fonts twice over and comments in code that runs, and once the
-        // postgres layer that replaced typeorm. The number this was first written against is 50MB.
-        expect(megabytes).toBeLessThan(18);
+        // postgres layer that replaced typeorm. Raised from 18 for 3.1, whose 3,400 lines of framework
+        // code since 2026-11-01 are the 0.24MB `dist` grew by, with nothing else in the tarball. Raised
+        // from 18.5 on 2026-11-13 at 18.92: backups reading only what changed and backups of tenants, about
+        // 100KB of sources shipped as themselves, their code, their declarations and the maps of both, the
+        // largest files of the tarball the framework's own sources. The number this was first written
+        // against is 50MB.
+        expect(megabytes).toBeLessThan(20);
     });
 
     it('ships its comments once in the sources and the declarations, not in the code that runs', () => {
@@ -352,7 +357,7 @@ describe('the published package', () => {
 describe('the packages released together', () => {
     // npm shows a package's README as its page, and the repository's README links each one,
     // so an empty one is the first thing a reader of the package meets
-    it.each(['zibri', 'cli', 'tsx', 'tsx-compiler', 'mdx', 'testing'])('give %s a README saying how to install it and where its documentation is', name => {
+    it.each(['zibri', 'contract', 'cli', 'tsx', 'tsx-compiler', 'mdx', 'testing'])('give %s a README saying how to install it and where its documentation is', name => {
         const readme: string = readFileSync(path.join(repoRoot, 'packages', name, 'README.md'), 'utf8');
 
         expect(readme).toMatch(/^# /m);

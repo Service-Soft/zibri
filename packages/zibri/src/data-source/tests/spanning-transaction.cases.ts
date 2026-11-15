@@ -1,4 +1,3 @@
-/* eslint-disable jsdoc/require-jsdoc */
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { describe, expect, it } from '@jest/globals';

@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { Browser, chromium } from 'playwright';
 
 import { CompiledPage } from './render-page';
+import { SERVER_HOOKS } from './server-hooks';
 import { attr, createContext, renderChild } from './server-runtime';
 import { compilePage, loadTemplatePage } from '../../../tsx-compiler/src/__testing__/server-render.helper';
 import { openPage, OpenedPage } from '../__testing__/browser.helper';
@@ -398,6 +399,28 @@ describe('a rendered page, in a browser', () => {
             expect(await opened.page.locator('#out').textContent()).toBe('a2;b11;a3;');
         }, TIMEOUT);
     });
+
+    // a hook is what zibri exports under its name, whatever name the template imports it as
+    it('runs the hooks a template imports under other names', async () => {
+        const source: string = 'import { onClient as whenShown, useEffect as afterChange, useState as state } from \'zibri\';\n'
+            + 'export const Page = () => { const count = state(0); '
+            + 'afterChange(() => { document.getElementById(\'effect\').textContent = String(count.value); }, [count]); '
+            + 'whenShown(() => { document.getElementById(\'shown\').textContent = \'shown\'; }); '
+            + 'return <div><button id="increment" onClick={() => { count.value = count.value + 1; }}>+</button>'
+            + '<p id="count">{count.value}</p><p id="effect"></p><p id="shown"></p></div>; };';
+        const compiled: CompiledPage | undefined = loadTemplatePage(source, { zibri: { onClient: SERVER_HOOKS.onClient } });
+        assert(compiled);
+        const opened: OpenedPage = await openPage(browser, compiled);
+        expect(await opened.page.locator('#shown').textContent()).toBe('shown');
+        expect(await opened.page.locator('#effect').textContent()).toBe('0');
+
+        await opened.page.locator('#increment').click();
+        await opened.page.evaluate(async () => await new Promise(resolve => setTimeout(resolve, 0)));
+
+        expect(await opened.page.locator('#count').textContent()).toBe('1');
+        expect(await opened.page.locator('#effect').textContent()).toBe('1');
+        expect(opened.errors).toEqual([]);
+    }, TIMEOUT);
 
     describe('state across components', () => {
         async function settled(opened: OpenedPage): Promise<void> {

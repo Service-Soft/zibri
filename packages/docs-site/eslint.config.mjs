@@ -1,5 +1,5 @@
 import baseConfig from '../../eslint.config.mjs';
-import { cspellOptions } from 'eslint-config-service-soft';
+import { cspellOptions } from '@service-soft/eslint-config';
 
 /** @type {import('eslint').Linter.Config} */
 export default [

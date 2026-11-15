@@ -6,7 +6,7 @@ import { TwoFactorMethods } from '../auth/2fa/two-factor-methods.model';
 import { Authenticators } from '../auth/authenticators/authenticators.model';
 import { PasswordFailureLimit } from '../auth/authenticators/password/password-failure-limit.model';
 import { AuthStrategies } from '../auth/strategies/auth-strategies.model';
-import { BackupTransportInterface } from '../backup/transports/backup-transport.interface';
+import { BackupTransportSupporting } from '../backup/transports/backup-transport.interface';
 import { CronJob } from '../cron/cron-job.model';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { DiProvider } from '../di/models/di-provider.model';
@@ -228,7 +228,8 @@ export type ZibriApplicationOptions = {
     /**
      * The configured backup transports of the app.
      */
-    backupTransports?: Newable<BackupTransportInterface>[],
+    // TODO 4.0: transports supporting v2 only
+    backupTransports?: Newable<BackupTransportSupporting>[],
     /**
      * The commands of the app, which `runCommand` runs in place of starting it, beside the migration
      * commands.

@@ -76,8 +76,8 @@ function resolveLoadsEsModules(): boolean {
  *
  * TypeScript and the templates compiled to commonjs, which is what jest runs a test in, a template's
  * `?client` import resolved to the package itself, as the build resolves it on the server, the
- * packages that ship as es modules only compiled like the sources, and a test worker restarted once
- * it holds more than 1 GB.
+ * packages that ship as es modules only compiled like the sources, a test worker restarted once
+ * it holds more than 1 GB, and jest's cache kept in `node_modules/.cache/jest` of the project.
  * ```js
  * export default createJestConfig({ rootDir: 'src', esmPackages: ['nanoid'] });
  * ```
@@ -109,6 +109,10 @@ export function createJestConfig({ esmPackages = [], ...config }: JestConfigOpti
         // a worker that has booted an application holds about a gigabyte, and grows with every test
         // file that boots one. A run with a worker per core ended in the OOM killer
         workerIdleMemoryLimit: '1GB',
+        // on disk rather than in the temp folder, jest's default, which on many machines is a tmpfs: the
+        // transformed sources of every run, gigabytes of them, sat in memory and swap there, and were
+        // gone after every reboot
+        cacheDirectory: path.join(process.cwd(), 'node_modules', '.cache', 'jest'),
         ...config,
         // jest takes the first pattern that matches, so the application's come first and win
         transform: { ...config.transform, ...transform, ...config.transform },

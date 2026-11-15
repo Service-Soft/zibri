@@ -1508,11 +1508,12 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
      * because it was asked to.
      * @param exitCode - The code the worker exited with.
      * @param threadId - The thread id of the worker that exited.
+     * @returns Whether a replacement was started.
      */
-    private replaceDeadWorker(exitCode: number, threadId: number): void {
+    private replaceDeadWorker(exitCode: number, threadId: number): boolean {
         const worker: ThreadJobWorker | undefined = this.getWorkerByThreadId(threadId);
         if (!worker) {
-            return;
+            return false;
         }
 
         clearTimeout(worker.timeout);
@@ -1525,15 +1526,15 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
                 worker.isInitializingSubject.error(
                     new InternalError(`Worker ${threadId} exited with code ${exitCode} before initialization completed`)
                 );
-                return;
+                return false;
             }
             case 'stopped': {
-                return;
+                return false;
             }
             case 'running': {
-                this.logger.warn(`Thread job worker ${threadId} exited with code ${exitCode} while idle. Starting a replacement.`);
+                this.logger.warn(`Thread job worker ${threadId} exited with code ${exitCode} holding no job. Starting a replacement.`);
                 this.initWorker(worker.priority);
-                return;
+                return true;
             }
         }
     }

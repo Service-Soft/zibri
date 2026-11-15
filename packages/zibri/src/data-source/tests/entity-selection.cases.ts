@@ -1,4 +1,3 @@
-/* eslint-disable jsdoc/require-jsdoc */
 /* eslint-disable sonar/no-duplicate-string */
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
 

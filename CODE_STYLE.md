@@ -218,7 +218,9 @@ CI runs every one of them: `test:ci` runs all but the benchmarks, which a job of
 **A slower operation fails the build, measured against the release.** `test:benchmark:compare`
 builds `origin/release` in a worktree beside your checkout and runs the benchmarks on both, four
 times each, in turns on the same machine. An operation whose median is more than 1.3× the release's
-fails it. Run `git fetch origin release` first. When a slowdown is worth it, add it to
+fails it. The same holds for a figure a suite reports beside its timings with
+`BenchmarkUtilities.writeFigureReport`, such as the peak memory or CPU time of a backup. Memory only
+counts once it is also more than 16 MiB above the release's. Run `git fetch origin release` first. When a slowdown is worth it, add it to
 `packages/zibri/benchmark-allowances.json` as `{ "against": "<release version>", "name": "<operation>",
 "ratio": 1.6, "reason": "..." }`. It counts until that release is replaced, and the comparison names
 the allowances that no longer apply.

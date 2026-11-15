@@ -1,6 +1,8 @@
 import ts from 'typescript';
 import { SourceSpan } from 'zibri-tsx';
 
+import { isHookReference } from './hook-names';
+
 /**
  * The kinds of node that hold no value syntax below them: names, literals, keywords that are values by
  * themselves, and statements made of nothing but a keyword or a label. Type-only declarations count too,
@@ -93,7 +95,7 @@ export function unwrapTypeSyntax(node: ts.Expression): ts.Expression {
 }
 
 /**
- * Whether a node is a call of the named framework hook.
+ * Whether a node is a call of the named framework hook, under whichever name the template imports it.
  * @param node - The node to test.
  * @param hook - The hook name.
  * @returns True for a call of that hook.
@@ -103,7 +105,7 @@ export function isHookCall(node: ts.Node, hook: string): node is ts.CallExpressi
         return false;
     }
     const callee: ts.Expression = unwrapTypeSyntax(node.expression);
-    return ts.isIdentifier(callee) && callee.text === hook;
+    return ts.isIdentifier(callee) && isHookReference(callee, hook);
 }
 
 /**

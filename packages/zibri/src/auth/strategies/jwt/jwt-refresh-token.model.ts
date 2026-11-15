@@ -10,7 +10,8 @@ import { ProviderAuthentication } from '../../models/provider-authentication.mod
 /**
  * The jwt refresh token that gets stored in the data source.
  */
-@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate' })
+// not backed up: a restore keeps the logins of now, so that one ended since the backup stays ended
+@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate', backedUp: false })
 export class JwtRefreshToken extends BaseEntity {
     /**
      * The id of the user that this token belongs to.

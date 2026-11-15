@@ -67,9 +67,9 @@
     },
     "devDependencies": {
         "@jest/globals": "^30.4.1",
+        "@service-soft/eslint-config": "^2.1.7",
         "@types/node": "^24.0.0",
         "eslint": "^9.36.0",
-        "eslint-config-service-soft": "^2.1.6",
         "jest": "^30.4.2",
         "ts-jest": "^29.4.11",
         "ts-loader": "^9.5.2",

@@ -14,7 +14,7 @@ keywords: [login route, logout, refresh token, register, sign up, password reset
 | `AuthControllerRoutes` | type | The routes `AuthController` defines for the given strategies, authenticators and two factor methods |
 | `isAuthControllerClass` | function | Tells a class `AuthController` defined apart |
 | `AuthControllerStrategyClass`, `AuthControllerAuthenticatorClass` | type | A class of a strategy and of an authenticator the routes log in with |
-| `AuthControllerLoginRoutes`, `AuthControllerLoginListingRoutes`, `AuthControllerEmailVerificationRoutes`, `AuthControllerCsrfTokenRoutes`, `AuthControllerPasswordResetRoutes`, `AuthControllerPasswordChangeRoutes`, `AuthControllerLoginOptionsRoutes`, `AuthControllerRegistrationRoutes`, `AuthControllerFederatedRoutes`, `AuthControllerLinkIdentityRoutes`, `AuthControllerLinkIdentityConfirmingRoutes`, `AuthControllerIdentityRoutes`, `AuthControllerTwoFactorRoutes` | type | The methods of the routes, by the classes that call for them |
+| `AuthControllerLoginRoutes`, `AuthControllerCurrentUserRoutes`, `AuthControllerLoginListingRoutes`, `AuthControllerEmailVerificationRoutes`, `AuthControllerConfirmEmailRoutes`, `AuthControllerCsrfTokenRoutes`, `AuthControllerPasswordResetRoutes`, `AuthControllerPasswordChangeRoutes`, `AuthControllerLoginOptionsRoutes`, `AuthControllerRegistrationRoutes`, `AuthControllerFederatedRoutes`, `AuthControllerLinkIdentityRoutes`, `AuthControllerLinkIdentityConfirmingRoutes`, `AuthControllerIdentityRoutes`, `AuthControllerTwoFactorRoutes`, `AuthControllerTwoFactorRegistrationsRoutes` | type | The methods of the routes, by the classes that call for them |
 | `FEDERATED_ROUTE` | constant | Where the routes of a login at a provider are, below the path of the controller: `/federated` |
 | `AuthControllerUtilities` | class | What the routes share: finding the class a request names, checking a body against one model, running in a transaction across data sources |
 | `AuthControllerStrategyInterface`, `isAuthControllerStrategy` | interface, function | What a strategy the routes log in with implements |
@@ -27,6 +27,8 @@ keywords: [login route, logout, refresh token, register, sign up, password reset
 | `CsrfToken` | class | What `GET csrf-token` answers with |
 | `RequestPasswordResetInput`, `PasswordResetTokenInput`, `PasswordResetTokenValidity`, `ConfirmPasswordResetDto` | class | What the password reset routes take and answer with |
 | `ChangePasswordDto`, `ChangePasswordData` | class | What `POST /change-password` takes, and what `changePassword` of `AuthServiceInterface` takes besides it: the transaction |
+| `CurrentUserProfile`, `CurrentUserMembership` | class | What `GET /me` answers: the id and email of the logged in user, when they verified it, their platform permissions, and their [memberships](../glossary.md#membership) with the permissions of each |
+| `TwoFactorRegistrations` | class | What `GET /2fa/registrations` answers: the two factor methods the logged in user has enrolled |
 | `UserLogin` | class | A login of a user as `GET /logins` lists it: the strategy, when the user logged in, when and from which client it was last used, and when it expires |
 | `LoginListingAuthStrategyInterface`, `isLoginListingAuthStrategy` | interface, function | What a strategy listing the logins of a user implements |
 | `ListedLogin` | type | A login as a strategy lists it, without its strategy and whether it is the current one |
@@ -55,6 +57,9 @@ export class AppAuthController extends AuthController({
 | `authenticators` | The authenticators a login is proven with. At least one |
 | `twoFactorMethods` | The two factor methods a user enrolls. None for no 2FA routes |
 | `emailVerification` | `true` for the routes [verifying and changing email addresses](./email-verification.md). Not by default |
+| `currentUserRoute` | `true` for `GET /me`, which answers the logged in user and what they may do. Not by default |
+| `confirmEmailRoute` | `true` for `POST /confirm-email` beside the routes of `emailVerification`, which confirms any link a user is mailed. Needs `confirmEmail` of the `EmailVerificationService`. Not by default |
+| `twoFactorRegistrationsRoute` | `true` for `GET /2fa/registrations` beside the routes of the two factor methods, which lists the methods the user has enrolled. Not by default |
 
 Name exactly what your application registers: its auth strategies that log in, its authenticators, and its two factor methods, including the ones it registers when you configure none, `JwtAuthStrategy`, `PasswordAuthenticator` and `OtpTwoFactorMethod`. An application has one controller `AuthController` defines.
 
@@ -67,6 +72,7 @@ Every route is below the path of your controller. A route is there when one of t
 | `POST /refresh-login` | always | what the strategy refreshes with, such as `{ "refreshToken" }` | anyone |
 | `POST /logout` | always | what the strategy logs out with, such as `{ "refreshToken" }`, or `{ "clearCookies" }` for the login of the cookies the request carries. Answers where to log out at the provider the login was started at, if any. An access token already issued works until it expires, unless [`ACCESS_TOKEN_REVOCATION`](./auth.md#what-a-credential-is-worth) is `'immediately'` | anyone |
 | `POST /logout-everywhere` | always | nothing. Ends every login of the user, the one asking included | a logged in user |
+| `GET /me` | `currentUserRoute: true` | nothing. Answers the user's id and email, when they verified it, their `platformPermissions`, and their `memberships`, each with its `tenantId` and `permissions`, see [checking permissions in a frontend](./roles-and-permissions.md#checking-permissions-in-a-frontend). Your own fields of the user stay out: write your own route in its place for them | a logged in user |
 | `GET /logins` | a strategy lists the logins of a user, such as `JwtAuthStrategy` and `CookieAuthStrategy` | nothing. Answers the user's live logins, the most recently used first, see [where a user is logged in](./auth.md#where-a-user-is-logged-in) | a logged in user |
 | `DELETE /logins/:loginId` | a strategy lists the logins of a user | nothing. Ends that login of the user | a logged in user |
 | `GET /csrf-token` | a strategy issues CSRF tokens, such as `CookieAuthStrategy` | nothing. Answers the token of the login the request carries | anyone |
@@ -74,6 +80,7 @@ Every route is below the path of your controller. A route is there when one of t
 | `POST /verify-password-reset-token` | `PasswordAuthenticator` | `{ "resetToken" }`. Answers `{ "isValid" }` | anyone |
 | `POST /confirm-password-reset` | `PasswordAuthenticator` | `{ "resetToken", "newPassword" }` | anyone |
 | `POST /request-email-verification`, `POST /confirm-email-verification`, `POST /request-email-change`, `POST /confirm-email-change` | `emailVerification` | see [verifying email addresses](./email-verification.md) | a logged in user to request, anyone with the link to confirm. A change is requested with a second factor or a [recent login](../glossary.md#recent-login) |
+| `POST /confirm-email` | `emailVerification` and `confirmEmailRoute` | see [verifying email addresses](./email-verification.md) | anyone with the link |
 | `POST /change-password` | `PasswordAuthenticator` | `{ "currentPassword", "newPassword" }`. Ends every other login of the user, see [changing a password](./auth.md#changing-a-password) | a logged in user |
 | `POST /login/change-password` | `PasswordAuthenticator` | `{ "newPassword" }`, for a login that waits for a new password. Answers what `login` answers, see [requiring a new password](./auth.md#requiring-a-new-password) | anyone, with the login [ticket](../glossary.md#ticket) |
 | `POST /login-options` | an authenticator hands out a challenge to log in with, such as `PasskeyAuthenticator` | nothing. Answers the challenge | anyone |
@@ -86,12 +93,13 @@ Every route is below the path of your controller. A route is there when one of t
 | `POST /link-identity/confirm` | an authenticator confirms a link with an answer of the client, such as `PasskeyAuthenticator` | the client's answer | a logged in user |
 | `GET /identities` | an authenticator links identities to users | nothing. Answers the identities of the user, each with the authenticator it logs in through | a logged in user |
 | `DELETE /identities/:identityId` | an authenticator links identities to users | nothing | a logged in user, with a second factor or a recent login |
+| `GET /2fa/registrations` | a two factor method and `twoFactorRegistrationsRoute` | nothing. Answers `{ "methods" }`, the names of the methods the user has enrolled, such as `["otp"]` | a logged in user |
 | `POST /2fa/registration/request` | a two factor method | what the method enrolls with, such as `{ "phoneNumber" }`, or nothing. Answers what the user is shown, such as the QR code of an authenticator app | a logged in user, with their second factor when they have one, a recent login otherwise |
 | `POST /2fa/registration/confirm` | a two factor method | what confirms the enrollment, such as `{ "token" }` | a logged in user |
 | `DELETE /2fa/registration/:method` | a two factor method | nothing | a logged in user, with their second factor |
 | `POST /2fa/request` | a two factor method | nothing. Sends a code, or answers the challenge for a passkey | a logged in user |
 | `POST /login/2fa/request` | a two factor method | nothing. Sends a code, or answers the challenge for a passkey, for a login that waits for its second factor | anyone, with the login ticket |
-| `POST /login/2fa/registration/request`, `POST /login/2fa/registration/confirm` | a two factor method | what `2fa/registration/request` and `2fa/registration/confirm` take, for the user of a login that waits for a second factor and has none | anyone, with the login ticket |
+| `POST /login/2fa/registration/request`, `POST /login/2fa/registration/confirm` | a two factor method | what `2fa/registration/request` and `2fa/registration/confirm` take, for the user of a login that waits for a second factor and has none. The login then continues at `login/2fa/confirm` | anyone, with the login ticket |
 | `POST /login/2fa/confirm` | a two factor method | nothing, with the second factor in its header. Answers what `login` answers | anyone, with the login ticket |
 
 A recent login is one of the last 5 minutes, see [accepting a recent login instead](./two-factor.md#accepting-a-recent-login-instead). The login ticket is what `POST /login` answers when the application asks for a second factor at login, or the user chooses a new password first, sent in the `x-login-ticket` header, see [asking for a second factor at login](./two-factor.md#asking-for-a-second-factor-at-login) and [requiring a new password](./auth.md#requiring-a-new-password).

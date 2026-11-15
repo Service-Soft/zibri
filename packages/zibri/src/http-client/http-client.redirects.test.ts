@@ -252,6 +252,31 @@ describe('following redirects', () => {
         expect(error).toMatchObject({ responseData: { status: HttpStatus.FOUND, headers: { [KnownHeader.LOCATION]: `${homeUrl}/echo` } } });
     });
 
+    it('refuses a redirect its validation throws for before sending anything to where it leads, and follows one it lets through', async () => {
+        const validated: string[] = [];
+        const http: HttpClientInterface = clientWith({});
+
+        const error: unknown = await failureOf(http.get(`${homeUrl}/to-down`, {
+            validateRedirect: async to => {
+                validated.push(to.href);
+                await Promise.reject(new Error(`The host "${to.host}" needs to be another one.`));
+            }
+        }));
+        expect(error).toBeInstanceOf(HttpClientError);
+        expect(error).toMatchObject({ message: expect.stringContaining('needs to be another one'), responseData: { status: HttpStatus.FOUND } });
+        expect(validated).toEqual([`${downUrl}/status`]);
+        expect(downRequests).toBe(0);
+
+        const followed: HttpClientResponse = await http.get(`${homeUrl}/to-echo`, {
+            validateRedirect: async to => {
+                validated.push(to.href);
+                await Promise.resolve();
+            }
+        });
+        expect(followed.status).toBe(HttpStatus.OK);
+        expect(validated).toEqual([`${downUrl}/status`, `${homeUrl}/echo`]);
+    });
+
     it('counts each hop against the circuit of the origin that answered it', async () => {
         const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForInMs: Ms.MINUTE } });
         await failureOf(http.get(`${homeUrl}/to-down`));

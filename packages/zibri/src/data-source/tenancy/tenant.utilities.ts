@@ -109,6 +109,21 @@ export abstract class TenantUtilities {
     }
 
     /**
+     * Resolves the filter of the rows of one tenant, whichever tenant is active: those whose tenant
+     * property holds it, and none of the rows of no tenant.
+     * @param entityClass - The entity.
+     * @param metadata - Its entity metadata.
+     * @param tenantId - The tenant.
+     * @returns The filter, or undefined for an entity shared by every tenant.
+     */
+    static resolveRowsOf<T extends BaseEntity>(entityClass: Newable<T>, metadata: EntityMetadata, tenantId: string): Where<T> | undefined {
+        const ownership: TenantOwnership | undefined = this.resolveOwnership(entityClass, metadata);
+        // as resolveRestriction: which property holds the tenant is declared on the entity rather than
+        // known to the type
+        return ownership == undefined ? undefined : { [ownership.property]: tenantId } as Where<T>;
+    }
+
+    /**
      * Resolves what an update or delete is narrowed by beyond what a read is.
      *
      * Inside a tenant a read also finds the rows of no tenant, which every tenant sees. A write reaches

@@ -105,9 +105,15 @@ const defaultHstsOptions: HstsOptions = {
 export type ShutdownSignal = typeof SHUTDOWN_SIGNALS[number];
 
 /**
- * The frames a stack trace keeps when the application names no `stackTraceLimit`.
+ * The frames a stack trace keeps when the application names no `stackTraceLimit`, and the process keeps as many as
+ * node does by default.
  */
 const DEFAULT_STACK_TRACE_LIMIT: number = 50;
+
+/**
+ * The frames node keeps of a stack trace by default.
+ */
+const NODE_STACK_TRACE_LIMIT: number = 10;
 
 /**
  * A middleware waiting for the pipeline to be assembled.
@@ -1240,7 +1246,10 @@ export class ZibriApplication {
             additionalLifecycleServices: [...this.providedOptions.additionalLifecycleServices ?? []],
             twoFactorFailureLimit: this.providedOptions.twoFactorFailureLimit ?? false,
             passwordFailureLimit: this.providedOptions.passwordFailureLimit ?? false,
-            stackTraceLimit: this.providedOptions.stackTraceLimit ?? DEFAULT_STACK_TRACE_LIMIT,
+            // what the process was started with or set to, such as by --stack-trace-limit, is kept: 3.0 left it alone,
+            // and only node's own default is too few to reach the code of a write
+            stackTraceLimit: this.providedOptions.stackTraceLimit
+                ?? (Error.stackTraceLimit === NODE_STACK_TRACE_LIMIT ? DEFAULT_STACK_TRACE_LIMIT : Error.stackTraceLimit),
             security: {
                 headers: {
                     [KnownHeader.STRICT_TRANSPORT_SECURITY]: typeof hsts === 'boolean'

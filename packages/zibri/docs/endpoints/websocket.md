@@ -248,7 +248,7 @@ socket.on('chat message', (message: WebsocketMessage) => {
 
 A connecting client is sent every message after its `offset` that it would have received, oldest first. `offset: 0` asks for everything that is kept. A client that sends no `offset` is sent nothing it missed, and receives what is sent from then on. An `offset` that is not a whole number of at least 0 refuses the connection with a 400.
 
-A message is kept for `messageRetentionInMs`. A client that missed more than `maxReplayedMessages`, or missed a message older than `messageRetentionInMs`, is sent none of them. It is sent one `ws:replay-incomplete` instead, whose `data` is a `WebsocketReplayIncomplete`: reload your state, and continue from its `seq`.
+A message is kept for `messageRetentionInMs`. A client that missed more than `maxReplayedMessages`, missed a message older than `messageRetentionInMs`, or sends an `offset` past the newest message, such as after a [restore](../data/backup.md#creating-and-restoring-backups), is sent none of them. It is sent one `ws:replay-incomplete` instead, whose `data` is a `WebsocketReplayIncomplete`: reload your state, and continue from its `seq`.
 
 A message sent with `persist: false` is not stored, and is not sent again.
 

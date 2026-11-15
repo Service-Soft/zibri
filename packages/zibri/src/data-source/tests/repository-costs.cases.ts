@@ -1,4 +1,3 @@
-/* eslint-disable jsdoc/require-jsdoc */
 import { beforeAll, describe, expect, it } from '@jest/globals';
 import { RoundTripCounter } from 'zibri-testing';
 

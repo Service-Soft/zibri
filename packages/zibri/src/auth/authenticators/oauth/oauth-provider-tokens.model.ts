@@ -2,11 +2,18 @@ import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitClass } from '../../../entity/omit-class.model';
+import { FederatedIdentity } from '../federated/federated-identity.model';
 
 /**
  * The tokens a provider issued for an identity, kept for calling its apis for the user it is linked to.
  */
-@Entity({ tenant: 'shared', allowOrphan: true, uniques: [['identityId']] })
+// kept with the identity: the tokens of an identity kept across a restore are the ones the provider issued last
+@Entity({
+    tenant: 'shared',
+    allowOrphan: true,
+    uniques: [['identityId']],
+    backedUp: { keptWith: () => FederatedIdentity, by: 'identityId' }
+})
 export class OAuthProviderTokens extends BaseEntity {
     /**
      * The identity the tokens were issued for.

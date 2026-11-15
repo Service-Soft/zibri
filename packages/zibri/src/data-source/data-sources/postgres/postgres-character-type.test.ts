@@ -60,7 +60,6 @@ describe('a database that counts only ascii as a letter', () => {
         // from. Owned by the application's role, which is what lets it install the trigram extension
         await server.runAsSuperuser(CharacterTypeDataSource, [
             `CREATE DATABASE ${ASCII_ONLY_DATABASE} OWNER postgres TEMPLATE template0 ENCODING 'UTF8'`
-            // eslint-disable-next-line cspell/spellchecker
             + ' LOCALE_PROVIDER libc LC_COLLATE \'C\' LC_CTYPE \'C\''
         ]);
     }, 90000);

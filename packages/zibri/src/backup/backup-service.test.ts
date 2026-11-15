@@ -5,10 +5,11 @@ import { beforeAll, afterAll, describe, it, expect, jest } from '@jest/globals';
 import { BackupEntity } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
 import { BackupService } from './backup.service';
+import { BackupLayoutTestUtilities } from '../__testing__/backup/backup-layout-test.utilities';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BackupTransport } from './decorators/backup-transport.decorator';
-import { BaseFsBackupTransport } from './transports/fs.backup-transport';
+import { FsBackupTransport } from './transports/fs.backup-transport';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { PostgresBackupScope } from '../data-source/data-sources/postgres/postgres-backup-scope.model';
@@ -40,14 +41,15 @@ class Item {
 }
 
 @BackupTransport()
-class FsBackupTransport extends BaseFsBackupTransport {
-    override readonly name: string = 'fs-backup-transport';
-    protected override readonly backupBasePath: FsPath = backupFsFolder;
+class ItemFsBackupTransport extends FsBackupTransport {
+    constructor() {
+        super('fs-backup-transport', backupFsFolder);
+    }
 }
 
 @DataSource()
 @Backup({
-    transports: [FsBackupTransport],
+    transports: [ItemFsBackupTransport],
     encrypt: true
 })
 class DbDataSource extends PostgresDataSource {
@@ -114,7 +116,7 @@ describe('Create and restore postgres backup', () => {
         assert(backup, 'the backup was not created');
         const [resource]: BackupResourceEntity[] = backup.resources;
         assert(resource, 'the backup holds no resources');
-        const resourcePath: FsPath = FsUtilities.getPath(backupFsFolder, backup.name, resource.name);
+        const resourcePath: FsPath = BackupLayoutTestUtilities.resolveResourcePath(backupFsFolder, backup, resource);
         expect(await FsUtilities.exists(resourcePath)).toBe(true);
 
         await backupService.delete(backup);
@@ -133,7 +135,7 @@ describe('Create and restore postgres backup', () => {
 
         await backupService.delete(backup);
 
-        expect(await FsUtilities.exists(FsUtilities.getPath(backupFsFolder, backup.name, 'metadata.json'))).toBe(false);
+        expect(await FsUtilities.exists(BackupLayoutTestUtilities.resolveRecordPath(backupFsFolder, backup))).toBe(false);
         expect(await backupRepository.findAll({ where: { name: 'deleted-for-good' } })).toEqual([]);
         expect(await backupResourceRepository.findAll({ where: { backupId: backup.id } })).toEqual([]);
         await backupService.syncBackupEntities();
@@ -142,7 +144,10 @@ describe('Create and restore postgres backup', () => {
 
     it('warns and skips a backup directory that is missing its metadata file', async () => {
         const orphanBackupName: string = 'orphan-without-metadata';
+        // what a backup of format 1 interrupted before its record leaves: the data of a resource. A
+        // transport keeps keys, so a folder holding nothing is no backup at all
         await FsUtilities.mkdir(FsUtilities.getPath(backupFsFolder, orphanBackupName));
+        await FsUtilities.createFile(FsUtilities.getPath(backupFsFolder, orphanBackupName, 'DbDataSource'), 'a dump cut off');
 
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
         // eslint-disable-next-line typescript/typedef

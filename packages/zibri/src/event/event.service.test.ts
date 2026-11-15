@@ -326,6 +326,9 @@ describe('EventService', () => {
         const [event]: Event<unknown>[] = await eventRepo.findAll({ where: { type: 'always-fails.event' } });
         assert(event, 'the event was not recorded');
         expect(event.status).toBe(EventStatus.FAILED);
+        // waited for as well: giving up is logged once the outcome is recorded, which settles the event
+        // first, so the event can be seen failed before the log line ran
+        await waitUntil(() => errorSpy.mock.calls.length > 0);
         expect(errorSpy).toHaveBeenCalled();
 
         // and giving up is an ending: a failed event is not handed back out, or a subscriber that

@@ -1,4 +1,3 @@
-import { TranslatedString } from '../localization/models/translated-string.model';
 import { OpenApiReferenceObject, OpenApiSchemaObject } from '../open-api/open-api.model';
 
 /**
@@ -92,9 +91,9 @@ export type AsyncApiServer = {
      */
     pathname?: string,
     /**
-     * How a client connects.
+     * How a client connects, such as a `$ts` text in the locale the document is built in.
      */
-    description?: TranslatedString,
+    description?: string,
     /**
      * What a client may connect with, any one of which is enough.
      */

@@ -1,0 +1,11 @@
+{
+    // the enums as es modules, which a bundler of a frontend tree-shakes, beside the commonjs node requires
+    "compilerOptions": {
+        "declaration": false,
+        "declarationMap": false,
+        "module": "es2022",
+        "moduleResolution": "bundler",
+        "outDir": "dist/esm"
+    },
+    "extends": "./tsconfig.build.json"
+}

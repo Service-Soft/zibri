@@ -23,6 +23,7 @@ import { AfterAppInit } from '../global/after-app-init.interface';
 import { OnAppStart } from '../global/on-app-start.interface';
 import { RouteRegistry } from '../global/route-registry/route.registry';
 import { HttpMethod, httpMethodKey } from '../http/http-method.enum';
+import { RedirectResponse } from '../http/redirect-response.model';
 import { $f } from '../localization/format.function';
 import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
@@ -74,6 +75,18 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
      */
     private definitions: VersionWithDefinition[] = [];
 
+    // injected while the service is built rather than in the constructor, which keeps the six parameters of 3.0
+    // that a subclass of it hands to super. An inject there is checked as a parameter is: a missing provider,
+    // a cycle and a request scoped value fail the build of the service. TODO 4.0: constructor parameters
+
+    private readonly explorerTemplate: OpenApiExplorerTemplate | undefined = inject(ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE);
+
+    private readonly versionHeader: string = inject(ZIBRI_DI_TOKENS.VERSION_HEADER);
+
+    private readonly asyncApiService: AsyncApiServiceInterface = inject(ZIBRI_DI_TOKENS.ASYNC_API_SERVICE);
+
+    private readonly servers: OpenApiServerObject[] | undefined = inject(ZIBRI_DI_TOKENS.OPEN_API_SERVERS);
+
     private get routeAuthService(): RouteAuthServiceInterface {
         return inject(ZIBRI_DI_TOKENS.ROUTE_AUTH_SERVICE);
     }
@@ -90,15 +103,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
         @Inject(ZIBRI_DI_TOKENS.VERSIONING_SERVICE)
         private readonly versioningService: VersioningServiceInterface,
         @Inject(ZIBRI_DI_TOKENS.OPEN_API_AUTH)
-        private readonly auth: RouteAuthConfiguration,
-        @Inject(ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE)
-        private readonly explorerTemplate: OpenApiExplorerTemplate | undefined,
-        @Inject(ZIBRI_DI_TOKENS.VERSION_HEADER)
-        private readonly versionHeader: string,
-        @Inject(ZIBRI_DI_TOKENS.ASYNC_API_SERVICE)
-        private readonly asyncApiService: AsyncApiServiceInterface,
-        @Inject(ZIBRI_DI_TOKENS.OPEN_API_SERVERS)
-        private readonly servers: OpenApiServerObject[] | undefined
+        private readonly auth: RouteAuthConfiguration
     ) { }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -149,8 +154,19 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
         if (template == undefined) {
             this.logger.warn(
                 `No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at ${this.openApiRoute}.`
-                + ` The documents are served at ${this.openApiRoute}/spec/<version>.`
+                + ` The documents are served at ${this.openApiRoute}/spec/<version>, which ${this.openApiRoute} sends to.`
             );
+            // what is there in place of the explorer, for a link to it, and for the route every version 3.0
+            // recorded, which served the explorer without a template
+            this.router.registerRoute({
+                httpMethod: HttpMethod.GET,
+                route: this.openApiRoute,
+                versions: 'all',
+                openApi: { useInOpenApi: false },
+                auth: this.auth,
+                // the version of the application is the latest one
+                handler: () => RedirectResponse.to(`${this.openApiRoute}/spec/${app.options.version}`)
+            });
             return;
         }
 

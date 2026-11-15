@@ -1,5 +1,7 @@
 import { EntitySnapshot, SnapshotColumn, SnapshotEntity, SnapshotProperty, SnapshotRelation } from './entity-snapshot.model';
 import { EntitySnapshotUtilities } from './entity-snapshot.utilities';
+import { FrameworkColumnRegistry } from './framework-column.registry';
+import { MigratedEntityUtilities } from './migrated-entity.utilities';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { Relation } from '../../entity/models/relation.enum';
@@ -241,6 +243,11 @@ export abstract class MigrationGeneratorUtilities {
         const res: MigrationStep[] = [];
         for (const [name, column] of after) {
             const previous: SnapshotColumn | undefined = before.get(name);
+            // the data source adds a column of the framework itself, and a migration adding it as well would find
+            // it there
+            if (previous == undefined && this.isFrameworkColumn(tableName, name)) {
+                continue;
+            }
             if (previous == undefined) {
                 res.push(this.addPropertyStep(tableName, entity.className, name, column));
             }
@@ -254,6 +261,11 @@ export abstract class MigrationGeneratorUtilities {
             }
         }
         return res;
+    }
+
+    private static isFrameworkColumn(tableName: string, property: string): boolean {
+        return FrameworkColumnRegistry.getAll()
+            .some(c => c.property === property && MigratedEntityUtilities.resolveTableName(c.entity) === tableName);
     }
 
     // ── the changes ─────────────────────────────────────────────

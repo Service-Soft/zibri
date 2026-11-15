@@ -182,6 +182,7 @@ export class StartedTestServer {
         const restoreLogger: () => LoggerInterface = await this.replaceApplication(options, 're initializes test server...');
         try {
             await this.app.init();
+            await waitForIndexBuilds(this.app);
         }
         catch (error) {
             // a failed init can still have connected a data source in beforeAppInit - shut down
@@ -221,6 +222,7 @@ export class StartedTestServer {
                 // what the entry point does with arguments that name no command, which is where what
                 // runCommand found about them is logged
                 await this.app.init();
+                await waitForIndexBuilds(this.app);
             }
             return { ran, log: this.bootLog, warnings };
         }
@@ -280,6 +282,16 @@ export class StartedTestServer {
 }
 
 /**
+ * Waits for the indexes each Postgres data source of an application left to build in the background once it
+ * started, so that a test finds the schema whole as the start left it, as a deployment does a while later.
+ * @param app - The application, initialized.
+ */
+async function waitForIndexBuilds(app: ZibriApplication): Promise<void> {
+    const dataSources: unknown[] = (app.options.dataSources ?? []).map(dataSourceClass => inject(dataSourceClass));
+    await Promise.all(dataSources.filter(d => d instanceof PostgresDataSource).map(async d => await d.waitForIndexBuilds()));
+}
+
+/**
  * Starts a real Zibri application for a test to drive.
  *
  * Everything about it is the application that ships: the router, the auth strategies, the data
@@ -328,6 +340,7 @@ export async function startTestServer(options: StartTestServerOptions = {}): Pro
 
     try {
         await app.init();
+        await waitForIndexBuilds(app);
     }
     catch (error) {
         // a failed init can still have connected a data source in beforeAppInit, and the containers

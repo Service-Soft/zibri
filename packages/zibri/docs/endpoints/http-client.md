@@ -17,6 +17,7 @@ The HTTP client sends requests to other APIs. It validates the response body and
 | `HttpClientRedirect` | type | What a request does when it is answered with a [redirect](#following-redirects) |
 | `HttpClientHeaderValue` | type | A value a request header can be sent with |
 | `HttpClientRequestBodyMimeType`, `HttpClientRequestBody` | type, type | The mime types a request body can be sent as, and the body each one takes, an `XmlString` for XML |
+| `HttpClientBufferedBody`, `HttpClientBufferedBodyDescription` | class, type | A body held in memory as the chunks it was read in, see [setting the request body](#setting-request-body-query-and-header-params), and what it is written out as in JSON |
 | `HttpClientResponseBodyInput`, `JsonResponseBodyInput`, `XmlResponseBodyInput`, `FormDataResponseBodyInput`, `FormUrlEncodedResponseBodyInput`, `StreamResponseBodyInput` | type, type, type, type, type, type | The `responseBody` of a request: a model class, or the format with its model or shapes |
 | `HttpClientResponse` | type | Shape of a response, including validated body and headers |
 | `HttpClientResponseForBody` | type | The response a request returns for the `responseBody` it declares |
@@ -54,6 +55,8 @@ export async function listProjects(): Promise<HttpClientResponse> {
 Pass the request body as the second argument of a method that takes one. `get` takes none. For a `post` to an endpoint that expects no body, pass `undefined`.
 
 With `requestBodyType: MimeType.XML`, the body is an `XmlString`, for example one written with `XmlUtilities.generateFrom`. See [XML](./xml.md#writing-a-document).
+
+Bytes you hold as the chunks they were read in, such as one part of a large upload, go in an `HttpClientBufferedBody`. It is sent as `application/octet-stream` with its `content-length`, without the chunks being joined into one buffer first. Every [attempt](#setting-attempts-and-timeout) and every [redirect](#following-redirects) sends it whole again. Written out as JSON, such as in a logged `HttpClientError`, it is its `byteLength`.
 
 Set header and query params with the `headers` and `query` options:
 
@@ -175,6 +178,8 @@ export async function sendWebhook(targetUrl: string, payload: object): Promise<H
 
 `redirect` in `HTTP_CLIENT_OPTIONS_INPUT` sets it for every request, and a request's own `redirect` wins.
 
+`validateRedirect` of a request checks every redirect `redirect` lets through, before it is followed. It is handed the URL the redirect leads to, and a redirect it throws for fails the request with an `HttpClientError` naming why. Use it for a URL your users give you whose redirects you follow, so that each address a redirect leads to is checked as the first one was.
+
 ## How large a response may be
 
 A response body is read as it arrives and counted against a limit. An upstream that sends more is stopped at the limit, before the rest is downloaded. A body that declares a `Content-Length` over the limit is turned away before any of it is read.
@@ -209,7 +214,7 @@ A `timeoutInMs` on a single request wins over the default.
 
 ## Egress: proxies, CA bundles and mutual TLS
 
-How a connection is made, such as through an egress proxy, with a custom CA bundle, a client certificate, keep-alive or pooling per host, is set by handing the client a `dispatcher`. You build it from `undici`, the package Node's own `fetch` runs on.
+How a connection is made, such as through an egress proxy, with a custom CA bundle, a client certificate, keep-alive or pooling per host, is set by handing the client a `dispatcher`. You build it from `undici`, the package the client sends its requests with, which is installed with Zibri.
 
 ```ts
 // src/providers.ts
@@ -254,7 +259,7 @@ export async function getFromPartner(): Promise<HttpClientResponse> {
 
 A request's own `dispatcher` replaces the application's, and is not merged with it. Put everything that shares an egress path on `HTTP_CLIENT_OPTIONS_INPUT`, so a proxy or a CA bundle is stated once.
 
-With no dispatcher anywhere, a request goes out over Node's own, exactly like a plain `fetch`. The client never installs a global dispatcher, so it never changes where the other libraries in the process send their traffic.
+With no dispatcher anywhere, a request goes out over undici's default, exactly like a plain `fetch`. The client never installs a global dispatcher, so it never changes where the other libraries in the process send their traffic.
 
 ## Handing the client to a library
 Some libraries send their own requests and take a fetch function to send them with. Hand them `fetchForLibrary`, so their requests go out with your dispatcher, timeout and response size limit too:
@@ -391,6 +396,11 @@ export async function getWithCheckedHeaders(): Promise<number> {
     return response.headers[KnownHeader.CONTENT_LENGTH];
 }
 ```
+
+## Requirements
+| Package | Used for |
+|---|---|
+| `undici` | Sending every request, and building a `dispatcher` |
 
 ## See also
 - [Creating endpoints](./creating-endpoints.md#accessing-request-data) — the same validation procedure used for incoming requests

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { CompiledPage } from 'zibri-tsx';
 
 import { TsxComponent } from './tsx-component.model';
@@ -7,6 +7,7 @@ import { compileTsxTemplate } from '../__testing__/compile-tsx-template.function
 import { ZibriApplicationOptions } from '../application/application-options.model';
 import { AssetService } from '../assets/asset.service';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { DiContainer } from '../di/di-container';
 import { initDiContainer } from '../di/init-di-container.function';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
@@ -70,13 +71,51 @@ describe('TsxUtilities', () => {
         GlobalRegistry.markAppAsOffline();
     });
 
-    it('refuses to render without an application, whose environment it needs', () => {
-        GlobalRegistry.markAppAsCreated();
-        GlobalRegistry.markAppAsShuttingDown();
-        GlobalRegistry.markAppAsOffline();
+    // TODO 4.0: rendering without an application throws
+    describe('without an application', () => {
+        let warn: jest.SpiedFunction<typeof console.warn>;
 
-        expect(() => TsxUtilities.renderPage(templateOf('export const Home = () => <p>x</p>;'))).toThrow(/before any application was created/);
-        GlobalRegistry.setAppData(applicationOptions);
+        beforeEach(() => {
+            GlobalRegistry.markAppAsCreated();
+            GlobalRegistry.markAppAsShuttingDown();
+            GlobalRegistry.markAppAsOffline();
+            warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+        });
+
+        afterEach(() => {
+            warn.mockRestore();
+            GlobalRegistry.setAppData(applicationOptions);
+        });
+
+        it('renders as in development, so a mistake only the render can see throws, and warns once that this throws from 4.0', () => {
+            const page: TsxComponent = templateOf('export const Home = () => <p>x</p>;');
+            const broken: TsxComponent<{ names: string[] }> = templateOf(
+                'export const Home = ({ names }: { names: string[] }) => { const shown = useState(names); '
+                + 'return <ul>{shown.value.map(name => <li key={name}>{name}</li>)}</ul>; };'
+            );
+
+            const html: string = TsxUtilities.renderPage(page);
+            TsxUtilities.renderPage(page);
+
+            expect(html).toContain('<p>x</p>');
+            expect(() => TsxUtilities.renderPage(broken, { names: ['Ada', 'Ada'] })).toThrow(/Two rows of a list of 'Home' have the key 'Ada'/);
+            expect(warn).toHaveBeenCalledTimes(1);
+            expect(warn.mock.calls[0]?.join(' ')).toContain('This throws from 4.0.');
+        });
+
+        it('renders an email in a process that set up no dependency injection', () => {
+            const email: TsxComponent<{ recipient: string }> = templateOf(
+                'export const Mail = ({ recipient }) => <html><body><p>Hi {recipient}</p></body></html>;'
+            );
+            DiContainer.reset();
+            try {
+                expect(TsxUtilities.renderEmail(email, { recipient: 'James Smith' })).toBe('<!DOCTYPE html>\n<html><body><p>Hi James Smith</p></body></html>');
+            }
+            finally {
+                initDiContainer();
+                register(defineProvider({ token: ZIBRI_DI_TOKENS.ASSET_SERVICE, useClass: DocsAssetService }));
+            }
+        });
     });
 
     describe('renderPage', () => {

@@ -76,6 +76,7 @@ Install these only for what needs them. Anything else in the harness works witho
 |---|---|
 | `testcontainers` | A Postgres or ValKey data source, which the harness starts a container for |
 | `ts-node` | `startTestCluster` |
+| `typescript` | `startTestCluster` and `resolveTypeScriptForkOptions`, with `ts-node` |
 | `ts-jest` | The jest configuration |
 | `@peculiar/x509` | `createFakeKeyPair`, `startFakeSamlProvider`, `startFakeLdapDirectory` and `startFakeFidoMetadataService` |
 | `ldapts` | `startFakeLdapDirectory` |
@@ -209,8 +210,9 @@ export default createJestConfig({ rootDir: 'src' });
 test renders the same templates the build does. A package a template imports with `?client` is left
 out of the server render, in a test as in the build, so only client code reads it, see
 [running code in the browser](./templates/templating.md#running-code-in-the-browser). A test worker is restarted once it holds more than
-1 GB, which keeps a long run within the memory of the machine. Every jest option you pass is kept,
-`workerIdleMemoryLimit` included.
+1 GB, which keeps a long run within the memory of the machine. Jest keeps its cache in `node_modules/.cache/jest` of
+the project rather than in the temp folder, which on many machines is held in memory. Every jest option you pass is
+kept, `workerIdleMemoryLimit` and `cacheDirectory` included.
 
 Jest loads a package that ships as ES modules only when node runs it with `--experimental-vm-modules`, as the `test`
 script of a generated project does. Run without, such as by an editor, it cannot. Name such a package of yours in
@@ -293,6 +295,9 @@ it lists. `zi new` puts both lists in modules of their own, which both data sour
 The in-process data source implements the whole [`DataSourceInterface`](./data/data-source.md): filters,
 relations, unique declarations, transactions, migrations, change sets, [soft deletes](./glossary.md#soft-delete) and backups all
 behave as they do anywhere else. A message published on it reaches every subscriber in this process.
+A transaction started with `REPEATABLE READ` reads the rows as of its first statement, and its commit fails with a
+`TransactionSerializationError` when another transaction changed a row it wrote since. One started with `SERIALIZABLE`
+runs as `REPEATABLE READ`, and a warning says so.
 
 Run a suite that tests storage itself on the database it will run against, for real DDL, connection
 pooling, isolation levels and anything else whose answer depends on the database:

@@ -11,7 +11,10 @@ import { BackupServiceInterface } from './backup-service.interface';
 import { BackupStatus } from './backup-status.enum';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BackupTransport } from './decorators/backup-transport.decorator';
-import { BaseFsBackupTransport } from './transports/fs.backup-transport';
+import { BackupTransportSessionInterface } from './transports/backup-transport-session.interface';
+import { FsBackupTransport } from './transports/fs.backup-transport';
+import { BackupLayoutTestUtilities } from '../__testing__/backup/backup-layout-test.utilities';
+import { BackupTransportSessionTestUtilities } from '../__testing__/backup/backup-transport-session-test.utilities';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -43,18 +46,27 @@ let storesToFail: number = 0;
 let storesHeldUntil: Promise<void> = Promise.resolve();
 
 @BackupTransport()
-class QueueFsBackupTransport extends BaseFsBackupTransport {
-    override readonly name: string = 'queue-fs-backup-transport';
-    protected override readonly backupBasePath: FsPath = backupFolder;
+class QueueFsBackupTransport extends FsBackupTransport {
+    constructor() {
+        super('queue-fs-backup-transport', backupFolder);
+    }
 
-    override async storeData(data: Readable, backup: BackupEntity, resource: BackupResourceEntity): Promise<void> {
-        await storesHeldUntil;
-        if (storesToFail > 0) {
-            storesToFail--;
-            data.destroy();
-            throw new Error('the backup server could not be reached');
-        }
-        await super.storeData(data, backup, resource);
+    override async openSession(): Promise<BackupTransportSessionInterface> {
+        return BackupTransportSessionTestUtilities.intercept(await super.openSession(), {
+            put: async (key, data, put) => {
+                if (BackupTransportSessionTestUtilities.isRecordKey(key)) {
+                    await put(key, data);
+                    return;
+                }
+                await storesHeldUntil;
+                if (storesToFail > 0) {
+                    storesToFail--;
+                    data.destroy();
+                    throw new Error('the backup server could not be reached');
+                }
+                await put(key, data);
+            }
+        });
     }
 }
 
@@ -139,7 +151,7 @@ describe('BackupService - a backup as queued work', () => {
 
         expect(done.status).toBe(BackupStatus.COMPLETED);
         expect((await findBackup(queued.id)).resources.map(r => r.completed)).toEqual([true]);
-        expect(await FsUtilities.exists(FsUtilities.getPath(backupFolder, 'queued', 'metadata.json'))).toBe(true);
+        expect(await FsUtilities.exists(BackupLayoutTestUtilities.resolveRecordPath(backupFolder, queued))).toBe(true);
     });
 
     it('tries a resource again once its transport failed, and completes the backup', async () => {
@@ -183,6 +195,30 @@ describe('BackupService - a backup as queued work', () => {
         await backupService.runQueuedBackups();
 
         expect((await backupService.waitForBackup(left)).status).toBe(BackupStatus.COMPLETED);
+    });
+
+    // during a rolling deploy, an instance of the older build stored such a backup in the layout of the format it
+    // writes, where a restore reads the layout of the format the backup records
+    it('leaves a backup queued in a format this build does not write to an instance of a build that does', async () => {
+        const queued: BackupEntity = await backups.create({
+            name: 'queued-in-a-newer-format',
+            status: BackupStatus.RUNNING,
+            masterKeys: [],
+            dataKeyIds: [],
+            resources: [{ name: 'ProjectsStore', transportNames: ['queue-fs-backup-transport'] }]
+        });
+        await backups.updateById(queued.id, { formatVersion: 3 });
+
+        try {
+            expect(await backupService.runQueuedBackups()).toBe(false);
+            const left: BackupEntity = await findBackup(queued.id);
+            expect(left.status).toBe(BackupStatus.RUNNING);
+            expect(left.resources[0]).toMatchObject({ completed: false, attempts: 0 });
+        }
+        finally {
+            await inject(repositoryTokenFor(BackupResourceEntity)).deleteAll({ backupId: queued.id });
+            await backups.deleteById(queued.id);
+        }
     });
 
     // a backup that ended while its waiter was still subscribing told that waiter before its listener

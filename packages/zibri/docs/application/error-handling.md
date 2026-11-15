@@ -12,6 +12,7 @@ Every error a request throws reaches one global error handler. It answers with J
 | `InternalError` | class | Base for errors that must never leave the server |
 | `HttpError` | class | Base for `ExternalError`s that carry an HTTP status code |
 | `CustomBodyHttpError` | class | An `HttpError` answered with a body of its own, see [answering with an error body of your own](#answering-with-an-error-body-of-your-own) |
+| `ErrorResponseBody` | class | The JSON body an error is answered with: `status`, `name`, `message`, `paragraphs`, and `problems` and `traceId` when there are any. A frontend reads the `name` to tell errors apart |
 | `NotFoundError` | error | 404, an existing route couldn't find the requested resource |
 | `UnmatchedRouteError` | error | 404, the route itself doesn't exist (extends `NotFoundError`) |
 | `BadRequestError` | error | 400, generic invalid client input |
@@ -20,7 +21,7 @@ Every error a request throws reaches one global error handler. It answers with J
 | `UnauthorizedError` | error | 401, the caller didn't say who it is, or the credential it sent isn't good |
 | `ForbiddenError` | error | 403, the caller is known and still isn't allowed to do this |
 | `CredentialReusedError` | error | A 401 that reads as `UnauthorizedError` on the wire, but tells the [audit trail](../data/audit.md) a spent credential came back |
-| `CsrfTokenRefusedError` | error | A 403 for a request that changes something with a valid cookie session and without its [CSRF token](../auth/auth.md#sending-the-csrf-token), on a route that needs a login |
+| `CsrfTokenRefusedError` | error | A 403 for a request that changes something with a valid cookie session and without its [CSRF token](../auth/auth.md#sending-the-csrf-token), on a route that needs a login. Answered under its own name, so a frontend fetches the token and retries |
 | `CredentialClonedError` | error | A 401 that reads as `UnauthorizedError` on the wire, but tells the audit trail a credential came from a copy of its device, such as a [passkey](../glossary.md#passkey) whose signature counter went backwards |
 | `PasswordLockedError` | error | A 401 that reads as a wrong password on the wire, but tells the audit trail the right password came for an account locked after too many wrong ones |
 | `AccountDeactivatedError` | error | 403, a [deactivated user](../auth/auth.md#deactivating-a-user) tried to log in |

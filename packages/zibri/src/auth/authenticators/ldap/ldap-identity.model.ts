@@ -6,7 +6,8 @@ import { OmitClass } from '../../../entity/omit-class.model';
 /**
  * An entry of a directory, linked to the user it logs in as.
  */
-@Entity({ tenant: 'shared', allowOrphan: true, uniques: [['directory', 'entryId']] })
+// kept for the current users: an entry unlinked since the backup stays unlinked
+@Entity({ tenant: 'shared', allowOrphan: true, uniques: [['directory', 'entryId']], backedUp: 'keptForCurrentUsers' })
 export class LdapIdentity extends BaseEntity {
     /**
      * The name of the authenticator of the directory.

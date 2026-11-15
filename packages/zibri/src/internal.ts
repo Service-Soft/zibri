@@ -9,6 +9,8 @@
 // eslint-disable-next-line eslintImport/no-unassigned-import
 import 'reflect-metadata';
 
+import type * as openApi from './open-api/open-api.model';
+
 // auth
 export { type CurrentUserMetadata } from './auth/decorators/current-user.decorator';
 export { hasPermissionDecorator } from './auth/decorators/has-permission.decorator';
@@ -136,6 +138,78 @@ export { createLogToEmail } from './logging/transport/log-to-email.function';
 
 // openapi
 export { KeysetPageClass, PaginationResultClass } from './data-source/models/pagination-result.model';
+// TODO 4.0: remove these, the types of the OpenAPI document 3.0 exported here before `index.ts` held them. Declared
+// rather than re-exported, as a tag above a re-export deprecates nothing
+/**
+ * The type of the same name of `zibri`.
+ * @deprecated Import it from `zibri`. Removed here in 4.0.
+ */
+export type OpenApiContentObject = openApi.OpenApiContentObject;
+/**
+ * The type of the same name of `zibri`.
+ * @deprecated Import it from `zibri`. Removed here in 4.0.
+ */
+export type OpenApiOperation = openApi.OpenApiOperation;
+/**
+ * The type of the same name of `zibri`.
+ * @deprecated Import it from `zibri`. Removed here in 4.0.
+ */
+export type OpenApiParameter = openApi.OpenApiParameter;
+/**
+ * The type of the same name of `zibri`.
+ * @deprecated Import it from `zibri`. Removed here in 4.0.
+ */
+export type OpenApiParameterLocation = openApi.OpenApiParameterLocation;
+/**
+ * The type of the same name of `zibri`.
+ * @deprecated Import it from `zibri`. Removed here in 4.0.
+ */
+export type OpenApiPaths = openApi.OpenApiPaths;
+/**
+ * The type of the same name of `zibri`.
+ * @deprecated Import it from `zibri`. Removed here in 4.0.
+ */
+export type OpenApiRequestBodyObject = openApi.OpenApiRequestBodyObject;
+/**
+ * The type of the same name of `zibri`.
+ * @deprecated Import it from `zibri`. Removed here in 4.0.
+ */
+export type OpenApiResponseObject = openApi.OpenApiResponseObject;
+/**
+ * The type of the same name of `zibri`.
+ * @deprecated Import it from `zibri`. Removed here in 4.0.
+ */
+export type OpenApiResponsesObject = openApi.OpenApiResponsesObject;
+/**
+ * The type of the same name of `zibri`.
+ * @deprecated Import it from `zibri`. Removed here in 4.0.
+ */
+export type OpenApiSchemaObject = openApi.OpenApiSchemaObject;
+/**
+ * The type of the same name of `zibri`.
+ * @deprecated Import it from `zibri`. Removed here in 4.0.
+ */
+export type OpenApiSchemaObjectType = openApi.OpenApiSchemaObjectType;
+/**
+ * The type of the same name of `zibri`.
+ * @deprecated Import it from `zibri`. Removed here in 4.0.
+ */
+export type OpenApiSchemas = openApi.OpenApiSchemas;
+/**
+ * The type of the same name of `zibri`.
+ * @deprecated Import it from `zibri`. Removed here in 4.0.
+ */
+export type OpenApiSecurityRequirementObject = openApi.OpenApiSecurityRequirementObject;
+/**
+ * The type of the same name of `zibri`.
+ * @deprecated Import it from `zibri`. Removed here in 4.0.
+ */
+export type OpenApiTagObject = openApi.OpenApiTagObject;
+/**
+ * The type of the same name of `zibri`.
+ * @deprecated Import it from `zibri`. Removed here in 4.0.
+ */
+export type OpenApiXmlObject = openApi.OpenApiXmlObject;
 
 // entity
 export { type EntityMetadata } from './entity/decorators/entity.decorator';
@@ -303,6 +377,7 @@ export { type CurrentWebsocketConnectionMetadata } from './websocket/decorators/
 // backup
 export { type BackupEntityCreateData } from './backup/backup-entity.model';
 export { type BackupResourceEntityCreateData } from './backup/backup-resource-entity.model';
+export { type BackupChunkEntityCreateData } from './backup/backup-chunk-entity.model';
 export { type BackupResourceMetadata } from './backup/decorators/backup-resource-metadata.model';
 
 // caching

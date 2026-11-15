@@ -87,7 +87,7 @@ export class BackupStagingCleanupCronJob extends CronJob {
             needed.add(p);
             try {
                 const journal: RestoreJournal = await RestoreJournalUtilities.resolve(p);
-                for (const entry of journal.applied) {
+                for (const entry of [...journal.applied, ...journal.keptUserRows ?? []]) {
                     needed.add(entry.snapshotPath);
                 }
             }

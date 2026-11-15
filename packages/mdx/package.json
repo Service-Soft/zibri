@@ -56,10 +56,10 @@
         "zibri-tsx": "^3.0.1"
     },
     "devDependencies": {
+        "@service-soft/eslint-config": "^2.1.7",
         "@types/mdast": "^4.0.4",
         "@types/node": "^24.0.0",
         "eslint": "^9.36.0",
-        "eslint-config-service-soft": "^2.1.6",
         "typescript": "^5.9.2"
     }
 }

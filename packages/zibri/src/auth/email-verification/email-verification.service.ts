@@ -1,8 +1,10 @@
 import { randomBytes } from 'node:crypto';
 
+import { EmailConfirmation } from './email-confirmation.model';
 import { type EmailVerificationOptions } from './email-verification-options.model';
 import { type EmailVerificationPurpose } from './email-verification-purpose.type';
 import { type EmailVerificationServiceInterface } from './email-verification-service.interface';
+import { type EmailVerificationTokenPurpose } from './email-verification-token-purpose.type';
 import { EmailVerificationToken, EmailVerificationTokenCreateData } from './email-verification-token.model';
 import { EmailVerificationWriteObserver } from './email-verification.write-observer';
 import { ZibriApplication } from '../../application/application';
@@ -35,6 +37,16 @@ import { UserAccount } from '../models/user-account.model';
  * How long a link works when the options say nothing.
  */
 const DEFAULT_LINK_EXPIRES_IN_MS: number = Ms.DAY;
+
+/**
+ * Every purpose a stored link of a change has: before and after it was followed, to the new address
+ * and to the previous one.
+ */
+const CHANGE: 'change' = 'change';
+const CHANGE_APPROVAL: 'change-approval' = 'change-approval';
+const CHANGE_CONFIRMED: 'change-confirmed' = 'change-confirmed';
+const CHANGE_APPROVAL_CONFIRMED: 'change-approval-confirmed' = 'change-approval-confirmed';
+const CHANGE_PURPOSES: EmailVerificationTokenPurpose[] = [CHANGE, CHANGE_APPROVAL, CHANGE_CONFIRMED, CHANGE_APPROVAL_CONFIRMED];
 
 /**
  * Default implementation of the service that verifies the email addresses of users and changes them.
@@ -110,7 +122,7 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
     async confirmEmailVerification(token: string, transaction: RepositoryTransaction | undefined): Promise<void> {
         let userId: string | undefined = undefined;
         try {
-            const found: EmailVerificationToken = await this.resolveToken(token, 'verification', transaction);
+            const found: EmailVerificationToken = await this.resolveToken(token, ['verification'], transaction);
             userId = found.userId;
             const user: BaseUser<string> = await inject(ZIBRI_DI_TOKENS.USER_SERVICE).findById(found.userId, { transaction });
             await this.tokenRepository.deleteById(found.id, { transaction });
@@ -139,9 +151,14 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
             if (newEmail === user.email) {
                 throw new BadRequestError($ts`This is the address of the account already.`);
             }
-            // the link of an earlier change goes, so the address asked for last is the one that wins
-            await this.tokenRepository.deleteAll({ userId, purpose: 'change' }, { transaction });
-            await this.mailLink(user, newEmail, 'change', transaction);
+            // the links of an earlier change go, so the address asked for last is the one that wins
+            await this.tokenRepository.deleteAll({ userId, purpose: { oneOf: CHANGE_PURPOSES } }, { transaction });
+            await this.mailLink(user, newEmail, CHANGE, transaction);
+            if (this.getEnabledOptions().previousAddressConfirms === true) {
+                // the previous address approves the change, so a session that got out can't take the
+                // account with it
+                await this.mailLink(user, newEmail, CHANGE_APPROVAL, transaction, user.email);
+            }
             this.auditService.record({
                 action: AuditAction.EMAIL_CHANGE_REQUESTED,
                 outcome: AuditOutcome.SUCCESS,
@@ -163,11 +180,36 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async confirmEmailChange(token: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+        await this.confirmChangeLink(token, transaction);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async confirmEmail(token: string, transaction: RepositoryTransaction | undefined): Promise<EmailConfirmation> {
+        const found: EmailVerificationToken = await this.resolveToken(token, ['verification', CHANGE, CHANGE_APPROVAL], transaction);
+        if (found.purpose === 'verification') {
+            await this.confirmEmailVerification(token, transaction);
+            return { purpose: 'verification', completed: true };
+        }
+        return { purpose: CHANGE, completed: await this.confirmChangeLink(token, transaction) };
+    }
+
+    /**
+     * Confirms a link of a change: changes the address of the user to the new one, verified, and tells
+     * the previous address, once every link the change waits for was followed.
+     * @param token - The token from the link.
+     * @param transaction - The transaction to write in, if any.
+     * @returns Whether the address was changed, false while the change waits for the other link.
+     * @throws An UnauthorizedError when the token is unknown or has expired.
+     */
+    private async confirmChangeLink(token: string, transaction: RepositoryTransaction | undefined): Promise<boolean> {
         let userId: string | undefined = undefined;
         try {
             const options: EmailVerificationOptions = this.getEnabledOptions();
-            const found: EmailVerificationToken = await this.resolveToken(token, 'change', transaction);
+            const found: EmailVerificationToken = await this.resolveToken(token, [CHANGE, CHANGE_APPROVAL], transaction);
             userId = found.userId;
+            if (await this.waitsForOtherLink(found, options, transaction)) {
+                return false;
+            }
             const user: BaseUser<string> = await inject(ZIBRI_DI_TOKENS.USER_SERVICE).findById(found.userId, { transaction });
             const previousEmail: string = user.email;
             // verified by the link that was followed to get here
@@ -192,6 +234,7 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
                 subject: found.email,
                 userId
             }, transaction);
+            return true;
         }
         catch (error) {
             this.auditService.record({
@@ -221,17 +264,58 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
     }
 
     /**
+     * Keeps a followed link of a change that waits for the other one: the link to the new address
+     * proves it, the one to the previous address approves the change, and with previousAddressConfirms
+     * the change needs both. A followed link is marked confirmed, and the change waits until the other
+     * is confirmed too, in either order.
+     * @param found - The link that was followed.
+     * @param options - The options of the verification.
+     * @param transaction - The transaction to write in, if any.
+     * @returns Whether the change waits for the other link.
+     */
+    private async waitsForOtherLink(
+        found: EmailVerificationToken,
+        options: EmailVerificationOptions,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<boolean> {
+        const toNewAddress: boolean = found.purpose === CHANGE;
+        // an approval never changes the address on its own: the new address has to be proven
+        if (toNewAddress && options.previousAddressConfirms !== true) {
+            return false;
+        }
+        // a confirmed link expires like any other, so a change can't wait the approval out
+        const other: EmailVerificationToken | undefined = await this.tokenRepository.findOne({
+            where: {
+                userId: found.userId,
+                email: found.email,
+                purpose: toNewAddress ? CHANGE_APPROVAL_CONFIRMED : CHANGE_CONFIRMED,
+                expirationDate: { after: new Date() }
+            },
+            transaction,
+            required: false
+        });
+        if (other != undefined) {
+            return false;
+        }
+        const confirmed: EmailVerificationTokenPurpose = toNewAddress ? CHANGE_CONFIRMED : CHANGE_APPROVAL_CONFIRMED;
+        await this.tokenRepository.updateById(found.id, { purpose: confirmed }, { transaction });
+        return true;
+    }
+
+    /**
      * Mails a user a link to verify an address.
      * @param user - The user.
-     * @param email - The address verified, which the link is mailed to.
-     * @param purpose - Whether it verifies the user's address or changes it to this one.
+     * @param email - The address verified, which the link is mailed to unless a recipient is given.
+     * @param purpose - Whether it verifies the user's address, changes it to this one, or approves that.
      * @param transaction - The transaction to write the token in, if any.
+     * @param recipient - Who the link is mailed to, like the previous address for an approval.
      */
     private async mailLink(
         user: UserAccount,
         email: string,
         purpose: EmailVerificationPurpose,
-        transaction: RepositoryTransaction | undefined
+        transaction: RepositoryTransaction | undefined,
+        recipient: string = email
     ): Promise<void> {
         const options: EmailVerificationOptions = this.getEnabledOptions();
         // kept here, for the reason requestPasswordReset gives: the stored value is its hash
@@ -244,8 +328,8 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
             expirationDate: new Date(Date.now() + (options.linkExpiresInMs ?? DEFAULT_LINK_EXPIRES_IN_MS))
         }, { transaction });
         await inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE).queue({
-            recipients: [email],
-            subject: purpose === 'change' ? $ts`Confirm your new email address` : $ts`Verify your email address`,
+            recipients: [recipient],
+            subject: this.resolveSubject(purpose),
             html: TsxUtilities.renderEmail(
                 options.verificationEmail,
                 { link: `${options.confirmEmailUrl}/${tokenValue}`, email, purpose, user }
@@ -258,22 +342,41 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
     }
 
     /**
+     * Resolves the subject of the mail of a link.
+     * @param purpose - What the link is for.
+     * @returns The subject, translated.
+     */
+    private resolveSubject(purpose: EmailVerificationPurpose): string {
+        switch (purpose) {
+            case 'verification': {
+                return $ts`Verify your email address`;
+            }
+            case 'change': {
+                return $ts`Confirm your new email address`;
+            }
+            case 'change-approval': {
+                return $ts`Approve the change of your email address`;
+            }
+        }
+    }
+
+    /**
      * Resolves the stored token a link carries.
      * @param token - The token from the link.
-     * @param purpose - What the link has to be for.
+     * @param purposes - What the link may be for.
      * @param transaction - The transaction to read in, if any.
      * @returns The stored token.
      * @throws An UnauthorizedError when it is unknown, for something else, or has expired.
      */
     private async resolveToken(
         token: string,
-        purpose: EmailVerificationPurpose,
+        purposes: EmailVerificationPurpose[],
         transaction: RepositoryTransaction | undefined
     ): Promise<EmailVerificationToken> {
         this.getEnabledOptions();
         const value: string = await inject(ZIBRI_DI_TOKENS.HASH_SERVICE).hash(token, { strategy: Sha256HashStrategy });
         const found: EmailVerificationToken | undefined = await this.tokenRepository
-            .findOne({ where: { value, purpose }, transaction, required: false });
+            .findOne({ where: { value, purpose: { oneOf: purposes } }, transaction, required: false });
         if (found == undefined) {
             throw new UnauthorizedError($ts`Link invalid`);
         }

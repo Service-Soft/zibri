@@ -316,6 +316,35 @@ describe('VersioningService integration', () => {
         });
     });
 
+    describe('Validation: files of the explorer that 3.0 served as routes', () => {
+        // every version 3.0 recorded holds the files of swagger-ui it served at routes of their own, which no
+        // client of the application calls. The explorer that replaced it serves none
+        it('takes no route of those files for a route the application removed', async () => {
+            const swaggerFiles: string[] = [
+                'swagger-ui.css',
+                'swagger-ui-bundle.js',
+                'swagger-ui-standalone-preset.js',
+                'swagger-ui-init.js',
+                'custom.js'
+            ];
+            await writeVersionFile({
+                value: '1.0.0',
+                startsAt: new Date(),
+                routes: [
+                    { key: 'GET /validated/endpoint', versions: { shape: 'Matchers', value: ['1.0.0'] } },
+                    { key: 'GET /explorer', versions: { shape: 'All', value: 'all' } },
+                    ...swaggerFiles.map(file => ({ key: `GET /explorer/${file}`, versions: { shape: 'All' as const, value: 'all' as const } }))
+                ]
+            });
+
+            await restartServer({ version: '2.0.0', controllers: [VersionTestController, ValidatedController] });
+
+            const recorded: VersionFile = await readVersionFile('2.0.0');
+            expect(recorded.routes.map(r => r.key)).toEqual(expect.arrayContaining(['GET /explorer']));
+            expect(recorded.routes.map(r => r.key)).not.toEqual(expect.arrayContaining(['GET /explorer/swagger-ui.css']));
+        });
+    });
+
     describe('Validation: unknown version in stored route (file-level first)', () => {
         // Controller that supports the version referenced in the old snapshot
         @Controller('/validated', { versions: ['2.0.0'], allowOrphan: true })

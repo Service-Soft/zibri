@@ -9,9 +9,11 @@ import { HttpRequestContext } from '../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { DiContainer } from '../di/di-container';
 import { inject } from '../di/inject.function';
 import { InternalError } from '../error-handling/internal-error.model';
 import { GlobalRegistry } from '../global/global-registry';
+import { ConsoleUtilities } from '../logging/console.utilities';
 
 /**
  * Utilities for handling tsx templates.
@@ -22,6 +24,11 @@ import { GlobalRegistry } from '../global/global-registry';
  * template itself type checks as tsx.
  */
 export abstract class TsxUtilities {
+    /**
+     * Whether a render without an application warned that it throws from 4.0.
+     */
+    private static warnedOfRenderWithoutApplication: boolean = false;
+
     /**
      * Renders the given component as an email, so no script injection is happening. A page written in markdown the
      * email renders renders the components `ZIBRI_DI_TOKENS.MDX_EMAIL_COMPONENTS` names for its constructs.
@@ -43,8 +50,12 @@ export abstract class TsxUtilities {
         // A fresh runtime per render; its handler and client instance registries are simply ignored,
         // which is what makes this the script free variant of renderPage.
         const runtime: RenderServerRuntime = createServerRuntime(this.resolveEnvironment());
-        // an email client loads no stylesheet, so an email has components of its own for markdown
-        runtime.provideContext(MdxComponentsContext, inject(ZIBRI_DI_TOKENS.MDX_EMAIL_COMPONENTS));
+        // an email client loads no stylesheet, so an email has components of its own for markdown. A process that set
+        // up no dependency injection, such as a test of the email alone, renders the plain elements
+        // TODO 4.0: inject them, as an email renders in a created application
+        if (DiContainer.getInstance().isRegistered(ZIBRI_DI_TOKENS.MDX_EMAIL_COMPONENTS)) {
+            runtime.provideContext(MdxComponentsContext, inject(ZIBRI_DI_TOKENS.MDX_EMAIL_COMPONENTS));
+        }
 
         return `<!DOCTYPE html>\n${renderChild(compiled.render(this.toPropsRecord(props), runtime))}`;
     }
@@ -84,18 +95,23 @@ export abstract class TsxUtilities {
     /**
      * Resolves the environment of the application, which decides what a mistake only the render can see
      * does: it throws in `development`, and is logged in `production`, which renders the page degraded.
+     * Without an application, it is `development`, and the first such render warns that it throws from 4.0.
      * @returns The environment.
-     * @throws An InternalError when no application was created, as nothing says which it is.
      */
     private static resolveEnvironment(): ZibriEnvironment {
         const environment: ZibriEnvironment | undefined = GlobalRegistry.getAppData('environment');
-        if (environment == undefined) {
-            throw new InternalError([
-                'A tsx template is rendered before any application was created, and the environment of the application',
-                'decides what a mistake only the render can see does. Render templates in a created application.'
-            ]);
+        if (environment != undefined) {
+            return environment;
         }
-        return environment;
+        // TODO 4.0: throw. 3.0 rendered a template without an application, such as in a test of the template alone
+        if (!this.warnedOfRenderWithoutApplication) {
+            this.warnedOfRenderWithoutApplication = true;
+            ConsoleUtilities.warn(
+                'A tsx template is rendered before any application was created, so it renders as in development: a '
+                + 'mistake only the render can see throws. Render templates in a created application. This throws from 4.0.'
+            );
+        }
+        return 'development';
     }
 
     /**

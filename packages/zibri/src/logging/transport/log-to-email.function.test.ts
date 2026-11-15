@@ -29,6 +29,7 @@ function sendFor(): LoggerTransportSend<EmailLoggerTransportConfig> {
 function createLog(overrides: Partial<Log> = {}): Log {
     return {
         id: UUIDUtilities.generate(),
+        application: 'Task tracker',
         createdAt: new Date(),
         cleanupAt: new Date(),
         message: 'the log message',

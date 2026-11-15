@@ -16,6 +16,7 @@ function createLog(level: LogLevel, overrides: Partial<Log> = {}): Log {
     return {
         id: 'id',
         tenantId: 'team-1',
+        application: 'Task tracker',
         createdAt: new Date('2026-10-28T09:30:00.000Z'),
         cleanupAt: new Date('2026-11-04T09:30:00.000Z'),
         message: 'the message',

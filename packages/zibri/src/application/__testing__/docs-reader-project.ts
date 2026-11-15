@@ -83,6 +83,15 @@ export class Task extends BaseTenantEntity() {
 
     @Property.string()
     status!: string;
+
+    @Property.number({ format: 'integer', required: false })
+    priority?: number | null;
+
+    @Property.date({ required: false })
+    dueAt?: Date | null;
+
+    @Property.array({ items: { type: 'string' }, required: false })
+    labels?: string[] | null;
 }
 
 export class TaskCreateDTO extends OmitClass(Task, ['id', 'tenantId']) {}

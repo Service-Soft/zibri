@@ -118,6 +118,13 @@ describe('createJestConfig', () => {
         expect(createJestConfig({ workerIdleMemoryLimit: '2GB' }).workerIdleMemoryLimit).toBe('2GB');
     });
 
+    // jest's default is the temp folder, which on many machines is a tmpfs: gigabytes of transformed
+    // sources held in memory and swap, and gone after every reboot
+    it('keeps its cache on the disk of the project, unless the application names another place', () => {
+        expect(createJestConfig().cacheDirectory).toBe(path.join(process.cwd(), 'node_modules', '.cache', 'jest'));
+        expect(createJestConfig({ cacheDirectory: '/elsewhere' }).cacheDirectory).toBe('/elsewhere');
+    });
+
     it('is the preset when it is given nothing', () => {
         expect(createJestConfig()).toEqual(jestPreset);
     });

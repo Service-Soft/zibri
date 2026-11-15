@@ -457,7 +457,8 @@ export class ChangeSetRepository<
     /**
      * Rolls back all changes on the given entity that have happened since the given change set.
      * This DOES NOT preserve any changes that happened after the change set.
-     * The given change set and any change sets after that will be deleted in the end.
+     * The entity is left as the given change set made it: the change sets after it are deleted in the end,
+     * the given one is kept.
      * Calls rollbackToTimestamp on the change set timestamp internally.
      * @param entity - The entity to rollback.
      * @param changeSetId - The id of the changeSet to rollback to.
@@ -490,7 +491,8 @@ export class ChangeSetRepository<
     /**
      * Rolls back all changes on the entity with the given id that have happened since the given change set.
      * This DOES NOT preserve any changes that happened after the change set.
-     * The given change set and any change sets after that will be deleted in the end.
+     * The entity is left as the given change set made it: the change sets after it are deleted in the end,
+     * the given one is kept.
      * Calls rollbackToTimestampById on the change set timestamp internally.
      * @param id - The id of the entity to rollback.
      * @param changeSetId - The id of the changeSet to rollback to.

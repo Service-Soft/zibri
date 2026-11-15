@@ -1,4 +1,4 @@
-import { cspellOptions } from 'eslint-config-service-soft';
+import { cspellOptions } from '@service-soft/eslint-config';
 import baseConfig from '../../eslint.config.mjs';
 
 /** @type {import('eslint').Linter.Config} */

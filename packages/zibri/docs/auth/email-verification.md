@@ -11,11 +11,13 @@ A user proves that an email address is theirs by following a link mailed to it. 
 | `EmailVerificationOptions` | type | How addresses are verified, via `ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_OPTIONS`. Defaults to no verification |
 | `EmailVerificationEmailTemplate`, `EmailVerificationEmailTemplateProps` | type | The email a link to verify an address is sent in, and what it is given |
 | `EmailChangedEmailTemplate`, `EmailChangedEmailTemplateProps` | type | The email the previous address is told of a change in, and what it is given |
-| `EmailVerificationPurpose` | type | Whether a link verifies the user's address, `'verification'`, or changes it, `'change'` |
+| `EmailVerificationPurpose` | type | Whether a link verifies the user's address, `'verification'`, changes it, `'change'`, or approves that change from the previous address, `'change-approval'` |
 | `EmailVerificationServiceInterface`, `EmailVerificationService` | interface, class | Mails the links and confirms them. Replaceable through `ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_SERVICE` |
 | `EmailVerificationToken`, `EmailVerificationTokenCreateData` | entity, class | A link that was mailed, stored hashed, and what one is created with |
+| `EmailVerificationTokenPurpose` | type | What a stored link is for: its purpose, or that it was followed, for one of the two links of a change that waits for the other |
 | `EmailVerificationTokenInput`, `RequestEmailChangeInput` | class | What the routes take: the token of a link, and the address to change to |
-| `AuthControllerEmailVerificationRoutes` | type | The methods of the routes |
+| `EmailConfirmation` | class | What `POST /auth/confirm-email` answers: the `purpose` of the link, and whether it is `completed` |
+| `AuthControllerEmailVerificationRoutes`, `AuthControllerConfirmEmailRoutes` | type, type | The methods of the routes, and of `POST /auth/confirm-email` |
 | `EmailNotVerifiedError` | error | A 403 for what needs a verified address, asked of a user whose is not |
 
 ## Setting it up
@@ -47,8 +49,9 @@ defineProvider({
 | `emailChangedEmail` | The email the previous address is told of a change in. It is given the `previousEmail`, the `newEmail` and the `user`. Required |
 | `requiredForLogin` | Whether a password login waits until the user's address is verified. Required |
 | `linkExpiresInMs` | How long a link works. A day by default |
+| `previousAddressConfirms` | Whether a change of an address waits for the previous address to approve it as well, see [changing an address](#changing-an-address). Off by default |
 
-Give `AuthController` `emailVerification: true` for its routes:
+Give `AuthController` `emailVerification: true` for its routes, and `confirmEmailRoute: true` for `POST /confirm-email`:
 
 ```ts
 // src/controllers/auth.controller.ts
@@ -59,11 +62,12 @@ export class AppAuthController extends AuthController({
     strategies: [JwtAuthStrategy],
     authenticators: [PasswordAuthenticator],
     twoFactorMethods: [OtpTwoFactorMethod],
-    emailVerification: true
+    emailVerification: true,
+    confirmEmailRoute: true
 }) {}
 ```
 
-The page at `confirmEmailUrl` takes the token from its path and posts it to the route that confirms it.
+The page at `confirmEmailUrl` takes the token from its path and posts it to `POST /auth/confirm-email`, which works out what the link is for and answers an `EmailConfirmation`: its `purpose`, `verification` or `change`, and whether it is `completed`. Every link looks the same, so this is the route a page uses for all of them.
 
 ## Verifying an address
 | Route | Takes | Who calls it |
@@ -80,8 +84,11 @@ With `requiredForLogin`, a password login of a user whose address is not verifie
 |---|---|---|
 | `POST /auth/request-email-change` | `{ "newEmail" }`. Mails a link to the new address | a logged in user, with a second factor or a [recent login](../glossary.md#recent-login) |
 | `POST /auth/confirm-email-change` | `{ "token" }`. Changes the address to the new one, verified, and mails the previous address that it was changed | anyone, with the link |
+| `POST /auth/confirm-email` | `{ "token" }`. Confirms any link, as the two confirm routes do, and answers what it was for and whether that is done | anyone, with the link |
 
-The address stays as it is until the new one is confirmed. Asking for another change replaces the link of the one before.
+The address stays as it is until the new one is confirmed. Asking for another change replaces the links of the one before.
+
+With `previousAddressConfirms`, the previous address approves a change as well: `request-email-change` mails a link to the new address and one to the previous address, and the address changes once both were followed, in either order. Following one answers `completed: false` until the other is. The link to the previous address alone never changes it, as the new address isn't proven by it, and a followed link expires like any other, so waiting changes nothing. The template of `verificationEmail` is given the `purpose` `change-approval` for it. Leave it off when your users may lose the inbox of their previous address, as they can't change their address then.
 
 ## What a verified address is needed for
 | What | Refused while the address is not verified |

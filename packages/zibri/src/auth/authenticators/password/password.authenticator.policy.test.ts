@@ -225,8 +225,11 @@ describe('PasswordAuthenticator - the password policy', () => {
 
     // jest raises the limit for its own reports, so these boot on what a process starts with
     describe('the stack trace of a refused password', () => {
-        const startWithLimit: (stackTraceLimit: number | undefined) => Promise<StartedTestServer> = async stackTraceLimit => {
-            Error.stackTraceLimit = 10;
+        const startWithLimit: (stackTraceLimit: number | undefined, ofProcess?: number) => Promise<StartedTestServer> = async (
+            stackTraceLimit,
+            ofProcess = 10
+        ) => {
+            Error.stackTraceLimit = ofProcess;
             return await startTestServer({
                 dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
                 providers: withPolicy({ minLength: 15 }),
@@ -246,6 +249,17 @@ describe('PasswordAuthenticator - the password policy', () => {
 
                 assert(refused instanceof PasswordRefusedError);
                 expect(refused.stack).toContain('createDefaultAdminCredentials');
+            }
+            finally {
+                await server.shutdown();
+            }
+        }, TestTimeouts.inMemory.start);
+
+        // 3.0 left the limit of the process alone, and one started with --stack-trace-limit lost it to the default
+        it('keeps the limit the process was given, when the application says none', async () => {
+            const server: StartedTestServer = await startWithLimit(undefined, 200);
+            try {
+                expect(Error.stackTraceLimit).toBe(200);
             }
             finally {
                 await server.shutdown();

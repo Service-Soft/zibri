@@ -34,6 +34,17 @@ import { SemVerUtilities, SemVerVersion } from '../utilities/sem-ver.utilities';
 import { WebsocketControllerData } from '../websocket/decorators/websocket-controller.decorator';
 import { WebsocketControllerRouteConfiguration } from '../websocket/models/websocket-controller-route-configuration.model';
 
+// the files of swagger-ui that the explorer of 3.0 served at routes of their own, which every version 3.0 recorded
+// holds. No client of an application calls them, and the explorer that replaced it serves none, so a version they
+// are missing from removed no route of the application
+const RETIRED_FRAMEWORK_ROUTE_KEYS: Set<string> = new Set([
+    'GET /explorer/swagger-ui.css',
+    'GET /explorer/swagger-ui-bundle.js',
+    'GET /explorer/swagger-ui-standalone-preset.js',
+    'GET /explorer/swagger-ui-init.js',
+    'GET /explorer/custom.js'
+]);
+
 /**
  * An error to throw when there were routes with mismatching versions.
  */
@@ -299,7 +310,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         const knownVersions: Set<SemVerVersion> = new Set(versionFiles.map(e => e.value));
         const errors: string[] = [];
 
-        for (const storedRoute of storedRoutes) {
+        for (const storedRoute of storedRoutes.filter(r => !RETIRED_FRAMEWORK_ROUTE_KEYS.has(r.key))) {
             const routes: RouteWithVersionData[] = inCodeRoutes.filter(r => r.key === storedRoute.key);
 
             if (!routes.length) {

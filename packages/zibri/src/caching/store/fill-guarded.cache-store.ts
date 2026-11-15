@@ -1,6 +1,7 @@
 import { CacheStoreConfig, CacheStoreInterface } from './cache-store.interface';
 import { CachedValue } from './cached-value.model';
 import { cacheKeyOf } from '../cache-key.function';
+import { CacheRestoreTagUtilities } from '../cache-restore-tag.utilities';
 
 /**
  * A fill of a cache in progress: the value the source answers is cached only while nothing written
@@ -41,7 +42,10 @@ export class FillGuardedCacheStore<K, V> implements CacheStoreInterface<K, V> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     set(key: K, value: CachedValue<V>): void | Promise<void> {
         this.markStale(key);
-        return this.store.set(key, value);
+        // every entry of every cache, whatever tags the cache declares: a restore makes stale what any
+        // cache holds of the rows it writes. Here, as every write of a cache passes through
+        const restoreTag: string = CacheRestoreTagUtilities.getEntryTag(this.store.config.perTenant !== false);
+        return this.store.set(key, value.tags.includes(restoreTag) ? value : { ...value, tags: [...value.tags, restoreTag] });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

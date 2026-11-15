@@ -30,15 +30,38 @@ the database is taken back by its own build.
 An older build refuses to start on a database a newer one migrated, and says what to run. See
 [going back](../data/data-source.md#going-back).
 
+A backup the newer build took in a [shape](../data/backup.md#the-shape-a-backup-is-written-in) the
+older build does not read is refused by name. Restore it with the newer build, before you go back.
+
 ## Restoring data from a backup
-Stop every instance but one, restore the backup on that one, and start the others again once it is
-done, see [restoring with one instance](../data/backup.md#restoring-with-one-instance). A restore
+Restore the backup on one instance, while the others keep running, see
+[restoring while other instances run](../data/backup.md#restoring-while-other-instances-run). A restore
 checks the backup before it applies any of it, see
 [what a restore checks first](../data/backup.md#what-a-restore-checks-first), and brings a backup of an
 older release in line with the current one.
 
 Restore on an instance whose `.zibri/backups` outlives its container, so a restore killed halfway is
 put back at the next start, see [what the application writes](./deployment.md#what-the-application-writes).
+
+A restore this instance's disk is too small for is refused before it changes anything, and the error
+names what it needs, what is free and every way to go on, each with what it gives up:
+
+| Error says | Do |
+|---|---|
+| The disk of `BACKUP_TEMP_FOLDER` is too small | Free the room it names, or point `ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER` at a larger disk and restart. Or restore with less room, see [restoring with less room](../data/backup.md#restoring-with-less-room) |
+| The Postgres server ran out of disk | Give the database server the room it names, or restore with `deleteFirst: true` |
+| The Valkey server ran out of memory staging the backup | Raise `maxmemory` by what it names, set `restoreMode: 'direct'`, or restore with `deleteFirst: true` |
+
+Each backup tells critically, once it is completed, when this instance could not restore it, so that
+there is room before it is needed, see
+[sizing the server](../data/backup.md#sizing-the-server-for-backups-and-restores).
+
+A restore keeps the logins and the credentials of the users that exist when it begins, see
+[keeping rows across a restore](../data/backup.md#keeping-rows-across-a-restore). After a breach, that
+includes a login of whoever broke in. End every login with
+[`endEveryLogin`](../auth/auth.md#logging-everybody-out) once the restore is done, and have the users
+whose credentials may be known choose new ones, see
+[requiring a new password](../auth/auth.md#requiring-a-new-password).
 
 ## When the database cannot be reached
 While a data source cannot be reached:
@@ -53,6 +76,9 @@ While a data source cannot be reached:
   [work held by an instance that is gone](../background-work/troubleshooting.md#work-held-by-an-instance-that-is-gone).
 
 Once the data source takes connections again, every instance serves again. Nothing needs a restart.
+A statement whose connection the database ended before it committed, such as by a restart of the
+database server, runs again on another connection, so the first requests after a restart are answered
+too. One in a transaction fails with the transaction.
 Then look for work that stopped while it was down, see [recovering work that stopped](../background-work/troubleshooting.md).
 
 ## When an account was taken over

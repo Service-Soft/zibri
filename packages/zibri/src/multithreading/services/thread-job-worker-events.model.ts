@@ -51,7 +51,8 @@ export type ThreadJobWorkerEvents = {
      */
     startQueuedJobs: () => Promise<boolean>,
     /**
-     * Takes a worker that ended without a job out of the pool.
+     * Takes a worker that ended without a job out of the pool, and starts one in its place while the pool runs.
+     * @returns Whether it started one.
      */
-    replaceDeadWorker: (exitCode: number, threadId: number) => void
+    replaceDeadWorker: (exitCode: number, threadId: number) => boolean
 };

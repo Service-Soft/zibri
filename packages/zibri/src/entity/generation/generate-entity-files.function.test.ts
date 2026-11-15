@@ -55,7 +55,6 @@ describe('generateEntityFiles', () => {
 
     it(
         'resolves providers.ts via ts-node, writes entity files + a per-provider index.ts + the top-level '
-        // eslint-disable-next-line cspell/spellchecker
         + 'index.ts to disk, and correctly transpiles string/enum/date/array property types along the way',
         async () => {
             await FsUtilities.createFile(

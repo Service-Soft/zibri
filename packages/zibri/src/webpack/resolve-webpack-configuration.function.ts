@@ -98,10 +98,21 @@ function resolveMissingPackageError(root: string, name: string, cause: unknown):
     return new InternalError(
         [
             `Building the application at "${root}" needs "${name}", which it does not have installed.`,
-            `Run "npm i -D ${name}" there.`
+            `Run "npm i -D ${resolvePackageName(name)}" there.`
         ],
         { cause }
     );
+}
+
+/**
+ * The package a module is in, which is what npm installs: `zibri-tsx-compiler` of `zibri-tsx-compiler/webpack`, and
+ * `@scope/name` of `@scope/name/path`.
+ * @param specifier - The module, as it is loaded.
+ * @returns The package.
+ */
+function resolvePackageName(specifier: string): string {
+    const segments: string[] = specifier.split('/');
+    return segments.slice(0, specifier.startsWith('@') ? 2 : 1).join('/');
 }
 
 /**

@@ -2,6 +2,8 @@
 import os from 'node:os';
 
 import { AsyncApiService } from '../../async-api/async-api.service';
+import { S3TenantBackupTransportKind } from '../../backup/tenant/s3.tenant-backup-transport-kind';
+import { SftpTenantBackupTransportKind } from '../../backup/tenant/sftp.tenant-backup-transport-kind';
 import { errorHandler } from '../../error-handling/error-handler';
 import { inject } from '../inject.function';
 import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
@@ -331,8 +333,26 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // a transport that cannot be reached for a while is the failure a retry is for, and three tries
     // over a few minutes outlast most of those without holding a backup open for an outage
     BACKUP_MAX_ATTEMPTS: { useValue: 3 },
+    // one at a time per instance: each resource being stored holds a dump running and a staging file
+    // as large as the resource, and an instance that saw ten due started ten of each at once
+    BACKUP_MAX_CONCURRENT_RESOURCES: { useValue: 1 },
     BACKUP_RETRY_DELAY_IN_MS: { useFactory: () => Ms.MINUTE },
     BACKUP_RETENTION: { useValue: undefined },
+    // about 1 MiB a chunk: an object per chunk keeps 100 GB of new data at about 100 000 objects, and a
+    // smaller chunk would deduplicate more only with chunks packed into larger objects
+    BACKUP_CHUNKING_OPTIONS: {
+        useValue: { minChunkBytes: 256 * 1024, averageChunkBytes: 1024 * 1024, maxChunkBytes: 4 * 1024 * 1024, compressionLevel: 3 }
+    },
+    // off: reading the chunks back costs the egress of everything read, which an application decides on
+    BACKUP_SCRUB_OPTIONS: { useValue: undefined },
+    // in effect only for an application declaring TenantBackupTransport
+    BACKUP_TENANT_TRANSPORT_OPTIONS: {
+        useFactory: () => ({
+            kinds: [new S3TenantBackupTransportKind(), new SftpTenantBackupTransportKind()],
+            allowedHosts: undefined,
+            allowPrivateNetworks: false
+        })
+    },
     // the route history belongs to the deployment, so it is resolved from the application's root:
     // an installed copy of the framework is the one place it must not land, and that is where
     // resolving it from this file put it for an application that does not bundle.
