@@ -497,7 +497,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
     }
 
     /**
-     * Checks a provider marked with @Backup and adds it to the resources that are backed up.
+     * Checks a provider marked with "@Backup" and adds it to the resources that are backed up.
      * @param provider - The provider marked with @Backup.
      * @param retention - The backup retention, if one is configured.
      * @throws {InitBackupServiceError} When the provider is no backup resource, or names no transport.
