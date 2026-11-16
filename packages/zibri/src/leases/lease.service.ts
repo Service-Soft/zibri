@@ -365,6 +365,7 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         }
         catch (error) {
             // a report that fails changes nothing about the wait, which the next try decides
+            // eslint-disable-next-line stylistic/max-len
             this.logger.warn(`${waited}, whose holder could not be read: ${error instanceof Error ? error.message : String(error)}. ${limit}`);
         }
     }

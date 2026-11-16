@@ -1564,6 +1564,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
             })
             .join('; ');
         this.logger.warn(
+            // eslint-disable-next-line stylistic/max-len
             `Waited ${Math.round(waitedInMs / Ms.SECOND)} s for the backup "${backup.name}", which is ${backup.status}: ${resources || 'no resources'}`
         );
     }
