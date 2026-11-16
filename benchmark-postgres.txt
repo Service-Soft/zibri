@@ -1,0 +1,713 @@
+﻿2026-11-16T09:55:02.9589241Z Current runner version: '2.338.2'
+2026-11-16T09:55:02.9608138Z ##[group]Runner Image Provisioner
+2026-11-16T09:55:02.9608679Z Hosted Compute Agent
+2026-11-16T09:55:02.9609021Z Version: 20261103.629
+2026-11-16T09:55:02.9609450Z Commit: 15dbd9ccb5dbf34fae002b6ed1a2670f52df37bc
+2026-11-16T09:55:02.9610169Z Build Date: 2026-11-03T17:26:59Z
+2026-11-16T09:55:02.9610644Z Worker ID: {bcc29de4-166a-4740-90c1-8ff06516e995}
+2026-11-16T09:55:02.9611064Z Region: centralus
+2026-11-16T09:55:02.9611384Z Cloud: Azure
+2026-11-16T09:55:02.9611773Z ##[endgroup]
+2026-11-16T09:55:02.9612849Z ##[group]Operating System
+2026-11-16T09:55:02.9613272Z Ubuntu
+2026-11-16T09:55:02.9613608Z 26.04.1
+2026-11-16T09:55:02.9613927Z LTS
+2026-11-16T09:55:02.9614313Z ##[endgroup]
+2026-11-16T09:55:02.9614655Z ##[group]Runner Image
+2026-11-16T09:55:02.9615094Z Image: ubuntu-26.04
+2026-11-16T09:55:02.9615448Z Version: 20261111.196.1
+2026-11-16T09:55:02.9616222Z Included Software: https://github.com/actions/runner-images/blob/ubuntu26/20261111.196/images/ubuntu/Ubuntu2604-Readme.md
+2026-11-16T09:55:02.9617104Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu26%2F20261111.196
+2026-11-16T09:55:02.9617709Z ##[endgroup]
+2026-11-16T09:55:02.9618358Z ##[group]GITHUB_TOKEN Permissions
+2026-11-16T09:55:02.9619627Z Contents: read
+2026-11-16T09:55:02.9620134Z Metadata: read
+2026-11-16T09:55:02.9620473Z ##[endgroup]
+2026-11-16T09:55:02.9621920Z Secret source: Actions
+2026-11-16T09:55:02.9622487Z Cache mode: write
+2026-11-16T09:55:02.9622976Z Prepare workflow directory
+2026-11-16T09:55:02.9856314Z Prepare all required actions
+2026-11-16T09:55:02.9888982Z Getting action download info
+2026-11-16T09:55:03.2401320Z Download action repository 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-11-16T09:55:03.3182058Z Download action repository 'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1' (SHA:949feb2413d6458794dcd2491c4babbbce0c15c1)
+2026-11-16T09:55:03.3706121Z Download action repository 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9' (SHA:cf430e030ddbb5b0abf93d22962f4752f3646cd9)
+2026-11-16T09:55:03.5475173Z Complete job name: benchmark (postgres)
+2026-11-16T09:55:03.6003369Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-11-16T09:55:03.6003904Z with:
+2026-11-16T09:55:03.6004146Z   repository: Service-Soft/zibri
+2026-11-16T09:55:03.6006192Z   token: ***
+2026-11-16T09:55:03.6006425Z   ssh-strict: true
+2026-11-16T09:55:03.6006664Z   ssh-user: git
+2026-11-16T09:55:03.6006911Z   persist-credentials: true
+2026-11-16T09:55:03.6007175Z   clean: true
+2026-11-16T09:55:03.6007418Z   sparse-checkout-cone-mode: true
+2026-11-16T09:55:03.6007699Z   fetch-depth: 1
+2026-11-16T09:55:03.6007935Z   fetch-tags: false
+2026-11-16T09:55:03.6008170Z   show-progress: true
+2026-11-16T09:55:03.6008412Z   lfs: false
+2026-11-16T09:55:03.6008640Z   submodules: false
+2026-11-16T09:55:03.6008881Z   set-safe-directory: true
+2026-11-16T09:55:03.6009156Z   allow-unsafe-pr-checkout: false
+2026-11-16T09:55:03.6009523Z ##[endgroup]
+2026-11-16T09:55:03.8301819Z Syncing repository: Service-Soft/zibri
+2026-11-16T09:55:03.8303788Z ##[group]Getting Git version info
+2026-11-16T09:55:03.8304506Z Working directory is '/home/runner/work/zibri/zibri'
+2026-11-16T09:55:03.8305367Z [command]/usr/bin/git version
+2026-11-16T09:55:03.8305856Z git version 2.56.1
+2026-11-16T09:55:03.8315555Z ##[endgroup]
+2026-11-16T09:55:03.8324243Z Temporarily overriding HOME='/home/runner/work/_temp/6d89ec02-4b56-48d6-8b93-8d70b0573757' before making global git config changes
+2026-11-16T09:55:03.8325467Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-16T09:55:03.8327778Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/zibri/zibri
+2026-11-16T09:55:03.8391077Z Deleting the contents of '/home/runner/work/zibri/zibri'
+2026-11-16T09:55:03.8394464Z ##[group]Determining repository object format
+2026-11-16T09:55:03.8395767Z ##[endgroup]
+2026-11-16T09:55:03.8396802Z ##[group]Initializing the repository
+2026-11-16T09:55:03.8399787Z [command]/usr/bin/git init /home/runner/work/zibri/zibri
+2026-11-16T09:55:03.8506488Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-11-16T09:55:03.8507551Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-11-16T09:55:03.8508114Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-11-16T09:55:03.8508539Z hint: call:
+2026-11-16T09:55:03.8508777Z hint:
+2026-11-16T09:55:03.8509161Z hint: 	git config --global init.defaultBranch <name>
+2026-11-16T09:55:03.8509628Z hint:
+2026-11-16T09:55:03.8510391Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-11-16T09:55:03.8511131Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-11-16T09:55:03.8511600Z hint:
+2026-11-16T09:55:03.8511854Z hint: 	git branch -m <name>
+2026-11-16T09:55:03.8512130Z hint:
+2026-11-16T09:55:03.8512533Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-11-16T09:55:03.8519119Z Initialized empty Git repository in /home/runner/work/zibri/zibri/.git/
+2026-11-16T09:55:03.8530223Z [command]/usr/bin/git remote add origin https://github.com/Service-Soft/zibri
+2026-11-16T09:55:03.8583012Z ##[endgroup]
+2026-11-16T09:55:03.8583841Z ##[group]Disabling automatic garbage collection
+2026-11-16T09:55:03.8586008Z [command]/usr/bin/git config --local gc.auto 0
+2026-11-16T09:55:03.8622237Z ##[endgroup]
+2026-11-16T09:55:03.8623460Z ##[group]Setting up auth
+2026-11-16T09:55:03.8624075Z Removing SSH command configuration
+2026-11-16T09:55:03.8628342Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-16T09:55:03.8665297Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-16T09:55:03.9062005Z Removing HTTP extra header
+2026-11-16T09:55:03.9066194Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-16T09:55:03.9095904Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-16T09:55:03.9317179Z Removing includeIf entries pointing to credentials config files
+2026-11-16T09:55:03.9322007Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-16T09:55:03.9358063Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-16T09:55:03.9588527Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-1e27ea6f-a3bb-40eb-b45e-c6d615347990.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-11-16T09:55:03.9621527Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/zibri/zibri/.git.path /home/runner/work/_temp/git-credentials-1e27ea6f-a3bb-40eb-b45e-c6d615347990.config
+2026-11-16T09:55:03.9648932Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/zibri/zibri/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-1e27ea6f-a3bb-40eb-b45e-c6d615347990.config
+2026-11-16T09:55:03.9678769Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-1e27ea6f-a3bb-40eb-b45e-c6d615347990.config
+2026-11-16T09:55:03.9706228Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-1e27ea6f-a3bb-40eb-b45e-c6d615347990.config
+2026-11-16T09:55:03.9731899Z ##[endgroup]
+2026-11-16T09:55:03.9732522Z ##[group]Fetching the repository
+2026-11-16T09:55:03.9737570Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +901e7ac72e1d9afd10d8327f815efe3deac63330:refs/remotes/pull/188/merge
+2026-11-16T09:55:05.3585019Z From https://github.com/Service-Soft/zibri
+2026-11-16T09:55:05.3586287Z  * [new ref]         901e7ac72e1d9afd10d8327f815efe3deac63330 -> pull/188/merge
+2026-11-16T09:55:05.3588331Z ##[endgroup]
+2026-11-16T09:55:05.3589058Z ##[group]Determining the checkout info
+2026-11-16T09:55:05.3593457Z ##[endgroup]
+2026-11-16T09:55:05.3593883Z [command]/usr/bin/git sparse-checkout disable
+2026-11-16T09:55:05.3649058Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-11-16T09:55:05.3684501Z ##[group]Checking out the ref
+2026-11-16T09:55:05.3687774Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/188/merge
+2026-11-16T09:55:05.5219765Z Note: switching to 'refs/remotes/pull/188/merge'.
+2026-11-16T09:55:05.5220645Z 
+2026-11-16T09:55:05.5221115Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-11-16T09:55:05.5222169Z changes and commit them, and you can discard any commits you make in this
+2026-11-16T09:55:05.5223314Z state without impacting any branches by switching back to a branch.
+2026-11-16T09:55:05.5223946Z 
+2026-11-16T09:55:05.5224405Z If you want to create a new branch to retain commits you create, you may
+2026-11-16T09:55:05.5225414Z do so (now or later) by using -c with the switch command. Example:
+2026-11-16T09:55:05.5225959Z 
+2026-11-16T09:55:05.5226220Z   git switch -c <new-branch-name>
+2026-11-16T09:55:05.5226620Z 
+2026-11-16T09:55:05.5226869Z Or undo this operation with:
+2026-11-16T09:55:05.5227246Z 
+2026-11-16T09:55:05.5227461Z   git switch -
+2026-11-16T09:55:05.5227761Z 
+2026-11-16T09:55:05.5228226Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-11-16T09:55:05.5228903Z 
+2026-11-16T09:55:05.5229637Z HEAD is now at 901e7ac Merge a2611804da16ef7207db31751060ef0042fa619e into bd2c35356dbc877f6557a7a5a6855b735be5fe45
+2026-11-16T09:55:05.5243464Z ##[endgroup]
+2026-11-16T09:55:05.5287614Z [command]/usr/bin/git log -1 --format=%H
+2026-11-16T09:55:05.5313468Z 901e7ac72e1d9afd10d8327f815efe3deac63330
+2026-11-16T09:55:05.5593846Z ##[group]Run actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+2026-11-16T09:55:05.5594751Z with:
+2026-11-16T09:55:05.5595260Z   node-version: 24
+2026-11-16T09:55:05.5595789Z   cache: npm
+2026-11-16T09:55:05.5596308Z   check-latest: false
+2026-11-16T09:55:05.5601186Z   token: ***
+2026-11-16T09:55:05.5601732Z   package-manager-cache: true
+2026-11-16T09:55:05.5602367Z ##[endgroup]
+2026-11-16T09:55:05.6511072Z Found in cache @ /opt/hostedtoolcache/node/24.22.2/x64
+2026-11-16T09:55:05.7151024Z ##[group]Environment details
+2026-11-16T09:55:05.9687753Z node: v24.22.2
+2026-11-16T09:55:05.9688181Z npm: 11.19.1
+2026-11-16T09:55:05.9688404Z yarn: 1.22.22
+2026-11-16T09:55:05.9701593Z ##[endgroup]
+2026-11-16T09:55:05.9702042Z [command]/opt/hostedtoolcache/node/24.22.2/x64/bin/npm config get cache
+2026-11-16T09:55:06.0492729Z /home/runner/.npm
+2026-11-16T09:55:06.1830337Z Cache hit for: node-cache-Linux-x64-npm-6da043a026daea32a9cf1cef7c00f336046b5e92c50f25c0534eb868a253956f
+2026-11-16T09:55:07.3503080Z Received 134217728 of 160788184 (83.5%), 126.0 MBs/sec
+2026-11-16T09:55:07.5117358Z Received 160788184 of 160788184 (100.0%), 130.3 MBs/sec
+2026-11-16T09:55:07.5118011Z Cache Size: ~153 MB (160788184 B)
+2026-11-16T09:55:07.5165080Z [command]/usr/bin/tar -xf /home/runner/work/_temp/7438ee5f-b0e0-46c0-88c5-99845c6d3d9b/cache.tzst -P -C /home/runner/work/zibri/zibri --use-compress-program unzstd
+2026-11-16T09:55:07.9430320Z Cache restored successfully
+2026-11-16T09:55:07.9508439Z Cache restored from key: node-cache-Linux-x64-npm-6da043a026daea32a9cf1cef7c00f336046b5e92c50f25c0534eb868a253956f
+2026-11-16T09:55:07.9703025Z ##[group]Run sudo apt-get update
+2026-11-16T09:55:07.9703355Z [36;1msudo apt-get update[0m
+2026-11-16T09:55:07.9703622Z [36;1msudo apt-get install -y postgresql-common ca-certificates curl[0m
+2026-11-16T09:55:07.9703918Z [36;1mprintf '\n' | sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh[0m
+2026-11-16T09:55:07.9704370Z [36;1msudo apt-get update[0m
+2026-11-16T09:55:07.9704540Z [36;1msudo apt-get install -y postgresql-client-17[0m
+2026-11-16T09:55:07.9756585Z shell: /usr/bin/bash -e {0}
+2026-11-16T09:55:07.9756787Z ##[endgroup]
+2026-11-16T09:55:08.0729225Z Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
+2026-11-16T09:55:08.0841775Z Get:6 https://packages.microsoft.com/ubuntu/26.04/prod resolute InRelease [3964 B]
+2026-11-16T09:55:08.1104351Z Hit:2 http://azure.archive.ubuntu.com/ubuntu resolute InRelease
+2026-11-16T09:55:08.1125312Z Get:3 http://azure.archive.ubuntu.com/ubuntu resolute-updates InRelease [137 kB]
+2026-11-16T09:55:08.1146243Z Get:4 http://azure.archive.ubuntu.com/ubuntu resolute-backports InRelease [137 kB]
+2026-11-16T09:55:08.1176847Z Get:5 http://azure.archive.ubuntu.com/ubuntu resolute-security InRelease [137 kB]
+2026-11-16T09:55:08.1190353Z Get:7 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main arm64 Packages [143 kB]
+2026-11-16T09:55:08.1348279Z Get:8 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main amd64 Packages [158 kB]
+2026-11-16T09:55:08.1426833Z Get:9 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 Packages [872 kB]
+2026-11-16T09:55:08.1465791Z Get:10 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main Translation-en [195 kB]
+2026-11-16T09:55:08.1487264Z Get:11 http://azure.archive.ubuntu.com/ubuntu resolute-updates/universe amd64v3 Packages [387 kB]
+2026-11-16T09:55:08.1522240Z Get:12 http://azure.archive.ubuntu.com/ubuntu resolute-updates/universe Translation-en [122 kB]
+2026-11-16T09:55:08.1616941Z Get:13 http://azure.archive.ubuntu.com/ubuntu resolute-security/main amd64v3 Packages [718 kB]
+2026-11-16T09:55:08.1656393Z Get:14 http://azure.archive.ubuntu.com/ubuntu resolute-security/main Translation-en [157 kB]
+2026-11-16T09:55:08.1678384Z Get:15 http://azure.archive.ubuntu.com/ubuntu resolute-security/universe amd64v3 Packages [220 kB]
+2026-11-16T09:55:08.1695003Z Get:16 http://azure.archive.ubuntu.com/ubuntu resolute-security/universe Translation-en [72.5 kB]
+2026-11-16T09:55:08.1701857Z Get:17 http://azure.archive.ubuntu.com/ubuntu resolute-security/restricted amd64v3 Packages [590 kB]
+2026-11-16T09:55:08.1736289Z Get:18 http://azure.archive.ubuntu.com/ubuntu resolute-security/restricted Translation-en [122 kB]
+2026-11-16T09:55:10.6018996Z Fetched 4172 kB in 0s (15.8 MB/s)
+2026-11-16T09:55:11.1785207Z Reading package lists...
+2026-11-16T09:55:11.2077641Z Reading package lists...
+2026-11-16T09:55:11.3917097Z Building dependency tree...
+2026-11-16T09:55:11.3923287Z Reading state information...
+2026-11-16T09:55:11.4294443Z postgresql-common is already the newest version (293.pgdg26.04+1).
+2026-11-16T09:55:11.4294941Z postgresql-common set to manually installed.
+2026-11-16T09:55:11.4295421Z ca-certificates is already the newest version (20260816ubuntu0.26.04.2).
+2026-11-16T09:55:11.4295957Z curl is already the newest version (8.18.0-1ubuntu2.8).
+2026-11-16T09:55:11.4840859Z Solving dependencies...
+2026-11-16T09:55:11.6461191Z 0 upgraded, 0 newly installed, 0 to remove and 24 not upgraded.
+2026-11-16T09:55:11.6654194Z This script will enable the PostgreSQL APT repository on apt.postgresql.org on
+2026-11-16T09:55:11.6654667Z your system. The distribution codename used will be resolute-pgdg.
+2026-11-16T09:55:11.6654851Z 
+2026-11-16T09:55:11.6657184Z Press Enter to continue, or Ctrl-C to abort.
+2026-11-16T09:55:11.6657737Z Using keyring /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
+2026-11-16T09:55:11.6658250Z Writing /etc/apt/sources.list.d/pgdg.sources ...
+2026-11-16T09:55:11.6690347Z 
+2026-11-16T09:55:11.6690658Z Running apt-get update ...
+2026-11-16T09:55:11.7224248Z Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
+2026-11-16T09:55:11.7486093Z Hit:6 https://packages.microsoft.com/ubuntu/26.04/prod resolute InRelease
+2026-11-16T09:55:11.7612131Z Hit:2 http://azure.archive.ubuntu.com/ubuntu resolute InRelease
+2026-11-16T09:55:11.7631060Z Hit:3 http://azure.archive.ubuntu.com/ubuntu resolute-updates InRelease
+2026-11-16T09:55:11.7646867Z Hit:4 http://azure.archive.ubuntu.com/ubuntu resolute-backports InRelease
+2026-11-16T09:55:11.7647668Z Hit:5 http://azure.archive.ubuntu.com/ubuntu resolute-security InRelease
+2026-11-16T09:55:11.9196692Z Get:7 https://apt.postgresql.org/pub/repos/apt resolute-pgdg InRelease [189 kB]
+2026-11-16T09:55:11.9577885Z Get:8 https://apt.postgresql.org/pub/repos/apt resolute-pgdg/main amd64 Packages [1175 kB]
+2026-11-16T09:55:12.2080534Z Fetched 1364 kB in 0s (3423 kB/s)
+2026-11-16T09:55:12.8150614Z Reading package lists...
+2026-11-16T09:55:12.8300431Z 
+2026-11-16T09:55:12.8301223Z You can now start installing packages from apt.postgresql.org.
+2026-11-16T09:55:12.8301548Z 
+2026-11-16T09:55:12.8301824Z Have a look at https://wiki.postgresql.org/wiki/Apt for more information;
+2026-11-16T09:55:12.8302494Z most notably the FAQ at https://wiki.postgresql.org/wiki/Apt/FAQ
+2026-11-16T09:55:12.9036362Z Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
+2026-11-16T09:55:12.9477585Z Hit:6 https://packages.microsoft.com/ubuntu/26.04/prod resolute InRelease
+2026-11-16T09:55:12.9478680Z Hit:2 http://azure.archive.ubuntu.com/ubuntu resolute InRelease
+2026-11-16T09:55:12.9501184Z Hit:7 https://apt.postgresql.org/pub/repos/apt resolute-pgdg InRelease
+2026-11-16T09:55:12.9516435Z Hit:3 http://azure.archive.ubuntu.com/ubuntu resolute-updates InRelease
+2026-11-16T09:55:12.9542558Z Hit:4 http://azure.archive.ubuntu.com/ubuntu resolute-backports InRelease
+2026-11-16T09:55:12.9565002Z Hit:5 http://azure.archive.ubuntu.com/ubuntu resolute-security InRelease
+2026-11-16T09:55:13.7115785Z Reading package lists...
+2026-11-16T09:55:13.7424559Z Reading package lists...
+2026-11-16T09:55:13.9351223Z Building dependency tree...
+2026-11-16T09:55:13.9358050Z Reading state information...
+2026-11-16T09:55:14.0370389Z Solving dependencies...
+2026-11-16T09:55:14.1688602Z Suggested packages:
+2026-11-16T09:55:14.1688834Z   postgresql-17 postgresql-doc-17
+2026-11-16T09:55:14.1878210Z The following NEW packages will be installed:
+2026-11-16T09:55:14.1879259Z   postgresql-client-17
+2026-11-16T09:55:14.3822886Z 0 upgraded, 1 newly installed, 0 to remove and 31 not upgraded.
+2026-11-16T09:55:14.3823204Z Need to get 2053 kB of archives.
+2026-11-16T09:55:14.3823463Z After this operation, 10.3 MB of additional disk space will be used.
+2026-11-16T09:55:14.3823926Z Get:1 https://apt.postgresql.org/pub/repos/apt resolute-pgdg/main amd64 postgresql-client-17 amd64 17.12-1.pgdg26.04+1 [2053 kB]
+2026-11-16T09:55:14.7157944Z Fetched 2053 kB in 0s (8836 kB/s)
+2026-11-16T09:55:14.7368006Z Selecting previously unselected package postgresql-client-17.
+2026-11-16T09:55:14.7653570Z (Reading database ... 
+2026-11-16T09:55:14.7653878Z (Reading database ... 5%
+2026-11-16T09:55:14.7654259Z (Reading database ... 10%
+2026-11-16T09:55:14.7654522Z (Reading database ... 15%
+2026-11-16T09:55:14.7654838Z (Reading database ... 20%
+2026-11-16T09:55:14.7655143Z (Reading database ... 25%
+2026-11-16T09:55:14.7655447Z (Reading database ... 30%
+2026-11-16T09:55:14.7655851Z (Reading database ... 35%
+2026-11-16T09:55:14.7656135Z (Reading database ... 40%
+2026-11-16T09:55:14.7656413Z (Reading database ... 45%
+2026-11-16T09:55:14.7656685Z (Reading database ... 50%
+2026-11-16T09:55:14.8478207Z (Reading database ... 55%
+2026-11-16T09:55:15.0074707Z (Reading database ... 60%
+2026-11-16T09:55:15.1490817Z (Reading database ... 65%
+2026-11-16T09:55:15.3070536Z (Reading database ... 70%
+2026-11-16T09:55:15.5100045Z (Reading database ... 75%
+2026-11-16T09:55:15.6488109Z (Reading database ... 80%
+2026-11-16T09:55:15.8113602Z (Reading database ... 85%
+2026-11-16T09:55:15.9540727Z (Reading database ... 90%
+2026-11-16T09:55:16.1091803Z (Reading database ... 95%
+2026-11-16T09:55:16.1092271Z (Reading database ... 100%
+2026-11-16T09:55:16.1092808Z (Reading database ... 213946 files and directories currently installed.)
+2026-11-16T09:55:16.1130456Z Preparing to unpack .../postgresql-client-17_17.12-1.pgdg26.04+1_amd64.deb ...
+2026-11-16T09:55:16.1159515Z Unpacking postgresql-client-17 (17.12-1.pgdg26.04+1) ...
+2026-11-16T09:55:16.2750181Z Setting up postgresql-client-17 (17.12-1.pgdg26.04+1) ...
+2026-11-16T09:55:16.5693384Z Processing triggers for postgresql-common (293.pgdg26.04+1) ...
+2026-11-16T09:55:16.6688322Z Building PostgreSQL dictionaries from installed myspell/hunspell packages...
+2026-11-16T09:55:16.6845717Z   en_us
+2026-11-16T09:55:16.8533144Z Removing obsolete dictionary files:
+2026-11-16T09:55:17.3524972Z 
+2026-11-16T09:55:17.3525563Z Running kernel seems to be up-to-date.
+2026-11-16T09:55:17.3525774Z 
+2026-11-16T09:55:17.3525866Z Restarting services...
+2026-11-16T09:55:17.3603568Z 
+2026-11-16T09:55:17.3604081Z Service restarts being deferred:
+2026-11-16T09:55:17.3606986Z  systemctl restart hosted-compute-agent.service
+2026-11-16T09:55:17.3607130Z 
+2026-11-16T09:55:17.3608073Z No containers need to be restarted.
+2026-11-16T09:55:17.3608184Z 
+2026-11-16T09:55:17.3608282Z No user sessions are running outdated binaries.
+2026-11-16T09:55:17.3608405Z 
+2026-11-16T09:55:17.3608586Z No VM guests are running outdated hypervisor (qemu) binaries on this host.
+2026-11-16T09:55:18.4902675Z ##[group]Run npm ci
+2026-11-16T09:55:18.4902841Z [36;1mnpm ci[0m
+2026-11-16T09:55:18.4946790Z shell: /usr/bin/bash -e {0}
+2026-11-16T09:55:18.4946952Z ##[endgroup]
+2026-11-16T09:55:22.6768527Z npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+2026-11-16T09:55:23.5776389Z npm warn deprecated jpeg-exif@1.1.4: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+2026-11-16T09:55:25.0948938Z npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+2026-11-16T09:55:28.7178594Z npm warn install-scripts allowScripts in workspace sandbox (/home/runner/work/zibri/zibri/packages/sandbox) is ignored. Move the field to the project root package.json.
+2026-11-16T09:55:29.5836791Z 
+2026-11-16T09:55:29.5837494Z added 1735 packages, and audited 1751 packages in 11s
+2026-11-16T09:55:29.5838064Z 
+2026-11-16T09:55:29.5838545Z 435 packages are looking for funding
+2026-11-16T09:55:29.5838871Z   run `npm fund` for details
+2026-11-16T09:55:29.7513515Z 
+2026-11-16T09:55:29.7514565Z 55 vulnerabilities (6 low, 49 moderate)
+2026-11-16T09:55:29.7515055Z 
+2026-11-16T09:55:29.7515446Z To address issues that do not require attention, run:
+2026-11-16T09:55:29.7516039Z   npm audit fix
+2026-11-16T09:55:29.7516193Z 
+2026-11-16T09:55:29.7516463Z To address all issues possible (including breaking changes), run:
+2026-11-16T09:55:29.7516833Z   npm audit fix --force
+2026-11-16T09:55:29.7516982Z 
+2026-11-16T09:55:29.7517169Z Some issues need review, and may require choosing
+2026-11-16T09:55:29.7517486Z a different dependency.
+2026-11-16T09:55:29.7517627Z 
+2026-11-16T09:55:29.7517735Z Run `npm audit` for details.
+2026-11-16T09:55:29.8877942Z ##[group]Run npm run build -w zibri-contract
+2026-11-16T09:55:29.8878182Z [36;1mnpm run build -w zibri-contract[0m
+2026-11-16T09:55:29.8923056Z shell: /usr/bin/bash -e {0}
+2026-11-16T09:55:29.8923230Z ##[endgroup]
+2026-11-16T09:55:29.9892988Z 
+2026-11-16T09:55:29.9893685Z > zibri-contract@3.1.0 build
+2026-11-16T09:55:29.9894269Z > npm run build:clean && tsc -p tsconfig.build.json && tsc -p tsconfig.esm.json
+2026-11-16T09:55:29.9894566Z 
+2026-11-16T09:55:30.0797390Z 
+2026-11-16T09:55:30.0798120Z > zibri-contract@3.1.0 build:clean
+2026-11-16T09:55:30.0798823Z > node -e "require('node:fs').rmSync('dist', { recursive: true, force: true })"
+2026-11-16T09:55:30.0799222Z 
+2026-11-16T09:55:30.8947147Z ##[group]Run npm run build -w zibri-tsx
+2026-11-16T09:55:30.8947357Z [36;1mnpm run build -w zibri-tsx[0m
+2026-11-16T09:55:30.8988926Z shell: /usr/bin/bash -e {0}
+2026-11-16T09:55:30.8989078Z ##[endgroup]
+2026-11-16T09:55:30.9891059Z 
+2026-11-16T09:55:30.9891559Z > zibri-tsx@3.1.0 build
+2026-11-16T09:55:30.9892202Z > npm run build:clean && tsc -p tsconfig.build.json
+2026-11-16T09:55:30.9892348Z 
+2026-11-16T09:55:31.1323655Z 
+2026-11-16T09:55:31.1324487Z > zibri-tsx@3.1.0 build:clean
+2026-11-16T09:55:31.1325277Z > node -e "require('node:fs').rmSync('dist', { recursive: true, force: true })"
+2026-11-16T09:55:31.1325706Z 
+2026-11-16T09:55:32.3003990Z ##[group]Run npm run build -w zibri-tsx-compiler
+2026-11-16T09:55:32.3004221Z [36;1mnpm run build -w zibri-tsx-compiler[0m
+2026-11-16T09:55:32.3043823Z shell: /usr/bin/bash -e {0}
+2026-11-16T09:55:32.3043973Z ##[endgroup]
+2026-11-16T09:55:32.3877634Z 
+2026-11-16T09:55:32.3878221Z > zibri-tsx-compiler@3.1.0 build
+2026-11-16T09:55:32.3878681Z > npm run build:clean && tsc -p tsconfig.build.json
+2026-11-16T09:55:32.3878897Z 
+2026-11-16T09:55:32.4681405Z 
+2026-11-16T09:55:32.4682057Z > zibri-tsx-compiler@3.1.0 build:clean
+2026-11-16T09:55:32.4682505Z > node -e "require('node:fs').rmSync('dist', { recursive: true, force: true })"
+2026-11-16T09:55:32.4682684Z 
+2026-11-16T09:55:34.3372846Z ##[group]Run npm run build -w zibri-mdx
+2026-11-16T09:55:34.3373064Z [36;1mnpm run build -w zibri-mdx[0m
+2026-11-16T09:55:34.3414300Z shell: /usr/bin/bash -e {0}
+2026-11-16T09:55:34.3414454Z ##[endgroup]
+2026-11-16T09:55:34.4226901Z 
+2026-11-16T09:55:34.4227436Z > zibri-mdx@3.1.0 build
+2026-11-16T09:55:34.4227863Z > npm run build:clean && tsc -p tsconfig.build.json
+2026-11-16T09:55:34.4228013Z 
+2026-11-16T09:55:34.5017497Z 
+2026-11-16T09:55:34.5017966Z > zibri-mdx@3.1.0 build:clean
+2026-11-16T09:55:34.5018357Z > node -e "require('node:fs').rmSync('dist', { recursive: true, force: true })"
+2026-11-16T09:55:34.5018559Z 
+2026-11-16T09:55:35.3754169Z ##[group]Run npm run build:prod -w zibri
+2026-11-16T09:55:35.3754507Z [36;1mnpm run build:prod -w zibri[0m
+2026-11-16T09:55:35.3806441Z shell: /usr/bin/bash -e {0}
+2026-11-16T09:55:35.3806616Z ##[endgroup]
+2026-11-16T09:55:35.4693301Z 
+2026-11-16T09:55:35.4693836Z > zibri@3.1.0 build:prod
+2026-11-16T09:55:35.4694155Z > npm run build && typedoc
+2026-11-16T09:55:35.4694279Z 
+2026-11-16T09:55:35.5521300Z 
+2026-11-16T09:55:35.5521900Z > zibri@3.1.0 build
+2026-11-16T09:55:35.5522332Z > npm run build:clean && npm run build:cjs && npm run build:translations
+2026-11-16T09:55:35.5522501Z 
+2026-11-16T09:55:35.6361175Z 
+2026-11-16T09:55:35.6361771Z > zibri@3.1.0 build:clean
+2026-11-16T09:55:35.6362339Z > node -e "require('node:fs').rmSync('dist', { recursive: true, force: true })"
+2026-11-16T09:55:35.6362634Z 
+2026-11-16T09:55:35.7489226Z 
+2026-11-16T09:55:35.7489827Z > zibri@3.1.0 build:cjs
+2026-11-16T09:55:35.7490664Z > tsc -p tsconfig.cjs.code.json && tsc -p tsconfig.cjs.declarations.json
+2026-11-16T09:55:35.7490962Z 
+2026-11-16T09:55:54.4768322Z 
+2026-11-16T09:55:54.4768980Z > zibri@3.1.0 build:translations
+2026-11-16T09:55:54.4769404Z > node scripts/extract-translations.mjs
+2026-11-16T09:55:54.4770510Z 
+2026-11-16T09:56:07.5786360Z [96m[info][0m json generated at ./docs/.generated/api.json
+2026-11-16T09:56:07.7065645Z ##[group]Run git fetch --depth=1 origin +release:refs/remotes/origin/release
+2026-11-16T09:56:07.7065969Z [36;1mgit fetch --depth=1 origin +release:refs/remotes/origin/release[0m
+2026-11-16T09:56:07.7106074Z shell: /usr/bin/bash -e {0}
+2026-11-16T09:56:07.7106231Z ##[endgroup]
+2026-11-16T09:56:08.6010271Z From https://github.com/Service-Soft/zibri
+2026-11-16T09:56:08.6010622Z  * [new branch]      release    -> origin/release
+2026-11-16T09:56:08.6010824Z  * [new tag]         v3.0.1     -> v3.0.1
+2026-11-16T09:56:08.6050783Z ##[group]Run npm run test:benchmark:compare -w zibri -- postgres
+2026-11-16T09:56:08.6051074Z [36;1mnpm run test:benchmark:compare -w zibri -- postgres[0m
+2026-11-16T09:56:08.6091105Z shell: /usr/bin/bash -e {0}
+2026-11-16T09:56:08.6091255Z ##[endgroup]
+2026-11-16T09:56:08.6953554Z 
+2026-11-16T09:56:08.6954178Z > zibri@3.1.0 test:benchmark:compare
+2026-11-16T09:56:08.6954682Z > node scripts/compare-benchmarks.mjs test:benchmark postgres
+2026-11-16T09:56:08.6954935Z 
+2026-11-16T09:56:09.1155382Z Preparing worktree (detached HEAD 6419e41)
+2026-11-16T09:56:09.2650777Z HEAD is now at 6419e41 Merge pull request #187 from Service-Soft/dev
+2026-11-16T09:56:12.8237321Z npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+2026-11-16T09:56:13.6867294Z npm warn deprecated jpeg-exif@1.1.4: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+2026-11-16T09:56:14.8844037Z npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+2026-11-16T09:56:34.5716647Z 
+2026-11-16T09:56:34.5717438Z added 1678 packages, and audited 1684 packages in 25s
+2026-11-16T09:56:34.5717671Z 
+2026-11-16T09:56:34.5718023Z 374 packages are looking for funding
+2026-11-16T09:56:34.5718351Z   run `npm fund` for details
+2026-11-16T09:56:34.7062450Z 
+2026-11-16T09:56:34.7063085Z 68 vulnerabilities (1 low, 67 moderate)
+2026-11-16T09:56:34.7063474Z 
+2026-11-16T09:56:34.7074125Z To address issues that do not require attention, run:
+2026-11-16T09:56:34.7074431Z   npm audit fix
+2026-11-16T09:56:34.7074545Z 
+2026-11-16T09:56:34.7074719Z To address all issues (including breaking changes), run:
+2026-11-16T09:56:34.7075013Z   npm audit fix --force
+2026-11-16T09:56:34.7075130Z 
+2026-11-16T09:56:34.7075258Z Run `npm audit` for details.
+2026-11-16T09:56:34.7075673Z npm warn install-scripts 8 packages have install scripts not yet covered by allowScripts:
+2026-11-16T09:56:34.7076245Z npm warn install-scripts   @parcel/watcher@2.6.0 (install: node scripts/build-from-source.js)
+2026-11-16T09:56:34.7076772Z npm warn install-scripts   @swc/core@1.15.46 (postinstall: node postinstall.js)
+2026-11-16T09:56:34.7077345Z npm warn install-scripts   cpu-features@0.0.10 (install: node buildcheck.js > buildcheck.gypi && node-gyp rebuild)
+2026-11-16T09:56:34.7077884Z npm warn install-scripts   esbuild@0.25.12 (postinstall: node install.js)
+2026-11-16T09:56:34.7078374Z npm warn install-scripts   protobufjs@7.6.5 (postinstall: node scripts/postinstall)
+2026-11-16T09:56:34.7079559Z npm warn install-scripts   re2@1.27.0 (install: install-from-cache --artifact build/Release/re2.node --host-var RE2_DOWNLOAD_MIRROR --skip-path-var RE2_DOWNLOAD_SKIP_PATH --skip-ver-var RE2_DOWNLOAD_SKIP_VER --force-build-var RE2_DOWNLOAD_FORCE_BUILD || node-gyp -j max rebuild)
+2026-11-16T09:56:34.7080781Z npm warn install-scripts   ssh2@1.17.0 (install: node install.js)
+2026-11-16T09:56:34.7081281Z npm warn install-scripts   unrs-resolver@1.12.2 (postinstall: node postinstall.js)
+2026-11-16T09:56:34.7081658Z npm warn install-scripts
+2026-11-16T09:56:34.7082201Z npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+2026-11-16T09:56:34.8764299Z 
+2026-11-16T09:56:34.8764836Z > zibri-tsx@3.0.1 build
+2026-11-16T09:56:34.8765268Z > npm run build:clean && tsc -p tsconfig.build.json
+2026-11-16T09:56:34.8765534Z 
+2026-11-16T09:56:34.9576159Z 
+2026-11-16T09:56:34.9576637Z > zibri-tsx@3.0.1 build:clean
+2026-11-16T09:56:34.9577018Z > node -e "require('node:fs').rmSync('dist', { recursive: true, force: true })"
+2026-11-16T09:56:34.9577191Z 
+2026-11-16T09:56:36.7180609Z 
+2026-11-16T09:56:36.7181197Z > zibri@3.0.1 build
+2026-11-16T09:56:36.7181682Z > npm run build:clean && npm run build:cjs && npm run build:translations
+2026-11-16T09:56:36.7182405Z 
+2026-11-16T09:56:36.7993902Z 
+2026-11-16T09:56:36.7994491Z > zibri@3.0.1 build:clean
+2026-11-16T09:56:36.7994849Z > node -e "require('node:fs').rmSync('dist', { recursive: true, force: true })"
+2026-11-16T09:56:36.7995030Z 
+2026-11-16T09:56:36.9022374Z 
+2026-11-16T09:56:36.9022937Z > zibri@3.0.1 build:cjs
+2026-11-16T09:56:36.9023425Z > tsc -p tsconfig.cjs.code.json && tsc -p tsconfig.cjs.declarations.json
+2026-11-16T09:56:36.9023691Z 
+2026-11-16T09:56:53.1840782Z 
+2026-11-16T09:56:53.1841372Z > zibri@3.0.1 build:translations
+2026-11-16T09:56:53.1842199Z > node scripts/extract-translations.mjs
+2026-11-16T09:56:53.1842403Z 
+2026-11-16T09:56:54.7387937Z 
+2026-11-16T09:56:54.7388531Z > zibri@3.1.0 test:benchmark
+2026-11-16T09:56:54.7389701Z > node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand --testPathPatterns="\.benchmark\.test\.ts$" --runTestsByPath /home/runner/work/zibri/zibri/packages/zibri/src/backup/backup.postgres.benchmark.test.ts
+2026-11-16T09:56:54.7390576Z 
+2026-11-16T09:57:50.5036723Z [1m[1m09:57:50.503[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T09:57:50.5038324Z [1m[1m09:57:50.503[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T09:57:57.5291349Z 10 MB of postgres                        backup 258 ms   restore 1277 ms      peak rss +51.9 MiB   max rss 653.0 MiB       staging 3.6 MiB      stored 9.8 MiB
+2026-11-16T09:57:57.5292449Z                                       source alone 102 ms  read 150 ms  store 122 ms  record 1 ms  cpu 583 ms  | restore:  fetch 19 ms  snapshot 0 ms  apply 1173 ms  cpu 340 ms  | garbage collection:  13 ms  left 6.6 MiB
+2026-11-16T09:57:57.5293330Z                                       harness:  load 5105 ms  boot 43375 ms  fill 1449 ms  changes 123 ms  fingerprints 261 ms  shutdown 360 ms
+2026-11-16T09:57:57.5294162Z                                     after a collection:  backup held +3.9 MiB of at most +40.0 MiB, 18 readings every 24 ms  | restore held +1.1 MiB of at most +36.0 MiB, 12 readings every 128 ms
+2026-11-16T09:58:00.4656686Z [1m[1m09:58:00.465[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T09:58:00.4657660Z [1m[1m09:58:00.465[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T09:58:51.4941243Z 100 MB of postgres                      backup 1459 ms  restore 12678 ms      peak rss +29.1 MiB   max rss 709.8 MiB      staging 36.4 MiB     stored 98.8 MiB
+2026-11-16T09:58:51.4942328Z                                       source alone 349 ms  read 1356 ms  store 1142 ms  record 1 ms  cpu 4059 ms  | restore:  fetch 300 ms  snapshot 0 ms  apply 11608 ms  cpu 5025 ms  | garbage collection:  26 ms  left 66.0 MiB
+2026-11-16T09:58:51.4943216Z                                       harness:  load 749 ms  boot 1395 ms  fill 13542 ms  changes 1264 ms  fingerprints 2337 ms  shutdown 864 ms
+2026-11-16T09:58:51.4943980Z                                     after a collection:  backup held +4.4 MiB of at most +40.0 MiB, 10 readings every 140 ms  | restore held +6.0 MiB of at most +36.0 MiB, 72 readings every 200 ms
+2026-11-16T09:58:54.4287968Z [1m[1m09:58:54.428[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T09:58:54.4289427Z [1m[1m09:58:54.428[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T09:59:02.9110029Z 10 MB of postgres, dump compressed       backup 627 ms   restore 1194 ms      peak rss +29.0 MiB   max rss 438.2 MiB       staging 3.4 MiB     stored 10.2 MiB
+2026-11-16T09:59:02.9111087Z                                       source alone 545 ms  read 558 ms  store 58 ms  record 1 ms  cpu 385 ms  | restore:  fetch 10 ms  snapshot 0 ms  apply 1139 ms  cpu 156 ms  | garbage collection:  11 ms  left 6.8 MiB
+2026-11-16T09:59:02.9111652Z                                       harness:  load 743 ms  boot 1399 ms  fill 1388 ms  changes 121 ms  fingerprints 215 ms  shutdown 355 ms
+2026-11-16T09:59:02.9112158Z                                     after a collection:  backup held +3.3 MiB of at most +40.0 MiB, 24 readings every 62 ms  | restore held +0.6 MiB of at most +36.0 MiB, 13 readings every 119 ms
+2026-11-16T09:59:05.8231027Z [1m[1m09:59:05.822[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T09:59:05.8231928Z [1m[1m09:59:05.822[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T10:00:17.6143374Z 100 MB of postgres, dump compressed     backup 5337 ms  restore 12290 ms      peak rss +62.4 MiB   max rss 681.3 MiB      staging 34.4 MiB    stored 102.7 MiB
+2026-11-16T10:00:17.6144416Z                                       source alone 4976 ms  read 5259 ms  store 485 ms  record 2 ms  cpu 3341 ms  | restore:  fetch 344 ms  snapshot 0 ms  apply 11944 ms  cpu 2745 ms  | garbage collection:  17 ms  left 68.6 MiB
+2026-11-16T10:00:17.6145302Z                                       harness:  load 745 ms  boot 1385 ms  fill 13732 ms  changes 1367 ms  fingerprints 2526 ms  shutdown 901 ms
+2026-11-16T10:00:17.6145879Z                                     after a collection:  backup held +3.5 MiB of at most +40.0 MiB, 32 readings every 200 ms  | restore held +0.9 MiB of at most +36.0 MiB, 69 readings every 200 ms
+2026-11-16T10:00:20.5647959Z [1m[1m10:00:20.564[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T10:00:20.5649336Z [1m[1m10:00:20.564[0m [33m[1mWARN[0m   dataSourceClass reads only what changed, and reads in full once a week, since the backup retention names no fullRead. Set fullRead of ZIBRI_DI_TOKENS.BACKUP_RETENTION to say how often.
+2026-11-16T10:00:20.5651160Z [1m[1m10:00:20.564[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T10:00:27.5266948Z 10 MB of postgres, incremental           backup 182 ms   restore 1359 ms      peak rss +49.2 MiB   max rss 456.1 MiB       staging 3.7 MiB      stored 3.4 MiB
+2026-11-16T10:00:27.5267643Z                                       source alone 91 ms  read 37 ms  store 3 ms  record 1 ms  cpu 98 ms  | restore:  fetch 18 ms  snapshot 0 ms  apply 1207 ms  cpu 374 ms  | garbage collection:  11 ms  left 3.3 MiB
+2026-11-16T10:00:27.5268295Z                                       harness:  load 765 ms  boot 1417 ms  fill 1368 ms  changes 122 ms  fingerprints 247 ms  shutdown 347 ms
+2026-11-16T10:00:27.5268968Z                                     after a collection:  backup held +6.0 MiB of at most +40.0 MiB, 24 readings every 16 ms  | restore held +0.0 MiB of at most +36.0 MiB, 11 readings every 136 ms
+2026-11-16T10:00:30.4771981Z [1m[1m10:00:30.476[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T10:00:30.4781856Z [1m[1m10:00:30.476[0m [33m[1mWARN[0m   dataSourceClass reads only what changed, and reads in full once a week, since the backup retention names no fullRead. Set fullRead of ZIBRI_DI_TOKENS.BACKUP_RETENTION to say how often.
+2026-11-16T10:00:30.4793988Z [1m[1m10:00:30.476[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T10:01:27.8217288Z 100 MB of postgres, incremental          backup 334 ms  restore 14336 ms      peak rss +24.3 MiB   max rss 710.4 MiB      staging 37.5 MiB     stored 34.1 MiB
+2026-11-16T10:01:27.8218218Z                                       source alone 330 ms  read 171 ms  store 39 ms  record 1 ms  cpu 455 ms  | restore:  fetch 343 ms  snapshot 0 ms  apply 13222 ms  cpu 5544 ms  | garbage collection:  15 ms  left 33.4 MiB
+2026-11-16T10:01:27.8219660Z                                       harness:  load 768 ms  boot 1407 ms  fill 13519 ms  changes 1256 ms  fingerprints 2494 ms  shutdown 919 ms
+2026-11-16T10:01:27.8220650Z                                     after a collection:  backup held +8.0 MiB of at most +40.0 MiB, 137 readings every 30 ms  | restore held +7.6 MiB of at most +36.0 MiB, 72 readings every 200 ms
+2026-11-16T10:01:27.8718925Z PASS src/backup/backup.postgres.benchmark.test.ts (272.662 s)
+2026-11-16T10:01:27.8719352Z   what backups cost
+2026-11-16T10:01:27.8721439Z     ✓ measures every scenario, each costing what it is designed to (266447 ms)
+2026-11-16T10:01:27.8722035Z     ✓ takes at most linearly longer for more data
+2026-11-16T10:01:27.8722405Z     ✓ takes no longer and stores no more than what each measurement is compared with
+2026-11-16T10:01:27.8722630Z 
+2026-11-16T10:01:27.8744994Z Test Suites: 1 passed, 1 total
+2026-11-16T10:01:27.8745323Z Tests:       3 passed, 3 total
+2026-11-16T10:01:27.8745558Z Snapshots:   0 total
+2026-11-16T10:01:27.8745810Z Time:        272.702 s
+2026-11-16T10:01:27.8746389Z Ran all test suites within paths "/home/runner/work/zibri/zibri/packages/zibri/src/backup/backup.postgres.benchmark.test.ts".
+2026-11-16T10:01:28.1034609Z 
+2026-11-16T10:01:28.1035146Z > zibri@3.1.0 test:benchmark
+2026-11-16T10:01:28.1035971Z > node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand --testPathPatterns="\.benchmark\.test\.ts$" --runTestsByPath /home/runner/work/zibri/zibri/packages/zibri/src/backup/backup.postgres.benchmark.test.ts
+2026-11-16T10:01:28.1036441Z 
+2026-11-16T10:01:32.1263862Z [1m[1m10:01:32.126[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T10:01:32.1264754Z [1m[1m10:01:32.126[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T10:01:36.0433888Z 10 MB of postgres                        backup 264 ms   restore 1321 ms      peak rss +39.6 MiB   max rss 447.3 MiB       staging 3.6 MiB      stored 9.8 MiB
+2026-11-16T10:01:36.0434859Z                                       source alone 97 ms  read 158 ms  store 151 ms  record 1 ms  cpu 562 ms  | restore:  fetch 16 ms  snapshot 0 ms  apply 1208 ms  cpu 418 ms  | garbage collection:  14 ms  left 6.6 MiB
+2026-11-16T10:01:36.0435809Z                                       harness:  load 774 ms  boot 1455 ms  fill 1436 ms  changes 126 ms  fingerprints 233 ms  shutdown 356 ms
+2026-11-16T10:01:39.0099389Z [1m[1m10:01:39.004[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T10:01:39.0101537Z [1m[1m10:01:39.005[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T10:02:16.4223274Z 100 MB of postgres                      backup 1664 ms  restore 13155 ms      peak rss +22.3 MiB   max rss 666.3 MiB      staging 36.4 MiB     stored 98.7 MiB
+2026-11-16T10:02:16.4224341Z                                       source alone 373 ms  read 1551 ms  store 1246 ms  record 2 ms  cpu 4799 ms  | restore:  fetch 343 ms  snapshot 0 ms  apply 12052 ms  cpu 5310 ms  | garbage collection:  29 ms  left 66.0 MiB
+2026-11-16T10:02:16.4225576Z                                       harness:  load 778 ms  boot 1426 ms  fill 14122 ms  changes 1310 ms  fingerprints 2590 ms  shutdown 1216 ms
+2026-11-16T10:02:19.3906655Z [1m[1m10:02:19.389[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T10:02:19.3908220Z [1m[1m10:02:19.389[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T10:02:25.0243388Z 10 MB of postgres, dump compressed       backup 679 ms   restore 1274 ms      peak rss +30.9 MiB   max rss 443.7 MiB       staging 3.4 MiB     stored 10.2 MiB
+2026-11-16T10:02:25.0244225Z                                       source alone 575 ms  read 607 ms  store 41 ms  record 2 ms  cpu 421 ms  | restore:  fetch 11 ms  snapshot 0 ms  apply 1215 ms  cpu 169 ms  | garbage collection:  12 ms  left 6.8 MiB
+2026-11-16T10:02:25.0244851Z                                       harness:  load 789 ms  boot 1399 ms  fill 1467 ms  changes 131 ms  fingerprints 252 ms  shutdown 356 ms
+2026-11-16T10:02:28.0293846Z [1m[1m10:02:28.029[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T10:02:28.0295539Z [1m[1m10:02:28.029[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T10:03:19.8713283Z 100 MB of postgres, dump compressed     backup 5430 ms  restore 12148 ms      peak rss +74.6 MiB   max rss 692.1 MiB      staging 34.4 MiB    stored 102.7 MiB
+2026-11-16T10:03:19.8714178Z                                       source alone 4939 ms  read 5368 ms  store 430 ms  record 2 ms  cpu 3259 ms  | restore:  fetch 341 ms  snapshot 0 ms  apply 11826 ms  cpu 2663 ms  | garbage collection:  27 ms  left 68.6 MiB
+2026-11-16T10:03:19.8714982Z                                       harness:  load 798 ms  boot 1448 ms  fill 13890 ms  changes 1320 ms  fingerprints 2543 ms  shutdown 1242 ms
+2026-11-16T10:03:22.8983416Z [1m[1m10:03:22.898[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T10:03:22.8994697Z [1m[1m10:03:22.898[0m [33m[1mWARN[0m   dataSourceClass reads only what changed, and reads in full once a week, since the backup retention names no fullRead. Set fullRead of ZIBRI_DI_TOKENS.BACKUP_RETENTION to say how often.
+2026-11-16T10:03:22.8997093Z [1m[1m10:03:22.898[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T10:03:26.8777394Z 10 MB of postgres, incremental           backup 168 ms   restore 1433 ms      peak rss +39.5 MiB   max rss 459.8 MiB       staging 3.7 MiB      stored 3.4 MiB
+2026-11-16T10:03:26.8778215Z                                       source alone 95 ms  read 37 ms  store 3 ms  record 1 ms  cpu 95 ms  | restore:  fetch 19 ms  snapshot 0 ms  apply 1274 ms  cpu 395 ms  | garbage collection:  11 ms  left 3.3 MiB
+2026-11-16T10:03:26.8778960Z                                       harness:  load 796 ms  boot 1476 ms  fill 1395 ms  changes 138 ms  fingerprints 283 ms  shutdown 373 ms
+2026-11-16T10:03:29.9672046Z [1m[1m10:03:29.965[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T10:03:29.9685469Z [1m[1m10:03:29.965[0m [33m[1mWARN[0m   dataSourceClass reads only what changed, and reads in full once a week, since the backup retention names no fullRead. Set fullRead of ZIBRI_DI_TOKENS.BACKUP_RETENTION to say how often.
+2026-11-16T10:03:29.9689746Z [1m[1m10:03:29.965[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T10:04:05.2715097Z 100 MB of postgres, incremental          backup 331 ms  restore 14166 ms      peak rss +25.5 MiB   max rss 722.8 MiB      staging 37.5 MiB     stored 34.1 MiB
+2026-11-16T10:04:05.2715769Z                                       source alone 353 ms  read 173 ms  store 29 ms  record 2 ms  cpu 442 ms  | restore:  fetch 389 ms  snapshot 0 ms  apply 12959 ms  cpu 5635 ms  | garbage collection:  15 ms  left 33.4 MiB
+2026-11-16T10:04:05.2718825Z                                       harness:  load 827 ms  boot 1492 ms  fill 13867 ms  changes 1280 ms  fingerprints 2530 ms  shutdown 1223 ms
+2026-11-16T10:04:05.3182374Z PASS src/backup/backup.postgres.benchmark.test.ts (156.867 s)
+2026-11-16T10:04:05.3183104Z   what backups cost
+2026-11-16T10:04:05.3185041Z     ✓ measures every scenario, each costing what it is designed to (156163 ms)
+2026-11-16T10:04:05.3185573Z     ✓ takes at most linearly longer for more data
+2026-11-16T10:04:05.3186096Z     ✓ takes no longer and stores no more than what each measurement is compared with (1 ms)
+2026-11-16T10:04:05.3186401Z 
+2026-11-16T10:04:05.3209412Z Test Suites: 1 passed, 1 total
+2026-11-16T10:04:05.3210251Z Tests:       3 passed, 3 total
+2026-11-16T10:04:05.3210492Z Snapshots:   0 total
+2026-11-16T10:04:05.3210724Z Time:        156.9 s, estimated 273 s
+2026-11-16T10:04:05.3211325Z Ran all test suites within paths "/home/runner/work/zibri/zibri/packages/zibri/src/backup/backup.postgres.benchmark.test.ts".
+2026-11-16T10:04:05.5324589Z 
+2026-11-16T10:04:05.5325185Z > zibri@3.1.0 test:benchmark
+2026-11-16T10:04:05.5326039Z > node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand --testPathPatterns="\.benchmark\.test\.ts$" --runTestsByPath /home/runner/work/zibri/zibri/packages/zibri/src/backup/backup.postgres.benchmark.test.ts
+2026-11-16T10:04:05.5326509Z 
+2026-11-16T10:04:09.4645321Z [1m[1m10:04:09.463[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T10:04:09.4646184Z [1m[1m10:04:09.463[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T10:04:13.2448356Z 10 MB of postgres                        backup 238 ms   restore 1266 ms      peak rss +41.9 MiB   max rss 450.5 MiB       staging 3.6 MiB      stored 9.8 MiB
+2026-11-16T10:04:13.2449011Z                                       source alone 91 ms  read 179 ms  store 117 ms  record 1 ms  cpu 528 ms  | restore:  fetch 15 ms  snapshot 0 ms  apply 1164 ms  cpu 321 ms  | garbage collection:  13 ms  left 6.6 MiB
+2026-11-16T10:04:13.2449573Z                                       harness:  load 750 ms  boot 1400 ms  fill 1442 ms  changes 130 ms  fingerprints 251 ms  shutdown 346 ms
+2026-11-16T10:04:16.1389176Z [1m[1m10:04:16.137[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T10:04:16.1408134Z [1m[1m10:04:16.137[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T10:04:51.6040949Z 100 MB of postgres                      backup 1507 ms  restore 12918 ms      peak rss +25.5 MiB   max rss 671.9 MiB      staging 36.4 MiB     stored 98.8 MiB
+2026-11-16T10:04:51.6042011Z                                       source alone 339 ms  read 1403 ms  store 1179 ms  record 1 ms  cpu 4253 ms  | restore:  fetch 327 ms  snapshot 0 ms  apply 11867 ms  cpu 5095 ms  | garbage collection:  26 ms  left 66.0 MiB
+2026-11-16T10:04:51.6042771Z                                       harness:  load 742 ms  boot 1372 ms  fill 13211 ms  changes 1294 ms  fingerprints 2412 ms  shutdown 1208 ms
+2026-11-16T10:04:54.4780908Z [1m[1m10:04:54.477[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T10:04:54.4781759Z [1m[1m10:04:54.477[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T10:04:59.6482226Z 10 MB of postgres, dump compressed       backup 620 ms   restore 1189 ms      peak rss +32.0 MiB   max rss 439.4 MiB       staging 3.4 MiB     stored 10.2 MiB
+2026-11-16T10:04:59.6483653Z                                       source alone 542 ms  read 556 ms  store 39 ms  record 1 ms  cpu 340 ms  | restore:  fetch 13 ms  snapshot 0 ms  apply 1135 ms  cpu 144 ms  | garbage collection:  10 ms  left 6.8 MiB
+2026-11-16T10:04:59.6484183Z                                       harness:  load 740 ms  boot 1353 ms  fill 1381 ms  changes 116 ms  fingerprints 241 ms  shutdown 337 ms
+2026-11-16T10:05:02.5462214Z [1m[1m10:05:02.543[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T10:05:02.5467337Z [1m[1m10:05:02.543[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T10:05:53.1351440Z 100 MB of postgres, dump compressed     backup 5204 ms  restore 11683 ms      peak rss +78.6 MiB   max rss 588.4 MiB      staging 34.4 MiB    stored 102.7 MiB
+2026-11-16T10:05:53.1352265Z                                       source alone 4941 ms  read 5158 ms  store 418 ms  record 1 ms  cpu 3019 ms  | restore:  fetch 279 ms  snapshot 0 ms  apply 11388 ms  cpu 2604 ms  | garbage collection:  17 ms  left 68.6 MiB
+2026-11-16T10:05:53.1353058Z                                       harness:  load 738 ms  boot 1379 ms  fill 13611 ms  changes 1445 ms  fingerprints 2486 ms  shutdown 1218 ms
+2026-11-16T10:05:56.0476767Z [1m[1m10:05:56.046[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T10:05:56.0477617Z [1m[1m10:05:56.046[0m [33m[1mWARN[0m   dataSourceClass reads only what changed, and reads in full once a week, since the backup retention names no fullRead. Set fullRead of ZIBRI_DI_TOKENS.BACKUP_RETENTION to say how often.
+2026-11-16T10:05:56.0478524Z [1m[1m10:05:56.046[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T10:05:59.8465076Z 10 MB of postgres, incremental           backup 157 ms   restore 1363 ms      peak rss +43.0 MiB   max rss 458.1 MiB       staging 3.7 MiB      stored 3.4 MiB
+2026-11-16T10:05:59.8465859Z                                       source alone 92 ms  read 31 ms  store 3 ms  record 1 ms  cpu 86 ms  | restore:  fetch 14 ms  snapshot 0 ms  apply 1220 ms  cpu 341 ms  | garbage collection:  10 ms  left 3.3 MiB
+2026-11-16T10:05:59.8466402Z                                       harness:  load 734 ms  boot 1402 ms  fill 1435 ms  changes 147 ms  fingerprints 257 ms  shutdown 356 ms
+2026-11-16T10:06:02.7341707Z [1m[1m10:06:02.733[0m [33m[1mWARN[0m   The data source "dataSourceClass" uses the default credentials, you probably want to change that.
+2026-11-16T10:06:02.7346599Z [1m[1m10:06:02.733[0m [33m[1mWARN[0m   dataSourceClass reads only what changed, and reads in full once a week, since the backup retention names no fullRead. Set fullRead of ZIBRI_DI_TOKENS.BACKUP_RETENTION to say how often.
+2026-11-16T10:06:02.7351658Z [1m[1m10:06:02.733[0m [33m[1mWARN[0m   No ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE is provided, so there is no explorer at /explorer. The documents are served at /explorer/spec/<version>, which /explorer sends to.
+2026-11-16T10:06:37.6395963Z 100 MB of postgres, incremental          backup 322 ms  restore 14226 ms      peak rss +26.7 MiB   max rss 714.7 MiB      staging 37.5 MiB     stored 34.1 MiB
+2026-11-16T10:06:37.6396745Z                                       source alone 319 ms  read 175 ms  store 42 ms  record 1 ms  cpu 404 ms  | restore:  fetch 369 ms  snapshot 0 ms  apply 13134 ms  cpu 5144 ms  | garbage collection:  14 ms  left 33.4 MiB
+2026-11-16T10:06:37.6397293Z                                       harness:  load 722 ms  boot 1397 ms  fill 13620 ms  changes 1301 ms  fingerprints 2406 ms  shutdown 1223 ms
+2026-11-16T10:06:37.6933699Z FAIL src/backup/backup.postgres.benchmark.test.ts (151.823 s)
+2026-11-16T10:06:37.6934586Z   what backups cost
+2026-11-16T10:06:37.6941179Z     ✓ measures every scenario, each costing what it is designed to (151129 ms)
+2026-11-16T10:06:37.6941660Z     ✓ takes at most linearly longer for more data
+2026-11-16T10:06:37.6942164Z     ✕ takes no longer and stores no more than what each measurement is compared with (2 ms)
+2026-11-16T10:06:37.6942454Z 
+2026-11-16T10:06:37.6942854Z   ● what backups cost › takes no longer and stores no more than what each measurement is compared with
+2026-11-16T10:06:37.6943181Z 
+2026-11-16T10:06:37.6943371Z     expect(received).toStrictEqual(expected) // deep equality
+2026-11-16T10:06:37.6943589Z 
+2026-11-16T10:06:37.6943689Z     - Expected  - 1
+2026-11-16T10:06:37.6943915Z     + Received  + 3
+2026-11-16T10:06:37.6944030Z 
+2026-11-16T10:06:37.6944107Z     - Array []
+2026-11-16T10:06:37.6944278Z     + Array [
+2026-11-16T10:06:37.6944639Z     +   "100 MB of postgres: restore 1.11x of 100 MB of postgres, dump compressed, at most 1.1x",
+2026-11-16T10:06:37.6945039Z     + ]
+2026-11-16T10:06:37.6945131Z 
+2026-11-16T10:06:37.6945272Z     [0m [90m 963 |[39m
+2026-11-16T10:06:37.6945912Z      [90m 964 |[39m         it([32m'takes no longer and stores no more than what each measurement is compared with'[39m[33m,[39m () [33m=>[39m {
+2026-11-16T10:06:37.6946949Z     [31m[1m>[22m[39m[90m 965 |[39m             expect(taken[33m.[39mflatMap(t [33m=>[39m findComparedViolations(t[33m,[39m taken)))[33m.[39mtoStrictEqual([])[33m;[39m
+2026-11-16T10:06:37.6947752Z      [90m     |[39m                                                                          [31m[1m^[22m[39m
+2026-11-16T10:06:37.6948150Z      [90m 966 |[39m         })[33m;[39m
+2026-11-16T10:06:37.6948445Z      [90m 967 |[39m     })[33m;[39m
+2026-11-16T10:06:37.6948701Z      [90m 968 |[39m }[0m
+2026-11-16T10:06:37.6948838Z 
+2026-11-16T10:06:37.6949129Z       at Object.<anonymous> (__testing__/benchmark/backup/backup-benchmark.cases.ts:965:74)
+2026-11-16T10:06:37.6949453Z 
+2026-11-16T10:06:37.6959342Z Test Suites: 1 failed, 1 total
+2026-11-16T10:06:37.6959662Z Tests:       1 failed, 2 passed, 3 total
+2026-11-16T10:06:37.6960093Z Snapshots:   0 total
+2026-11-16T10:06:37.6960341Z Time:        151.856 s, estimated 157 s
+2026-11-16T10:06:37.6960928Z Ran all test suites within paths "/home/runner/work/zibri/zibri/packages/zibri/src/backup/backup.postgres.benchmark.test.ts".
+2026-11-16T10:06:37.8224553Z npm error Lifecycle script `test:benchmark` failed with error:
+2026-11-16T10:06:37.8224987Z npm error code 1
+2026-11-16T10:06:37.8225321Z npm error path /home/runner/work/zibri/zibri/packages/zibri
+2026-11-16T10:06:37.8225684Z npm error workspace zibri@3.1.0
+2026-11-16T10:06:37.8226048Z npm error location /home/runner/work/zibri/zibri/packages/zibri
+2026-11-16T10:06:37.8226386Z npm error command failed
+2026-11-16T10:06:37.8227503Z npm error command sh -c node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand --testPathPatterns="\.benchmark\.test\.ts$" --runTestsByPath /home/runner/work/zibri/zibri/packages/zibri/src/backup/backup.postgres.benchmark.test.ts
+2026-11-16T10:06:45.5856509Z node:internal/errors:986
+2026-11-16T10:06:45.5857360Z   const err = new Error(message);
+2026-11-16T10:06:45.5857834Z               ^
+2026-11-16T10:06:45.5857965Z 
+2026-11-16T10:06:45.5858710Z Error: Command failed: npm run test:benchmark -w zibri -- --runTestsByPath /home/runner/work/zibri/zibri/packages/zibri/src/backup/backup.postgres.benchmark.test.ts
+2026-11-16T10:06:45.5859142Z     at genericNodeError (node:internal/errors:986:15)
+2026-11-16T10:06:45.5859347Z     at wrappedFn (node:internal/errors:540:14)
+2026-11-16T10:06:45.5859547Z     at checkExecSyncError (node:child_process:943:11)
+2026-11-16T10:06:45.5859752Z     at execFileSync (node:child_process:979:15)
+2026-11-16T10:06:45.5860172Z     at run (file:///home/runner/work/zibri/zibri/packages/zibri/scripts/compare-benchmarks.mjs:236:5)
+2026-11-16T10:06:45.5860561Z     at runSuites (file:///home/runner/work/zibri/zibri/packages/zibri/scripts/compare-benchmarks.mjs:289:5)
+2026-11-16T10:06:45.5861100Z     at compareWithRelease (file:///home/runner/work/zibri/zibri/packages/zibri/scripts/compare-benchmarks.mjs:334:29)
+2026-11-16T10:06:45.5861503Z     at main (file:///home/runner/work/zibri/zibri/packages/zibri/scripts/compare-benchmarks.mjs:382:5)
+2026-11-16T10:06:45.5861871Z     at file:///home/runner/work/zibri/zibri/packages/zibri/scripts/compare-benchmarks.mjs:387:5
+2026-11-16T10:06:45.5862180Z     at ModuleJob.run (node:internal/modules/esm/module_job:561:25) {
+2026-11-16T10:06:45.5862442Z   status: 1,
+2026-11-16T10:06:45.5862562Z   signal: null,
+2026-11-16T10:06:45.5862703Z   output: [ null, null, null ],
+2026-11-16T10:06:45.5862839Z   pid: 8243,
+2026-11-16T10:06:45.5862949Z   stdout: null,
+2026-11-16T10:06:45.5863065Z   stderr: null
+2026-11-16T10:06:45.5863180Z }
+2026-11-16T10:06:45.5863243Z 
+2026-11-16T10:06:45.5863291Z Node.js v24.22.2
+2026-11-16T10:06:45.5910240Z npm error Lifecycle script `test:benchmark:compare` failed with error:
+2026-11-16T10:06:45.5910801Z npm error code 1
+2026-11-16T10:06:45.5911205Z npm error path /home/runner/work/zibri/zibri/packages/zibri
+2026-11-16T10:06:45.5911534Z npm error workspace zibri@3.1.0
+2026-11-16T10:06:45.5911874Z npm error location /home/runner/work/zibri/zibri/packages/zibri
+2026-11-16T10:06:45.5912186Z npm error command failed
+2026-11-16T10:06:45.5912818Z npm error command sh -c node scripts/compare-benchmarks.mjs test:benchmark postgres
+2026-11-16T10:06:45.5986331Z ##[error]Process completed with exit code 1.
+2026-11-16T10:06:45.6044821Z ##[group]Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+2026-11-16T10:06:45.6045045Z with:
+2026-11-16T10:06:45.6045175Z   name: benchmark-report-postgres
+2026-11-16T10:06:45.6045511Z   path: packages/zibri/src/__testing__/file-output/*benchmark-report.json
+packages/zibri/src/__testing__/file-output/benchmark-comparison-*.json
+
+2026-11-16T10:06:45.6045840Z   if-no-files-found: warn
+2026-11-16T10:06:45.6045987Z   compression-level: 6
+2026-11-16T10:06:45.6046114Z   overwrite: false
+2026-11-16T10:06:45.6046238Z   include-hidden-files: false
+2026-11-16T10:06:45.6046370Z   archive: true
+2026-11-16T10:06:45.6046486Z ##[endgroup]
+2026-11-16T10:06:45.7016450Z With the provided path, there will be 2 files uploaded
+2026-11-16T10:06:45.7020391Z Artifact name is valid!
+2026-11-16T10:06:45.7020734Z Root directory input is valid!
+2026-11-16T10:06:45.9648404Z Uploading artifact: benchmark-report-postgres.zip
+2026-11-16T10:06:45.9664733Z Beginning upload of artifact content to blob storage
+2026-11-16T10:06:46.1457967Z Uploaded bytes 1378
+2026-11-16T10:06:46.1914066Z Finished uploading artifact content to blob storage!
+2026-11-16T10:06:46.1914761Z SHA256 digest of uploaded artifact is 5644b1e96ba54b7684f277132db24030b95999df6dfc463f741ce91bd62c76f4
+2026-11-16T10:06:46.1915265Z Finalizing artifact upload
+2026-11-16T10:06:46.6091203Z Artifact benchmark-report-postgres successfully finalized. Artifact ID 14214204383
+2026-11-16T10:06:46.6091723Z Artifact benchmark-report-postgres has been successfully uploaded! Final size is 1378 bytes. Artifact ID is 14214204383
+2026-11-16T10:06:46.6094848Z Artifact download URL: https://github.com/Service-Soft/zibri/actions/runs/43843371658/artifacts/14214204383
+2026-11-16T10:06:46.6247162Z Post job cleanup.
+2026-11-16T10:06:46.6820023Z [command]/usr/bin/git version
+2026-11-16T10:06:46.6887165Z git version 2.56.1
+2026-11-16T10:06:46.6913892Z Temporarily overriding HOME='/home/runner/work/_temp/c29179cb-fd67-4a6b-8bb3-b26e0991b558' before making global git config changes
+2026-11-16T10:06:46.6914909Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-16T10:06:46.6916592Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/zibri/zibri
+2026-11-16T10:06:46.6959167Z Removing SSH command configuration
+2026-11-16T10:06:46.6965020Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-16T10:06:46.7001106Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-16T10:06:46.7262240Z Removing HTTP extra header
+2026-11-16T10:06:46.7289517Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-16T10:06:46.7322954Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-16T10:06:46.7558956Z Removing includeIf entries pointing to credentials config files
+2026-11-16T10:06:46.7564540Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-16T10:06:46.7589818Z includeif.gitdir:/home/runner/work/zibri/zibri/.git.path
+2026-11-16T10:06:46.7590399Z includeif.gitdir:/home/runner/work/zibri/zibri/.git/worktrees/*.path
+2026-11-16T10:06:46.7590833Z includeif.gitdir:/github/workspace/.git.path
+2026-11-16T10:06:46.7591200Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-11-16T10:06:46.7597590Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/zibri/zibri/.git.path
+2026-11-16T10:06:46.7621274Z /home/runner/work/_temp/git-credentials-1e27ea6f-a3bb-40eb-b45e-c6d615347990.config
+2026-11-16T10:06:46.7629222Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/zibri/zibri/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-1e27ea6f\-a3bb\-40eb\-b45e\-c6d615347990\.config
+2026-11-16T10:06:46.7694182Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/zibri/zibri/.git/worktrees/*.path
+2026-11-16T10:06:46.7719823Z /home/runner/work/_temp/git-credentials-1e27ea6f-a3bb-40eb-b45e-c6d615347990.config
+2026-11-16T10:06:46.7727206Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/zibri/zibri/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-1e27ea6f\-a3bb\-40eb\-b45e\-c6d615347990\.config
+2026-11-16T10:06:46.7759319Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-11-16T10:06:46.7781581Z /github/runner_temp/git-credentials-1e27ea6f-a3bb-40eb-b45e-c6d615347990.config
+2026-11-16T10:06:46.7787793Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-1e27ea6f\-a3bb\-40eb\-b45e\-c6d615347990\.config
+2026-11-16T10:06:46.7819306Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-11-16T10:06:46.7841417Z /github/runner_temp/git-credentials-1e27ea6f-a3bb-40eb-b45e-c6d615347990.config
+2026-11-16T10:06:46.7848142Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-1e27ea6f\-a3bb\-40eb\-b45e\-c6d615347990\.config
+2026-11-16T10:06:46.7879820Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-16T10:06:46.8105289Z Removing credentials config '/home/runner/work/_temp/git-credentials-1e27ea6f-a3bb-40eb-b45e-c6d615347990.config'
+2026-11-16T10:06:46.8237765Z Cleaning up orphan processes

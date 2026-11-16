@@ -1,5 +1,7 @@
 import { Readable } from 'node:stream';
 
+import { BackupRepositoryKey } from './backup-repository-key.model';
+
 /**
  * The data of a resource of a deduplicated backup, as a transport hands it back to be restored.
  */
@@ -15,13 +17,18 @@ export type RetrievedBackupResource = {
     data: Readable
 } | {
     /**
-     * Stored as chunks: the data rebuilt from them, each one checked against its id as it is read.
+     * Stored as chunks: each one checked against its id as it is fetched, and handed on as stored.
      */
     kind: 'chunks',
     /**
-     * The data of the resource, not read yet.
+     * The chunks, each a `FetchedBackupChunk`, in the order of the data, not fetched yet. `BackupChunkUtilities.openAll`
+     * turns them into the data.
      */
-    data: Readable,
+    chunks: Readable,
+    /**
+     * The repository key the chunks are opened with, or undefined for unencrypted chunks.
+     */
+    key: BackupRepositoryKey | undefined,
     /**
      * How many bytes the data is, as its manifest lists the chunks.
      */

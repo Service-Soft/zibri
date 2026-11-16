@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import { constants, zstdCompress, zstdDecompress } from 'node:zlib';
 
 import { BackupRepositoryKey } from './backup-repository-key.model';
+import { FetchedBackupChunk } from './fetched-backup-chunk.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 
 /**
@@ -54,6 +55,11 @@ enum ChunkCompression {
  */
 const HMAC_KEYS: WeakMap<Buffer, Promise<webcrypto.CryptoKey>> = new WeakMap();
 const AES_KEYS: WeakMap<Buffer, Promise<webcrypto.CryptoKey>> = new WeakMap();
+
+/**
+ * How many chunks {@link BackupChunkUtilities.openAll} opens ahead of the one it hands on, each held with its data.
+ */
+const CHUNKS_OPENED_AHEAD: number = 4;
 
 const HEADER_BYTES: number = 2;
 const NONCE_BYTES: number = 12;
@@ -185,6 +191,46 @@ export abstract class BackupChunkUtilities {
             throw this.createUnreadableError(id, 'its data is not the data of its id');
         }
         return data;
+    }
+
+    /**
+     * The data of chunks kept as they were stored, opened a few ahead, so that decompressing and hashing one, on
+     * the thread pool, overlaps with whatever reads the one before it.
+     * @param chunks - The chunks, in the order of the data.
+     * @param key - The repository key, or undefined for unencrypted chunks.
+     * @yields The data of each chunk, in order.
+     * @throws When a chunk is not the chunk of its id.
+     */
+    static async* openAll(chunks: AsyncIterable<FetchedBackupChunk>, key: BackupRepositoryKey | undefined): AsyncGenerator<Buffer> {
+        const iterator: AsyncIterator<FetchedBackupChunk> = chunks[Symbol.asyncIterator]();
+        const ahead: Promise<Buffer>[] = [];
+        let read: boolean = false;
+        try {
+            while (true) {
+                while (!read && ahead.length < CHUNKS_OPENED_AHEAD) {
+                    const next: IteratorResult<FetchedBackupChunk> = await iterator.next();
+                    if (next.done === true) {
+                        read = true;
+                        break;
+                    }
+                    const { entry, stored } = next.value;
+                    const opened: Promise<Buffer> = this.open(stored, entry.id, key, entry.length);
+                    // handled when its turn comes; until then a failure must not count as unhandled
+                    // eslint-disable-next-line promise/prefer-await-to-then
+                    opened.catch(() => undefined);
+                    ahead.push(opened);
+                }
+                const chunk: Promise<Buffer> | undefined = ahead.shift();
+                if (chunk == undefined) {
+                    return;
+                }
+                yield await chunk;
+            }
+        }
+        finally {
+            await Promise.allSettled(ahead);
+            await iterator.return?.();
+        }
     }
 
     private static async decrypt(stored: Buffer, header: Buffer, id: string, key: BackupRepositoryKey): Promise<Buffer> {

@@ -24,6 +24,9 @@ import { testFileFolder } from '../../constants';
 import { BenchmarkFigure } from '../benchmark-figure.model';
 import { BenchmarkTiming } from '../benchmark-timing.model';
 import { BenchmarkUtilities } from '../benchmark.utilities';
+import { PerfControl } from '../perf-control.model';
+import { PerfFork, PerfRecordingUtilities } from '../perf-recording.utilities';
+import { ThreadCpu, ThreadCpuUtilities } from '../thread-cpu.utilities';
 
 const MIB: number = 1024 * 1024;
 
@@ -186,12 +189,22 @@ export const UNCHANGED: ChangeProfile = { updatedShare: 0, deletedShare: 0, inse
  */
 const BACKUPS: number = 3;
 
+/**
+ * How many times each measurement restores its last backup, of which the median restore is measured.
+ */
+const RESTORES: number = 3;
+
 const entryPath: FsPath = FsUtilities.getPath(__dirname, 'backup-measurement.entry.ts');
 
 /**
  * How long a measured process may take to exit by itself once it reported.
  */
 const CHILD_EXIT_WITHIN_MS: number = 10_000;
+
+/**
+ * How long the `perf` a measured process was started under may take to write its recording once the process ended.
+ */
+const PERF_EXIT_WITHIN_MS: number = 120_000;
 
 /**
  * Where the cpu profiles of the measured processes are written, when they are asked for.
@@ -207,6 +220,13 @@ const cpuProfileFolder: FsPath = FsUtilities.getPath(testFileFolder, `backup-cpu
 const heapSnapshotFolder: FsPath | undefined = process.env['ZIBRI_BENCHMARK_HEAP_SNAPSHOT'] === '1'
     ? FsUtilities.getPath(testFileFolder, `backup-heap-snapshots-${UUIDUtilities.generate()}`)
     : undefined;
+
+/**
+ * Where `perf` records the first restore of each measured process, when ZIBRI_BENCHMARK_PERF_FOLDER names a folder:
+ * `node scripts/profile-benchmarks.mjs <group>` runs the benchmarks of a group so and sums every recording up.
+ */
+const perfFolderEnv: string | undefined = process.env['ZIBRI_BENCHMARK_PERF_FOLDER'];
+const perfFolder: string | undefined = perfFolderEnv === '' ? undefined : perfFolderEnv;
 
 /**
  * The format every scenario writes. ZIBRI_BACKUP_BENCHMARK_FORMAT_VERSION=1 measures what this build costs
@@ -310,7 +330,7 @@ type TakenMeasurement = {
 
 /**
  * A measurement taken the way every measurement of the suites is: {@link BACKUPS} encrypted backups
- * a day of {@link DAILY_CHANGES} apart.
+ * a day of {@link DAILY_CHANGES} apart, and the median of {@link RESTORES} restores of the last.
  * @param input - What tells it from the others.
  * @returns The scenario.
  */
@@ -324,6 +344,9 @@ export function resolveBackupScenario(input: BackupScenarioInput): BackupScenari
             formatVersion,
             resources: input.resources,
             backups: BACKUPS,
+            restores: RESTORES,
+            // created as the measured process starts, which perf starts
+            perfControl: undefined,
             changes: input.changes ?? DAILY_CHANGES,
             encrypt: true,
             seed: input.seed,
@@ -618,21 +641,29 @@ function isMeasurementResult(message: unknown): message is BackupMeasurementResu
 
 /**
  * Runs one measurement in a process of its own, so that the most memory it held belongs to it alone.
- * @param config - What to measure.
+ * @param scenarioConfig - What to measure.
  * @returns The measurement.
  */
-async function runMeasurement(config: BackupMeasurementConfig): Promise<BackupMeasurement> {
+async function runMeasurement(scenarioConfig: BackupMeasurementConfig): Promise<BackupMeasurement> {
     const { execArgv, env }: Required<Pick<ForkOptions, 'execArgv' | 'env'>> = resolveTypeScriptForkOptions('The backup benchmark');
-    const child: ChildProcess = fork(entryPath, [], {
-        cwd: process.cwd(),
+    const perfControl: PerfControl | undefined = perfFolder == undefined
+        ? undefined
+        : PerfRecordingUtilities.createControl(FsUtilities.getPath(perfFolder, `${resolvePerfFileName(scenarioConfig.name)}.perf.data`));
+    const config: BackupMeasurementConfig = { ...scenarioConfig, perfControl };
+    const nodeArgs: string[] = [
+        ...execArgv,
         // so that each phase starts from what the process holds once the collector ran.
+        '--expose-gc',
         // ZIBRI_BENCHMARK_CPU_PROFILE=1 writes a cpu profile of each process, for where its time goes:
         // node scripts/summarize-cpu-profile.mjs <file> sums it up by package
-        execArgv: [
-            ...execArgv,
-            '--expose-gc',
-            ...process.env['ZIBRI_BENCHMARK_CPU_PROFILE'] === '1' ? ['--cpu-prof', `--cpu-prof-dir=${cpuProfileFolder}`] : []
-        ],
+        ...process.env['ZIBRI_BENCHMARK_CPU_PROFILE'] === '1' ? ['--cpu-prof', `--cpu-prof-dir=${cpuProfileFolder}`] : []
+    ];
+    // under perf when it records, which starts node with these arguments
+    const { execPath, execArgv: forkArgs }: PerfFork = PerfRecordingUtilities.resolveFork(perfControl, nodeArgs);
+    const child: ChildProcess = fork(entryPath, [], {
+        cwd: process.cwd(),
+        execPath,
+        execArgv: forkArgs,
         stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
         env: { ...env, [BACKUP_MEASUREMENT_CONFIG_ENV]: JsonUtilities.stringify(config) }
     });
@@ -651,15 +682,25 @@ async function runMeasurement(config: BackupMeasurementConfig): Promise<BackupMe
         return result.measurement;
     }
     finally {
-        // a moment to exit by itself, as it does once it reported, before it is ended
+        // a moment to exit by itself, as it does once it reported, before it is ended. Under perf, which writes its
+        // recording once the process ended, a longer one
         if (child.exitCode == undefined) {
             await Promise.race([
                 new Promise(resolve => child.once('exit', resolve)),
-                wait(CHILD_EXIT_WITHIN_MS, undefined, { ref: false })
+                wait(perfControl == undefined ? CHILD_EXIT_WITHIN_MS : PERF_EXIT_WITHIN_MS, undefined, { ref: false })
             ]);
         }
         child.kill();
     }
+}
+
+/**
+ * The name of a measurement as a file name: what is neither a letter nor a digit as a dash.
+ * @param name - The name, such as `100 MB of postgres, dump compressed`.
+ * @returns The file name, such as `100-MB-of-postgres-dump-compressed`.
+ */
+function resolvePerfFileName(name: string): string {
+    return name.replaceAll(/[^\dA-Za-z]+/g, '-').replaceAll(/^-|-$/g, '');
 }
 
 /**
@@ -825,6 +866,10 @@ function describeMeasurement(config: BackupMeasurementConfig, measurement: Backu
     const backups: BackupMeasurement['backups'] = measurement.backups;
     const median: (read: (b: BackupMeasurement['backups'][number]) => number) => number = read => medianOf(backups.map(read));
     const restore: BackupMeasurement['restore'] = measurement.restore;
+    // of the backup whose CPU is the median, as the medians of each kind add up to no backup's
+    const backupThreadCpu: ThreadCpu | undefined = [...backups]
+        .sort((a, b) => (a.cpuUserMs + a.cpuSystemMs) - (b.cpuUserMs + b.cpuSystemMs))[Math.floor(backups.length / 2)]
+        ?.cpuByThreadMs;
     return [
         [
             measurement.name.padEnd(36),
@@ -842,11 +887,15 @@ function describeMeasurement(config: BackupMeasurementConfig, measurement: Backu
             `store ${ms(median(b => b.transport.callDurationsMs['put'] ?? 0))}`,
             `record ${ms(median(b => b.transport.callDurationsMs['putRecord'] ?? 0))}`,
             `cpu ${ms(median(b => b.cpuUserMs + b.cpuSystemMs))}`,
+            `main thread ${ms(median(b => b.cpuMainThreadMs))}`,
+            ...backupThreadCpu == undefined ? [] : [ThreadCpuUtilities.format(backupThreadCpu)],
             '| restore:',
             `fetch ${ms(restore.transport.callDurationsMs['get'] ?? 0)}`,
             `snapshot ${ms(restore.snapshotReadMs)}`,
             `apply ${ms(restore.applyMs)}`,
             `cpu ${ms(restore.cpuUserMs + restore.cpuSystemMs)}`,
+            `main thread ${ms(restore.cpuMainThreadMs)}`,
+            ...restore.cpuByThreadMs == undefined ? [] : [ThreadCpuUtilities.format(restore.cpuByThreadMs)],
             '| garbage collection:',
             `${ms(measurement.garbageCollection.durationMs)}`,
             ...measurement.garbageCollection.bytesStoredAfter == undefined

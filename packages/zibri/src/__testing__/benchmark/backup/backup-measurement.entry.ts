@@ -53,10 +53,13 @@ import { inject } from '../../../di/inject.function';
 import { defineProvider } from '../../../di/models/di-provider.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Newable } from '../../../types/newable.type';
+import { OmitStrict } from '../../../types/omit-strict.type';
 import { FsPath, FsUtilities } from '../../../utilities/fs.utilities';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../test-server/providers';
 import { StartedTestServer, startTestServer } from '../../test-server/start-test-server.function';
+import { PerfControl } from '../perf-control.model';
+import { PerfRecordingUtilities } from '../perf-recording.utilities';
 
 /**
  * What a resource produced in its last backup, and what its last restore was handed.
@@ -64,6 +67,36 @@ import { StartedTestServer, startTestServer } from '../../test-server/start-test
 type ResourceBytes = {
     bytes: number,
     sha256: string
+};
+
+/**
+ * One restore of the measured backup, and what it brought back.
+ */
+type MeasuredRestore = {
+    /**
+     * What the restore cost.
+     */
+    phase: PhaseMeasurement,
+    /**
+     * What the Valkey servers did meanwhile, undefined without one.
+     */
+    server: ValKeyServerMeasurement | undefined,
+    /**
+     * What the transport was asked to do.
+     */
+    transport: BackupRunMeasurement['transport'],
+    /**
+     * How long reading what the restore replaces took, in milliseconds.
+     */
+    readMs: number,
+    /**
+     * How long applying the restored data took, in milliseconds.
+     */
+    applyMs: number,
+    /**
+     * What the restore brought back other than what was backed up, a line each.
+     */
+    mismatches: string[]
 };
 
 /**
@@ -641,12 +674,76 @@ async function measure(): Promise<BackupMeasurement> {
 }
 
 /**
+ * Restores a backup once, and measures it.
+ * @param probes - What reads the Valkey servers during the restore.
+ * @param sampler - What samples the process.
+ * @param backup - The backup.
+ * @param backedUp - What each resource held at the backup, which the restore is to bring back.
+ * @param perfControl - The control of the `perf` that records the restore, or undefined for none.
+ * @returns The measurement.
+ */
+async function measureRestore(
+    probes: ValKeyServerProbe[],
+    sampler: PhaseSampler,
+    backup: BackupEntity,
+    backedUp: ResourceFingerprints[],
+    perfControl: PerfControl | undefined
+): Promise<MeasuredRestore> {
+    const backupService: BackupServiceInterface = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
+    const transport: MeasuredBackupTransport = inject(MeasuredBackupTransport);
+    restored.clear();
+    stageTimes.readMs = 0;
+    stageTimes.applyMs = 0;
+    const restore: () => Promise<void> = async () => await backupService.restore(backup);
+    const [phase, server]: [PhaseMeasurement, ValKeyServerMeasurement | undefined] = await probe(probes, async () => {
+        sampler.begin(undefined);
+        await (perfControl == undefined ? restore() : PerfRecordingUtilities.record(perfControl, restore));
+        return await sampler.end();
+    });
+    const measured: OmitStrict<MeasuredRestore, 'mismatches'> = {
+        phase,
+        server,
+        transport: transport.takeMeasurement(),
+        readMs: stageTimes.readMs,
+        applyMs: stageTimes.applyMs
+    };
+    const afterRestore: (SeededFingerprint | undefined)[] = await timeHarness(
+        'fingerprintMs',
+        async () => await Promise.all(resources.map((r, index) => resolveRestoredFingerprint(r, backedUp[index])))
+    );
+    const mismatches: string[] = resources.flatMap((resource, index) => {
+        const before: ResourceFingerprints | undefined = backedUp[index];
+        const mismatch: string | undefined = before == undefined
+            ? `${resource.name}: nothing was backed up`
+            : resolveMismatch(resource, before, afterRestore[index]);
+        return mismatch == undefined ? [] : [mismatch];
+    });
+    return { ...measured, mismatches };
+}
+
+/**
+ * The restore whose duration is the median of the ones taken: one real restore, every figure of it its own, rather
+ * than medians of each figure that no restore had together.
+ * @param restores - The restores, at least one.
+ * @returns The median one, the later of the two in the middle of an even number.
+ * @throws When there is none.
+ */
+function resolveMedianRestore(restores: MeasuredRestore[]): MeasuredRestore {
+    const median: MeasuredRestore | undefined = [...restores].sort((a, b) => a.phase.durationMs - b.phase.durationMs)[
+        Math.floor(restores.length / 2)
+    ];
+    if (median == undefined) {
+        throw new Error('The config asks for no restore.');
+    }
+    return median;
+}
+
+/**
  * Takes the backups, restores the last one, collects the garbage of the oldest, and measures each.
  * @param probes - What reads the Valkey servers during the backups and the restore.
  * @returns The measurement.
  */
 async function measureProbed(probes: ValKeyServerProbe[]): Promise<BackupMeasurement> {
-    const backupService: BackupServiceInterface = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
     const transport: MeasuredBackupTransport = inject(MeasuredBackupTransport);
     const sampler: PhaseSampler = new PhaseSampler(inject(ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER), config.heapSnapshotFolder);
     await timeHarness('fillMs', async () => {
@@ -700,29 +797,17 @@ async function measureProbed(probes: ValKeyServerProbe[]): Promise<BackupMeasure
         'fingerprintMs',
         async () => await Promise.all(resources.map(r => resolveBackedUpFingerprints(r)))
     );
-    // so that the restore has something to bring back, as one has once a day went wrong
+    // so that the restore has something to bring back, as one has once a day went wrong. The restores after the first
+    // bring back the same backup over itself, which replaces what a resource holds all the same: changing it again
+    // would go against what the seeded table models it to hold, which the first restore took back
     await timeHarness('changesMs', async () => await applyChanges(config.backups));
-    restored.clear();
-    stageTimes.readMs = 0;
-    stageTimes.applyMs = 0;
-    const restoredBackup: BackupEntity = last;
-    const [restorePhase, restoreServer]: [PhaseMeasurement, ValKeyServerMeasurement | undefined] = await probe(probes, async () => {
-        sampler.begin(undefined);
-        await backupService.restore(restoredBackup);
-        return await sampler.end();
-    });
-    const restoreTransport: BackupRunMeasurement['transport'] = transport.takeMeasurement();
-    const afterRestore: (SeededFingerprint | undefined)[] = await timeHarness(
-        'fingerprintMs',
-        async () => await Promise.all(resources.map((r, index) => resolveRestoredFingerprint(r, backedUp[index])))
-    );
-    const mismatches: string[] = resources.flatMap((resource, index) => {
-        const before: ResourceFingerprints | undefined = backedUp[index];
-        const mismatch: string | undefined = before == undefined
-            ? `${resource.name}: nothing was backed up`
-            : resolveMismatch(resource, before, afterRestore[index]);
-        return mismatch == undefined ? [] : [mismatch];
-    });
+    const restores: MeasuredRestore[] = [];
+    for (let round: number = 0; round < config.restores; round++) {
+        restores.push(await measureRestore(probes, sampler, last, backedUp, round === 0 ? config.perfControl : undefined));
+    }
+    const { phase: restorePhase, server: restoreServer, transport: restoreTransport, readMs, applyMs } = resolveMedianRestore(restores);
+    // whichever of them brought back something else
+    const mismatches: string[] = [...new Set(restores.flatMap(r => r.mismatches))];
     const bytesStored: number = config.transport.kind === 'fs'
         ? await PhaseSampler.resolveFolderBytes(config.transport.path)
         : backups.reduce((sum, b) => sum + b.transport.bytesWritten, 0);
@@ -739,8 +824,8 @@ async function measureProbed(probes: ValKeyServerProbe[]): Promise<BackupMeasure
             server: restoreServer,
             restoredExactly: mismatches.length === 0,
             mismatches,
-            snapshotReadMs: stageTimes.readMs,
-            applyMs: stageTimes.applyMs,
+            snapshotReadMs: readMs,
+            applyMs,
             transport: restoreTransport
         },
         garbageCollection,

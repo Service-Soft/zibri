@@ -138,7 +138,7 @@ describe('NewCommand', () => {
             // glob jest asks for and the minimatch of test-exclude have an advisory each, which npm audit reports
             overrides: { 'glob@^13.0.0': '^14.0.2', 'test-exclude': { '.': '^8.0.0', minimatch: '^11.0.1' } },
             // npm warns about every dependency whose install script it was not told about
-            allowScripts: { 're2': true, '@parcel/watcher': false }
+            allowScripts: { re2: true, '@parcel/watcher': false }
         });
     });
 

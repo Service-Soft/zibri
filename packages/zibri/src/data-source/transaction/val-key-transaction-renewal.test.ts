@@ -148,6 +148,20 @@ describe('a valkey transaction whose commit outlasts a renewal of its locks', ()
         expect((await repo.findById(item.id)).value).toBe('written meanwhile');
     }, 30000);
 
+    // a commit of 140000 rows took 22 seconds to send, and the renewals sent meanwhile on the same connection were
+    // answered after it, by which time the locks had lapsed. The connection kept busy for several holds here is what
+    // that transfer does to it
+    it('keeps its locks alive while its connection is busy for longer than they live, and commits', async () => {
+        const transaction: Transaction = dataSource.startTransaction();
+        const item: RenewedItem = await repo.create({ value: 'of the transaction' }, { transaction });
+
+        const busy: Promise<unknown> = dataSource.connection.blpop([`renewal-test:${item.id}`], (HOLD_IN_MS * 4) / 1000);
+        await transaction.commit();
+        await busy;
+
+        expect((await repo.findById(item.id)).value).toBe('of the transaction');
+    }, 30000);
+
     it('names a lock another transaction holds by the commit as held by it', async () => {
         const item: RenewedItem = await repo.create({ value: 'before' });
         const lapsed: Transaction = dataSource.startTransaction();

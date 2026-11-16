@@ -9,7 +9,7 @@ import { Client, ClientSFTPCallback, Connection, SFTPWrapper, utils } from 'ssh2
 import { BackupKeyAccessDeniedError } from './backup-key-access-denied.error';
 import { BackupTransportSessionInterface } from './backup-transport-session.interface';
 import { SftpBackupTransport } from './sftp.backup-transport';
-import { InProcessSftpRequest, InProcessSftpServer } from '../../__testing__/backup/in-process-sftp-server.model';
+import { InProcessSftpLogin, InProcessSftpRequest, InProcessSftpServer } from '../../__testing__/backup/in-process-sftp-server.model';
 import { Ms } from '../../utilities/ms';
 
 // against a server in the test's own process, which a case has answer as a server the transport does not
@@ -73,12 +73,25 @@ class MisbehavingSftpServer extends InProcessSftpServer {
      */
     opensNoSftp: boolean = false;
 
+    /**
+     * Whether the server ends the connection of a client logging in, as one refusing the address it comes from does.
+     */
+    endsAtLogin: boolean = false;
+
     private writesAnswered: Promise<void> = Promise.resolve();
 
     protected override answerSftpRequest(acceptSftp: () => SFTPWrapper, connection: Connection): void {
         if (!this.opensNoSftp) {
             super.answerSftpRequest(acceptSftp, connection);
         }
+    }
+
+    protected override answerLogin(login: InProcessSftpLogin): void {
+        if (this.endsAtLogin) {
+            login.connection.end();
+            return;
+        }
+        super.answerLogin(login);
     }
 
     protected override answerStat(request: InProcessSftpRequest, path: string): void {
@@ -187,6 +200,7 @@ beforeEach(() => {
     server.unanswered.clear();
     server.writeDelayMs = 0;
     server.opensNoSftp = false;
+    server.endsAtLogin = false;
 });
 
 describe('SftpBackupTransport, a server it does not control', () => {
@@ -341,6 +355,19 @@ describe('SftpBackupTransport, a connection that ends', () => {
 
             await expect(transport.openSession()).rejects
                 .toThrow(`did not open the SFTP subsystem for the transport "in-process-sftp-backup-transport" within ${REQUEST_TIMEOUT_IN_MS} ms`);
+        }, CASE_TIMEOUT_IN_MS);
+
+        // ssh2 stops its ready timeout once the connection closes, and reports no error for a server ending it as the
+        // application: the session waited forever, and so did every one after it on a server refusing them all
+        it('fails opening a session on a server that ends the connection while the client logs in', async () => {
+            server.endsAtLogin = true;
+            const transport: SftpBackupTransport = new SftpBackupTransport(
+                'in-process-sftp-backup-transport',
+                { ...server.getOptions('/blobs'), connectTimeoutInMs: Ms.MINUTE }
+            );
+
+            await expect(transport.openSession()).rejects
+                .toThrow('The server "127.0.0.1" closed the connection of the transport "in-process-sftp-backup-transport" before the login completed.');
         }, CASE_TIMEOUT_IN_MS);
 
         // ssh2 never asking the server to close a handle, as a stream that never closes would not: the one way to

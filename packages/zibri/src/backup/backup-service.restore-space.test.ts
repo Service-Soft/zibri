@@ -209,7 +209,7 @@ describe('BackupService - the room a restore takes on this instance\'s disk', ()
         const backup: BackupEntity = await takeBackup();
         await writeSince();
         jest.spyOn(StagingUtilities, 'stage').mockRejectedValue(resolveOutOfSpace());
-        jest.spyOn(StagingUtilities, 'write').mockRejectedValue(resolveOutOfSpace());
+        jest.spyOn(StagingUtilities, 'writeChunks').mockRejectedValue(resolveOutOfSpace());
 
         const refused: unknown = await getBackupService().restore(backup)
             .catch((error: unknown) => error);

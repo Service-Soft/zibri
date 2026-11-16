@@ -34,6 +34,7 @@ import { IncrementalBackupResourceInterface, isIncrementalBackupResource } from 
 import { InitBackupServiceError } from './init-backup-service.error';
 import { KeptUserRowsUtilities } from './kept-user-rows.utilities';
 import { NotEnoughRestoreSpaceError } from './not-enough-restore-space.error';
+import { BackupChunkUtilities } from './repository/backup-chunk.utilities';
 import { BackupChunkingUtilities } from './repository/backup-chunking.utilities';
 import { BackupRepositoryKey } from './repository/backup-repository-key.model';
 import { BackupScrubOptions } from './repository/backup-scrub-options.model';
@@ -48,6 +49,7 @@ import { RestoreOptions } from './restore-options.model';
 import { RestoreSpace, RestoreSpaceOfResource } from './restore-space.model';
 import { RestoreStoppedError } from './restore-stopped.error';
 import { RunQueuedBackupsCronJob } from './run-queued-backups.cron-job';
+import { StagedChunksFile } from './staged-chunks-file.model';
 import { StagedFileCompression } from './staged-file-compression.type';
 import { StagedFile } from './staged-file.model';
 import { StagingUtilities } from './staging.utilities';
@@ -239,12 +241,12 @@ type StagedResource = {
     /**
      * Where its data waits: of the backup restored, or of the newest backup in full it builds on.
      */
-    data: StagedFile,
+    data: StagedFile | StagedChunksFile,
     /**
      * Where the data of each backup after that one waits, up to the one restored, the oldest first. Empty
      * for a backup holding the resource in full.
      */
-    increments: StagedFile[],
+    increments: (StagedFile | StagedChunksFile)[],
     /**
      * Where what the resource held before the restore is kept until the restore is done.
      */
@@ -2829,7 +2831,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         const encrypt: boolean = MetadataUtilities.getBackupResourceMetadata(r)?.encrypt === true
             || chain.some(link => link.resource.encryptedKey != undefined);
         const paths: FsPath[] = [];
-        const files: StagedFile[] = [];
+        const files: (StagedFile | StagedChunksFile)[] = [];
         try {
             for (const link of chain) {
                 const p: FsPath = this.stagingPathFor(link.backup, link.resource);
@@ -2914,7 +2916,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         transports: BackupTransportInterface[],
         p: FsPath,
         encrypt: boolean
-    ): Promise<StagedFile> {
+    ): Promise<StagedFile | StagedChunksFile> {
         // before anything is fetched as well: a master key this application no longer holds is the
         // same kind of answer
         const key: Buffer | undefined = resource.encryptedKey == undefined
@@ -2939,12 +2941,8 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
                 // warned about by resolveRetrieved
                 continue;
             }
-            // a key of its own for each attempt: a stream cipher writing a copy that differs under the same key
-            // as one before it gives away where they differ
-            const file: StagedFile = this.resolveRestoreStagedFile(p, encrypt);
             try {
-                await this.stageRetrieved(retrieved, resource, backup, key, file);
-                return file;
+                return await this.stageRetrieved(retrieved, resource, backup, key, p, encrypt);
             }
             catch (error) {
                 await FsUtilities.rm(p);
@@ -2971,7 +2969,9 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
      * @param resource - The resource as the backup records it, completed.
      * @param backup - The backup.
      * @param key - The key the backup recorded for the resource, decrypted, if any.
-     * @param file - Where to stage it, and how it is stored.
+     * @param p - Where to stage it.
+     * @param encrypt - Whether to encrypt it on this instance's disk, when it arrives in one piece.
+     * @returns The staged file, and how it is stored.
      * @throws When the data is not what the backup recorded, or cannot be fetched or decrypted.
      */
     private async stageRetrieved(
@@ -2979,18 +2979,24 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         resource: BackupResourceEntity,
         backup: BackupEntity,
         key: Buffer | undefined,
-        file: StagedFile
-    ): Promise<void> {
+        p: FsPath,
+        encrypt: boolean
+    ): Promise<StagedFile | StagedChunksFile> {
         if (retrieved.kind === 'chunks') {
             // summed from the chunks its manifest lists, before any of them is fetched: each chunk is
             // checked against its id as it arrives, and a chunk that is not refuses the whole
             if (retrieved.checksum !== resource.checksum || retrieved.size !== resource.size) {
-                retrieved.data.destroy();
+                retrieved.chunks.destroy();
                 throw new CorruptBackupError(backup, resource, { checksum: retrieved.checksum, size: retrieved.size });
             }
-            await this.stopOnShutdown(retrieved.data, async () => await StagingUtilities.write(retrieved.data, file));
-            return;
+            // as they were stored: compressed already, and for an encrypted resource encrypted with the repository key
+            const chunksFile: StagedChunksFile = { path: p, compression: 'chunks', key: retrieved.key, size: retrieved.size };
+            await this.stopOnShutdown(retrieved.chunks, async () => await StagingUtilities.writeChunks(retrieved.chunks, chunksFile));
+            return chunksFile;
         }
+        // a key of its own for each attempt: a stream cipher writing a copy that differs under the same key
+        // as one before it gives away where they differ
+        const file: StagedFile = this.resolveRestoreStagedFile(p, encrypt);
         // in one piece it arrives as stored, and is summed that way
         const digest: BackupDigest = await this.stopOnShutdown(retrieved.data, async () => await StagingUtilities.stage(
             retrieved.data,
@@ -3000,6 +3006,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         if (digest.checksum !== resource.checksum || digest.size !== resource.size) {
             throw new CorruptBackupError(backup, resource, digest);
         }
+        return file;
     }
 
     /**
@@ -3507,7 +3514,10 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         resource: BackupResourceEntity,
         backup: BackupEntity
     ): Promise<Readable> {
-        return (await this.resolveRetrieved(transports, resource, backup, undefined)).data;
+        const retrieved: RetrievedBackupResource = await this.resolveRetrieved(transports, resource, backup, undefined);
+        return retrieved.kind === 'chunks'
+            ? Readable.from(BackupChunkUtilities.openAll(retrieved.chunks, retrieved.key))
+            : retrieved.data;
     }
 
     /**

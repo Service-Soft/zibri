@@ -2,7 +2,7 @@ import { Readable } from 'node:stream';
 import { text } from 'node:stream/consumers';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
 import { BackupEntity } from './backup-entity.model';
@@ -202,6 +202,34 @@ describe('BackupService - what passes through this instance\'s disk', () => {
         }
         // both resources are encrypted: neither what was fetched of them nor what they held reads without a key
         expect(inject(FirstMeasuredStore).readableWhileApplying.filter(name => !name.endsWith('.restore-journal.json'))).toStrictEqual([]);
+        expect(inject(FirstMeasuredStore).value).toBe(backedUp);
+        expect(inject(SecondMeasuredStore).value).toBe(backedUp);
+    }, 60000);
+
+    // the chunks a restore fetched are stored compressed already. Staged as their data, they were compressed again,
+    // encrypted, and read back through both, which cost a restore of 100 MB of postgres more CPU than its dump in one
+    // piece. What a resource holds is staged compressed still, as its snapshot
+    it('stages the chunks a restore fetched as they were stored, compressing only the snapshots of what it replaces', async () => {
+        const backedUp: string = resolveDumpLike('backed up as chunks');
+        inject(FirstMeasuredStore).value = backedUp;
+        inject(SecondMeasuredStore).value = backedUp;
+        const backup: BackupEntity = await getBackupService().waitForBackup(
+            await getBackupService().queueBackup({ name: `staging-folder-${UUIDUtilities.generate()}` })
+        );
+        inject(FirstMeasuredStore).value = resolveDumpLike('current');
+        inject(SecondMeasuredStore).value = resolveDumpLike('current');
+
+        const compress: jest.SpiedFunction<typeof StagingUtilities.compress> = jest.spyOn(StagingUtilities, 'compress');
+        let compressed: number;
+        try {
+            await getBackupService().restore(backup);
+            compressed = compress.mock.calls.length;
+        }
+        finally {
+            compress.mockRestore();
+        }
+
+        expect(compressed).toBe(2);
         expect(inject(FirstMeasuredStore).value).toBe(backedUp);
         expect(inject(SecondMeasuredStore).value).toBe(backedUp);
     }, 60000);

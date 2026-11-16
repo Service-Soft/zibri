@@ -4,6 +4,7 @@ import path from 'node:path';
 import v8 from 'node:v8';
 
 import { LivePhaseMeasurement, PhaseMeasurement } from './backup-measurement.model';
+import { ThreadCpu, ThreadCpuUtilities } from '../thread-cpu.utilities';
 
 /**
  * How a phase is read right after a collection.
@@ -56,6 +57,8 @@ export class PhaseSampler {
     private stagingTimer: NodeJS.Timeout | undefined;
     private startedAt: number = 0;
     private startCpu: NodeJS.CpuUsage = process.cpuUsage();
+    private startMainThreadCpu: NodeJS.CpuUsage = process.threadCpuUsage();
+    private startThreadCpu: ThreadCpu | undefined;
     private start: NodeJS.MemoryUsage = process.memoryUsage();
     private peak: NodeJS.MemoryUsage = process.memoryUsage();
     private peakStagingBytes: number = 0;
@@ -87,6 +90,8 @@ export class PhaseSampler {
         this.writeHeapSnapshot('start');
         this.peakStagingBytes = 0;
         this.startCpu = process.cpuUsage();
+        this.startMainThreadCpu = process.threadCpuUsage();
+        this.startThreadCpu = ThreadCpuUtilities.findThreadCpu();
         this.startedAt = performance.now();
         this.memoryTimer = setInterval(() => this.readMemory(), MEMORY_INTERVAL_IN_MS);
         // the peak of the other readings counts what the collector had not come for yet, which grows
@@ -110,6 +115,9 @@ export class PhaseSampler {
         this.readMemory();
         await this.readStaging();
         const cpu: NodeJS.CpuUsage = process.cpuUsage(this.startCpu);
+        // the sampler runs on the thread the application runs on, so this is that thread's
+        const mainThreadCpu: NodeJS.CpuUsage = process.threadCpuUsage(this.startMainThreadCpu);
+        const threadCpu: ThreadCpu | undefined = ThreadCpuUtilities.findThreadCpu();
         const live: LivePhaseMeasurement | undefined = this.live == undefined
             ? undefined
             : {
@@ -125,6 +133,10 @@ export class PhaseSampler {
             peakStagingBytes: this.peakStagingBytes,
             cpuUserMs: cpu.user / 1000,
             cpuSystemMs: cpu.system / 1000,
+            cpuMainThreadMs: (mainThreadCpu.user + mainThreadCpu.system) / 1000,
+            cpuByThreadMs: this.startThreadCpu == undefined || threadCpu == undefined
+                ? undefined
+                : ThreadCpuUtilities.resolveDifference(this.startThreadCpu, threadCpu),
             live
         };
     }

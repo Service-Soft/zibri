@@ -1,4 +1,5 @@
 import { createHash, Hash } from 'node:crypto';
+import { FileHandle, FileReadResult, open } from 'node:fs/promises';
 import { pipeline as pipeTo, Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -6,10 +7,24 @@ import { constants, createZstdCompress, createZstdDecompress } from 'node:zlib';
 
 import { BackupDigest } from './backup-digest.model';
 import { BackupEncryptionUtilities } from './backup-encryption.utilities';
+import { BackupChunkUtilities } from './repository/backup-chunk.utilities';
+import { FetchedBackupChunk } from './repository/fetched-backup-chunk.model';
+import { StagedChunksFile } from './staged-chunks-file.model';
 import { StagedFile } from './staged-file.model';
 import { StagingTransform } from './staging-transform.type';
 import { ErrorUtilities } from '../error-handling/error.utilities';
+import { InternalError } from '../error-handling/internal-error.model';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+
+/**
+ * How many bytes the id of a chunk takes in a staged file of chunks: a sha256, or an HMAC-SHA256 of it.
+ */
+const CHUNK_ID_BYTES: number = 32;
+
+/**
+ * What precedes each chunk in a staged file of chunks: its id, the length of its data and the length it was stored with.
+ */
+const CHUNK_RECORD_HEADER_BYTES: number = CHUNK_ID_BYTES + 4 + 4;
 
 /**
  * What a backup or a restore keeps on this instance's disk on the way: writing it measured, compressed and
@@ -76,12 +91,24 @@ export abstract class StagingUtilities {
     }
 
     /**
-     * Writes data to a file, stored the way the file says.
-     * @param data - The data.
-     * @param file - The file, and how it is stored, which {@link read} reads it back by.
+     * Writes the chunks a restore fetched to a file, as they were stored, which {@link read} reads back as their data.
+     *
+     * Each chunk after a header of its own: its id, the length of its data and the length it was stored with.
+     * @param chunks - The chunks, in the order of the data.
+     * @param file - The file.
      */
-    static async write(data: AsyncIterable<unknown>, file: StagedFile): Promise<void> {
-        await pipeline(data, source => this.resolveStored(source, file), FsUtilities.createWriteStream(file.path));
+    static async writeChunks(chunks: AsyncIterable<FetchedBackupChunk>, file: StagedChunksFile): Promise<void> {
+        const records: () => AsyncGenerator<Buffer> = async function* (): AsyncGenerator<Buffer> {
+            for await (const { entry, stored } of chunks) {
+                const header: Buffer = Buffer.alloc(CHUNK_RECORD_HEADER_BYTES);
+                Buffer.from(entry.id, 'hex').copy(header, 0);
+                header.writeUInt32BE(entry.length, CHUNK_ID_BYTES);
+                header.writeUInt32BE(stored.length, CHUNK_ID_BYTES + 4);
+                yield header;
+                yield stored;
+            }
+        };
+        await pipeline(records(), FsUtilities.createWriteStream(file.path));
     }
 
     /**
@@ -113,9 +140,13 @@ export abstract class StagingUtilities {
      * Reads a file that was staged.
      * @param file - The file, and how it was stored.
      * @returns What was handed over when it was staged, which fails when the file is not what was stored,
-     * such as when it was compressed and is cut short or changed.
+     * such as when it was compressed and is cut short or changed. Of a file of chunks, their data.
      */
-    static read(file: StagedFile): Readable {
+    static read(file: StagedFile | StagedChunksFile): Readable {
+        if (file.compression === 'chunks') {
+            // each chunk checked against its id again: a file changed on the disk since is as much a reason to stop
+            return Readable.from(this.validateSize(BackupChunkUtilities.openAll(this.readChunks(file.path), file.key), file));
+        }
         const read: Readable = FsUtilities.createReadStream(file.path);
         const decrypted: Readable = file.encryption == undefined
             ? read
@@ -203,6 +234,61 @@ export abstract class StagingUtilities {
         return file.encryption == undefined
             ? compressed
             : BackupEncryptionUtilities.encryptStaged(compressed, file.encryption.key, file.encryption.iv);
+    }
+
+    /**
+     * Hands on the data of a staged file of chunks, and fails once it ends at another size than the file holds.
+     * @param data - The data.
+     * @param file - The file.
+     * @yields Each piece of the data.
+     * @throws When the data ends at another size.
+     */
+    private static async* validateSize(data: AsyncIterable<Buffer>, file: StagedChunksFile): AsyncGenerator<Buffer> {
+        let size: number = 0;
+        for await (const piece of data) {
+            size += piece.length;
+            yield piece;
+        }
+        if (size !== file.size) {
+            throw new InternalError(`The staged file "${file.path}" holds ${size} bytes of data, where it was staged with ${file.size}.`);
+        }
+    }
+
+    /**
+     * Reads the chunks {@link writeChunks} wrote, as they were stored.
+     * @param p - The file.
+     * @yields Each chunk, in order.
+     * @throws When the file is cut short.
+     */
+    private static async* readChunks(p: FsPath): AsyncGenerator<FetchedBackupChunk> {
+        const handle: FileHandle = await open(p, 'r');
+        try {
+            let position: number = 0;
+            while (true) {
+                const header: Buffer = Buffer.alloc(CHUNK_RECORD_HEADER_BYTES);
+                const { bytesRead } = await handle.read(header, 0, header.length, position);
+                if (bytesRead === 0) {
+                    return;
+                }
+                if (bytesRead < header.length) {
+                    throw new InternalError(`The staged file "${p}" ends inside the header of a chunk.`);
+                }
+                const storedLength: number = header.readUInt32BE(CHUNK_ID_BYTES + 4);
+                const stored: Buffer = Buffer.alloc(storedLength);
+                const body: FileReadResult<Buffer> = await handle.read(stored, 0, storedLength, position + header.length);
+                if (body.bytesRead < storedLength) {
+                    throw new InternalError(`The staged file "${p}" ends inside a chunk.`);
+                }
+                position += header.length + storedLength;
+                yield {
+                    entry: { id: header.subarray(0, CHUNK_ID_BYTES).toString('hex'), length: header.readUInt32BE(CHUNK_ID_BYTES) },
+                    stored
+                };
+            }
+        }
+        finally {
+            await handle.close();
+        }
     }
 
     /**

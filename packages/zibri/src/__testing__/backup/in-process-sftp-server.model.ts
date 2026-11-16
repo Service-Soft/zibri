@@ -3,7 +3,7 @@ import { constants } from 'node:fs';
 import { AddressInfo } from 'node:net';
 import { posix } from 'node:path';
 
-import { Attributes, Connection, FileEntry, ParsedKey, Server, SFTPWrapper, utils } from 'ssh2';
+import { Attributes, AuthContext, Connection, FileEntry, ParsedKey, Server, SFTPWrapper, utils } from 'ssh2';
 
 import { SftpBackupTransportOptions } from '../../backup/transports/sftp/sftp-backup-transport-options.model';
 
@@ -31,6 +31,20 @@ export type InProcessSftpRequest = {
      * The id the answer is sent with.
      */
     reqId: number
+};
+
+/**
+ * A client logging in, and the connection it logs in on.
+ */
+export type InProcessSftpLogin = {
+    /**
+     * The login, which accepts or refuses it.
+     */
+    context: AuthContext,
+    /**
+     * The connection it is on.
+     */
+    connection: Connection
 };
 
 /**
@@ -293,6 +307,19 @@ export class InProcessSftpServer {
         this.serveSftp(acceptSftp(), connection);
     }
 
+    /**
+     * Answers a client logging in: the one user with its password, and nobody else.
+     * @param login - The login, and the connection it is on.
+     * @param login.context - The login.
+     */
+    protected answerLogin({ context }: InProcessSftpLogin): void {
+        if (context.method === 'password' && context.username === USERNAME && context.password === PASSWORD) {
+            context.accept();
+            return;
+        }
+        context.reject(['password']);
+    }
+
     private move(from: string, to: string, file: Buffer): void {
         this.files.set(to, file);
         this.files.delete(from);
@@ -321,13 +348,7 @@ export class InProcessSftpServer {
         connection.once('close', () => this.connections.delete(connection));
         // a client the server ends the connection of reports it; nothing to do about it here
         connection.on('error', () => undefined);
-        connection.on('authentication', context => {
-            if (context.method === 'password' && context.username === USERNAME && context.password === PASSWORD) {
-                context.accept();
-                return;
-            }
-            context.reject(['password']);
-        });
+        connection.on('authentication', context => this.answerLogin({ context, connection }));
         connection.on('ready', () => {
             connection.on('session', accept => {
                 accept().on('sftp', acceptSftp => this.answerSftpRequest(acceptSftp, connection));

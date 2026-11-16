@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { FileHandle, open, truncate } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { text } from 'node:stream/consumers';
@@ -8,6 +8,10 @@ import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 
 import { BackupDigest } from './backup-digest.model';
 import { BackupEncryptionUtilities } from './backup-encryption.utilities';
+import { BackupChunkUtilities } from './repository/backup-chunk.utilities';
+import { BackupRepositoryKey } from './repository/backup-repository-key.model';
+import { FetchedBackupChunk } from './repository/fetched-backup-chunk.model';
+import { StagedChunksFile } from './staged-chunks-file.model';
 import { StagedFile } from './staged-file.model';
 import { StagingUtilities } from './staging.utilities';
 import { testFileFolder } from '../__testing__/constants';
@@ -239,5 +243,85 @@ describe('StagingUtilities - stage / read, compressed', () => {
         }
 
         await expect(text(StagingUtilities.read(compressed))).rejects.toThrow();
+    });
+});
+
+describe('StagingUtilities - writeChunks / read', () => {
+    // what a dump mostly is, in chunks of about the size a backup cuts
+    const pieces: string[] = Array.from(
+        { length: 6 },
+        (_, i) => `INSERT INTO task (title, piece) VALUES ('write the docs', ${i});\n`.repeat(4000)
+    );
+    let p: FsPath;
+
+    /**
+     * Seals the pieces the way a backup stores them, and stages them the way a restore fetched them.
+     * @param key - The repository key, or undefined for unencrypted chunks.
+     * @returns The staged file.
+     */
+    async function stageChunks(key: BackupRepositoryKey | undefined): Promise<StagedChunksFile> {
+        const chunks: FetchedBackupChunk[] = await Promise.all(pieces.map(async piece => {
+            const data: Buffer = Buffer.from(piece);
+            const id: string = await BackupChunkUtilities.resolveId(data, key);
+            return { entry: { id, length: data.length }, stored: await BackupChunkUtilities.seal(data, id, key, 3) };
+        }));
+        const file: StagedChunksFile = { path: p, compression: 'chunks', key, size: Buffer.byteLength(pieces.join('')) };
+        await StagingUtilities.writeChunks(Readable.from(chunks), file);
+        return file;
+    }
+
+    beforeEach(async () => {
+        await FsUtilities.mkdir(stagingFolder);
+        p = FsUtilities.getPath(stagingFolder, 'chunks');
+    });
+
+    afterEach(async () => {
+        await FsUtilities.rm(stagingFolder);
+    });
+
+    it('stages the chunks as they were stored, compressed, and reads their data back in order', async () => {
+        const file: StagedChunksFile = await stageChunks(undefined);
+
+        expect((await FsUtilities.stat(p)).size).toBeLessThan(Buffer.byteLength(pieces.join('')) / 10);
+        expect(await text(StagingUtilities.read(file))).toBe(pieces.join(''));
+    });
+
+    it('stages encrypted chunks as they were stored, which only their repository key reads back', async () => {
+        const key: BackupRepositoryKey = { id: 'key', idKey: randomBytes(32), dataKey: randomBytes(32) };
+        const file: StagedChunksFile = await stageChunks(key);
+
+        expect((await FsUtilities.readFile(p)).includes('write the docs')).toBe(false);
+        await expect(text(StagingUtilities.read({ ...file, key: { id: 'key', idKey: randomBytes(32), dataKey: randomBytes(32) } })))
+            .rejects.toThrow();
+        expect(await text(StagingUtilities.read(file))).toBe(pieces.join(''));
+    });
+
+    it('refuses a staged file of chunks that was cut short, inside a chunk or between two', async () => {
+        const file: StagedChunksFile = await stageChunks(undefined);
+        const size: number = (await FsUtilities.stat(p)).size;
+        // what a host going down before the file reached the disk leaves
+        await truncate(p, size - 10);
+        await expect(text(StagingUtilities.read(file))).rejects.toThrow('ends inside');
+
+        // the pieces are all alike, so the half of the file is where a chunk ends
+        await stageChunks(undefined);
+        await truncate(p, size / 2);
+        await expect(text(StagingUtilities.read(file))).rejects.toThrow('where it was staged with');
+    });
+
+    it('refuses a staged file of chunks a byte of which changed on the disk', async () => {
+        const file: StagedChunksFile = await stageChunks(undefined);
+        const handle: FileHandle = await open(p, 'r+');
+        try {
+            const last: number = (await handle.stat()).size - 1;
+            const byte: Buffer = Buffer.alloc(1);
+            await handle.read(byte, 0, 1, last);
+            await handle.write(Buffer.from([(byte[0] ?? 0) ^ 0xff]), 0, 1, last);
+        }
+        finally {
+            await handle.close();
+        }
+
+        await expect(text(StagingUtilities.read(file))).rejects.toThrow('is not the chunk it is stored as');
     });
 });

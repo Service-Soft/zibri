@@ -54,6 +54,7 @@
         "test:cluster": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand --testPathPatterns=\"\\.cluster\\.test\\.ts$\"",
         "test:benchmark": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand --testPathPatterns=\"\\.benchmark\\.test\\.ts$\"",
         "test:benchmark:compare": "node scripts/compare-benchmarks.mjs test:benchmark",
+        "test:benchmark:perf": "node scripts/profile-benchmarks.mjs",
         "test:coverage": "npm run test:coverage:normal && npm run test:coverage:heavy && npm run test:coverage:merge",
         "test:coverage:normal": "npm run test:normal -- --coverage --coverageDirectory=__testing__/coverage/raw/normal --coverageReporters=json",
         "test:coverage:heavy": "npm run test:heavy -- --coverage --coverageDirectory=__testing__/coverage/raw/heavy --coverageReporters=json",

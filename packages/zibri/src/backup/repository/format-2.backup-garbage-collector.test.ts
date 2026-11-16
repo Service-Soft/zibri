@@ -6,6 +6,7 @@ import { buffer } from 'node:stream/consumers';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
+import { BackupChunkUtilities } from './backup-chunk.utilities';
 import { BackupChunkingOptions } from './backup-chunking-options.model';
 import { BackupRepositoryKey } from './backup-repository-key.model';
 import { Format2BackupGarbageCollector } from './format-2.backup-garbage-collector';
@@ -93,7 +94,7 @@ describe('Format2BackupGarbageCollector', () => {
             throw new Error('the backup has no resource');
         }
         const retrieved: RetrievedBackupResource = await layout.retrieve(store, backup, resource, undefined);
-        return await buffer(retrieved.data);
+        return await buffer(retrieved.kind === 'chunks' ? Readable.from(BackupChunkUtilities.openAll(retrieved.chunks, retrieved.key)) : retrieved.data);
     }
 
     beforeAll(async () => {

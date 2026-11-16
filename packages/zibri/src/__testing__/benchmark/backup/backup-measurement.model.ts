@@ -5,6 +5,8 @@ import { SftpBackupTransportOptions } from '../../../backup/transports/sftp/sftp
 import { ValKeyBackupMode } from '../../../data-source/data-sources/val-key/val-key-backup-mode.model';
 import { ValKeyRestoreMode } from '../../../data-source/data-sources/val-key/val-key-restore-mode.model';
 import { OmitStrict } from '../../../types/omit-strict.type';
+import { PerfControl } from '../perf-control.model';
+import { ThreadCpu } from '../thread-cpu.utilities';
 
 /**
  * The environment variable the measured process reads its {@link BackupMeasurementConfig} from.
@@ -102,6 +104,16 @@ export type BackupMeasurementConfig = {
      * How many backups are taken one after another, with `changes` applied between two of them.
      */
     backups: number,
+    /**
+     * How many times the last backup is restored, one after another. The restore whose duration is the median is the
+     * one measured: a single restore of 100 MB varied by a tenth between two runs on the same machine.
+     */
+    restores: number,
+    /**
+     * The control of the `perf` the process was started under, which records its first restore, or undefined for none.
+     * Set through ZIBRI_BENCHMARK_PERF_FOLDER, which `scripts/profile-benchmarks.mjs` sets. Linux only.
+     */
+    perfControl: PerfControl | undefined,
     /**
      * How the resources change between two backups.
      */
@@ -205,6 +217,16 @@ export type PhaseMeasurement = {
      * CPU time spent in the kernel for the process, in milliseconds.
      */
     cpuSystemMs: number,
+    /**
+     * Of the CPU time, user and kernel together, what the thread the application runs on spent, in milliseconds.
+     * The rest ran on other threads: the pool, hashing, compressing and encrypting, and the collector's own.
+     */
+    cpuMainThreadMs: number,
+    /**
+     * The CPU time by the kind of thread that spent it, in milliseconds: the collector's helpers apart from the pool.
+     * Undefined on a system other than Linux, which tells no thread's time from another's.
+     */
+    cpuByThreadMs: ThreadCpu | undefined,
     /**
      * What it held right after a collection, undefined unless it was read so.
      */

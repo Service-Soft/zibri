@@ -6,6 +6,7 @@ import { setTimeout } from 'node:timers/promises';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
+import { BackupChunkUtilities } from './backup-chunk.utilities';
 import { BackupChunkingOptions } from './backup-chunking-options.model';
 import { BackupRepositoryKey } from './backup-repository-key.model';
 import { Format2BackupLayout } from './format-2.backup-layout';
@@ -110,7 +111,7 @@ describe('Format2BackupLayout', () => {
         if (retrieved.kind !== 'chunks') {
             throw new Error('retrieved in one piece');
         }
-        const read: Buffer = await buffer(retrieved.data);
+        const read: Buffer = await buffer(Readable.from(BackupChunkUtilities.openAll(retrieved.chunks, retrieved.key)));
         expect(read.length).toBe(retrieved.size);
         return [read, retrieved.checksum];
     }
@@ -368,7 +369,9 @@ describe('Format2BackupLayout', () => {
 
         const retrieved: RetrievedBackupResource = await layout.retrieve(store, backup, Object.assign(resource, { size: data.length }), undefined);
 
-        expect(retrieved.kind).toBe('whole');
+        if (retrieved.kind !== 'whole') {
+            throw new Error(`retrieved as ${retrieved.kind}`);
+        }
         expect((await buffer(retrieved.data)).equals(data)).toBe(true);
     });
 

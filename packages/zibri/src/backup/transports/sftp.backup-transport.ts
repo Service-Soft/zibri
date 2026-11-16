@@ -117,7 +117,15 @@ export class SftpBackupTransport extends BaseBackupTransport {
         try {
             sftp = await new Promise((resolve, reject) => {
                 client.once('error', reject);
+                // ssh2 stops the ready timeout once the connection closes, and reports a server ending it as the
+                // application, or after its greeting, as no error: the session waited forever
+                const closedBeforeLogin: () => void = () => reject(new InternalError(
+                    `The server "${this.options.host}" closed the connection of the transport "${this.name}" before the login completed.`
+                ));
+                client.once('close', closedBeforeLogin);
                 client.once('ready', () => {
+                    // from here, a connection closing fails the subsystem ssh2 asks for
+                    client.removeListener('close', closedBeforeLogin);
                     // the ready timeout of ssh2 ends with the login: a server that logs in and opens no SFTP session
                     // left a backup waiting forever, before any request of it could go unanswered
                     subsystemTimer = setTimeout(() => reject(new InternalError(

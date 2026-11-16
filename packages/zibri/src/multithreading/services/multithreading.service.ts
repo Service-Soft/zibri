@@ -1395,6 +1395,12 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         if (this.poolState === 'stopped' || !this.runningJobs.includes(job)) {
             return;
         }
+        // the worker can end between being taken for the job and getting it, while the claim or that write is out. Its
+        // exit found no job on it then, and replaced it: a job posted to it now is never answered, and waits for its
+        // timeout. Thrown, the claim is handed back and the next round gives the job to the replacement
+        if (!this.workers.includes(worker)) {
+            throw new InternalError(`The worker ${worker.threadId} taken for thread job ${job.id} ended before it was given the job`);
+        }
 
         const message: ThreadJobStartMessage = {
             workerData: job.workerData,

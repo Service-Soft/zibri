@@ -666,6 +666,13 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
      */
     protected client?: GlideClient;
 
+    /**
+     * The client the locks held are renewed through. A connection of its own: the server answers a connection's
+     * commands in order, so a renewal sent behind a commit still being sent waited for all of it, and a commit of a
+     * large batch took longer to send than its locks lived.
+     */
+    private renewalClient?: GlideClient;
+
     private readonly openTransactions: OpenTransactions = new OpenTransactions();
 
     // eslint-disable-next-line jsdoc/require-returns
@@ -699,8 +706,6 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             throw new InternalError('The data source has already been initialized.');
         }
 
-        // eslint-disable-next-line unusedImports/no-unused-vars
-        const { host = 'localhost', port = 6379, keyPrefix, ...clientOptions } = this.fullOptions;
         await this.validateOptions(this.fullOptions);
 
         for (const entityClass of this.entities) {
@@ -708,12 +713,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         }
         registerRepositoryProvidersFor(this.constructor as Newable<DataSourceInterface>, this);
 
-        const client: GlideClient = await valKeyGlide().GlideClient.createClient({
-            ...clientOptions,
-            addresses: [{ host, port }]
-        });
-        await this.validateServerIsStandalone(client);
-        this.client = client;
+        const client: GlideClient = await this.openConnections();
         // read once here, so that the first call naming the time of the data source does not pay for it
         this.clock = new ValKeyClock(async () => {
             const [seconds, microseconds] = await client.time();
@@ -733,6 +733,32 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             if (await this.reconcileKeys()) {
                 await recordKeyReconciliation(this.constructor as Newable<DataSourceInterface>);
             }
+        });
+    }
+
+    /**
+     * Connects to the server of the options: the client of the data source, and the one its locks are renewed through.
+     * @returns The client of the data source.
+     * @throws When the server runs in cluster mode.
+     */
+    protected async openConnections(): Promise<GlideClient> {
+        const client: GlideClient = await this.createClient();
+        await this.validateServerIsStandalone(client);
+        this.client = client;
+        this.renewalClient = await this.createClient();
+        return client;
+    }
+
+    /**
+     * Opens a connection to the server of the options.
+     * @returns Its client.
+     */
+    private async createClient(): Promise<GlideClient> {
+        // eslint-disable-next-line unusedImports/no-unused-vars
+        const { host = 'localhost', port = 6379, keyPrefix, ...clientOptions } = this.fullOptions;
+        return await valKeyGlide().GlideClient.createClient({
+            ...clientOptions,
+            addresses: [{ host, port }]
         });
     }
 
@@ -829,15 +855,9 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
      * @returns The subscribed client.
      */
     private async resolveSubscriber(namespacedChannel: string): Promise<GlideClient> {
-        // eslint-disable-next-line unusedImports/no-unused-vars
-        const { host = 'localhost', port = 6379, keyPrefix, ...clientOptions } = this.fullOptions;
-
         // its own client: a connection that is subscribed is not a connection that should also be
         // answering commands, and the data source's one is busy doing exactly that
-        const subscriber: GlideClient = await valKeyGlide().GlideClient.createClient({
-            ...clientOptions,
-            addresses: [{ host, port }]
-        });
+        const subscriber: GlideClient = await this.createClient();
         // the blocking form: the lazy one returns before the server confirmed, and a message published
         // in between never arrives
         await subscriber.subscribe([namespacedChannel], SUBSCRIBE_TIMEOUT_IN_MS);
@@ -1070,11 +1090,17 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
      * a transaction writing a large batch would put that many requests on the client at once. A commit
      * hands them back in the script that applies its writes, so releasing them costs it no request.
      * @param client - The client to take the locks through.
+     * @param renewalClient - The client to renew them through, which a commit being sent does not keep busy.
      * @param holdInMs - How long a lock lives before it lapses. Renewed while it is held.
      * @param timeoutInMs - How long a claim queues before giving up.
      * @returns The grants.
      */
-    private openTransactionGrants(client: GlideClient, holdInMs: number, timeoutInMs: number): ValKeyTransactionGrants {
+    private openTransactionGrants(
+        client: GlideClient,
+        renewalClient: GlideClient,
+        holdInMs: number,
+        timeoutInMs: number
+    ): ValKeyTransactionGrants {
         // unique to this transaction, and checked by both the renewal and the release
         const token: string = UUIDUtilities.generate();
         const held: Set<string> = new Set();
@@ -1090,7 +1116,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             name: `transaction ${token}`,
             renew: async () => {
                 const renewedAt: number = Date.now();
-                if (await this.renewLocks(client, [...held], token, holdInMs, `transaction ${token}`, () => handingBack)) {
+                if (await this.renewLocks(renewalClient, [...held], token, holdInMs, `transaction ${token}`, () => handingBack)) {
                     lastRenewedAt = renewedAt;
                 }
             },
@@ -1152,6 +1178,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             throw new DataSourceInitializationError();
         }
         const client: GlideClient = this.client;
+        const renewalClient: GlideClient = this.resolveRenewalClient();
         const lockKey: string = ValKeyLockKeyUtilities.getLockKey(key);
 
         // unique to this acquisition, and checked by both the renewal and the release. Without it
@@ -1163,10 +1190,22 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         return {
             name: key,
             renew: async () => {
-                await this.renewLocks(client, [lockKey], token, holdInMs, key);
+                await this.renewLocks(renewalClient, [lockKey], token, holdInMs, key);
             },
             release: async () => await this.releaseLocks(client, [lockKey], token)
         };
+    }
+
+    /**
+     * The client the locks held are renewed through.
+     * @returns The client.
+     * @throws When the data source has not been initialized yet.
+     */
+    private resolveRenewalClient(): GlideClient {
+        if (!this.renewalClient) {
+            throw new DataSourceInitializationError();
+        }
+        return this.renewalClient;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1195,6 +1234,8 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         await this.openTransactions.rollBackAll(this.constructor.name, this.logger);
         this.client?.close();
         this.client = undefined;
+        this.renewalClient?.close();
+        this.renewalClient = undefined;
         this.clock = undefined;
     }
 
@@ -1248,7 +1289,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         const transaction: ValKeyTransaction = new ValKeyTransaction(
             this.client,
             this.keyPrefix,
-            this.openTransactionGrants(this.client, holdInMs, timeoutInMs),
+            this.openTransactionGrants(this.client, this.resolveRenewalClient(), holdInMs, timeoutInMs),
             options?.idleTimeoutInMs ?? this.transactionIdleTimeoutInMs,
             this.logger,
             readsAsOfOneMoment ? async () => await this.openReadView(client) : undefined

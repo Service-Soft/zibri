@@ -11,6 +11,7 @@ import { BackupManifestEntry } from './backup-manifest-entry.model';
 import { BackupManifestUtilities } from './backup-manifest.utilities';
 import { BackupRepositoryKey } from './backup-repository-key.model';
 import { BackupStoredResource } from './backup-stored-resource.model';
+import { FetchedBackupChunk } from './fetched-backup-chunk.model';
 import { RetrievedBackupResource } from './retrieved-backup-resource.model';
 import { type EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface';
 import { EncryptionContent, EncryptionString, EncryptionUtilities } from '../../auth/encryption/encryption.utilities';
@@ -318,7 +319,8 @@ export class Format2BackupLayout {
             const entries: BackupManifestEntry[] = await BackupManifestUtilities.decodeEntries(read.body, key);
             return {
                 kind: 'chunks',
-                data: this.closingWith(Readable.from(this.fetchChunks(session, entries, key)), store, session),
+                chunks: this.closingWith(Readable.from(this.fetchChunks(session, entries, key)), store, session),
+                key,
                 size: entries.reduce((sum, entry) => sum + entry.length, 0),
                 checksum: BackupManifestUtilities.resolveChecksum(entries, key)
             };
@@ -610,27 +612,30 @@ export class Format2BackupLayout {
         session: BackupTransportSessionInterface,
         entries: BackupManifestEntry[],
         key: BackupRepositoryKey | undefined
-    ): AsyncGenerator<Buffer> {
-        const fetch: (entry: BackupManifestEntry) => Promise<Buffer> = async entry => {
+    ): AsyncGenerator<FetchedBackupChunk> {
+        const fetch: (entry: BackupManifestEntry) => Promise<FetchedBackupChunk> = async entry => {
             const stored: Buffer = await buffer(await session.get(
                 this.resolveChunkKey(entry.id, key),
                 entry.length + BackupChunkUtilities.OVERHEAD_BYTES
             ));
-            return await BackupChunkUtilities.open(stored, entry.id, key, entry.length);
+            // opened to be checked as it arrives, so that one that is not the chunk of its id refuses the restore before
+            // anything is applied, and handed on as stored, which is how a restore stages it
+            await BackupChunkUtilities.open(stored, entry.id, key, entry.length);
+            return { entry, stored };
         };
-        const ahead: Promise<Buffer>[] = [];
+        const ahead: Promise<FetchedBackupChunk>[] = [];
         let next: number = 0;
         try {
             while (next < entries.length || ahead.length) {
                 while (ahead.length < CHUNKS_FETCHED_AHEAD && next < entries.length) {
-                    const fetched: Promise<Buffer> = fetch(this.getAt(entries, next++));
+                    const fetched: Promise<FetchedBackupChunk> = fetch(this.getAt(entries, next++));
                     // handled when its turn comes; until then a failure must not count as unhandled. Not
                     // awaited, so that the chunks after it are fetched meanwhile
                     // eslint-disable-next-line promise/prefer-await-to-then
                     fetched.catch(() => undefined);
                     ahead.push(fetched);
                 }
-                const chunk: Promise<Buffer> | undefined = ahead.shift();
+                const chunk: Promise<FetchedBackupChunk> | undefined = ahead.shift();
                 if (chunk != undefined) {
                     yield await chunk;
                 }
