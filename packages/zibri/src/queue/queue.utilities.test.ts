@@ -247,6 +247,41 @@ describe('QueueUtilities', () => {
             expect(await works.findById(work.id)).toMatchObject({ status: TestWorkStatus.QUEUED, attempts: 0 });
         });
 
+        // a backup queued as the one before it ended polls at once, and found the slot of that one taken still, which
+        // had read the due rows for the last time before the backup was queued: neither ran it, and it waited for
+        // the next poll, half a minute away, or for good where nothing polls on a schedule
+        it('runs a row queued after the slot last read the due rows, whose own poll found the slot taken', async () => {
+            await queueWork('late-1');
+            const ranLabels: string[] = [];
+            let reads: number = 0;
+            let turnedAway: boolean | undefined;
+            const queue: QueueDefinition<TestWork> = defineQueue(
+                // eslint-disable-next-line typescript/require-await
+                async item => {
+                    ranLabels.push(item.label);
+                },
+                {
+                    maxConcurrentPerInstance: 1,
+                    findDue: async () => {
+                        const due: TestWork[] = await findDueByLabel();
+                        reads++;
+                        // the read of the slot once its row ran: answered only after the next row was queued and
+                        // polled for, as a read that left before either does when it is answered late
+                        if (reads === 2) {
+                            await queueWork('late-2');
+                            turnedAway = !await QueueUtilities.poll(queue);
+                        }
+                        return due;
+                    }
+                }
+            );
+
+            expect(await QueueUtilities.poll(queue)).toBe(true);
+
+            expect(turnedAway).toBe(true);
+            expect(ranLabels).toEqual(['late-1', 'late-2']);
+        });
+
         it('claims no more rows as a batch than its limit', async () => {
             await Promise.all(['batch-limited-1', 'batch-limited-2'].map(queueWork));
             const batches: string[][] = [];
