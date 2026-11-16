@@ -618,9 +618,10 @@ export class Format2BackupLayout {
                 this.resolveChunkKey(entry.id, key),
                 entry.length + BackupChunkUtilities.OVERHEAD_BYTES
             ));
-            // opened to be checked as it arrives, so that one that is not the chunk of its id refuses the restore before
-            // anything is applied, and handed on as stored, which is how a restore stages it
-            await BackupChunkUtilities.open(stored, entry.id, key, entry.length);
+            // checked as it arrives, so that one that is not the chunk of its id refuses the restore before anything is
+            // applied, and handed on as stored, which is how a restore stages it. Without decompressing an encrypted
+            // one, which where it is applied is opened in full all the same
+            await BackupChunkUtilities.validateStored(stored, entry.id, key, entry.length);
             return { entry, stored };
         };
         const ahead: Promise<FetchedBackupChunk>[] = [];

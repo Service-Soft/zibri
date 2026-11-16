@@ -196,6 +196,19 @@ const INDEX_BUILDS_LOCK_KEY: string = 'zibri.index-builds';
 const INDEX_BUILDS_LOCK_RETRY_IN_MS: number = 1000;
 
 /**
+ * Every connection to the database that waits for a lock, the longest waiting first, with what it runs and each
+ * connection holding the lock: what it runs, in which state, and since when its transaction runs.
+ */
+const LOCK_WAITS_SQL: string = 'SELECT w.pid, coalesce(nullif(w.application_name, \'\'), \'no application\') AS "application",'
+    + ' extract(epoch FROM now() - w.query_start)::int AS "seconds", left(w.query, 200) AS "query",'
+    + ' (SELECT string_agg(format(\'pid %s (%s, %s for %s s): %s\', b.pid, coalesce(nullif(b.application_name, \'\'), \'no application\'),'
+    + ' b.state, extract(epoch FROM now() - coalesce(b.xact_start, b.query_start))::int, left(b.query, 200)), \'; \')'
+    + ' FROM pg_catalog.pg_stat_activity b WHERE b.pid = ANY (pg_catalog.pg_blocking_pids(w.pid))) AS "blockers"'
+    + ' FROM pg_catalog.pg_stat_activity w'
+    + ' WHERE w.datname = pg_catalog.current_database() AND w.wait_event_type = \'Lock\''
+    + ' ORDER BY w.query_start';
+
+/**
  * How many connections the pool keeps open at most, when the options do not say.
  */
 const DEFAULT_POOL_SIZE: number = 20;
@@ -383,6 +396,11 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
      * The server process of the session the indexes are built on, while one is, which the shutdown cancels.
      */
     private indexBuildProcess: number | undefined;
+
+    /**
+     * What warns of the lock waits while data is read for a backup, until that data is read, which the shutdown stops.
+     */
+    private readonly lockWaitReports: Set<NodeJS.Timeout> = new Set();
 
     /**
      * The tables a write changes more than its own rows of, by table, with what else it changes.
@@ -681,6 +699,10 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
     // eslint-disable-next-line jsdoc/require-jsdoc
     async shutDown(): Promise<void> {
         this.shuttingDown = true;
+        for (const report of this.lockWaitReports) {
+            clearInterval(report);
+        }
+        this.lockWaitReports.clear();
         // ended rather than waited for: a build takes minutes. The index it leaves invalid is dropped and built again
         // once the next start left it. Cancelled through the pool, since a connection ended while the server builds
         // is not noticed until the build is done
@@ -1770,7 +1792,10 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
         options: BackupDataOptions,
         since: string | undefined
     ): Promise<IncrementalBackupData> {
-        return await this.resolveIncrementalReader().read(options.chunked, since);
+        return await this.readReportingLockWaits(
+            async () => await this.resolveIncrementalReader().read(options.chunked, since),
+            read => read.data
+        );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1802,7 +1827,71 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
      * @returns A stream of the dump, which fails when the dump fails.
      */
     async createBackupData(backup?: BackupEntity, options?: BackupDataOptions): Promise<Readable> {
-        return await this.resolveBackupRunner().createBackupData(options?.chunked === true);
+        return await this.readReportingLockWaits(
+            async () => await this.resolveBackupRunner().createBackupData(options?.chunked === true),
+            data => data
+        );
+    }
+
+    /**
+     * Reads the data for a backup or the copy a restore keeps, and warns every `WAIT_REPORT_INTERVAL_IN_MS` until it
+     * is read while connections to the database wait for a lock, naming who holds it.
+     * @param read - Reads the data.
+     * @param findData - The stream of the data what was read hands back, whose end ends the reports.
+     * @returns What was read.
+     */
+    private async readReportingLockWaits<T>(read: () => Promise<T>, findData: (read: T) => Readable): Promise<T> {
+        // a lock nothing lets go of holds a backup for as long, and the statements it waits in say nothing: the
+        // publication it sets, the dump, the changes it reads. Said while it waits, naming who holds the lock
+        const report: NodeJS.Timeout = setInterval(() => void this.reportLockWaits(), inject(ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS));
+        report.unref();
+        // stopped by the shutdown as well: data nobody reads to its end or closes kept reporting for as long as the
+        // process ran, and kept the data source reachable meanwhile
+        this.lockWaitReports.add(report);
+        const stop: () => void = () => {
+            clearInterval(report);
+            this.lockWaitReports.delete(report);
+        };
+        try {
+            const result: T = await read();
+            findData(result).once('close', stop);
+            return result;
+        }
+        catch (error) {
+            stop();
+            throw error;
+        }
+    }
+
+    /**
+     * Warns of every connection to the database that waits for a lock, naming who holds it.
+     */
+    private async reportLockWaits(): Promise<void> {
+        let session: PgSessionClient | undefined;
+        try {
+            // a session of its own rather than the pool, which the connections waiting may be all of
+            session = await this.openSession();
+            const waits: Record<string, unknown>[] = await this.runOn(session, LOCK_WAITS_SQL, []);
+            if (!waits.length) {
+                return;
+            }
+            const described: string = waits
+                .map(w => `pid ${String(w['pid'])} (${String(w['application'])}, waiting ${String(w['seconds'])} s): `
+                    + `${String(w['query'])}, held by ${typeof w['blockers'] === 'string' ? w['blockers'] : 'none it can see'}`)
+                .join('; ');
+            this.logger.warn(
+                `Reading the data of "${this.constructor.name}" goes on while connections to its database wait for a lock: ${described}`
+            );
+        }
+        catch (error) {
+            this.logger.warn(
+                `Could not tell what reading the data of "${this.constructor.name}" waits for: `
+                + (error instanceof Error ? error.message : String(error))
+            );
+        }
+        finally {
+            await session?.end().catch(() => undefined);
+        }
     }
 
     /**

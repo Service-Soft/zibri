@@ -97,5 +97,51 @@ describe('BackupChunkUtilities', () => {
         stored[0] = 9;
 
         await expect(BackupChunkUtilities.open(stored, id, undefined, incompressible.length)).rejects.toThrow('which this build does not read');
+        await expect(BackupChunkUtilities.validateStored(stored, id, undefined, incompressible.length)).rejects.toThrow('which this build does not read');
+    });
+
+    // what a restore checks each chunk with as it is fetched, before anything is applied. An encrypted one was
+    // decompressed and hashed there and again where it is applied, which made a restore of chunks a tenth slower
+    // than one of a single file
+    it('takes what it sealed as the chunk of its id, and refuses one changed, stored under another id or of another key', async () => {
+        for (const data of [compressible, incompressible]) {
+            for (const k of [key, undefined]) {
+                const id: string = await BackupChunkUtilities.resolveId(data, k);
+                const stored: Buffer = await BackupChunkUtilities.seal(data, id, k, 3);
+                const changed: Buffer = Buffer.from(stored);
+                changed[changed.length - 20] = (changed[changed.length - 20] ?? 0) ^ 1;
+                const otherId: string = await BackupChunkUtilities.resolveId(Buffer.from('another chunk'), k);
+
+                await expect(BackupChunkUtilities.validateStored(stored, id, k, data.length)).resolves.toBeUndefined();
+                await expect(BackupChunkUtilities.validateStored(changed, id, k, data.length)).rejects.toThrow(`The chunk ${id} is not the chunk it is stored as`);
+                await expect(BackupChunkUtilities.validateStored(stored, otherId, k, data.length)).rejects.toThrow('is not the chunk it is stored as');
+                await expect(BackupChunkUtilities.validateStored(stored.subarray(0, 10), id, k, data.length)).rejects.toThrow('is not the chunk it is stored as');
+            }
+        }
+        const id: string = await BackupChunkUtilities.resolveId(compressible, key);
+        const stored: Buffer = await BackupChunkUtilities.seal(compressible, id, key, 3);
+        await expect(BackupChunkUtilities.validateStored(stored, id, resolveKey(), compressible.length)).rejects.toThrow('does not decrypt');
+    });
+
+    // the tag of an encrypted chunk covers its stored bytes and its id, so only whoever holds the key seals one that
+    // passes: whether its data hashes to the id is checked where it is opened, which has to decompress it anyway.
+    // The id of an unencrypted chunk is all that holds it, so it is checked in full
+    it('checks an encrypted chunk by its encryption alone, and an unencrypted one by its data', async () => {
+        const otherId: string = await BackupChunkUtilities.resolveId(incompressible, key);
+        const sealedUnderOther: Buffer = await BackupChunkUtilities.seal(compressible, otherId, key, 3);
+        const plainOtherId: string = await BackupChunkUtilities.resolveId(incompressible, undefined);
+        const plainUnderOther: Buffer = await BackupChunkUtilities.seal(compressible, plainOtherId, undefined, 3);
+
+        await expect(BackupChunkUtilities.validateStored(sealedUnderOther, otherId, key, compressible.length)).resolves.toBeUndefined();
+        await expect(BackupChunkUtilities.open(sealedUnderOther, otherId, key, compressible.length)).rejects.toThrow('is not the data of its id');
+        await expect(BackupChunkUtilities.validateStored(plainUnderOther, plainOtherId, undefined, compressible.length))
+            .rejects.toThrow('is not the data of its id');
+    });
+
+    it('refuses an encrypted chunk stored as it is whose data is not the length the manifest says', async () => {
+        const id: string = await BackupChunkUtilities.resolveId(incompressible, key);
+        const stored: Buffer = await BackupChunkUtilities.seal(incompressible, id, key, 3);
+
+        await expect(BackupChunkUtilities.validateStored(stored, id, key, incompressible.length - 1)).rejects.toThrow('is not the data of its id');
     });
 });

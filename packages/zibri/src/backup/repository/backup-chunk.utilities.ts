@@ -61,6 +61,11 @@ const AES_KEYS: WeakMap<Buffer, Promise<webcrypto.CryptoKey>> = new WeakMap();
  */
 const CHUNKS_OPENED_AHEAD: number = 4;
 
+/**
+ * Why a chunk whose data is not what its id and the manifest say is refused.
+ */
+const NOT_THE_DATA_OF_ITS_ID: string = 'its data is not the data of its id';
+
 const HEADER_BYTES: number = 2;
 const NONCE_BYTES: number = 12;
 const TAG_BYTES: number = 16;
@@ -160,10 +165,7 @@ export abstract class BackupChunkUtilities {
      * @throws When the bytes are not the chunk of the id: changed, cut short, or stored under another id.
      */
     static async open(stored: Buffer, id: string, key: BackupRepositoryKey | undefined, length: number): Promise<Buffer> {
-        const header: Buffer = stored.subarray(0, HEADER_BYTES);
-        if (header.length < HEADER_BYTES || header[0] !== CHUNK_OBJECT_FORMAT) {
-            throw this.createUnreadableError(id, `it starts with ${header.toString('hex')}, which this build does not read`);
-        }
+        const header: Buffer = this.resolveHeader(stored, id);
         const payload: Buffer = key == undefined ? stored.subarray(HEADER_BYTES) : await this.decrypt(stored, header, id, key);
         let data: Buffer;
         switch (header[1]) {
@@ -188,9 +190,64 @@ export abstract class BackupChunkUtilities {
         // the id checked as well: what an unencrypted chunk is held to at all, and for an encrypted one
         // what proves the data was not encrypted with this key under another id
         if (data.length !== length || await this.resolveId(data, key) !== id) {
-            throw this.createUnreadableError(id, 'its data is not the data of its id');
+            throw this.createUnreadableError(id, NOT_THE_DATA_OF_ITS_ID);
         }
         return data;
+    }
+
+    /**
+     * Validates that stored bytes are the chunk of the id, without the data where that can be told without it: an
+     * encrypted chunk by decrypting it, whose tag covers the stored bytes and the id, so that only whoever holds the key
+     * seals one that passes. Whether its data hashes to the id is left to {@link open}. An unencrypted chunk is held to
+     * its id alone, and opened.
+     * @param stored - The bytes as they are stored.
+     * @param id - The id it is stored under.
+     * @param key - The repository key, or undefined for an unencrypted chunk.
+     * @param length - How many bytes the chunk's data is, as the manifest says.
+     * @throws When the bytes are not the chunk of the id: changed, cut short, or stored under another id.
+     */
+    static async validateStored(stored: Buffer, id: string, key: BackupRepositoryKey | undefined, length: number): Promise<void> {
+        if (key == undefined) {
+            await this.open(stored, id, key, length);
+            return;
+        }
+        // decompressing and hashing it as well would be done again where it is opened, for every chunk a restore fetches
+        const header: Buffer = this.resolveHeader(stored, id);
+        const payload: Buffer = await this.decrypt(stored, header, id, key);
+        switch (header[1]) {
+            case ChunkCompression.NONE: {
+                if (payload.length !== length) {
+                    throw this.createUnreadableError(id, NOT_THE_DATA_OF_ITS_ID);
+                }
+                return;
+            }
+            // stored compressed only when that is smaller than the data
+            case ChunkCompression.ZSTD: {
+                if (payload.length >= length) {
+                    throw this.createUnreadableError(id, NOT_THE_DATA_OF_ITS_ID);
+                }
+                return;
+            }
+            case undefined:
+            default: {
+                throw this.createUnreadableError(id, `it is compressed in a way this build does not read (${header[1]})`);
+            }
+        }
+    }
+
+    /**
+     * The header of a stored chunk, once it is found to be of the format this build reads.
+     * @param stored - The bytes as they are stored.
+     * @param id - The id it is stored under.
+     * @returns The header.
+     * @throws When it is of another format, or too short to hold one.
+     */
+    private static resolveHeader(stored: Buffer, id: string): Buffer {
+        const header: Buffer = stored.subarray(0, HEADER_BYTES);
+        if (header.length < HEADER_BYTES || header[0] !== CHUNK_OBJECT_FORMAT) {
+            throw this.createUnreadableError(id, `it starts with ${header.toString('hex')}, which this build does not read`);
+        }
+        return header;
     }
 
     /**
