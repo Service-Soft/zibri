@@ -204,9 +204,10 @@ const INDEX_BUILDS_LOCK_RETRY_IN_MS: number = 1000;
  */
 const BUSY_CONNECTIONS_SQL: string = 'SELECT a.pid, coalesce(nullif(a.application_name, \'\'), \'no application\') AS "application",'
     + ' a.state, coalesce(a.wait_event_type || \' \' || a.wait_event, \'nothing\') AS "waitingFor",'
-    + ' extract(epoch FROM now() - coalesce(a.state_change, a.backend_start))::int AS "seconds", left(a.query, 200) AS "query",'
-    + ' (SELECT string_agg(format(\'pid %s (%s, %s for %s s): %s\', b.pid, coalesce(nullif(b.application_name, \'\'), \'no application\'),'
-    + ' b.state, extract(epoch FROM now() - coalesce(b.xact_start, b.query_start))::int, left(b.query, 200)), \'; \')'
+    + ' extract(epoch FROM now() - coalesce(a.state_change, a.backend_start))::int AS "seconds", a.query AS "query",'
+    + ' (SELECT json_agg(json_build_object(\'pid\', b.pid,'
+    + ' \'application\', coalesce(nullif(b.application_name, \'\'), \'no application\'), \'state\', b.state,'
+    + ' \'seconds\', extract(epoch FROM now() - coalesce(b.xact_start, b.query_start))::int, \'query\', b.query))'
     + ' FROM pg_catalog.pg_stat_activity b WHERE b.pid = ANY (pg_catalog.pg_blocking_pids(a.pid))) AS "blockers"'
     + ' FROM pg_catalog.pg_stat_activity a'
     + ' WHERE a.datname = pg_catalog.current_database() AND a.pid <> pg_catalog.pg_backend_pid() AND a.state IS DISTINCT FROM \'idle\''
@@ -1888,24 +1889,40 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
         const reading: string = `Reading the data of "${this.constructor.name}" goes on after ${Math.round(elapsedInMs / Ms.SECOND)} s, `
             + `${progress.step}${progress.waitsForReader ? ', waiting for the backup to read on' : ''}`;
         let session: PgSessionClient | undefined;
+        let report: string;
         try {
             // a session of its own rather than the pool, which the connections waiting may be all of
             session = await this.openSession();
             const busy: Record<string, unknown>[] = await this.runOn(session, BUSY_CONNECTIONS_SQL, []);
             const described: string = busy
-                .map(c => `pid ${String(c['pid'])} (${String(c['application'])}, ${String(c['state'])} for ${String(c['seconds'])} s, `
-                    + `waiting for ${String(c['waitingFor'])}): ${String(c['query'])}`
-                    + (typeof c['blockers'] === 'string' ? `, held by ${c['blockers']}` : ''))
+                .map(c => {
+                    const blockers: unknown[] = Array.isArray(c['blockers']) ? c['blockers'] : [];
+                    const heldBy: string = blockers
+                        .map(b => {
+                            // as the server built it, an object of the five keys
+                            const blocker: Record<string, unknown> = typeof b === 'object' && b != undefined ? { ...b } : {};
+                            return `pid ${String(blocker['pid'])} (${String(blocker['application'])}, ${String(blocker['state'])}`
+                                + ` for ${String(blocker['seconds'])} s): `
+                                + PostgresSqlUtilities.toLoggedStatement(String(blocker['query']));
+                        })
+                        .join('; ');
+                    return `pid ${String(c['pid'])} (${String(c['application'])}, ${String(c['state'])} for ${String(c['seconds'])} s, `
+                        + `waiting for ${String(c['waitingFor'])}): ${PostgresSqlUtilities.toLoggedStatement(String(c['query']))}`
+                        + (heldBy ? `, held by ${heldBy}` : '');
+                })
                 .join('; ');
-            this.logger.warn(`${reading}: ${described || 'no connection to its database is busy'}`);
+            report = `${reading}: ${described || 'no connection to its database is busy'}`;
         }
         catch (error) {
-            this.logger.warn(
-                `${reading}. Could not tell what its database does: ${error instanceof Error ? error.message : String(error)}`
-            );
+            report = `${reading}. Could not tell what its database does: ${error instanceof Error ? error.message : String(error)}`;
         }
         finally {
             await session?.end().catch(() => undefined);
+        }
+        // one that was under way when the data source shut down says nothing: the application whose logger this
+        // is may be gone by then, and the logger then throws, inside a timer, where nothing handles it
+        if (!this.shuttingDown) {
+            this.logger.warn(report);
         }
     }
 

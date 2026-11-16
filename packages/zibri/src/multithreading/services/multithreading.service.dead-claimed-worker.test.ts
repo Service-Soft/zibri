@@ -122,6 +122,10 @@ describe('MultithreadingService, given a worker that dies while the job it was t
             Ms.SECOND * 10,
             async () => await describeThreadJob(jobs, job.id)
         );
-        expect((await jobs.findById(job.id)).result).toEqual(55);
+        const completed: AnyThreadJobEntity = await jobs.findById(job.id);
+        expect(completed.result).toEqual(55);
+        // the worker that died was never given the job, so it started once: counted for the dead one as well, three
+        // such workers ended a job that never ran as started too often
+        expect(completed.attempts).toBe(1);
     }, Ms.SECOND * 30);
 });

@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { FileHandle, open, truncate } from 'node:fs/promises';
+import { once } from 'node:events';
+import { FileHandle, open, readFile, truncate, writeFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { text } from 'node:stream/consumers';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -9,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import { BackupDigest } from './backup-digest.model';
 import { BackupEncryptionUtilities } from './backup-encryption.utilities';
 import { BackupChunkUtilities } from './repository/backup-chunk.utilities';
+import { BackupManifestUtilities } from './repository/backup-manifest.utilities';
 import { BackupRepositoryKey } from './repository/backup-repository-key.model';
 import { FetchedBackupChunk } from './repository/fetched-backup-chunk.model';
 import { StagedChunksFile } from './staged-chunks-file.model';
@@ -265,7 +267,13 @@ describe('StagingUtilities - writeChunks / read', () => {
             const id: string = await BackupChunkUtilities.resolveId(data, key);
             return { entry: { id, length: data.length }, stored: await BackupChunkUtilities.seal(data, id, key, 3) };
         }));
-        const file: StagedChunksFile = { path: p, compression: 'chunks', key, size: Buffer.byteLength(pieces.join('')) };
+        const file: StagedChunksFile = {
+            path: p,
+            compression: 'chunks',
+            key,
+            size: Buffer.byteLength(pieces.join('')),
+            checksum: BackupManifestUtilities.resolveChecksum(chunks.map(chunk => chunk.entry), key)
+        };
         await StagingUtilities.writeChunks(Readable.from(chunks), file);
         return file;
     }
@@ -323,5 +331,34 @@ describe('StagingUtilities - writeChunks / read', () => {
         }
 
         await expect(text(StagingUtilities.read(file))).rejects.toThrow('is not the chunk it is stored as');
+    });
+
+    // each chunk was checked against its own id and all of them against their size, which two chunks that changed
+    // places on the disk pass: the data was handed on in another order than it was backed up in
+    it('refuses a staged file of chunks two of which changed places on the disk', async () => {
+        const file: StagedChunksFile = await stageChunks(undefined);
+        const staged: Buffer = await readFile(p);
+        // a record is the id of a chunk, the length of its data and the length it was stored with, then the chunk
+        const firstEnd: number = 40 + staged.readUInt32BE(36);
+        const secondEnd: number = firstEnd + 40 + staged.readUInt32BE(firstEnd + 36);
+        await writeFile(p, Buffer.concat([staged.subarray(firstEnd, secondEnd), staged.subarray(0, firstEnd), staged.subarray(secondEnd)]));
+
+        await expect(text(StagingUtilities.read(file))).rejects.toThrow('holds other chunks, or in another order, than it was staged with');
+    });
+
+    // a resource was handed the bytes of a file up to 3.0, and reads a number of them or decodes them as it did then.
+    // As the chunks themselves, one object each, a read of ten bytes answered a whole chunk
+    it('hands the data of the chunks on as bytes, of which a reader takes as many as it asks for', async () => {
+        const file: StagedChunksFile = await stageChunks(undefined);
+        const data: Readable = StagingUtilities.read(file);
+        try {
+            await once(data, 'readable');
+
+            expect(data.readableObjectMode).toBe(false);
+            expect(String(data.read(10))).toBe(pieces[0]?.slice(0, 10));
+        }
+        finally {
+            data.destroy();
+        }
     });
 });

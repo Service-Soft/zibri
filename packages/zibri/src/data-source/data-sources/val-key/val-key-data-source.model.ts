@@ -744,8 +744,18 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
     protected async openConnections(): Promise<GlideClient> {
         const client: GlideClient = await this.createClient();
         await this.validateServerIsStandalone(client);
+        let renewalClient: GlideClient;
+        try {
+            renewalClient = await this.createClient();
+        }
+        catch (error) {
+            // neither is kept when one of them could not be opened: a data source holding the first one counted
+            // as initialized, and connecting again was refused
+            client.close();
+            throw error;
+        }
         this.client = client;
-        this.renewalClient = await this.createClient();
+        this.renewalClient = renewalClient;
         return client;
     }
 
@@ -1186,13 +1196,19 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         // go on to free the one that replaced it.
         const token: string = UUIDUtilities.generate();
         await this.acquireLocks(client, [key], token, holdInMs, timeoutInMs, new Set(), false);
+        // a renewal under way when the work ends is on a connection of its own, so it can reach the server after
+        // the release, and finds the lock released rather than lost
+        let handingBack: boolean = false;
 
         return {
             name: key,
             renew: async () => {
-                await this.renewLocks(renewalClient, [lockKey], token, holdInMs, key);
+                await this.renewLocks(renewalClient, [lockKey], token, holdInMs, key, () => handingBack);
             },
-            release: async () => await this.releaseLocks(client, [lockKey], token)
+            release: async () => {
+                handingBack = true;
+                await this.releaseLocks(client, [lockKey], token);
+            }
         };
     }
 

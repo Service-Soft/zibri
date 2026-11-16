@@ -16,6 +16,10 @@
         // import leads to it.
         "rootDir": ".."
     },
+    // what the suites write while they run, TypeScript among it: the examples of the documentation, which
+    // their own suite compiles as a reader's project and removes afterwards. A run that was stopped leaves
+    // them, and one still going holds them, and neither is a source of the package
+    "exclude": ["src/**/file-output"],
     "extends": "./tsconfig.base.json",
     "include": ["src"]
 }

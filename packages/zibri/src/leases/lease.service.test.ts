@@ -150,6 +150,7 @@ describe('LeaseService — waiting for a grant', () => {
     let server: StartedTestServer;
     let leaseService: LeaseServiceInterface;
     let leaseRepository: Repository<Lease>;
+    let dataSourceClass: Newable<InMemoryDataSource>;
 
     beforeAll(async () => {
         @DataSource({ allowOrphan: true })
@@ -157,6 +158,7 @@ describe('LeaseService — waiting for a grant', () => {
             override readonly entities: Newable<BaseEntity>[] = defaultTestServerEntities;
             readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
         }
+        dataSourceClass = WaitingDataSource;
         server = await startTestServer({
             dataSources: [WaitingDataSource],
             providers: [
@@ -203,6 +205,15 @@ describe('LeaseService — waiting for a grant', () => {
             warn.mockRestore();
         }
     }, 30000);
+
+    // with none, every wait read who holds the grant and warned once a millisecond, and so did a wait for a backup.
+    // One longer than a timer runs is one of a millisecond to node. Last, since the application is left not started
+    it.each([0, -1, 0.5, 2 ** 31])('refuses to start with a report interval of %p ms', async interval => {
+        await expect(server.reInit({
+            dataSources: [dataSourceClass],
+            providers: [...defaultTestServerProviders, defineProvider({ token: ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS, useValue: interval })]
+        })).rejects.toThrow(`ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS needs to be a whole number from 1 to 2147483647, not ${interval}`);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('LeaseService — losing a grant', () => {

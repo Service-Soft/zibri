@@ -9,6 +9,7 @@ import { BackupEntity } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
 import { BackupResourceInterface } from './backup-resource.interface';
 import { BackupServiceInterface } from './backup-service.interface';
+import { BackupResourceMetadata } from './decorators/backup-resource-metadata.model';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BackupTransport } from './decorators/backup-transport.decorator';
 import { StagingUtilities } from './staging.utilities';
@@ -23,6 +24,7 @@ import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Newable } from '../types/newable.type';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
 
 /**
@@ -73,20 +75,35 @@ async function resolveStagedSizes(backup: BackupEntity): Promise<Record<string, 
 }
 
 /**
- * Finds the files of the staging folder that decompress without a key, as they would for anybody reading
- * the disk.
+ * Finds the files of the staging folder that read without a key, as they would for anybody reading
+ * the disk: as a compressed file, or as the chunks of one.
  * @param names - The names of the files.
  * @returns The names of those that do.
  */
 async function findReadableWithoutKey(names: string[]): Promise<string[]> {
     const folder: FsPath = inject(ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER);
     const readable: boolean[] = await Promise.all(names.map(async name => {
+        const p: FsPath = FsUtilities.getPath(folder, name);
         try {
-            await text(StagingUtilities.read({ path: FsUtilities.getPath(folder, name), compression: 'zstd', encryption: undefined }));
+            await text(StagingUtilities.read({ path: p, compression: 'zstd', encryption: undefined }));
             return true;
         }
         catch {
+            // not a compressed file anybody reads
+        }
+        const chunks: Readable = StagingUtilities.read({ path: p, compression: 'chunks', key: undefined, size: 0, checksum: '' });
+        try {
+            // the first chunk is enough: the size and the checksum it is read with here are only checked at the end of the data
+            for await (const piece of chunks) {
+                return Buffer.isBuffer(piece) && piece.length > 0;
+            }
             return false;
+        }
+        catch {
+            return false;
+        }
+        finally {
+            chunks.destroy();
         }
     }));
     return names.filter((_, i) => readable[i] == true);
@@ -230,6 +247,42 @@ describe('BackupService - what passes through this instance\'s disk', () => {
         }
 
         expect(compressed).toBe(2);
+        expect(inject(FirstMeasuredStore).value).toBe(backedUp);
+        expect(inject(SecondMeasuredStore).value).toBe(backedUp);
+    }, 60000);
+
+    // its chunks are stored unencrypted, and staged as they were stored they would be on this disk for anybody
+    // to read, where a resource marked with encrypt is to be encrypted
+    it('encrypts on this disk what a restore fetched of a backup taken before the resource was marked with encrypt', async () => {
+        const marked: BackupResourceMetadata | undefined = MetadataUtilities.getBackupResourceMetadata(FirstMeasuredStore);
+        if (marked == undefined) {
+            throw new Error('The store is not marked with @Backup.');
+        }
+        const backedUp: string = resolveDumpLike('backed up unencrypted');
+        inject(FirstMeasuredStore).value = backedUp;
+        inject(SecondMeasuredStore).value = backedUp;
+        let backup: BackupEntity;
+        MetadataUtilities.setBackupResourceMetadata(FirstMeasuredStore, { ...marked, encrypt: false });
+        try {
+            backup = await getBackupService().waitForBackup(
+                await getBackupService().queueBackup({ name: `staging-folder-${UUIDUtilities.generate()}` })
+            );
+        }
+        finally {
+            MetadataUtilities.setBackupResourceMetadata(FirstMeasuredStore, marked);
+        }
+        inject(FirstMeasuredStore).value = resolveDumpLike('current');
+        inject(SecondMeasuredStore).value = resolveDumpLike('current');
+
+        restoring = backup;
+        try {
+            await getBackupService().restore(backup);
+        }
+        finally {
+            restoring = undefined;
+        }
+
+        expect(inject(FirstMeasuredStore).readableWhileApplying.filter(name => !name.endsWith('.restore-journal.json'))).toStrictEqual([]);
         expect(inject(FirstMeasuredStore).value).toBe(backedUp);
         expect(inject(SecondMeasuredStore).value).toBe(backedUp);
     }, 60000);

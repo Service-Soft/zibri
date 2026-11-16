@@ -22,5 +22,10 @@ export type StagedChunksFile = {
      * How many bytes the data of all its chunks is, as the manifest lists them: a file cut short between two chunks
      * holds chunks that are each whole.
      */
-    size: number
+    size: number,
+    /**
+     * The checksum of its chunks in order, as the manifest lists them: chunks that changed places in the file are
+     * each whole, and of the same size together.
+     */
+    checksum: string
 };
