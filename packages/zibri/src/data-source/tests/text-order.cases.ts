@@ -68,5 +68,11 @@ export function describeTextOrder(dataSourceName: string, dataSourceOf: () => Da
             expect(afterZebra.map(w => w.text)).toEqual(['äpple']);
             expect(spelledAfterZebra.map(w => w.text)).toEqual(['äpple']);
         }, 30000);
+
+        it('orders by a text inside a json value the way the default locale sorts it', async () => {
+            const ordered: GlossaryWord[] = await words.findAll({ order: { spelling: { text: 'ASC' } } });
+
+            expect(ordered.map(w => w.text)).toEqual(['apple', 'zebra', 'äpple']);
+        }, 30000);
     });
 }

@@ -6,7 +6,7 @@ import { resolveZibriRoot } from '../utilities/resolve-zibri-root.function';
 
 /**
  * The part of webpack's compiler the plugin uses. Typed structurally, like the plugins of
- * `zibri-tsx/webpack`, so a compiler can be stood in for.
+ * `zibri-tsx-compiler/webpack`, so a compiler can be stood in for.
  */
 export type WebpackCompileCompiler = {
     /**
@@ -39,8 +39,9 @@ export class GenerateSourcesOnBuildPlugin {
      */
     apply(compiler: WebpackCompileCompiler): void {
         compiler.hooks.beforeCompile.tapPromise('GenerateSourcesOnBuildPlugin', async () => {
-            await generateHandlebarTypeFiles();
-            await generateEntityFiles();
+            // of the project, wherever webpack was started, such as in the root of a monorepo
+            await generateHandlebarTypeFiles(`${FsUtilities.getPath(this.root, 'src', 'templates')}/**/*.hbs`);
+            await generateEntityFiles(this.root);
             await generateSourceXlf(FsUtilities.getPath(this.root), [
                 // the framework's strings were extracted by its own build and ship with it, so a
                 // build of the application scans only the application

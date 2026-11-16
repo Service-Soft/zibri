@@ -1,0 +1,22 @@
+{
+    "node": [
+        "--perf-basic-prof",
+        "--perf-basic-prof-path={folder}",
+        "--no-logfile-per-isolate",
+        "--logfile={file}.v8.log"
+    ],
+    "perf": [
+        "-e",
+        "cpu-clock:u",
+        "--call-graph",
+        "fp",
+        "--user-callchains",
+        "-F",
+        "499",
+        "--no-buildid",
+        "-m",
+        "64",
+        "-D",
+        "-1"
+    ]
+}

@@ -108,9 +108,11 @@ export type PgPool = {
      */
     end: () => Promise<void>,
     /**
-     * Starts calling a listener for a connection failing while it sits in the pool.
+     * Starts calling a listener for a connection failing while it sits in the pool, or for each
+     * connection the pool opens, before it is handed out.
      */
-    on: (event: 'error', listener: (error: Error) => void) => void
+    on: ((event: 'error', listener: (error: Error) => void) => void)
+        & ((event: 'connect', listener: (client: PgClient) => void) => void)
 };
 
 /**

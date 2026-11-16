@@ -17,10 +17,13 @@ export const Navbar: TsxComponent<Props> = ({ activeRoute }) => {
                     {$ts`Home`}
                 </Link>
                 <Link href="/explorer" activeRoute={activeRoute}>
-                    {$ts`OpenAPI Explorer`}
+                    {$ts`API Explorer`}
                 </Link>
                 <Link href="/assets" activeRoute={activeRoute}>
                     {$ts`Assets`}
+                </Link>
+                <Link href="/docs" activeRoute={activeRoute}>
+                    {$ts`Docs`}
                 </Link>
                 {/* <Link href="/metrics/dashboard" activeRoute={activeRoute}>
                     Metrics

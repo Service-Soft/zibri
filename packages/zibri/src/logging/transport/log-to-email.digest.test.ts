@@ -32,6 +32,7 @@ const template: LogEmailTemplate = compileTsxTemplate<LogEmailTemplate>(
 function createLog(message: string, level: LogLevel = LogLevel.ERROR): Log {
     return {
         id: UUIDUtilities.generate(),
+        application: 'Task tracker',
         createdAt: new Date(),
         cleanupAt: new Date(),
         message,

@@ -122,6 +122,10 @@ describe('CookieAuthStrategy - a session sent without its csrf token', () => {
         // forged request from an anonymous one
         expect(missing.status).toBe(403);
         expect(wrong.status).toBe(403);
+        // and by its name, so the front end fetches the current token instead of giving up
+        // eslint-disable-next-line typescript/no-unsafe-assignment
+        const { name }: { name: string } = await missing.json();
+        expect(name).toBe('CsrfTokenRefusedError');
         await inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).flush();
         const entries: AuditEntry[] = await inject(repositoryTokenFor(AuditEntry)).findAll({
             where: { action: AuditAction.AUTHORIZATION, reason: AuditReason.CSRF },

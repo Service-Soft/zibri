@@ -135,6 +135,32 @@ export abstract class PostgresStatementErrorUtilities {
     }
 
     /**
+     * Whether a statement failed because its connection was ended before the statement could commit
+     * anything: by the server shutting down, terminating the connection or starting, or on a connection that
+     * had failed before the statement was sent. Run again on another connection, it runs once.
+     *
+     * A connection that ends without saying why is left out: the statement may have committed before it
+     * ended.
+     * @param error - What the statement failed with.
+     * @returns Whether it did.
+     */
+    static isEndedBeforeCommit(error: unknown): boolean {
+        for (let current: unknown = error; current instanceof Error; current = current.cause) {
+            // admin_shutdown, crash_shutdown and cannot_connect_now: the server ended the connection, which
+            // rolls back what ran on it, or took none
+            const code: string | undefined = this.findField(current, 'code');
+            if (code === '57P01' || code === '57P02' || code === '57P03') {
+                return true;
+            }
+            // what the driver answers on a connection that failed before, without sending the statement
+            if (current.message.includes('not queryable')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Finds a field of what the driver failed a statement with.
      * @param error - The error.
      * @param field - The field.

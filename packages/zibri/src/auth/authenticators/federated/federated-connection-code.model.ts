@@ -10,7 +10,8 @@ import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
  *
  * Spent once, by the browser that goes on to the provider with it.
  */
-@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate' })
+// not backed up: a restore keeps the codes of now, so that one used since the backup stays used
+@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate', backedUp: false })
 export class FederatedConnectionCode extends BaseEntity {
     /**
      * The code.

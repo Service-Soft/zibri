@@ -1,6 +1,6 @@
+import { BackupDigest } from './backup-digest.model';
 import { BackupEntity } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
-import { BackupDigest } from './staging.function';
 import { InternalError } from '../error-handling/internal-error.model';
 
 /**

@@ -13,6 +13,7 @@ import { defaultTestServerEntities, defaultTestServerRepositories } from '../__t
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { waitUntil } from '../__testing__/wait-until.function';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
 import { Repository } from '../data-source/repository/repository';
 import { RepositoryClass } from '../data-source/repository/repository-class.type';
@@ -22,6 +23,7 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { BaseEntity } from '../entity/base-entity.model';
+import { LoggerInterface } from '../logging/logger.interface';
 import { MetricsServiceInterface } from '../metrics/metrics-service.interface';
 import { MetricsSnapshot } from '../metrics/metrics-snapshot.model';
 import { Newable } from '../types/newable.type';
@@ -138,6 +140,69 @@ describe('LeaseService — held until a transaction ends', () => {
         expect(await isFree('ended-inside')).toBe(true);
         expect(await isFree('ended-before')).toBe(true);
     });
+});
+
+// a wait for a grant somebody else held said nothing until it gave up, a minute or more later: a case running out
+// its time left nothing in the log that said what it waited for
+describe('LeaseService — waiting for a grant', () => {
+    const leaseInMs: number = 60000;
+    const reportIntervalInMs: number = 300;
+    let server: StartedTestServer;
+    let leaseService: LeaseServiceInterface;
+    let leaseRepository: Repository<Lease>;
+
+    beforeAll(async () => {
+        @DataSource({ allowOrphan: true })
+        class WaitingDataSource extends InMemoryDataSource {
+            override readonly entities: Newable<BaseEntity>[] = defaultTestServerEntities;
+            readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
+        }
+        server = await startTestServer({
+            dataSources: [WaitingDataSource],
+            providers: [
+                ...defaultTestServerProviders,
+                defineProvider({ token: ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS, useFactory: () => reportIntervalInMs })
+            ]
+        });
+        leaseService = inject(ZIBRI_DI_TOKENS.LEASE_SERVICE);
+        leaseRepository = inject(repositoryTokenFor(Lease));
+    }, TestTimeouts.inMemory.start);
+
+    afterAll(async () => {
+        await server?.shutdown();
+    });
+
+    it('says who holds a grant it waits for once it waited the report interval, not before, and every interval after', async () => {
+        const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+        const warn: jest.SpiedFunction<LoggerInterface['warn']> = jest.spyOn(logger, 'warn');
+        const findReports: () => string[] = () => warn.mock.calls.map(([message]) => message).filter(m => m.includes('"held-long"'));
+        let letGo: () => void = () => undefined;
+        const holding: Promise<void> = leaseService.withLease({ key: 'held-long', leaseInMs }, async () => await new Promise<void>(resolve => {
+            letGo = resolve;
+        }));
+        try {
+            await waitUntil(async () => (await leaseRepository.findAll({ where: { key: 'held-long' } })).length > 0);
+            const [held] = await leaseRepository.findAll({ where: { key: 'held-long' } });
+            // before the wait starts, so that what is measured is never shorter than what the wait measures
+            const startedAt: number = Date.now();
+            const waiting: Promise<void> = leaseService.withLease({ key: 'held-long', leaseInMs, mode: 'wait', acquireTimeoutInMs: 20000 }, async () => {});
+
+            await waitUntil(() => findReports().length > 0);
+            const firstReportAfterMs: number = Date.now() - startedAt;
+            await waitUntil(() => findReports().length > 1);
+            letGo();
+            await waiting;
+
+            expect(firstReportAfterMs).toBeGreaterThanOrEqual(reportIntervalInMs);
+            expect(held?.heldBy).toBeDefined();
+            expect(findReports()[0]).toContain(held?.heldBy);
+        }
+        finally {
+            letGo();
+            await holding;
+            warn.mockRestore();
+        }
+    }, 30000);
 });
 
 describe('LeaseService — losing a grant', () => {

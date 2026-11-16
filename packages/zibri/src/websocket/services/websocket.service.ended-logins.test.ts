@@ -12,6 +12,7 @@ import { defaultTestServerProviders } from '../../__testing__/test-server/provid
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../../__testing__/wait-until.function';
 import { type AuthServiceInterface } from '../../auth/auth-service.interface';
+import { AuthService } from '../../auth/auth.service';
 import { FederatedSession } from '../../auth/authenticators/federated/federated-session.model';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
 import { PasswordAuthenticator } from '../../auth/authenticators/password/password.authenticator';
@@ -286,6 +287,16 @@ describe('a socket whose login has ended', () => {
         await authService.endLogins(login.user.id, undefined);
 
         expect(await isClosedWithin(socket, 2000)).toBe(true);
+    });
+
+    it('is closed when every login of every user is ended', async () => {
+        const ada: Socket = await connectAs(await logIn(await createUser()));
+        const grace: Socket = await connectAs(await logIn(await createUser()));
+
+        await inject(AuthService).endEveryLogin(undefined);
+
+        expect(await isClosedWithin(ada, 2000)).toBe(true);
+        expect(await isClosedWithin(grace, 2000)).toBe(true);
     });
 
     it('is closed when the api key it connected with is revoked', async () => {

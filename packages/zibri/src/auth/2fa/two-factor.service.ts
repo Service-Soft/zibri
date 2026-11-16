@@ -24,6 +24,7 @@ import { Ms } from '../../utilities/ms';
 import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
 import { UserAccount } from '../models/user-account.model';
 import { TwoFactorMethod } from './methods/two-factor-method.interface';
+import { SecondFactorMissingError } from './second-factor-missing.error';
 import { TwoFactorFailureLimit, TwoFactorLock } from './two-factor-failure-limit.model';
 import { CreateTwoFactorFailureStreakData, TwoFactorFailureStreak } from './two-factor-failure-streak.model';
 import { TwoFactorLockedError } from './two-factor-locked.error';
@@ -418,8 +419,12 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         }
         // one method's refusal says why - a wrong code, a used one, none at all. With several, each
         // describes a factor the caller may never have meant to present, so none of them is the answer
-        return errors.length === 1
-            ? errors[0]
+        if (errors.length === 1) {
+            return errors[0];
+        }
+        // when none of them was presented at all, the client is asked for one rather than told it failed
+        return errors.every(e => e instanceof SecondFactorMissingError)
+            ? new SecondFactorMissingError($ts`You need to provide a second factor to access this route.`)
             : new UnauthorizedError($ts`You need to provide a second factor to access this route.`);
     }
 

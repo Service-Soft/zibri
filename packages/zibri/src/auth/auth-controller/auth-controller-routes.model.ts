@@ -2,6 +2,7 @@ import { RedirectResponse } from '../../http/redirect-response.model';
 import { FileResponse } from '../../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../../parsing/html/html-response.model';
 import { Route } from '../../routing/controller-route-configuration.model';
+import { TwoFactorRegistrations } from '../2fa/two-factor-registrations.model';
 import { FederatedCallbackForm } from '../authenticators/federated/federated-callback-form.model';
 import { LinkedIdentity } from '../authenticators/linked-identity.model';
 import { ChangePasswordAtLoginInput } from '../authenticators/password/change-password-at-login-input.model';
@@ -11,9 +12,11 @@ import { PasswordResetTokenInput } from '../authenticators/password/password-res
 import { PasswordResetTokenValidity } from '../authenticators/password/password-reset-token-validity.model';
 import { RequestPasswordResetInput } from '../authenticators/password/request-password-reset-input.model';
 import { type CurrentUser } from '../decorators/current-user.decorator';
+import { EmailConfirmation } from '../email-verification/email-confirmation.model';
 import { EmailVerificationTokenInput } from '../email-verification/email-verification-token-input.model';
 import { RequestEmailChangeInput } from '../email-verification/request-email-change-input.model';
 import { BaseUser } from '../models/base-user.model';
+import { CurrentUserProfile } from '../models/current-user-profile.model';
 import { LogoutResult } from '../models/logout-result.model';
 import { UserLogin } from '../models/user-login.model';
 import { CsrfToken } from '../strategies/csrf-token.model';
@@ -38,6 +41,14 @@ export type AuthControllerLoginRoutes = {
 };
 
 /**
+ * The route of `AuthController` that answers who is logged in, with `currentUserRoute`.
+ */
+export type AuthControllerCurrentUserRoutes = {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    getCurrentUser: (user: CurrentUser) => Promise<CurrentUserProfile>
+};
+
+/**
  * The routes of `AuthController` for a strategy that lists the logins of a user.
  */
 export type AuthControllerLoginListingRoutes = {
@@ -59,6 +70,14 @@ export type AuthControllerEmailVerificationRoutes = {
     requestEmailChange: (user: CurrentUser, input: RequestEmailChangeInput) => Promise<void>,
     // eslint-disable-next-line jsdoc/require-jsdoc
     confirmEmailChange: (input: EmailVerificationTokenInput) => Promise<void>
+};
+
+/**
+ * The route of `AuthController` every link confirming an email address can go to, with `confirmEmailRoute`.
+ */
+export type AuthControllerConfirmEmailRoutes = {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    confirmEmail: (input: EmailVerificationTokenInput) => Promise<EmailConfirmation>
 };
 
 /**
@@ -163,6 +182,14 @@ export type AuthControllerIdentityRoutes = {
     findIdentities: (user: BaseUser<string>) => Promise<LinkedIdentity[]>,
     // eslint-disable-next-line jsdoc/require-jsdoc
     unlinkIdentity: (user: BaseUser<string>, identityId: string) => Promise<void>
+};
+
+/**
+ * The route of `AuthController` that lists the two factor methods a user enrolled, with `twoFactorRegistrationsRoute`.
+ */
+export type AuthControllerTwoFactorRegistrationsRoutes = {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    findTwoFactorRegistrations: (user: BaseUser<string>) => Promise<TwoFactorRegistrations>
 };
 
 /**

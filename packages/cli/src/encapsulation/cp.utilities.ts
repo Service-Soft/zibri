@@ -47,7 +47,10 @@ export abstract class CPUtilities {
         const options: ExecSyncOptions = {
             stdio: output ? 'inherit' : undefined,
             killSignal: 'SIGINT',
-            cwd: this.cwd
+            cwd: this.cwd,
+            // the environment the cli sees, which inside jest is a copy of the process's own, rather than the one
+            // child_process would hand the command
+            env: process.env
         };
         try {
             execSync(command, options);

@@ -1,11 +1,18 @@
-import { CipherGCM, CipherGCMTypes, createCipheriv, createDecipheriv, DecipherGCM, randomBytes } from 'node:crypto';
+import { Cipheriv, CipherGCM, CipherGCMTypes, createCipheriv, createDecipheriv, Decipheriv, DecipherGCM, randomBytes } from 'node:crypto';
 
+import { StagedFileEncryption } from './staged-file-encryption.model';
 import { InternalError } from '../error-handling/internal-error.model';
 
 /**
  * What a backup's data is encrypted with.
  */
 const BACKUP_CIPHER: CipherGCMTypes = 'aes-256-gcm';
+
+/**
+ * What a staged copy only the same attempt reads back is encrypted with: a stream cipher, one for the
+ * whole copy, where the frames of the archive cost a cipher each.
+ */
+const STAGING_CIPHER: string = 'aes-256-ctr';
 
 /**
  * How many bytes of a backup's data are sealed together.
@@ -32,6 +39,11 @@ const SEALED_CHUNK_SIZE_IN_BYTES: number = CHUNK_SIZE_IN_BYTES + TAG_LENGTH_IN_B
 const KEY_LENGTH_IN_BYTES: number = 32;
 
 /**
+ * How many bytes the IV of a staged copy is.
+ */
+const STAGING_IV_LENGTH_IN_BYTES: number = 16;
+
+/**
  * How a resource's backup data is encrypted, as the stored archive holds it.
  */
 export abstract class BackupEncryptionUtilities {
@@ -41,6 +53,15 @@ export abstract class BackupEncryptionUtilities {
      */
     static generateKey(): Buffer {
         return randomBytes(KEY_LENGTH_IN_BYTES);
+    }
+
+    /**
+     * Generates what one staged file is encrypted with by {@link encryptStaged}: a key and an IV of its own,
+     * so that no two files are encrypted with the same stream.
+     * @returns A random key and IV.
+     */
+    static generateStagedFileEncryption(): StagedFileEncryption {
+        return { key: this.generateKey(), iv: randomBytes(STAGING_IV_LENGTH_IN_BYTES) };
     }
 
     /**
@@ -87,6 +108,46 @@ export abstract class BackupEncryptionUtilities {
             }
         }
         yield this.open(pending, key, index, true);
+    }
+
+    /**
+     * Encrypts data on its way to a file only the same attempt reads back, such as the staged copy of a
+     * resource that is cut into chunks.
+     *
+     * One stream, authenticated by nothing: what is asked of it is that the disk never holds the data
+     * readably, and what reads it back is checked anew, each chunk by its id.
+     * @param source - The data.
+     * @param key - A key of {@link generateKey}, held by the attempt alone.
+     * @param iv - Sixteen random bytes, held beside it.
+     * @yields The encrypted data, in order.
+     */
+    static async* encryptStaged(source: AsyncIterable<unknown>, key: Buffer, iv: Buffer): AsyncGenerator<Buffer> {
+        const cipher: Cipheriv = createCipheriv(STAGING_CIPHER, key, iv);
+        for await (const chunk of source) {
+            yield cipher.update(this.toBuffer(chunk));
+        }
+        const rest: Buffer = cipher.final();
+        if (rest.length) {
+            yield rest;
+        }
+    }
+
+    /**
+     * Decrypts what {@link encryptStaged} encrypted, read from its start.
+     * @param source - The encrypted data.
+     * @param key - The key it was encrypted with.
+     * @param iv - The bytes it was encrypted with.
+     * @yields The data, in order.
+     */
+    static async* decryptStaged(source: AsyncIterable<unknown>, key: Buffer, iv: Buffer): AsyncGenerator<Buffer> {
+        const decipher: Decipheriv = createDecipheriv(STAGING_CIPHER, key, iv);
+        for await (const chunk of source) {
+            yield decipher.update(this.toBuffer(chunk));
+        }
+        const rest: Buffer = decipher.final();
+        if (rest.length) {
+            yield rest;
+        }
     }
 
     private static seal(data: Buffer, key: Buffer, index: number, isLast: boolean): Buffer {

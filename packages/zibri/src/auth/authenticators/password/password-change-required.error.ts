@@ -1,3 +1,5 @@
+import { PasswordChangeRequiredErrorBody } from 'zibri-contract';
+
 import { CustomBodyHttpError } from '../../../error-handling/errors/custom-body-http.error';
 import { HttpStatus } from '../../../http/http-status.enum';
 import { JsonMimeType } from '../../../http/json-mime-type.type';
@@ -12,8 +14,9 @@ import { TracingUtilities } from '../../../tracing/tracing.utilities';
  * Answers `401` with the body every other error has, plus the `ticket` the new password is set with.
  */
 export class PasswordChangeRequiredError extends CustomBodyHttpError {
+    // typed by the contract a frontend reads it with, so a change to it can't leave the frontend behind
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly body: unknown;
+    readonly body: PasswordChangeRequiredErrorBody;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly mimeTypes: JsonMimeType[] = [MimeType.JSON];

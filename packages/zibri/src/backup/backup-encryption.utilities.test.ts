@@ -116,4 +116,17 @@ describe('BackupEncryptionUtilities', () => {
         // before any of it reaches the resource
         expect(Buffer.concat(received).equals(data.subarray(0, CHUNK))).toBe(true);
     });
+
+    it('stages data unreadably and reads it back byte for byte, however it is handed over', async () => {
+        const data: Buffer = Buffer.from('a row of a table, '.repeat(20_000));
+        const iv: Buffer = randomBytes(16);
+
+        const staged: Buffer = await collect(BackupEncryptionUtilities.encryptStaged(inPieces(data), key, iv));
+
+        expect(staged.length).toBe(data.length);
+        expect(staged.includes('a row of a table')).toBe(false);
+        expect((await collect(BackupEncryptionUtilities.decryptStaged(inPieces(staged), key, iv))).equals(data)).toBe(true);
+        // a key of its own per attempt, so the same data stages to other bytes
+        expect((await collect(BackupEncryptionUtilities.encryptStaged(inPieces(data), BackupEncryptionUtilities.generateKey(), iv))).equals(staged)).toBe(false);
+    });
 });

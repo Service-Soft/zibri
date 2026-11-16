@@ -1,3 +1,5 @@
+import { SecondFactorRequiredErrorBody } from 'zibri-contract';
+
 import { CustomBodyHttpError } from '../../error-handling/errors/custom-body-http.error';
 import { HttpStatus } from '../../http/http-status.enum';
 import { JsonMimeType } from '../../http/json-mime-type.type';
@@ -13,8 +15,9 @@ import { TracingUtilities } from '../../tracing/tracing.utilities';
  * with the ticket.
  */
 export class SecondFactorRequiredError extends CustomBodyHttpError {
+    // typed by the contract a frontend reads it with, so a change to it can't leave the frontend behind
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly body: unknown;
+    readonly body: SecondFactorRequiredErrorBody;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly mimeTypes: JsonMimeType[] = [MimeType.JSON];

@@ -1,305 +1,526 @@
-import assert from 'node:assert';
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
+import { posix } from 'node:path';
 import { Readable } from 'node:stream';
 import { buffer } from 'node:stream/consumers';
+import { setTimeout as wait } from 'node:timers/promises';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { utils } from 'ssh2';
-import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { Client, ClientSFTPCallback, Connection, SFTPWrapper, utils } from 'ssh2';
 
-import { SftpBackupTransportOptions } from './sftp/sftp-backup-transport-options.model';
-import { BaseSftpBackupTransport } from './sftp.backup-transport';
-import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { PostgresBackupScope } from '../../data-source/data-sources/postgres/postgres-backup-scope.model';
-import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-data-source.model';
-import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
-import { DataSource } from '../../data-source/decorators/data-source.decorator';
-import { SchemaManagement } from '../../data-source/models/schema-management.model';
-import { Repository } from '../../data-source/repository/repository';
-import { RepositoryClass } from '../../data-source/repository/repository-class.type';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { BackupEntity } from '../backup-entity.model';
-import { BackupResourceEntity } from '../backup-resource-entity.model';
-import { BackupService } from '../backup.service';
-import { Backup } from '../decorators/backup-resource.decorator';
-import { BackupTransport } from '../decorators/backup-transport.decorator';
+import { BackupKeyAccessDeniedError } from './backup-key-access-denied.error';
+import { BackupTransportSessionInterface } from './backup-transport-session.interface';
+import { SftpBackupTransport } from './sftp.backup-transport';
+import { InProcessSftpLogin, InProcessSftpRequest, InProcessSftpServer } from '../../__testing__/backup/in-process-sftp-server.model';
+import { Ms } from '../../utilities/ms';
 
-/**
- * The SFTP server the transport is tested against: OpenSSH's own, configured by the image from its command.
- *
- * The image publishes no version tags, so this is the smallest of the ones it has.
- */
-const SFTP_TEST_IMAGE: string = 'atmoz/sftp:alpine';
-const SFTP_PORT: number = 22;
-const USERNAME: string = 'zibri';
-const PASSWORD: string = 'zibri-test-password';
-// the user is locked into its home folder, so `/backups` is `/home/zibri/backups` on the server
-const HOME: string = `/home/${USERNAME}`;
+// against a server in the test's own process, which a case has answer as a server the transport does not
+// control can: wrongly, refusing, or not at all. What a real server accepts is checked against one in a
+// container in base-sftp.backup-transport.test.ts
+
 const MIB: number = 1024 * 1024;
 
-// only known once the container runs, which is after the transports below are declared
-let host: string = '';
-let port: number = 0;
-let hostKeyFingerprint: string = '';
-
-// ecdsa rather than ed25519: ssh2 strips leading zero bytes from a generated ed25519 public key, so
-// one key in 256 comes out a byte short and ssh2 itself then refuses to parse it. An ecdsa point
-// starts with 0x04 and is never cut
-const { private: privateKey, public: publicKey } = utils.generateKeyPairSync('ecdsa', { bits: 256 });
+/**
+ * How long a case may take, the connection to the server included.
+ */
+const CASE_TIMEOUT_IN_MS: number = 30_000;
 
 /**
- * The options every transport here shares, the way it logs in aside.
- * @returns The options.
+ * How much a file the server lies about the size of is answered with, before it ends after all.
  */
-function sharedOptions(): OmitStrict<SftpBackupTransportOptions, 'authentication'> {
-    return {
-        host,
-        port,
-        username: USERNAME,
-        hostKeyFingerprint,
-        // a folder that does not exist yet, so that storing the first backup has to create it
-        path: '/backups/app'
-    };
-}
-
-@BackupTransport()
-class TestSftpBackupTransport extends BaseSftpBackupTransport {
-    override readonly name: string = 'sftp-backup-transport';
-    protected override get options(): SftpBackupTransportOptions {
-        return { ...sharedOptions(), authentication: { password: PASSWORD } };
-    }
-}
-
-// the two below are built directly by the cases that use them rather than registered: the application
-// asks every registered transport for its backups while it starts, and one that is meant to be refused
-// would refuse the application
-class KeySftpBackupTransport extends BaseSftpBackupTransport {
-    override readonly name: string = 'sftp-key-backup-transport';
-    protected override get options(): SftpBackupTransportOptions {
-        return { ...sharedOptions(), authentication: { privateKey } };
-    }
-}
-
-class OtherHostSftpBackupTransport extends BaseSftpBackupTransport {
-    override readonly name: string = 'sftp-other-host-backup-transport';
-    protected override get options(): SftpBackupTransportOptions {
-        return {
-            ...sharedOptions(),
-            authentication: { password: PASSWORD },
-            // a fingerprint of the right shape that belongs to no key
-            hostKeyFingerprint: `SHA256:${randomBytes(32).toString('base64')
-                .replace(/=+$/, '')}`
-        };
-    }
-}
-
-@Entity({ tenant: 'shared' })
-class Item {
-    @Property.string({ primary: true })
-    id!: string;
-
-    @Property.string()
-    value!: string;
-}
-
-@DataSource()
-@Backup({ transports: [TestSftpBackupTransport], encrypt: false })
-class DbDataSource extends PostgresDataSource {
-    override backupScope: PostgresBackupScope = 'schema';
-    override rootPw: string = 'password';
-    override rootUsername: string = 'postgres';
-    override options: PostgresOptions = {
-        host: 'localhost',
-        username: 'postgres',
-        password: 'password',
-        database: 'db',
-        ssl: false
-    };
-    entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Item, BackupResourceEntity, BackupEntity];
-    repositories: RepositoryClass[] = defaultTestServerRepositories;
-    schemaManagement: SchemaManagement = 'synchronize';
-    readonly pooler: PostgresPooler = 'none';
-}
+const LIED_ABOUT_SIZE: number = 4 * MIB;
 
 /**
- * Creates the entities the transport is called with.
- * @param backupName - The name of the backup.
- * @param size - The size recorded for the resource.
- * @returns The backup and its one resource.
+ * The server, answering as each case has it.
  */
-function resolveBackup(backupName: string, size: number): [BackupEntity, BackupResourceEntity] {
-    const backup: BackupEntity = Object.assign(new BackupEntity(), { name: backupName });
-    const resource: BackupResourceEntity = Object.assign(new BackupResourceEntity(), { name: 'Data', size });
-    return [backup, resource];
-}
-
-/**
- * Some random data, in the chunks a file is read in.
- * @param size - How many bytes.
- * @returns The chunks.
- */
-function resolveRandomChunks(size: number): Buffer[] {
-    const chunkSize: number = 64 * 1024;
-    return Array.from({ length: Math.ceil(size / chunkSize) }, (_, i) => randomBytes(Math.min(chunkSize, size - (i * chunkSize))));
-}
-
-/**
- * The sha256 of some data, to compare two copies of it.
- * @param data - The data.
- * @returns Its hash.
- */
-function resolveHash(data: Buffer): string {
-    return createHash('sha256')
-        .update(data)
-        .digest('hex');
-}
-
-describe('BaseSftpBackupTransport', () => {
-    let sftp: StartedTestContainer;
-    let server: StartedTestServer;
-    let transport: TestSftpBackupTransport;
+class MisbehavingSftpServer extends InProcessSftpServer {
+    /**
+     * The files whose STAT says they hold one byte, and whose READs are answered with far more.
+     */
+    readonly liedAbout: Set<string> = new Set();
 
     /**
-     * Lists a folder on the server directly, for what the transport itself never says.
-     * @param folder - The folder, below the user's home.
-     * @returns The names in it.
+     * Whether the server refuses to rename, OpenSSH's posix rename included, as a server does a target it
+     * may not replace. It still removes files.
      */
-    async function listOnServer(folder: string): Promise<string[]> {
-        const { output } = await sftp.exec(['ls', '-1', `${HOME}${folder}`]);
-        return output.split('\n').filter(name => name !== '');
+    refusesRenames: boolean = false;
+
+    /**
+     * Whether the server ends the connection at the first WRITE, rather than answering it.
+     */
+    endsAtWrite: boolean = false;
+
+    /**
+     * The paths whose STAT the server refuses, as it does a file in a folder the user may not enter.
+     */
+    readonly unreachable: Set<string> = new Set();
+
+    /**
+     * The files whose OPEN the server refuses, as it does a file the user may find and not read.
+     */
+    readonly unreadable: Set<string> = new Set();
+
+    /**
+     * The requests the server leaves unanswered, while the connection stays up: `REMOVE`, `WRITE` or `READ`.
+     */
+    readonly unanswered: Set<'REMOVE' | 'WRITE' | 'READ'> = new Set();
+
+    /**
+     * How long after the one before the server answers each WRITE, as a slow server does, which still answers.
+     */
+    writeDelayMs: number = 0;
+
+    /**
+     * Whether the server logs a client in and opens no SFTP session for it, as a server without the subsystem does.
+     */
+    opensNoSftp: boolean = false;
+
+    /**
+     * Whether the server ends the connection of a client logging in, as one refusing the address it comes from does.
+     */
+    endsAtLogin: boolean = false;
+
+    /**
+     * The directories a client opened to read, by their path.
+     */
+    readonly openedDirectories: Set<string> = new Set();
+
+    private writesAnswered: Promise<void> = Promise.resolve();
+
+    /**
+     * Stores a file on the server directly, with the directories leading to it.
+     * @param path - The path of the file.
+     */
+    storeFile(path: string): void {
+        for (let directory: string = posix.dirname(path); directory !== '/'; directory = posix.dirname(directory)) {
+            this.directories.add(directory);
+        }
+        this.files.set(path, Buffer.from(path));
     }
 
-    beforeAll(async () => {
-        // `user:password:uid:gid:folder`. The image adds the keys under .ssh/keys to the user's authorized keys
-        sftp = await new GenericContainer(SFTP_TEST_IMAGE)
-            .withCommand([`${USERNAME}:${PASSWORD}:::backups`])
-            .withCopyContentToContainer([{ content: publicKey, target: `${HOME}/.ssh/keys/id_ecdsa.pub` }])
-            .withExposedPorts(SFTP_PORT)
-            .withWaitStrategy(Wait.forLogMessage(/Server listening on/))
-            .start();
-        host = sftp.getHost();
-        port = sftp.getMappedPort(SFTP_PORT);
-        // the key the transport is offered first, as `ssh-keygen -lf` prints it: `256 SHA256:... comment (ED25519)`
-        const { output } = await sftp.exec(['ssh-keygen', '-lf', '/etc/ssh/ssh_host_ed25519_key.pub']);
-        hostKeyFingerprint = output.split(' ')[1] ?? '';
-        expect(hostKeyFingerprint).toMatch(/^SHA256:/);
+    protected override answerOpenDirectory(request: InProcessSftpRequest, path: string): void {
+        this.openedDirectories.add(path);
+        super.answerOpenDirectory(request, path);
+    }
 
-        server = await startTestServer({ dataSources: [DbDataSource] });
-        transport = inject(TestSftpBackupTransport);
-    }, 60000);
+    protected override answerSftpRequest(acceptSftp: () => SFTPWrapper, connection: Connection): void {
+        if (!this.opensNoSftp) {
+            super.answerSftpRequest(acceptSftp, connection);
+        }
+    }
 
-    afterAll(async () => {
-        await server.shutdown();
-        await sftp.stop();
-    }, 30000);
+    protected override answerLogin(login: InProcessSftpLogin): void {
+        if (this.endsAtLogin) {
+            login.connection.end();
+            return;
+        }
+        super.answerLogin(login);
+    }
 
-    it('refuses a server that identifies itself with another key, and names the key it did', async () => {
-        const otherHost: OtherHostSftpBackupTransport = new OtherHostSftpBackupTransport();
+    protected override answerStat(request: InProcessSftpRequest, path: string): void {
+        if (this.unreachable.has(path)) {
+            request.sftp.status(request.reqId, utils.sftp.STATUS_CODE.PERMISSION_DENIED);
+            return;
+        }
+        if (!this.liedAbout.has(path)) {
+            super.answerStat(request, path);
+            return;
+        }
+        request.sftp.attrs(request.reqId, { mode: 0o100644, uid: 0, gid: 0, size: 1, atime: 0, mtime: 0 });
+    }
 
-        // without this, every other case here could pass against a transport that verifies nothing
-        await expect(otherHost.resolveBackups([])).rejects.toThrow(hostKeyFingerprint);
+    protected override answerOpen(request: InProcessSftpRequest, path: string, flags: number): void {
+        if (this.unreadable.has(path)) {
+            request.sftp.status(request.reqId, utils.sftp.STATUS_CODE.PERMISSION_DENIED);
+            return;
+        }
+        super.answerOpen(request, path, flags);
+    }
+
+    protected override answerRemove(request: InProcessSftpRequest, path: string): void {
+        if (!this.unanswered.has('REMOVE')) {
+            super.answerRemove(request, path);
+        }
+    }
+
+    protected override answerRead(request: InProcessSftpRequest, path: string, offset: number, length: number): void {
+        if (this.unanswered.has('READ')) {
+            return;
+        }
+        if (!this.liedAbout.has(path)) {
+            super.answerRead(request, path, offset, length);
+            return;
+        }
+        if (offset >= LIED_ABOUT_SIZE) {
+            request.sftp.status(request.reqId, utils.sftp.STATUS_CODE.EOF);
+            return;
+        }
+        request.sftp.data(request.reqId, Buffer.alloc(Math.min(length, LIED_ABOUT_SIZE - offset), 'x'));
+    }
+
+    protected override answerWrite(request: InProcessSftpRequest, path: string, offset: number, data: Buffer): void {
+        if (this.unanswered.has('WRITE')) {
+            return;
+        }
+        if (this.endsAtWrite) {
+            this.endConnections();
+            return;
+        }
+        if (this.writeDelayMs === 0) {
+            super.answerWrite(request, path, offset, data);
+            return;
+        }
+        // one after another, so that the last of many sent at once waits for all of them
+        this.writesAnswered = this.writesAnswered
+            // eslint-disable-next-line promise/prefer-await-to-then
+            .then(async () => await wait(this.writeDelayMs))
+            // eslint-disable-next-line promise/prefer-await-to-then
+            .then(() => super.answerWrite(request, path, offset, data));
+    }
+
+    protected override answerRename(request: InProcessSftpRequest, from: string, to: string): void {
+        if (!this.refusesRenames) {
+            super.answerRename(request, from, to);
+            return;
+        }
+        request.sftp.status(request.reqId, utils.sftp.STATUS_CODE.PERMISSION_DENIED);
+    }
+
+    protected override answerExtended(request: InProcessSftpRequest, name: string, data: Buffer): void {
+        if (!this.refusesRenames) {
+            super.answerExtended(request, name, data);
+            return;
+        }
+        request.sftp.status(request.reqId, utils.sftp.STATUS_CODE.PERMISSION_DENIED);
+    }
+}
+
+// announcing OpenSSH's posix rename, as OpenSSH does
+const server: MisbehavingSftpServer = new MisbehavingSftpServer({ 'posix-rename@openssh.com': '1' });
+
+/**
+ * Opens a session of the transport kept on the server.
+ * @returns The session.
+ */
+async function openSession(): Promise<BackupTransportSessionInterface> {
+    return await new SftpBackupTransport('in-process-sftp-backup-transport', server.getOptions('/blobs')).openSession();
+}
+
+beforeAll(async () => {
+    await server.start();
+});
+
+afterAll(async () => {
+    await server.stop();
+});
+
+beforeEach(() => {
+    server.liedAbout.clear();
+    server.unreachable.clear();
+    server.unreadable.clear();
+    server.refusesRenames = false;
+    server.endsAtWrite = false;
+    server.unanswered.clear();
+    server.writeDelayMs = 0;
+    server.opensNoSftp = false;
+    server.endsAtLogin = false;
+    server.openedDirectories.clear();
+});
+
+describe('SftpBackupTransport, a server it does not control', () => {
+    it('refuses a file that holds more than it may as it arrives, whatever the server said its size is', async () => {
+        server.liedAbout.add('/blobs/lied-about/data');
+        const session: BackupTransportSessionInterface = await openSession();
+        try {
+            await expect(session.get('lied-about/data', 1024).then(async data => await buffer(data))).rejects.toThrow('larger than the 1024 bytes');
+        }
+        finally {
+            await session.close();
+        }
+    }, CASE_TIMEOUT_IN_MS);
+
+    it('leaves what a key held when the server refuses to replace it', async () => {
+        const session: BackupTransportSessionInterface = await openSession();
+        try {
+            await session.put('kept/data', Readable.from([Buffer.from('as it was')]));
+            server.refusesRenames = true;
+
+            await expect(session.put('kept/data', Readable.from([Buffer.from('the replacement')]))).rejects.toThrow();
+        }
+        finally {
+            await session.close();
+        }
+
+        expect(server.files.get('/blobs/kept/data')?.toString()).toBe('as it was');
+        // nor what the refused put wrote
+        expect([...server.files.keys()].filter(path => path.startsWith('/blobs/kept/') || path.startsWith('/blobs/.partial/'))).toEqual(['/blobs/kept/data']);
+    }, CASE_TIMEOUT_IN_MS);
+
+    // what the sync skips with a warning, where any other error fails it
+    it('refuses a key it may not reach, or may find and not read, as access denied', async () => {
+        server.files.set('/blobs/denied/unreachable', Buffer.from('x'));
+        server.files.set('/blobs/denied/unreadable', Buffer.from('x'));
+        server.unreachable.add('/blobs/denied/unreachable');
+        server.unreadable.add('/blobs/denied/unreadable');
+        const session: BackupTransportSessionInterface = await openSession();
+        try {
+            await expect(session.get('denied/unreachable', 1024)).rejects.toBeInstanceOf(BackupKeyAccessDeniedError);
+            await expect(session.get('denied/unreadable', 1024).then(async data => await buffer(data))).rejects.toBeInstanceOf(BackupKeyAccessDeniedError);
+        }
+        finally {
+            await session.close();
+        }
+    }, CASE_TIMEOUT_IN_MS);
+});
+
+// a connection ending in the middle of a put left its file behind, which nothing listed and nothing removed,
+// and which kept the folder of its backup from being removed with the backup
+describe('SftpBackupTransport, the staging folder', () => {
+    it('deletes what puts left in it a day ago at its first put, neither what one still writes nor when only reading, and lists none of it', async () => {
+        const nowInSeconds: number = Math.floor(Date.now() / Ms.SECOND);
+        server.directories.add('/staged');
+        server.directories.add('/staged/.partial');
+        server.files.set('/staged/.partial/left-behind', Buffer.from('part of a blob'));
+        server.modifiedAt.set('/staged/.partial/left-behind', nowInSeconds - (2 * Ms.DAY / Ms.SECOND));
+        server.files.set('/staged/.partial/being-written', Buffer.from('part of a blob'));
+        server.modifiedAt.set('/staged/.partial/being-written', nowInSeconds);
+        const session: BackupTransportSessionInterface = await new SftpBackupTransport('in-process-sftp-backup-transport', server.getOptions('/staged')).openSession();
+        const keys: string[] = [];
+        const names: string[] = [];
+        try {
+            await expect(session.get('backup/data', 1024)).rejects.toThrow();
+            expect(server.files.has('/staged/.partial/left-behind')).toBe(true);
+
+            await session.put('backup/data', Readable.from([Buffer.from('whole')]));
+            for await (const page of session.findKeys('')) {
+                keys.push(...page);
+            }
+            for await (const page of session.findNames('')) {
+                names.push(...page);
+            }
+        }
+        finally {
+            await session.close();
+        }
+
+        expect([...server.files.keys()].filter(path => path.startsWith('/staged/')).sort()).toEqual(['/staged/.partial/being-written', '/staged/backup/data']);
+        expect(keys).toEqual(['backup/data']);
+        expect(names).toEqual(['backup']);
+    }, CASE_TIMEOUT_IN_MS);
+});
+
+// each folder read is a round trip of its own: a prefix naming part of a folder's name, such as `cases-<uuid>` or
+// `.zibri-repository/chunks`, read every folder of the store, and whether a backup's folder held anything was
+// answered after a thousand keys of it. On a store of many backups across a network that took minutes
+describe('SftpBackupTransport, listing', () => {
+    /**
+     * Every key a listing finds.
+     * @param session - The session.
+     * @param prefix - The prefix.
+     * @returns The keys, sorted.
+     */
+    async function findAllKeys(session: BackupTransportSessionInterface, prefix: string): Promise<string[]> {
+        const keys: string[] = [];
+        for await (const page of session.findKeys(prefix)) {
+            keys.push(...page);
+        }
+        return keys.sort();
+    }
+
+    it('reads only the folders that can hold a key starting with the prefix', async () => {
+        for (const path of ['wanted/a', 'wanted-too/b', 'other/deep/c', 'repository/chunks/ab/d', 'repository/backups/e']) {
+            server.storeFile(`/listed/${path}`);
+        }
+        const session: BackupTransportSessionInterface = await new SftpBackupTransport('in-process-sftp-backup-transport', server.getOptions('/listed')).openSession();
+        try {
+            expect(await findAllKeys(session, 'wanted')).toEqual(['wanted-too/b', 'wanted/a']);
+            expect([...server.openedDirectories].sort()).toEqual(['/listed', '/listed/wanted', '/listed/wanted-too']);
+            server.openedDirectories.clear();
+
+            expect(await findAllKeys(session, 'repository/chunks')).toEqual(['repository/chunks/ab/d']);
+            expect([...server.openedDirectories].sort()).toEqual(['/listed/repository', '/listed/repository/chunks', '/listed/repository/chunks/ab']);
+        }
+        finally {
+            await session.close();
+        }
+    }, CASE_TIMEOUT_IN_MS);
+
+    // what tells a backup's folder holding anything from one left empty, which needs one key and no more
+    it('hands over the keys of a folder before it reads the next', async () => {
+        for (let i: number = 0; i < 20; i++) {
+            server.storeFile(`/paged/folder-${i}/key`);
+        }
+        const session: BackupTransportSessionInterface = await new SftpBackupTransport('in-process-sftp-backup-transport', server.getOptions('/paged')).openSession();
+        let first: string[] = [];
+        try {
+            for await (const page of session.findKeys('')) {
+                first = page;
+                break;
+            }
+        }
+        finally {
+            await session.close();
+        }
+
+        expect(first).toHaveLength(1);
+        // the top, and the folder of the key
+        expect(server.openedDirectories.size).toBe(2);
+    }, CASE_TIMEOUT_IN_MS);
+});
+
+describe('SftpBackupTransport, a connection that ends', () => {
+    it('fails a put whose connection ends while it writes', async () => {
+        server.endsAtWrite = true;
+        const session: BackupTransportSessionInterface = await openSession();
+        try {
+            const chunks: Buffer[] = Array.from({ length: 16 }, () => randomBytes(64 * 1024));
+            await expect(session.put('lost/data', Readable.from(chunks))).rejects.toThrow();
+        }
+        finally {
+            await session.close();
+        }
+    }, CASE_TIMEOUT_IN_MS);
+
+    // a server that keeps the connection up and never answers left a backup waiting forever: the keepalive only
+    // ends a connection that is gone
+    describe('to a server that stops answering', () => {
+        const REQUEST_TIMEOUT_IN_MS: number = 300;
+
+        /**
+         * Opens a session that waits for an answer of the server for as long as the cases here have it.
+         * @returns The session.
+         */
+        async function openWaitingSession(): Promise<BackupTransportSessionInterface> {
+            return await new SftpBackupTransport(
+                'in-process-sftp-backup-transport',
+                { ...server.getOptions('/blobs'), requestTimeoutInMs: REQUEST_TIMEOUT_IN_MS }
+            ).openSession();
+        }
+
+        it('fails a request the server does not answer, naming it, and every request after', async () => {
+            server.unanswered.add('REMOVE');
+            const session: BackupTransportSessionInterface = await openWaitingSession();
+
+            await expect(session.delete(['silent/data'])).rejects.toThrow(`within ${REQUEST_TIMEOUT_IN_MS} ms: REMOVE of "/blobs/silent/data"`);
+            await expect(session.get('silent/data', 1024)).rejects.toThrow(`within ${REQUEST_TIMEOUT_IN_MS} ms`);
+            await expect(session.close()).resolves.toBeUndefined();
+        }, CASE_TIMEOUT_IN_MS);
+
+        it('fails a put whose writes the server stops answering', async () => {
+            server.unanswered.add('WRITE');
+            const session: BackupTransportSessionInterface = await openWaitingSession();
+            try {
+                await expect(session.put('silent/data', Readable.from([randomBytes(64 * 1024)]))).rejects.toThrow(/: WRITE of "\/blobs\/\.partial\//);
+            }
+            finally {
+                await session.close();
+            }
+        }, CASE_TIMEOUT_IN_MS);
+
+        it('fails a file being read whose reads the server stops answering', async () => {
+            server.files.set('/blobs/silent/data', randomBytes(1024));
+            server.unanswered.add('READ');
+            const session: BackupTransportSessionInterface = await openWaitingSession();
+            try {
+                await expect(session.get('silent/data', 1024).then(async data => await buffer(data))).rejects.toThrow(': READ of "/blobs/silent/data"');
+            }
+            finally {
+                await session.close();
+            }
+        }, CASE_TIMEOUT_IN_MS);
+
+        it('fails opening a session on a server that logs in and opens no SFTP session', async () => {
+            server.opensNoSftp = true;
+            const transport: SftpBackupTransport = new SftpBackupTransport(
+                'in-process-sftp-backup-transport',
+                { ...server.getOptions('/blobs'), connectTimeoutInMs: REQUEST_TIMEOUT_IN_MS }
+            );
+
+            await expect(transport.openSession()).rejects
+                .toThrow(`did not open the SFTP subsystem for the transport "in-process-sftp-backup-transport" within ${REQUEST_TIMEOUT_IN_MS} ms`);
+        }, CASE_TIMEOUT_IN_MS);
+
+        // ssh2 stops its ready timeout once the connection closes, and reports no error for a server ending it as the
+        // application: the session waited forever, and so did every one after it on a server refusing them all
+        it('fails opening a session on a server that ends the connection while the client logs in', async () => {
+            server.endsAtLogin = true;
+            const transport: SftpBackupTransport = new SftpBackupTransport(
+                'in-process-sftp-backup-transport',
+                { ...server.getOptions('/blobs'), connectTimeoutInMs: Ms.MINUTE }
+            );
+
+            await expect(transport.openSession()).rejects
+                .toThrow('The server "127.0.0.1" closed the connection of the transport "in-process-sftp-backup-transport" before the login completed.');
+        }, CASE_TIMEOUT_IN_MS);
+
+        // ssh2 never asking the server to close a handle, as a stream that never closes would not: the one way to
+        // wait for the server with no request out, which no server can bring about
+        it('fails what waits for the server while ssh2 asks it nothing, naming it', async () => {
+            const openSftp: Client['sftp'] = Client.prototype.sftp;
+            jest.spyOn(Client.prototype, 'sftp').mockImplementation(function openWithoutClosing(this: Client, opened: ClientSFTPCallback): Client {
+                return openSftp.call(this, (failure, sftp) => {
+                    sftp.close = () => undefined;
+                    opened(failure, sftp);
+                });
+            });
+            const session: BackupTransportSessionInterface = await openWaitingSession();
+            jest.restoreAllMocks();
+            const names: string[] = [];
+            try {
+                await expect((async () => {
+                    for await (const page of session.findNames('')) {
+                        names.push(...page);
+                    }
+                })()).rejects.toThrow(`within ${REQUEST_TIMEOUT_IN_MS} ms: READDIR of "/blobs"`);
+            }
+            finally {
+                await session.close();
+            }
+
+            // the listing failed rather than handing over what it had
+            expect(names).toEqual([]);
+        }, CASE_TIMEOUT_IN_MS);
+
+        it('takes as long as a transfer needs while the server answers, and while what reads it waits', async () => {
+            // its writes are answered one after another, the last of those sent at once only after all of them
+            server.writeDelayMs = REQUEST_TIMEOUT_IN_MS / 10;
+            const data: Buffer = randomBytes(MIB);
+            const session: BackupTransportSessionInterface = await openWaitingSession();
+            const chunks: Buffer[] = [];
+            try {
+                // a dump that is slow to hand over its data, which nothing waits for the server meanwhile
+                await session.put('slow/dumped', Readable.from((async function* slowDump(): AsyncGenerator<Buffer> {
+                    yield Buffer.from('the start');
+                    await wait(3 * REQUEST_TIMEOUT_IN_MS);
+                    yield Buffer.from(' and the rest');
+                })()));
+                await session.put('slow/data', Readable.from([data]));
+                for await (const chunk of await session.get('slow/data', MIB)) {
+                    if (!Buffer.isBuffer(chunk)) {
+                        throw new TypeError('A chunk of the file was no buffer.');
+                    }
+                    chunks.push(chunk);
+                    // a restore that is slow to take what it reads
+                    if (chunks.length === 1) {
+                        await wait(3 * REQUEST_TIMEOUT_IN_MS);
+                    }
+                }
+            }
+            finally {
+                await session.close();
+            }
+
+            expect(Buffer.concat(chunks).equals(data)).toBe(true);
+        }, CASE_TIMEOUT_IN_MS);
     });
 
-    it('creates and restores a backup through the server', async () => {
-        const itemRepository: Repository<Item> = inject(repositoryTokenFor(Item));
-        const backupRepository: Repository<BackupEntity> = inject(repositoryTokenFor(BackupEntity));
-        const backupService: BackupService = inject(BackupService);
-        await itemRepository.create({ value: '42' });
+    it('fails a file being read and every request after, and closes, once its connection ended', async () => {
+        server.files.set('/blobs/open/data', randomBytes(LIED_ABOUT_SIZE));
+        const session: BackupTransportSessionInterface = await openSession();
+        const data: Readable = await session.get('open/data', LIED_ABOUT_SIZE);
+        server.endConnections();
 
-        await backupService.waitForBackup(await backupService.queueBackup({ name: 'round-trip' }));
-        await itemRepository.deleteAll({});
-        await backupRepository.deleteAll({});
-        await backupService.syncBackupEntities();
-        const [backup]: BackupEntity[] = await backupRepository.findAll({ where: { name: 'round-trip' }, relations: ['resources'] });
-        assert(backup, 'the backup was not found on the server');
-        await backupService.restore(backup);
-
-        expect(await itemRepository.findAll()).toEqual([expect.objectContaining({ value: '42' })]);
-    }, 30000);
-
-    it('deletes a backup from the server with its folder, so that syncing does not bring it back', async () => {
-        const backupRepository: Repository<BackupEntity> = inject(repositoryTokenFor(BackupEntity));
-        const backupService: BackupService = inject(BackupService);
-        await backupService.waitForBackup(await backupService.queueBackup({ name: 'deleted-for-good' }));
-        const [backup]: BackupEntity[] = await backupRepository.findAll({ where: { name: 'deleted-for-good' }, relations: ['resources'] });
-        assert(backup, 'the backup was not created');
-        expect(await listOnServer('/backups/app')).toContain('deleted-for-good');
-
-        await backupService.delete(backup);
-        await backupService.syncBackupEntities();
-
-        expect(await backupRepository.findAll({ where: { name: 'deleted-for-good' } })).toEqual([]);
-        // the folder too: left empty, it would be resolved as a backup that was interrupted on every sync
-        expect(await listOnServer('/backups/app')).not.toContain('deleted-for-good');
-    }, 30000);
-
-    it('logs in with a private key', async () => {
-        const withKey: KeySftpBackupTransport = new KeySftpBackupTransport();
-        const [backup] = resolveBackup('with-key', 0);
-
-        await withKey.storeMetadata(backup, JsonUtilities.stringify({ name: 'with-key' }));
-
-        expect(await listOnServer('/backups/app/with-key')).toEqual(['metadata.json']);
-    });
-
-    it('stores data of several megabytes, and reads it back unchanged', async () => {
-        const chunks: Buffer[] = resolveRandomChunks(6 * MIB);
-        const [backup, resource] = resolveBackup('large', 6 * MIB);
-
-        await transport.storeData(Readable.from(chunks), backup, resource);
-        const read: Buffer = await buffer(await transport.retrieveData(backup, resource));
-
-        expect(resolveHash(read)).toBe(resolveHash(Buffer.concat(chunks)));
-    }, 30000);
-
-    it('refuses a file larger than the size recorded for it', async () => {
-        const [backup, resource] = resolveBackup('grown', 1024);
-        await transport.storeData(Readable.from(resolveRandomChunks(2048)), backup, resource);
-
-        await expect(transport.retrieveData(backup, resource)).rejects.toThrow('larger than the 1024 recorded for it');
-    });
-
-    it('passes on the error of data that fails half way', async () => {
-        const [backup, resource] = resolveBackup('failing', 2 * MIB);
-        const failing: Readable = Readable.from((function* failAfterSomeData(): Generator<Buffer> {
-            yield* resolveRandomChunks(MIB);
-            throw new Error('the dump failed');
-        })());
-
-        await expect(transport.storeData(failing, backup, resource)).rejects.toThrow('the dump failed');
-    });
-
-    it('resolves the record of every finished backup, and none of an unfinished one', async () => {
-        const [finished] = resolveBackup('finished', 0);
-        const [unfinished, resource] = resolveBackup('unfinished', 3);
-        await transport.storeMetadata(finished, JsonUtilities.stringify({ name: 'finished' }));
-        await transport.storeData(Readable.from([Buffer.from('abc')]), unfinished, resource);
-        // a record that was cut off while it was written is still under the name it is written under
-        await sftp.exec(['sh', '-c', `mkdir -p ${HOME}/backups/app/cut-off && echo '{"na' > ${HOME}/backups/app/cut-off/metadata.json.partial`]);
-
-        const names: string[] = (await transport.resolveBackups([]))
-            .map(document => JsonUtilities.parse<{ name: string }>(document).name);
-
-        expect(names).toContain('finished');
-        expect(names).not.toContain('unfinished');
-        expect(names).not.toContain('cut-off');
-        expect(await transport.resolveBackups(['finished', 'round-trip', 'with-key'])).toEqual([]);
-    });
-
-    it('deletes the data of a resource', async () => {
-        const [backup, resource] = resolveBackup('deleted', 3);
-        await transport.storeData(Readable.from([Buffer.from('abc')]), backup, resource);
-
-        await transport.deleteData(backup, resource);
-
-        await expect(transport.retrieveData(backup, resource)).rejects.toThrow('holds no data');
-    });
+        await expect(buffer(data)).rejects.toThrow();
+        await expect(session.get('open/data', LIED_ABOUT_SIZE)).rejects.toThrow();
+        await expect(session.close()).resolves.toBeUndefined();
+    }, CASE_TIMEOUT_IN_MS);
 });

@@ -1084,7 +1084,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
      */
     private resolveUserInput(body: unknown): ScimUserInput {
         if (!ScimFilterUtilities.isRecord(body)) {
-            throw new ScimError(HttpStatus.BAD_REQUEST, $ts`A user is a json object.`, ScimErrorType.INVALID_SYNTAX);
+            throw new ScimError(HttpStatus.BAD_REQUEST, $ts`A user needs to be a json object.`, ScimErrorType.INVALID_SYNTAX);
         }
         const userName: unknown = this.findAttribute(body, 'userName');
         if (typeof userName !== 'string' || !userName.trim()) {
@@ -1106,7 +1106,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
      */
     private resolveGroupInput(body: unknown): ScimGroupInput {
         if (!ScimFilterUtilities.isRecord(body)) {
-            throw new ScimError(HttpStatus.BAD_REQUEST, $ts`A group is a json object.`, ScimErrorType.INVALID_SYNTAX);
+            throw new ScimError(HttpStatus.BAD_REQUEST, $ts`A group needs to be a json object.`, ScimErrorType.INVALID_SYNTAX);
         }
         const displayName: unknown = this.findAttribute(body, 'displayName');
         if (typeof displayName !== 'string' || !displayName.trim()) {
@@ -1119,7 +1119,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         if (memberIds.some(memberId => typeof memberId !== 'string')) {
             throw new ScimError(
                 HttpStatus.BAD_REQUEST,
-                $ts`Every member of a group names the id of a user or a group as its value.`,
+                $ts`Every member of a group needs to name the id of a user or a group as its value.`,
                 ScimErrorType.INVALID_VALUE
             );
         }
@@ -1139,7 +1139,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
     private resolveExternalId(body: Record<string, unknown>): string | undefined {
         const externalId: unknown = this.findAttribute(body, 'externalId');
         if (externalId != undefined && typeof externalId !== 'string') {
-            throw new ScimError(HttpStatus.BAD_REQUEST, $ts`An externalId is a string.`, ScimErrorType.INVALID_VALUE);
+            throw new ScimError(HttpStatus.BAD_REQUEST, $ts`An externalId needs to be a string.`, ScimErrorType.INVALID_VALUE);
         }
         return externalId ?? undefined;
     }
@@ -1161,7 +1161,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         if (typeof active === 'string' && ['true', 'false'].includes(active.toLowerCase())) {
             return active.toLowerCase() === 'true';
         }
-        throw new ScimError(HttpStatus.BAD_REQUEST, $ts`Whether a user is active is true or false.`, ScimErrorType.INVALID_VALUE);
+        throw new ScimError(HttpStatus.BAD_REQUEST, $ts`Whether a user is active needs to be true or false.`, ScimErrorType.INVALID_VALUE);
     }
 
     private findAttribute(record: Record<string, unknown>, name: string): unknown {

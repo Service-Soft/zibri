@@ -1,4 +1,4 @@
-import { InternalError, LoggerInterface, Transaction, TransactionAlreadyFinishedError } from 'zibri';
+import { InternalError, LoggerInterface, Transaction, TransactionAlreadyFinishedError, TransactionSerializationError } from 'zibri';
 
 import { InMemoryScope, InMemoryStore, StoredRow, StoredRowChange } from './in-memory-store';
 
@@ -13,6 +13,10 @@ import { InMemoryScope, InMemoryStore, StoredRow, StoredRowChange } from './in-m
  * again to the row as it is on commit: the columns it wrote, and the amounts it added. Another writer
  * may have changed the row meanwhile, and a store holding a row until the transaction writing it
  * ends applies an update to the row as it is then. A row deleted meanwhile stays deleted.
+ *
+ * A transaction reading as of one moment, as `REPEATABLE READ` does, reads a copy of the store taken at
+ * its first statement, as postgres takes its snapshot then. Its commit is refused, and the transaction
+ * ended, when another one committed a change to a row or join it wrote since that moment.
  *
  * ## What it does not do
  * Readers outside the transaction are not blocked, and they see the state from before the commit,
@@ -59,13 +63,42 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
      */
     private idleTimer: NodeJS.Timeout | undefined;
 
+    /**
+     * The copy of the store a transaction reading as of one moment reads, once its first statement took it.
+     */
+    private asOfFirstStatement: InMemoryStore | undefined;
+
+    // eslint-disable-next-line jsdoc/require-description
+    /**
+     * @param store - The store the transaction writes to on commit.
+     * @param idleTimeoutInMs - How long it may sit idle before it is rolled back, 0 for no limit.
+     * @param logger - Where giving up on it is reported.
+     * @param readsAsOfOneMoment - Whether it reads the rows as of its first statement. Otherwise it reads them as
+     * committed, which it does without it.
+     */
     constructor(
         private readonly store: InMemoryStore,
         private readonly idleTimeoutInMs: number,
-        private readonly logger: LoggerInterface
+        private readonly logger: LoggerInterface,
+        // optional for a caller of 3.0, whose transactions read as committed. TODO 4.0: required
+        private readonly readsAsOfOneMoment: boolean = false
     ) {
         // idle from its start, as on postgres: a transaction that never does anything is ended too
         this.touch();
+    }
+
+    /**
+     * What the transaction reads beneath its own writes: the store, or for one reading as of one moment,
+     * the copy taken by its first statement. A statement asks for it whether it reads or not, so that
+     * one writing first fixes the moment as well.
+     * @returns The store or the copy.
+     */
+    private resolveReadSource(): InMemoryStore {
+        if (!this.readsAsOfOneMoment) {
+            return this.store;
+        }
+        this.asOfFirstStatement ??= this.store.copy();
+        return this.asOfFirstStatement;
     }
 
     /**
@@ -144,16 +177,16 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
     readRow(tableName: string, id: string): StoredRow | undefined {
         const overlay: Map<string, StoredRow | undefined> | undefined = this.rowOverlay.get(tableName);
         if (overlay == undefined) {
-            return this.store.readRow(tableName, id);
+            return this.resolveReadSource().readRow(tableName, id);
         }
         // the presence of the key rather than its value: an entry holding undefined is a row this
         // transaction deleted, which has to read as gone rather than as untouched
-        return overlay.has(id) ? overlay.get(id) : this.store.readRow(tableName, id);
+        return overlay.has(id) ? overlay.get(id) : this.resolveReadSource().readRow(tableName, id);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     ids(tableName: string): string[] {
-        const res: Set<string> = new Set(this.store.ids(tableName));
+        const res: Set<string> = new Set(this.resolveReadSource().ids(tableName));
         for (const [id, row] of this.rowOverlay.get(tableName) ?? []) {
             if (row == undefined) {
                 res.delete(id);
@@ -184,6 +217,7 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
     deleteRow(tableName: string, id: string): void {
         this.assertOpen();
         this.touch();
+        this.resolveReadSource();
         this.changesOf(tableName).set(id, 'whole');
         this.overlayOf(tableName).set(id, undefined);
     }
@@ -224,20 +258,21 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readJoin(key: string): Set<string> {
         const buffered: Set<string> | undefined = this.joinOverlay.get(key);
-        return buffered ? new Set(buffered) : this.store.readJoin(key);
+        return buffered ? new Set(buffered) : this.resolveReadSource().readJoin(key);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     writeJoin(key: string, members: Set<string>): void {
         this.assertOpen();
         this.touch();
+        this.resolveReadSource();
         this.joinOverlay.set(key, new Set(members));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     joinKeys(prefix: string): string[] {
         const buffered: string[] = [...this.joinOverlay.keys()].filter(key => key.startsWith(prefix));
-        return [...new Set([...this.store.joinKeys(prefix), ...buffered])];
+        return [...new Set([...this.resolveReadSource().joinKeys(prefix), ...buffered])];
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -257,9 +292,17 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
         this.commitChecks.set(key, check);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc/require-jsdoc, sonar/cognitive-complexity
     async commit(): Promise<void> {
         this.assertOpen();
+        const asOf: InMemoryStore | undefined = this.asOfFirstStatement;
+        if (asOf != undefined && !this.isUnchangedSince(asOf)) {
+            await this.rollback();
+            throw new TransactionSerializationError();
+        }
+        // the checks read what is committed now, as a unique index does whatever moment a transaction
+        // reads as of. Not given back after one refuses the commit: the transaction is only rolled back then
+        this.asOfFirstStatement = undefined;
         for (const check of this.commitChecks.values()) {
             check();
         }
@@ -295,6 +338,23 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
         }
     }
 
+    /**
+     * Whether no other transaction committed a change to a row or join this one wrote, since the moment
+     * it reads as of.
+     * @param asOf - The copy of the store taken at that moment.
+     * @returns Whether none did.
+     */
+    private isUnchangedSince(asOf: InMemoryStore): boolean {
+        for (const [tableName, rows] of this.rowOverlay) {
+            for (const id of rows.keys()) {
+                if (!this.store.holdsSameRow(asOf, tableName, id)) {
+                    return false;
+                }
+            }
+        }
+        return [...this.joinOverlay.keys()].every(key => this.store.holdsSameJoin(asOf, key));
+    }
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     afterCommit(work: () => Promise<void>): void {
         this.committedWork.push(work);
@@ -327,6 +387,7 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
     }
 
     private discard(): void {
+        this.asOfFirstStatement = undefined;
         this.rowOverlay.clear();
         this.rowChanges.clear();
         this.joinOverlay.clear();

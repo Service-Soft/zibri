@@ -9,5 +9,22 @@
         "lint:fix": "npm run lint:fix --workspaces --if-present",
         "typecheck": "npm run typecheck --workspaces --if-present",
         "release:bump": "node .github/scripts/bump-version.mjs"
+    },
+    "overrides": {
+        "glob@^13.0.0": "^14.0.2",
+        "test-exclude": {
+            ".": "^8.0.0",
+            "minimatch": "^11.0.1"
+        }
+    },
+    "allowScripts": {
+        "re2": true,
+        "@parcel/watcher": false,
+        "@swc/core": false,
+        "cpu-features": false,
+        "esbuild": false,
+        "protobufjs": false,
+        "ssh2": false,
+        "unrs-resolver": false
     }
 }

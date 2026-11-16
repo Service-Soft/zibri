@@ -17,6 +17,14 @@ export abstract class ConsoleUtilities {
     private static readonly spacing: string = ' ';
 
     /**
+     * Prints an information.
+     * @param message - The information to print.
+     */
+    static info(message: string): void {
+        console.info(this.resolveTimestamp(), `${this.blue}${this.bright}INFO${this.reset} ${this.spacing}`, message);
+    }
+
+    /**
      * Prints a warning.
      * @param message - The warning to print.
      */
@@ -38,7 +46,7 @@ export abstract class ConsoleUtilities {
                 return;
             }
             case LogLevel.INFO: {
-                console.info(timeStamp, `${this.blue}${this.bright}INFO${this.reset} ${this.spacing}`, log.message);
+                this.info(log.message);
                 return;
             }
             case LogLevel.WARN: {
@@ -47,17 +55,26 @@ export abstract class ConsoleUtilities {
             }
             case LogLevel.ERROR: {
                 console.error(timeStamp, `${this.red}${this.bright}ERROR${this.reset}${this.spacing}${log.context.origin}`);
-                for (const p of log.context.error?.paragraphs ?? []) {
-                    console.error(p);
-                }
+                this.printError(log);
                 return;
             }
             case LogLevel.CRITICAL: {
                 console.error(timeStamp, `${this.purple}${this.bright}CRITICAL${this.reset}${this.spacing}${log.context.origin}`);
-                for (const p of log.context.error?.paragraphs ?? []) {
-                    console.error(p);
-                }
+                this.printError(log);
                 return;
+            }
+        }
+    }
+
+    private static printError(log: Log): void {
+        for (const p of log.context.error?.paragraphs ?? []) {
+            console.error(p);
+        }
+        const stackTrace: string[] = log.context.error?.stackTrace ?? [];
+        if (stackTrace.length) {
+            console.error('stack trace:');
+            for (const line of stackTrace) {
+                console.error(`    ${line}`);
             }
         }
     }

@@ -20,6 +20,7 @@ import { MimeType } from '../../http/mime-type.enum';
 import { AuditAction, AuditOutcome } from '../../logging/audit-event.model';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { AuthService } from '../auth.service';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../authenticators/password/password-credentials.model';
 import { CookieAuthRefreshSession } from '../strategies/cookie/cookie-auth-refresh-session.model';
 import { CookieAuthSession } from '../strategies/cookie/cookie-auth-session.model';
@@ -203,6 +204,26 @@ describe('AuthController - the logins of a user', () => {
         expect(await refresh(phone)).toBe(401);
     });
 
+    // ending everybody's logins at once, once a secret or the database got out, took a loop over
+    // every user, or rows deleted by hand
+    it('ends every login of every user, and records it', async () => {
+        const ada: Login = await login(await createUser(), 'Laptop Browser');
+        const grace: Login = await login(await createUser(), 'Phone App');
+
+        await inject(AuthService).endEveryLogin(undefined);
+
+        expect(await refresh(ada)).toBe(401);
+        expect(await refresh(grace)).toBe(401);
+        await inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).flush();
+        const entries: AuditEntry[] = await inject(repositoryTokenFor(AuditEntry)).findAll({
+            where: { action: AuditAction.EVERY_LOGIN_ENDED },
+            acrossTenants: true
+        });
+        expect(entries.map(e => e.outcome)).toEqual([AuditOutcome.SUCCESS]);
+        // a login started afterwards is a login like any other
+        expect(await refresh(await login(await createUser(), 'Laptop Browser'))).toBe(200);
+    });
+
     it('changes the password of a user who knows it, and ends their other logins', async () => {
         const email: string = await createUser();
         const laptop: Login = await login(email, 'Laptop Browser');
@@ -319,5 +340,17 @@ describe('AuthController - the logins of a user, with cookies', () => {
         });
         expect(ended.status).toBe(204);
         expect((await fetch(`${baseUrl}/auth/logins`, { headers: { cookie: phone.cookie } })).status).toBe(401);
+    });
+
+    it('ends every login of every user', async () => {
+        const ada: CookieLogin = await loginWithCookies(await createUser(), 'Laptop Browser');
+        const grace: CookieLogin = await loginWithCookies(await createUser(), 'Phone Browser');
+
+        await inject(AuthService).endEveryLogin(undefined);
+
+        expect((await fetch(`${baseUrl}/auth/logins`, { headers: { cookie: ada.cookie } })).status).toBe(401);
+        expect((await fetch(`${baseUrl}/auth/logins`, { headers: { cookie: grace.cookie } })).status).toBe(401);
+        // the refresh sessions as well, or the next refresh would start a session again
+        expect(await inject(repositoryTokenFor(CookieAuthRefreshSession)).findAll()).toEqual([]);
     });
 });

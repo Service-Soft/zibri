@@ -237,7 +237,6 @@ describe('FormDataBodyParser', () => {
     it('parses unicode filenames correctly', async () => {
         const form: FormData = new FormData();
         form.append('label', 'unicode');
-        // eslint-disable-next-line cspell/spellchecker
         form.append('file', new Blob(['x']), 'ünïcödé-🎉.txt');
 
         const res: Response = await fetch(`${baseUrl}/upload`, { method: 'POST', body: form });
@@ -245,7 +244,6 @@ describe('FormDataBodyParser', () => {
         expect(res.status).toBe(200);
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const body: { filename: string } = await res.json();
-        // eslint-disable-next-line cspell/spellchecker
         expect(body.filename).toBe('ünïcödé-🎉.txt');
     });
 });

@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 import { StoredRoute } from './stored-route.model';
 import { Version, VersionFile } from './version.model';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
+import { explorerTestProviders } from '../__testing__/explorer-test-providers';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
 import { HttpRequestContext } from '../context/request/http-request.context';
@@ -95,6 +96,7 @@ async function restartServer(
         ...applicationOptions,
         providers: [
             ...defaultTestServerProviders,
+            ...explorerTestProviders,
             { token: ZIBRI_DI_TOKENS.VERSIONS_PATH, useValue: versionsPath ?? testVersionsDir }
         ]
     });
@@ -232,8 +234,7 @@ describe('VersioningService integration', () => {
             const html: string = await res.text();
 
             expect(res.status).toBe(200);
-            expect(html).toContain('/explorer/spec/1.0.0');
-            expect(html).toMatch(/"name":"1\.0\.0 \(.+ - .+\)"/);
+            expect(html).toMatch(/<li>1\.0\.0 \([^)|]+ - [^)|]+\)\|\/explorer\/1\.0\.0\|\/explorer\/spec\/1\.0\.0<\/li>/);
         });
     });
 
@@ -312,6 +313,35 @@ describe('VersioningService integration', () => {
             await expect(
                 restartServer({ version: '2.0.0', controllers: [VersionTestController, ValidatedController] })
             ).rejects.toThrow(/Route "POST \/delete-me" no longer exists in code/);
+        });
+    });
+
+    describe('Validation: files of the explorer that 3.0 served as routes', () => {
+        // every version 3.0 recorded holds the files of swagger-ui it served at routes of their own, which no
+        // client of the application calls. The explorer that replaced it serves none
+        it('takes no route of those files for a route the application removed', async () => {
+            const swaggerFiles: string[] = [
+                'swagger-ui.css',
+                'swagger-ui-bundle.js',
+                'swagger-ui-standalone-preset.js',
+                'swagger-ui-init.js',
+                'custom.js'
+            ];
+            await writeVersionFile({
+                value: '1.0.0',
+                startsAt: new Date(),
+                routes: [
+                    { key: 'GET /validated/endpoint', versions: { shape: 'Matchers', value: ['1.0.0'] } },
+                    { key: 'GET /explorer', versions: { shape: 'All', value: 'all' } },
+                    ...swaggerFiles.map(file => ({ key: `GET /explorer/${file}`, versions: { shape: 'All' as const, value: 'all' as const } }))
+                ]
+            });
+
+            await restartServer({ version: '2.0.0', controllers: [VersionTestController, ValidatedController] });
+
+            const recorded: VersionFile = await readVersionFile('2.0.0');
+            expect(recorded.routes.map(r => r.key)).toEqual(expect.arrayContaining(['GET /explorer']));
+            expect(recorded.routes.map(r => r.key)).not.toEqual(expect.arrayContaining(['GET /explorer/swagger-ui.css']));
         });
     });
 

@@ -10,7 +10,6 @@ import { type ValKeyBufferedWrite } from './val-key-transaction.model';
 export function queueValKeyWrite(batch: Batch, write: ValKeyBufferedWrite): void {
     switch (write.type) {
         case 'hashSet': {
-            // eslint-disable-next-line cspell/spellchecker
             batch.hset(write.key, write.values);
             return;
         }
@@ -23,7 +22,6 @@ export function queueValKeyWrite(batch: Batch, write: ValKeyBufferedWrite): void
             return;
         }
         case 'setAdd': {
-            // eslint-disable-next-line cspell/spellchecker
             batch.sadd(write.key, write.members);
             return;
         }

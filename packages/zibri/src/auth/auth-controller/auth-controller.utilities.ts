@@ -174,7 +174,7 @@ export abstract class AuthControllerUtilities {
         if (controller == undefined) {
             return;
         }
-        const { strategies, authenticators, twoFactorMethods, emailVerification } = controller.authControllerOptions;
+        const { strategies, authenticators, twoFactorMethods, emailVerification, confirmEmailRoute } = controller.authControllerOptions;
         const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         this.validateSameClasses(
             controller,
@@ -194,6 +194,15 @@ export abstract class AuthControllerUtilities {
                 `${controller.name} defines the routes verifying email addresses,`
                 + ' and ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_OPTIONS is not provided.',
                 'Provide it, or leave emailVerification out of the options of AuthController.'
+            ]);
+        }
+        // optional on the interface, as a service written against 3.0 has none: the route would answer every call
+        // with an error, rather than the application refusing to start
+        if (emailVerification === true && confirmEmailRoute === true
+            && inject(ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_SERVICE).confirmEmail == undefined) {
+            throw new InternalError([
+                `${controller.name} defines POST /confirm-email, and the EmailVerificationService has no confirmEmail.`,
+                'Implement confirmEmail, or leave confirmEmailRoute out of the options of AuthController.'
             ]);
         }
         for (const { route, member, isCapable, implement } of ROUTE_CAPABILITIES) {

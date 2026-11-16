@@ -36,10 +36,11 @@ import { PromiseUtilities } from '../../utilities/promise.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { AggregateUtilities } from '../aggregate.utilities';
 import { CheckConstraintViolationError } from '../check-constraint-violation.error';
-import { scanValKeyKeys } from '../data-sources/val-key/scan-val-key-keys.function';
+import { ValKeyCopyOnWriteUtilities, type ValKeyReadView } from '../data-sources/val-key/val-key-copy-on-write.utilities';
 import { type ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
 import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function';
 import { ValKeyLockKeyUtilities } from '../data-sources/val-key/val-key-lock-key.utilities';
+import { ValKeyScanUtilities } from '../data-sources/val-key/val-key-scan.utilities';
 import { WhereFilterEvaluator } from '../data-sources/where-converter/where-filter.evaluator';
 import { AggregateRow } from '../models/aggregate.model';
 import { FindAllOptions } from '../models/options/find-all-options.model';
@@ -49,7 +50,6 @@ import { UpsertRow } from '../models/upsert-row.model';
 import { Where, WhereFilter } from '../models/where/where-filter.model';
 import { applyGuardedValKeyWrites } from '../transaction/apply-guarded-val-key-writes.function';
 import { KeyDeclarationsChangedError } from '../transaction/key-declarations-changed.error';
-import { queueValKeyWrite } from '../transaction/queue-val-key-write.function';
 import { Transaction } from '../transaction/transaction.model';
 import { ValKeyBufferedWrite, ValKeyTransaction } from '../transaction/val-key-transaction.model';
 import { UnboundedReturnError } from '../unbounded-return.error';
@@ -269,13 +269,11 @@ function resolveBuildEntriesScript(): Script {
         + 'for i = 1, #current, 2 do if expected[current[i]] ~= current[i + 1] then same = false break end end '
         + 'end '
         + 'if same then for _, entry in ipairs(row[4]) do '
-        // eslint-disable-next-line cspell/spellchecker
         + 'if entry[2] then for _, holder in ipairs(redis.call("smembers", entry[1])) do '
         + 'if holder ~= row[2] then '
         + 'table.insert(conflicts, entry[1]) table.insert(conflicts, holder) table.insert(conflicts, row[2]) '
         + 'end '
         + 'end end '
-        // eslint-disable-next-line cspell/spellchecker
         + 'redis.call("sadd", entry[1], row[2]) '
         + 'end end '
         + 'end return conflicts'
@@ -301,7 +299,6 @@ function resolveReadSetsWithRowsScript(): Script {
     readSetsWithRowsScript ??= new (valKeyGlide().Script)(
         'local sets, ids, seen = {}, {}, {} '
         + 'for i, key in ipairs(KEYS) do '
-        // eslint-disable-next-line cspell/spellchecker
         + 'sets[i] = redis.call("smembers", key) '
         + 'if i > tonumber(ARGV[3]) then for _, id in ipairs(sets[i]) do '
         + 'if not seen[id] then seen[id] = true table.insert(ids, id) end '
@@ -1754,13 +1751,13 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         const moved: Map<string, Record<string, string>> = await this.resolveMovedRows(ids, toCurrentKey, valKeyTransaction);
         const writes: ValKeyBufferedWrite[] = [];
         const deleted: Set<string> = new Set([
-            ...await scanValKeyKeys(this.client, `${currentPrefix}*`),
+            ...await ValKeyScanUtilities.findKeys(this.client, `${currentPrefix}*`),
             // with the ones only the transaction holds so far, which no scan finds
             toCurrentKey(this.idsKey()),
             ...ids.map(id => toCurrentKey(this.rowKey(id))),
             // the indexes and uniques of this name, which do not cover the rows merged in
-            ...await scanValKeyKeys(this.client, `${prefix}unique:*`),
-            ...await scanValKeyKeys(this.client, `${prefix}index:*`),
+            ...await ValKeyScanUtilities.findKeys(this.client, `${prefix}unique:*`),
+            ...await ValKeyScanUtilities.findKeys(this.client, `${prefix}index:*`),
             this.keysKey(),
             this.builtKey()
         ]);
@@ -1813,7 +1810,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         const ids: string[] = await this.readIds(valKeyTransaction);
         const writes: ValKeyBufferedWrite[] = [];
         const deleted: Set<string> = new Set([
-            ...await scanValKeyKeys(this.client, `${prefix}*`),
+            ...await ValKeyScanUtilities.findKeys(this.client, `${prefix}*`),
             // with the ones only the transaction holds so far, which no scan finds
             this.idsKey(),
             ...ids.map(id => this.rowKey(id))
@@ -1883,7 +1880,8 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
 
         const rowReplies: GlideReturnType[] = await this.readPipelined(
             ids.map(id => toCurrentKey(this.rowKey(id))),
-            (batch, key) => batch.hgetall(key)
+            (batch, key) => batch.hgetall(key),
+            await transaction.resolveReadView()
         );
         const res: Map<string, Record<string, string>> = new Map();
         for (const [i, id] of ids.entries()) {
@@ -2185,20 +2183,92 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     }
 
     /**
+     * Whether the entity declares a unique, which two of its rows can break together.
+     * @returns Whether it does.
+     */
+    holdsUniques(): boolean {
+        return this.uniqueGroups.length > 0;
+    }
+
+    /**
+     * Finds the id of the row of this entity a key holds, by the key's name: a key right under the table.
+     * The lists the table keeps are named so as well, and are no hashes.
+     * @param key - The key.
+     * @returns The id, or undefined when the key holds no row of this entity.
+     */
+    findRowId(key: string): string | undefined {
+        const rowKeyPrefix: string = this.rowKey('');
+        const id: string = key.slice(rowKeyPrefix.length);
+        return key.startsWith(rowKeyPrefix) && id && !id.includes(':') ? id : undefined;
+    }
+
+    /**
+     * Resolves the fields of a row out of what reading its hash answered.
+     * @param reply - The reply.
+     * @returns The fields, json encoded as they are stored, or undefined when there is no row.
+     */
+    resolveFields(reply: GlideReturnType | undefined): Record<string, string> | undefined {
+        return this.toRow(reply);
+    }
+
+    /**
+     * Resolves the fields of a row out of what reading its hash in a script answered.
+     * @param reply - The reply, a list of its fields each followed by its value.
+     * @returns The fields, json encoded as they are stored, or undefined when there is no row.
+     */
+    resolveFieldList(reply: GlideReturnType | undefined): Record<string, string> | undefined {
+        return reply == undefined ? undefined : this.toRowOfFieldList(reply);
+    }
+
+    /**
+     * Resolves the entries a stored row takes up under the uniques of the entity, as the data source keeps
+     * them: what two rows may never both hold.
+     * @param fields - The row, json encoded as it is stored, or undefined when there is none.
+     * @returns Each entry, with the properties of its unique.
+     */
+    resolveUniqueEntries(fields: Record<string, string> | undefined): {
+        /**
+         * The entry the row takes up.
+         */
+        entry: string,
+        /**
+         * The properties of the unique the entry is under.
+         */
+        properties: string[]
+    }[] {
+        return fields == undefined
+            ? []
+            : [...this.resolveKeyDeclarations({ uniques: this.uniqueGroups, indexes: [] }).values()]
+                .flatMap(declaration => this.resolveBuiltEntries(declaration, fields)
+                    .map(e => ({ entry: e.key, properties: declaration.properties })));
+    }
+
+    /**
      * Lists the ids of exactly the rows stored, in place of the list kept before.
      */
     private async rebuildIds(): Promise<void> {
         const rowKeyPrefix: string = this.rowKey('');
-        // a row is a hash right under the table: everything else kept there is no hash, or is one
-        // level further down
-        const ids: string[] = (await scanValKeyKeys(this.client, `${rowKeyPrefix}*`, valKeyGlide().ObjectType.HASH))
-            .map(key => key.slice(rowKeyPrefix.length))
-            .filter(id => !id.includes(':'));
+        // filled a page of the scan at a time under a name of its own, and put in place of the list kept
+        // before in one step: a reader sees the old list or the new one, and this process holds a page
+        // of ids rather than every one of them. One level further down than a row, so no scan for rows
+        // takes it for one. Rebuilt under the schema lock, so by one instance at a time
+        const building: string = `${this.idsKey()}:building`;
+        await this.client.del([building]);
+        let found: boolean = false;
+        for await (const keys of ValKeyScanUtilities.findKeyPages(this.client, `${rowKeyPrefix}*`, valKeyGlide().ObjectType.HASH)) {
+            // a row is a hash right under the table: everything else kept there is no hash, or is one
+            // level further down
+            const ids: string[] = keys.map(key => key.slice(rowKeyPrefix.length)).filter(id => !id.includes(':'));
+            if (ids.length) {
+                await this.client.sadd(building, ids);
+                found = true;
+            }
+        }
         const batch: Batch = new (valKeyGlide().Batch)(true);
         batch.del([this.idsKey()]);
-        for (const chunk of PromiseUtilities.resolveChunks(ids, STREAM_BATCH_SIZE)) {
-            // eslint-disable-next-line cspell/spellchecker
-            batch.sadd(this.idsKey(), chunk);
+        // a set that was never added to does not exist, and renaming nothing fails
+        if (found) {
+            batch.rename(building, this.idsKey());
         }
         await this.client.exec(batch, true);
     }
@@ -2362,8 +2432,12 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * @param declarations - The declarations.
      */
     private async deleteKeysOf(declarations: KeyDeclaration[]): Promise<void> {
-        const keys: string[][] = await Promise.all(declarations.map(async d => await scanValKeyKeys(this.client, `${d.keyPrefix}*`)));
-        await this.writeAll(keys.flat().map((key): ValKeyBufferedWrite => ({ type: 'delete', key })), undefined);
+        // a page at a time, which this process holds rather than the entries of every row
+        await Promise.all(declarations.map(async d => {
+            for await (const keys of ValKeyScanUtilities.findKeyPages(this.client, `${d.keyPrefix}*`)) {
+                await this.writeAll(keys.map((key): ValKeyBufferedWrite => ({ type: 'delete', key })), undefined);
+            }
+        }));
     }
 
     /**
@@ -3288,10 +3362,21 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * @returns The members of each set, in the order of the keys. A set that does not exist has none.
      */
     private async readSets(keys: string[], transaction: ValKeyTransaction | undefined): Promise<string[][]> {
-        // eslint-disable-next-line cspell/spellchecker
-        const replies: GlideReturnType[] = await this.readPipelined(keys, (batch, key) => batch.smembers(key));
+        const view: ValKeyReadView | undefined = await transaction?.resolveReadView();
+        const replies: GlideReturnType[] = await this.readPipelined(keys, (batch, key) => batch.smembers(key), view);
+        // after the sets, so that a member a write changed in between is noted by now. Laid over a copy as
+        // well, which holds what the set held then already, so that it changes nothing there
+        const since: GlideReturnType[] = view == undefined || !keys.length
+            ? []
+            : await this.readPipelinedAsStored(
+                keys.flatMap(key => [`${view.addedPrefix}${key}`, `${view.removedPrefix}${key}`]),
+                (batch, key) => batch.smembers(key)
+            );
         return keys.map((key, i) => {
-            const stored: string[] = this.toMembers(replies[i]);
+            const read: string[] = this.toMembers(replies[i]);
+            const stored: string[] = view == undefined
+                ? read
+                : ValKeyCopyOnWriteUtilities.resolveMembersAsOf(read, this.toMembers(since[i * 2]), this.toMembers(since[(i * 2) + 1]));
             return transaction ? transaction.resolveSetMembers(key, stored) : stored;
         });
     }
@@ -3315,7 +3400,9 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         transaction: ValKeyTransaction | undefined,
         readAlong: number | undefined
     ): Promise<SetsWithRows> {
-        if (readAlong == undefined) {
+        // read as of one moment, the sets and then the rows, each through what the transaction reads through:
+        // the script reads them as they are
+        if (readAlong == undefined || await transaction?.resolveReadView() != undefined) {
             return { members: await this.readSets(keys, transaction), rows: undefined };
         }
         const reply: GlideReturnType = await this.client.invokeScript(resolveReadSetsWithRowsScript(), {
@@ -3431,8 +3518,12 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         const sets: Set<string> = new Set(holderKeys);
         const replies: GlideReturnType[] = await this.readPipelined(
             [...leading, ...wanted.map(id => this.rowKey(id))],
-            // eslint-disable-next-line cspell/spellchecker
-            (batch, key) => key === keysKey ? batch.get(key) : sets.has(key) ? batch.smembers(key) : batch.hgetall(key)
+            (batch, key) => key === keysKey ? batch.get(key) : sets.has(key) ? batch.smembers(key) : batch.hgetall(key),
+            await transaction?.resolveReadView(),
+            // the list and the holders as stored, whatever the transaction reads as of: the list is guarded
+            // as it is now, and a value taken since that moment reads free as of it, where adding to its
+            // holders passes the check of what was written since. Held already, they change no more
+            new Set(leading)
         );
         const rowReplies: GlideReturnType[] = replies.slice(leading.length);
 
@@ -3492,7 +3583,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             [this.keysKey(), keys.stored],
             ...this.resolveGrantKeys(writes).map((grantKey): [string, string] => [grantKey, ''])
         ]);
-        return await applyGuardedValKeyWrites(this.client, { values, hashes: rows }, writes);
+        return await applyGuardedValKeyWrites(this.client, this.keyPrefix, { values, hashes: rows }, writes);
     }
 
     /**
@@ -3526,9 +3617,92 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * a client holds in flight at once.
      * @param keys - The keys to read.
      * @param read - Queues the read of one key.
+     * @param view - What a transaction reading as of one moment reads through, if it does.
+     * @param asStored - The keys read as stored even through a view.
      * @returns The reply to each read, in the order of the keys.
      */
-    private async readPipelined(keys: string[], read: (batch: Batch, key: string) => void): Promise<GlideReturnType[]> {
+    private async readPipelined(
+        keys: string[],
+        read: (batch: Batch, key: string) => void,
+        view?: ValKeyReadView,
+        asStored: Set<string> = new Set()
+    ): Promise<GlideReturnType[]> {
+        const replies: GlideReturnType[] = await this.readPipelinedAsStored(keys, read);
+        return view == undefined || !keys.length ? replies : await this.readAsOf(keys, read, replies, view, asStored);
+    }
+
+    /**
+     * Lays what a transaction reading as of one moment reads over what was read of keys: for a key written
+     * since that moment, the copy the write made of it, or nothing for one noted as absent then.
+     *
+     * Asked after the keys were read, and right for every key that way: a write copies a key before it
+     * changes it, and no copy goes while the view lasts, so a key changed before it was read has its copy
+     * by now, and one changed after it was read is what it was then.
+     * @param keys - The keys read.
+     * @param read - Queues the read of one key.
+     * @param replies - What reading them answered.
+     * @param view - What the transaction reads through.
+     * @param asStored - The keys whose reply stays as read.
+     * @returns The reply to each read as of that moment, in the order of the keys.
+     * @throws When the view lapsed: its copies may have been deleted as left behind by a process that died.
+     */
+    private async readAsOf(
+        keys: string[],
+        read: (batch: Batch, key: string) => void,
+        replies: GlideReturnType[],
+        view: ValKeyReadView,
+        asStored: Set<string>
+    ): Promise<GlideReturnType[]> {
+        const viewed: string[] = keys.filter(key => !asStored.has(key));
+        const written: boolean[][] = await PromiseUtilities.allChunked(
+            PromiseUtilities.resolveChunks(viewed, READS_PER_PIPELINE),
+            async group => {
+                const batch: Batch = new (valKeyGlide().Batch)(false);
+                batch.exists([view.heartbeatKey]);
+                batch.get(view.brokenKey);
+                for (const key of group) {
+                    batch.exists([`${view.valuePrefix}${key}`]);
+                    batch.sismember(view.absentKey, key);
+                }
+                const res: GlideReturnType[] = await this.client.exec(batch, true) ?? [];
+                if (res[0] !== 1) {
+                    throw new InternalError(
+                        `The heartbeat "${view.heartbeatKey}" of a transaction reading as of one moment lapsed, so what it reads through`
+                        + ' may have been deleted as left behind by a process that died.'
+                    );
+                }
+                if (res[1] != undefined) {
+                    // the key naming the set, read with get, so text
+                    // eslint-disable-next-line typescript/no-base-to-string
+                    const brokenSet: string = String(res[1]);
+                    throw new InternalError(
+                        `A transaction reading as of one moment could not have the set "${brokenSet}" held as it was then: a write of it`
+                        + ' whole needed more memory than Valkey had free for the copy. Raise its maxmemory.'
+                    );
+                }
+                return group.map((_, i) => res[2 + (i * 2)] === 1 || res[3 + (i * 2)] === true);
+            }
+        );
+        const flagged: boolean[] = written.flat();
+        let asked: number = 0;
+        const since: boolean[] = keys.map(key => !asStored.has(key) && flagged[asked++] === true);
+        const copied: string[] = keys.filter((_, i) => since[i] === true);
+        if (!copied.length) {
+            return replies;
+        }
+        // read from the copy: what the key held then, or nothing for a key noted as absent, which has none
+        const reread: GlideReturnType[] = await this.readPipelinedAsStored(copied.map(key => `${view.valuePrefix}${key}`), read);
+        let next: number = 0;
+        return replies.map((reply, i) => since[i] === true ? reread[next++] ?? null : reply);
+    }
+
+    /**
+     * Sends one read per key, a pipeline of them at a time, of what is stored now.
+     * @param keys - The keys to read.
+     * @param read - Queues the read of one key.
+     * @returns The reply to each read, in the order of the keys.
+     */
+    private async readPipelinedAsStored(keys: string[], read: (batch: Batch, key: string) => void): Promise<GlideReturnType[]> {
         const replies: GlideReturnType[][] = await PromiseUtilities.allChunked(
             PromiseUtilities.resolveChunks(keys, READS_PER_PIPELINE),
             async group => {
@@ -3633,9 +3807,9 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     /**
      * Applies writes, either by buffering them inside the given transaction or as one request.
      *
-     * Without a transaction they go out as a pipeline rather than one request each, and not atomic:
-     * nothing is held around them, so a pipeline promises no more than the separate requests did, and
-     * costs one round trip instead of one per write.
+     * Without a transaction they go out a group at a time rather than one request each, through the
+     * script every write goes through, so that a backup copying on write is handed each key as it was
+     * before. Nothing is held around them, so a group promises no more than the separate requests did.
      * @param writes - The writes, in the order they are applied.
      * @param transaction - The transaction to buffer them in, if any.
      */
@@ -3647,11 +3821,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             return;
         }
         for (const group of PromiseUtilities.resolveChunks(writes, WRITES_PER_PIPELINE)) {
-            const batch: Batch = new (valKeyGlide().Batch)(false);
-            for (const write of group) {
-                queueValKeyWrite(batch, write);
-            }
-            await this.client.exec(batch, true);
+            await applyGuardedValKeyWrites(this.client, this.keyPrefix, { values: new Map(), hashes: new Map() }, group);
         }
     }
 

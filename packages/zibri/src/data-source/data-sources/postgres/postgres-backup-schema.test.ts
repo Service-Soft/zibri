@@ -1,8 +1,7 @@
 import assert from 'node:assert';
 import { ChildProcessByStdio, spawn } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
-import { Readable } from 'node:stream';
+import { Readable, Writable } from 'node:stream';
 import { buffer, text } from 'node:stream/consumers';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
@@ -10,6 +9,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { PostgresBackupScope } from './postgres-backup-scope.model';
 import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
 import { PostgresPooler } from './postgres-pooler.model';
+import { BackupDataOptionsTestUtilities } from '../../../__testing__/backup/backup-data-options-test.utilities';
+import { BackupLayoutTestUtilities } from '../../../__testing__/backup/backup-layout-test.utilities';
 import { testFileFolder } from '../../../__testing__/constants';
 import { queryPostgres } from '../../../__testing__/query-postgres.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -20,7 +21,8 @@ import { BackupResourceEntity } from '../../../backup/backup-resource-entity.mod
 import { BackupService } from '../../../backup/backup.service';
 import { Backup } from '../../../backup/decorators/backup-resource.decorator';
 import { BackupTransport } from '../../../backup/decorators/backup-transport.decorator';
-import { BaseFsBackupTransport } from '../../../backup/transports/fs.backup-transport';
+import { BackupTransportInterface } from '../../../backup/transports/backup-transport.interface';
+import { FsBackupTransport } from '../../../backup/transports/fs.backup-transport';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { inject } from '../../../di/inject.function';
@@ -31,7 +33,6 @@ import { Newable } from '../../../types/newable.type';
 import { FsPath, FsUtilities } from '../../../utilities/fs.utilities';
 import { JsonUtilities } from '../../../utilities/json.utilities';
 import { SemVerVersion } from '../../../utilities/sem-ver.utilities';
-import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { zibriVersion } from '../../../versioning/zibri-version.function';
 import { DataSource } from '../../decorators/data-source.decorator';
 import { MigrationEntity } from '../../migration/migration-entity.model';
@@ -90,15 +91,17 @@ class CreateBackupSchemaMigration extends Migration {
 }
 
 @BackupTransport()
-class SchemaFsBackupTransport extends BaseFsBackupTransport {
-    override readonly name: string = 'schema-fs-backup-transport';
-    protected override readonly backupBasePath: FsPath = backupFolder;
+class SchemaFsBackupTransport extends FsBackupTransport {
+    constructor() {
+        super('schema-fs-backup-transport', backupFolder);
+    }
 }
 
 @BackupTransport()
-class SchemaFsBackupTransportSecond extends BaseFsBackupTransport {
-    override readonly name: string = 'schema-fs-backup-transport-second';
-    protected override readonly backupBasePath: FsPath = secondBackupFolder;
+class SchemaFsBackupTransportSecond extends FsBackupTransport {
+    constructor() {
+        super('schema-fs-backup-transport-second', secondBackupFolder);
+    }
 }
 
 /**
@@ -114,8 +117,8 @@ class SchemaFsBackupTransportSecond extends BaseFsBackupTransport {
         SchemaFsBackupTransport,
         SchemaFsBackupTransportSecond
     ],
-    // unencrypted, because several cases here edit a stored archive and assert what the checksum
-    // makes of it - encrypted, the chunks would refuse the edit before the checksum is compared
+    // unencrypted, because a case here holds the recorded checksum against the sha256 of the stored dump,
+    // and another finds a chunk of it through its manifest, both of which encryption keeps from them
     encrypt: false
 })
 class SchemaBackupDataSource extends PostgresDataSource {
@@ -161,12 +164,23 @@ let resourceRepository: Repository<BackupResourceEntity>;
  * @returns The stored dump as the statements it holds.
  */
 async function readStoredDump(backupName: string): Promise<string> {
-    const child: ChildProcessByStdio<null, Readable, null> = spawn(
-        'pg_restore',
-        ['--file', '-', FsUtilities.getPath(backupFolder, backupName, SchemaBackupDataSource.name)],
-        { stdio: ['ignore', 'pipe', 'inherit'] }
-    );
+    const child: ChildProcessByStdio<Writable, Readable, null> = spawn('pg_restore', ['--file', '-'], { stdio: ['pipe', 'pipe', 'inherit'] });
+    child.stdin.end(await readStored(backupName));
     return await text(child.stdout);
+}
+
+/**
+ * Reads back the data a backup stored of its resource, rebuilt from its chunks, as one transport holds it.
+ * @param backupName - The name the backup was created under.
+ * @param transportName - The transport to read it from.
+ * @returns The data.
+ */
+async function readStored(backupName: string, transportName: string = 'schema-fs-backup-transport'): Promise<Buffer> {
+    const backup: BackupEntity = await findBackup(backupName);
+    const [resource]: BackupResourceEntity[] = backup.resources;
+    assert(resource, 'the backup recorded no resource');
+    const transports: BackupTransportInterface[] = (backupService.resolveTransports(resource) ?? []).filter(t => t.name === transportName);
+    return await buffer(await backupService.resolveData(transports, resource, backup));
 }
 
 /**
@@ -211,9 +225,7 @@ describe('a postgres backup is this application\'s database, not the cluster', (
 
         await backupService.waitForBackup(await backupService.queueBackup({ name: 'no-root-credentials' }));
 
-        expect(await FsUtilities.exists(
-            FsUtilities.getPath(backupFolder, 'no-root-credentials', SchemaBackupDataSource.name)
-        )).toBe(true);
+        expect((await readStored('no-root-credentials')).length).toBeGreaterThan(0);
     }, 60000);
 
     it('writes a dump that carries no role definitions and no password hashes', async () => {
@@ -424,6 +436,26 @@ describe('a postgres backup is the schema the data source works in, with what is
         await runSql('COMMENT ON TABLE schema_backup_item IS NULL');
     }, 60000);
 
+    // compressed by pg_dump, a change anywhere in a table changed every byte after it, and no chunk of the
+    // dump was stored once
+    it('dumps uncompressed for a backup cutting the dump into chunks, compressed otherwise, and restores both', async () => {
+        const dataSource: SchemaBackupDataSource = inject(SchemaBackupDataSource);
+        await itemRepository.deleteAll({});
+        // rows that compress to almost nothing and far outweigh the schema around them, which every dump carries
+        await itemRepository.createAll(Array.from({ length: 5000 }, (_, i) => ({ value: `${i} ${'the same words '.repeat(20)}` })));
+        const backup: BackupEntity = Object.assign(new BackupEntity(), { name: 'compression' });
+
+        const chunked: Buffer = await buffer(await dataSource.createBackupData(backup, BackupDataOptionsTestUtilities.resolve(true)));
+        const whole: Buffer = await buffer(await dataSource.createBackupData(backup, BackupDataOptionsTestUtilities.resolve(false)));
+
+        expect(chunked.length).toBeGreaterThan(whole.length * 3);
+        for (const archive of [chunked, whole]) {
+            await itemRepository.deleteAll({});
+            await dataSource.restoreBackup(Readable.from([archive]));
+            expect(await itemRepository.count()).toBe(5000);
+        }
+    }, 60000);
+
     it('rejects, and changes nothing, when a statement of the archive fails', async () => {
         const dataSource: SchemaBackupDataSource = inject(SchemaBackupDataSource);
         await itemRepository.deleteAll({});
@@ -557,14 +589,12 @@ describe('a postgres backup is checkable before it is trusted', () => {
 
         // `size` and `completed` were declared on the entity and written by nothing, so every row
         // said a backup of unknown length had never finished - including the ones that had
-        const stored: Buffer = await readFile(FsUtilities.getPath(backupFolder, 'measured', SchemaBackupDataSource.name));
+        // the checksum sums the chunks the data is stored as, which a restore holds it against before it
+        // fetches any of them, see the cases of an archive that is and is not the one it recorded below
+        const stored: Buffer = await readStored('measured');
         expect(resource.completed).toBe(true);
         expect(resource.size).toBe(stored.byteLength);
-        expect(resource.checksum).toBe(
-            createHash('sha256')
-                .update(stored)
-                .digest('hex')
-        );
+        expect(resource.checksum).toMatch(/^[\da-f]{64}$/);
     }, 60000);
 
     it('records the shape it was written in, and refuses one it does not know', async () => {
@@ -592,23 +622,19 @@ describe('a postgres backup is checkable before it is trusted', () => {
     }, 60000);
 
     it('leaves a stored record in a shape it does not know alone, rather than reading it as this one', async () => {
-        await backupService.waitForBackup(await backupService.queueBackup({ name: 'from-the-future' }));
+        const stored: BackupEntity = await backupService.waitForBackup(await backupService.queueBackup({ name: 'from-the-future' }));
         // the record as some later build wrote it: this one knows the field that says which shape it
         // is, and nothing else about it.
         //
         // In both transports, because a sync asks each of them and one readable copy is enough to
         // rebuild the entity - which is the behavior that should hold, and would hide this one
         const fromTheFuture: string = JsonUtilities.stringify({
-            id: UUIDUtilities.generate(),
+            id: stored.id,
             name: 'from-the-future',
             formatVersion: BACKUP_FORMAT_VERSION + 1
         });
         for (const folder of [backupFolder, secondBackupFolder]) {
-            await FsUtilities.updateFile(
-                FsUtilities.getPath(folder, 'from-the-future', 'metadata.json'),
-                fromTheFuture,
-                'replace'
-            );
+            await FsUtilities.updateFile(BackupLayoutTestUtilities.resolveRecordPath(folder, stored), fromTheFuture, 'replace');
         }
         await backupRepository.deleteAll({ name: 'from-the-future' });
 
@@ -629,7 +655,7 @@ describe('a postgres backup is checkable before it is trusted', () => {
         // it is what lets a later version decide whether it can read an archive at all, rather than
         // finding out while restoring it
         expect(backup.zibriVersion).toBe(zibriVersion());
-        expect(await FsUtilities.readFile(FsUtilities.getPath(backupFolder, 'versioned', 'metadata.json')))
+        expect(await FsUtilities.readFile(BackupLayoutTestUtilities.resolveRecordPath(backupFolder, backup)))
             .toContain(zibriVersion());
     }, 60000);
 
@@ -674,9 +700,7 @@ describe('a postgres backup is checkable before it is trusted', () => {
         // the copy a restore has when the database holding the other one is the thing being
         // restored - which is the case a backup exists for. Written before the data rather than
         // after, this file could only ever hold the state the backup started in
-        const metadata: string = await FsUtilities.readFile(
-            FsUtilities.getPath(backupFolder, 'self-describing', 'metadata.json')
-        );
+        const metadata: string = await FsUtilities.readFile(BackupLayoutTestUtilities.resolveRecordPath(backupFolder, backup));
         expect(metadata).toContain(resource.checksum);
         expect(metadata).toContain(`"size":${resource.size}`);
     }, 60000);
@@ -692,14 +716,30 @@ describe('a postgres backup is checkable before it is trusted', () => {
         });
         assert(backup, 'the backup was not created');
 
-        // truncated where it is stored, which is what a write killed part way through or a storage
-        // fault leaves behind. Nothing about the file says so: a backup is opaque bytes, and its
-        // name and its place in the folder are exactly as they were
-        const path: FsPath = FsUtilities.getPath(backupFolder, 'damaged', SchemaBackupDataSource.name);
-        const whole: string = await FsUtilities.readFile(path);
-        await FsUtilities.updateFile(path, whole.slice(0, Math.floor(whole.length / 2)), 'replace');
+        // a chunk of it truncated where it is stored, which is what a write killed part way through or a
+        // storage fault leaves behind. Nothing about the file says so: its name and its place in the
+        // folder are exactly as they were
+        const [resource]: BackupResourceEntity[] = backup.resources;
+        assert(resource, 'the backup recorded no resource');
+        const { path } = await BackupLayoutTestUtilities.resolveFirstPlainChunk(backupFolder, backup, resource);
+        const whole: Buffer = await readFile(path);
+        await writeFile(path, whole.subarray(0, Math.floor(whole.length / 2)));
 
-        await expect(backupService.restore(backup)).rejects.toThrow(/is not the data backup "damaged" recorded/);
+        try {
+            // from either transport, so the second one is cut short as well
+            const { path: second } = await BackupLayoutTestUtilities.resolveFirstPlainChunk(secondBackupFolder, backup, resource);
+            await writeFile(second, whole.subarray(0, Math.floor(whole.length / 2)));
+            try {
+                await expect(backupService.restore(backup)).rejects.toThrow(/is not the chunk it is stored as/);
+            }
+            finally {
+                await writeFile(second, whole);
+            }
+        }
+        finally {
+            // the chunk is shared by the backups after this one that hold the same data
+            await writeFile(path, whole);
+        }
 
         // and it refused before applying any of it, which is what makes this different from a
         // restore that fails halfway through
@@ -727,8 +767,8 @@ describe('a postgres backup is checkable before it is trusted', () => {
     it('gives every transport the whole archive rather than a share of it', async () => {
         await backupService.waitForBackup(await backupService.queueBackup({ name: 'two-transports' }));
 
-        const first: Buffer = await readFile(FsUtilities.getPath(backupFolder, 'two-transports', SchemaBackupDataSource.name));
-        const second: Buffer = await readFile(FsUtilities.getPath(secondBackupFolder, 'two-transports', SchemaBackupDataSource.name));
+        const first: Buffer = await readStored('two-transports');
+        const second: Buffer = await readStored('two-transports', 'schema-fs-backup-transport-second');
 
         // a stream is consumable once. Handed to both transports, they raced over its chunks and
         // whichever lost wrote an archive with holes in it - silently, because a backup nobody reads

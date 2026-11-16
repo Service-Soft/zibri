@@ -1,6 +1,7 @@
 import assert from 'node:assert';
 import { createHash } from 'node:crypto';
-import { readFile, writeFile } from 'node:fs/promises';
+import { Dirent } from 'node:fs';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { InMemoryDataSource, testMasterKey } from 'zibri-testing';
@@ -10,7 +11,8 @@ import { BackupResourceEntity } from './backup-resource-entity.model';
 import { BackupServiceInterface } from './backup-service.interface';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BackupTransport } from './decorators/backup-transport.decorator';
-import { BaseFsBackupTransport } from './transports/fs.backup-transport';
+import { FsBackupTransport } from './transports/fs.backup-transport';
+import { BackupLayoutTestUtilities } from '../__testing__/backup/backup-layout-test.utilities';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -53,9 +55,10 @@ const replacementMasterKey: EncryptionMasterKey<Buffer> = {
 };
 
 @BackupTransport()
-class EncryptedFsBackupTransport extends BaseFsBackupTransport {
-    override readonly name: string = 'encrypted-fs-backup-transport';
-    protected override readonly backupBasePath: FsPath = backupFolder;
+class EncryptedFsBackupTransport extends FsBackupTransport {
+    constructor() {
+        super('encrypted-fs-backup-transport', backupFolder);
+    }
 }
 
 @Entity({ tenant: 'shared' })
@@ -116,8 +119,13 @@ function getResource(backup: BackupEntity): BackupResourceEntity {
     return resource;
 }
 
-function getArchivePath(backup: BackupEntity): FsPath {
-    return FsUtilities.getPath(backupFolder, backup.name, getResource(backup).name);
+/**
+ * Every file the transport holds.
+ * @returns Their paths.
+ */
+async function findStoredFiles(): Promise<FsPath[]> {
+    const entries: Dirent[] = await readdir(backupFolder, { recursive: true, withFileTypes: true });
+    return entries.filter(e => e.isFile()).map(e => FsUtilities.getPath(e.parentPath, e.name));
 }
 
 describe('BackupService — encrypted backups', () => {
@@ -140,7 +148,11 @@ describe('BackupService — encrypted backups', () => {
     }, 30000);
 
     it('stores nothing of the data readably, and restores all of it', async () => {
-        expect((await readFile(getArchivePath(backup))).includes(MARKER)).toBe(false);
+        const files: FsPath[] = await findStoredFiles();
+        expect(files.length).toBeGreaterThan(1);
+        for (const file of files) {
+            expect((await readFile(file)).includes(MARKER)).toBe(false);
+        }
         expect(getResource(backup).encryptedKey).toMatch(/^aes-256-gcm\.v1\.mk1\./);
 
         await getNoteRepository().deleteAll({});
@@ -175,52 +187,61 @@ describe('BackupService — encrypted backups', () => {
                 currentMasterKey: replacementMasterKey
             })
         });
-        const retrieveData: jest.SpiedFunction<EncryptedFsBackupTransport['retrieveData']> = jest.spyOn(
+        // not even a session: fetching starts with one
+        const openSession: jest.SpiedFunction<EncryptedFsBackupTransport['openSession']> = jest.spyOn(
             EncryptedFsBackupTransport.prototype,
-            'retrieveData'
+            'openSession'
         );
 
         try {
             await expect(getBackupService().restore(backup)).rejects.toThrow('No master key found with id "mk1"');
-            expect(retrieveData).not.toHaveBeenCalled();
+            expect(openSession).not.toHaveBeenCalled();
         }
         finally {
-            retrieveData.mockRestore();
+            openSession.mockRestore();
         }
     }, 30000);
 
-    it('refuses an archive whose data was changed, even when its record agrees, and applies none of it', async () => {
+    // what somebody who can write to the storage can do: each chunk is bound to its id, which the record
+    // they could change as well does not name
+    it('refuses a backup with a chunk changed where it is stored, and applies none of it', async () => {
         assert(server, 'the server did not start');
         await server.reInit({ providers: defaultTestServerProviders });
-        const archive: Buffer = await readFile(getArchivePath(backup));
-        // inside the second chunk
-        archive.writeUInt8(archive.readUInt8(70_000) ^ 1, 70_000);
-        await writeFile(getArchivePath(backup), archive);
-        // what somebody who can write to the storage can do as well: the record travels beside the
-        // archive, so its checksum is no obstacle to them
-        const agreeing: BackupEntity = {
-            ...backup,
-            resources: [
-                {
-                    ...getResource(backup),
-                    checksum: createHash('sha256').update(archive)
-                        .digest('hex'),
-                    size: archive.length
-                }
-            ]
-        };
+        // every chunk rather than the first one listed: the folder holds the chunks of the backups taken since
+        // as well, and one only they name is one the restore never reads
+        const chunkFiles: FsPath[] = (await findStoredFiles()).filter(f => f.startsWith(BackupLayoutTestUtilities.resolveChunksFolder(backupFolder)));
+        assert(chunkFiles.length, 'the backup stored no chunk');
+        const originals: Buffer[] = await Promise.all(chunkFiles.map(async f => await readFile(f)));
+        await Promise.all(chunkFiles.map(async (f, i) => {
+            const changed: Buffer = Buffer.from(originals[i] ?? Buffer.alloc(0));
+            changed.writeUInt8(changed.readUInt8(100) ^ 1, 100);
+            await writeFile(f, changed);
+        }));
         await getNoteRepository().deleteAll({});
         await getNoteRepository().create({ text: 'current' });
 
-        await expect(getBackupService().restore(agreeing)).rejects.toThrow('could not be decrypted at chunk 1');
+        try {
+            await expect(getBackupService().restore(backup)).rejects.toThrow('is not the chunk it is stored as');
+        }
+        finally {
+            await Promise.all(chunkFiles.map(async (f, i) => await writeFile(f, originals[i] ?? Buffer.alloc(0))));
+        }
 
         expect((await getNoteRepository().findAll()).map(n => n.text)).toEqual(['current']);
     }, 30000);
 
     it('reports the backups whose key is still under an old master key', async () => {
         assert(server, 'the server did not start');
-        // taken under the test server's own master key, which the reInit below makes an old one
-        await server.reInit({ providers: defaultTestServerProviders });
+        // taken under the test server's own master key, which the reInit below makes an old one. The
+        // replacement stays listed: the repository key the transport holds was encrypted by it when the
+        // backup after the replacement was taken, and a backup needs that key
+        await server.reInit({
+            providers: withMasterOptions({
+                currentMasterStrategy: new AesGcmEncryptionStrategy(),
+                currentMasterKey: testMasterKey,
+                oldMasterKeys: [replacementMasterKey]
+            })
+        });
         await createBackup('under-the-old-master');
         await server.reInit({
             providers: withMasterOptions({

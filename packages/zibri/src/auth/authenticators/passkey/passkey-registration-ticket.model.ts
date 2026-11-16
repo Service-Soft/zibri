@@ -10,7 +10,8 @@ import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
  *
  * Spent once, by the login it ends in.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+// not backed up: a restore keeps the tickets of now, so that one used since the backup stays used
+@Entity({ tenant: 'shared', allowOrphan: true, backedUp: false })
 export class PasskeyRegistrationTicket extends BaseEntity {
     /**
      * The ticket.

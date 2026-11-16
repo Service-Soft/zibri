@@ -69,7 +69,7 @@ const AUTHOR_PLACEHOLDER: string = '<whoever generated it>';
  * That link contains the temp directory the test generated the app in, so it can never match what
  * packages/sandbox declares.
  */
-const LOCALLY_LINKED_DEPENDENCIES: string[] = ['zibri', 'zibri-testing', 'zibri-tsx'];
+const LOCALLY_LINKED_DEPENDENCIES: string[] = ['zibri', 'zibri-mdx', 'zibri-testing', 'zibri-tsx', 'zibri-tsx-compiler'];
 
 const LOCAL_LINK_PLACEHOLDER: string = '<locally linked>';
 

@@ -183,7 +183,7 @@ function invalidateTagsScript(): Script {
  * this does not: a store that serializes cannot read a value back without knowing what it was, and
  * a default would be a guess about somebody else's data.
  */
-export type ValKeyCacheStoreConfig = Partial<CacheStoreConfig> & {
+export type ValKeyCacheStoreConfig = Partial<Omit<CacheStoreConfig, 'perTenant'>> & { // always per tenant: its keys hold the active tenant
     /**
      * What this store holds. See {@link CacheModel}.
      */

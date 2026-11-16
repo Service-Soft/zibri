@@ -9,5 +9,10 @@ export type TestCommandRun = {
     /**
      * What the application logged at info while it ran the command.
      */
-    log: string[]
+    log: string[],
+    /**
+     * What the application logged at warn while it ran the command, or while it initialized for
+     * arguments that name none.
+     */
+    warnings: string[]
 };

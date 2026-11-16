@@ -1,4 +1,5 @@
 import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
+import { Route } from '../../routing/controller-route-configuration.model';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { BaseWebsocketConnection } from '../models/connection/base-websocket-connection.model';
@@ -156,5 +157,11 @@ export interface WebsocketServiceInterface<Connection extends BaseWebsocketConne
     /**
      * Gets all currently active connections.
      */
-    getConnections: () => Connection[] | Promise<Connection[]>
+    getConnections: () => Connection[] | Promise<Connection[]>,
+    /**
+     * Gets the path clients connect to, which the AsyncAPI document names. A service that has none leaves the path
+     * out of the document.
+     */
+    // TODO 4.0: required, which a service of your own would have had to add in a minor release
+    getPath?: () => Route
 }

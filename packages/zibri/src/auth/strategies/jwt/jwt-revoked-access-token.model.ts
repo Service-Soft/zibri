@@ -6,7 +6,8 @@ import { OmitClass } from '../../../entity/omit-class.model';
 /**
  * An access token a client was issued and that was revoked before it expired, kept until it expires.
  */
-@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate' })
+// not backed up: a restore keeps the logins of now, so that one ended since the backup stays ended
+@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate', backedUp: false })
 export class JwtRevokedAccessToken extends BaseEntity {
     /**
      * The id of the token, its `jti`.

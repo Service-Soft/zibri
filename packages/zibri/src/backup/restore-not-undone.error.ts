@@ -11,7 +11,8 @@ export type NotUndoneResource = {
      */
     name: string,
     /**
-     * Where what the resource held before the restore is kept.
+     * Where what the resource held before the restore is kept, until the next start of the application puts
+     * it back.
      */
     snapshotPath: FsPath
 };
@@ -31,7 +32,8 @@ export class RestoreNotUndoneError extends InternalError {
             [
                 `Restoring backup "${backup.name}" failed, and ${resourceNames}`
                 + ' could not be put back the way they were.',
-                ...resources.map(r => `What "${r.name}" held before the restore is kept in ${r.snapshotPath}.`)
+                ...resources.map(r => `What "${r.name}" held before the restore is kept in ${r.snapshotPath}.`),
+                'They are put back at the next start of the application, and restores are refused until then.'
             ],
             { cause }
         );

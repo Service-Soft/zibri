@@ -8,7 +8,8 @@ import { Sha256HashStrategy } from '../../../hash/strategies/sha256.hash-strateg
 /**
  * One recovery code of a user, which can be presented once in place of their second factor.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+// kept for the current users: a code used since the backup stays used
+@Entity({ tenant: 'shared', allowOrphan: true, backedUp: 'keptForCurrentUsers' })
 export class TwoFactorRecoveryCode extends BaseEntity {
     /**
      * The id of the user the code belongs to.

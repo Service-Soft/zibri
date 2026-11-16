@@ -17,6 +17,7 @@ import { WrittenRole } from './written-role.model';
 import { ZibriPermissions, ZibriPlatformPermissions } from './zibri-permissions.model';
 import { ZibriApplication } from '../../application/application';
 import { type AuditServiceInterface } from '../../audit/audit-service.interface';
+import { CacheRestoreTagUtilities } from '../../caching/cache-restore-tag.utilities';
 import { type CacheServiceInterface } from '../../caching/cache-service.interface';
 import { InMemoryCacheStore } from '../../caching/store/in-memory.cache-store';
 import { Repository } from '../../data-source/repository/repository';
@@ -219,6 +220,13 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
                 return Promise.resolve();
             }
         );
+        // a restore of the application replaces the roles past the repository, which tells nobody. One of
+        // a tenant writes them through the repository, whose observer forgets them as any write does
+        this.cacheService.registerInvalidationListener(app, RoleService.name, CacheRestoreTagUtilities.APPLICATION_TAG, async () => {
+            this.loadingTenantIndexes.clear();
+            this.tenantIndexes.clear();
+            await this.readRoles();
+        });
         this.logger.info(`configures the role repository ${getDiTokenName(provider.token)}`);
     }
 
@@ -350,7 +358,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
         for (const row of rows) {
             const level: unknown = 'level' in row ? row.level : undefined;
             if (level != undefined && !RoleUtilities.isRoleLevel(level)) {
-                throw new BadRequestError($ts`A role is held at the 'tenant' or the 'platform' level.`);
+                throw new BadRequestError($ts`A role needs to be held at the 'tenant' or the 'platform' level.`);
             }
             const permissions: unknown = 'permissions' in row ? row.permissions : undefined;
             for (const permission of Array.isArray(permissions) ? permissions.map(String) : []) {

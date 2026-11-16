@@ -115,7 +115,7 @@ describe('committing a valkey transaction behind a guard', () => {
             const guarded: ValKeyBufferedWrite[] = resolveWrites('guarded', rows);
             const batched: ValKeyBufferedWrite[] = resolveWrites('batched', rows);
             timings.push(await BenchmarkUtilities.resolveTiming(`guarded commit of ${rows} rows`, runs, async () => {
-                expect(await applyGuardedValKeyWrites(connection, guards, guarded)).toBe(true);
+                expect(await applyGuardedValKeyWrites(connection, inject(valKeyDataSourceClass).keyPrefix, guards, guarded)).toBe(true);
             }));
             timings.push(await BenchmarkUtilities.resolveTiming(`batched commit of ${rows} rows`, runs, async () => await commitAsBatch(batched)));
         }

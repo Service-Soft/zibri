@@ -125,6 +125,8 @@ describe('the db logger transport\'s budget', () => {
         expect(rows[2]?.context.metadata?.['audit']).toEqual(refusedLoginOf('alice@example.com'));
         expect(rows[3]?.context.metadata?.['audit']).toEqual(refusedLoginOf('bob@example.com'));
         expect(rows[2]?.context.collapsed?.lastAt.getTime()).toBeGreaterThanOrEqual(rows[2]?.createdAt.getTime() ?? Infinity);
+        // the entries and the counted rows name the application, as its options do
+        expect(rows.map(r => r.application)).toEqual(['test', 'test', 'test', 'test']);
     });
 
     it('gives what is left of the budget to the more important entries of a batch', async () => {

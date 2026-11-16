@@ -1,4 +1,4 @@
-import { type EmailVerificationPurpose } from './email-verification-purpose.type';
+import { type EmailVerificationTokenPurpose } from './email-verification-token-purpose.type';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
@@ -9,12 +9,19 @@ import { Sha256HashStrategy } from '../hash/strategies/sha256.hash-strategy';
 /**
  * The verification purposes, as the enum of the column.
  */
-const PURPOSES: Readonly<Record<string, EmailVerificationPurpose>> = { verification: 'verification', change: 'change' };
+const PURPOSES: Readonly<Record<string, EmailVerificationTokenPurpose>> = {
+    verification: 'verification',
+    change: 'change',
+    changeApproval: 'change-approval',
+    changeConfirmed: 'change-confirmed',
+    changeApprovalConfirmed: 'change-approval-confirmed'
+};
 
 /**
  * A short lived token a link to verify an email address carries.
  */
-@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate' })
+// not backed up: a restore keeps the tokens of now, so that one used since the backup stays used
+@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate', backedUp: false })
 export class EmailVerificationToken extends BaseEntity {
     /**
      * The token, stored hashed and found by its hash, for the reason `PasswordResetToken` gives.
@@ -29,16 +36,18 @@ export class EmailVerificationToken extends BaseEntity {
     userId!: string;
 
     /**
-     * The address the link was sent to, which it verifies.
+     * The address the link verifies, which it was sent to. For the approval of a change, the new
+     * address it approves, while the link went to the previous one.
      */
     @Property.string({ format: 'email' })
     email!: string;
 
     /**
-     * Whether the link verifies the user's address, or changes it to this one.
+     * Whether the link verifies the user's address, changes it to this one, or approves that change,
+     * and whether a link of a change that waits for the other one was followed.
      */
     @Property.string({ enum: PURPOSES })
-    purpose!: EmailVerificationPurpose;
+    purpose!: EmailVerificationTokenPurpose;
 
     /**
      * When the link stops working.

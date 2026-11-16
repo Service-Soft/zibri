@@ -97,6 +97,10 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         return inject(ZIBRI_DI_TOKENS.WAKE_UP_SERVICE);
     }
 
+    private get waitReportIntervalInMs(): number {
+        return inject(ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS);
+    }
+
     /**
      * Fails the boot of an application that cannot coordinate.
      *
@@ -314,6 +318,8 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         const intervalInMs: number = this.wakeUpService.reachesOtherInstances(dataSource)
             ? ACQUIRE_FALLBACK_INTERVAL_IN_MS
             : ACQUIRE_RETRY_INTERVAL_IN_MS;
+        const startedAt: number = Date.now();
+        let reportedAt: number = startedAt;
         try {
             for (;;) {
                 if (signal?.aborted === true) {
@@ -326,11 +332,41 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
                 if (Date.now() >= deadline) {
                     throw new LeaseAcquisitionTimeoutError(options.key, waitInMs);
                 }
-                await released.next(Math.min(intervalInMs, deadline - Date.now()), signal);
+                // a wait that lasts says so, naming the holder: otherwise a caller stuck behind a grant is
+                // silent until the wait gives up, which can be minutes, and nothing says what it waited for
+                const reportIntervalInMs: number = this.waitReportIntervalInMs;
+                if (Date.now() - reportedAt >= reportIntervalInMs) {
+                    reportedAt = Date.now();
+                    await this.reportWait(options.key, reportedAt - startedAt, waitInMs);
+                }
+                // until the next report at the latest, so that it comes in time whatever the retries wait
+                await released.next(Math.min(intervalInMs, deadline - Date.now(), reportedAt + reportIntervalInMs - Date.now()), signal);
             }
         }
         finally {
             released.stop();
+        }
+    }
+
+    /**
+     * Warns that a wait for a grant still goes on, naming who holds it.
+     * @param key - The grant.
+     * @param waitedInMs - How long it was waited for so far.
+     * @param waitInMs - How long it is waited for at most.
+     */
+    private async reportWait(key: string, waitedInMs: number, waitInMs: number): Promise<void> {
+        const waited: string = `Waited ${Math.round(waitedInMs / Ms.SECOND)} s for the lease "${key}"`;
+        const limit: string = `It is waited for up to ${Math.round(waitInMs / Ms.SECOND)} s.`;
+        try {
+            const held: Lease | undefined = await this.leaseRepository.findOne({ where: { key }, required: false });
+            this.logger.warn(held == undefined
+                ? `${waited}, which was just released. ${limit}`
+                : `${waited}, held by ${held.heldBy} until ${held.expiresAt.toISOString()}. ${limit}`);
+        }
+        catch (error) {
+            // a report that fails changes nothing about the wait, which the next try decides
+            // eslint-disable-next-line stylistic/max-len
+            this.logger.warn(`${waited}, whose holder could not be read: ${error instanceof Error ? error.message : String(error)}. ${limit}`);
         }
     }
 

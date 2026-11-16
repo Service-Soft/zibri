@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { AesGcmEncryptionStrategy, CronServiceInterface, defineProvider, DiProvider, EmailConfigInput, EncryptionMasterKey, JwtAuthOptionsInput, Ms, MultithreadingServiceInterface, PasswordPolicy, RateLimitStoreFailurePolicy, ScryptCost, ZIBRI_DI_TOKENS } from 'zibri';
+import { AesGcmEncryptionStrategy, CronServiceInterface, defineProvider, DiProvider, EmailConfigInput, EncryptionMasterKey, FsPath, FsUtilities, JwtAuthOptionsInput, Ms, MultithreadingServiceInterface, PasswordPolicy, RateLimitStoreFailurePolicy, resolveAppRoot, ScryptCost, ZIBRI_DI_TOKENS } from 'zibri';
 
 import { defaultPasswordResetEmailTemplate } from './password-reset-email.template';
 import { UnconfiguredEmailTransport } from './unconfigured.email-transport';
@@ -86,6 +86,13 @@ export const defaultTestProviders: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.EMAIL_TRANSPORT,
         useValue: new UnconfiguredEmailTransport()
+    }),
+    // the shipped default is the folder beside the bundle, which the build copies the application's
+    // assets into. A test runs the framework from node_modules, where there is no such folder, so every
+    // asset answered 404 and a page opened in a browser ran without its stylesheet and scripts
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.ASSETS_PATH,
+        useFactory: (): FsPath => FsUtilities.getPath(resolveAppRoot(), 'assets')
     }),
     defineProvider({
         token: ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS,

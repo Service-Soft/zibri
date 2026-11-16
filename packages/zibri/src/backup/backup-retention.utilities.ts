@@ -1,19 +1,25 @@
 import { BackupEntity } from './backup-entity.model';
+import { BackupPeriod } from './backup-period.type';
+import { BackupResourceEntity } from './backup-resource-entity.model';
 import { BackupRetention } from './backup-retention.model';
 import { InternalError } from '../error-handling/internal-error.model';
 import { getZonedDate, ZonedDate } from '../localization/format-date.function';
+import { Timezone } from '../localization/models/timezone.model';
 
 /**
- * What a retention reads of a backup.
+ * What a retention reads of a backup: when it was taken, and which backups its resources build on.
  */
-export type RetainedBackup = Pick<BackupEntity, 'id' | 'createdAt'>;
+export type RetainedBackup = Pick<BackupEntity, 'id' | 'createdAt'> & {
+    /**
+     * The resources of the backup, each with the backup it builds on, if any.
+     */
+    resources: Pick<BackupResourceEntity, 'baseBackupId'>[]
+};
 
 /**
  * The rules of a retention that count periods, in the order they are applied.
  */
-type PeriodRule = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
-
-const PERIOD_RULES: PeriodRule[] = ['hourly', 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'];
+const PERIOD_RULES: BackupPeriod[] = ['hourly', 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'];
 
 const DAY_IN_MS: number = 24 * 60 * 60 * 1000;
 
@@ -51,10 +57,27 @@ export abstract class BackupRetentionUtilities {
                 'The backup retention names no rule, so it would keep no backup but the newest. Name at least one, such as daily.'
             );
         }
+        if (retention.fullRead != undefined && !PERIOD_RULES.includes(retention.fullRead)) {
+            throw new InternalError(
+                `The fullRead of the backup retention needs to be one of ${PERIOD_RULES.join(', ')}, not ${String(retention.fullRead)}.`
+            );
+        }
     }
 
     /**
-     * Finds the backups a retention does not keep.
+     * Whether two moments fall in the same period.
+     * @param a - The one moment.
+     * @param b - The other.
+     * @param period - The period.
+     * @param timeZone - The time zone the period is counted in.
+     * @returns Whether they do.
+     */
+    static isSamePeriod(a: Date, b: Date, period: BackupPeriod, timeZone: Timezone): boolean {
+        return this.resolvePeriod(getZonedDate(a, timeZone), period) === this.resolvePeriod(getZonedDate(b, timeZone), period);
+    }
+
+    /**
+     * Finds the backups a retention does not keep. A backup a kept backup builds on is kept as well.
      * @param backups - The completed backups.
      * @param retention - The retention.
      * @param now - The time `withinInMs` is counted back from.
@@ -77,6 +100,20 @@ export abstract class BackupRetentionUtilities {
                 backup => this.resolvePeriod(getZonedDate(backup.createdAt, timeZone), rule),
                 kept
             );
+        }
+        // until no base is added: an attempt that is retried builds on the backup that completed last, which
+        // can have been taken after it, so no single pass in order of age reaches every base's base
+        let added: boolean = true;
+        while (added) {
+            added = false;
+            for (const backup of newestFirst.filter(b => kept.has(b.id))) {
+                for (const resource of backup.resources) {
+                    if (resource.baseBackupId != undefined && !kept.has(resource.baseBackupId)) {
+                        kept.add(resource.baseBackupId);
+                        added = true;
+                    }
+                }
+            }
         }
         return newestFirst.filter(b => !kept.has(b.id));
     }
@@ -128,7 +165,7 @@ export abstract class BackupRetentionUtilities {
      * @param rule - The rule.
      * @returns The period, the same for every moment in it.
      */
-    private static resolvePeriod(date: ZonedDate, rule: PeriodRule): string {
+    private static resolvePeriod(date: ZonedDate, rule: BackupPeriod): string {
         switch (rule) {
             case 'hourly': {
                 return `${date.year}-${date.month}-${date.day}T${date.hours}`;

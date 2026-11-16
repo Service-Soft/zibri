@@ -37,7 +37,7 @@ const MEGABYTE: number = 1024 * 1024;
 const WORKER_RESOURCE_LIMITS: { maxOldGenerationSizeMb: number } = { maxOldGenerationSizeMb: 64 };
 
 /**
- * The young generation a thread gets with that, as docs/multithreading.md states it.
+ * The young generation a thread gets with that, as docs/background-work/multithreading.md states it.
  */
 const BOUNDED_YOUNG_GENERATION_IN_MB: number = 8;
 

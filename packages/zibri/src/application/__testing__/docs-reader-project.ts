@@ -5,7 +5,7 @@
 // The shapes follow what a page that does show the file declares, and what `zi new` generates. What
 // the reader writes against a service of their own, such as a client of their mail provider, is only
 // declared.
-import { AuditServiceInterface, BaseEntity, BaseGoogleAuthenticator, BaseMembershipEntity, BaseRateLimitState, BaseRoleEntity, BaseTenantEntity, BaseUserEntity, Cache, type CacheServiceInterface, type CompanyInfo, Controller, DataSource, DefinedPermissions, definePermissions, DefinedPlatformPermissions, definePlatformPermissions, DiProvider, EmailChangedEmailTemplate, EmailVerificationEmailTemplate, EncryptionString, Entity, File, FsPath, HtmlResponse, HttpRequestContext, inject, Inject, Injectable, InjectionToken, InMemoryCacheStore, LocaleCode, Log, type LoggerInterface, MailingListController, type MetricsServiceInterface, Migration, MimeType, Newable, OAuthClientAuthentication, OidcDiscoveryAtBoot, OmitClass, OmitStrict, PartialClass, PostgresDataSource, PostgresOptions, PostgresPooler, Property, RateLimiterInterface, Repository, RepositoryClass, S3Credentials, SchemaManagement, Timezone, TraceSpanContext, TraceSpanInterface, TsxChildren, TsxComponent, ValKeyDataSource, ValKeyOptions, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS, ZIBRI_PERMISSIONS, ZIBRI_PLATFORM_PERMISSIONS, ZibriApplicationOptions } from '../../index';
+import { type AppCommand, AuditServiceInterface, BaseEntity, BaseGoogleAuthenticator, BaseMembershipEntity, BaseRateLimitState, BaseRoleEntity, BaseTenantEntity, BaseUserEntity, Cache, type CacheServiceInterface, type CompanyInfo, Controller, DataSource, DefinedPermissions, definePermissions, DefinedPlatformPermissions, definePlatformPermissions, DiProvider, EmailChangedEmailTemplate, EmailVerificationEmailTemplate, EncryptionString, Entity, File, FsPath, HtmlResponse, HttpRequestContext, inject, Inject, Injectable, InjectionToken, InMemoryCacheStore, LocaleCode, Log, type LoggerInterface, MailingListController, type MetricsServiceInterface, Migration, MimeType, Newable, OAuthClientAuthentication, OidcDiscoveryAtBoot, OmitClass, OmitStrict, OpenApiExplorerTemplate, PartialClass, PostgresDataSource, PostgresOptions, PostgresPooler, Property, RateLimiterInterface, Repository, RepositoryClass, S3Credentials, SchemaManagement, Timezone, TraceSpanContext, TraceSpanInterface, TsxChildren, TsxComponent, ValKeyDataSource, ValKeyOptions, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS, ZIBRI_PERMISSIONS, ZIBRI_PLATFORM_PERMISSIONS, ZibriApplicationOptions } from '../../index';
 
 // src/models: the running example of the docs, a task tracker for teams
 
@@ -83,6 +83,15 @@ export class Task extends BaseTenantEntity() {
 
     @Property.string()
     status!: string;
+
+    @Property.number({ format: 'integer', required: false })
+    priority?: number | null;
+
+    @Property.date({ required: false })
+    dueAt?: Date | null;
+
+    @Property.array({ items: { type: 'string' }, required: false })
+    labels?: string[] | null;
 }
 
 export class TaskCreateDTO extends OmitClass(Task, ['id', 'tenantId']) {}
@@ -291,7 +300,14 @@ export declare const BasePage: TsxComponent<{
     scripts?: string[]
 }>;
 export declare const Card: TsxComponent<{ className?: string, children: TsxChildren }>;
-export declare const Heading: TsxComponent<{ tag?: 'h1' | 'h2' | 'h3', id?: string, children: TsxChildren, className?: string }>;
+export declare const Heading: TsxComponent<{
+    tag?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6',
+    size?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6',
+    id?: string,
+    children: TsxChildren,
+    className?: string
+}>;
+export declare const CodeBlock: TsxComponent<{ language?: string, meta?: string, code: string, children: TsxChildren }>;
 export declare const Checkbox: TsxComponent<{ label: string, className?: string, onChange?: () => void, checked?: boolean, id?: string }>;
 export declare const Link: TsxComponent<{
     href: string,
@@ -302,6 +318,7 @@ export declare const Link: TsxComponent<{
     iconClassName?: string
 }>;
 export declare const HomePage: TsxComponent<{ appName: string }>;
+export declare const ExplorerPage: OpenApiExplorerTemplate;
 export declare const MetricsPage: TsxComponent<{
     version: string,
     primary: string,
@@ -324,6 +341,8 @@ export declare const providers: DiProvider<unknown>[];
 export declare const sharedProviders: DiProvider<unknown>[];
 export declare const applicationOptions: ZibriApplicationOptions;
 export declare function requireEnv(key: string): string;
+// src/commands: what `zi new` writes
+export declare const resetAdminCommand: AppCommand;
 export declare const environment: {
     jwtAccessSecret: string,
     jwtRefreshSecret: string,

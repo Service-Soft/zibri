@@ -69,6 +69,19 @@ export abstract class PostgresSqlUtilities {
     }
 
     /**
+     * Puts literals in place of the named placeholders of a statement, for a statement that takes no
+     * parameters, such as the query a cursor is declared for.
+     *
+     * The same names as {@link toStatement} replaces, so that what is left as it is stays the same.
+     * @param statement - The statement with named placeholders.
+     * @param literals - The literal of each value, by its name, as the server quotes it.
+     * @returns The sql.
+     */
+    static toInlinedSql(statement: ParameterizedSql, literals: Map<string, string>): string {
+        return statement.sql.replaceAll(NAMED_PLACEHOLDER_PATTERN, (placeholder, name: string) => literals.get(name) ?? placeholder);
+    }
+
+    /**
      * Joins pieces of sql, and the values each binds.
      * @param parts - The pieces.
      * @param separator - What goes between two of them.

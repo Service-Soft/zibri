@@ -1,4 +1,6 @@
-import { BackupDigest } from './staging.function';
+import { BackupDigest } from './backup-digest.model';
+import { StagedFileCompression } from './staged-file-compression.type';
+import { type EncryptionString } from '../auth/encryption/encryption.utilities';
 import { FsPath } from '../utilities/fs.utilities';
 
 /**
@@ -16,5 +18,14 @@ export type RestoreJournalEntry = {
     /**
      * What the snapshot held when it was written, which it is checked against before it is put back.
      */
-    snapshotDigest: BackupDigest
+    snapshotDigest: BackupDigest,
+    /**
+     * How the snapshot is stored. Absent in a journal a release left that stored every snapshot as it was handed over.
+     */
+    snapshotCompression?: StagedFileCompression,
+    /**
+     * The key and IV the snapshot is encrypted with, encrypted by the master key. Absent for a snapshot
+     * stored unencrypted.
+     */
+    snapshotEncryptionKey?: EncryptionString
 };

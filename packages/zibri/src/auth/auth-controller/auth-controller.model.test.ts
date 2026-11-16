@@ -21,14 +21,17 @@ import { OmitClass } from '../../entity/omit-class.model';
 import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
 import { KnownHeader } from '../../http/known-header.enum';
 import { $ts } from '../../localization/translate.function';
+import { Response } from '../../open-api/decorators/response.decorator';
 import { OpenApiDefinition, OpenApiOperation } from '../../open-api/open-api.model';
 import { Controller } from '../../routing/decorators/controller.decorator';
+import { Get } from '../../routing/decorators/get.decorator';
 import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { OtpTwoFactorMethod } from '../2fa/methods/otp/otp.two-factor-method';
 import { AuthControllerAuthenticatorInterface } from '../authenticators/auth-controller-authenticator.interface';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../authenticators/password/password-credentials.model';
 import { PasswordAuthenticator } from '../authenticators/password/password.authenticator';
+import { Auth } from '../decorators/auth.decorator';
 import { Authentication } from '../models/authentication.model';
 import { CookieAuthRefreshSession } from '../strategies/cookie/cookie-auth-refresh-session.model';
 import { CookieAuthSession } from '../strategies/cookie/cookie-auth-session.model';
@@ -81,8 +84,33 @@ class HalfRegistrationAuthenticator extends PinAuthenticator {
 class TwoWaysAuthController extends AuthController({
         strategies: [JwtAuthStrategy, CookieAuthStrategy],
         authenticators: [PasswordAuthenticator, PinAuthenticator],
-        twoFactorMethods: [OtpTwoFactorMethod]
+        twoFactorMethods: [OtpTwoFactorMethod],
+        currentUserRoute: true,
+        twoFactorRegistrationsRoute: true
     }) {}
+
+// what an application of 3.0 wrote, before AuthController answered GET /me and listed the second factors
+@Controller('/auth', { allowOrphan: true, versions: 'all' })
+class OwnCurrentUserAuthController extends AuthController({
+        strategies: [JwtAuthStrategy, CookieAuthStrategy],
+        authenticators: [PasswordAuthenticator, PinAuthenticator],
+        twoFactorMethods: [OtpTwoFactorMethod]
+    }) {
+
+    @Auth.isLoggedIn()
+    @Response.empty()
+    @Get('/me')
+    async me(): Promise<void> {
+        // answers nothing, which is all a route of its own needs to here
+    }
+
+    @Auth.isLoggedIn()
+    @Response.empty()
+    @Get('/2fa/registrations')
+    async registrations(): Promise<void> {
+        // answers nothing, which is all a route of its own needs to here
+    }
+}
 
 // the same routes, without the password reset
 @Controller('/auth', { allowOrphan: true, versions: 'all' })
@@ -174,9 +202,18 @@ describe('AuthController — the routes it defines', () => {
             twoFactorMethods: []
         });
 
-        expect(['login', 'refreshLogin', 'logout', 'requestPasswordReset'].filter(key => !(key in jwtOnly.prototype))).toEqual([]);
-        expect(['csrfToken', 'requestProviderLogin', 'loginOptions', 'requestLinkIdentity', 'findIdentities', 'requestSecondFactor']
-            .filter(key => key in jwtOnly.prototype)).toEqual([]);
+        expect(['login', 'refreshLogin', 'logout', 'requestPasswordReset'].filter(key => !(key in jwtOnly.prototype)))
+            .toEqual([]);
+        expect([
+            'getCurrentUser',
+            'csrfToken',
+            'requestProviderLogin',
+            'loginOptions',
+            'requestLinkIdentity',
+            'findIdentities',
+            'requestSecondFactor',
+            'findTwoFactorRegistrations'
+        ].filter(key => key in jwtOnly.prototype)).toEqual([]);
 
         const cookies: Newable<object> = AuthController({
             strategies: [CookieAuthStrategy],
@@ -185,6 +222,41 @@ describe('AuthController — the routes it defines', () => {
         });
         expect('csrfToken' in cookies.prototype).toBe(true);
         expect('requestSecondFactor' in cookies.prototype).toBe(true);
+        // there only when asked for, as GET /me is
+        expect('findTwoFactorRegistrations' in cookies.prototype).toBe(false);
+
+        const answeringWhoIsLoggedIn: Newable<object> = AuthController({
+            strategies: [JwtAuthStrategy],
+            authenticators: [PasswordAuthenticator],
+            twoFactorMethods: [],
+            currentUserRoute: true
+        });
+        expect('getCurrentUser' in answeringWhoIsLoggedIn.prototype).toBe(true);
+
+        const listingSecondFactors: Newable<object> = AuthController({
+            strategies: [JwtAuthStrategy],
+            authenticators: [PasswordAuthenticator],
+            twoFactorMethods: [OtpTwoFactorMethod],
+            twoFactorRegistrationsRoute: true
+        });
+        expect('findTwoFactorRegistrations' in listingSecondFactors.prototype).toBe(true);
+
+        const verifying: Newable<object> = AuthController({
+            strategies: [JwtAuthStrategy],
+            authenticators: [PasswordAuthenticator],
+            twoFactorMethods: [],
+            emailVerification: true
+        });
+        const confirmingAnyLink: Newable<object> = AuthController({
+            strategies: [JwtAuthStrategy],
+            authenticators: [PasswordAuthenticator],
+            twoFactorMethods: [],
+            emailVerification: true,
+            confirmEmailRoute: true
+        });
+        expect('confirmEmailVerification' in verifying.prototype).toBe(true);
+        expect('confirmEmail' in verifying.prototype).toBe(false);
+        expect('confirmEmail' in confirmingAnyLink.prototype).toBe(true);
     });
 
     it('types the routes it leaves out as absent, so they cannot be left out again', () => {
@@ -194,6 +266,35 @@ describe('AuthController — the routes it defines', () => {
         OmitClass(AuthController({ strategies: [JwtAuthStrategy], authenticators: [PasswordAuthenticator], twoFactorMethods: [] }), ['csrfToken']);
         // @ts-expect-error - without a two factor method there is nothing to enrol
         OmitClass(AuthController({ strategies: [JwtAuthStrategy], authenticators: [PasswordAuthenticator], twoFactorMethods: [] }), ['requestSecondFactor']);
+        // @ts-expect-error - GET /me is there only when asked for
+        OmitClass(AuthController({ strategies: [JwtAuthStrategy], authenticators: [PasswordAuthenticator], twoFactorMethods: [] }), ['getCurrentUser']);
+        OmitClass(
+            AuthController({ strategies: [JwtAuthStrategy], authenticators: [PasswordAuthenticator], twoFactorMethods: [], currentUserRoute: true }),
+            ['getCurrentUser']
+        );
+        // @ts-expect-error - GET /2fa/registrations is there only when asked for
+        OmitClass(AuthController({ strategies: [JwtAuthStrategy], authenticators: [PasswordAuthenticator], twoFactorMethods: [OtpTwoFactorMethod] }), ['findTwoFactorRegistrations']);
+        OmitClass(
+            AuthController({
+                strategies: [JwtAuthStrategy],
+                authenticators: [PasswordAuthenticator],
+                twoFactorMethods: [OtpTwoFactorMethod],
+                twoFactorRegistrationsRoute: true
+            }),
+            ['findTwoFactorRegistrations']
+        );
+        // @ts-expect-error - POST /confirm-email is there only when asked for
+        OmitClass(AuthController({ strategies: [JwtAuthStrategy], authenticators: [PasswordAuthenticator], twoFactorMethods: [], emailVerification: true }), ['confirmEmail']);
+        OmitClass(
+            AuthController({
+                strategies: [JwtAuthStrategy],
+                authenticators: [PasswordAuthenticator],
+                twoFactorMethods: [],
+                emailVerification: true,
+                confirmEmailRoute: true
+            }),
+            ['confirmEmail']
+        );
         expect(true).toBe(true);
     });
 
@@ -217,6 +318,18 @@ describe('AuthController — starting', () => {
     it('refuses options that name other two factor methods than the application registers', async () => {
         await expect(startThenShutDown([NoTwoFactorAuthController]))
             .rejects.toThrow(/NoTwoFactorAuthController[\S\s]*two factor methods none[\S\s]*OtpTwoFactorMethod/);
+    }, TestTimeouts.inMemory.start);
+
+    // GET /me was there for every application, and one with a route of its own there refused to start
+    it('starts with a GET /me and a GET /2fa/registrations of the application\'s own, which it answers itself', async () => {
+        const [server, url] = await startApp([OwnCurrentUserAuthController]);
+        try {
+            expect((await fetch(`${url}/auth/me`)).status).toBe(401);
+            expect((await fetch(`${url}/auth/2fa/registrations`)).status).toBe(401);
+        }
+        finally {
+            await server.shutdown();
+        }
     }, TestTimeouts.inMemory.start);
 
     it('refuses an authenticator that does not declare what a route given it reads', async () => {
@@ -310,9 +423,33 @@ describe('AuthController — a login of several strategies and authenticators', 
         expect((await post('/auth/login-options', {})).status).toBe(404);
     });
 
-    it('enrols the first second factor on a recent login, and then asks for the factor itself', async () => {
+    it('answers who is logged in and what they may do, without their roles', async () => {
+        const accessToken: string = await logIn();
+
+        const res: Response = await fetch(`${baseUrl}/auth/me`, { headers: { Authorization: `Bearer ${accessToken}` } });
+
+        expect(res.status).toBe(200);
+        // the roles are left out, like on the CurrentUser of a handler: routes check permissions
+        expect(await res.json()).toEqual({ id: user.id, email: EMAIL, memberships: [], platformPermissions: expect.any(Array) });
+        expect((await fetch(`${baseUrl}/auth/me`)).status).toBe(401);
+    });
+
+    it('enrols the first second factor on a recent login, lists it, and then asks for the factor itself', async () => {
         const accessToken: string = await logIn();
         const authorization: Record<string, string> = { Authorization: `Bearer ${accessToken}` };
+
+        /**
+         * The second factors the user has enrolled.
+         * @returns The names of their methods.
+         */
+        async function findRegistrations(): Promise<string[]> {
+            const res: Response = await fetch(`${baseUrl}/auth/2fa/registrations`, { headers: authorization });
+            expect(res.status).toBe(200);
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const { methods }: { methods: string[] } = await res.json();
+            return methods;
+        }
+        expect(await findRegistrations()).toEqual([]);
 
         const registered: Response = await post('/auth/2fa/registration/request', {}, authorization);
         expect(registered.status).toBe(200);
@@ -321,17 +458,23 @@ describe('AuthController — a login of several strategies and authenticators', 
         // the code of the step before, so the one of this step is still unspent afterwards
         const previous: string = new TOTP({ secret }).generate({ timestamp: Date.now() - 30_000 });
         expect((await post('/auth/2fa/registration/confirm', { token: previous }, authorization)).status).toBe(204);
+        expect(await findRegistrations()).toEqual(['otp']);
         expect((await post('/auth/2fa/request', {}, authorization)).status).toBe(204);
 
         // a recent login is no longer enough once the user holds a factor
         expect((await post('/auth/2fa/registration/request', {}, authorization)).status).toBe(401);
         const withoutCode: Response = await fetch(`${baseUrl}/auth/2fa/registration/otp`, { method: 'DELETE', headers: authorization });
         expect(withoutCode.status).toBe(401);
+        // named apart from a login that is no good, so a client asks for a code instead of refreshing
+        // eslint-disable-next-line typescript/no-unsafe-assignment
+        const { name }: { name: string } = await withoutCode.json();
+        expect(name).toBe('SecondFactorMissingError');
         const removed: Response = await fetch(`${baseUrl}/auth/2fa/registration/otp`, {
             method: 'DELETE',
             headers: { ...authorization, [inject(ZIBRI_DI_TOKENS.OTP_HEADER)]: new TOTP({ secret }).generate() }
         });
         expect(removed.status).toBe(204);
+        expect(await findRegistrations()).toEqual([]);
     });
 
     it('describes a body of several authenticators and an answer of several strategies in the OpenAPI document', async () => {

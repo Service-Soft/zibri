@@ -44,7 +44,6 @@ beforeAll(async () => {
     valKey = {
         repository: valKeyDataSource.getRepository(Gauge),
         overwrite: async (id, column, json) => {
-            // eslint-disable-next-line cspell/spellchecker
             await valKeyDataSource.connection.hset(`${valKeyDataSource.keyPrefix}:gauge:${id}`, { [column]: json });
         }
     };

@@ -1,0 +1,9 @@
+{
+    "compilerOptions": {
+        // zibri-tsx as it is published, which this package peer depends on, never its sources
+        "paths": {},
+        "rootDir": "src"
+    },
+    "exclude": ["src/**/*.test.ts", "src/__testing__"],
+    "extends": "./tsconfig.json"
+}

@@ -76,7 +76,22 @@ export interface UserServiceInterface {
      *
      * Reads the users of every user repository built on the data layer.
      */
-    isRoleHeld: (role: string) => Promise<boolean>
+    isRoleHeld: (role: string) => Promise<boolean>,
+    /**
+     * The id of every stored user, as stored: soft deleted and deactivated users included. A restore of the
+     * application reads them to keep the credentials of the users that exist when it begins.
+     *
+     * Reads the users of every user repository built on the data layer.
+     */
+    // TODO 4.0: required
+    streamUserIds?: () => AsyncIterable<string>,
+    /**
+     * Which of the given users are stored, as stored: soft deleted and deactivated users included.
+     *
+     * Reads the users of every user repository built on the data layer.
+     */
+    // TODO 4.0: required
+    findStoredUserIds?: (userIds: string[]) => Promise<string[]>
 }
 
 /**

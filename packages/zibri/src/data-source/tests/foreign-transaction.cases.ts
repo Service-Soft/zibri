@@ -10,13 +10,9 @@ import { Transaction } from '../transaction/transaction.model';
  * Two data sources of one kind, and the repository of the same entity in each.
  */
 export type ForeignTransactionPair = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
     first: DataSourceInterface,
-    // eslint-disable-next-line jsdoc/require-jsdoc
     firstRepository: Repository<MigrationEntity>,
-    // eslint-disable-next-line jsdoc/require-jsdoc
     second: DataSourceInterface,
-    // eslint-disable-next-line jsdoc/require-jsdoc
     secondRepository: Repository<MigrationEntity>
 };
 

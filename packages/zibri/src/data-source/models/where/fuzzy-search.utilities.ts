@@ -4,10 +4,8 @@ import { BaseEntity } from '../../../entity/base-entity.model';
 import { PropertyMetadata } from '../../../entity/decorators/property.decorator';
 import { EntityOrder } from '../../../entity/models/entity-order.model';
 import { EntityOrderUtilities } from '../../../entity/models/entity-order.utilities';
-import { isRelationMetadata } from '../../../entity/models/is-relation-metadata.function';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { Newable } from '../../../types/newable.type';
-import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { ScopeWhereUtilities } from '../../scopes/scope-where.utilities';
 
 /**
@@ -122,33 +120,11 @@ export class FuzzySearchUtilities {
             if (key.similarTo == undefined) {
                 continue;
             }
-            const refusal: string | undefined = this.meaninglessSimilarityFor(this.metadataAt(entityClass, key.path));
+            const refusal: string | undefined = this.meaninglessSimilarityFor(EntityOrderUtilities.findMetadataAt(entityClass, key.path));
             if (refusal != undefined) {
                 throw new InternalError(`Cannot order "${entityClass.name}.${key.path.join('.')}" by similarity, because ${refusal}`);
             }
         }
-    }
-
-    /**
-     * Follows the path of an order key to the metadata of the property it ends in.
-     * @param entityClass - The entity the path starts at.
-     * @param path - The property names to follow, through relations.
-     * @returns The metadata, or undefined when the path does not lead to a declared property.
-     */
-    private static metadataAt(entityClass: Newable<unknown>, path: readonly string[]): PropertyMetadata | undefined {
-        let properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
-        let metadata: PropertyMetadata | undefined;
-        for (const [i, key] of path.entries()) {
-            metadata = properties[key];
-            if (i === path.length - 1) {
-                break;
-            }
-            if (!isRelationMetadata(metadata)) {
-                return undefined;
-            }
-            properties = MetadataUtilities.getModelProperties(metadata.target());
-        }
-        return metadata;
     }
 
     /**

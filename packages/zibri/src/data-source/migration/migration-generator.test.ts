@@ -1,3 +1,4 @@
+import assert from 'node:assert';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -7,6 +8,7 @@ import { InMemoryDataSource } from 'zibri-testing';
 
 import { EntitySnapshot } from './entity-snapshot.model';
 import { EntitySnapshotUtilities } from './entity-snapshot.utilities';
+import { MigratedEntityUtilities } from './migrated-entity.utilities';
 import { DATA_SOURCE_IMPORT, describeGeneratedMigrations, firstVersionEntities, GeneratedMigrations, generateMigrations, GenNote, loadGeneratedMigration, secondVersionEntities } from './migration-generator.cases';
 import { GeneratedMigration, MigrationGeneratorUtilities } from './migration-generator.utilities';
 import { Migration } from './migration.model';
@@ -17,6 +19,7 @@ import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
+import { Log } from '../../logging/log.model';
 import { Newable } from '../../types/newable.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { DataSource } from '../decorators/data-source.decorator';
@@ -194,6 +197,27 @@ describe('generating a migration', () => {
 
         expect(migration?.className).toBe('ChangeKeysOfGenNoteWithUniqueTextMigration');
         expect(migration?.code).toContain('the rows "gen_note" stores already have to hold to them');
+    });
+
+    // the data source adds a column the framework added to its entities itself, where a migration adding it as well
+    // would find it there
+    it('leaves out a column the framework added to an entity of its own, and writes one the application added', () => {
+        const table: string = MigratedEntityUtilities.resolveTableName(Log);
+        const current: EntitySnapshot = EntitySnapshotUtilities.resolveSnapshot('ShelfDataSource', [Log]);
+        const logs: EntitySnapshot['entities'][string] | undefined = current.entities[table];
+        assert(logs);
+        const { application, ...asOfThree } = logs.properties;
+        const previous: EntitySnapshot = { ...current, entities: { [table]: { ...logs, properties: asOfThree } } };
+
+        expect(application).toBeDefined();
+        expect(generateBetween(previous, current)).toBeUndefined();
+        const withOwnColumn: EntitySnapshot = {
+            ...current,
+            entities: { [table]: { ...logs, properties: { ...logs.properties, team: { type: 'string', required: false } } } }
+        };
+        const migration: GeneratedMigration | undefined = generateBetween(previous, withOwnColumn);
+        expect(migration?.code).toContain('name: \'team\'');
+        expect(migration?.code).not.toContain('name: \'application\'');
     });
 
     it('writes nothing when nothing changed, and an empty migration only when asked for one', () => {

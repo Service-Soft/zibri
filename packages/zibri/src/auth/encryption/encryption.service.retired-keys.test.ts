@@ -5,6 +5,7 @@ import { Readable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, test } from '@jest/globals';
 import { createInMemoryDataSource, testMasterKey } from 'zibri-testing';
 
+import { EncryptionKeyInUseError } from './encryption-key-in-use.error';
 import { EncryptionKey, EncryptionKeyCreateData, EncryptionKeyStatus } from './encryption-key.model';
 import { EncryptionMasterKey } from './encryption-master-options.model';
 import { EncryptionRotationCronJob } from './encryption-rotation.cron-job';
@@ -22,7 +23,7 @@ import { BackupResourceInterface } from '../../backup/backup-resource.interface'
 import { BackupServiceInterface } from '../../backup/backup-service.interface';
 import { Backup } from '../../backup/decorators/backup-resource.decorator';
 import { BackupTransport } from '../../backup/decorators/backup-transport.decorator';
-import { BaseFsBackupTransport } from '../../backup/transports/fs.backup-transport';
+import { FsBackupTransport } from '../../backup/transports/fs.backup-transport';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -35,9 +36,10 @@ import { OtpCredentials } from '../2fa/methods/otp/otp-credentials.model';
 const backupFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups-retired-keys');
 
 @BackupTransport()
-class RetiredKeysFsBackupTransport extends BaseFsBackupTransport {
-    override readonly name: string = 'retired-keys-fs-backup-transport';
-    protected override readonly backupBasePath: FsPath = backupFolder;
+class RetiredKeysFsBackupTransport extends FsBackupTransport {
+    constructor() {
+        super('retired-keys-fs-backup-transport', backupFolder);
+    }
 }
 
 /**
@@ -136,6 +138,35 @@ describe('EncryptionService — what is still under a retired key', () => {
         expect(backup?.dataKeyIds).toContain(retiredDataKeyId);
 
         expect((await getEncryptionService().resolveRetiredKeyUsage()).dataKeys).toEqual([{ keyId: retiredDataKeyId, strategyName: 'aes-256-gcm', strategyVersion: 'v1', values: 0, backups: 1, stuckRows: [] }]);
+    }, 20000);
+
+    // deleteKey refused only the default key, so a key that stored values or a backup still needed
+    // was deleted, and what it encrypted could not be read again
+    test('refuses to delete a data key a recorded backup needs, and deletes it when told to', async () => {
+        assert(retiredDataKeyId, 'the previous test retired no key');
+        const encryptionService: EncryptionServiceInterface = getEncryptionService();
+
+        await expect(encryptionService.deleteKey(retiredDataKeyId)).rejects.toThrow(EncryptionKeyInUseError);
+        await expect(encryptionService.deleteKey(retiredDataKeyId)).rejects.toThrow(`"${retiredDataKeyId}" (0 stored values, 1 backup)`);
+
+        await encryptionService.deleteKey(retiredDataKeyId, { allowInUse: true });
+        expect(await inject(repositoryTokenFor(EncryptionKey)).findAll({ where: { id: retiredDataKeyId } })).toEqual([]);
+    }, 20000);
+
+    test('refuses to delete a data key that stored values are encrypted with, one at a time and many at once', async () => {
+        const encryptionService: EncryptionServiceInterface = getEncryptionService();
+        const inUse: EncryptionKey = await encryptionService.createKey(AesGcmEncryptionStrategy, { status: EncryptionKeyStatus.DEFAULT });
+        await getOtpRepository().create({ userId: UUIDUtilities.generate(), secret: 'still read' });
+        const unused: EncryptionKey = await encryptionService.createKey(AesGcmEncryptionStrategy, { status: EncryptionKeyStatus.DEFAULT });
+
+        await expect(encryptionService.deleteKey(inUse.id)).rejects.toThrow(`"${inUse.id}" (1 stored value, 0 backups)`);
+        await expect(encryptionService.deleteAllKeys({ id: { oneOf: [inUse.id] } })).rejects.toThrow(EncryptionKeyInUseError);
+        expect((await getOtpRepository().findAll()).map(c => c.secret)).toEqual(['still read']);
+
+        await encryptionService.markKeyAsDefaultForStrategy(inUse.id, AesGcmEncryptionStrategy);
+        // a key nothing needs goes as it always did
+        await encryptionService.deleteKey(unused.id);
+        await getOtpRepository().deleteAll({});
     }, 20000);
 
     test('counts the data keys still under an old master key', async () => {

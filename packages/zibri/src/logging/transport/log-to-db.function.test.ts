@@ -26,6 +26,7 @@ describe('logToDb', () => {
     it('persists the given log to the data source, preserving its id', async () => {
         const log: Log = {
             id: UUIDUtilities.generate(),
+            application: 'Task tracker',
             createdAt: new Date(),
             cleanupAt: new Date(Date.now() + 1000),
             message: 'persisted message',
@@ -37,6 +38,7 @@ describe('logToDb', () => {
 
         const persisted: Log = await logRepository.findById(log.id);
         expect(persisted.id).toBe(log.id);
+        expect(persisted.application).toBe('Task tracker');
         expect(persisted.message).toBe('persisted message');
         expect(persisted.level).toBe(LogLevel.INFO);
         expect(persisted.context.origin).toBe('origin.ts');
@@ -45,6 +47,7 @@ describe('logToDb', () => {
     it('persists a whole batch, keeping every id', async () => {
         const logs: Log[] = Array.from({ length: 25 }, (_, i) => ({
             id: UUIDUtilities.generate(),
+            application: 'Task tracker',
             createdAt: new Date(),
             cleanupAt: new Date(Date.now() + 1000),
             message: `batched message ${i}`,

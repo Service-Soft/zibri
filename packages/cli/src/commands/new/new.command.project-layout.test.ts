@@ -15,7 +15,7 @@ import { Path } from '../../utilities';
  * The page that goes through what "zi new" writes. A reader takes it as the list of every file, and
  * its features table as the list of what a project can be generated with or without.
  */
-const PAGE: string = readFileSync(path.join(CLI_ROOT, '..', 'zibri', 'docs', 'project-layout.md'), 'utf8');
+const PAGE: string = readFileSync(path.join(CLI_ROOT, '..', 'zibri', 'docs', 'application', 'project-layout.md'), 'utf8');
 
 /**
  * The rows of the tables of one section of the page.

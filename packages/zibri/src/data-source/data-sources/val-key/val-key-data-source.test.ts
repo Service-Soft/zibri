@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 
 import { DataSourceInterface } from '../data-source.interface';
 import { ValKeyDataSource } from './val-key-data-source.model';
+import { BackupDataOptionsTestUtilities } from '../../../__testing__/backup/backup-data-options-test.utilities';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { createTestDataSource } from '../../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../../__testing__/test-server/create-test-val-key-data-source.function';
@@ -863,7 +864,7 @@ describe('ValKeyDataSource', () => {
     describe('backups', () => {
         it('restores the state that the backup was created in', async () => {
             const created: ValKeyProduct = await productRepo.create({ name: 'Alpha', price: 10 });
-            const backup: Readable = dataSource.createBackupData();
+            const backup: Readable = dataSource.createBackupData(undefined, BackupDataOptionsTestUtilities.resolve());
             const chunks: string[] = [];
             for await (const chunk of backup) {
                 chunks.push(String(chunk));
@@ -916,7 +917,6 @@ describe('ValKeyDataSource', () => {
             await store.set('k', { createdAt: new Date(), value: 'v', tags: ['t'] });
             await store.delete('k');
 
-            // eslint-disable-next-line cspell/spellchecker
             expect(await dataSource.connection.scard(`${dataSource.keyPrefix}:cache:PrunedTags:tag:t`)).toBe(0);
             await store.clear();
         });
@@ -1227,7 +1227,7 @@ describe('ValKeyDataSource, interrupted', () => {
      */
     async function backupLines(): Promise<string[]> {
         const chunks: string[] = [];
-        for await (const chunk of dataSource.createBackupData()) {
+        for await (const chunk of dataSource.createBackupData(undefined, BackupDataOptionsTestUtilities.resolve())) {
             chunks.push(String(chunk));
         }
         return chunks;

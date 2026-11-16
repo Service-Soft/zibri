@@ -2,7 +2,7 @@ import { ZibriApplication } from '../application/application';
 import { TwoFactorMethods } from '../auth/2fa/two-factor-methods.model';
 import { Authenticators } from '../auth/authenticators/authenticators.model';
 import { AuthStrategies } from '../auth/strategies/auth-strategies.model';
-import { BackupTransportInterface } from '../backup/transports/backup-transport.interface';
+import { BackupTransportSupporting } from '../backup/transports/backup-transport.interface';
 import { CronJob } from '../cron/cron-job.model';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { DiProvider } from '../di/models/di-provider.model';
@@ -62,7 +62,7 @@ export abstract class ZibriPlugin {
     /**
      * The backup transports to register.
      */
-    backupTransports: Newable<BackupTransportInterface>[] = [];
+    backupTransports: Newable<BackupTransportSupporting>[] = [];
     /**
      * The services to build at startup for their lifecycle hooks, such as `OnAppInit`.
      */

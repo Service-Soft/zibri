@@ -327,7 +327,7 @@ describe('an application reading the tenant of a request its own way', () => {
     });
 });
 
-// the shortest path for an application serving one customer, as docs/tenancy.md shows it
+// the shortest path for an application serving one customer, as docs/data/tenancy.md shows it
 describe('an application with one tenant', () => {
     let onlyTenant: string;
 

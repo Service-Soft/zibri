@@ -7,8 +7,10 @@ import { setTimeout as wait } from 'node:timers/promises';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import express from 'express';
 import NodeFormData from 'form-data';
+import { Agent } from 'undici';
 
 import { CircuitOpenError } from './circuit-open.error';
+import { HttpClientBufferedBody } from './http-client-buffered-body.model';
 import { HttpClientDispatcher, HttpClientOptionsInput } from './http-client-options.model';
 import { HttpClientResponse } from './http-client-response.model';
 import { HttpClientError } from './http-client.error';
@@ -47,6 +49,17 @@ class FormDataItem {
 
     @Property.array({ items: { type: 'file', allowedMimeTypes: 'all' }, totalMaxSize: '5mb' })
     files!: File[];
+}
+
+/**
+ * What the server received: the content type and the body as text.
+ */
+class Echo {
+    @Property.string()
+    contentType!: string;
+
+    @Property.string()
+    body!: string;
 }
 
 const LARGE_ERROR_SIZE: number = 64 * 1024 * 1024;
@@ -106,6 +119,10 @@ describe('post', () => {
             res.setHeader(KnownHeader.CONTENT_TYPE, headers['content-type'] as string);
             form.pipe(res);
         });
+        app.post('/echo', express.text({ type: '*/*' }), (req, res) => {
+            const body: unknown = req.body;
+            res.json({ contentType: req.headers[KnownHeader.CONTENT_TYPE.toLowerCase()], body });
+        });
         server = createServer(app);
         await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
 
@@ -114,6 +131,18 @@ describe('post', () => {
         const parser: Parser = inject(ZIBRI_DI_TOKENS.PARSER) as Parser;
         parser['bodyParsers'].push(inject(JsonBodyParser), inject(FormDataBodyParser), inject(StreamBodyParser));
         http = inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
+    });
+
+    it('sends the FormData of the platform as a multipart body', async () => {
+        const form: globalThis.FormData = new globalThis.FormData();
+        form.append('greeting', 'hello');
+        form.append('file', new File(['{"hello":"world"}'], 'payload.json', { type: MimeType.JSON }));
+
+        const res: HttpClientResponse<Echo> = await http.post(`${baseUrl}/echo`, form, { responseBody: Echo });
+
+        expect(res.body.contentType).toMatch(/^multipart\/form-data; boundary=/);
+        expect(res.body.body).toContain('name="greeting"\r\n\r\nhello\r\n');
+        expect(res.body.body).toContain(`name="file"; filename="payload.json"\r\nContent-Type: ${MimeType.JSON}\r\n\r\n{"hello":"world"}\r\n`);
     });
 
     afterAll(async () => {
@@ -942,5 +971,110 @@ describe('retries, body reads and the dispatcher', () => {
 
         expect(res.status).toBe(200);
         expect(received).toHaveLength(1);
+    });
+
+    // the stand-ins above only show a request reaching a dispatcher: one built by undici, as an
+    // application builds a proxy or a CA bundle, has to carry it all the way through undici's fetch
+    it('sends through an Agent of undici', async () => {
+        responseStatus = 200;
+        const agent: Agent = new Agent({ connections: 1 });
+        try {
+            const res: HttpClientResponse = await clientWith({ circuitBreaker: false, dispatcher: agent }).get(`${baseUrl}/through-an-agent`);
+
+            expect(res.status).toBe(200);
+            expect(received).toHaveLength(1);
+        }
+        finally {
+            await agent.close();
+        }
+    });
+});
+
+describe('a body held as the chunks it was read in', () => {
+    /**
+     * One request as the server read it.
+     */
+    type ReceivedUpload = {
+        url: string,
+        contentLength: string | undefined,
+        transferEncoding: string | undefined,
+        body: string
+    };
+
+    let server: Server;
+    let baseUrl: string;
+    const received: ReceivedUpload[] = [];
+    const chunks: Buffer[] = ['first chunk, ', 'second chunk, ', 'and the last'].map(text => Buffer.from(text));
+    const sent: string = chunks.map(String).join('');
+
+    beforeAll(async () => {
+        server = createServer((req, res) => {
+            // eslint-disable-next-line promise/prefer-await-to-then
+            void text(req).then(body => {
+                received.push({
+                    url: req.url ?? '',
+                    contentLength: req.headers['content-length'],
+                    transferEncoding: req.headers['transfer-encoding'],
+                    body
+                });
+                // the first attempt at /flaky is refused as unavailable, every one after it taken
+                if (req.url === '/flaky' && received.filter(r => r.url === '/flaky').length === 1) {
+                    res.writeHead(503).end();
+                    return;
+                }
+                if (req.url === '/moved') {
+                    res.writeHead(307, { location: '/target' }).end();
+                    return;
+                }
+                if (req.url === '/refused') {
+                    res.writeHead(400).end();
+                    return;
+                }
+                res.writeHead(200, { 'content-type': 'application/json' }).end('{}');
+            });
+        });
+        await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+        baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    });
+
+    afterAll(async () => {
+        server.closeAllConnections();
+        await new Promise<void>(resolve => server.close(() => resolve()));
+    });
+
+    beforeEach(() => {
+        received.length = 0;
+    });
+
+    const http: () => HttpClientInterface = () => clientWith({ circuitBreaker: false });
+
+    // a service such as s3 refuses an upload without a length, and a chunked one with it
+    it('sends the chunks with their length, in one request', async () => {
+        await http().put(`${baseUrl}/upload`, new HttpClientBufferedBody(chunks));
+
+        expect(received).toStrictEqual([{ url: '/upload', contentLength: String(sent.length), transferEncoding: undefined, body: sent }]);
+    });
+
+    it('sends the chunks again on the next attempt', async () => {
+        await http().put(`${baseUrl}/flaky`, new HttpClientBufferedBody(chunks), { attempts: 2 });
+
+        expect(received.map(r => r.body)).toStrictEqual([sent, sent]);
+    });
+
+    it('sends the chunks again where a redirect leads', async () => {
+        await http().put(`${baseUrl}/moved`, new HttpClientBufferedBody(chunks));
+
+        expect(received.map(r => [r.url, r.body])).toStrictEqual([['/moved', sent], ['/target', sent]]);
+    });
+
+    // the error of a refused upload carries its body: the bytes of a part of a backup have no place in
+    // a log line
+    it('is described by its length in the error of a refused request', async () => {
+        const error: unknown = await http().put(`${baseUrl}/refused`, new HttpClientBufferedBody(chunks))
+            .catch((error_: unknown) => error_);
+
+        expect(error).toBeInstanceOf(HttpClientError);
+        expect(JsonUtilities.stringify(error instanceof HttpClientError ? error.requestData?.body : undefined))
+            .toBe(JsonUtilities.stringify({ byteLength: sent.length }));
     });
 });

@@ -3,6 +3,8 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { EmailChangedEmailTemplate } from './email-changed-email-template.model';
 import { EmailVerificationEmailTemplate } from './email-verification-email-template.model';
+import { type EmailVerificationOptions } from './email-verification-options.model';
+import { type EmailVerificationServiceInterface } from './email-verification-service.interface';
 import { EmailVerificationToken } from './email-verification-token.model';
 import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function';
 import { TestTimeouts } from '../../__testing__/constants';
@@ -43,7 +45,8 @@ class VerifyingAuthController extends AuthController({
         strategies: [JwtAuthStrategy],
         authenticators: [PasswordAuthenticator],
         twoFactorMethods: [EmailTwoFactorMethod],
-        emailVerification: true
+        emailVerification: true,
+        confirmEmailRoute: true
     }) {}
 
 let server: StartedTestServer | undefined;
@@ -126,6 +129,13 @@ async function findMailedToken(address: string): Promise<string> {
     return token ?? '';
 }
 
+const verificationOptions: EmailVerificationOptions = {
+    confirmEmailUrl: 'https://app.example.com/verify-email',
+    verificationEmail: compileTsxTemplate<EmailVerificationEmailTemplate>('export const Email = ({ link }) => <a href={link}></a>;'),
+    emailChangedEmail: compileTsxTemplate<EmailChangedEmailTemplate>('export const Email = ({ newEmail }) => <p>{newEmail}</p>;'),
+    requiredForLogin: true
+};
+
 // an address was never verified, so a reset link or a second factor by email went to whatever
 // a user typed, and changing it was the application's to write
 describe('Verifying the email address of a user', () => {
@@ -134,7 +144,9 @@ describe('Verifying the email address of a user', () => {
             dataSources: [
                 createInMemoryDataSource({
                     entities: [...defaultTestServerEntities, EmailVerificationToken, TwoFactorCodeCredentials, TwoFactorCode, RateLimitStateEntity],
-                    repositories: defaultTestServerRepositories
+                    repositories: defaultTestServerRepositories,
+                    // orphan allowed, since each suite of the file declares a class of its own
+                    allowOrphan: true
                 })
             ],
             authStrategies: [JwtAuthStrategy],
@@ -142,19 +154,7 @@ describe('Verifying the email address of a user', () => {
             controllers: [VerifyingAuthController],
             providers: [
                 ...defaultTestServerProviders,
-                defineProvider({
-                    token: ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_OPTIONS,
-                    useValue: {
-                        confirmEmailUrl: 'https://app.example.com/verify-email',
-                        verificationEmail: compileTsxTemplate<EmailVerificationEmailTemplate>(
-                            'export const Email = ({ link }) => <a href={link}></a>;'
-                        ),
-                        emailChangedEmail: compileTsxTemplate<EmailChangedEmailTemplate>(
-                            'export const Email = ({ newEmail }) => <p>{newEmail}</p>;'
-                        ),
-                        requiredForLogin: true
-                    }
-                })
+                defineProvider({ token: ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_OPTIONS, useValue: verificationOptions })
             ]
         });
         baseUrl = await server.start();
@@ -194,6 +194,43 @@ describe('Verifying the email address of a user', () => {
             .toBe(1);
     });
 
+    it('confirms any link at /confirm-email, and with previousAddressConfirms changes an address once both addresses confirmed', async () => {
+        // the options the server was started with, switched on for this test only
+        const options: EmailVerificationOptions | undefined = inject(ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_OPTIONS);
+        if (options == undefined) {
+            throw new Error('The server verifies email addresses.');
+        }
+        const confirm: (token: string) => Promise<unknown> = async token => {
+            const res: Response = await fetch(`${baseUrl}/auth/confirm-email`, {
+                method: 'POST',
+                headers: { [KnownHeader.CONTENT_TYPE]: MimeType.JSON },
+                body: JsonUtilities.stringify({ token })
+            });
+            expect(res.status).toBe(200);
+            return await res.json() as unknown;
+        };
+        const unverified: JwtUser = await createUser(false);
+        expect((await login(unverified.email)).status).toBe(403);
+        expect(await confirm(await findMailedToken(unverified.email))).toEqual({ purpose: 'verification', completed: true });
+
+        options.previousAddressConfirms = true;
+        try {
+            const user: JwtUser = await createUser(true);
+            const loggedIn: { accessToken: { value: string } } = await (await login(user.email)).json() as { accessToken: { value: string } };
+            const newEmail: string = `${UUIDUtilities.generate()}@verify.test`;
+            expect(await post('/request-email-change', { newEmail }, loggedIn.accessToken.value)).toBe(204);
+
+            // the previous address approves first, which alone changes nothing: the new one is not proven yet
+            expect(await confirm(await findMailedToken(user.email))).toEqual({ purpose: 'change', completed: false });
+            expect((await users().findById(user.id)).email).toBe(user.email);
+            expect(await confirm(await findMailedToken(newEmail))).toEqual({ purpose: 'change', completed: true });
+            expect((await users().findById(user.id)).email).toBe(newEmail);
+        }
+        finally {
+            options.previousAddressConfirms = false;
+        }
+    });
+
     it('sends a password reset link to a verified address only', async () => {
         const unverified: JwtUser = await createUser(false);
         const verified: JwtUser = await createUser(true);
@@ -228,4 +265,52 @@ describe('Verifying the email address of a user', () => {
         await users().updateById(user.id, { email: `${UUIDUtilities.generate()}@verify.test`, emailVerifiedAt: null });
         await users().updateById(user.id, { roles: [Roles.ADMIN] });
     });
+});
+
+/**
+ * A service of an application's own, as 3.0 had it implement: without `confirmEmail`. What it would do is never
+ * reached, since the application refuses to start.
+ */
+const threeZeroEmailVerificationService: EmailVerificationServiceInterface = {
+    isEnabled: true,
+    isRequiredForLogin: false,
+    requestEmailVerification: async () => await Promise.reject(new Error('not reached')),
+    confirmEmailVerification: async () => await Promise.reject(new Error('not reached')),
+    requestEmailChange: async () => await Promise.reject(new Error('not reached')),
+    confirmEmailChange: async () => await Promise.reject(new Error('not reached')),
+    validateEmailVerified: () => undefined,
+    deleteUserRows: async () => await Promise.reject(new Error('not reached'))
+};
+
+describe('POST /confirm-email with a service that cannot confirm any link', () => {
+    it('refuses to start, naming what the service lacks', async () => {
+        const refused: StartedTestServer = await startTestServer({
+            dataSources: [
+                createInMemoryDataSource({
+                    entities: [...defaultTestServerEntities, EmailVerificationToken, TwoFactorCodeCredentials, TwoFactorCode, RateLimitStateEntity],
+                    repositories: defaultTestServerRepositories,
+                    // orphan allowed, since each suite of the file declares a class of its own
+                    allowOrphan: true
+                })
+            ],
+            authStrategies: [JwtAuthStrategy],
+            twoFactorMethods: [EmailTwoFactorMethod],
+            controllers: [VerifyingAuthController],
+            providers: [
+                ...defaultTestServerProviders,
+                defineProvider({ token: ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_OPTIONS, useValue: verificationOptions }),
+                defineProvider({ token: ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_SERVICE, useValue: threeZeroEmailVerificationService })
+            ]
+        });
+
+        try {
+            await expect(refused.start()).rejects.toThrow(
+                'VerifyingAuthController defines POST /confirm-email, and the EmailVerificationService has no confirmEmail.'
+            );
+        }
+        finally {
+            // a start the application refuses still leaves it initialized
+            await refused.shutdown();
+        }
+    }, TestTimeouts.inMemory.start);
 });

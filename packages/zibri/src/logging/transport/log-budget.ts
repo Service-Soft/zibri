@@ -51,6 +51,8 @@ export class LogBudget extends WriteBudget<Log> {
             // no tenant, since it counts the entries of every tenant. Null, since the write fills an
             // undefined one with the tenant it runs in
             tenantId: null,
+            // the entries it counts are the ones of this application
+            application: first.application,
             level: first.level,
             message: overflowMessage,
             createdAt: first.createdAt,

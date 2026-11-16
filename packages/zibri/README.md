@@ -22,7 +22,7 @@ zi new
 
 Go into your freshly generated project, run `npm start` and enjoy your new api!
 
-See the [getting started guide](https://service-soft.github.io/zibri/documents/getting-started.html) for more details.
+See the [getting started guide](https://service-soft.github.io/zibri/) for more details.
 
 # 📑 Documentation
 The official documentation of Zibri can be found under [https://service-soft.github.io/zibri](https://service-soft.github.io/zibri)
@@ -41,33 +41,33 @@ Such a service is not just the most basic implementation, but one with built in 
 Due to it's dependency injection system you can always swap things out if they are not required or you need even more configuration options. But there will most likely always be a reasonable default you can rely on.
 
 ### 🧩 Features
-- default jwt auth strategy with advanced features like automatic reuse detection ([docs](https://service-soft.github.io/zibri/documents/auth.html))
-- builtin ORM with transaction and migration support ([docs](https://service-soft.github.io/zibri/documents/data-source.html))
-- controller based route definition, including websocket controllers ([docs](https://service-soft.github.io/zibri/documents/creating-endpoints.html), [websocket docs](https://service-soft.github.io/zibri/documents/websocket.html))
-- OmitClass, PickClass, PartialClass, IntersectionClass helpers to extend from and easily build new entity or even controller classes ([docs](https://service-soft.github.io/zibri/documents/creating-endpoints.html))
-- automatic open api generation ([docs](https://service-soft.github.io/zibri/documents/creating-endpoints.html))
-- body parsers for json, xml, form-data and form-url-encoded ([docs](https://service-soft.github.io/zibri/documents/creating-endpoints.html))
-- automatic model based validation ([docs](https://service-soft.github.io/zibri/documents/validation.html))
-- cron job service out of the box ([docs](https://service-soft.github.io/zibri/documents/cron.html))
-- email service out of the box, with templating, mail queue, persistence and priority handling ([docs](https://service-soft.github.io/zibri/documents/email.html))
-- multithreading service with builtin support for worker files or function ([docs](https://service-soft.github.io/zibri/documents/multithreading.html))
-- change sets and soft delete functionality ([docs](https://service-soft.github.io/zibri/documents/data-source.html))
-- backup architecture builtin ([docs](https://service-soft.github.io/zibri/documents/backup.html))
-- a http client for speaking to external APIs that actually validates responses ([docs](https://service-soft.github.io/zibri/documents/http-client.html))
-- durable event system that even survives restarts ([docs](https://service-soft.github.io/zibri/documents/events.html))
-- encryption and hashing of entity properties simply as configurable flags on the `@Property.string` decorator ([docs](https://service-soft.github.io/zibri/documents/encryption-and-hashing.html))
-- highly customizable caching system with multi tier and decorator support ([docs](https://service-soft.github.io/zibri/documents/caching.html))
-- rate limiting with interchangeable algorithms and reservation support ([docs](https://service-soft.github.io/zibri/documents/rate-limiting.html))
-- localization based on the XLIFF standard, automatically extracting marked parts of your code on startup ([docs](https://service-soft.github.io/zibri/documents/localization.html))
-- api versioning tracked in your version control, wired into both migrations and endpoint resolution. Never oversee a regression again. ([docs](https://service-soft.github.io/zibri/documents/versioning.html))
+- default jwt auth strategy with advanced features like automatic reuse detection ([docs](https://service-soft.github.io/zibri/auth/auth/))
+- builtin ORM with transaction and migration support ([docs](https://service-soft.github.io/zibri/data/data-source/))
+- controller based route definition, including websocket controllers ([docs](https://service-soft.github.io/zibri/endpoints/creating-endpoints/), [websocket docs](https://service-soft.github.io/zibri/endpoints/websocket/))
+- OmitClass, PickClass, PartialClass, IntersectionClass helpers to extend from and easily build new entity or even controller classes ([docs](https://service-soft.github.io/zibri/endpoints/creating-endpoints/))
+- automatic open api generation ([docs](https://service-soft.github.io/zibri/endpoints/creating-endpoints/))
+- body parsers for json, xml, form-data and form-url-encoded ([docs](https://service-soft.github.io/zibri/endpoints/creating-endpoints/))
+- automatic model based validation ([docs](https://service-soft.github.io/zibri/endpoints/validation/))
+- cron job service out of the box ([docs](https://service-soft.github.io/zibri/background-work/cron/))
+- email service out of the box, with templating, mail queue, persistence and priority handling ([docs](https://service-soft.github.io/zibri/templates/email/))
+- multithreading service with builtin support for worker files or function ([docs](https://service-soft.github.io/zibri/background-work/multithreading/))
+- change sets and soft delete functionality ([docs](https://service-soft.github.io/zibri/data/data-source/))
+- backup architecture builtin ([docs](https://service-soft.github.io/zibri/data/backup/))
+- a http client for speaking to external APIs that actually validates responses ([docs](https://service-soft.github.io/zibri/endpoints/http-client/))
+- durable event system that even survives restarts ([docs](https://service-soft.github.io/zibri/background-work/events/))
+- encryption and hashing of entity properties simply as configurable flags on the `@Property.string` decorator ([docs](https://service-soft.github.io/zibri/data/encryption-and-hashing/))
+- highly customizable caching system with multi tier and decorator support ([docs](https://service-soft.github.io/zibri/data/caching/))
+- rate limiting with interchangeable algorithms and reservation support ([docs](https://service-soft.github.io/zibri/endpoints/rate-limiting/))
+- localization based on the XLIFF standard, automatically extracting marked parts of your code on startup ([docs](https://service-soft.github.io/zibri/templates/localization/))
+- api versioning tracked in your version control, wired into both migrations and endpoint resolution. Never oversee a regression again. ([docs](https://service-soft.github.io/zibri/endpoints/versioning/))
 
 ### 🔌 Plugins
-Some common concerns that are less technical and more use case specific can be bundled as plugins. Since these are just providers, controllers, cron jobs, body parsers and auth strategies bundled together, you can write and reuse your own really easily ([docs](https://service-soft.github.io/zibri/documents/plugin.html)).
+Some common concerns that are less technical and more use case specific can be bundled as plugins. Since these are just providers, controllers, cron jobs, body parsers and auth strategies bundled together, you can write and reuse your own really easily ([docs](https://service-soft.github.io/zibri/application/plugin/)).
 
 Zibri also provides some plugins out of the box, for things like:
-- invoicing, including XRechnung/Peppol e-invoicing ([docs](https://service-soft.github.io/zibri/documents/plugin.html#zibriinvoicingplugin))
-- mailing-lists ([docs](https://service-soft.github.io/zibri/documents/plugin.html#zibrimailinglistplugin))
-- payments ([docs](https://service-soft.github.io/zibri/documents/plugin.html#zibripaymentplugin))
+- invoicing, including XRechnung/Peppol e-invoicing ([docs](https://service-soft.github.io/zibri/plugins/invoicing-plugin/))
+- mailing-lists ([docs](https://service-soft.github.io/zibri/plugins/mailing-list-plugin/))
+- payments ([docs](https://service-soft.github.io/zibri/plugins/payment-plugin/))
 
 ## ✨ Ease of use
 Zibri aims to be as easy to use as possible, with reasonable defaults and by the use of decorators and dependency injection.

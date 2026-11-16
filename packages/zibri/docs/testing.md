@@ -1,3 +1,7 @@
+---
+keywords: [tests, jest, test server, integration test, unit test, mock, fake, browser test]
+---
+
 # Testing
 You test a Zibri application by starting it and driving it over HTTP. `zibri-testing` starts it with
 the router, the [auth strategies](./glossary.md#auth-strategy), the lifecycle, the data source and the error handling production
@@ -41,6 +45,9 @@ It peer depends on `zibri`, so the framework under test is the copy your applica
 | `FakeLdapDirectory` | class | The running directory: its entries, and the binds and searches it was asked for |
 | `FakeLdapDirectoryOptions`, `FakeLdapEntry`, `FakeLdapBind`, `FakeLdapSearch` | type | Its entries, and what it was asked |
 | `TestBrowser` | class | Plays the browser: keeps cookies, follows no redirect on its own |
+| `startPageBrowser` | function | Launches a real Chromium that opens the pages of a test server, see [testing a page in a browser](#testing-a-page-in-a-browser) |
+| `PageBrowser` | class | The running browser: `open`, `findPageErrors` and `close` |
+| `PageBrowserOptions`, `PageBrowserProxy` | type | The vendor scripts it serves, and the base url it answers from the server |
 | `FakePasskeyDevice` | class | Plays a device with its browser: creates and uses passkeys |
 | `FakePasskeyDeviceOptions`, `FakePasskey`, `FakePasskeyAttestation` | type | What kind of device it is, the passkeys it holds, and how it proves its model |
 | `FakeDpopKey`, `FakeDpopProofOptions` | class, type | A client's key pair, signing [DPoP](./glossary.md#dpop) proofs, see [signing DPoP proofs](#signing-dpop-proofs) |
@@ -69,11 +76,13 @@ Install these only for what needs them. Anything else in the harness works witho
 |---|---|
 | `testcontainers` | A Postgres or ValKey data source, which the harness starts a container for |
 | `ts-node` | `startTestCluster` |
+| `typescript` | `startTestCluster` and `resolveTypeScriptForkOptions`, with `ts-node` |
 | `ts-jest` | The jest configuration |
 | `@peculiar/x509` | `createFakeKeyPair`, `startFakeSamlProvider`, `startFakeLdapDirectory` and `startFakeFidoMetadataService` |
 | `ldapts` | `startFakeLdapDirectory` |
 | `xml-crypto` | `startFakeSamlProvider` |
 | `xml-encryption` | `startFakeSamlProvider` with `encryptsTo` |
+| `playwright` | `startPageBrowser`, with its Chromium downloaded by `npx playwright install chromium` |
 
 ## Starting your application in a test
 `startTestServer` boots your application, with its data source and its lifecycle, and `start` hands
@@ -113,7 +122,7 @@ down, and names what each connection ran last. It stops the containers all the s
 connection a test opens itself before the server shuts down.
 
 A test file boots the application on the modules it imports. `jest.resetModules()` and
-`jest.isolateModules()` load a [second copy of `zibri`](./di.md#one-copy-per-process), and the
+`jest.isolateModules()` load a [second copy of `zibri`](./application/di.md#one-copy-per-process), and the
 next boot raises a `DuplicateFrameworkCopyError`. A test that resets the module registry goes in a
 file of its own: jest gives every file a registry of its own.
 
@@ -197,14 +206,17 @@ import { createJestConfig } from 'zibri-testing/jest-config';
 export default createJestConfig({ rootDir: 'src' });
 ```
 
-`createJestConfig` compiles your code with `ts-jest` and your templates with `zibri-tsx/jest`, so a
-test renders the same templates the build does. A package imported with `?client` is the package
-itself in a test, as it is in the server build. A test worker is restarted once it holds more than
-1 GB, which keeps a long run within the memory of the machine. Every jest option you pass is kept,
-`workerIdleMemoryLimit` included.
+`createJestConfig` compiles your code with `ts-jest` and your templates with `zibri-tsx-compiler/jest`, so a
+test renders the same templates the build does. A package a template imports with `?client` is left
+out of the server render, in a test as in the build, so only client code reads it, see
+[running code in the browser](./templates/templating.md#running-code-in-the-browser). A test worker is restarted once it holds more than
+1 GB, which keeps a long run within the memory of the machine. Jest keeps its cache in `node_modules/.cache/jest` of
+the project rather than in the temp folder, which on many machines is held in memory. Every jest option you pass is
+kept, `workerIdleMemoryLimit` and `cacheDirectory` included.
 
-Jest cannot load a package that ships as ES modules only. Name such a package of yours in
-`esmPackages`, and it is compiled like your code:
+Jest loads a package that ships as ES modules only when node runs it with `--experimental-vm-modules`, as the `test`
+script of a generated project does. Run without, such as by an editor, it cannot. Name such a package of yours in
+`esmPackages`, and it is then compiled like your code:
 
 ```js
 // jest.config.mjs
@@ -278,11 +290,14 @@ dataSources: [createInMemoryDataSource({ entities, repositories })]
 ```
 
 The framework's own entities are added for you, so `entities` is the list your real data source
-declares beside them, and `repositories` the [repositories of your own](./data-source.md#writing-a-repository-of-your-own)
+declares beside them, and `repositories` the [repositories of your own](./data/data-source.md#writing-a-repository-of-your-own)
 it lists. `zi new` puts both lists in modules of their own, which both data sources read.
-The in-process data source implements the whole [`DataSourceInterface`](./data-source.md): filters,
+The in-process data source implements the whole [`DataSourceInterface`](./data/data-source.md): filters,
 relations, unique declarations, transactions, migrations, change sets, [soft deletes](./glossary.md#soft-delete) and backups all
 behave as they do anywhere else. A message published on it reaches every subscriber in this process.
+A transaction started with `REPEATABLE READ` reads the rows as of its first statement, and its commit fails with a
+`TransactionSerializationError` when another transaction changed a row it wrote since. One started with `SERIALIZABLE`
+runs as `REPEATABLE READ`, and a warning says so.
 
 Run a suite that tests storage itself on the database it will run against, for real DDL, connection
 pooling, isolation levels and anything else whose answer depends on the database:
@@ -382,7 +397,7 @@ const seededVersions: StartTestServerOptions = {
 The paths a test server redirects this way are `VERSIONS_PATH`, `TRANSLATIONS_PATH`,
 `FILE_UPLOAD_TEMP_FOLDER` and `BACKUP_TEMP_FOLDER`. The translations folder holds a `source.xlf`
 with nothing to translate, so the application starts the way a deployment does. A test that serves its own fixtures names the folder they are in the same
-way, with the [`ASSETS_PATH`](./assets.md) token.
+way, with the [`ASSETS_PATH`](./endpoints/assets.md) token.
 
 ## Changing how the application is configured
 `reInit` builds the next application on the containers of the running one, so a container-backed
@@ -420,6 +435,7 @@ Each replaces a default that fits a deployment and not a test:
 | `CRON_SERVICE` | a stub that schedules nothing, so tests run on their own clock |
 | `MULTITHREADING_SERVICE` | a stub that spawns nothing, so no worker outlives the test that started it |
 | `AUTH_RATE_LIMIT_OPTIONS` | a limit above what a suite makes, so the eleventh test still reaches its endpoint |
+| `ASSETS_PATH` | the `assets` folder of the application, which the build copies beside the bundle, so a test server serves the stylesheet and the scripts of the pages |
 
 A later provider for a token wins, so these replace the application's. A test about one of them
 names its own provider for the token:
@@ -448,6 +464,95 @@ list. `defaultClusterProviders` is that list, filtered that way.
 
 A test that swaps the master encryption strategy hands `testMasterKey` back in as an old key, so the
 key rows already stored stay readable.
+
+## Testing a page in a browser
+`startPageBrowser` launches a headless Chromium, and `open` loads a route of your test server in a page
+of its own. The page runs what your [templates](./templates/templating.md) run in the browser, under the
+headers your application sends, its Content Security Policy included. `findPageErrors` answers what
+the page threw and what its policy refused.
+
+```ts
+// src/__testing__/tasks-page.browser.test.ts
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { Page } from 'playwright';
+import { PageBrowser, startPageBrowser, StartedTestServer, startTestServer } from 'zibri-testing';
+
+import { testApplicationOptions } from './test-application-options';
+
+describe('the tasks page', () => {
+    let server: StartedTestServer;
+    let baseUrl: string;
+    let browser: PageBrowser;
+
+    beforeAll(async () => {
+        server = await startTestServer({ application: testApplicationOptions });
+        baseUrl = await server.start();
+        browser = await startPageBrowser({ vendorPackages: ['chart.js'] });
+    }, 30000);
+
+    afterAll(async () => {
+        await browser.close();
+        await server.shutdown();
+    }, 30000);
+
+    it('saves a task', async () => {
+        const page: Page = await browser.open(`${baseUrl}/tasks`);
+
+        await page.locator('#title').fill('Write the release notes');
+        await page.locator('#save-button').click();
+
+        expect(await page.locator('#status').textContent()).toBe('Saved');
+        expect(browser.findPageErrors(page)).toEqual([]);
+    });
+
+    it('announces the status to a screen reader', async () => {
+        const page: Page = await browser.open(`${baseUrl}/tasks`);
+
+        expect(await page.locator('#status').getAttribute('role')).toBe('status');
+    });
+});
+```
+
+`open` answers a Playwright `Page`, and the tests use its API from there. Find an element by its id,
+and check what assistive technology reads in assertions of their own, such as the `role` above.
+Finding an element by its role checks the role as well, and that check is lost when someone later
+finds the element another way.
+
+`vendorPackages` names the packages your templates import with `?client`. The browser answers their
+scripts from your `node_modules`, so a test needs no build first. To stub one, route its url in the
+second argument of `open`, which runs before the page loads:
+
+```ts
+// src/__testing__/chat-page.browser.test.ts
+import { Page } from 'playwright';
+import { PageBrowser } from 'zibri-testing';
+
+async function openChat(browser: PageBrowser, baseUrl: string): Promise<Page> {
+    return await browser.open(`${baseUrl}/chat`, async opened => {
+        await opened.route('**/assets/vendor/socket-io-client.js', route => route.fulfill({
+            contentType: 'text/javascript',
+            body: 'window.io = () => ({ on: () => {} });'
+        }));
+    });
+}
+```
+
+Links your application builds, such as those in its emails, point at its `baseUrl` rather than at the
+port the test server listens on. `behindProxy` answers every request to the base url from the server,
+and the page keeps the base url as its origin, as behind the reverse proxy of a deployment:
+
+```ts
+// src/__testing__/emails.browser.test.ts
+import { PageBrowser, startPageBrowser, StartedTestServer } from 'zibri-testing';
+
+import { testApplicationOptions } from './test-application-options';
+
+async function startBrowserBehindProxy(server: StartedTestServer): Promise<PageBrowser> {
+    return await startPageBrowser({
+        behindProxy: { baseUrl: testApplicationOptions.baseUrl, appUrl: await server.start() }
+    });
+}
+```
 
 ## Logging in through a provider
 `startFakeOAuthProvider` starts an OpenID Connect provider inside the test, reached over HTTP on
@@ -494,7 +599,7 @@ goes there to the test server, so the callback URL your provider knows works in 
 | `declinedScopes` | The scopes the user leaves out whenever they are asked for them |
 | `revokedTokens` | The tokens your application handed back at the revocation endpoint |
 | `revokeGrantsOf(subject)` | Withdraws what a user allowed your client, the way removing an app at the provider does |
-| `createJwtAccessToken(options)` | Signs an access token for an API as a JWT for `identity`, the way a mobile app or a service holds one, see [accepting a provider's tokens](./provider-tokens.md). Takes the `audience`, the `typ` (`at+jwt` by default) and claims on top, such as a `cnf` |
+| `createJwtAccessToken(options)` | Signs an access token for an API as a JWT for `identity`, the way a mobile app or a service holds one, see [accepting a provider's tokens](./auth/provider-tokens.md). Takes the `audience`, the `typ` (`at+jwt` by default) and claims on top, such as a `cnf` |
 | `createIdToken(audience, claims)` | Signs an ID token for `identity`, issued to the client `audience`, the way a mobile app holds one once the user logged in there |
 | `formPost` | An option: the provider answers with a page posting the code, like `response_mode=form_post` |
 | `clientSecret` | An option: the secret of your client, or a function checking the one it sends, for a secret your application signs |
@@ -509,7 +614,7 @@ goes there to the test server, so the callback URL your provider knows works in 
 
 A provider with a `publicUrl` is reached through it by your application and by the browser. Hand the
 browser the URL it resolves to as the third argument, `{ [publicUrl]: provider.listeningUrl }`, and
-send your application's requests to it through an [HTTP client](./http-client.md) of your own under
+send your application's requests to it through an [HTTP client](./endpoints/http-client.md) of your own under
 `ZIBRI_DI_TOKENS.HTTP_CLIENT` that does the same.
 
 For a provider that speaks plain OAuth2, point the authenticator's endpoints and API at it too:
@@ -591,7 +696,7 @@ it('logs a user in, and logs them out when they log out at the identity provider
 | `answersLogoutWith` | An option: whether it answers your logout requests with a redirect or with a page posting the answer. A redirect by default |
 
 ## Logging in with a passkey
-A `FakePasskeyDevice` does what a browser and a device do with [passkeys](./passkeys.md): hand it the options your routes answer with and the origin of the page, and it answers what the browser would:
+A `FakePasskeyDevice` does what a browser and a device do with [passkeys](./auth/passkeys.md): hand it the options your routes answer with and the origin of the page, and it answers what the browser would:
 
 ```ts
 // src/__testing__/app.test.ts
@@ -669,7 +774,7 @@ function allowedDevice(): FakePasskeyDevice {
 | `close()` | Stops the service |
 
 ## Signing DPoP proofs
-A `FakeDpopKey` holds a key pair the way a client does, and signs a [DPoP proof](./dpop.md) for whatever request you name. Sign the URL as your application's `baseUrl` writes it, not the address the test reaches the server at:
+A `FakeDpopKey` holds a key pair the way a client does, and signs a [DPoP proof](./auth/dpop.md) for whatever request you name. Sign the URL as your application's `baseUrl` writes it, not the address the test reaches the server at:
 
 ```ts
 // src/__testing__/app.test.ts
@@ -703,7 +808,7 @@ it('binds a login to the key of its proof', async () => {
 | `createProof(method, url, options)` | Signs a proof, with the `accessToken` it hashes, the `nonce`, the time it was `issuedAt` and its `jwtId` |
 
 ## Logging in through a directory
-`startFakeLdapDirectory` starts a directory inside the test, for [login through a directory](./login-through-a-directory.md). It speaks LDAP over TLS with a certificate of its own: point your authenticator's `urls` at its `ldapsUrl`, or at its `ldapUrl` for StartTLS, and its `trustedCertificates` at its `certificate`:
+`startFakeLdapDirectory` starts a directory inside the test, for [login through a directory](./auth/login-through-a-directory.md). It speaks LDAP over TLS with a certificate of its own: point your authenticator's `urls` at its `ldapsUrl`, or at its `ldapUrl` for StartTLS, and its `trustedCertificates` at its `certificate`:
 
 ```ts
 // src/__testing__/app.test.ts
@@ -894,9 +999,9 @@ stderr is kept on `output` and attached to whatever the harness throws, so a boo
 the instance's own output.
 
 ## See also
-- [Application lifecycle](./application-lifecycle.md) — what `init`, `start` and `shutdown` run, and in which order
-- [Data sources](./data-source.md) — entities, repositories and migrations, all of which the in process data source implements
-- [Dependency injection](./di.md) — `defineProvider` and the tokens a test registers its own provider for
-- [Replication](./replication.md) — what running several instances means, which is what a cluster test observes
-- [Cron](./cron.md) — jobs, and the scheduler the test providers stub out
-- [Email](./email.md) — transports, and what registering a real one for a test looks like
+- [Application lifecycle](./application/application-lifecycle.md) — what `init`, `start` and `shutdown` run, and in which order
+- [Data sources](./data/data-source.md) — entities, repositories and migrations, all of which the in process data source implements
+- [Dependency injection](./application/di.md) — `defineProvider` and the tokens a test registers its own provider for
+- [Replication](./data/replication.md) — what running several instances means, which is what a cluster test observes
+- [Cron](./background-work/cron.md) — jobs, and the scheduler the test providers stub out
+- [Email](./templates/email.md) — transports, and what registering a real one for a test looks like

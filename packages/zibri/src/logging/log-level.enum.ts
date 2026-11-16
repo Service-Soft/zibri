@@ -1,26 +1,5 @@
+// the one a frontend reads the levels of a log by, so both sides compare the same numbers
 /**
- * The different possible log levels.
+ * How important a log is, from debug to critical. A higher one is more important.
  */
-export enum LogLevel {
-    /**
-     * Used only for debugging, is only active after manually enabling it.
-     * Data is deleted as soon as debug is turned off again.
-     */
-    DEBUG = 0,
-    /**
-     * A simple information of what is happening.
-     */
-    INFO = 1,
-    /**
-     * A warning, that the application has reached a state that might lead to errors.
-     */
-    WARN = 2,
-    /**
-     * Something is not working as intended.
-     */
-    ERROR = 3,
-    /**
-     * Immediate action is required.
-     */
-    CRITICAL = 4
-}
+export { LogLevel } from 'zibri-contract';

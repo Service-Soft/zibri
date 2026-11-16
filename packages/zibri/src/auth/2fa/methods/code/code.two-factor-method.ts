@@ -28,6 +28,7 @@ import { Ms } from '../../../../utilities/ms';
 import { validateEntitiesRegistered } from '../../../../utilities/validate-entities-registered.function';
 import { UserAccount } from '../../../models/user-account.model';
 import { InvalidTwoFactorCodeError } from '../../invalid-two-factor-code.error';
+import { SecondFactorMissingError } from '../../second-factor-missing.error';
 import { TwoFactorMethod } from '../two-factor-method.interface';
 
 /**
@@ -248,7 +249,7 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
         const header: string = this.resolveHeader();
         const code: string | undefined = findHeader(context.request.headers, header);
         if (!code) {
-            throw new UnauthorizedError($ts`"${header}" header not found`);
+            throw new SecondFactorMissingError($ts`"${header}" header not found`);
         }
         // refused without being checked, and without counting as a guess: a value that cannot be a
         // code tells nobody anything about which code is right

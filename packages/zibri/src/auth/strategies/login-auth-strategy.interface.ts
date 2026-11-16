@@ -45,6 +45,13 @@ export interface LoginAuthStrategyInterface<
      */
     endLogins: (userId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
+     * Ends every login of every user, such as once the database or a secret got out.
+     *
+     * Like `endLogins`, what the strategy cannot take back stays valid until it expires.
+     */
+    // TODO 4.0: required. Optional in 3.x, so that a login strategy of an application's own keeps compiling
+    endEveryLogin?: (transaction: RepositoryTransaction | undefined) => Promise<void>,
+    /**
      * Ends the logins started from a session at a provider, once the user logged out there: every login
      * of the person at the provider, or those of one session of theirs when the match names it.
      *

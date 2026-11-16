@@ -1,0 +1,6 @@
+{
+    // the type tests: the typecheck checks them, a package carries none of them
+    "exclude": ["src/**/*.test.ts"],
+    "extends": "./tsconfig.json",
+    "include": ["src"]
+}

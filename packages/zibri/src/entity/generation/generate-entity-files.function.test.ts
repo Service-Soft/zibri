@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { generateEntityFiles } from './generate-entity-files.function';
 import { testFileFolder } from '../../__testing__/constants';
@@ -55,7 +55,6 @@ describe('generateEntityFiles', () => {
 
     it(
         'resolves providers.ts via ts-node, writes entity files + a per-provider index.ts + the top-level '
-        // eslint-disable-next-line cspell/spellchecker
         + 'index.ts to disk, and correctly transpiles string/enum/date/array property types along the way',
         async () => {
             await FsUtilities.createFile(
@@ -182,7 +181,20 @@ describe('generateEntityFiles', () => {
         expect(await FsUtilities.exists(FsUtilities.getPath(generatedDir, 'index.ts'))).toBe(false);
     }, 15000);
 
-    it('rejects when no providers file can be found', async () => {
-        await expect(generateEntityFiles()).rejects.toThrow();
+    // generating entities is a feature of its own, and a project without the file uses none of it
+    it('generates nothing without a providers file, and says so', async () => {
+        const printed: string[] = [];
+        const info: jest.SpiedFunction<typeof console.info> = jest.spyOn(console, 'info').mockImplementation((...parts: unknown[]) => {
+            printed.push(parts.map(String).join(' '));
+        });
+        try {
+            await expect(generateEntityFiles()).resolves.toBeUndefined();
+        }
+        finally {
+            info.mockRestore();
+        }
+
+        expect(await FsUtilities.exists(FsUtilities.getPath(generatedDir, 'index.ts'))).toBe(false);
+        expect(printed).toEqual([expect.stringContaining('There is no src/models/generated/providers.ts, so no entities are generated')]);
     }, 15000);
 });

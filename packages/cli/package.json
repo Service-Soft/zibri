@@ -3,7 +3,7 @@
     "publishConfig": {
         "access": "public"
     },
-    "version": "3.0.1",
+    "version": "3.1.0",
     "license": "MIT",
     "main": "./dist/index.js",
     "repository": {
@@ -52,10 +52,12 @@
     },
     "devDependencies": {
         "@jest/globals": "^30.4.1",
+        "@jridgewell/gen-mapping": "^0.3.13",
+        "@jridgewell/trace-mapping": "^0.3.31",
+        "@service-soft/eslint-config": "^2.1.7",
         "@types/figlet": "^1.7.0",
         "@types/node": "^24.0.0",
         "eslint": "^9.36.0",
-        "eslint-config-service-soft": "^2.1.6",
         "jest": "^30.4.2",
         "jest-diff": "^30.4.1",
         "ts-jest": "^29.4.11",

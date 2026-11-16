@@ -10,7 +10,8 @@ import { ProviderAuthentication } from '../../models/provider-authentication.mod
 /**
  * A cookie auth refresh session.
  */
-@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate' })
+// not backed up: a restore keeps the logins of now, so that one ended since the backup stays ended
+@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate', backedUp: false })
 export class CookieAuthRefreshSession extends BaseEntity {
     /**
      * The token the refresh session cookie carries, which the csrf token of the session is derived

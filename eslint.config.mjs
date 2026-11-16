@@ -1,4 +1,4 @@
-import { configs } from 'eslint-config-service-soft';
+import { configs } from '@service-soft/eslint-config';
 
 /** @type {import('eslint').Linter.Config} */
 export default [

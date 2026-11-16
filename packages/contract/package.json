@@ -1,0 +1,50 @@
+{
+    "name": "zibri-contract",
+    "publishConfig": {
+        "access": "public"
+    },
+    "version": "3.1.0",
+    "license": "MIT",
+    "main": "./dist/index.js",
+    "module": "./dist/esm/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "node": "./dist/index.js",
+            "default": "./dist/esm/index.js"
+        },
+        "./package.json": "./package.json"
+    },
+    "repository": {
+        "url": "https://github.com/Service-Soft/zibri",
+        "directory": "packages/contract"
+    },
+    "files": [
+        "./dist",
+        "./README.md",
+        "./LICENSE"
+    ],
+    "keywords": [
+        "zibri",
+        "contract",
+        "types",
+        "frontend"
+    ],
+    "author": "Tim Fabian",
+    "description": "The types a frontend shares with a Zibri backend, such as the filter and the order of a list, the error body and the answers of the auth. Types and the enums they hold, so it runs in a browser.",
+    "sideEffects": false,
+    "scripts": {
+        "build": "npm run build:clean && tsc -p tsconfig.build.json && tsc -p tsconfig.esm.json",
+        "build:clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+        "typecheck": "tsc -p tsconfig.json --noEmit",
+        "lint": "eslint . --max-warnings=0",
+        "lint:fix": "eslint . --max-warnings=0 --fix",
+        "prepublishOnly": "npm run build"
+    },
+    "devDependencies": {
+        "@service-soft/eslint-config": "^2.1.7",
+        "eslint": "^9.36.0",
+        "typescript": "^5.9.2"
+    }
+}

@@ -7,9 +7,12 @@ import { NewCommand } from './new.command';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
 import { findWorkflowCommands } from '../../__testing__/find-workflow-commands.function';
 import { EVERY_FEATURE } from '../../__testing__/generated-file-paths';
+import { NpmAdvisories } from '../../__testing__/npm-advisories.model';
 import { quietly } from '../../__testing__/quietly.function';
+import { resolveNpmAdvisories } from '../../__testing__/resolve-npm-advisories.function';
+import { resolveNpmProblems } from '../../__testing__/resolve-npm-problems.function';
 import { CPUtilities, FsUtilities } from '../../encapsulation';
-import { Path } from '../../utilities';
+import { getPath, Path } from '../../utilities';
 
 // three installs rather than two: the harness goes in after the framework it peer depends on, so
 // that npm resolves the peer to the copy this generator just installed rather than fetching one
@@ -50,6 +53,21 @@ describe('NewCommand (real npm install)', () => {
             await FsUtilities.readFile(path.join(appDir, 'package.json') as Path)
         );
         expect(packageJson.dependencies['zibri']).toMatch(/^file:/);
+    }, TEST_TIMEOUT_MS);
+
+    // npm prints them into the terminal of whoever runs "zi new", above everything the cli says, the advisories of its
+    // audit included. One about a development dependency no release fixed yet is only reported: no override helps
+    it('installs without a warning, an error or a vulnerability from npm', async () => {
+        const problems: string[] = await resolveNpmProblems(getPath(workDir, 'npm-logs'), async () => {
+            await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
+        });
+        const advisories: NpmAdvisories = resolveNpmAdvisories(getPath(workDir, 'api'));
+        if (advisories.unfixed.length > 0) {
+            // eslint-disable-next-line no-console
+            console.warn(`advisories of development dependencies no release fixed yet:\n${advisories.unfixed.join('\n')}`);
+        }
+
+        expect([...problems, ...advisories.fixable]).toEqual([]);
     }, TEST_TIMEOUT_MS);
 
     it('builds only what the bundle imports, so a broken test does not break the build', async () => {

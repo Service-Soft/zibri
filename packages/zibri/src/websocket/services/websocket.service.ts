@@ -49,6 +49,7 @@ import { RequestDeadlineUtilities } from '../../http/request-deadline.utilities'
 import { $ts } from '../../localization/translate.function';
 import { errorToLoggedError } from '../../logging/error-to-logged-error.function';
 import { type LoggerInterface } from '../../logging/logger.interface';
+import { Route } from '../../routing/controller-route-configuration.model';
 import { BodyMetadata } from '../../routing/decorators/body-metadata.model';
 import { resolveMaxBodySize } from '../../routing/decorators/body.decorator';
 import { RouteParamUtilities } from '../../routing/route-param.utilities';
@@ -485,7 +486,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 // anything else is said at once rather than read as some other offset
                 const offset: unknown = socket.handshake.auth['offset'];
                 if (offset !== undefined && !(typeof offset === 'number' && Number.isInteger(offset) && offset >= 0)) {
-                    next(new BadRequestError($ts`The offset has to be a whole number of at least 0.`));
+                    next(new BadRequestError($ts`The offset needs to be a whole number of at least 0.`));
                     return;
                 }
                 const request: WebsocketRequest = {
@@ -670,7 +671,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 return;
             }
             if (args.length > 1) {
-                const error: HttpError = new BadRequestError($ts`There should only be one message sent.`);
+                const error: HttpError = new BadRequestError($ts`Exactly one message needs to be sent.`);
                 await this.send({
                     connection,
                     event: WebsocketEvent.RESPONSE,
@@ -1289,6 +1290,11 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     // eslint-disable-next-line jsdoc/require-jsdoc
     getConnections(): SocketIOWebsocketConnection[] {
         return [...this.connections.values()];
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    getPath(): Route {
+        return this.options.path;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

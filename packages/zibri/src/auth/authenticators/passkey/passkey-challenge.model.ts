@@ -11,7 +11,8 @@ import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
  *
  * Answered once, for the ceremony it was issued for, and only for a short time.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+// not backed up: a restore keeps the challenges of now, so that one answered since the backup stays answered
+@Entity({ tenant: 'shared', allowOrphan: true, backedUp: false })
 export class PasskeyChallenge extends BaseEntity {
     /**
      * The challenge.

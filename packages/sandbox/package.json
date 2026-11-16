@@ -1,19 +1,35 @@
 {
     "name": "sandbox",
     "version": "1.0.1",
-    "main": "./dist/index.js",
+    "main": "./dist/bundle.js",
     "scripts": {
         "start": "webpack --watch",
         "build": "webpack",
-        "test": "jest",
+        "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --testPathPatterns=\"^(?!.*\\.browser\\.test\\.ts$).*\"",
+        "test:browser": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --testPathPatterns=\"\\.browser\\.test\\.ts$\"",
         "lint": "eslint . --max-warnings 0",
-        "migrate:list": "node dist/index.js migrate list",
-        "migrate:down": "node dist/index.js migrate down"
+        "migrate:list": "node dist/bundle.js migrate list",
+        "migrate:down": "node dist/bundle.js migrate down",
+        "reset-admin": "node dist/bundle.js reset-admin",
+        "end-every-login": "node dist/bundle.js end-every-login"
     },
-    "keywords": ["zibri"],
+    "keywords": [
+        "zibri"
+    ],
     "author": "Tim Fabian",
     "license": "MIT",
     "description": "",
+    "overrides": {
+        "glob@^13.0.0": "^14.0.2",
+        "test-exclude": {
+            ".": "^8.0.0",
+            "minimatch": "^11.0.1"
+        }
+    },
+    "allowScripts": {
+        "re2": true,
+        "@parcel/watcher": false
+    },
     "dependencies": {
         "@fastify/busboy": "^3.2.3",
         "@opentelemetry/api": "^1.9.1",
@@ -32,24 +48,27 @@
         "zibri": "*"
     },
     "devDependencies": {
+        "@service-soft/eslint-config": "^2.1.7",
+        "@tailwindcss/postcss": "^4.3.5",
         "@types/node": "^24.0.0",
-        "autoprefixer": "^10.4.24",
         "copy-webpack-plugin": "^14.0.0",
         "css-loader": "^7.1.3",
         "handlebars-loader": "^1.7.3",
         "jest": "^30.4.2",
         "mini-css-extract-plugin": "^2.10.0",
+        "playwright": "^1.61.1",
         "postcss": "^8.5.6",
         "postcss-loader": "^8.2.0",
         "source-map-loader": "^5.0.0",
-        "tailwindcss": "^3.4.19",
+        "tailwindcss": "^4.3.5",
         "ts-jest": "^29.4.11",
         "ts-loader": "^9.5.2",
         "ts-node": "^10.9.2",
         "typescript": "^5.9.2",
         "webpack": "^5.105.3",
         "webpack-cli": "^6.0.1",
+        "zibri-mdx": "*",
         "zibri-testing": "*",
-        "eslint-config-service-soft": "^2.1.6"
+        "zibri-tsx-compiler": "*"
     }
 }

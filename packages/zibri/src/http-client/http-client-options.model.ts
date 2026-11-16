@@ -13,10 +13,10 @@ import { BodySizeLimits } from '../http/body-size-limits.model';
 /**
  * What a request is sent over.
  *
- * Node's `fetch` is undici's, and a dispatcher is the one thing it takes that decides *how* the
- * connection is made - so a proxy, a CA bundle, a client certificate, keep-alive and per-host
- * pooling are all one of these. Zibri does not build them: an `Agent`, a `ProxyAgent` or an
- * `EnvHttpProxyAgent` comes from the deployment's own `undici`, and this is where it is handed over.
+ * The client sends with `undici`'s `fetch`, and a dispatcher is the one thing it takes that decides
+ * how the connection is made - so a proxy, a CA bundle, a client certificate, keep-alive and
+ * per-host pooling are all one of these. Zibri does not build them: an `Agent`, a `ProxyAgent` or an
+ * `EnvHttpProxyAgent` comes from `undici`, which Zibri depends on, and this is where it is handed over.
  *
  * The framework never calls a dispatcher - it forwards one to `fetch` - so carrying it is all this
  * has to describe. Every real dispatcher satisfies it, whichever undici built it.
@@ -64,7 +64,7 @@ export type HttpClientOptions = {
      *
      * This is where a corporate egress proxy, a custom CA bundle and mutual tls are configured -
      * all three are how a {@link HttpClientDispatcher} is built, and none of them can be expressed
-     * any other way. Leaving it unset uses node's own, which is what an unconfigured `fetch` does.
+     * any other way. Leaving it unset uses undici's default, which is what an unconfigured `fetch` does.
      *
      * Scoped to this client: what other libraries in the process send is not affected.
      * @default undefined

@@ -30,7 +30,15 @@ export interface SftpBackupTransportOptions {
      */
     readonly path: string,
     /**
-     * How long connecting and logging in may take, in milliseconds. Defaults to 20 seconds.
+     * How long connecting and logging in may take, and opening the SFTP session after, in milliseconds. Defaults to
+     * 20 seconds each.
      */
-    readonly connectTimeoutInMs?: number
+    readonly connectTimeoutInMs?: number,
+    /**
+     * How long the server may answer nothing while the transport waits for an answer, in milliseconds. A transfer
+     * takes as long as it needs while the server keeps answering. When it answers nothing for this long, the
+     * connection is ended, and whatever waited on it fails with an error naming what it waited for. Defaults to 60
+     * seconds.
+     */
+    readonly requestTimeoutInMs?: number
 }

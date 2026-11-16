@@ -17,7 +17,7 @@ import { BackupResourceEntity } from '../../../backup/backup-resource-entity.mod
 import { BackupService } from '../../../backup/backup.service';
 import { Backup } from '../../../backup/decorators/backup-resource.decorator';
 import { BackupTransport } from '../../../backup/decorators/backup-transport.decorator';
-import { BaseFsBackupTransport } from '../../../backup/transports/fs.backup-transport';
+import { FsBackupTransport } from '../../../backup/transports/fs.backup-transport';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { inject } from '../../../di/inject.function';
 import { BaseEntity } from '../../../entity/base-entity.model';
@@ -42,9 +42,10 @@ class ScopedItem extends BaseEntity {
 }
 
 @BackupTransport()
-class ScopedFsBackupTransport extends BaseFsBackupTransport {
-    override readonly name: string = 'scoped-fs-backup-transport';
-    protected override readonly backupBasePath: FsPath = backupFolder;
+class ScopedFsBackupTransport extends FsBackupTransport {
+    constructor() {
+        super('scoped-fs-backup-transport', backupFolder);
+    }
 }
 
 @DataSource()

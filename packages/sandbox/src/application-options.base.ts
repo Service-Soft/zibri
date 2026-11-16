@@ -1,6 +1,7 @@
 import { OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOptions, ZibriInvoicingPlugin, ZibriMailingListPlugin } from 'zibri';
 
-import { AppAuthController, AppMailingListController, CronController, FileController, HealthController, MetricsController, PageController, TemplateController, TestController, TestCrudController, TestWebsocketController } from './controllers';
+import { endEveryLoginCommand, resetAdminCommand } from './commands';
+import { AppAuthController, AppMailingListController, CronController, DocsController, FileController, HealthController, MetricsController, PageController, TemplateController, TestController, TestCrudController, TestWebsocketController } from './controllers';
 import { StatusCronJob } from './cron';
 import { requireOneOfEnv, requireUrlEnv } from './env';
 import { version } from '../package.json';
@@ -32,10 +33,12 @@ export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSo
         MetricsController,
         TestCrudController,
         PageController,
+        DocsController,
         AppMailingListController
     ],
     websocketControllers: [TestWebsocketController],
     cronJobs: [StatusCronJob],
+    commands: [resetAdminCommand, endEveryLoginCommand],
     version,
     environment: requireOneOfEnv('ENVIRONMENT', ZIBRI_ENVIRONMENTS),
     // what an endpoint with no @Auth decorator requires. Switch to 'isLoggedIn' to have

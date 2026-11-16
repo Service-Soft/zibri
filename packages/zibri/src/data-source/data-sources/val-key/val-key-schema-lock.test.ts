@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
 import { ValKeyDataSource } from './val-key-data-source.model';
-import { valKeyGlide } from './val-key-glide.function';
 import { TestServerTimeouts, TestTimeouts } from '../../../__testing__/constants';
 import { holdUntilLetGo } from '../../../__testing__/hold-until-let-go.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -34,8 +33,7 @@ class LockHoldingDataSource extends createTestValKeyDataSource({ allowOrphan: tr
      * repositories of the data source, which an application that has started takes no more of.
      */
     async connect(): Promise<void> {
-        const { host = 'localhost', port, useTLS } = this.options;
-        this.client = await valKeyGlide().GlideClient.createClient({ addresses: [{ host, port }], useTLS });
+        await this.openConnections();
     }
 
     /**

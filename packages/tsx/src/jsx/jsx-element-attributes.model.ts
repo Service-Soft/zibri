@@ -1,5 +1,6 @@
 /* eslint-disable cspell/spellchecker */
 import { HtmlAttributes } from './jsx.model';
+import type { State } from '../runtime/state';
 
 /**
  * Presentational attributes that are obsolete in html5 but still required by email clients.
@@ -144,13 +145,13 @@ export interface InputAttributes extends HtmlAttributes<HTMLInputElement>, FormC
      */
     type?: string,
     /**
-     * The value of the control.
+     * The value of the control. A state itself is written back when the user changes the value.
      */
-    value?: string | number,
+    value?: string | number | State<string>,
     /**
-     * Whether a checkbox or radio is checked.
+     * Whether a checkbox or radio is checked. A state itself is written back when the user checks it.
      */
-    checked?: boolean,
+    checked?: boolean | State<boolean>,
     /**
      * The hint shown while the control is empty.
      */
@@ -226,9 +227,9 @@ export interface InputAttributes extends HtmlAttributes<HTMLInputElement>, FormC
  */
 export interface TextareaAttributes extends HtmlAttributes<HTMLTextAreaElement>, FormControlAttributes {
     /**
-     * The value of the control.
+     * The value of the control. A state itself is written back when the user changes the value.
      */
-    value?: string | number,
+    value?: string | number | State<string>,
     /**
      * The visible number of lines.
      */
@@ -310,9 +311,9 @@ export interface ButtonAttributes extends HtmlAttributes<HTMLButtonElement>, For
  */
 export interface SelectAttributes extends HtmlAttributes<HTMLSelectElement>, FormControlAttributes {
     /**
-     * The selected value.
+     * The selected value. A state itself is written back when the user selects another option.
      */
-    value?: string | number,
+    value?: string | number | State<string>,
     /**
      * Whether multiple options can be selected.
      */

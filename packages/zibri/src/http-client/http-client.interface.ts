@@ -90,6 +90,15 @@ export type HttpOptions<
      */
     redirect: HttpClientRedirect,
     /**
+     * Validates where a redirect leads before it is followed, for a request sent on somebody else's
+     * behalf that may not reach every host, such as one to an endpoint a tenant configured.
+     *
+     * Called for every redirect that `redirect` lets through, before anything is sent to where it leads.
+     * A redirect it throws for is not followed, and the request fails with an `HttpClientError` carrying
+     * the redirect, its message naming why.
+     */
+    validateRedirect: (to: URL) => Promise<void>,
+    /**
      * The mime type that the request body should be sent as.
      *
      * Defaults to using the request's Content-Type header if set, falling back to treating the body as JSON otherwise.

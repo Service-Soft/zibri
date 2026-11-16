@@ -2,6 +2,7 @@ import { TsxComponent, TsxChildren } from 'zibri';
 
 type Props = {
     href: string,
+    id?: string,
     children: TsxChildren,
     activeRoute?: string,
     className?: string,
@@ -9,12 +10,13 @@ type Props = {
     iconClassName?: string
 };
 
-export const Link: TsxComponent<Props> = ({ href, children, activeRoute, className = '', icon, iconClassName = '' }) => {
+export const Link: TsxComponent<Props> = ({ href, id, children, activeRoute, className = '', icon, iconClassName = '' }) => {
     const defaultClasses: string = 'tracking-wider hover:text-secondary transition duration-200 ease-in';
     const activeClasses: string = activeRoute === href ? 'text-secondary' : 'text-white';
 
     return (
         <a href={href}
+            id={id}
             className={`${defaultClasses} ${activeClasses} ${className}`}
         >
             {icon

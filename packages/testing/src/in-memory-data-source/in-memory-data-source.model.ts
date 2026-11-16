@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream';
 
-import { AddPropertyToEntityInput, type AuthServiceInterface, BaseEntity, ChangePropertyOfEntityInput, DataSourceInitializationError, DataSourceInterface, DataSourceSubscription, EntityMetadataMissingError, GlobalRegistry, Inject, InternalError, JsonUtilities, type LoggerInterface, MergeEntityInput, Migration, MigrationPropertyMetadata, MigrationRevertTarget, Newable, ObjectUtilities, PubSubDataSourceInterface, RemoveEntityInput, RemovePropertyFromEntityInput, RemoveRelationFromEntityInput, RenameEntityInput, Repository, RepositoryClass, RepositoryTypeForEntity, RunInTransactionOptions, StartTransactionOptions, Transaction, TransactionUtilities, ZIBRI_DI_TOKENS } from 'zibri';
+import { AddPropertyToEntityInput, type AuthServiceInterface, BaseEntity, ChangePropertyOfEntityInput, DataSourceInitializationError, DataSourceInterface, DataSourceSubscription, EntityMetadataMissingError, GlobalRegistry, Inject, InternalError, IsolationLevel, JsonUtilities, type LoggerInterface, MergeEntityInput, Migration, MigrationPropertyMetadata, MigrationRevertTarget, Newable, ObjectUtilities, PubSubDataSourceInterface, RemoveEntityInput, RemovePropertyFromEntityInput, RemoveRelationFromEntityInput, RenameEntityInput, Repository, RepositoryClass, RepositoryTypeForEntity, RunInTransactionOptions, StartTransactionOptions, Transaction, TransactionUtilities, ZIBRI_DI_TOKENS } from 'zibri';
 import { ConvertedValue, DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS, EntityMetadata, MetadataUtilities, MigratedEntityUtilities, OpenTransactions, PropertyMetadata, recordKeyReconciliation, RefusedValue, registerRepositoryProvidersFor, RepositoryForUtilities, ResolvedPropertyConversion, revertMigrationsAfter, runMigrations, runMigrationsAfterRestore, UNBOUNDED_FIND_ALL_LIMIT, ValueConversionUtilities } from 'zibri/internal';
 
 import { InMemoryScope, inMemoryStoreFor, InMemoryStore, InMemoryStoreSnapshot, StoredRow } from './in-memory-store';
@@ -59,8 +59,8 @@ type UpdateStoredRowsResult = {
  * survive it.
  *
  * ## Differences to the shipped data sources
- * - **No isolation levels.** One passed to `startTransaction` is reported and ignored, the same way
- * the valkey data source reports it.
+ * - **No `SERIALIZABLE`.** A transaction started with it is reported and runs as `REPEATABLE READ`,
+ * which reads as of its first statement and is refused on commit when a row it wrote changed since.
  * - **No schema.** Nothing declares columns up front, so a migration only rewrites the rows that are
  * already stored - which is what the valkey data source does with `addPropertyToEntity` and
  * `changePropertyOfEntity` too. A column type that postgres would reject is stored happily here.
@@ -244,16 +244,17 @@ export abstract class InMemoryDataSource implements DataSourceInterface, PubSubD
         if (!this.initialized) {
             throw new DataSourceInitializationError();
         }
-        if (options?.isolationLevel != undefined) {
+        if (options?.isolationLevel === IsolationLevel.SERIALIZABLE) {
             this.logger.warn(
-                `The data source "${this.constructor.name}" does not support isolation levels,`
-                + ` "${options.isolationLevel}" is ignored.`
+                `The data source "${this.constructor.name}" does not support the isolation level "${IsolationLevel.SERIALIZABLE}",`
+                + ` the transaction runs as "${IsolationLevel.REPEATABLE_READ}".`
             );
         }
         const transaction: InMemoryTransaction = new InMemoryTransaction(
             this.store,
             options?.idleTimeoutInMs ?? this.transactionIdleTimeoutInMs,
-            this.logger
+            this.logger,
+            options?.isolationLevel === IsolationLevel.REPEATABLE_READ || options?.isolationLevel === IsolationLevel.SERIALIZABLE
         );
         this.openTransactions.add(transaction);
         return transaction;
@@ -389,6 +390,12 @@ export abstract class InMemoryDataSource implements DataSourceInterface, PubSubD
             .map(entity => MetadataUtilities.getEntityMetadata(entity))
             .filter(metadata => metadata?.backedUp === false)
             .flatMap(metadata => metadata == undefined ? [] : [metadata.tableName]));
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteBackedUpData(): Promise<void> {
+        this.store.removeRows(this.resolveTablesNotBackedUp());
+        return Promise.resolve();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

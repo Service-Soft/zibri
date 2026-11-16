@@ -326,6 +326,13 @@ export class CookieAuthStrategy<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async endEveryLogin(transaction: RepositoryTransaction | undefined): Promise<void> {
+        // the refresh sessions too, for the reason endLogins gives
+        await this.sessionRepository.deleteAll({}, { transaction });
+        await this.refreshSessionRepository.deleteAll({}, { transaction });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async findLogins(userId: string, transaction: RepositoryTransaction | undefined): Promise<ListedLogin[]> {
         const live: CookieAuthRefreshSession[] = await this.refreshSessionRepository.findAll({
             where: { userId, blacklisted: false, expirationDate: { after: new Date() } },
