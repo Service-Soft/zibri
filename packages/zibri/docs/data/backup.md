@@ -408,7 +408,7 @@ ssh-keyscan -t ed25519 backups.example.com | ssh-keygen -lf -
 
 When the server presents a different key, the error names the key it presented, so you can compare the two.
 
-A transfer takes as long as it needs while the server keeps answering. When the server answers nothing for 60 seconds while the transport waits for an answer, the transport ends the connection, and the backup or restore fails with an error naming what it waited for. `requestTimeoutInMs` sets another limit, in milliseconds.
+A transfer takes as long as it needs while the server keeps answering. When the server answers nothing for 60 seconds while the transport waits for an answer, the transport ends the connection, and the backup or restore fails with an error naming what it waited for. `requestTimeoutInMs` sets another limit, in milliseconds. Connecting, logging in and opening the SFTP session after it take 20 seconds at most each, and `connectTimeoutInMs` sets another limit for them.
 
 ## Writing a transport of your own
 A transport implements `BackupTransportInterface<'v2'>`: a `name`, the `versions` it supports, `['v2']`, and `openSession`, which connects to wherever the data is kept. One session serves everything one resource of a backup or a restore does, and is closed after it.

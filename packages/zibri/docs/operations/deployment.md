@@ -29,8 +29,7 @@ which the bundle reads from inside it. Copy the one folder.
 
 With `bundle.js.map` beside the bundle, a stack trace names the source file and line of every frame.
 The Dockerfile builds it with `npm run build -- --env deployment`, which leaves the sources themselves
-out of it, and starts the application with `node --enable-source-maps`. A deployment of your own does
-both.
+out of the map, and starts the application with `node --enable-source-maps`. A deployment of your own does both.
 
 A stack trace keeps [as many frames as `stackTraceLimit` says](../application/app-settings.md#choosing-how-much-of-a-stack-trace-to-keep).
 

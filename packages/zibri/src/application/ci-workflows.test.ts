@@ -462,8 +462,18 @@ describe('the ci workflows', () => {
 
         expect(committed).toStrictEqual([]);
         expect(ci).toContain('git fetch --depth=1 origin +release:refs/remotes/origin/release');
-        expect(ci).toMatch(/npm run test:benchmark:compare -w zibri$/m);
+        expect(ci).toMatch(/npm run test:benchmark:compare -w zibri -- \$\{\{ matrix\.group \}\}$/m);
         expect(ci.indexOf('origin +release')).toBeLessThan(ci.indexOf('npm run test:benchmark:compare'));
+    });
+
+    // a group the matrix leaves out is a share of the suites that is never compared, and nothing says
+    // so: the matrix is every group the script names, the one of every suite in no other group included
+    it('compares the benchmarks in every group the comparison names', () => {
+        const jobs: Record<string, string> = jobsOf(workflow('ci.yml'));
+
+        expect(jobs['benchmark-groups']).toContain('node packages/zibri/scripts/compare-benchmarks.mjs --groups >> "$GITHUB_OUTPUT"');
+        expect(jobs['benchmark']).toMatch(/^ +group: \$\{\{ fromJSON\(needs\.benchmark-groups\.outputs\.groups\) \}\}$/m);
+        expect(jobs['benchmark-summary']).toContain('node packages/zibri/scripts/compare-benchmarks.mjs --merge');
     });
 });
 

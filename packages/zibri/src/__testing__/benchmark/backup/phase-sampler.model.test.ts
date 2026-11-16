@@ -23,6 +23,7 @@ describe('PhaseSampler', () => {
     // a short phase waiting on another process, as a backup waits on postgres, runs on while the sampler
     // collects: a reading that waited its whole interval after its collections read a phase of 257 ms 4 times
     it('reads a live phase about as often as its interval says, however long its collections take', async () => {
+        // eslint-disable-next-line typescript/require-await
         globalThis.gc = async () => {
             Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, COLLECTION_MS);
         };

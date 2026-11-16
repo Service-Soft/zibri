@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
 import { NewCommand } from './new.command';
 import { version } from '../../../package.json';
+import { BundlePart } from '../../__testing__/bundle-part.model';
 import { testFileFolder } from '../../__testing__/constants';
 import { DeploymentMeasurement } from '../../__testing__/deployment-measurement.model';
 import { DeploymentMeasurementUtilities } from '../../__testing__/deployment-measurements.utilities';
@@ -678,13 +679,26 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
             BASELINE_PATH,
             process.env['ZIBRI_DEPLOYMENT_UPDATE_BASELINE'] === '1'
         );
-        process.stdout.write(`\n${report}\n\n`);
+        // what the bundle is made of, by the map the image carries beside it: printed with the report, and named by a
+        // bundle over its limit, so that a growth says where it is
+        const bundlePath: Path = getPath(workDir, 'bundle.js');
+        const bundleMapPath: Path = getPath(workDir, 'bundle.js.map');
+        run(`docker cp ${APPLICATION_CONTAINER}:/app/dist/bundle.js "${bundlePath}"`);
+        run(`docker cp ${APPLICATION_CONTAINER}:/app/dist/bundle.js.map "${bundleMapPath}"`);
+        const parts: BundlePart[] = DeploymentMeasurementUtilities.resolveBundleParts(
+            await FsUtilities.readFile(bundlePath),
+            await FsUtilities.readFile(bundleMapPath)
+        );
+        const largest: string = parts.slice(0, 12).map(part => `${part.name} ${(part.bytes / 1000).toFixed(0)} KB`)
+            .join(', ');
+        process.stdout.write(`\n${report}\n\nthe largest parts of the bundle: ${largest}\n\n`);
 
         expect(measurements.every(measurement => Number.isFinite(measurement.value) && measurement.value > 0)).toBe(true);
         // a limit whose measurement is gone or renamed counts as exceeded, so it cannot stop holding unseen
         const exceeded: string[] = Object.entries(DEPLOYMENT_SIZE_LIMITS)
             .filter(([name, limit]) => !((measurements.find(measurement => measurement.name === name)?.value ?? Infinity) <= limit))
-            .map(([name, limit]) => `${name}: ${measurements.find(measurement => measurement.name === name)?.value} bytes, limit ${limit}`);
+            .map(([name, limit]) => `${name}: ${measurements.find(measurement => measurement.name === name)?.value} bytes, limit ${limit}`
+                + (name === 'bundle' ? `. Its largest parts: ${largest}` : ''));
         expect(exceeded).toStrictEqual([]);
     });
 
@@ -703,6 +717,18 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         // the stylesheet's entry and the stylesheet get a map of a few kilobytes each beside the bundle's
         expect(run(`docker exec ${APPLICATION_CONTAINER} find /app/dist -name '*.map'`)).toContain('/app/dist/bundle.js.map');
         expect(run(`docker exec ${APPLICATION_CONTAINER} grep -rl sourcesContent /app/dist --include='*.map' || true`).trim()).toBe('');
+    });
+
+    // a frame of zibri is the bundle's too, mapped through the map zibri ships beside its build to the source it
+    // ships: a master key too short for its strategy throws from zibri while the application starts, once it read
+    // the keys from the database
+    it('names the source file and line of zibri in a stack trace', () => {
+        const output: string = run(
+            `docker run --rm --network ${NETWORK_NAME} --env-file "${containerEnvPath}" -e MASTER_KEY=AAAA ${IMAGE_TAG} 2>&1 || true`
+        );
+
+        expect(output).toContain('needs to be 32 bytes long');
+        expect(output).toMatch(/\(\/app\/node_modules\/zibri\/src\/auth\/encryption\/strategies\/aes-gcm\.encryption-strategy\.ts:\d+:\d+\)/);
     });
 
     it('leaves the secrets it was generated with out of the image', () => {

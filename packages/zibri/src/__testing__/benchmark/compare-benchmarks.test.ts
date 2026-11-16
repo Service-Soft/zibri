@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { readdirSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -6,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from '@jest/globals';
 
 import { JsonUtilities } from '../../utilities/json.utilities';
+import { testFileFolder } from '../constants';
 
 /**
  * How `scripts/compare-benchmarks.mjs` decides, from the timings of both sides, whether a change made
@@ -13,7 +15,8 @@ import { JsonUtilities } from '../../utilities/json.utilities';
  * on it is left to the job: what is checked here is the verdict on what they measured.
  */
 
-const scriptPath: string = path.resolve(__dirname, '..', '..', '..', 'scripts', 'compare-benchmarks.mjs');
+const packageDir: string = path.resolve(__dirname, '..', '..', '..');
+const scriptPath: string = path.join(packageDir, 'scripts', 'compare-benchmarks.mjs');
 
 /**
  * The median time of each operation in one run of the suites, by its name.
@@ -49,12 +52,48 @@ type BenchmarkReadRound = {
 };
 
 /**
- * Compares the rounds of both sides in the script's own process, since jest cannot load a module.
+ * The suites of each group a benchmark job's runner compares, by the group's name.
+ */
+type BenchmarkGroups = Record<string, string[]>;
+
+/**
+ * What a group's runner wrote: its comparison, by the group it compared.
+ */
+type BenchmarkGroupComparison = Omit<BenchmarkComparison, 'staleAllowances'> & {
+    group: string,
+    releaseVersion: string,
+    units: Record<string, string>
+};
+
+/**
+ * Calls one of the script's exports in the script's own process, since jest cannot load a module.
+ * @param name - The export.
+ * @param args - What it is called with.
+ * @returns What it returned, or the message it threw with as `{ error }`.
+ */
+function callScript<T>(name: string, args: unknown[]): T | { error: string } {
+    const output: string = execFileSync(process.execPath, [
+        '--input-type=module', '--eval', `
+        const script = await import('${pathToFileURL(scriptPath).href}');
+        try {
+            console.log(JSON.stringify(script[${JsonUtilities.stringify(name)}](...${JsonUtilities.stringify(args)}) ?? null));
+        }
+        catch (error) {
+            console.log(JSON.stringify({ error: error.message }));
+        }
+    `
+    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return JsonUtilities.parse(output);
+}
+
+/**
+ * Compares the rounds of both sides as a run of every suite does: the verdict on each operation, and
+ * the allowances that no longer apply.
  * @param release - The rounds run on the release.
  * @param current - The rounds run on the checkout.
  * @param allowances - The allowances the repository records.
  * @param releaseVersion - The version of the release.
- * @param units
+ * @param units - What each value is counted in, by its name.
  * @returns The comparison.
  */
 function compare(
@@ -66,12 +105,37 @@ function compare(
 ): BenchmarkComparison {
     const output: string = execFileSync(process.execPath, [
         '--input-type=module', '--eval', `
-        const { resolveComparison } = await import('${pathToFileURL(scriptPath).href}');
-        const args = ${JsonUtilities.stringify([release, current, allowances, releaseVersion, units])};
-        console.log(JSON.stringify(resolveComparison(...args)));
+        const { resolveComparison, resolveStaleAllowances } = await import('${pathToFileURL(scriptPath).href}');
+        const [release, current, allowances, releaseVersion, units] = ${JsonUtilities.stringify([release, current, allowances, releaseVersion, units])};
+        const comparison = resolveComparison(release, current, allowances, releaseVersion, units);
+        const staleAllowances = resolveStaleAllowances(allowances, comparison.rows, releaseVersion);
+        console.log(JSON.stringify({ ...comparison, staleAllowances }));
     `
     ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     return JsonUtilities.parse(output);
+}
+
+/**
+ * The benchmark suites of the framework, as paths relative to its package.
+ * @param dir - The directory to look in, the framework's sources by default.
+ * @returns The paths, with "/".
+ */
+function findBenchmarkSuites(dir: string = path.join(packageDir, 'src')): string[] {
+    return readdirSync(dir, { withFileTypes: true })
+        // not into the folder the suites write to, which the ones running beside this one change
+        .filter(entry => path.join(dir, entry.name) !== testFileFolder)
+        .flatMap(entry => {
+            const entryPath: string = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                return findBenchmarkSuites(entryPath);
+            }
+            return entry.name.endsWith('.benchmark.test.ts')
+                ? [
+                    path.relative(packageDir, entryPath).split(path.sep)
+                        .join('/')
+                ]
+                : [];
+        });
 }
 
 /**
@@ -195,5 +259,78 @@ describe('comparing the benchmarks with the release', () => {
         expect(comparison.rows).toMatchObject([{ name: 'GET one row', verdict: 'ok' }, { name: 'POST one row', verdict: 'new' }]);
         expect(comparison.rows[1]?.ratio).toBeNull();
         expect(comparison.failed).toBe(false);
+    });
+});
+
+describe('comparing the benchmarks in groups, each on a runner of its own', () => {
+    const groups: BenchmarkGroups = {
+        'val-key': ['src/val-key.benchmark.test.ts'],
+        postgres: ['src/postgres.benchmark.test.ts']
+    };
+
+    const groupComparison: (group: string, rows: BenchmarkGroupComparison['rows']) => BenchmarkGroupComparison = (group, rows) => ({
+        group,
+        releaseVersion: '3.0.0',
+        rows,
+        failed: rows.some(row => row.verdict === 'worse'),
+        units: {}
+    });
+
+    it('runs the suites of a group, and every suite no group names in the rest', () => {
+        const suites: string[] = ['src/val-key.benchmark.test.ts', 'src/postgres.benchmark.test.ts', 'src/http.benchmark.test.ts'];
+
+        expect(callScript('resolveGroupNames', [groups])).toStrictEqual(['val-key', 'postgres', 'rest']);
+        expect(callScript('resolveGroupSuites', [groups, 'val-key', suites])).toStrictEqual(['src/val-key.benchmark.test.ts']);
+        expect(callScript('resolveGroupSuites', [groups, 'rest', suites])).toStrictEqual(['src/http.benchmark.test.ts']);
+    });
+
+    // the release is grouped by the groups of the checkout: a suite it lacks is compared with nothing,
+    // and one only it has is run in the rest, so that a group is never compared on two runners
+    it('selects nothing of a group the side has no suite of', () => {
+        expect(callScript('resolveGroupSuites', [groups, 'val-key', ['src/http.benchmark.test.ts']])).toStrictEqual([]);
+    });
+
+    it('refuses a group nobody declared', () => {
+        expect(callScript('resolveGroupSuites', [groups, 'mysql', []])).toStrictEqual({
+            error: 'There is no benchmark group "mysql", only val-key, postgres, rest.'
+        });
+    });
+
+    it('refuses groups naming a suite that is gone, one suite twice, or the rest by name', () => {
+        const result: unknown = callScript('validateGroups', [
+            { 'val-key': ['src/val-key.benchmark.test.ts', 'src/gone.benchmark.test.ts'], other: ['src/val-key.benchmark.test.ts'], rest: [] },
+            ['src/val-key.benchmark.test.ts']
+        ]);
+
+        expect(result).toMatchObject({ error: expect.stringContaining('"src/gone.benchmark.test.ts" is no benchmark suite of this checkout') });
+        expect(result).toMatchObject({ error: expect.stringContaining('"src/val-key.benchmark.test.ts" is in more than one group') });
+        expect(result).toMatchObject({ error: expect.stringContaining('"rest" is the group of every suite no other group names') });
+    });
+
+    it('groups the suites of this checkout as the job runs them', () => {
+        const committed: BenchmarkGroups = JsonUtilities.parse(readFileSync(path.join(packageDir, 'benchmark-groups.json'), 'utf8'));
+
+        expect(callScript('validateGroups', [committed, findBenchmarkSuites()])).toBeNull();
+    });
+
+    it('names an allowance stale only by the rows of every group, and fails when any group got worse', () => {
+        const allowance: BenchmarkAllowance = { against: '3.0.0', name: 'GET one row', ratio: 1.6, reason: 'validates the row it answers' };
+        const merged: unknown = callScript('resolveMergedComparison', [
+            [
+                groupComparison('val-key', [{ name: 'GET one row', ratio: 1.5, limit: 1.6, verdict: 'ok' }]),
+                groupComparison('postgres', [{ name: 'POST one row', ratio: 1.4, limit: 1.3, verdict: 'worse' }]),
+                groupComparison('rest', [])
+            ],
+            ['val-key', 'postgres', 'rest'],
+            [allowance]
+        ]);
+
+        expect(merged).toMatchObject({ staleAllowances: [], failed: true });
+    });
+
+    it('fails when a group compared nothing', () => {
+        expect(callScript('resolveMergedComparison', [[groupComparison('val-key', [])], ['val-key', 'postgres', 'rest'], []])).toStrictEqual({
+            error: 'No comparison of postgres, rest: the job of each failed before it compared anything.'
+        });
     });
 });

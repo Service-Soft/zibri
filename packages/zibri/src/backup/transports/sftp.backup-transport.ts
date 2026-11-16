@@ -54,6 +54,20 @@ const PERMISSION_DENIED: number = 3;
 const PAGE_SIZE: number = 1000;
 
 /**
+ * What a session asked for, for the error naming it once the server answers nothing.
+ */
+type AskedRequest = {
+    /**
+     * The request, such as `REMOVE of "/backups/a"`.
+     */
+    what: string,
+    /**
+     * Whether the session waits for the server meanwhile, rather than for what reads a file or writes one.
+     */
+    awaitsServer: boolean
+};
+
+/**
  * A transport that stores backups in a folder on a server reached over SFTP: each key a file under `path`, its
  * segments the folders leading to it. Of both versions, used as `v2`. Needs the optional peer dependency `ssh2`.
  *
@@ -97,11 +111,19 @@ export class SftpBackupTransport extends BaseBackupTransport {
             }
         };
 
+        const connectTimeoutMs: number = this.options.connectTimeoutInMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
         let sftp: SFTPWrapper;
+        let subsystemTimer: NodeJS.Timeout | undefined;
         try {
             sftp = await new Promise((resolve, reject) => {
                 client.once('error', reject);
                 client.once('ready', () => {
+                    // the ready timeout of ssh2 ends with the login: a server that logs in and opens no SFTP session
+                    // left a backup waiting forever, before any request of it could go unanswered
+                    subsystemTimer = setTimeout(() => reject(new InternalError(
+                        `The server "${this.options.host}" did not open the SFTP subsystem for the transport "${this.name}" `
+                        + `within ${connectTimeoutMs} ms.`
+                    )), connectTimeoutMs);
                     client.sftp((error, wrapper) => error == undefined ? resolve(wrapper) : reject(error));
                 });
                 client.connect(config);
@@ -120,6 +142,9 @@ export class SftpBackupTransport extends BaseBackupTransport {
                 );
             }
             throw error;
+        }
+        finally {
+            clearTimeout(subsystemTimer);
         }
         // an error once the connection is up fails whatever is in flight on it by itself. Listened for, so
         // that it is not thrown at the process as an unhandled event
@@ -173,7 +198,7 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
     private stagingFolderPrepared: Promise<void> | undefined;
     // what the session waits for an answer to, by an id of its own, for the error naming it: ssh2's pending
     // requests say nothing of what they are
-    private readonly asked: Map<number, string> = new Map();
+    private readonly asked: Map<number, AskedRequest> = new Map();
     private askedCount: number = 0;
     // the requests of ssh2 that waited for their answer at the last check, and when the server last answered one
     private pendingAtLastCheck: Set<string> = new Set();
@@ -236,7 +261,8 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
             throw new InternalError(`"${this.options.host}:${target}" is ${stats.size} bytes, larger than the ${maxBytes} it may be.`);
         }
         const file: ReadStream = this.sftp.createReadStream(target);
-        const askedId: number = this.ask(`READ of "${target}"`);
+        // what reads the file decides when the next READ is sent, so a slow restore is no wait for the server
+        const askedId: number = this.ask(`READ of "${target}"`, false);
         file.once('close', () => this.asked.delete(askedId));
         // counted while it arrives as well: the size is what the server says, which can send more than it
         // said, for as long as it likes, and the file can have grown since
@@ -358,20 +384,24 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
     /**
      * Ends the connection once the server answered none of the requests waiting for their answer for as long as
      * it may, failing whatever waits with what it waited for. A request answered counts for every one still
-     * waiting, so that the last of the writes a put keeps in flight waits for those before it.
+     * waiting, so that the last of the writes a put keeps in flight waits for those before it. A session waiting
+     * for the server while ssh2 waits for no answer, such as for a file to close that it never asks the server
+     * to, counts as one the server answers nothing.
      * @param timeoutMs - How long the server may answer nothing.
      */
     private checkAnswers(timeoutMs: number): void {
         const pending: Set<string> = new Set(this.findPendingRequestIds());
+        const awaitsServer: boolean = [...this.asked.values()].some(asked => asked.awaitsServer);
         const now: number = performance.now();
-        if (pending.size === 0 || [...this.pendingAtLastCheck].some(id => !pending.has(id))) {
+        const answered: boolean = [...this.pendingAtLastCheck].some(id => !pending.has(id));
+        if (answered || (pending.size === 0 && !awaitsServer)) {
             this.lastAnsweredAt = now;
         }
         this.pendingAtLastCheck = pending;
         if (now - this.lastAnsweredAt < timeoutMs) {
             return;
         }
-        const asked: string = [...this.asked.values()].join(', ') || 'a request ssh2 sent by itself';
+        const asked: string = [...this.asked.values()].map(request => request.what).join(', ') || 'a request ssh2 sent by itself';
         this.end(new InternalError(
             `The server "${this.options.host}" answered nothing the transport "${this.storeName}" asked for within `
             + `${timeoutMs} ms: ${asked}. Its connection was ended.`
@@ -390,7 +420,7 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
         const requests: unknown = Reflect.get(this.sftp, '_requests');
         if (typeof requests !== 'object' || requests == null) {
             throw new InternalError(
-                `ssh2 no longer keeps the requests of an SFTP session waiting for their answer in _requests, which the `
+                'ssh2 no longer keeps the requests of an SFTP session waiting for their answer in _requests, which the '
                 + `transport "${this.storeName}" tells a server that stopped answering by. Install ssh2 ^1.17.0, which zibri names.`
             );
         }
@@ -400,11 +430,12 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
     /**
      * Notes what the session waits for an answer to, for the error naming it.
      * @param what - The request, such as `REMOVE of "/backups/a"`.
+     * @param awaitsServer - Whether the session waits for the server from now on.
      * @returns The id to remove it by once it was answered.
      */
-    private ask(what: string): number {
+    private ask(what: string, awaitsServer: boolean): number {
         const id: number = this.askedCount++;
-        this.asked.set(id, what);
+        this.asked.set(id, { what, awaitsServer });
         return id;
     }
 
@@ -423,7 +454,7 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
         if (this.ended != undefined) {
             throw this.ended;
         }
-        const askedId: number = this.ask(`${operation} of "${filePath}"`);
+        const askedId: number = this.ask(`${operation} of "${filePath}"`, true);
         try {
             return await this.wait(new Promise<T>(send));
         }
@@ -501,7 +532,15 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
             target.once('close', () => resolve());
             target.once('error', reject);
         });
-        const askedId: number = this.ask(`WRITE of "${filePath}"`);
+        // the data decides when the next WRITE is sent, as a dump can take its time; once it ended, all that is left
+        // is the server acknowledging the writes and closing the file
+        const what: string = `WRITE of "${filePath}"`;
+        const askedId: number = this.ask(what, false);
+        data.once('end', () => {
+            if (this.asked.has(askedId)) {
+                this.asked.set(askedId, { what, awaitsServer: true });
+            }
+        });
         try {
             await this.wait(Promise.all([pipeline(data, target), closed]));
         }

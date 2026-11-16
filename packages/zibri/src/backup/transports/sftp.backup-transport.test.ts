@@ -3,8 +3,8 @@ import { Readable } from 'node:stream';
 import { buffer } from 'node:stream/consumers';
 import { setTimeout as wait } from 'node:timers/promises';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
-import { utils } from 'ssh2';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { Client, ClientSFTPCallback, Connection, SFTPWrapper, utils } from 'ssh2';
 
 import { BackupKeyAccessDeniedError } from './backup-key-access-denied.error';
 import { BackupTransportSessionInterface } from './backup-transport-session.interface';
@@ -68,7 +68,18 @@ class MisbehavingSftpServer extends InProcessSftpServer {
      */
     writeDelayMs: number = 0;
 
+    /**
+     * Whether the server logs a client in and opens no SFTP session for it, as a server without the subsystem does.
+     */
+    opensNoSftp: boolean = false;
+
     private writesAnswered: Promise<void> = Promise.resolve();
+
+    protected override answerSftpRequest(acceptSftp: () => SFTPWrapper, connection: Connection): void {
+        if (!this.opensNoSftp) {
+            super.answerSftpRequest(acceptSftp, connection);
+        }
+    }
 
     protected override answerStat(request: InProcessSftpRequest, path: string): void {
         if (this.unreachable.has(path)) {
@@ -125,7 +136,9 @@ class MisbehavingSftpServer extends InProcessSftpServer {
         }
         // one after another, so that the last of many sent at once waits for all of them
         this.writesAnswered = this.writesAnswered
+            // eslint-disable-next-line promise/prefer-await-to-then
             .then(async () => await wait(this.writeDelayMs))
+            // eslint-disable-next-line promise/prefer-await-to-then
             .then(() => super.answerWrite(request, path, offset, data));
     }
 
@@ -173,6 +186,7 @@ beforeEach(() => {
     server.endsAtWrite = false;
     server.unanswered.clear();
     server.writeDelayMs = 0;
+    server.opensNoSftp = false;
 });
 
 describe('SftpBackupTransport, a server it does not control', () => {
@@ -318,6 +332,45 @@ describe('SftpBackupTransport, a connection that ends', () => {
             }
         }, CASE_TIMEOUT_IN_MS);
 
+        it('fails opening a session on a server that logs in and opens no SFTP session', async () => {
+            server.opensNoSftp = true;
+            const transport: SftpBackupTransport = new SftpBackupTransport(
+                'in-process-sftp-backup-transport',
+                { ...server.getOptions('/blobs'), connectTimeoutInMs: REQUEST_TIMEOUT_IN_MS }
+            );
+
+            await expect(transport.openSession()).rejects
+                .toThrow(`did not open the SFTP subsystem for the transport "in-process-sftp-backup-transport" within ${REQUEST_TIMEOUT_IN_MS} ms`);
+        }, CASE_TIMEOUT_IN_MS);
+
+        // ssh2 never asking the server to close a handle, as a stream that never closes would not: the one way to
+        // wait for the server with no request out, which no server can bring about
+        it('fails what waits for the server while ssh2 asks it nothing, naming it', async () => {
+            const openSftp: Client['sftp'] = Client.prototype.sftp;
+            jest.spyOn(Client.prototype, 'sftp').mockImplementation(function openWithoutClosing(this: Client, opened: ClientSFTPCallback): Client {
+                return openSftp.call(this, (failure, sftp) => {
+                    sftp.close = () => undefined;
+                    opened(failure, sftp);
+                });
+            });
+            const session: BackupTransportSessionInterface = await openWaitingSession();
+            jest.restoreAllMocks();
+            const names: string[] = [];
+            try {
+                await expect((async () => {
+                    for await (const page of session.findNames('')) {
+                        names.push(...page);
+                    }
+                })()).rejects.toThrow(`within ${REQUEST_TIMEOUT_IN_MS} ms: READDIR of "/blobs"`);
+            }
+            finally {
+                await session.close();
+            }
+
+            // the listing failed rather than handing over what it had
+            expect(names).toEqual([]);
+        }, CASE_TIMEOUT_IN_MS);
+
         it('takes as long as a transfer needs while the server answers, and while what reads it waits', async () => {
             // its writes are answered one after another, the last of those sent at once only after all of them
             server.writeDelayMs = REQUEST_TIMEOUT_IN_MS / 10;
@@ -325,6 +378,12 @@ describe('SftpBackupTransport, a connection that ends', () => {
             const session: BackupTransportSessionInterface = await openWaitingSession();
             const chunks: Buffer[] = [];
             try {
+                // a dump that is slow to hand over its data, which nothing waits for the server meanwhile
+                await session.put('slow/dumped', Readable.from((async function* slowDump(): AsyncGenerator<Buffer> {
+                    yield Buffer.from('the start');
+                    await wait(3 * REQUEST_TIMEOUT_IN_MS);
+                    yield Buffer.from(' and the rest');
+                })()));
                 await session.put('slow/data', Readable.from([data]));
                 for await (const chunk of await session.get('slow/data', MIB)) {
                     if (!Buffer.isBuffer(chunk)) {

@@ -252,8 +252,9 @@ export async function applyGuardedValKeyWrites(
     const args: string = JsonUtilities.stringify(payload);
     const res: GlideReturnType = await client.invokeScript(resolveGuardedWritesScript(), { keys, args: [args] });
     if (Array.isArray(res) && res[0] === 2) {
+        const [, lockKey = '', holder = ''] = res.map(part => typeof part === 'string' || Buffer.isBuffer(part) ? part.toString() : '');
         throw new TransactionLocksLostError({
-            cause: new InternalError(describeLostLock(res.map(part => String(part)), release, startedAt, args.length))
+            cause: new InternalError(describeLostLock(lockKey, holder, release, startedAt, args.length))
         });
     }
     if (res === 3) {
@@ -279,14 +280,14 @@ export async function applyGuardedValKeyWrites(
 /**
  * What tells why a grant was found lapsed: whether it is gone or another holds it, how long before the commit
  * the grants were last renewed, and how long the commit took before the script looked.
- * @param answer - The answer of the script: 2, the lock key, and who holds it now, empty when nobody does.
+ * @param lockKey - The lock the script found lapsed.
+ * @param holder - Who holds it now, empty when nobody does.
  * @param release - The grants the commit handed back.
  * @param startedAt - When the commit began building its payload.
  * @param payloadLength - How many characters the payload was.
  * @returns The description.
  */
-function describeLostLock(answer: string[], release: ValKeyGrantRelease, startedAt: number, payloadLength: number): string {
-    const [, lockKey = '', holder = ''] = answer;
+function describeLostLock(lockKey: string, holder: string, release: ValKeyGrantRelease, startedAt: number, payloadLength: number): string {
     const renewed: string = release.lastRenewedAt == undefined
         ? 'They were never taken'
         : `They were last renewed or taken ${startedAt - release.lastRenewedAt} ms before the commit began`;

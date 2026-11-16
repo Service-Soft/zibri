@@ -1,7 +1,9 @@
 import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { addMapping, GenMapping, toEncodedMap } from '@jridgewell/gen-mapping';
 
+import { BundlePart } from './bundle-part.model';
 import { DeploymentMeasurement } from './deployment-measurement.model';
 import { DeploymentMeasurementUtilities } from './deployment-measurements.utilities';
 import { emptyWorkDirectory } from './empty-work-directory.function';
@@ -55,5 +57,54 @@ describe('DeploymentMeasurementUtilities', () => {
         expect(lines.find(line => line.startsWith('bundle'))).toMatch(/1\.06x$/);
         // the baseline stays what was recorded
         expect(JSON.parse(await FsUtilities.readFile(baselinePath))).toEqual(run);
+    });
+
+    // what a bundle over its limit is made of, so that the failure names what grew. Shaped as webpack writes one without
+    // minifying it: each module between lines of its own, indented, with lines the compiler of its source added that
+    // map to nothing in it. Counted as unmapped, those were a third of the bundle of a generated project
+    it('breaks a bundle down by the packages its source map names, the framework by its folders, each module whole', () => {
+        const bundle: string = [
+            '/******/ (() => {',
+            '/***/ ((module) => {',
+            '"use strict";',
+            '    var a=1;var b=2;',
+            '/***/ }),',
+            '/***/ ((module) => {',
+            '    var c=3;',
+            '    exports.c = c;',
+            '/***/ }),',
+            '/***/ ((module) => {',
+            '    start();',
+            '/***/ }),',
+            '/***/ ((module) => {',
+            '    var d=4;',
+            '/***/ }),',
+            '/******/ })();'
+        ].join('\n');
+        const map: GenMapping = new GenMapping({ file: 'bundle.js' });
+        const sources: [line: number, source: string][] = [
+            [4, 'file:///app/node_modules/pg/lib/client.js'],
+            [7, 'file:///app/node_modules/zibri/src/backup/backup.service.ts'],
+            [11, 'file:///app/src/index.ts'],
+            [14, 'file:///app/node_modules/@scope/package/dist/index.js']
+        ];
+        for (const [line, source] of sources) {
+            addMapping(map, { generated: { line, column: 4 }, source, original: { line: 1, column: 0 } });
+        }
+
+        const parts: BundlePart[] = DeploymentMeasurementUtilities.resolveBundleParts(bundle, JSON.stringify(toEncodedMap(map)));
+
+        expect(parts).toEqual([
+            // its own lines alone, around the modules and between them
+            { name: 'webpack and unmapped code', bytes: 156 },
+            // its indentation and the line the compiler added, before the first one mapped
+            { name: 'pg', bytes: 35 },
+            // and the one after it
+            { name: 'zibri/backup', bytes: 32 },
+            { name: '@scope/package', bytes: 13 },
+            { name: 'the application', bytes: 13 }
+        ]);
+        // every byte in exactly one part
+        expect(parts.reduce((sum, part) => sum + part.bytes, 0)).toBe(Buffer.byteLength(bundle));
     });
 });

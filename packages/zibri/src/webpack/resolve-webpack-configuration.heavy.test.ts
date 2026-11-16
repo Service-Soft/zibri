@@ -35,14 +35,15 @@ type BuildResult = {
  * Builds a project as `npm run build` does, in a process of its own: Tailwind's PostCSS plugin hooks into the module
  * loader, which jest refuses inside a test. The cache is written as the process ends.
  * @param root - The project.
+ * @param args - What the build is given beside, such as `--env deployment`.
  * @returns What it wrote and compiled.
  */
-async function build(root: string): Promise<BuildResult> {
+async function build(root: string, args: string[] = []): Promise<BuildResult> {
     // beside the project, where Tailwind does not read it for classes
     const statsFile: string = `${root}-stats.json`;
     const cli: string = createRequire(path.join(root, 'package.json')).resolve('webpack-cli/bin/cli.js');
     try {
-        await execFileAsync(process.execPath, [cli, `--json=${statsFile}`], { cwd: root, maxBuffer: 64 * 1024 * 1024 });
+        await execFileAsync(process.execPath, [cli, `--json=${statsFile}`, ...args], { cwd: root, maxBuffer: 64 * 1024 * 1024 });
     }
     catch {
         // a build with errors ends the process with a code other than 0, and still writes what it found
@@ -88,20 +89,29 @@ async function change(file: string, change: (content: string) => string): Promis
     await writeFile(file, change(await readFile(file, 'utf8')));
 }
 
+/**
+ * Copies the sandbox without what a build writes or a test runs, its packages linked one by one, so that the cache of
+ * the copy is a folder of its own, and makes it a repository of its own, as `zi new` does: Tailwind looks for classes
+ * in what its .gitignore leaves, which inside the ignored output of the tests would be dist too.
+ * @param root - Where the copy goes.
+ */
+async function copySandbox(root: string): Promise<void> {
+    await copyProject(sandboxDir, root);
+    await mkdir(path.join(root, 'node_modules'), { recursive: true });
+    for (const entry of await readdir(path.join(sandboxDir, 'node_modules'))) {
+        if (entry !== '.cache' && entry !== '.bin') {
+            await symlink(path.join(sandboxDir, 'node_modules', entry), path.join(root, 'node_modules', entry));
+        }
+    }
+    await execFileAsync('git', ['init', '--quiet'], { cwd: root, maxBuffer: 1024 * 1024 });
+}
+
 describe('a build cached on disk', () => {
     const root: string = path.join(testFileFolder, `webpack-cache-${UUIDUtilities.generate()}`);
     let cold: BuildResult;
 
     beforeAll(async () => {
-        // the sandbox without what a build writes or a test runs, its packages linked one by one, so the cache of the
-        // copy is a folder of its own
-        await copyProject(sandboxDir, root);
-        await mkdir(path.join(root, 'node_modules'), { recursive: true });
-        for (const entry of await readdir(path.join(sandboxDir, 'node_modules'))) {
-            if (entry !== '.cache' && entry !== '.bin') {
-                await symlink(path.join(sandboxDir, 'node_modules', entry), path.join(root, 'node_modules', entry));
-            }
-        }
+        await copySandbox(root);
         // a handlebars template the bundle renders, as an email of the application would
         await writeFile(path.join(root, 'src', 'templates', 'emails', 'greeting.hbs'), '<p>Hello {{name}}, from the first build</p>');
         await writeFile(path.join(root, 'src', 'greeting.ts'), [
@@ -110,9 +120,6 @@ describe('a build cached on disk', () => {
             'export const greeting: string = renderGreeting({ name: \'Ada\' });'
         ].join('\n'));
         await change(path.join(root, 'src', 'index.ts'), content => `import './greeting';\n${content}`);
-        // a repository of its own, as `zi new` makes one: Tailwind looks for classes in what its .gitignore leaves, which
-        // inside the ignored output of the tests would be dist too, as of the second build
-        await execFileAsync('git', ['init', '--quiet'], { cwd: root, maxBuffer: 1024 * 1024 });
         cold = await build(root);
     }, TIMEOUT);
 
@@ -158,4 +165,38 @@ describe('a build cached on disk', () => {
         expect(first.errors.join('\n')).toContain('TS2322');
         expect(again.errors.join('\n')).toContain('TS2322');
     }, TIMEOUT);
+});
+// what an image runs. It is not minified: node prints the line of the bundle an uncaught error was thrown in, and a
+// minified bundle is one line of megabytes, written into the log before the error
+describe('a build for a deployment', () => {
+    const root: string = path.join(testFileFolder, `webpack-deployment-${UUIDUtilities.generate()}`);
+    let deployed: BuildResult;
+
+    beforeAll(async () => {
+        await copySandbox(root);
+        deployed = await build(root, ['--env', 'deployment']);
+    }, TIMEOUT);
+
+    afterAll(async () => {
+        await rm(root, { recursive: true, force: true });
+        await rm(`${root}-stats.json`, { force: true });
+    }, TIMEOUT);
+
+    it('is built without errors, in lines short enough to print beside an error', () => {
+        expect(deployed.errors).toEqual([]);
+        // the longest are the client code of a page and the package.json of zibri, held in a string each
+        expect(deployed.bundle.split('\n').reduce((longest, line) => Math.max(longest, line.length), 0)).toBeLessThan(100_000);
+    });
+
+    it('maps each frame to the file of the application or of zibri it is in, without the sources', () => {
+        const map: { sources: string[], sourcesContent?: unknown } = JsonUtilities.parse(deployed.map);
+
+        expect(map.sources.some(source => source.endsWith('/src/env.ts'))).toBe(true);
+        // the typescript of zibri, which the map zibri ships beside its build leads to, rather than the build itself. Where
+        // the map places it depends on where the project is: this copy lies in zibri's own folder, and an image's map
+        // naming /app/node_modules/zibri/src is what the cli's docker suite checks
+        expect(map.sources.filter(source => source.includes('encryption.service.')).map(source => source.replace(/^.*\/auth\//, 'auth/')))
+            .toEqual(['auth/encryption/encryption.service.ts']);
+        expect(map.sourcesContent).toBeUndefined();
+    });
 });

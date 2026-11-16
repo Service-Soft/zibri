@@ -212,8 +212,8 @@ that is never red is not a suite that is passing. Leave it red and report it.
 | `test:heavy` | Long-running suites, in band |
 | `test:browser` | `*.browser.test.ts` of `zibri-tsx` and the sandbox, in Chromium: run `npx playwright install chromium` once |
 
-CI runs every one of them: `test:ci` runs all but the benchmarks, which a job of its own runs through
-`test:benchmark:compare`.
+CI runs every one of them: `test:ci` runs all but the benchmarks, which jobs of their own run through
+`test:benchmark:compare`, one per group of `packages/zibri/benchmark-groups.json`.
 
 **A slower operation fails the build, measured against the release.** `test:benchmark:compare`
 builds `origin/release` in a worktree beside your checkout and runs the benchmarks on both, four
@@ -224,6 +224,13 @@ counts once it is also more than 16 MiB above the release's. Run `git fetch orig
 `packages/zibri/benchmark-allowances.json` as `{ "against": "<release version>", "name": "<operation>",
 "ratio": 1.6, "reason": "..." }`. It counts until that release is replaced, and the comparison names
 the allowances that no longer apply.
+
+**The benchmark job takes as long as its longest group.** Each group of `packages/zibri/benchmark-groups.json`
+is compared on a runner of its own, both sides of each of its suites in turns, and `rest` takes every suite no
+group names. `npm run test:benchmark:compare -w zibri -- <group>` compares one group. A suite that takes minutes
+gets a group of its own, so a measurement of it that takes long belongs in a suite of its own. What a backup holds
+after a collection is measured in the first round of your checkout alone, and
+`ZIBRI_BENCHMARK_SKIP_HELD_MEMORY=1` leaves it out of a run.
 
 **What a deployment weighs is held to a limit.** The cli's docker suite fails when the generated
 project's bundle, `dist` or pruned `node_modules` outgrows

@@ -749,7 +749,8 @@ async function measureProbed(probes: ValKeyServerProbe[]): Promise<BackupMeasure
         sourceReadMs,
         // the same object as the one still being added to, since shutting down follows
         harness,
-        live: await measureLive(sampler, backups, restorePhase)
+        // last, so that skipping them changes nothing that was timed
+        live: config.measureHeld ? await measureLive(sampler, backups, restorePhase) : undefined
     };
 }
 

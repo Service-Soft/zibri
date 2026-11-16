@@ -1,0 +1,5 @@
+{
+    "postgres": ["src/backup/backup.postgres.benchmark.test.ts"],
+    "val-key-snapshot": ["src/backup/backup.val-key-snapshot.benchmark.test.ts"],
+    "val-key-walk": ["src/backup/backup.val-key-walk.benchmark.test.ts"]
+}

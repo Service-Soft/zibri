@@ -217,6 +217,15 @@ const heapSnapshotFolder: FsPath | undefined = process.env['ZIBRI_BENCHMARK_HEAP
 const formatVersion: number = Number(process.env['ZIBRI_BACKUP_BENCHMARK_FORMAT_VERSION'] ?? BACKUP_FORMAT_VERSION);
 
 /**
+ * Whether each measurement runs its live phases, the only ones what a phase holds after a collection is
+ * read from. ZIBRI_BENCHMARK_SKIP_HELD_MEMORY=1 leaves them out, as `npm run test:benchmark:compare` does
+ * in every round but the first of the checkout.
+ */
+// the live phases are a quarter of a measurement, and come after everything timed or compared with the
+// release: in one run they are a design check, in eight they are the same check seven times over
+const measureHeld: boolean = process.env['ZIBRI_BENCHMARK_SKIP_HELD_MEMORY'] !== '1';
+
+/**
  * What tells one measurement of the suites from another.
  */
 export type BackupScenarioInput = {
@@ -319,6 +328,7 @@ export function resolveBackupScenario(input: BackupScenarioInput): BackupScenari
             encrypt: true,
             seed: input.seed,
             transport: input.transport,
+            measureHeld,
             heapSnapshotFolder
         }
     };
@@ -441,20 +451,25 @@ function findDesignViolations(config: BackupMeasurementConfig, measurement: Back
         return measurement.restore.mismatches.map(line => `${measurement.name}: ${line}`);
     }
     const mb: (bytes: number) => string = bytes => `${(bytes / MIB).toFixed(1)} MiB`;
+    const measuredLive: LiveMeasurement | undefined = measurement.live;
+    // nothing to check against the design when the live phases did not run
     const phases: (keyof LiveMeasurement)[] = ['backup', 'restore'];
-    const held: string[] = phases.flatMap(phase => {
-        const live: LivePhaseMeasurement = measurement.live[phase];
-        if (live.readings < MIN_LIVE_READINGS) {
-            return [`the ${phase} was read ${live.readings} times after a collection, fewer than ${MIN_LIVE_READINGS}`];
-        }
-        const limit: number = resolveHeldLimit(config, phase);
-        return live.peakHeldGrowthBytes <= limit
-            ? []
-            : [
-                `the ${phase} held +${mb(live.peakHeldGrowthBytes)}, designed to hold at most +${mb(limit)}. `
-                + 'ZIBRI_BENCHMARK_HEAP_SNAPSHOT=1 writes the heap snapshots that scripts/summarize-heap-growth.mjs tells the holder from'
-            ];
-    });
+    const held: string[] = measuredLive == undefined
+        ? []
+        : phases.flatMap(phase => {
+            const live: LivePhaseMeasurement = measuredLive[phase];
+            if (live.readings < MIN_LIVE_READINGS) {
+                return [`the ${phase} was read ${live.readings} times after a collection, fewer than ${MIN_LIVE_READINGS}`];
+            }
+            const limit: number = resolveHeldLimit(config, phase);
+            return live.peakHeldGrowthBytes <= limit
+                ? []
+                : [
+                    `the ${phase} held +${mb(live.peakHeldGrowthBytes)}, designed to hold at most +${mb(limit)}. `
+                    // eslint-disable-next-line stylistic/max-len
+                    + 'ZIBRI_BENCHMARK_HEAP_SNAPSHOT=1 writes the heap snapshots that scripts/summarize-heap-growth.mjs tells the holder from'
+                ];
+        });
     const produced: number = measurement.backups.at(-1)?.bytesProduced ?? 0;
     const backups: string[] = measurement.backups.flatMap((backup, round) => {
         const limit: number = resolveArchiveLimit(backup.bytesProduced);
@@ -849,7 +864,7 @@ function describeMeasurement(config: BackupMeasurementConfig, measurement: Backu
             `fingerprints ${ms(measurement.harness.fingerprintMs)}`,
             `shutdown ${ms(measurement.harness.shutdownMs)}`
         ].join('  '),
-        describeLiveMeasurement(config, measurement.live),
+        ...measurement.live == undefined ? [] : [describeLiveMeasurement(config, measurement.live)],
         ...[describeServerMeasurement(measurement)].filter(line => line != undefined)
     ].join('\n');
 }

@@ -52,6 +52,8 @@
     },
     "devDependencies": {
         "@jest/globals": "^30.4.1",
+        "@jridgewell/gen-mapping": "^0.3.13",
+        "@jridgewell/trace-mapping": "^0.3.31",
         "@service-soft/eslint-config": "^2.1.7",
         "@types/figlet": "^1.7.0",
         "@types/node": "^24.0.0",

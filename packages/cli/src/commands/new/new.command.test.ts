@@ -133,7 +133,12 @@ describe('NewCommand', () => {
             // what a scaffold that skips this leaves behind for its author to find later.
             author: expect.stringMatching(/\S/),
             license: 'MIT',
-            description: ''
+            description: '',
+            // the glob of the test-exclude jest's coverage asks for is deprecated, and npm says so on every install. The
+            // glob jest asks for and the minimatch of test-exclude have an advisory each, which npm audit reports
+            overrides: { 'glob@^13.0.0': '^14.0.2', 'test-exclude': { '.': '^8.0.0', minimatch: '^11.0.1' } },
+            // npm warns about every dependency whose install script it was not told about
+            allowScripts: { 're2': true, '@parcel/watcher': false }
         });
     });
 

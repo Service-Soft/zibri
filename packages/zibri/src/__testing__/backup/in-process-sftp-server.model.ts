@@ -284,6 +284,15 @@ export class InProcessSftpServer {
         request.sftp.status(request.reqId, utils.sftp.STATUS_CODE.OK);
     }
 
+    /**
+     * Answers a client asking for the SFTP subsystem, by opening a session for it.
+     * @param acceptSftp - Opens the session.
+     * @param connection - The connection it is asked on.
+     */
+    protected answerSftpRequest(acceptSftp: () => SFTPWrapper, connection: Connection): void {
+        this.serveSftp(acceptSftp(), connection);
+    }
+
     private move(from: string, to: string, file: Buffer): void {
         this.files.set(to, file);
         this.files.delete(from);
@@ -321,7 +330,7 @@ export class InProcessSftpServer {
         });
         connection.on('ready', () => {
             connection.on('session', accept => {
-                accept().on('sftp', acceptSftp => this.serveSftp(acceptSftp(), connection));
+                accept().on('sftp', acceptSftp => this.answerSftpRequest(acceptSftp, connection));
             });
         });
     }

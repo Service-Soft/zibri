@@ -11,8 +11,9 @@ import { UUIDUtilities } from '../utilities/uuid.utilities';
  * transport against a stand-in for a service.
  *
  * The data is a seeded table rather than a database, so that nothing but the pipeline is measured,
- * and nothing needs a container. What a dump of postgres or valkey costs on top, and what the s3 and
- * sftp transports do against real services, is measured by `backup.containers.benchmark.test.ts`.
+ * and nothing needs a container. What a dump of postgres or valkey costs on top is measured by
+ * `backup.postgres`, `backup.val-key-snapshot` and `backup.val-key-walk`, and what the s3 and sftp
+ * transports do against real services by `backup.transports.benchmark.test.ts`.
  *
  * `ZIBRI_BACKUP_BENCHMARK_SIZES_MB` sets the ladder of sizes, `10,100` by default; locally, such as
  * `10,100,1000,10000`. `ZIBRI_BACKUP_BENCHMARK_CONCURRENT_MB` sets the size of each of the three

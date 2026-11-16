@@ -124,6 +124,11 @@ export type BackupMeasurementConfig = {
      */
     formatVersion: number,
     /**
+     * Whether the live phases run: a backup and its restore after the timed ones, read right after a
+     * collection, which tell what they hold on to.
+     */
+    measureHeld: boolean,
+    /**
      * Where the live phases write a heap snapshot at their start and near their peak, or undefined
      * for nowhere. `node scripts/summarize-heap-growth.mjs <start> <peak>` tells what the phase held
      * and what held it.
@@ -369,9 +374,9 @@ export type BackupMeasurement = {
      * A backup and its restore after the others, each read right after a collection as often as its
      * timed one took for: what a backup holds on to. After the others rather than with them, since the
      * collections it forces made a backup half as slow again and flatten the peaks the reports hold;
-     * in the same process, which is booted and filled already.
+     * in the same process, which is booted and filled already. Undefined when the config asked for none.
      */
-    live: LiveMeasurement
+    live: LiveMeasurement | undefined
 };
 
 /**

@@ -250,7 +250,9 @@ export function resolveWebpackConfiguration(options: WebpackConfigurationOptions
             'bufferutil',
             'macos-temperature-sensor',
             'express',
-            'handlebars'
+            'handlebars',
+            // a dependency of zibri, so in the deployment's node_modules anyway: bundled, the image carried it twice
+            'undici'
         ].map(name => [name, `commonjs2 ${name}`])),
         resolve: {
             extensions: ['.ts', '.tsx', '.js', '.css']

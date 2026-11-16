@@ -63,7 +63,12 @@ function sharedOptions(): OmitStrict<SftpBackupTransportOptions, 'authentication
         username: USERNAME,
         hostKeyFingerprint,
         // a folder that does not exist yet, so that storing the first backup has to create it
-        path: '/backups/app'
+        path: '/backups/app',
+        // below the shortest timeout of a case here, 5 s, with the quarter of a limit the transport may notice a
+        // server answering nothing late: a case that hangs then fails naming what it waited for, rather than
+        // running out its time
+        connectTimeoutInMs: 3000,
+        requestTimeoutInMs: 3000
     };
 }
 
