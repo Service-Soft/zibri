@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { PostgresBackupScope } from './postgres-backup-scope.model';
 import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
 import { PostgresPooler } from './postgres-pooler.model';
+import { BackupDataOptionsTestUtilities } from '../../../__testing__/backup/backup-data-options-test.utilities';
 import { testFileFolder, TestTimeouts } from '../../../__testing__/constants';
 import { queryPostgres } from '../../../__testing__/query-postgres.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -18,6 +19,7 @@ import { BackupServiceInterface } from '../../../backup/backup-service.interface
 import { BackupStatus } from '../../../backup/backup-status.enum';
 import { Backup } from '../../../backup/decorators/backup-resource.decorator';
 import { BackupTransport } from '../../../backup/decorators/backup-transport.decorator';
+import { IncrementalBackupData } from '../../../backup/incremental-backup-data.model';
 import { FsBackupTransport } from '../../../backup/transports/fs.backup-transport';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
@@ -33,11 +35,13 @@ import { RepositoryClass } from '../../repository/repository-class.type';
 import { Transaction } from '../../transaction/transaction.model';
 
 /**
- * A backup of postgres waiting for a lock another connection holds says so while it waits, naming the holder: a
- * backup of CI waited for one until its case ran out of time, with nothing in the log that said what held it.
+ * Reading the data of postgres for a backup that takes long says where it stands every interval: the step it is at,
+ * whether it waits for the backup to read on, and what each busy connection to the database waits for, naming who
+ * holds a lock one waits for. Backups of CI waited until their case ran out of time, with nothing in the log that
+ * said what held them.
  */
 
-const backupFolder: FsPath = FsUtilities.getPath(testFileFolder, `postgres-backup-lock-waits-${UUIDUtilities.generate()}`);
+const backupFolder: FsPath = FsUtilities.getPath(testFileFolder, `postgres-backup-read-reports-${UUIDUtilities.generate()}`);
 
 /**
  * How often a backup waiting for a lock says so.
@@ -45,15 +49,15 @@ const backupFolder: FsPath = FsUtilities.getPath(testFileFolder, `postgres-backu
 const REPORT_INTERVAL_IN_MS: number = 300;
 
 @BackupTransport()
-class LockWaitsTransport extends FsBackupTransport {
+class ReadReportsTransport extends FsBackupTransport {
     constructor() {
-        super('lock-waits-transport', backupFolder);
+        super('read-reports-transport', backupFolder);
     }
 }
 
 @DataSource()
-@Backup({ transports: [LockWaitsTransport], encrypt: false })
-class LockWaitsPostgresDataSource extends PostgresDataSource {
+@Backup({ transports: [ReadReportsTransport], encrypt: false })
+class ReadReportsPostgresDataSource extends PostgresDataSource {
     override backupScope: PostgresBackupScope = 'schema';
     // what a backup reads in full first sets up, where the case on CI waited
     override readonly incrementalRead: boolean = true;
@@ -74,8 +78,8 @@ class LockWaitsPostgresDataSource extends PostgresDataSource {
     readonly pooler: PostgresPooler = 'none';
 }
 
-function getDataSource(): LockWaitsPostgresDataSource {
-    return inject(LockWaitsPostgresDataSource);
+function getDataSource(): ReadReportsPostgresDataSource {
+    return inject(ReadReportsPostgresDataSource);
 }
 
 function getBackupService(): BackupServiceInterface {
@@ -87,7 +91,7 @@ let server: StartedTestServer | undefined;
 beforeAll(async () => {
     await FsUtilities.rm(backupFolder);
     server = await startTestServer({
-        dataSources: [LockWaitsPostgresDataSource],
+        dataSources: [ReadReportsPostgresDataSource],
         providers: [
             ...defaultTestServerProviders,
             defineProvider({ token: ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS, useValue: REPORT_INTERVAL_IN_MS })
@@ -101,11 +105,22 @@ afterAll(async () => {
     await FsUtilities.rm(backupFolder);
 }, TestTimeouts.postgres.shutdown);
 
-describe('a postgres backup waiting for a lock', () => {
-    it('says which connection holds the lock it waits for, and completes once it is let go of', async () => {
-        const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-        const warn: jest.SpiedFunction<LoggerInterface['warn']> = jest.spyOn(logger, 'warn');
-        const findReports: () => string[] = () => warn.mock.calls.map(([message]) => message).filter(m => m.includes('wait for a lock'));
+/**
+ * Spies on the warnings of the logger, for what reading the data of the suite's data source says.
+ * @returns The reports so far, and what ends the spying.
+ */
+function spyOnReports(): { findReports: () => string[], restore: () => void } {
+    const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+    const warn: jest.SpiedFunction<LoggerInterface['warn']> = jest.spyOn(logger, 'warn');
+    return {
+        findReports: () => warn.mock.calls.map(([message]) => message).filter(m => m.includes('Reading the data of "ReadReportsPostgresDataSource"')),
+        restore: () => warn.mockRestore()
+    };
+}
+
+describe('a postgres backup reading for long', () => {
+    it('says the step it is at, which connection holds the lock it waits for, and completes once it is let go of', async () => {
+        const { findReports, restore } = spyOnReports();
         const transaction: Transaction = await getDataSource().startTransaction();
         try {
             const [holder] = await queryPostgres(getDataSource(), 'SELECT pg_backend_pid() AS "pid"', [], transaction);
@@ -113,20 +128,42 @@ describe('a postgres backup waiting for a lock', () => {
             // last, since a connection idle in its transaction is named with the statement it ran last
             await queryPostgres(getDataSource(), 'LOCK TABLE held IN ACCESS EXCLUSIVE MODE', [], transaction);
             const backup: Promise<BackupEntity> = getBackupService().waitForBackup(await getBackupService().queueBackup({ name: 'held-back' }));
+            const heldBy: string = `held by pid ${String(holder?.['pid'])}`;
 
-            await waitUntil(() => findReports().some(r => r.includes(`pid ${String(holder?.['pid'])}`)), 8000);
+            await waitUntil(() => findReports().some(r => r.includes(heldBy)), 8000);
             await transaction.commit();
 
             expect((await backup).status).toBe(BackupStatus.COMPLETED);
-            expect(findReports()[0]).toMatch(new RegExp(
-                `held by pid ${String(holder?.['pid'])} \\(no application, idle in transaction for \\d+ s\\): LOCK TABLE held IN ACCESS EXCLUSIVE MODE`
+            expect(findReports().find(r => r.includes(heldBy))).toMatch(new RegExp(
+                'setting up the publication: .*waiting for Lock relation\\): CREATE PUBLICATION.*'
+                + `${heldBy} \\(no application, idle in transaction for \\d+ s\\): LOCK TABLE held IN ACCESS EXCLUSIVE MODE`
             ));
         }
         finally {
             if (!transaction.isFinished) {
                 await transaction.rollback();
             }
-            warn.mockRestore();
+            restore();
+        }
+    }, 60000);
+
+    // a read held up by what reads its data, rather than by the server, which no connection then tells
+    it('says it waits for the backup to read on while nothing reads what changed', async () => {
+        const base: BackupEntity = await getBackupService().waitForBackup(await getBackupService().queueBackup({ name: 'handed-over-base' }));
+        const since: string | null | undefined = base.resources[0]?.readCursor;
+        const { findReports, restore } = spyOnReports();
+        const read: IncrementalBackupData = await getDataSource().createIncrementalBackupData(base, BackupDataOptionsTestUtilities.resolve(), since ?? undefined);
+        try {
+            expect(read.full).toBe(false);
+            await waitUntil(() => findReports().some(r => r.includes('handing over what changed, waiting for the backup to read on')), 8000);
+        }
+        finally {
+            // which ends its connection to the server
+            await new Promise<void>(resolve => {
+                read.data.once('close', () => resolve());
+                read.data.destroy();
+            });
+            restore();
         }
     }, 60000);
 
@@ -137,7 +174,7 @@ describe('a postgres backup waiting for a lock', () => {
         const warn: jest.SpiedFunction<LoggerInterface['warn']> = jest.spyOn(logger, 'warn');
         // a check after the shutdown finds the server stopped, and says it could not tell
         const findReports: () => string[] = () => warn.mock.calls.map(([message]) => message)
-            .filter(m => /reading the data of "LockWaitsPostgresDataSource"/i.test(m));
+            .filter(m => m.includes('Reading the data of "ReadReportsPostgresDataSource"'));
         // nothing reads it. A dump this small fits in what the stream and the pipe hold, so the dump ends and leaves
         // the server while the stream stays open
         const data: Readable = await getDataSource().createBackupData();
@@ -149,11 +186,14 @@ describe('a postgres backup waiting for a lock', () => {
                 () => 'pg_dump still runs, so the dump is larger than what the stream and the pipe hold unread'
             );
             expect(data.closed).toBe(false);
+            // what a read held up on this side of the server is told by: nothing the server does for it
+            await waitUntil(() => findReports().some(r => r.includes('dumping: no connection to its database is busy')), 8000);
 
             // the server stops with the application
             const started: StartedTestServer | undefined = server;
             server = undefined;
             await started?.shutdown();
+            warn.mockClear();
             await sleep(REPORT_INTERVAL_IN_MS * 3);
 
             expect(findReports()).toEqual([]);

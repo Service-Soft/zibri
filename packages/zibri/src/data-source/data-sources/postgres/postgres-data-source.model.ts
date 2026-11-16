@@ -4,6 +4,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { ConnectionOptions } from 'node:tls';
 
 import { pgTypeParsers } from './pg-type-parsers.function';
+import { PostgresBackupReadProgress } from './postgres-backup-read-progress.model';
 import { PostgresBackupScope } from './postgres-backup-scope.model';
 import { PostgresBackupRunner } from './postgres-backup.runner';
 import { Pg, PgClient, PgPool, PgPoolClient, PgQueryResult, PgSessionClient } from './postgres-client.model';
@@ -39,6 +40,7 @@ import { keyGroupsOf } from '../../../global/model-registry/key-descriptor';
 import { type LoggerInterface } from '../../../logging/logger.interface';
 import { Newable } from '../../../types/newable.type';
 import { Bytes } from '../../../utilities/bytes';
+import { Ms } from '../../../utilities/ms';
 import { hasOptionalPeer, optionalPeer } from '../../../utilities/optional-peer.function';
 import { PromiseUtilities } from '../../../utilities/promise.utilities';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
@@ -196,17 +198,19 @@ const INDEX_BUILDS_LOCK_KEY: string = 'zibri.index-builds';
 const INDEX_BUILDS_LOCK_RETRY_IN_MS: number = 1000;
 
 /**
- * Every connection to the database that waits for a lock, the longest waiting first, with what it runs and each
- * connection holding the lock: what it runs, in which state, and since when its transaction runs.
+ * Every connection to the database but the one asking that is not idle, the oldest first: what it runs, in which
+ * state and for how long, what it waits for, and each connection holding a lock it waits for, with what that one
+ * runs, in which state, and since when its transaction runs.
  */
-const LOCK_WAITS_SQL: string = 'SELECT w.pid, coalesce(nullif(w.application_name, \'\'), \'no application\') AS "application",'
-    + ' extract(epoch FROM now() - w.query_start)::int AS "seconds", left(w.query, 200) AS "query",'
+const BUSY_CONNECTIONS_SQL: string = 'SELECT a.pid, coalesce(nullif(a.application_name, \'\'), \'no application\') AS "application",'
+    + ' a.state, coalesce(a.wait_event_type || \' \' || a.wait_event, \'nothing\') AS "waitingFor",'
+    + ' extract(epoch FROM now() - coalesce(a.state_change, a.backend_start))::int AS "seconds", left(a.query, 200) AS "query",'
     + ' (SELECT string_agg(format(\'pid %s (%s, %s for %s s): %s\', b.pid, coalesce(nullif(b.application_name, \'\'), \'no application\'),'
     + ' b.state, extract(epoch FROM now() - coalesce(b.xact_start, b.query_start))::int, left(b.query, 200)), \'; \')'
-    + ' FROM pg_catalog.pg_stat_activity b WHERE b.pid = ANY (pg_catalog.pg_blocking_pids(w.pid))) AS "blockers"'
-    + ' FROM pg_catalog.pg_stat_activity w'
-    + ' WHERE w.datname = pg_catalog.current_database() AND w.wait_event_type = \'Lock\''
-    + ' ORDER BY w.query_start';
+    + ' FROM pg_catalog.pg_stat_activity b WHERE b.pid = ANY (pg_catalog.pg_blocking_pids(a.pid))) AS "blockers"'
+    + ' FROM pg_catalog.pg_stat_activity a'
+    + ' WHERE a.datname = pg_catalog.current_database() AND a.pid <> pg_catalog.pg_backend_pid() AND a.state IS DISTINCT FROM \'idle\''
+    + ' ORDER BY a.backend_start';
 
 /**
  * How many connections the pool keeps open at most, when the options do not say.
@@ -398,9 +402,9 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
     private indexBuildProcess: number | undefined;
 
     /**
-     * What warns of the lock waits while data is read for a backup, until that data is read, which the shutdown stops.
+     * What warns of a read for a backup that takes long, until its data is read, which the shutdown stops.
      */
-    private readonly lockWaitReports: Set<NodeJS.Timeout> = new Set();
+    private readonly readReports: Set<NodeJS.Timeout> = new Set();
 
     /**
      * The tables a write changes more than its own rows of, by table, with what else it changes.
@@ -699,10 +703,10 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
     // eslint-disable-next-line jsdoc/require-jsdoc
     async shutDown(): Promise<void> {
         this.shuttingDown = true;
-        for (const report of this.lockWaitReports) {
+        for (const report of this.readReports) {
             clearInterval(report);
         }
-        this.lockWaitReports.clear();
+        this.readReports.clear();
         // ended rather than waited for: a build takes minutes. The index it leaves invalid is dropped and built again
         // once the next start left it. Cancelled through the pool, since a connection ended while the server builds
         // is not noticed until the build is done
@@ -1792,8 +1796,8 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
         options: BackupDataOptions,
         since: string | undefined
     ): Promise<IncrementalBackupData> {
-        return await this.readReportingLockWaits(
-            async () => await this.resolveIncrementalReader().read(options.chunked, since),
+        return await this.readReporting(
+            async progress => await this.resolveIncrementalReader().read(options.chunked, since, progress),
             read => read.data
         );
     }
@@ -1827,33 +1831,44 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
      * @returns A stream of the dump, which fails when the dump fails.
      */
     async createBackupData(backup?: BackupEntity, options?: BackupDataOptions): Promise<Readable> {
-        return await this.readReportingLockWaits(
-            async () => await this.resolveBackupRunner().createBackupData(options?.chunked === true),
+        return await this.readReporting(
+            async progress => {
+                progress.step = 'dumping';
+                return await this.resolveBackupRunner().createBackupData(options?.chunked === true);
+            },
             data => data
         );
     }
 
     /**
      * Reads the data for a backup or the copy a restore keeps, and warns every `WAIT_REPORT_INTERVAL_IN_MS` until it
-     * is read while connections to the database wait for a lock, naming who holds it.
-     * @param read - Reads the data.
+     * is read of where the read stands and what each busy connection to the database waits for.
+     * @param read - Reads the data, noting the step it is at.
      * @param findData - The stream of the data what was read hands back, whose end ends the reports.
      * @returns What was read.
      */
-    private async readReportingLockWaits<T>(read: () => Promise<T>, findData: (read: T) => Readable): Promise<T> {
-        // a lock nothing lets go of holds a backup for as long, and the statements it waits in say nothing: the
-        // publication it sets, the dump, the changes it reads. Said while it waits, naming who holds the lock
-        const report: NodeJS.Timeout = setInterval(() => void this.reportLockWaits(), inject(ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS));
+    private async readReporting<T>(
+        read: (progress: PostgresBackupReadProgress) => Promise<T>,
+        findData: (read: T) => Readable
+    ): Promise<T> {
+        // a read that does not end otherwise says nothing of where it is held: the publication it sets, the slot, the
+        // dump, the changes it reads, or whatever reads its data. Said every interval it takes longer
+        const progress: PostgresBackupReadProgress = { step: 'starting', waitsForReader: false };
+        const startedAt: number = performance.now();
+        const report: NodeJS.Timeout = setInterval(
+            () => void this.reportRead(progress, performance.now() - startedAt),
+            inject(ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS)
+        );
         report.unref();
         // stopped by the shutdown as well: data nobody reads to its end or closes kept reporting for as long as the
         // process ran, and kept the data source reachable meanwhile
-        this.lockWaitReports.add(report);
+        this.readReports.add(report);
         const stop: () => void = () => {
             clearInterval(report);
-            this.lockWaitReports.delete(report);
+            this.readReports.delete(report);
         };
         try {
-            const result: T = await read();
+            const result: T = await read(progress);
             findData(result).once('close', stop);
             return result;
         }
@@ -1864,29 +1879,29 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
     }
 
     /**
-     * Warns of every connection to the database that waits for a lock, naming who holds it.
+     * Warns that reading the data goes on, naming the step it is at and every connection to the database that is
+     * busy: what it runs, what it waits for, and who holds a lock it waits for.
+     * @param progress - Where the read stands.
+     * @param elapsedInMs - How long it read so far.
      */
-    private async reportLockWaits(): Promise<void> {
+    private async reportRead(progress: PostgresBackupReadProgress, elapsedInMs: number): Promise<void> {
+        const reading: string = `Reading the data of "${this.constructor.name}" goes on after ${Math.round(elapsedInMs / Ms.SECOND)} s, `
+            + `${progress.step}${progress.waitsForReader ? ', waiting for the backup to read on' : ''}`;
         let session: PgSessionClient | undefined;
         try {
             // a session of its own rather than the pool, which the connections waiting may be all of
             session = await this.openSession();
-            const waits: Record<string, unknown>[] = await this.runOn(session, LOCK_WAITS_SQL, []);
-            if (!waits.length) {
-                return;
-            }
-            const described: string = waits
-                .map(w => `pid ${String(w['pid'])} (${String(w['application'])}, waiting ${String(w['seconds'])} s): `
-                    + `${String(w['query'])}, held by ${typeof w['blockers'] === 'string' ? w['blockers'] : 'none it can see'}`)
+            const busy: Record<string, unknown>[] = await this.runOn(session, BUSY_CONNECTIONS_SQL, []);
+            const described: string = busy
+                .map(c => `pid ${String(c['pid'])} (${String(c['application'])}, ${String(c['state'])} for ${String(c['seconds'])} s, `
+                    + `waiting for ${String(c['waitingFor'])}): ${String(c['query'])}`
+                    + (typeof c['blockers'] === 'string' ? `, held by ${c['blockers']}` : ''))
                 .join('; ');
-            this.logger.warn(
-                `Reading the data of "${this.constructor.name}" goes on while connections to its database wait for a lock: ${described}`
-            );
+            this.logger.warn(`${reading}: ${described || 'no connection to its database is busy'}`);
         }
         catch (error) {
             this.logger.warn(
-                `Could not tell what reading the data of "${this.constructor.name}" waits for: `
-                + (error instanceof Error ? error.message : String(error))
+                `${reading}. Could not tell what its database does: ${error instanceof Error ? error.message : String(error)}`
             );
         }
         finally {

@@ -137,7 +137,7 @@ class DbDataSource extends PostgresDataSource {
 
 A `PostgresDataSource` takes and restores a backup with the Postgres client tools `pg_dump`, `pg_restore` and `psql`, which are installed beside the application, at least as new as the server.
 
-While a `PostgresDataSource` reads its data for a backup, or for the copy a restore keeps, the application warns every `ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS`, 30 seconds by default, of each connection to the database that waits for a lock, naming each connection holding it with its process id, application name, state and query.
+A `PostgresDataSource` that reads its data for a backup, or for the copy a restore keeps, for longer than `ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS`, 30 seconds by default, warns at every interval where the read stands: the step it is at, whether it waits for the backup to read on, and each busy connection to the database with its process id, application name, state, what it waits for and its query. A connection waiting for a lock names each connection holding it the same way.
 
 A backup cut into [chunks](#storing-unchanged-data-once) takes the dump uncompressed, and compresses each chunk instead, so that tables that did not change are stored once. Its staging file is [compressed](#where-a-backup-passes-through). A backup to a transport used as `v1` takes the dump compressed.
 

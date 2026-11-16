@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 
 import { PgOutputMessage, PgOutputRelation, PgOutputValue } from './pg-output-message.model';
 import { PgOutputUtilities } from './pg-output.utilities';
+import { PostgresBackupReadProgress } from './postgres-backup-read-progress.model';
 import { type PostgresBackupRunner } from './postgres-backup.runner';
 import { PostgresChangeRow } from './postgres-change-line.model';
 import { POSTGRES_CHANGE_FORMAT_VERSION, PostgresChangeSqlUtilities } from './postgres-change-sql.utilities';
@@ -257,12 +258,13 @@ export class PostgresIncrementalReader {
      * read on from.
      * @param chunked - Whether the backup cuts the data into chunks.
      * @param since - The cursor of the backup this one builds on, or undefined.
+     * @param progress - Where the read notes the step it is at, until its data is read.
      * @returns The data, whether it is in full, and the cursor the next backup reads on from.
      */
-    async read(chunked: boolean, since: string | undefined): Promise<IncrementalBackupData> {
+    async read(chunked: boolean, since: string | undefined, progress: PostgresBackupReadProgress): Promise<IncrementalBackupData> {
         const cursor: PostgresReadCursor | undefined = since == undefined ? undefined : this.parseCursor(since);
-        const changes: IncrementalBackupData | undefined = cursor == undefined ? undefined : await this.readChanges(cursor);
-        return changes ?? await this.readFull(chunked);
+        const changes: IncrementalBackupData | undefined = cursor == undefined ? undefined : await this.readChanges(cursor, progress);
+        return changes ?? await this.readFull(chunked, progress);
     }
 
     /**
@@ -295,11 +297,13 @@ export class PostgresIncrementalReader {
      * Reads in full: sets the tables of the publication, creates the slot, and dumps at the snapshot it
      * exports, so that every change after the dump is in the slot and none before it.
      * @param chunked - Whether the backup cuts the dump into chunks.
+     * @param progress - Where the read notes the step it is at.
      * @returns The dump, and the cursor the next backup reads on from.
      */
-    private async readFull(chunked: boolean): Promise<IncrementalBackupData> {
+    private async readFull(chunked: boolean, progress: PostgresBackupReadProgress): Promise<IncrementalBackupData> {
         const { slot, publication } = await this.resolveNames();
         const schema: string = await this.runner.resolveSchemaName();
+        progress.step = 'setting up the publication';
         await this.withClient(async client => {
             await this.dropSlot(client, slot);
             const { published } = await this.resolveReadTables(client, schema, undefined);
@@ -320,10 +324,13 @@ export class PostgresIncrementalReader {
                 );
             }
         });
+        progress.step = 'creating the slot';
         const replication: PgSessionClient = await this.openClient(true);
         try {
             const created: CreatedSlot = await this.createSlot(replication, slot, false);
+            progress.step = 'reading the schema hash';
             const schemaHash: string = await this.runner.resolveSchemaHash(created.snapshot);
+            progress.step = 'dumping';
             const data: Readable = await this.runner.createBackupData(chunked, created.snapshot);
             // the exporting connection holds the snapshot for as long as the dump may still take it up
             this.endWith(data, replication);
@@ -339,13 +346,15 @@ export class PostgresIncrementalReader {
      * Reads what changed since a cursor, up to the snapshot of a temporary slot, at which the tables read
      * in full and the sequences are read as well.
      * @param since - The cursor.
+     * @param progress - Where the read notes the step it is at, until its data is read.
      * @returns What changed, or undefined when the slot cannot be read on from, or the schema changed since.
      */
-    private async readChanges(since: PostgresReadCursor): Promise<IncrementalBackupData | undefined> {
+    private async readChanges(since: PostgresReadCursor, progress: PostgresBackupReadProgress): Promise<IncrementalBackupData | undefined> {
         const { slot } = await this.resolveNames();
         if (since.slot !== slot) {
             return undefined;
         }
+        progress.step = 'checking the slot';
         const [state] = await this.withClient(async client => (await client.query(
             'SELECT confirmed_flush_lsn::text AS "confirmed", wal_status AS "walStatus"'
             + ' FROM pg_catalog.pg_replication_slots WHERE slot_name = $1',
@@ -357,17 +366,22 @@ export class PostgresIncrementalReader {
             || PgOutputUtilities.parseLsn(state['confirmed']) > PgOutputUtilities.parseLsn(since.lsn)) {
             return undefined;
         }
+        progress.step = 'creating a temporary slot';
         const replication: PgSessionClient = await this.openClient(true);
         try {
             // a name of its own per backup: two reading at once each take one
             const created: CreatedSlot = await this.createSlot(replication, `${slot}_${randomBytes(4).toString('hex')}`, true);
+            progress.step = 'reading the schema hash';
             const schemaHash: string = await this.runner.resolveSchemaHash(created.snapshot);
             // the changes after a schema change apply to a schema the backup in full does not hold
             if (schemaHash !== since.schemaHash) {
                 await replication.end();
                 return undefined;
             }
-            const data: Readable = Readable.from(this.resolveChangeLines(since, created));
+            const data: Readable = Readable.from(this.handOver(this.resolveChangeLines(since, created, progress), progress));
+            // read only once the backup reads it, which it waits for until then
+            progress.step = 'handing over what changed';
+            progress.waitsForReader = true;
             this.endWith(data, replication);
             return { data, full: false, cursor: this.formatCursor({ slot, lsn: created.consistentPoint, schemaHash }) };
         }
@@ -382,20 +396,28 @@ export class PostgresIncrementalReader {
      * the snapshot, then each table read in full and each sequence, at the snapshot.
      * @param since - The cursor.
      * @param upTo - The temporary slot, whose consistent point is where the changes end.
+     * @param progress - Where the read notes the step it is at.
      * @yields The lines.
      */
-    private async* resolveChangeLines(since: PostgresReadCursor, upTo: CreatedSlot): AsyncGenerator<string> {
+    private async* resolveChangeLines(
+        since: PostgresReadCursor,
+        upTo: CreatedSlot,
+        progress: PostgresBackupReadProgress
+    ): AsyncGenerator<string> {
         const { slot, publication } = await this.resolveNames();
         const schema: string = await this.runner.resolveSchemaName();
         const from: bigint = PgOutputUtilities.parseLsn(since.lsn);
         const to: bigint = PgOutputUtilities.parseLsn(upTo.consistentPoint);
         const QueryStream: PgQueryStream = optionalPeer<PgQueryStream>('pg-query-stream', 'Streaming rows from postgres');
+        progress.step = 'connecting to read what changed';
         const client: PgSessionClient = await this.openClient(false);
         try {
             yield PostgresChangeSqlUtilities.resolveLine({ kind: 'header', formatVersion: POSTGRES_CHANGE_FORMAT_VERSION });
             // before the changes are read, which take the connection until they end. The schema is the one
             // of the cursor, which the schema hash compared before
+            progress.step = 'reading which tables read in full are referenced';
             const referencedBy: Map<string, string[]> = await this.resolveReferencesReadInFull(client, schema, publication);
+            progress.step = 'reading what changed';
             const relations: Map<number, PgOutputRelation> = new Map();
             let included: boolean = false;
             const changes: Readable = client.query(new QueryStream(
@@ -422,20 +444,42 @@ export class PostgresIncrementalReader {
                 }
             }
             finally {
+                progress.step = 'ending the read of what changed';
                 changes.destroy();
             }
+            progress.step = 'checking the slot still held what changed';
             await this.validateSlotHolds(client, slot, since);
+            progress.step = 'taking up the snapshot of the temporary slot';
             await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
             await client.query(`SET TRANSACTION SNAPSHOT '${upTo.snapshot.replaceAll('\'', '\'\'')}'`);
             const { readInFull } = await this.resolveReadTables(client, schema, publication);
             for (const table of readInFull) {
+                progress.step = `reading the table "${table}" in full`;
                 yield* this.resolveTableLines(client, QueryStream, schema, table);
             }
+            progress.step = 'reading the sequences';
             yield* this.resolveSequenceLines(client, schema);
             await client.query('COMMIT');
+            progress.step = 'done';
         }
         finally {
             await client.end();
+        }
+    }
+
+    /**
+     * Hands lines on, noting while one waits for the backup to take it: a read that waits there is held up by what
+     * reads it, rather than by the server.
+     * @param lines - The lines.
+     * @param progress - Where the read notes that it waits.
+     * @yields The lines.
+     */
+    private async* handOver(lines: AsyncIterable<string>, progress: PostgresBackupReadProgress): AsyncGenerator<string> {
+        progress.waitsForReader = false;
+        for await (const line of lines) {
+            progress.waitsForReader = true;
+            yield line;
+            progress.waitsForReader = false;
         }
     }
 
