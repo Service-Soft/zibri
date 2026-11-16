@@ -191,6 +191,7 @@ These have no default either. An application using the feature provides them.
 | `VAL_KEY_TRANSACTION_LOCK_HOLD_IN_MS` | `number` | How long a transaction of `ValKeyDataSource` may run before another may start. 30 seconds by default |
 | [`CACHE_INVALIDATION_RETENTION_IN_MS`](../data/caching.md) | `number` | How long the record of a cache invalidation is kept. A minute by default |
 | [`LEASE_DRAIN_TIMEOUT_IN_MS`](../data/leases.md) | `number` | How long work holding a [lease](../glossary.md#lease) may take to finish on shutdown. Ten seconds by default |
+| [`WAIT_REPORT_INTERVAL_IN_MS`](../data/leases.md#choosing-how-it-is-acquired-and-released) | `number` | How often a wait for a [lease](../glossary.md#lease) or for a backup that goes on warns what it waits for. 30 seconds by default |
 | [`INSTANCE_ID`](../data/replication.md) | `string` | Names the instance on the leases it holds and the thread jobs it runs. The host name and the process id by default |
 | [`REPOSITORY_HOOKS`](../data/data-source.md) | `RepositoryHooks` | Code every repository runs on every row it saves, deletes or returns. None by default |
 

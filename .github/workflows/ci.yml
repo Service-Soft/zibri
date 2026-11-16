@@ -88,6 +88,10 @@ jobs:
             - run: npm run build:prod -w zibri
             # loaded built, the way a consumer gets it, by the check that it loads without its optional peers
             - run: npm run build -w zibri-testing
+            # Ubuntu sets perf_event_paranoid to 4, which refuses perf to record even a process of the runner's own,
+            # and perf-recording.utilities.test.ts records one. Lowered for this job's machine only
+            - name: allow perf to record
+              run: '[ "$(cat /proc/sys/kernel/perf_event_paranoid)" -le 2 ] || sudo sysctl -w kernel.perf_event_paranoid=2'
             # the sources every file reports are held once by the runner jest.config.mjs names, which is
             # what keeps a coverage run of this size in memory. The reporter is lcov alone: the json
             # reporter writes the whole merged map as one string, and `lcov` renders a page per file,

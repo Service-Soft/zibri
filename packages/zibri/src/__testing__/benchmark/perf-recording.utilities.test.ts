@@ -1,5 +1,5 @@
 import { ChildProcess, execFileSync, fork, ForkOptions } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readdir, rm } from 'node:fs/promises';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
@@ -25,7 +25,19 @@ function isPerfInstalled(): boolean {
     }
 }
 
-const perfInstalled: boolean = process.platform === 'linux' && isPerfInstalled();
+// a perf_event_paranoid above it refuses to record even a process of one's own, as scripts/profile-benchmarks.mjs
+// tells whoever runs it. Ubuntu, GitHub's runners among it, sets 4, which ci.yml lowers before the tests
+const HIGHEST_PARANOID_LEVEL: number = 2;
+
+/**
+ * Whether the kernel lets perf record a process of one's own.
+ * @returns Whether it does.
+ */
+function isRecordingAllowed(): boolean {
+    return Number(readFileSync('/proc/sys/kernel/perf_event_paranoid', 'utf8').trim()) <= HIGHEST_PARANOID_LEVEL;
+}
+
+const perfRecords: boolean = process.platform === 'linux' && isPerfInstalled() && isRecordingAllowed();
 
 describe('PerfRecordingUtilities', () => {
     const folder: string = FsUtilities.getPath(testFileFolder, `perf-recording-${UUIDUtilities.generate()}`);
@@ -54,7 +66,7 @@ describe('PerfRecordingUtilities', () => {
     });
 
     // the way a measured process is started: under perf, which records only while the process says so
-    (perfInstalled ? it : it.skip)('records a process started under perf while it says so, and keeps its channel to its parent', async () => {
+    (perfRecords ? it : it.skip)('records a process started under perf while it says so, and keeps its channel to its parent', async () => {
         const control: PerfControl = PerfRecordingUtilities.createControl(`${folder}/fixture.perf.data`);
         const { execArgv, env }: Required<Pick<ForkOptions, 'execArgv' | 'env'>> = resolveTypeScriptForkOptions('The perf fixture');
         const forked: PerfFork = PerfRecordingUtilities.resolveFork(control, execArgv);

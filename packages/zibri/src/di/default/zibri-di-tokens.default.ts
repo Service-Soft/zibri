@@ -245,6 +245,7 @@ export const ZIBRI_DI_TOKENS = {
     TENANT_SERVICE: ziToken<TenantServiceInterface>('zi.tenant_service'),
     MEMBERSHIP_SERVICE: ziToken<MembershipServiceInterface>('zi.membership_service'),
     LEASE_DRAIN_TIMEOUT_IN_MS: ziToken<number>('zi.lease_drain_timeout_in_ms'),
+    WAIT_REPORT_INTERVAL_IN_MS: ziToken<number>('zi.wait_report_interval_in_ms'),
     /**
      * Which instance of the application this process is, recorded on the leases it holds and the
      * thread jobs it runs.

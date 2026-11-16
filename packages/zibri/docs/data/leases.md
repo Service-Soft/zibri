@@ -25,6 +25,7 @@ one service, so they behave the same way.
 | `LeaseLostError` | error | What the work's signal aborts with once its grant is lost |
 | `ZIBRI_DI_TOKENS.LEASE_SERVICE` | DI token | Override to replace the implementation |
 | `ZIBRI_DI_TOKENS.LEASE_DRAIN_TIMEOUT_IN_MS` | DI token | How long a shutting down instance waits for held work. Defaults to ten seconds |
+| `ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS` | DI token | How often a `'wait'` that goes on warns who holds the lease. Defaults to 30 seconds |
 
 ## Protecting work with a lease
 
@@ -97,6 +98,9 @@ takes, not how long another caller should queue for it.
 
 A wait inside a request also ends when that request's deadline does, whichever comes first, see
 [deadlines](../endpoints/creating-endpoints.md#deadlines).
+
+A wait that goes on warns every `ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS`, 30 seconds by default, naming
+the key, the instance holding it and until when.
 
 ## Holding a lease until a transaction ends
 

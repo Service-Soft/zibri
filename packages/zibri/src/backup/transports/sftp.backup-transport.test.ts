@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { posix } from 'node:path';
 import { Readable } from 'node:stream';
 import { buffer } from 'node:stream/consumers';
 import { setTimeout as wait } from 'node:timers/promises';
@@ -78,7 +79,28 @@ class MisbehavingSftpServer extends InProcessSftpServer {
      */
     endsAtLogin: boolean = false;
 
+    /**
+     * The directories a client opened to read, by their path.
+     */
+    readonly openedDirectories: Set<string> = new Set();
+
     private writesAnswered: Promise<void> = Promise.resolve();
+
+    /**
+     * Stores a file on the server directly, with the directories leading to it.
+     * @param path - The path of the file.
+     */
+    storeFile(path: string): void {
+        for (let directory: string = posix.dirname(path); directory !== '/'; directory = posix.dirname(directory)) {
+            this.directories.add(directory);
+        }
+        this.files.set(path, Buffer.from(path));
+    }
+
+    protected override answerOpenDirectory(request: InProcessSftpRequest, path: string): void {
+        this.openedDirectories.add(path);
+        super.answerOpenDirectory(request, path);
+    }
 
     protected override answerSftpRequest(acceptSftp: () => SFTPWrapper, connection: Connection): void {
         if (!this.opensNoSftp) {
@@ -201,6 +223,7 @@ beforeEach(() => {
     server.writeDelayMs = 0;
     server.opensNoSftp = false;
     server.endsAtLogin = false;
+    server.openedDirectories.clear();
 });
 
 describe('SftpBackupTransport, a server it does not control', () => {
@@ -282,6 +305,65 @@ describe('SftpBackupTransport, the staging folder', () => {
         expect([...server.files.keys()].filter(path => path.startsWith('/staged/')).sort()).toEqual(['/staged/.partial/being-written', '/staged/backup/data']);
         expect(keys).toEqual(['backup/data']);
         expect(names).toEqual(['backup']);
+    }, CASE_TIMEOUT_IN_MS);
+});
+
+// each folder read is a round trip of its own: a prefix naming part of a folder's name, such as `cases-<uuid>` or
+// `.zibri-repository/chunks`, read every folder of the store, and whether a backup's folder held anything was
+// answered after a thousand keys of it. On a store of many backups across a network that took minutes
+describe('SftpBackupTransport, listing', () => {
+    /**
+     * Every key a listing finds.
+     * @param session - The session.
+     * @param prefix - The prefix.
+     * @returns The keys, sorted.
+     */
+    async function findAllKeys(session: BackupTransportSessionInterface, prefix: string): Promise<string[]> {
+        const keys: string[] = [];
+        for await (const page of session.findKeys(prefix)) {
+            keys.push(...page);
+        }
+        return keys.sort();
+    }
+
+    it('reads only the folders that can hold a key starting with the prefix', async () => {
+        for (const path of ['wanted/a', 'wanted-too/b', 'other/deep/c', 'repository/chunks/ab/d', 'repository/backups/e']) {
+            server.storeFile(`/listed/${path}`);
+        }
+        const session: BackupTransportSessionInterface = await new SftpBackupTransport('in-process-sftp-backup-transport', server.getOptions('/listed')).openSession();
+        try {
+            expect(await findAllKeys(session, 'wanted')).toEqual(['wanted-too/b', 'wanted/a']);
+            expect([...server.openedDirectories].sort()).toEqual(['/listed', '/listed/wanted', '/listed/wanted-too']);
+            server.openedDirectories.clear();
+
+            expect(await findAllKeys(session, 'repository/chunks')).toEqual(['repository/chunks/ab/d']);
+            expect([...server.openedDirectories].sort()).toEqual(['/listed/repository', '/listed/repository/chunks', '/listed/repository/chunks/ab']);
+        }
+        finally {
+            await session.close();
+        }
+    }, CASE_TIMEOUT_IN_MS);
+
+    // what tells a backup's folder holding anything from one left empty, which needs one key and no more
+    it('hands over the keys of a folder before it reads the next', async () => {
+        for (let i: number = 0; i < 20; i++) {
+            server.storeFile(`/paged/folder-${i}/key`);
+        }
+        const session: BackupTransportSessionInterface = await new SftpBackupTransport('in-process-sftp-backup-transport', server.getOptions('/paged')).openSession();
+        let first: string[] = [];
+        try {
+            for await (const page of session.findKeys('')) {
+                first = page;
+                break;
+            }
+        }
+        finally {
+            await session.close();
+        }
+
+        expect(first).toHaveLength(1);
+        // the top, and the folder of the key
+        expect(server.openedDirectories.size).toBe(2);
     }, CASE_TIMEOUT_IN_MS);
 });
 

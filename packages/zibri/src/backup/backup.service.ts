@@ -1510,6 +1510,8 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         const waitingFor: Set<(ended: BackupEntity) => void> = this.waiting.get(backup.id) ?? new Set();
         waitingFor.add(tell);
         this.waiting.set(backup.id, waitingFor);
+        const startedAt: number = Date.now();
+        let reportedAt: number = startedAt;
         try {
             for (;;) {
                 // as it ended here when it did, and read otherwise, since another instance may have ended it
@@ -1523,9 +1525,16 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
                 if (this.stopping.signal.aborted) {
                     throw new BackupStoppedError(current);
                 }
+                // a wait that lasts says where the backup stands: otherwise a backup that never ends is waited
+                // for without a word, and nothing says which resource it is stuck on
+                const reportIntervalInMs: number = inject(ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS);
+                if (Date.now() - reportedAt >= reportIntervalInMs) {
+                    reportedAt = Date.now();
+                    this.reportBackupWait(current, reportedAt - startedAt);
+                }
                 // read again every few seconds as well, for an end told through a data source that
-                // carries no messages between instances
-                await listener.next(Ms.SECOND * 5, this.stopping.signal);
+                // carries no messages between instances, and by the next report at the latest
+                await listener.next(Math.min(Ms.SECOND * 5, reportedAt + reportIntervalInMs - Date.now()), this.stopping.signal);
             }
         }
         finally {
@@ -1535,6 +1544,28 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
                 this.waiting.delete(backup.id);
             }
         }
+    }
+
+    /**
+     * Warns that a backup is still waited for, saying where each of its resources stands.
+     * @param backup - The backup, with its resources.
+     * @param waitedInMs - How long it was waited for so far.
+     */
+    private reportBackupWait(backup: BackupEntity, waitedInMs: number): void {
+        const resources: string = backup.resources
+            .map(resource => {
+                if (resource.completed) {
+                    return `"${resource.name}" stored`;
+                }
+                const failed: string = `${resource.attempts} failed attempt${resource.attempts === 1 ? '' : 's'}`;
+                const next: string = resource.nextAttemptAt == undefined ? '' : `, the next at ${resource.nextAttemptAt.toISOString()}`;
+                const error: string = resource.error == undefined ? '' : `, the last with: ${resource.error.paragraphs.join(' ')}`;
+                return `"${resource.name}" not stored, ${failed}${next}${error}`;
+            })
+            .join('; ');
+        this.logger.warn(
+            `Waited ${Math.round(waitedInMs / Ms.SECOND)} s for the backup "${backup.name}", which is ${backup.status}: ${resources || 'no resources'}`
+        );
     }
 
     /**

@@ -28,6 +28,7 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { BaseEntity } from '../entity/base-entity.model';
+import { LoggerInterface } from '../logging/logger.interface';
 import { WakeUpServiceInterface } from '../polling/wake-up-service.interface';
 import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
 import { Newable } from '../types/newable.type';
@@ -44,6 +45,11 @@ let storesToFail: number = 0;
  * What every store waits for first, so a test can hold a backup back until it is ready for it to end.
  */
 let storesHeldUntil: Promise<void> = Promise.resolve();
+
+/**
+ * How often waiting for a backup says where it stands.
+ */
+const REPORT_INTERVAL_IN_MS: number = 300;
 
 @BackupTransport()
 class QueueFsBackupTransport extends FsBackupTransport {
@@ -103,7 +109,8 @@ beforeAll(async () => {
         providers: [
             ...defaultTestServerProviders,
             defineProvider({ token: ZIBRI_DI_TOKENS.BACKUP_RETRY_DELAY_IN_MS, useValue: 1 }),
-            defineProvider({ token: ZIBRI_DI_TOKENS.BACKUP_MAX_ATTEMPTS, useValue: 2 })
+            defineProvider({ token: ZIBRI_DI_TOKENS.BACKUP_MAX_ATTEMPTS, useValue: 2 }),
+            defineProvider({ token: ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS, useValue: REPORT_INTERVAL_IN_MS })
         ]
     });
     backupService = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
@@ -250,6 +257,37 @@ describe('BackupService - a backup as queued work', () => {
             releaseStores();
             storesHeldUntil = Promise.resolve();
             woken.mockRestore();
+        }
+    }, 20000);
+
+    // a backup that did not end was waited for without a word: a case running out its time left nothing in the log
+    // that said where it stood
+    it('says where a backup stands once it was waited for the report interval, and not before', async () => {
+        const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+        const warn: jest.SpiedFunction<LoggerInterface['warn']> = jest.spyOn(logger, 'warn');
+        const findReports: () => string[] = () => warn.mock.calls.map(([message]) => message).filter(m => m.includes('"taking-long"'));
+        let releaseStores: () => void = () => undefined;
+        storesHeldUntil = new Promise<void>(resolve => {
+            releaseStores = resolve;
+        });
+        try {
+            const queued: BackupEntity = await backupService.queueBackup({ name: 'taking-long' });
+            // before the wait starts, so that what is measured is never shorter than what the wait measures
+            const startedAt: number = Date.now();
+            const done: Promise<BackupEntity> = backupService.waitForBackup(queued);
+
+            await waitUntil(() => findReports().length > 0);
+            const firstReportAfterMs: number = Date.now() - startedAt;
+            releaseStores();
+
+            expect((await done).status).toBe(BackupStatus.COMPLETED);
+            expect(firstReportAfterMs).toBeGreaterThanOrEqual(REPORT_INTERVAL_IN_MS);
+            expect(findReports()[0]).toMatch(/taking-long.*RUNNING.*ProjectsStore.*not stored/);
+        }
+        finally {
+            releaseStores();
+            storesHeldUntil = Promise.resolve();
+            warn.mockRestore();
         }
     }, 20000);
 });

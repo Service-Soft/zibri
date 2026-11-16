@@ -61,6 +61,7 @@ A backup copies the data of a resource, such as a data source, to one or more tr
 | `ZIBRI_DI_TOKENS.BACKUP_MAX_ATTEMPTS` | DI token | How many times a resource is tried before its backup fails. Defaults to 3 |
 | `ZIBRI_DI_TOKENS.BACKUP_MAX_CONCURRENT_RESOURCES` | DI token | How many resources one instance stores at once. Defaults to 1 |
 | `ZIBRI_DI_TOKENS.BACKUP_RETRY_DELAY_IN_MS` | DI token | How long the first retry of a resource waits, doubling for each one after it. Defaults to one minute |
+| `ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS` | DI token | How often `waitForBackup` warns where a backup it still waits for stands. Defaults to 30 seconds |
 | `ZIBRI_DI_TOKENS.BACKUP_SERVICE` | DI token | Injects `BackupServiceInterface` |
 | `BackupRetention` | type | Which completed backups are kept: `daily`, `weekly`, `monthly` and the other rules, counted in a `timeZone`, and how often a backup reading only what changed reads in full, `fullRead` |
 | `BackupPeriod` | type | A period a retention counts in: `'hourly'`, `'daily'`, `'weekly'`, `'monthly'`, `'quarterly'` or `'yearly'` |
@@ -458,6 +459,8 @@ export async function createBackup(): Promise<BackupEntity> {
     return await backupService.waitForBackup(backup);
 }
 ```
+
+While it waits, `waitForBackup` warns every `ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS`, 30 seconds by default, where the backup stands: each resource stored or not, its failed attempts, when the next is due and what the last failed with.
 
 A backup is named after the time it is taken. A `name` you give `queueBackup` instead is one segment of a path, since every transport stores the backup under it: it holds no slash, and is not empty, `.` or `..`.
 

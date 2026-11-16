@@ -214,6 +214,9 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // how long a shutting down instance waits for work it holds a lease on before taking the lease
     // away. Comfortably inside the shutdown timeout, or the hook is cut off before it can release.
     LEASE_DRAIN_TIMEOUT_IN_MS: { useFactory: () => Ms.SECOND * 10 },
+    // how often a lease or a backup that is still waited for says what it waits for. Long enough that a wait
+    // which ends normally says nothing, short enough that one which never ends is seen within a minute
+    WAIT_REPORT_INTERVAL_IN_MS: { useFactory: () => Ms.SECOND * 30 },
     // a container's hostname is its pod's name, which is what an operator looks for. The pid tells
     // apart the processes of one host
     INSTANCE_ID: { useFactory: () => `${os.hostname()}:${process.pid}` },

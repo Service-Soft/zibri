@@ -85,3 +85,64 @@ describe('FsBackupTransport on the disk', () => {
         expect(names).toEqual(['backup']);
     });
 });
+
+// a prefix naming part of a folder's name, such as `cases-<uuid>` or `.zibri-repository/chunks`, read every folder of
+// the store, and whether a backup's folder held anything was answered after a thousand keys of it
+describe('FsBackupTransport, listing', () => {
+    it('reads only the folders that can hold a key starting with the prefix', async () => {
+        const storeFolder: FsPath = FsUtilities.getPath(folder, `listed-${UUIDUtilities.generate()}`);
+        for (const key of ['wanted/a', 'wanted-too/b', 'other/deep/c', 'repository/chunks/ab/d', 'repository/backups/e']) {
+            await FsUtilities.createFile(FsUtilities.getPath(storeFolder, ...key.split('/')), key);
+        }
+        const session: BackupTransportSessionInterface = await new FsBackupTransport('fs-backup-transport', storeFolder).openSession();
+        const readdir: jest.Spied<typeof FsUtilities.readdir> = jest.spyOn(FsUtilities, 'readdir');
+        const findRead: () => string[] = () => readdir.mock.calls.map(([p]) => FsUtilities.relative(storeFolder, p)).sort();
+        try {
+            const wanted: string[] = [];
+            for await (const page of session.findKeys('wanted')) {
+                wanted.push(...page);
+            }
+            expect(wanted.sort()).toEqual(['wanted-too/b', 'wanted/a']);
+            expect(findRead()).toEqual(['', 'wanted', 'wanted-too']);
+            readdir.mockClear();
+
+            const chunks: string[] = [];
+            for await (const page of session.findKeys('repository/chunks')) {
+                chunks.push(...page);
+            }
+            expect(chunks).toEqual(['repository/chunks/ab/d']);
+            expect(findRead()).toEqual(['repository', 'repository/chunks', 'repository/chunks/ab']);
+        }
+        finally {
+            await session.close();
+            readdir.mockRestore();
+        }
+    });
+
+    // what tells a backup's folder holding anything from one left empty, which needs one key and no more
+    it('hands over the keys of a folder before it reads the next', async () => {
+        const storeFolder: FsPath = FsUtilities.getPath(folder, `paged-${UUIDUtilities.generate()}`);
+        for (let i: number = 0; i < 20; i++) {
+            await FsUtilities.createFile(FsUtilities.getPath(storeFolder, `folder-${i}`, 'key'), 'key');
+        }
+        const session: BackupTransportSessionInterface = await new FsBackupTransport('fs-backup-transport', storeFolder).openSession();
+        const readdir: jest.Spied<typeof FsUtilities.readdir> = jest.spyOn(FsUtilities, 'readdir');
+        let first: string[] = [];
+        let read: number = 0;
+        try {
+            for await (const page of session.findKeys('')) {
+                first = page;
+                break;
+            }
+            read = readdir.mock.calls.length;
+        }
+        finally {
+            await session.close();
+            readdir.mockRestore();
+        }
+
+        expect(first).toHaveLength(1);
+        // the top, and the folder of the key
+        expect(read).toBe(2);
+    });
+});

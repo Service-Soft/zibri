@@ -155,12 +155,14 @@ export abstract class ThreadCpuUtilities {
      * @returns Its kind.
      */
     private static resolveKind(name: string): ThreadKind {
+        // node 26 and later name the threads it starts itself `node-V8Worker` or `node-MainThread`
+        const unprefixed: string = name.startsWith('node-') ? name.slice('node-'.length) : name;
         // V8's platform workers, `V8Worker` or `V8 DefaultWorker` cut to 15 characters by the release of node: the
         // collector's concurrent and parallel phases, and the optimizing compiler
-        if (name.startsWith('V8')) {
+        if (unprefixed.startsWith('V8')) {
             return 'v8';
         }
         // libuv's pool: files, zlib, crypto
-        return name.startsWith('libuv-worker') ? 'pool' : 'other';
+        return unprefixed.startsWith('libuv-worker') ? 'pool' : 'other';
     }
 }

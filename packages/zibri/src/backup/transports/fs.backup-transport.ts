@@ -168,22 +168,13 @@ class FsBackupTransportSession implements BackupTransportSessionInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async* findKeys(prefix: string): AsyncIterable<string[]> {
-        let page: string[] = [];
         // from the folder the prefix names rather than from the top, so that listing one part of the
         // store does not walk all of it
         const folder: string | undefined = prefix.includes('/') ? prefix.slice(0, prefix.lastIndexOf('/')) : undefined;
-        for await (const key of this.walk(folder)) {
-            if (!key.startsWith(prefix)) {
-                continue;
+        for await (const keys of this.walk(folder, prefix)) {
+            for (let i: number = 0; i < keys.length; i += PAGE_SIZE) {
+                yield keys.slice(i, i + PAGE_SIZE);
             }
-            page.push(key);
-            if (page.length >= PAGE_SIZE) {
-                yield page;
-                page = [];
-            }
-        }
-        if (page.length) {
-            yield page;
         }
     }
 
@@ -218,18 +209,36 @@ class FsBackupTransportSession implements BackupTransportSessionInterface {
         // nothing is held open
     }
 
-    private async* walk(relative: string | undefined): AsyncGenerator<string> {
+    /**
+     * The keys starting with a prefix, a folder's own at a time: the keys of one are handed over before the next
+     * is read, and only a folder that can hold such a key is read at all.
+     * @param relative - The folder to start in, undefined for the top.
+     * @param prefix - The prefix.
+     * @yields The keys directly in each folder, before those of the folders in it.
+     */
+    private async* walk(relative: string | undefined, prefix: string): AsyncGenerator<string[]> {
+        const keys: string[] = [];
+        const folders: string[] = [];
         for (const entry of await this.findEntries(relative)) {
             const key: string = relative == undefined ? entry.name : `${relative}/${entry.name}`;
             if (entry.name.endsWith(PARTIAL_SUFFIX)) {
                 continue;
             }
-            if (entry.isDirectory()) {
-                yield* this.walk(key);
+            if (!entry.isDirectory()) {
+                if (key.startsWith(prefix)) {
+                    keys.push(key);
+                }
             }
-            else {
-                yield key;
+            // a folder whose keys start with the prefix, or one on the way to such a folder
+            else if (`${key}/`.startsWith(prefix) || prefix.startsWith(`${key}/`)) {
+                folders.push(key);
             }
+        }
+        if (keys.length) {
+            yield keys;
+        }
+        for (const folder of folders) {
+            yield* this.walk(folder, prefix);
         }
     }
 

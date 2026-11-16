@@ -108,11 +108,11 @@
       </trans-unit>
       <trans-unit id="A restore before this one left resources that the next start puts back, named in {$1}. Restart the application first." xml:space="preserve">
         <source>A restore before this one left resources that the next start puts back, named in <x id="$1" equiv-text="{$1}"/>. Restart the application first.</source>
-        <note>src/backup/backup.service.ts:2182</note>
+        <note>src/backup/backup.service.ts:2213</note>
       </trans-unit>
       <trans-unit id="A restore of a tenant replaces the tenant's rows alone, and deletes nothing first." xml:space="preserve">
         <source>A restore of a tenant replaces the tenant's rows alone, and deletes nothing first.</source>
-        <note>src/backup/backup.service.ts:1874</note>
+        <note>src/backup/backup.service.ts:1905</note>
       </trans-unit>
       <trans-unit id="A role named '{$1}' exists already." xml:space="preserve">
         <source>A role named '<x id="$1" equiv-text="{$1}"/>' exists already.</source>
@@ -144,7 +144,7 @@
       </trans-unit>
       <trans-unit id="A transport needs to be one of {$1}." xml:space="preserve">
         <source>A transport needs to be one of <x id="$1" equiv-text="{$1}"/>.</source>
-        <note>src/backup/backup.service.ts:3398</note>
+        <note>src/backup/backup.service.ts:3429</note>
       </trans-unit>
       <trans-unit id="A url encoded form needs to be sent as text." xml:space="preserve">
         <source>A url encoded form needs to be sent as text.</source>
@@ -668,15 +668,15 @@
       </trans-unit>
       <trans-unit id="The backup &#x22;{$1}&#x22; holds the resources {$2}, and not {$3}." xml:space="preserve">
         <source>The backup "<x id="$1" equiv-text="{$1}"/>" holds the resources <x id="$2" equiv-text="{$2}"/>, and not <x id="$3" equiv-text="{$3}"/>.</source>
-        <note>src/backup/backup.service.ts:1861</note>
+        <note>src/backup/backup.service.ts:1892</note>
       </trans-unit>
       <trans-unit id="The backup {$1} cannot be deleted while backups build on it: {$2}. Delete those first." xml:space="preserve">
         <source>The backup <x id="$1" equiv-text="{$1}"/> cannot be deleted while backups build on it: <x id="$2" equiv-text="{$2}"/>. Delete those first.</source>
-        <note>src/backup/backup.service.ts:3154</note>
+        <note>src/backup/backup.service.ts:3185</note>
       </trans-unit>
       <trans-unit id="The backup resources {$1} are being backed up or restored. Restore once that is done." xml:space="preserve">
         <source>The backup resources <x id="$1" equiv-text="{$1}"/> are being backed up or restored. Restore once that is done.</source>
-        <note>src/backup/backup.service.ts:2020</note>
+        <note>src/backup/backup.service.ts:2051</note>
       </trans-unit>
       <trans-unit id="The body is not a SOAP envelope carrying a logout request." xml:space="preserve">
         <source>The body is not a SOAP envelope carrying a logout request.</source>
@@ -952,7 +952,7 @@
       </trans-unit>
       <trans-unit id="The resources {$1} cannot delete what they hold before a restore." xml:space="preserve">
         <source>The resources <x id="$1" equiv-text="{$1}"/> cannot delete what they hold before a restore.</source>
-        <note>src/backup/backup.service.ts:1880</note>
+        <note>src/backup/backup.service.ts:1911</note>
       </trans-unit>
       <trans-unit id="The role '{$1}' does not exist." xml:space="preserve">
         <source>The role '<x id="$1" equiv-text="{$1}"/>' does not exist.</source>
@@ -1016,7 +1016,7 @@
       </trans-unit>
       <trans-unit id="The tenant of an export needs to be a uuid." xml:space="preserve">
         <source>The tenant of an export needs to be a uuid.</source>
-        <note>src/backup/backup.service.ts:3180</note>
+        <note>src/backup/backup.service.ts:3211</note>
       </trans-unit>
       <trans-unit id="The ticket is invalid or has expired." xml:space="preserve">
         <source>The ticket is invalid or has expired.</source>
@@ -1032,11 +1032,11 @@
       </trans-unit>
       <trans-unit id="The transport {$1} could not be written to: {$2}" xml:space="preserve">
         <source>The transport <x id="$1" equiv-text="{$1}"/> could not be written to: <x id="$2" equiv-text="{$2}"/></source>
-        <note>src/backup/backup.service.ts:3320</note>
+        <note>src/backup/backup.service.ts:3351</note>
       </trans-unit>
       <trans-unit id="The transport is stored on by backups: {$1}. Delete those first." xml:space="preserve">
         <source>The transport is stored on by backups: <x id="$1" equiv-text="{$1}"/>. Delete those first.</source>
-        <note>src/backup/backup.service.ts:3352</note>
+        <note>src/backup/backup.service.ts:3383</note>
       </trans-unit>
       <trans-unit id="The user has no such identity at this provider." xml:space="preserve">
         <source>The user has no such identity at this provider.</source>
