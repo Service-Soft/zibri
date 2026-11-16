@@ -494,11 +494,13 @@ export function wrapDocument(html: string, script: string, nonce?: string): stri
         return `<!DOCTYPE html>\n${html}`;
     }
     const nonceAttr: string = nonce ? ` nonce="${nonce}"` : '';
-    // Neutralize any `</script` inside the emitted code so it cannot terminate the tag early. An html
-    // parser ends a script on it in any case and followed by whitespace, `/` or `>`, so every one is
-    // escaped; `<\/` is the same two characters inside a javascript string or regex. The data in the
-    // script cannot contain one at all, see toScriptValue.
-    const safe: string = script.replaceAll(/<\/script/gi, match => `<\\/${match.slice(2)}`);
+    // Neutralize the three sequences the html spec names for the contents of a script, which a string the
+    // template writes in client code can hold: `</script` ends the tag early, and `<!--` followed by `<script`
+    // leaves the parser waiting for a second end tag, so the script runs to the end of the document. A parser
+    // acts on them in any case, so every one is escaped; `\x3C` is the same character inside a javascript
+    // string, template, regex or comment, and the printer writes `a < script` in code, never `a<script`. The
+    // data in the script cannot contain one at all, see toScriptValue.
+    const safe: string = script.replaceAll(/<(?=!--|\/?script)/gi, String.raw`\x3C`);
     const tag: string = `<script${nonceAttr}>\n${safe}\n</script>`;
     // A function replacer is required: generated code can contain `$$`, `$&` and friends, which a
     // string replacement would interpret as substitution patterns and corrupt.

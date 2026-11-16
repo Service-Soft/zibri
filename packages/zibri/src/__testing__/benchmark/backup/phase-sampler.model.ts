@@ -32,6 +32,12 @@ const HEAP_SNAPSHOT_STEP_BYTES: number = 16 * 1024 * 1024;
 const MEMORY_INTERVAL_IN_MS: number = 10;
 
 /**
+ * The shortest a live phase runs between two readings, and so the shortest interval of one. Every
+ * reading collects, which takes milliseconds itself.
+ */
+export const MIN_LIVE_INTERVAL_IN_MS: number = 10;
+
+/**
  * How often the staging folder is measured, which walks it.
  */
 const STAGING_INTERVAL_IN_MS: number = 50;
@@ -124,6 +130,7 @@ export class PhaseSampler {
     }
 
     private readLiveMemory(): void {
+        const readingStartedAt: number = performance.now();
         PhaseSampler.collect();
         const held: number = PhaseSampler.resolveHeldBytes(process.memoryUsage());
         this.peakLiveHeldBytes = Math.max(this.peakLiveHeldBytes, held);
@@ -132,12 +139,14 @@ export class PhaseSampler {
             this.heapSnapshotHeldBytes = held;
             this.writeHeapSnapshot('peak');
         }
-        // the interval counted from the end of this reading rather than from its start: the
-        // collections take longer than a short interval, and readings fired back to back left a phase
-        // of 150 ms no time to run, read 465 times
+        // the interval counted from the start of this reading, so its collections are a part of it: a
+        // phase waiting on another process, as a backup waits on postgres, runs on while they block, and
+        // an interval waited after them read a backup of 257 ms 4 times rather than 10. Never shorter
+        // than the minimum: readings fired back to back left a phase of 150 ms no time to run, read 465 times
         if (this.live != undefined) {
             const live: LiveReading = this.live;
-            this.liveMemoryTimer = setTimeout(() => this.readLiveMemory(), live.intervalInMs);
+            const waitMs: number = Math.max(MIN_LIVE_INTERVAL_IN_MS, live.intervalInMs - (performance.now() - readingStartedAt));
+            this.liveMemoryTimer = setTimeout(() => this.readLiveMemory(), waitMs);
         }
     }
 

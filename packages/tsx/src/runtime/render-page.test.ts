@@ -68,7 +68,7 @@ describe('wrapDocument', () => {
 
     it('neutralizes a closing script tag inside the code', () => {
         const out: string = wrapDocument('<div/>', 'const s = "</script>";');
-        expect(out).toContain('<\\/script>');
+        expect(out).toContain(String.raw`"\x3C/script>"`);
         expect(out.match(/<\/script>/g)).toHaveLength(1);
     });
 

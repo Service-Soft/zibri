@@ -44,17 +44,19 @@ let guardedWritesScript: Script | undefined;
  *
  * Either all of them or none, as one command: the check and the writes cannot be told apart by any
  * other writer. Members and fields go in a thousand at a time, below what a single call takes.
- * @returns The script, which answers 1 when it wrote, 0 when a guarded key had changed, 2 when a
- * grant was no longer held, 3 when a key written was written by another writer since the moment the
- * writer read as of, and 4 when what the writer read through as of that moment lapsed. Nothing is
- * written on any answer but 1.
+ * @returns The script, which answers 1 when it wrote, 0 when a guarded key had changed, `[2, lock key,
+ * holder]` when a grant was no longer held, the holder an empty string for a lock that is gone, 3 when a
+ * key written was written by another writer since the moment the writer read as of, and 4 when what the
+ * writer read through as of that moment lapsed. Nothing is written on any answer but 1.
  */
 function resolveGuardedWritesScript(): Script {
     guardedWritesScript ??= new (valKeyGlide().Script)(
         'local payload = cjson.decode(ARGV[1]) '
-        // a grant that lapsed may have been taken since, and the rows it guarded written by whoever took it
+        // a grant that lapsed may have been taken since, and the rows it guarded written by whoever took it.
+        // Named with whoever holds it now, which tells a process that stalled past a hold from one taken over
         + 'for _, key in ipairs(payload[5]) do '
-        + 'if redis.call("get", key) ~= payload[4] then return 2 end '
+        + 'local holder = redis.call("get", key) '
+        + 'if holder ~= payload[4] then return { 2, key, holder or "" } end '
         + 'end '
         // a transaction reading as of one moment overwrites nothing another one wrote since that moment, which
         // is what made a copy of it for the moment, or noted it as absent then. Members added and removed
@@ -192,9 +194,12 @@ export async function applyGuardedValKeyWrites(
     keyPrefix: string,
     guards: ValKeyWriteGuards,
     writes: ValKeyBufferedWrite[],
-    release: ValKeyGrantRelease = { token: '', lockKeys: [] },
+    release: ValKeyGrantRelease = { token: '', lockKeys: [], lastRenewedAt: undefined, holdInMs: 0 },
     readView?: ValKeyReadView
 ): Promise<boolean> {
+    // building and writing the payload of a large commit is work of its own, which runs before the script
+    // checks the grants: what an error about a lapsed one says how long it took
+    const startedAt: number = Date.now();
     const payload: [
         [string, string][],
         [string, string[]][],
@@ -244,12 +249,12 @@ export async function applyGuardedValKeyWrites(
             ...release.lockKeys
         ])
     ];
-    const res: GlideReturnType = await client.invokeScript(resolveGuardedWritesScript(), {
-        keys,
-        args: [JsonUtilities.stringify(payload)]
-    });
-    if (res === 2) {
-        throw new TransactionLocksLostError();
+    const args: string = JsonUtilities.stringify(payload);
+    const res: GlideReturnType = await client.invokeScript(resolveGuardedWritesScript(), { keys, args: [args] });
+    if (Array.isArray(res) && res[0] === 2) {
+        throw new TransactionLocksLostError({
+            cause: new InternalError(describeLostLock(res.map(part => String(part)), release, startedAt, args.length))
+        });
     }
     if (res === 3) {
         throw new TransactionSerializationError();
@@ -269,6 +274,25 @@ export async function applyGuardedValKeyWrites(
         throw new InternalError('Applying writes behind a guard was answered with something other than whether it wrote.');
     }
     return res === 1;
+}
+
+/**
+ * What tells why a grant was found lapsed: whether it is gone or another holds it, how long before the commit
+ * the grants were last renewed, and how long the commit took before the script looked.
+ * @param answer - The answer of the script: 2, the lock key, and who holds it now, empty when nobody does.
+ * @param release - The grants the commit handed back.
+ * @param startedAt - When the commit began building its payload.
+ * @param payloadLength - How many characters the payload was.
+ * @returns The description.
+ */
+function describeLostLock(answer: string[], release: ValKeyGrantRelease, startedAt: number, payloadLength: number): string {
+    const [, lockKey = '', holder = ''] = answer;
+    const renewed: string = release.lastRenewedAt == undefined
+        ? 'They were never taken'
+        : `They were last renewed or taken ${startedAt - release.lastRenewedAt} ms before the commit began`;
+    return `The lock "${lockKey}" ${holder === '' ? 'was gone' : 'was held by another transaction'} at the commit, one of `
+        + `the ${release.lockKeys.length} locks of the transaction, which live ${release.holdInMs} ms. ${renewed}, `
+        + `which took ${Date.now() - startedAt} ms to send ${payloadLength} characters of writes and be answered.`;
 }
 
 /**

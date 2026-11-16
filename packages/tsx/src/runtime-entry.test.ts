@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync, SpawnSyncReturns } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { describe, expect, it } from '@jest/globals';
 import ts from 'typescript';
@@ -164,7 +164,8 @@ function resolveReexportedFiles(program: ts.Program, checker: ts.TypeChecker): s
                 : checker.getSymbolAtLocation(statement.moduleSpecifier);
             return (module?.declarations ?? []).filter(ts.isSourceFile).map(file => file.fileName);
         })
-        .filter(fileName => !entries.includes(fileName));
+        // resolved, as typescript names every file with forward slashes and join on windows with backslashes
+        .filter(fileName => !entries.map(entry => resolve(entry)).includes(resolve(fileName)));
 }
 
 /**
@@ -175,7 +176,9 @@ function resolveReexportedFiles(program: ts.Program, checker: ts.TypeChecker): s
  */
 function isDeprecatedForward(symbol: ts.Symbol): boolean {
     return (symbol.declarations ?? [])
-        .filter(declaration => [ENTRY_POINTS.main, ENTRY_POINTS.email].includes(declaration.getSourceFile().fileName))
+        // resolved, as typescript names every file with forward slashes and join on windows with backslashes
+        .filter(declaration => [ENTRY_POINTS.main, ENTRY_POINTS.email].map(entry => resolve(entry))
+            .includes(resolve(declaration.getSourceFile().fileName)))
         .some(declaration => ts.getJSDocDeprecatedTag(declaration) !== undefined);
 }
 

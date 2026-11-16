@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { buffer } from 'node:stream/consumers';
+import { setTimeout as wait } from 'node:timers/promises';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { utils } from 'ssh2';
@@ -57,6 +58,18 @@ class MisbehavingSftpServer extends InProcessSftpServer {
      */
     readonly unreadable: Set<string> = new Set();
 
+    /**
+     * The requests the server leaves unanswered, while the connection stays up: `REMOVE`, `WRITE` or `READ`.
+     */
+    readonly unanswered: Set<'REMOVE' | 'WRITE' | 'READ'> = new Set();
+
+    /**
+     * How long after the one before the server answers each WRITE, as a slow server does, which still answers.
+     */
+    writeDelayMs: number = 0;
+
+    private writesAnswered: Promise<void> = Promise.resolve();
+
     protected override answerStat(request: InProcessSftpRequest, path: string): void {
         if (this.unreachable.has(path)) {
             request.sftp.status(request.reqId, utils.sftp.STATUS_CODE.PERMISSION_DENIED);
@@ -77,7 +90,16 @@ class MisbehavingSftpServer extends InProcessSftpServer {
         super.answerOpen(request, path, flags);
     }
 
+    protected override answerRemove(request: InProcessSftpRequest, path: string): void {
+        if (!this.unanswered.has('REMOVE')) {
+            super.answerRemove(request, path);
+        }
+    }
+
     protected override answerRead(request: InProcessSftpRequest, path: string, offset: number, length: number): void {
+        if (this.unanswered.has('READ')) {
+            return;
+        }
         if (!this.liedAbout.has(path)) {
             super.answerRead(request, path, offset, length);
             return;
@@ -90,11 +112,21 @@ class MisbehavingSftpServer extends InProcessSftpServer {
     }
 
     protected override answerWrite(request: InProcessSftpRequest, path: string, offset: number, data: Buffer): void {
-        if (!this.endsAtWrite) {
+        if (this.unanswered.has('WRITE')) {
+            return;
+        }
+        if (this.endsAtWrite) {
+            this.endConnections();
+            return;
+        }
+        if (this.writeDelayMs === 0) {
             super.answerWrite(request, path, offset, data);
             return;
         }
-        this.endConnections();
+        // one after another, so that the last of many sent at once waits for all of them
+        this.writesAnswered = this.writesAnswered
+            .then(async () => await wait(this.writeDelayMs))
+            .then(() => super.answerWrite(request, path, offset, data));
     }
 
     protected override answerRename(request: InProcessSftpRequest, from: string, to: string): void {
@@ -139,6 +171,8 @@ beforeEach(() => {
     server.unreadable.clear();
     server.refusesRenames = false;
     server.endsAtWrite = false;
+    server.unanswered.clear();
+    server.writeDelayMs = 0;
 });
 
 describe('SftpBackupTransport, a server it does not control', () => {
@@ -235,6 +269,81 @@ describe('SftpBackupTransport, a connection that ends', () => {
             await session.close();
         }
     }, CASE_TIMEOUT_IN_MS);
+
+    // a server that keeps the connection up and never answers left a backup waiting forever: the keepalive only
+    // ends a connection that is gone
+    describe('to a server that stops answering', () => {
+        const REQUEST_TIMEOUT_IN_MS: number = 300;
+
+        /**
+         * Opens a session that waits for an answer of the server for as long as the cases here have it.
+         * @returns The session.
+         */
+        async function openWaitingSession(): Promise<BackupTransportSessionInterface> {
+            return await new SftpBackupTransport(
+                'in-process-sftp-backup-transport',
+                { ...server.getOptions('/blobs'), requestTimeoutInMs: REQUEST_TIMEOUT_IN_MS }
+            ).openSession();
+        }
+
+        it('fails a request the server does not answer, naming it, and every request after', async () => {
+            server.unanswered.add('REMOVE');
+            const session: BackupTransportSessionInterface = await openWaitingSession();
+
+            await expect(session.delete(['silent/data'])).rejects.toThrow(`within ${REQUEST_TIMEOUT_IN_MS} ms: REMOVE of "/blobs/silent/data"`);
+            await expect(session.get('silent/data', 1024)).rejects.toThrow(`within ${REQUEST_TIMEOUT_IN_MS} ms`);
+            await expect(session.close()).resolves.toBeUndefined();
+        }, CASE_TIMEOUT_IN_MS);
+
+        it('fails a put whose writes the server stops answering', async () => {
+            server.unanswered.add('WRITE');
+            const session: BackupTransportSessionInterface = await openWaitingSession();
+            try {
+                await expect(session.put('silent/data', Readable.from([randomBytes(64 * 1024)]))).rejects.toThrow(/: WRITE of "\/blobs\/\.partial\//);
+            }
+            finally {
+                await session.close();
+            }
+        }, CASE_TIMEOUT_IN_MS);
+
+        it('fails a file being read whose reads the server stops answering', async () => {
+            server.files.set('/blobs/silent/data', randomBytes(1024));
+            server.unanswered.add('READ');
+            const session: BackupTransportSessionInterface = await openWaitingSession();
+            try {
+                await expect(session.get('silent/data', 1024).then(async data => await buffer(data))).rejects.toThrow(': READ of "/blobs/silent/data"');
+            }
+            finally {
+                await session.close();
+            }
+        }, CASE_TIMEOUT_IN_MS);
+
+        it('takes as long as a transfer needs while the server answers, and while what reads it waits', async () => {
+            // its writes are answered one after another, the last of those sent at once only after all of them
+            server.writeDelayMs = REQUEST_TIMEOUT_IN_MS / 10;
+            const data: Buffer = randomBytes(MIB);
+            const session: BackupTransportSessionInterface = await openWaitingSession();
+            const chunks: Buffer[] = [];
+            try {
+                await session.put('slow/data', Readable.from([data]));
+                for await (const chunk of await session.get('slow/data', MIB)) {
+                    if (!Buffer.isBuffer(chunk)) {
+                        throw new TypeError('A chunk of the file was no buffer.');
+                    }
+                    chunks.push(chunk);
+                    // a restore that is slow to take what it reads
+                    if (chunks.length === 1) {
+                        await wait(3 * REQUEST_TIMEOUT_IN_MS);
+                    }
+                }
+            }
+            finally {
+                await session.close();
+            }
+
+            expect(Buffer.concat(chunks).equals(data)).toBe(true);
+        }, CASE_TIMEOUT_IN_MS);
+    });
 
     it('fails a file being read and every request after, and closes, once its connection ended', async () => {
         server.files.set('/blobs/open/data', randomBytes(LIED_ABOUT_SIZE));

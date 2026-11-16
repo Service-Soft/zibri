@@ -46,6 +46,33 @@ class RenewedItem extends BaseEntity {
  */
 const HOLD_IN_MS: number = 300;
 
+/**
+ * What the cause of a TransactionLocksLostError says, for a lock found in the given state.
+ * @param state - How the lock was found, such as `was gone`.
+ * @returns The pattern of the message.
+ */
+function resolveLapsedLockCause(state: string): RegExp {
+    return new RegExp(
+        String.raw`^The lock ".+" ${state} at the commit, one of the \d+ locks of the transaction, which live ${HOLD_IN_MS} ms\. `
+        + String.raw`They were last renewed or taken \d+ ms before the commit began, which took \d+ ms to send \d+ characters`
+    );
+}
+
+/**
+ * Commits a transaction that is to fail.
+ * @param transaction - The transaction.
+ * @returns What its commit threw, undefined when it committed.
+ */
+async function resolveCommitError(transaction: Transaction): Promise<unknown> {
+    try {
+        await transaction.commit();
+        return undefined;
+    }
+    catch (error) {
+        return error;
+    }
+}
+
 let server: StartedTestServer;
 let dataSource: ValKeyDataSource;
 let repo: Repository<RenewedItem>;
@@ -113,8 +140,26 @@ describe('a valkey transaction whose commit outlasts a renewal of its locks', ()
 
         await repo.updateById(item.id, { value: 'written meanwhile' });
 
-        await expect(lapsed.commit()).rejects.toThrow(TransactionLocksLostError);
+        const error: unknown = await resolveCommitError(lapsed);
+        expect(error).toBeInstanceOf(TransactionLocksLostError);
+        // what tells a process that stalled past a hold from a lock another one took: here, one gone
+        expect(error).toMatchObject({ cause: { message: expect.stringMatching(resolveLapsedLockCause('was gone')) } });
         await expect(lapsed.commit()).rejects.toThrow();
         expect((await repo.findById(item.id)).value).toBe('written meanwhile');
+    }, 30000);
+
+    it('names a lock another transaction holds by the commit as held by it', async () => {
+        const item: RenewedItem = await repo.create({ value: 'before' });
+        const lapsed: Transaction = dataSource.startTransaction();
+        await repo.updateById(item.id, { value: 'of the transaction whose locks lapsed' }, { transaction: lapsed });
+        // what a lock lapsing and being taken by the next one looks like to the server
+        const lockKeys: string[] = await ValKeyScanUtilities.findKeys(dataSource.connection, `${ValKeyLockKeyUtilities.getLockKey('')}*`);
+        await Promise.all(lockKeys.map(async lockKey => await dataSource.connection.set(lockKey, 'another-transaction')));
+
+        const error: unknown = await resolveCommitError(lapsed);
+
+        expect(error).toBeInstanceOf(TransactionLocksLostError);
+        expect(error).toMatchObject({ cause: { message: expect.stringMatching(resolveLapsedLockCause('was held by another transaction')) } });
+        await dataSource.connection.del(lockKeys);
     }, 30000);
 });

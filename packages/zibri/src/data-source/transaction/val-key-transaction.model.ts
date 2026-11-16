@@ -90,7 +90,16 @@ export type ValKeyGrantRelease = {
     /**
      * The keys the grants live under.
      */
-    lockKeys: string[]
+    lockKeys: string[],
+    /**
+     * When the grants were last renewed, or taken when they never were, by this instance's clock. Undefined when
+     * none were taken.
+     */
+    lastRenewedAt: number | undefined,
+    /**
+     * How long a grant lives from then.
+     */
+    holdInMs: number
 };
 
 /**

@@ -166,6 +166,31 @@ describe('a rendered page, in a browser', () => {
         expect(opened.errors).toEqual([]);
     }, TIMEOUT);
 
+    // the whole text of a title is written by the script, the text around its holes included
+    it('runs its script whatever the text around a hole of a title holds', async () => {
+        const page: string = 'const Page = () => { const count = useState(0); '
+            + 'return <html><head><title>&lt;!--&lt;script&gt; {count.value}</title></head><body><button id="button" onClick={() => { count.value = 1; }}>+</button></body></html>; };';
+        const opened: OpenedPage = await openPage(browser, compilePage(page));
+
+        await opened.page.locator('#button').click();
+        await opened.page.evaluate(async () => await new Promise(resolve => setTimeout(resolve, 0)));
+
+        expect(await opened.page.title()).toBe('<!--<script> 1');
+        expect(opened.errors).toEqual([]);
+    }, TIMEOUT);
+
+    it('runs its script whatever a string the template writes in client code holds', async () => {
+        const page: string = 'const Page = () => { const count = useState(0); '
+            + 'return <div><button id="button" onClick={() => { count.value = 1; }}>+</button><p id="out">{count.value === 1 ? \'<!--<script>\' : \'\'}</p></div>; };';
+        const opened: OpenedPage = await openPage(browser, compilePage(page));
+
+        await opened.page.locator('#button').click();
+        await opened.page.evaluate(async () => await new Promise(resolve => setTimeout(resolve, 0)));
+
+        expect(await opened.page.locator('#out').textContent()).toBe('<!--<script>');
+        expect(opened.errors).toEqual([]);
+    }, TIMEOUT);
+
     it('hands client code a date, a set and a map as what they are', async () => {
         const page: string = 'const Page = ({ when, tags, counts }) => { onClient(() => { '
             + 'document.getElementById(\'out\').textContent = [when.getTime(), tags.has(\'a\'), counts.get(\'b\')].join(\';\'); }); '

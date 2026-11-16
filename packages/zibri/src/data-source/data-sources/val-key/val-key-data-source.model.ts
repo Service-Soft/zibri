@@ -888,6 +888,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
      * @param name - What holds them, for the log message.
      * @param isHandingBack - Whether the holder is handing the locks back itself by now, so that a
      * renewal finding them gone found them released rather than lost.
+     * @returns Whether the renewal reached the server, whatever it found there.
      */
     private async renewLocks(
         client: GlideClient,
@@ -896,7 +897,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         holdInMs: number,
         name: string,
         isHandingBack: () => boolean = () => false
-    ): Promise<void> {
+    ): Promise<boolean> {
         try {
             const renewed: number[] = await PromiseUtilities.allChunked(
                 PromiseUtilities.resolveChunks(lockKeys, LOCKS_PER_SCRIPT),
@@ -909,9 +910,11 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
                     `Lost ${what} "${name}" while still working - another instance may already be running the same code`
                 );
             }
+            return true;
         }
         catch (error) {
             this.logger.warn(`Could not renew the lock "${name}": ${error instanceof Error ? error.message : error}`);
+            return false;
         }
     }
 
@@ -1080,9 +1083,17 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         // after it finds them gone because the commit released them, which is no loss. Reported as
         // one, a commit of a large batch warned that every lock it held had been lost
         let handingBack: boolean = false;
+        // for the error of a commit finding a lock lapsed, which tells a process that stalled past a hold from
+        // a lock another one took
+        let lastRenewedAt: number | undefined;
         const lease: HeldLease = {
             name: `transaction ${token}`,
-            renew: async () => await this.renewLocks(client, [...held], token, holdInMs, `transaction ${token}`, () => handingBack),
+            renew: async () => {
+                const renewedAt: number = Date.now();
+                if (await this.renewLocks(client, [...held], token, holdInMs, `transaction ${token}`, () => handingBack)) {
+                    lastRenewedAt = renewedAt;
+                }
+            },
             release: async () => await this.releaseLocks(client, [...held], token)
         };
         let kept: KeptGrant | undefined;
@@ -1093,6 +1104,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
                 // kept alive from before the first lock is taken rather than after the last: a claim
                 // may queue between two of its locks, and the ones it took first have to outlive that
                 if (!released) {
+                    lastRenewedAt ??= Date.now();
                     kept ??= inject(ZIBRI_DI_TOKENS.LEASE_SERVICE).keepAlive(lease, holdInMs);
                 }
                 await this.acquireLocks(client, keys, token, holdInMs, timeoutInMs, held, true);
@@ -1105,7 +1117,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             },
             resolveRelease: () => {
                 handingBack = true;
-                return { token, lockKeys: [...held] };
+                return { token, lockKeys: [...held], lastRenewedAt, holdInMs };
             },
             release: async handedBack => {
                 released = true;
@@ -1150,7 +1162,9 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
 
         return {
             name: key,
-            renew: async () => await this.renewLocks(client, [lockKey], token, holdInMs, key),
+            renew: async () => {
+                await this.renewLocks(client, [lockKey], token, holdInMs, key);
+            },
             release: async () => await this.releaseLocks(client, [lockKey], token)
         };
     }

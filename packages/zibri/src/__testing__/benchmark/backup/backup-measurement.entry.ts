@@ -20,7 +20,7 @@ import { BackupMeasurement,
 import { MeasuredRowStore } from './measured-row-store.model';
 import { MeasuredRow } from './measured-row.model';
 import { MeasuredBackupTransport } from './measured.backup-transport';
-import { PhaseSampler } from './phase-sampler.model';
+import { MIN_LIVE_INTERVAL_IN_MS, PhaseSampler } from './phase-sampler.model';
 import { resolveBackupMeasurementConfig } from './resolve-backup-measurement-config.function';
 import { SeededChanges, SeededFingerprint, SeededTable } from './seeded-table.model';
 import { ValKeyServerProbe } from './val-key-server-probe.model';
@@ -89,16 +89,10 @@ type MeasuredResource = {
 };
 
 /**
- * About how many times a live phase is read at least: its interval is how long its timed phase took,
- * divided by this. A fixed interval read a phase shorter than it not once. The collections stretch
- * the phase, so it is read more often than this.
+ * About how many times a live phase is read: its interval is how long its timed phase took, divided by
+ * this. A fixed interval read a phase shorter than it not once.
  */
 const LIVE_READINGS_PER_PHASE: number = 10;
-
-/**
- * The shortest interval of a live phase. Every reading collects, which takes milliseconds itself.
- */
-const MIN_LIVE_INTERVAL_IN_MS: number = 10;
 
 /**
  * The longest interval of a live phase: what a phase of seconds is read at, whose collections then

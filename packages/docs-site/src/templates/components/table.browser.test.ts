@@ -1,11 +1,28 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { Locator, Page } from 'playwright';
 import { PageBrowser, startPageBrowser, StartedTestServer } from 'zibri-testing';
 
 import { buildStylesheet } from '../../__testing__/build-stylesheet.function';
 import { startDocsSite } from '../../__testing__/start-docs-site.function';
+import { DOCS_DIR } from '../../docs-dir';
 
 const TIMEOUT: number = 30000;
+
+/**
+ * How many rows the table of key exports of a page has in its markdown, so that a change to the exports the page lists
+ * is no change to the tests.
+ * @param file - The page, below the docs folder, such as `data/data-source.md`.
+ * @returns The rows, without the head and the line below it.
+ */
+function resolveKeyExportsRows(file: string): number {
+    const section: string = readFileSync(path.join(DOCS_DIR, file), 'utf8').split(/^## Key exports$/m)[1]?.split(/^## /m)[0] ?? '';
+    return section.split('\n').filter(line => line.startsWith('|')).length - 2;
+}
+
+const DATA_SOURCE_EXPORTS: number = resolveKeyExportsRows('data/data-source.md');
 
 type Box = {
     x: number,
@@ -47,15 +64,15 @@ describe('a table of a page, in a browser', () => {
         await open('data/data-source');
 
         expect(await page.locator('#key-exports-table tbody tr:visible').count()).toBe(8);
-        expect(await page.locator('#key-exports-table tbody tr').count()).toBe(110);
-        expect(await page.locator('#key-exports-toggle').textContent()).toBe('Show all 110 exports');
+        expect(await page.locator('#key-exports-table tbody tr').count()).toBe(DATA_SOURCE_EXPORTS);
+        expect(await page.locator('#key-exports-toggle').textContent()).toBe(`Show all ${DATA_SOURCE_EXPORTS} exports`);
     }, TIMEOUT);
 
     it('shows all rows on a click, and the first again on another', async () => {
         await open('data/data-source');
         await page.locator('#key-exports-toggle').click();
 
-        expect(await page.locator('#key-exports-table tbody tr:visible').count()).toBe(110);
+        expect(await page.locator('#key-exports-table tbody tr:visible').count()).toBe(DATA_SOURCE_EXPORTS);
         expect(await page.locator('#key-exports-toggle').textContent()).toBe('Show the first 8');
 
         await page.locator('#key-exports-toggle').click();
@@ -111,7 +128,7 @@ describe('a table of a page, in a browser', () => {
 
     it('tells a screen reader whether the rows are shown', async () => {
         await open('data/data-source');
-        const toggle: string | null = await page.getByRole('button', { name: 'Show all 110 exports', expanded: false }).getAttribute('id');
+        const toggle: string | null = await page.getByRole('button', { name: `Show all ${DATA_SOURCE_EXPORTS} exports`, expanded: false }).getAttribute('id');
         await page.locator('#key-exports-toggle').click();
 
         expect(toggle).toBe('key-exports-toggle');

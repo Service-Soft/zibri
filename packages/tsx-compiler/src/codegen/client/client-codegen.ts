@@ -12,6 +12,7 @@ import { AccessShape,
     ReferencedProps,
     resolveAccessThroughRest,
     SETUP_RUNTIME_PARAM,
+    toScriptValue,
     TranslationSources } from 'zibri-tsx/internal';
 
 import { accessShapeOf, namedKeysOf, propertyKeyOf } from './access-shape-analysis';
@@ -692,7 +693,7 @@ function bindingTable(sites: BindingSite[]): string {
     }
     const entries: string[] = sites.map(site => {
         const params: string = site.captureVars.join(', ');
-        const attribute: string = site.attribute === undefined ? 'undefined' : JSON.stringify(site.attribute);
+        const attribute: string = toScriptValue(site.attribute);
         // the whole text of an element is its text and its holes, which the page joins as the server renders them, and
         // a state handed to a component is followed by its value wherever the component forwards it
         let computed: string = printClientNode(site.expression);
@@ -703,7 +704,7 @@ function bindingTable(sites: BindingSite[]): string {
             computed = `[${site.parts.flatMap(part => {
                 if (ts.isJsxText(part)) {
                     const text: string = decodeJsxEntities(normalizeJsxText(part.text));
-                    return text === '' ? [] : [JSON.stringify(text)];
+                    return text === '' ? [] : [toScriptValue(text)];
                 }
                 return ts.isJsxExpression(part) && part.expression != undefined ? [printClientNode(part.expression)] : [];
             }).join(', ')}]`;

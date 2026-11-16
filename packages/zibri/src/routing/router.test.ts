@@ -629,12 +629,18 @@ describe('Router — the method a request arrived with, and what a path allows',
             handler: () => HtmlResponse.fromString(largeJsonString)
         });
         // the same answer, with the round trip res.json used to make done in the handler: what the
-        // framework's one pass is measured against, as a request under the same load
+        // framework's one pass is measured against, as a request under the same load. Parsed back into
+        // the same data, the amounts bigints again, so the framework's pass over it costs what its pass
+        // over the payload does: over a copy holding strings, node 26 stringified the copy and parsed it
+        // in less time than it stringified the bigints alone, and one pass read as more than three
         router.registerRoute({
             httpMethod: HttpMethod.GET,
             route: '/json/large-three-passes',
             openApi: { useInOpenApi: false },
-            handler: () => JsonUtilities.parse(JsonUtilities.stringify(largeJsonPayload))
+            handler: () => JsonUtilities.parse(
+                JsonUtilities.stringify(largeJsonPayload),
+                (key, value) => key === 'amount' && typeof value === 'string' ? BigInt(value) : value
+            )
         });
     });
 
@@ -729,7 +735,7 @@ describe('Router — the method a request arrived with, and what a path allows',
 
         // all three write the same body, so what the json route adds over the written one is its
         // serializing, and what the third adds over the json one is the round trip alone, whatever
-        // the router does: a stringify and a parse, a bar the router cannot move. One pass stays
+        // the router does: a stringify and a parse of the same data, a bar the router cannot move. One pass stays
         // under it and three go over it. A ratio could not tell them apart, since a router writing
         // three times adds the same to both.
         // with the three timings, so that a run that fails says what each request cost

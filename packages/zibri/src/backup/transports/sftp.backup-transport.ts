@@ -37,6 +37,11 @@ const DEFAULT_CONNECT_TIMEOUT_MS: number = Ms.SECOND * 20;
 // connection has a timeout of its own. Three unanswered keepalive packets end it, which fails whatever was in flight
 const KEEPALIVE_INTERVAL_MS: number = Ms.SECOND * 15;
 const KEEPALIVE_COUNT_MAX: number = 3;
+// the keepalive only ends a connection that is gone: a server that keeps it up and answers no request left a
+// backup waiting forever. Longer than the keepalive takes, so that a connection that is gone ends by it
+const DEFAULT_REQUEST_TIMEOUT_MS: number = Ms.SECOND * 60;
+// how many times within the request timeout the pending requests are looked at
+const REQUEST_CHECKS_PER_TIMEOUT: number = 4;
 
 // as much as the ssh channel's window lets be in flight, which is what bounds a write of more anyway,
 // and what a store holds in memory beyond the chunk it reads
@@ -121,7 +126,13 @@ export class SftpBackupTransport extends BaseBackupTransport {
         client.on('error', error => {
             this.logger.warn(`The connection of the transport "${this.name}" to "${this.options.host}" failed: ${error.message}`);
         });
-        return new SftpBackupTransportSession(this.name, this.options, client, sftp);
+        try {
+            return new SftpBackupTransportSession(this.name, this.options, client, sftp);
+        }
+        catch (error) {
+            client.end();
+            throw error;
+        }
     }
 
     private validateHostKeyFingerprint(): void {
@@ -160,6 +171,14 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
     // at the first put rather than when the session opens, so that a session only reading, a restore from a
     // folder it may not write to among them, changes nothing
     private stagingFolderPrepared: Promise<void> | undefined;
+    // what the session waits for an answer to, by an id of its own, for the error naming it: ssh2's pending
+    // requests say nothing of what they are
+    private readonly asked: Map<number, string> = new Map();
+    private askedCount: number = 0;
+    // the requests of ssh2 that waited for their answer at the last check, and when the server last answered one
+    private pendingAtLastCheck: Set<string> = new Set();
+    private lastAnsweredAt: number = performance.now();
+    private readonly answersChecked: NodeJS.Timeout;
 
     constructor(
         private readonly storeName: string,
@@ -167,6 +186,9 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
         private readonly client: Client,
         private readonly sftp: SFTPWrapper
     ) {
+        // once, so that an ssh2 keeping its requests another way fails the session at once rather than a server
+        // that stops answering being waited for forever
+        this.findPendingRequestIds();
         // ssh2 fails what is in flight when the connection ends, and leaves every request sent after
         // unanswered: the CLOSE a stream sends once it failed among them, so the stream never closes and a
         // pipeline into it never settles. So whatever still waits fails here, and nothing waits from now on
@@ -175,6 +197,9 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
         );
         client.once('close', end);
         sftp.once('close', end);
+        const timeoutMs: number = options.requestTimeoutInMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+        this.answersChecked = setInterval(() => this.checkAnswers(timeoutMs), timeoutMs / REQUEST_CHECKS_PER_TIMEOUT);
+        this.answersChecked.unref();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -211,6 +236,8 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
             throw new InternalError(`"${this.options.host}:${target}" is ${stats.size} bytes, larger than the ${maxBytes} it may be.`);
         }
         const file: ReadStream = this.sftp.createReadStream(target);
+        const askedId: number = this.ask(`READ of "${target}"`);
+        file.once('close', () => this.asked.delete(askedId));
         // counted while it arrives as well: the size is what the server says, which can send more than it
         // said, for as long as it likes, and the file can have grown since
         let received: number = 0;
@@ -315,6 +342,7 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
             return;
         }
         this.ended = error;
+        clearInterval(this.answersChecked);
         for (const fail of this.waiting) {
             fail(error);
         }
@@ -328,15 +356,80 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
     }
 
     /**
+     * Ends the connection once the server answered none of the requests waiting for their answer for as long as
+     * it may, failing whatever waits with what it waited for. A request answered counts for every one still
+     * waiting, so that the last of the writes a put keeps in flight waits for those before it.
+     * @param timeoutMs - How long the server may answer nothing.
+     */
+    private checkAnswers(timeoutMs: number): void {
+        const pending: Set<string> = new Set(this.findPendingRequestIds());
+        const now: number = performance.now();
+        if (pending.size === 0 || [...this.pendingAtLastCheck].some(id => !pending.has(id))) {
+            this.lastAnsweredAt = now;
+        }
+        this.pendingAtLastCheck = pending;
+        if (now - this.lastAnsweredAt < timeoutMs) {
+            return;
+        }
+        const asked: string = [...this.asked.values()].join(', ') || 'a request ssh2 sent by itself';
+        this.end(new InternalError(
+            `The server "${this.options.host}" answered nothing the transport "${this.storeName}" asked for within `
+            + `${timeoutMs} ms: ${asked}. Its connection was ended.`
+        ));
+        this.client.end();
+    }
+
+    /**
+     * The ids of ssh2's requests of the session that wait for their answer.
+     * @returns The ids.
+     * @throws An InternalError when ssh2 no longer keeps them in `_requests`.
+     */
+    private findPendingRequestIds(): string[] {
+        // no public way to tell: a stream sends its requests by itself, and only while it is not waiting for
+        // what reads or writes it, which is how a slow restore is told from a server that stopped answering
+        const requests: unknown = Reflect.get(this.sftp, '_requests');
+        if (typeof requests !== 'object' || requests == null) {
+            throw new InternalError(
+                `ssh2 no longer keeps the requests of an SFTP session waiting for their answer in _requests, which the `
+                + `transport "${this.storeName}" tells a server that stopped answering by. Install ssh2 ^1.17.0, which zibri names.`
+            );
+        }
+        return Object.keys(requests);
+    }
+
+    /**
+     * Notes what the session waits for an answer to, for the error naming it.
+     * @param what - The request, such as `REMOVE of "/backups/a"`.
+     * @returns The id to remove it by once it was answered.
+     */
+    private ask(what: string): number {
+        const id: number = this.askedCount++;
+        this.asked.set(id, what);
+        return id;
+    }
+
+    /**
      * Sends a request, and waits for its answer for as long as the connection is there.
+     * @param operation - The request, as the protocol names it, such as `REMOVE`.
+     * @param filePath - The path it is about.
      * @param send - Sends it, settling with its answer.
      * @returns The answer.
      */
-    private async request<T>(send: (resolve: (value: T) => void, reject: (error: Error) => void) => void): Promise<T> {
+    private async request<T>(
+        operation: string,
+        filePath: string,
+        send: (resolve: (value: T) => void, reject: (error: Error) => void) => void
+    ): Promise<T> {
         if (this.ended != undefined) {
             throw this.ended;
         }
-        return await this.wait(new Promise<T>(send));
+        const askedId: number = this.ask(`${operation} of "${filePath}"`);
+        try {
+            return await this.wait(new Promise<T>(send));
+        }
+        finally {
+            this.asked.delete(askedId);
+        }
     }
 
     /**
@@ -408,6 +501,7 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
             target.once('close', () => resolve());
             target.once('error', reject);
         });
+        const askedId: number = this.ask(`WRITE of "${filePath}"`);
         try {
             await this.wait(Promise.all([pipeline(data, target), closed]));
         }
@@ -416,12 +510,15 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
             data.destroy();
             throw error;
         }
+        finally {
+            this.asked.delete(askedId);
+        }
     }
 
     private async replace(from: string, to: string): Promise<void> {
         // the rename of the protocol refuses a target that exists, and a put replaces what the key held.
         // OpenSSH's own replaces it at one moment; a server without it gets the target removed first
-        const announced: boolean = await this.request<boolean>((resolve, reject) => {
+        const announced: boolean = await this.request<boolean>('RENAME', from, (resolve, reject) => {
             try {
                 this.sftp.ext_openssh_rename(from, to, error => error == undefined ? resolve(true) : reject(error));
             }
@@ -436,7 +533,7 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
             return;
         }
         await this.unlink(to);
-        await this.request<void>((resolve, reject) => {
+        await this.request<void>('RENAME', from, (resolve, reject) => {
             this.sftp.rename(from, to, error => error == undefined ? resolve() : reject(error));
         });
     }
@@ -450,7 +547,7 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
             await this.createDirectory(parent);
         }
         try {
-            await this.request<void>((resolve, reject) => {
+            await this.request<void>('MKDIR', directory, (resolve, reject) => {
                 this.sftp.mkdir(directory, error => error == undefined ? resolve() : reject(error));
             });
         }
@@ -468,7 +565,7 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
         if ((await this.findEntries(directory)).length) {
             return;
         }
-        await this.request<void>((resolve, reject) => {
+        await this.request<void>('RMDIR', directory, (resolve, reject) => {
             this.sftp.rmdir(directory, error => {
                 // the resources of one backup are deleted at the same time, so another one can have removed it
                 if (error == undefined || this.isNoSuchFile(error)) {
@@ -481,7 +578,7 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
     }
 
     private async findEntries(directory: string): Promise<FileEntryWithStats[]> {
-        return await this.request<FileEntryWithStats[]>((resolve, reject) => {
+        return await this.request<FileEntryWithStats[]>('READDIR', directory, (resolve, reject) => {
             this.sftp.readdir(directory, (error, entries) => {
                 if (error == undefined) {
                     resolve(entries);
@@ -498,7 +595,7 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
     }
 
     private async findStats(filePath: string): Promise<Stats | undefined> {
-        return await this.request<Stats | undefined>((resolve, reject) => {
+        return await this.request<Stats | undefined>('STAT', filePath, (resolve, reject) => {
             this.sftp.stat(filePath, (error, stats) => {
                 if (error == undefined) {
                     resolve(stats);
@@ -514,7 +611,7 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
     }
 
     private async unlink(filePath: string): Promise<void> {
-        await this.request<void>((resolve, reject) => {
+        await this.request<void>('REMOVE', filePath, (resolve, reject) => {
             this.sftp.unlink(filePath, error => {
                 // what a delete is for is already true, which is what a delete that is run again after being
                 // interrupted finds

@@ -1,5 +1,6 @@
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
@@ -45,9 +46,10 @@ const REGISTRY_PORT: number = 4873;
 
 /**
  * The folders of the workspace packages the generated project installs, under `packages`, in the order of a release:
- * each is built before it is published, against the build of those it names.
+ * each is built before it is published, against the build of those it names. Every package a release publishes but
+ * the cli, which the test runs from its source.
  */
-const PUBLISHED_FOLDERS: string[] = ['tsx', 'tsx-compiler', 'mdx', 'zibri', 'testing'];
+const PUBLISHED_FOLDERS: string[] = resolveReleasedFolders().filter(folder => folder !== 'cli');
 
 /**
  * The names of those packages on the registry, which only it holds.
@@ -138,6 +140,22 @@ let applicationStartedAtMs: number = 0;
  * How long the application took from its start to its first ready answer.
  */
 let timeToReadyMs: number = 0;
+
+/**
+ * The folders of the packages a release publishes, in its order, read out of `release-version.mjs` rather than listed
+ * here: a list of its own missed `zibri-contract` when `zibri` began to depend on it, and the install found no version.
+ * Read in a process of its own, as the script is an ES module.
+ * @returns The folders, under `packages`.
+ */
+function resolveReleasedFolders(): string[] {
+    const script: string = pathToFileURL(path.join(REPOSITORY_ROOT, '.github', 'scripts', 'release-version.mjs')).href;
+    const output: string = execFileSync(
+        process.execPath,
+        ['--input-type=module', '--eval', `const { published } = await import('${script}'); console.log(published.join('\\n'));`],
+        { cwd: REPOSITORY_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+    );
+    return output.trim().split('\n');
+}
 
 function run(command: string, cwd: string = REPOSITORY_ROOT): string {
     try {
