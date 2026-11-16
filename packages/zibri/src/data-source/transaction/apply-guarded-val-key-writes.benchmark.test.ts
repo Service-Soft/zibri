@@ -109,6 +109,7 @@ describe('committing a valkey transaction behind a guard', () => {
 
         // the rows are there: a commit that wrote nothing would be a fast one
         const last: number = SIZES.at(-1)?.rows ?? 0;
+        // eslint-disable-next-line cspell/spellchecker
         expect(await client.hlen(`${prefix}:${last}:${last - 1}`)).toBe(FIELDS_PER_ROW);
 
         const report: string = await BenchmarkUtilities.resolveReport(
