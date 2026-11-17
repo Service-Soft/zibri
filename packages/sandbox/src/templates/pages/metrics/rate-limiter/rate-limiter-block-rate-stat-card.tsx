@@ -1,26 +1,19 @@
-import { $ts, MetricsSnapshot, onClient, TsxComponent } from 'zibri';
+import { $ts, Input, MetricsSnapshot, TsxComponent, useContext, useInput } from 'zibri';
 
 import { StatCard } from '../../../components/stat-card';
-import { MetricsEvent } from '../metrics';
+import { Snapshots } from '../snapshots';
 
 type Props = { className?: string };
 
 export const RateLimiterBlockRateStatCard: TsxComponent<Props> = ({ className = '' }) => {
-    onClient(() => {
-        document.addEventListener('metrics:update', (ev) => {
-            if (!(ev instanceof CustomEvent) || !('snaps' in ev.detail)) {
-                throw new Error($ts`received invalid metrics event`);
-            }
-            update((ev as MetricsEvent).detail.snaps);
-        });
-    });
+    const snapshots: Input<MetricsSnapshot[]> = useInput(useContext(Snapshots));
 
-    function update(snaps: MetricsSnapshot[]): void {
-        if (snaps.length < 2) {
-            return;
+    function blockRate(): string {
+        const latest: MetricsSnapshot | undefined = snapshots.value.at(-1);
+        const prev: MetricsSnapshot | undefined = snapshots.value.at(-2);
+        if (!latest || !prev) {
+            return '...';
         }
-        const latest: MetricsSnapshot = snaps[snaps.length - 1];
-        const prev: MetricsSnapshot = snaps[snaps.length - 2];
 
         const allowedNow: number = latest.metrics.filter(m => m.name === 'rate_limit_allowed_total').reduce((p, c) => p + c.value, 0);
         const allowedPrev: number = prev.metrics.filter(m => m.name === 'rate_limit_allowed_total').reduce((p, c) => p + c.value, 0);
@@ -30,12 +23,8 @@ export const RateLimiterBlockRateStatCard: TsxComponent<Props> = ({ className = 
         const deltaAllowed: number = allowedNow - allowedPrev;
         const deltaBlocked: number = blockedNow - blockedPrev;
         const total: number = deltaAllowed + deltaBlocked;
-
-        const el: HTMLElement | null = document.getElementById('rateLimiterBlockRateStat');
-        if (el) {
-            el.textContent = total === 0 ? '0' : `${Math.round((deltaBlocked / total) * 100)}`;
-        }
+        return total === 0 ? '0' : `${Math.round((deltaBlocked / total) * 100)}`;
     }
 
-    return <StatCard id="rateLimiterBlockRateStat" title={$ts`Block rate`} unit="%" className={className} />;
+    return <StatCard id="rateLimiterBlockRateStat" title={$ts`Block rate`} unit="%" className={className}>{blockRate()}</StatCard>;
 };

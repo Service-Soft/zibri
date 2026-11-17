@@ -1,5 +1,6 @@
 import { performance } from 'node:perf_hooks';
 
+import { BenchmarkFigure } from './benchmark-figure.model';
 import { BenchmarkTiming } from './benchmark-timing.model';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
 import { JsonUtilities } from '../../utilities/json.utilities';
@@ -78,6 +79,17 @@ export class BenchmarkUtilities {
             await FsUtilities.upsertFile(baselinePath, JsonUtilities.stringify(timings, undefined, 4));
         }
         return this.resolveTable(comparisons);
+    }
+
+    /**
+     * Writes figures other than timings to a report of their own, which the comparison with the
+     * release reads beside the timings.
+     * @param figures - The figures of this run.
+     * @param reportPath - Where this run's report is written. Its name ends in `benchmark-report.json`,
+     * which is how the comparison finds it.
+     */
+    static async writeFigureReport(figures: BenchmarkFigure[], reportPath: FsPath): Promise<void> {
+        await FsUtilities.upsertFile(reportPath, JsonUtilities.stringify(figures.map(figure => ({ figure })), undefined, 4));
     }
 
     private static percentileOf(sorted: number[], percentile: number): number {

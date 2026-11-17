@@ -15,7 +15,8 @@ import { Property } from '../../entity/decorators/property.decorator';
 // the namespace and the key together are unique, because they name at most one row: that is both what
 // makes it safe to look a limit up by them and what lets a store resolve one directly instead of reading
 // every limit there is
-@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true, uniques: [['namespace', 'key']] })
+// not backed up: a restore keeps the counts of now, so that it hands no one over a limit fresh requests
+@Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true, uniques: [['namespace', 'key']], backedUp: false })
 export class RateLimitStateEntity extends BaseEntity {
     /**
      * The namespace of the store the state belongs to, which keeps the limiters sharing this table apart.

@@ -38,9 +38,7 @@ export class GenNote extends BaseEntity {
  * What a label holds in either version.
  */
 export type GenLabelShape = BaseEntity & {
-    // eslint-disable-next-line jsdoc/require-jsdoc
     name: string,
-    // eslint-disable-next-line jsdoc/require-jsdoc
     tasks: GenTaskShape[]
 };
 
@@ -48,7 +46,6 @@ export type GenLabelShape = BaseEntity & {
  * What a task holds in either version, as far as its labels see it.
  */
 type GenTaskShape = BaseEntity & {
-    // eslint-disable-next-line jsdoc/require-jsdoc
     labels: GenLabelShape[]
 };
 

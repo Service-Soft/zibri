@@ -351,6 +351,8 @@ describe('UpgradeCommand', () => {
         // the backslashes of a windows path are escapes in a pattern
         expect(dependencies).toContain(`cd "${appDir}" && npm i zibri@${version} `);
         expect(devDependencies).toContain(`cd "${appDir}" && npm i -D zibri-testing@${version} `);
+        // the compiler of the templates, which a 3.0 project had inside zibri-tsx
+        expect(devDependencies).toContain(` zibri-tsx-compiler@${version} `);
         // what the project has stays at the version it has, and what it lacks is what a new project gets
         expect(dependencies).toContain(' pg-query-stream@^4.10.3');
         expect(dependencies).not.toContain('chart.js');
@@ -358,6 +360,32 @@ describe('UpgradeCommand', () => {
         expect(devDependencies).toContain(' ts-jest@^29.4.11');
         expect(devDependencies).not.toContain(' webpack@');
         expect(devDependencies).not.toContain(' jest@');
+    });
+
+    // the stylesheet, the PostCSS configuration and the templates are moved by Tailwind's own tool, while the project
+    // is still all on Tailwind 3: it reads the configuration of 3 that the merge removes, and writes what this
+    // release generates, so the merge after it finds both sides alike
+    it('moves a project on Tailwind 3 to Tailwind 4 with Tailwind\'s own tool, before anything else', async () => {
+        await write('package.json', `${JSON.stringify({ name: 'api', devDependencies: { tailwindcss: '^3.4.19' } }, undefined, 4)}\n`);
+        commitAll('on tailwind 3');
+
+        await upgrade();
+
+        const [first, ...rest]: string[] = execSpy.mock.calls.map(([command]) => command);
+        expect(first).toBe(`cd "${appDir}" && npx --yes @tailwindcss/upgrade@4 --force`);
+        expect(rest.some(command => command.includes('@tailwindcss/upgrade'))).toBe(false);
+    });
+
+    it.each([
+        ['on Tailwind 4', { devDependencies: { tailwindcss: '^4.3.5' } }],
+        ['without Tailwind', { devDependencies: {} }]
+    ])('leaves Tailwind to a project %s', async (_how, dependencies) => {
+        await write('package.json', `${JSON.stringify({ name: 'api', ...dependencies }, undefined, 4)}\n`);
+        commitAll('installed');
+
+        await upgrade();
+
+        expect(execSpy.mock.calls.some(([command]) => command.includes('@tailwindcss/upgrade'))).toBe(false);
     });
 
     it('takes a manifest that records no features as one of a project with every feature', async () => {

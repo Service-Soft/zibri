@@ -3,7 +3,7 @@
     "publishConfig": {
         "access": "public"
     },
-    "version": "3.0.1",
+    "version": "3.1.0",
     "license": "MIT",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -52,18 +52,25 @@
     "peerDependencies": {
         "@peculiar/x509": "^2.1.0",
         "ldapts": "^9.2.0",
+        "playwright": "^1.61.1",
         "testcontainers": "^12.0.0",
         "ts-jest": "^29.4.11",
         "ts-node": "^10.9.2",
+        "typescript": "^5.9.2 || ^6.0.0",
         "xml-crypto": "^6.3.3",
         "xml-encryption": "^3.1.0",
-        "zibri": "^3.0.1"
+        "zibri": "^3.1.0",
+        "zibri-tsx": "^3.1.0",
+        "zibri-tsx-compiler": "^3.1.0"
     },
     "peerDependenciesMeta": {
         "@peculiar/x509": {
             "optional": true
         },
         "ldapts": {
+            "optional": true
+        },
+        "playwright": {
             "optional": true
         },
         "testcontainers": {
@@ -75,6 +82,9 @@
         "ts-node": {
             "optional": true
         },
+        "typescript": {
+            "optional": true
+        },
         "xml-crypto": {
             "optional": true
         },
@@ -84,11 +94,12 @@
     },
     "devDependencies": {
         "@peculiar/x509": "^2.1.0",
+        "@service-soft/eslint-config": "^2.1.7",
         "@types/node": "^24.0.0",
         "eslint": "^9.36.0",
-        "eslint-config-service-soft": "^2.1.6",
         "jest": "^30.4.2",
         "ldapts": "^9.2.0",
+        "playwright": "^1.61.1",
         "testcontainers": "^12.0.0",
         "ts-jest": "^29.4.11",
         "ts-node": "^10.9.2",

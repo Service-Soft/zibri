@@ -4,6 +4,7 @@ import { createInMemoryDataSource } from 'zibri-testing';
 import { QueueDefinition } from './queue-definition.model';
 import { QueueUtilities } from './queue.utilities';
 import { QueuedWorkEntity } from './queued-work-entity.model';
+import { QueuedWorkHandedBackError } from './queued-work-handed-back.error';
 import { QueuedWorkOutcome } from './queued-work-outcome.model';
 import { QueuedWorkRun } from './queued-work-run.model';
 import { TestTimeouts } from '../__testing__/constants';
@@ -12,6 +13,7 @@ import { StartedTestServer, startTestServer } from '../__testing__/test-server/s
 import { Repository } from '../data-source/repository/repository';
 import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
@@ -171,6 +173,133 @@ describe('QueueUtilities', () => {
         await Promise.all([QueueUtilities.poll(queue), QueueUtilities.poll(queue)]);
 
         expect(runs).toBe(1);
+    });
+
+    // an instance that saw ten due backups started ten dumps, each with a staging file of its own
+    describe('limited per instance', () => {
+        /**
+         * The due rows, in the order they were queued, so a case knows which one a poll tries first.
+         * @returns The rows.
+         */
+        async function findDueByLabel(): Promise<TestWork[]> {
+            return (await works.findAll({ where: { status: TestWorkStatus.QUEUED } })).sort((a, b) => a.label.localeCompare(b.label));
+        }
+
+        it('runs no more rows at once than its limit, however many polls overlap, and the rest after one another', async () => {
+            await Promise.all(['limited-1', 'limited-2', 'limited-3'].map(queueWork));
+            let runningNow: number = 0;
+            let mostAtOnce: number = 0;
+            const queue: QueueDefinition<TestWork> = defineQueue(async () => {
+                runningNow++;
+                mostAtOnce = Math.max(mostAtOnce, runningNow);
+                await new Promise(resolve => setTimeout(resolve, 100));
+                runningNow--;
+            }, { maxConcurrentPerInstance: 1, findDue: findDueByLabel });
+
+            const ran: boolean[] = await Promise.all([QueueUtilities.poll(queue), QueueUtilities.poll(queue), QueueUtilities.poll(queue)]);
+
+            // the poll that took the slot went on with the rows it left, rather than leaving them to a
+            // poll that may be half a minute away; the others found no slot free
+            expect({ mostAtOnce, ran: ran.filter(Boolean).length }).toEqual({ mostAtOnce: 1, ran: 1 });
+            expect(await findDueByLabel()).toEqual([]);
+        });
+
+        it('runs the next row when another instance holds the first, rather than giving up its slot', async () => {
+            const held: TestWork = await queueWork('held-1');
+            await queueWork('held-2');
+            const ranLabels: string[] = [];
+            // eslint-disable-next-line typescript/require-await
+            const queue: QueueDefinition<TestWork> = defineQueue(async item => {
+                ranLabels.push(item.label);
+            }, { maxConcurrentPerInstance: 1, findDue: findDueByLabel });
+            let release: () => void = () => {};
+            const holding: Promise<unknown> = inject(ZIBRI_DI_TOKENS.LEASE_SERVICE).withLease(
+                // the claim key the queue takes for the row, as another instance holding it would
+                { key: `${queue.name}:${held.id}`, leaseInMs: Ms.MINUTE, onCompletion: 'release' },
+                async () => await new Promise<void>(resolve => {
+                    release = resolve;
+                })
+            );
+
+            try {
+                expect(await QueueUtilities.poll(queue)).toBe(true);
+            }
+            finally {
+                release();
+                await holding;
+            }
+
+            expect(ranLabels).toEqual(['held-2']);
+        });
+
+        // an application that stops hands back what it runs, which leaves the row due at once: a slot
+        // going on with it claimed it again, tens of thousands of times before the shutdown was done
+        it('goes on to no row once one is handed back', async () => {
+            const work: TestWork = await queueWork('handed-back');
+            let runs: number = 0;
+
+            await QueueUtilities.poll(defineQueue(() => {
+                runs++;
+                throw new QueuedWorkHandedBackError('the application is shutting down');
+            }, { maxConcurrentPerInstance: 1 }));
+
+            expect(runs).toBe(1);
+            expect(await works.findById(work.id)).toMatchObject({ status: TestWorkStatus.QUEUED, attempts: 0 });
+        });
+
+        // a backup queued as the one before it ended polls at once, and found the slot of that one taken still, which
+        // had read the due rows for the last time before the backup was queued: neither ran it, and it waited for
+        // the next poll, half a minute away, or for good where nothing polls on a schedule
+        it('runs a row queued after the slot last read the due rows, whose own poll found the slot taken', async () => {
+            await queueWork('late-1');
+            const ranLabels: string[] = [];
+            let reads: number = 0;
+            let turnedAway: boolean | undefined;
+            const queue: QueueDefinition<TestWork> = defineQueue(
+                // eslint-disable-next-line typescript/require-await
+                async item => {
+                    ranLabels.push(item.label);
+                },
+                {
+                    maxConcurrentPerInstance: 1,
+                    findDue: async () => {
+                        const due: TestWork[] = await findDueByLabel();
+                        reads++;
+                        // the read of the slot once its row ran: answered only after the next row was queued and
+                        // polled for, as a read that left before either does when it is answered late
+                        if (reads === 2) {
+                            await queueWork('late-2');
+                            turnedAway = !await QueueUtilities.poll(queue);
+                        }
+                        return due;
+                    }
+                }
+            );
+
+            expect(await QueueUtilities.poll(queue)).toBe(true);
+
+            expect(turnedAway).toBe(true);
+            expect(ranLabels).toEqual(['late-1', 'late-2']);
+        });
+
+        it('claims no more rows as a batch than its limit', async () => {
+            await Promise.all(['batch-limited-1', 'batch-limited-2'].map(queueWork));
+            const batches: string[][] = [];
+            const queue: QueueDefinition<TestWork> = defineQueue(async () => {}, {
+                claimedPer: 'batch',
+                maxConcurrentPerInstance: 1,
+                findDue: findDueByLabel,
+                runBatch: async (items, runEach) => {
+                    batches.push(items.map(item => item.label));
+                    await Promise.all(items.map(runEach));
+                    return true;
+                }
+            });
+
+            await QueueUtilities.poll(queue);
+
+            expect(batches).toEqual([['batch-limited-1']]);
+        });
     });
 
     describe('delivered at most once', () => {

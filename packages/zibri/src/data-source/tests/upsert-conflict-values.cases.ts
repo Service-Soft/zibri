@@ -1,4 +1,3 @@
-/* eslint-disable jsdoc/require-jsdoc */
 import { describe, expect, it } from '@jest/globals';
 
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';

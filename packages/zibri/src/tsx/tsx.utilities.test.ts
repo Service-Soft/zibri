@@ -1,19 +1,44 @@
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { CompiledPage } from 'zibri-tsx';
 
 import { TsxComponent } from './tsx-component.model';
 import { TsxUtilities } from './tsx.utilities';
 import { compileTsxTemplate } from '../__testing__/compile-tsx-template.function';
+import { ZibriApplicationOptions } from '../application/application-options.model';
+import { AssetService } from '../assets/asset.service';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { DiContainer } from '../di/di-container';
 import { initDiContainer } from '../di/init-di-container.function';
 import { inject } from '../di/inject.function';
+import { defineProvider } from '../di/models/di-provider.model';
+import { register } from '../di/register.function';
+import { GlobalRegistry } from '../global/global-registry';
 import { LocaleCode } from '../localization/models/locale-code.model';
 import { TranslationRegistry } from '../localization/translation.registry';
+import { Route } from '../routing/controller-route-configuration.model';
+
+/**
+ * Assets served below a path of their own, as a site published under one serves them.
+ */
+class DocsAssetService extends AssetService {
+    override readonly assetsRoute: Route = '/docs/assets';
+}
 
 /**
  * Globals the pages these templates stand for provide, so client code in the tests can call something
  * without each test declaring it.
  */
+const applicationOptions: ZibriApplicationOptions = {
+    name: 'Task Tracker',
+    version: '1.0.0',
+    environment: 'development',
+    baseUrl: 'http://localhost:3000',
+    controllers: [],
+    websocketControllers: [],
+    defaultAuth: 'public',
+    twoFactorAtLogin: 'never'
+};
+
 const PAGE_GLOBALS: string = 'declare const track: (...values: unknown[]) => void;\n'
     + 'declare const show: (...values: unknown[]) => void;\n'
     + 'declare const pick: () => string;\n'
@@ -34,6 +59,63 @@ function templateOf<T>(source: string): TsxComponent<T> {
 describe('TsxUtilities', () => {
     beforeAll(() => {
         initDiContainer();
+        // registered before anything injects it, as an injected value is kept
+        register(defineProvider({ token: ZIBRI_DI_TOKENS.ASSET_SERVICE, useClass: DocsAssetService }));
+        // the application a template renders in, whose environment decides what a mistake of the render does
+        GlobalRegistry.setAppData(applicationOptions);
+    });
+
+    afterAll(() => {
+        GlobalRegistry.markAppAsCreated();
+        GlobalRegistry.markAppAsShuttingDown();
+        GlobalRegistry.markAppAsOffline();
+    });
+
+    // TODO 4.0: rendering without an application throws
+    describe('without an application', () => {
+        let warn: jest.SpiedFunction<typeof console.warn>;
+
+        beforeEach(() => {
+            GlobalRegistry.markAppAsCreated();
+            GlobalRegistry.markAppAsShuttingDown();
+            GlobalRegistry.markAppAsOffline();
+            warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+        });
+
+        afterEach(() => {
+            warn.mockRestore();
+            GlobalRegistry.setAppData(applicationOptions);
+        });
+
+        it('renders as in development, so a mistake only the render can see throws, and warns once that this throws from 4.0', () => {
+            const page: TsxComponent = templateOf('export const Home = () => <p>x</p>;');
+            const broken: TsxComponent<{ names: string[] }> = templateOf(
+                'export const Home = ({ names }: { names: string[] }) => { const shown = useState(names); '
+                + 'return <ul>{shown.value.map(name => <li key={name}>{name}</li>)}</ul>; };'
+            );
+
+            const html: string = TsxUtilities.renderPage(page);
+            TsxUtilities.renderPage(page);
+
+            expect(html).toContain('<p>x</p>');
+            expect(() => TsxUtilities.renderPage(broken, { names: ['Ada', 'Ada'] })).toThrow(/Two rows of a list of 'Home' have the key 'Ada'/);
+            expect(warn).toHaveBeenCalledTimes(1);
+            expect(warn.mock.calls[0]?.join(' ')).toContain('This throws from 4.0.');
+        });
+
+        it('renders an email in a process that set up no dependency injection', () => {
+            const email: TsxComponent<{ recipient: string }> = templateOf(
+                'export const Mail = ({ recipient }) => <html><body><p>Hi {recipient}</p></body></html>;'
+            );
+            DiContainer.reset();
+            try {
+                expect(TsxUtilities.renderEmail(email, { recipient: 'James Smith' })).toBe('<!DOCTYPE html>\n<html><body><p>Hi James Smith</p></body></html>');
+            }
+            finally {
+                initDiContainer();
+                register(defineProvider({ token: ZIBRI_DI_TOKENS.ASSET_SERVICE, useClass: DocsAssetService }));
+            }
+        });
     });
 
     describe('renderPage', () => {
@@ -42,6 +124,16 @@ describe('TsxUtilities', () => {
                 'export const Home = () => <html><body><h1>Hi</h1></body></html>;'
             );
             expect(TsxUtilities.renderPage(page)).toBe('<!DOCTYPE html>\n<html><body><h1>Hi</h1></body></html>');
+        });
+
+        it('renders a page whose props are all optional without them, as a page written in markdown is', () => {
+            const page: TsxComponent<{ title?: string }> = templateOf('export const Home = ({ title = \'Tasks\' }) => <p>{title}</p>;');
+            const required: TsxComponent<{ title: string }> = templateOf('export const Home = ({ title }) => <p>{title}</p>;');
+
+            expect(TsxUtilities.renderPage(page)).toBe('<!DOCTYPE html>\n<p>Tasks</p>');
+            expect(TsxUtilities.renderPage(page, { title: 'Projects' })).toBe('<!DOCTYPE html>\n<p>Projects</p>');
+            // @ts-expect-error a page that requires a prop is rendered with it
+            expect(TsxUtilities.renderPage(required)).toBe('<!DOCTYPE html>\n<p></p>');
         });
 
         it('escapes interpolated props', () => {
@@ -75,7 +167,7 @@ describe('TsxUtilities', () => {
 
             const html: string = TsxUtilities.renderPage(page);
 
-            expect(html).toContain('data-ssr-handlers="h0_0:click"');
+            expect(html).toContain('data-ssr="h0_0:click"');
             // The instance is handed its own handler entry, so its setup only wires up its elements.
             expect(html).toContain('"handlers":[{"id":"h0_0","site":"h0","event":"click","captured":[],"owner":0}]');
         });
@@ -157,20 +249,21 @@ describe('TsxUtilities', () => {
             expect(html).not.toContain('const $f =');
         });
 
-        it('emits a vendor script tag for a ?client package', () => {
+        it('emits a vendor script tag for a ?client package, under the route the assets are served at', () => {
             const page: TsxComponent = templateOf(
                 'import { Chart } from \'chart.js?client\';\n'
                 + 'export const Home = () => { onClient(() => { new Chart(); }); '
                 + 'return <html><head></head><body></body></html>; };'
             );
 
-            expect(TsxUtilities.renderPage(page)).toContain('<script src="/assets/vendor/chart-js.js"></script>');
+            // the build writes the vendor bundles into the public assets, which the asset service serves
+            expect(TsxUtilities.renderPage(page)).toContain('<script src="/docs/assets/vendor/chart-js.js"></script>');
         });
 
         it('throws an actionable error for a template that was not compiled', () => {
             const notCompiled: TsxComponent = (() => undefined) as unknown as TsxComponent;
             expect(() => TsxUtilities.renderPage(notCompiled)).toThrow(/was not compiled by zibri-tsx/);
-            expect(() => TsxUtilities.renderPage(notCompiled)).toThrow(/zibri-tsx\/webpack/);
+            expect(() => TsxUtilities.renderPage(notCompiled)).toThrow(/zibri-tsx-compiler\/webpack/);
         });
     });
 

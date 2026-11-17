@@ -1,4 +1,4 @@
-import { TsxComponent } from 'zibri';
+import { TsxComponent, UUIDUtilities } from 'zibri';
 
 type Props = {
     label: string,
@@ -8,7 +8,7 @@ type Props = {
     id?: string
 };
 
-export const Checkbox: TsxComponent<Props> = ({ label, id = label, checked, className = '', onChange }) => {
+export const Checkbox: TsxComponent<Props> = ({ label, id = UUIDUtilities.generate(), checked, className = '', onChange }) => {
     return (
         <div className={`flex justify-center items-center gap-1 ${className}`}>
             <input className="w-5 h-5 bg-secondary text-secondary cursor-pointer"

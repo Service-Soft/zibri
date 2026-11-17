@@ -11,7 +11,9 @@ import { BackupServiceInterface } from './backup-service.interface';
 import { BackupStatus } from './backup-status.enum';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BackupTransport } from './decorators/backup-transport.decorator';
-import { BaseFsBackupTransport } from './transports/fs.backup-transport';
+import { BackupTransportSessionInterface } from './transports/backup-transport-session.interface';
+import { FsBackupTransport } from './transports/fs.backup-transport';
+import { BackupTransportSessionTestUtilities } from '../__testing__/backup/backup-transport-session-test.utilities';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -30,23 +32,33 @@ const reachableFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups-fai
 const failingFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups-failed-failing');
 
 @BackupTransport()
-class ReachableFsBackupTransport extends BaseFsBackupTransport {
-    override readonly name: string = 'reachable-fs-backup-transport';
-    protected override readonly backupBasePath: FsPath = reachableFolder;
+class ReachableFsBackupTransport extends FsBackupTransport {
+    constructor() {
+        super('reachable-fs-backup-transport', reachableFolder);
+    }
 }
 
 /**
  * A transport whose server goes away partway through every upload, leaving what it received.
  */
 @BackupTransport()
-class FailingFsBackupTransport extends BaseFsBackupTransport {
-    override readonly name: string = 'failing-fs-backup-transport';
-    protected override readonly backupBasePath: FsPath = failingFolder;
+class FailingFsBackupTransport extends FsBackupTransport {
+    constructor() {
+        super('failing-fs-backup-transport', failingFolder);
+    }
 
-    override async storeData(data: Readable, backup: BackupEntity, resource: BackupResourceEntity): Promise<void> {
-        await super.storeData(Readable.from([Buffer.from('the first half')]), backup, resource);
-        data.destroy();
-        throw new Error('the backup server went away');
+    override async openSession(): Promise<BackupTransportSessionInterface> {
+        return BackupTransportSessionTestUtilities.intercept(await super.openSession(), {
+            put: async (key, data, put) => {
+                if (BackupTransportSessionTestUtilities.isRecordKey(key)) {
+                    await put(key, data);
+                    return;
+                }
+                await put(key, Readable.from([Buffer.from('the first half')]));
+                data.destroy();
+                throw new Error('the backup server went away');
+            }
+        });
     }
 }
 

@@ -6,7 +6,8 @@ import { OmitClass } from '../../../../entity/omit-class.model';
 /**
  * Credentials for a one time password.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+// kept for the current users: a secret replaced since the backup stays replaced
+@Entity({ tenant: 'shared', allowOrphan: true, backedUp: 'keptForCurrentUsers' })
 export class OtpCredentials extends BaseEntity {
     /**
      * The user id that these credentials belong to.

@@ -7,6 +7,7 @@ import { TransactionDeadlockError } from './transaction-deadlock.error';
 import { Transaction } from './transaction.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { LoggerInterface } from '../../logging/logger.interface';
+import { type ValKeyReadView } from '../data-sources/val-key/val-key-copy-on-write.utilities';
 
 /**
  * A write that has been buffered inside a valkey transaction.
@@ -89,7 +90,30 @@ export type ValKeyGrantRelease = {
     /**
      * The keys the grants live under.
      */
-    lockKeys: string[]
+    lockKeys: string[],
+    /**
+     * When the grants were last renewed, or taken when they never were, by this instance's clock. Undefined when
+     * none were taken.
+     */
+    lastRenewedAt: number | undefined,
+    /**
+     * How long a grant lives from then.
+     */
+    holdInMs: number
+};
+
+/**
+ * What a transaction reading as of one moment reads through, and how it lets go of it.
+ */
+export type ValKeyReadViewHandle = {
+    /**
+     * What the transaction reads through.
+     */
+    view: ValKeyReadView,
+    /**
+     * Stops writes copying for the view, and deletes the copies.
+     */
+    stop: () => Promise<void>
 };
 
 /**
@@ -209,14 +233,55 @@ export class ValKeyTransaction implements Transaction {
      */
     private idleTimer: NodeJS.Timeout | undefined;
 
+    /**
+     * What the transaction reads through, once its first read opened it, when it reads as of one moment.
+     */
+    private readView: Promise<ValKeyReadViewHandle> | undefined;
+
+    // eslint-disable-next-line jsdoc/require-description
+    /**
+     * @param client - The connection of the data source.
+     * @param keyPrefix - The prefix of the data source.
+     * @param grants - The grants of the keys it writes.
+     * @param idleTimeoutInMs - How long it may sit idle before it is rolled back, 0 for no limit.
+     * @param logger - Where giving up on it is reported.
+     * @param openReadView - Opens what it reads through as of its first read, when it reads as of one
+     * moment, as `REPEATABLE READ` does. Undefined for one reading what is committed.
+     */
     constructor(
         private readonly client: GlideClient,
+        private readonly keyPrefix: string,
         private readonly grants: ValKeyTransactionGrants,
         private readonly idleTimeoutInMs: number,
-        private readonly logger: LoggerInterface
+        private readonly logger: LoggerInterface,
+        private readonly openReadView: (() => Promise<ValKeyReadViewHandle>) | undefined
     ) {
         // idle from its start, as on postgres: a transaction that never does anything is ended too
         this.touch();
+    }
+
+    /**
+     * Resolves what a read in this transaction reads through, opened by its first read, as postgres takes
+     * its snapshot at the first statement.
+     * @returns The view, or undefined when the transaction reads what is committed.
+     */
+    async resolveReadView(): Promise<ValKeyReadView | undefined> {
+        if (this.openReadView == undefined) {
+            return undefined;
+        }
+        this.readView ??= this.openReadView();
+        return (await this.readView).view;
+    }
+
+    /**
+     * Closes what the transaction read through, once it ended.
+     */
+    private async closeReadView(): Promise<void> {
+        const opened: Promise<ValKeyReadViewHandle> | undefined = this.readView;
+        this.readView = undefined;
+        if (opened != undefined) {
+            await (await opened).stop();
+        }
     }
 
     /**
@@ -558,6 +623,7 @@ export class ValKeyTransaction implements Transaction {
             // keys, and letting go while the writes were still unapplied would be the same as never
             // having taken them
             await this.releaseGrants(handedBack);
+            await this.closeReadView();
             await this.runFinishedWork(committed);
         }
         for (const work of this.committedWork.splice(0)) {
@@ -593,6 +659,7 @@ export class ValKeyTransaction implements Transaction {
      * Applies everything this transaction buffered, in one atomic step.
      * @returns The grants handed back along with the writes, if any were.
      * @throws KeyDeclarationsChangedError when a guarded key changed, in which case nothing was applied.
+     * @throws TransactionLocksLostError when a lock of the transaction lapsed, in which case nothing was applied.
      * @throws When the writes could not be applied.
      */
     private async applyWrites(): Promise<ValKeyGrantRelease | undefined> {
@@ -604,8 +671,16 @@ export class ValKeyTransaction implements Transaction {
         const release: ValKeyGrantRelease = this.grants.resolveRelease();
         // through the guard script with nothing guarded too, rather than as an atomic batch: one path
         // for every commit, and measured at half the time of the batch from a thousand rows up
-        // (apply-guarded-val-key-writes.benchmark.test.ts)
-        if (!await applyGuardedValKeyWrites(this.client, { values: this.guards, hashes: new Map() }, this.writes, release)) {
+        // a transaction that never read reads as of no moment, and nothing it writes is stale
+        const readView: ValKeyReadView | undefined = this.readView == undefined ? undefined : (await this.readView).view;
+        if (!await applyGuardedValKeyWrites(
+            this.client,
+            this.keyPrefix,
+            { values: this.guards, hashes: new Map() },
+            this.writes,
+            release,
+            readView
+        )) {
             throw new KeyDeclarationsChangedError();
         }
         return release;
@@ -624,6 +699,7 @@ export class ValKeyTransaction implements Transaction {
         this.guards.clear();
         this.committedWork.length = 0;
         await this.releaseGrants();
+        await this.closeReadView();
         await this.runFinishedWork(false);
     }
 }

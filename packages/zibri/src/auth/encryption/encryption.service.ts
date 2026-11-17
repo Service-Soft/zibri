@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
+import { EncryptionKeyInUseError } from './encryption-key-in-use.error';
 import { EncryptionKeyCreateData, EncryptionKeyStatus, EncryptionKey } from './encryption-key.model';
 import { type EncryptionMasterOptions, EncryptionMasterKey } from './encryption-master-options.model';
 import { EncryptionRotationFailure } from './encryption-rotation-failure.model';
@@ -7,6 +8,7 @@ import { EncryptionRotationProgress } from './encryption-rotation-progress.model
 import { EncryptionRotationCronJob } from './encryption-rotation.cron-job';
 import { type DeleteEncryptionKeyOptions, EncryptionServiceInterface, EncryptOptions } from './encryption-service.interface';
 import { EncryptionContent, type EncryptionString, EncryptionUtilities } from './encryption.utilities';
+import { KeptEncryptionKeys } from './kept-encryption-keys.model';
 import { KeysInUse } from './keys-in-use.model';
 import { MasterKeyReference } from './master-key-reference.model';
 import { resolveEncryptedEntities } from './resolve-encrypted-entities.function';
@@ -26,6 +28,7 @@ import { KeysetPage } from '../../data-source/models/pagination-result.model';
 import { Where } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository/repository';
 import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
+import { Transaction } from '../../data-source/transaction/transaction.model';
 import { UniqueConstraintViolationError } from '../../data-source/unique-constraint-violation.error';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
@@ -195,6 +198,9 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         this.validateMasterStrategyNamesAndVersions();
         this.validateNoDotsInMasterKeyIds();
         this.validateNoMissingMasterKeyIds([...keys, ...signingKeys]);
+        // encrypted with once while starting, because nothing else may use the master key until a cron
+        // job makes its first signing key, hours after a key the strategy cannot use was deployed
+        await this.masterEncrypt('');
         await this.reEncryptKeys(keys);
         await this.reEncryptSigningKeys(signingKeys);
     }
@@ -478,8 +484,45 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         if (key.status === EncryptionKeyStatus.DEFAULT && !(options?.allowDefault ?? false)) {
             throw new DefaultEncryptionKeyCannotBeDeletedError();
         }
+        await this.validateKeysNotNeeded([key], options);
 
         await this.deleteKeyEntityById(keyId, options);
+    }
+
+    /**
+     * Refuses to delete keys that stored values or recorded backups still need, since what they
+     * encrypted could not be read again.
+     *
+     * Reads every row holding an encrypted property, as `resolveRetiredKeyUsage` does: deleting a key
+     * is rare, and what it would cost to get wrong is the data.
+     * @param keys - The keys about to be deleted.
+     * @param options - Whether deleting a key that is still needed is allowed.
+     * @throws An EncryptionKeyInUseError naming each key that is still needed, and by what.
+     */
+    private async validateKeysNotNeeded(keys: EncryptionKey[], options: DeleteEncryptionKeyOptions | undefined): Promise<void> {
+        if (!keys.length || (options?.allowInUse ?? false)) {
+            return;
+        }
+        await this.loadStrategies();
+        const values: Map<string, number> = new Map(keys.map(k => [k.id, 0]));
+        for (const { entityClass, repository } of resolveEncryptedEntities(this.dataSourceClasses)) {
+            await this.countValuesByKey(entityClass, repository, values);
+        }
+        // a backup that does not hold the key table needs the data keys of its time to still exist
+        const backups: BackupEntity[] = await inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE).resolveRecordedBackups();
+        const needed: string[] = keys.flatMap(key => {
+            const valueCount: number = values.get(key.id) ?? 0;
+            const backupCount: number = backups.filter(b => b.dataKeyIds.includes(key.id)).length;
+            if (!valueCount && !backupCount) {
+                return [];
+            }
+            const valuesText: string = `${valueCount} stored ${valueCount === 1 ? 'value' : 'values'}`;
+            const backupsText: string = `${backupCount} ${backupCount === 1 ? 'backup' : 'backups'}`;
+            return [`"${key.id}" (${valuesText}, ${backupsText})`];
+        });
+        if (needed.length) {
+            throw new EncryptionKeyInUseError(needed);
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -489,6 +532,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         if (!(options.allowDefault ?? false) && keys.some(k => k.status === EncryptionKeyStatus.DEFAULT)) {
             throw new DefaultEncryptionKeyCannotBeDeletedError();
         }
+        await this.validateKeysNotNeeded(keys, options);
 
         const transaction: RepositoryTransaction = options.transaction ?? await this.keyRepository.dataSource.startTransaction();
         const ownTransaction: boolean = !options.transaction;
@@ -650,6 +694,137 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
                 ...countUnder(r => r.strategyName === s.name && r.strategyVersion === s.version)
             }))
         };
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveKeptKeys(): Promise<KeptEncryptionKeys> {
+        const strategies: EncryptionStrategyEntity[] = await this.strategyRepository.findAll({ limit: 'all' });
+        const keys: EncryptionKey[] = await this.keyRepository.findAll({ limit: 'all' });
+        const signingKeys: SigningKey[] = await this.signingKeyRepository.findAll({ limit: 'all' });
+        return {
+            strategies: strategies.map(({ id, name, version, status }) => ({ id, name, version, status })),
+            keys: keys.map(({ id, value, strategyId, status }) => ({ id, value, strategyId, status })),
+            signingKeys: signingKeys.map(({ id, name, value }) => ({ id, name, value }))
+        };
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async putBackKeptKeys(kept: KeptEncryptionKeys): Promise<void> {
+        // the rows read before the restore win over the backup's: every instance running encrypts with the
+        // keys it read then, under the rows of the strategies it read then, and what it writes is readable
+        // again only while those are stored. The backup's own keys stay, which what it restored is under
+        const transaction: Transaction = await this.keyRepository.dataSource.startTransaction();
+        try {
+            await this.demoteRestoredDefaultKeys(kept, transaction);
+            await this.putBackKeptStrategies(kept, transaction);
+            const storedKeyIds: string[] = (await this.keyRepository.findAll({ limit: 'all', transaction })).map(k => k.id);
+            for (const key of kept.keys) {
+                await this.putBackAsStored(this.keyRepository, key, storedKeyIds, transaction);
+            }
+            await transaction.commit();
+        }
+        catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
+        const signingTransaction: Transaction = await this.signingKeyRepository.dataSource.startTransaction();
+        try {
+            const stored: SigningKey[] = await this.signingKeyRepository.findAll({ limit: 'all', transaction: signingTransaction });
+            for (const key of kept.signingKeys) {
+                // a name is a unique, and the key under it is the one the application signs with
+                const twin: SigningKey | undefined = stored.find(s => s.id !== key.id && s.name === key.name);
+                if (twin) {
+                    await this.signingKeyRepository.removeAsStored({ id: twin.id }, signingTransaction);
+                }
+                await this.putBackAsStored(this.signingKeyRepository, key, stored.map(s => s.id), signingTransaction);
+            }
+            await signingTransaction.commit();
+        }
+        catch (error) {
+            await signingTransaction.rollback();
+            throw error;
+        }
+    }
+
+    /**
+     * Makes the default keys of the backup no longer the default where a kept key of the same strategy is,
+     * the one the application encrypts with: a strategy has one default key.
+     * @param kept - The keys kept.
+     * @param transaction - The transaction putting them back.
+     */
+    private async demoteRestoredDefaultKeys(kept: KeptEncryptionKeys, transaction: Transaction): Promise<void> {
+        const stored: EncryptionStrategyEntity[] = await this.strategyRepository.findAll({ limit: 'all', transaction });
+        for (const key of kept.keys.filter(k => k.status === EncryptionKeyStatus.DEFAULT)) {
+            const strategy: KeptEncryptionKeys['strategies'][number] | undefined = kept.strategies.find(s => s.id === key.strategyId);
+            // under the kept row, and under a row of the backup naming the same strategy, whose keys go under the kept one
+            const strategyIds: string[] = [
+                key.strategyId,
+                ...stored.filter(s => s.name === strategy?.name && s.version === strategy.version).map(s => s.id)
+            ];
+            await this.keyRepository.updateAllAsStored(
+                { strategyId: { oneOf: strategyIds }, status: EncryptionKeyStatus.DEFAULT, id: { not: key.id } },
+                { status: EncryptionKeyStatus.ACTIVE },
+                transaction
+            );
+        }
+    }
+
+    /**
+     * Writes back the rows of the strategies kept, each in place of a row of the backup naming the same
+     * strategy, whose keys go under it, and keeps the default strategy the default.
+     * @param kept - The keys kept.
+     * @param transaction - The transaction putting them back.
+     */
+    private async putBackKeptStrategies(kept: KeptEncryptionKeys, transaction: Transaction): Promise<void> {
+        const stored: EncryptionStrategyEntity[] = await this.strategyRepository.findAll({ limit: 'all', transaction });
+        for (const strategy of kept.strategies) {
+            const twin: EncryptionStrategyEntity | undefined = stored.find(
+                s => s.id !== strategy.id && s.name === strategy.name && s.version === strategy.version
+            );
+            if (twin) {
+                // its name and version are a unique, which the kept row takes once this one no longer holds them
+                await this.strategyRepository.updateEachAsStored(
+                    [{ id: twin.id, version: `${twin.version} restored as ${twin.id}` }],
+                    transaction
+                );
+            }
+            await this.putBackAsStored(this.strategyRepository, strategy, stored.map(s => s.id), transaction);
+            if (twin) {
+                await this.keyRepository.updateAllAsStored({ strategyId: twin.id }, { strategyId: strategy.id }, transaction);
+                await this.strategyRepository.removeAsStored({ id: twin.id }, transaction);
+            }
+        }
+        const defaultIds: string[] = kept.strategies.filter(s => s.status === EncryptionStrategyStatus.DEFAULT).map(s => s.id);
+        if (defaultIds.length) {
+            await this.strategyRepository.updateAllAsStored(
+                { status: EncryptionStrategyStatus.DEFAULT, id: { notOneOf: defaultIds } },
+                { status: EncryptionStrategyStatus.ACTIVE },
+                transaction
+            );
+        }
+    }
+
+    /**
+     * Writes a row back as it was read: over the stored row holding its id, or as a new one.
+     * @param repository - The repository of the row.
+     * @param row - The row.
+     * @param storedIds - The ids of the rows stored.
+     * @param transaction - The transaction writing it.
+     */
+    private async putBackAsStored<T extends BaseEntity, TCreate extends DeepPartial<T>>(
+        repository: Repository<T, TCreate>,
+        row: DeepPartial<T> & {
+            /**
+             * The id the row is stored under.
+             */
+            id: string
+        },
+        storedIds: string[],
+        transaction: Transaction
+    ): Promise<void> {
+        await (storedIds.includes(row.id)
+            ? repository.updateEachAsStored([row], transaction)
+            : repository.insertAsStored([row], transaction));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

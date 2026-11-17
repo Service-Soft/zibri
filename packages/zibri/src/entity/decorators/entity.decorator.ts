@@ -22,6 +22,7 @@ import { type EntityOrder, type OrderDirection } from '../models/entity-order.mo
 import { type EntityRelations } from '../models/entity-relations.model';
 import { type EntityScope } from '../models/entity-scope.model';
 import { type EntityTenant } from '../models/entity-tenant.model';
+import { type KeptWith } from '../models/kept-with.model';
 import { coversEveryRow, declaresUnique, KeyWhere, UniqueGroup, UniqueGroupInput } from '../models/unique-declaration.model';
 
 /**
@@ -44,8 +45,17 @@ export type EntityMetadata<T extends BaseEntity = BaseEntity> = {
      * Whether a backup of the data source holding it takes its rows. A restore leaves the rows of an
      * entity that is not backed up as they are, for rows that belong to the running instances rather
      * than to the data, such as the grants of `Lease`.
+     *
+     * `'keptForCurrentUsers'` backs the rows up, and a restore of the application keeps the rows of
+     * every user that exists when it begins, of each user stored after the restore: the backup's rows
+     * come back for the users that did not exist then. For the credentials of a user, such as
+     * `PasswordCredentials`, so that one revoked since the backup stays revoked and one created since
+     * keeps working. The entity holds the user in a `userId` property.
+     *
+     * `{ keptWith, by }` backs the rows up, and a restore of the application keeps a row exactly when it
+     * keeps the row of `keptWith` that `by` names, such as the tokens of an identity of a user.
      */
-    backedUp: boolean,
+    backedUp: boolean | 'keptForCurrentUsers' | KeptWith,
     /**
      * Whether its rows are only created. The repository refuses to update or delete them, and removes
      * them with `prune` alone. `chained` implies it.
@@ -274,6 +284,12 @@ export function Entity<
         if (chained) {
             validateChainable(target, allowDuplicate);
         }
+        if (backedUp === 'keptForCurrentUsers') {
+            validateKeptForCurrentUsers(target);
+        }
+        if (typeof backedUp === 'object') {
+            validateKeptWith(target, backedUp);
+        }
         // turned into what the schema would hold, which refuses a filter no store could check alike -
         // here rather than while a schema is built, which a store judging the filter itself never does
         for (const check of entityChecks ?? []) {
@@ -373,6 +389,39 @@ function isEntityCheck(check: KeyWhere | EntityCheck): check is EntityCheck {
     // a filter is an array of branches or an object of property names, and `where` is a filter key
     // of nested values, never a property of its own - so the two cannot be mistaken for each other
     return !Array.isArray(check) && 'code' in check && 'message' in check && 'where' in check;
+}
+
+/**
+ * Refuses an entity kept for the current users across a restore that does not say whose its rows are.
+ * @param target - The class being decorated.
+ * @throws When it declares no `userId` that is a string.
+ */
+function validateKeptForCurrentUsers(target: Newable<unknown>): void {
+    // a restore tells the rows of a user that exists from the others by it
+    const metadata: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(target)['userId'];
+    if (metadata?.type !== 'string') {
+        throw new InternalError([
+            `${target.name}: A restore keeps the rows of the users that exist when it begins, which it tells by "userId".`,
+            'The entity needs a "userId" that is a "@Property.string()".'
+        ]);
+    }
+}
+
+/**
+ * Refuses an entity kept with another across a restore whose rows do not name the row they belong to.
+ * @param target - The class being decorated.
+ * @param keptWith - What it is kept with.
+ * @throws When `by` is not a declared string property.
+ */
+function validateKeptWith(target: Newable<unknown>, keptWith: KeptWith): void {
+    // the entity kept with is checked once the data sources are known, since it may be declared after this one
+    const metadata: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(target)[keptWith.by];
+    if (metadata?.type !== 'string') {
+        throw new InternalError([
+            `${target.name}: A restore keeps a row with the row "${keptWith.by}" names, which is not a declared property.`,
+            `"${keptWith.by}" needs to be a "@Property.string()" holding the id of that row.`
+        ]);
+    }
 }
 
 /**

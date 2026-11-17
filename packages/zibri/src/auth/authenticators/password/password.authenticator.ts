@@ -7,6 +7,7 @@ import { PasswordFailureLimit } from './password-failure-limit.model';
 import { PasswordFailureStreak, PasswordFailureStreakCreateData } from './password-failure-streak.model';
 import { PasswordResetEmailTemplate } from './password-reset-email-template.model';
 import { RequestPasswordResetData } from './request-password-reset-data.model';
+import { SetPasswordData } from './set-password-data.model';
 import { ZibriApplication } from '../../../application/application';
 import { Repository } from '../../../data-source/repository/repository';
 import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
@@ -353,6 +354,35 @@ export class PasswordAuthenticator<
             { password: data.newPassword, changeRequired: false },
             { transaction: data.transaction }
         );
+    }
+
+    /**
+     * Sets the password of a user without the one they have, gives them one when they have none, and
+     * lifts a lock of wrong passwords.
+     *
+     * Ending the user's logins is not part of this, for the reason `confirmPasswordReset` gives:
+     * `AuthService.setPassword` ends them.
+     * @param userId - The user.
+     * @param data - The password, and whether the user chooses another one at their next login.
+     * @param transaction - The transaction to run in, if any.
+     * @throws What the password policy throws for a password it refuses.
+     */
+    async setPassword(userId: string, data: SetPasswordData, transaction: RepositoryTransaction | undefined): Promise<void> {
+        // read rather than updated blindly, for the reason confirmPasswordReset gives
+        const credentials: PasswordCredentials | undefined = await this.credentialsRepository.findOne(
+            { where: { userId }, transaction, required: false }
+        );
+        await (credentials == undefined
+            ? this.credentialsRepository.create({ userId, password: data.password, changeRequired: data.requireChange }, { transaction })
+            : this.credentialsRepository.updateById(
+                credentials.id,
+                { password: data.password, changeRequired: data.requireChange },
+                { transaction }
+            ));
+        if (this.failureLimit !== false) {
+            // whoever sets it vouches for the user, which is what a lock was waiting for
+            await this.failureStreakRepository.deleteAll({ userId }, { transaction });
+        }
     }
 
     /**

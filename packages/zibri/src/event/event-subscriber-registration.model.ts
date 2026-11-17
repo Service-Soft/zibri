@@ -30,7 +30,9 @@ export const ALL_EVENTS_TYPE: string = 'zibri.all-events';
  */
 // without it an emitter knew only the subscribers of its own process, and marked an event finished
 // while subscribers registered on other replicas never ran
-@Entity({ tenant: 'shared', allowOrphan: true, uniques: [['subscriberId', 'eventType']] })
+// not backed up: the rows say what the instances running host. Restored, an event emitted before each
+// instance refreshed its own owed no subscriber of another instance a run, which then never ran it
+@Entity({ tenant: 'shared', allowOrphan: true, uniques: [['subscriberId', 'eventType']], backedUp: false })
 export class EventSubscriberRegistration extends BaseEntity {
     /**
      * The id of the subscriber, as it was subscribed under.

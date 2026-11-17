@@ -59,6 +59,21 @@ export abstract class EntryPointUtilities {
     }
 
     /**
+     * The names an entry point declares itself and marks `@deprecated`, such as one it keeps beside the entry point
+     * the name moved to.
+     * @param entryPoint - The entry point's file, relative to `src`.
+     * @returns The names.
+     */
+    static resolveDeprecatedNames(entryPoint: string): string[] {
+        const checker: ts.TypeChecker = this.resolveProgram().getTypeChecker();
+        const source: ts.SourceFile = this.resolveSource(entryPoint);
+        return checker.getExportsOfModule(this.resolveModule(entryPoint))
+            .filter(symbol => (symbol.declarations ?? [])
+                .some(d => d.getSourceFile() === source && ts.getJSDocDeprecatedTag(d) != undefined))
+            .map(symbol => symbol.name);
+    }
+
+    /**
      * Every name the files an entry point re-exports from declare as exported, whether the entry
      * point passes it on or not.
      * @param entryPoint - The entry point's file, relative to `src`.

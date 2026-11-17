@@ -1,3 +1,4 @@
+import assert from 'node:assert';
 import { Readable } from 'node:stream';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
@@ -10,7 +11,8 @@ import { BackupResourceInterface } from './backup-resource.interface';
 import { BackupServiceInterface } from './backup-service.interface';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BackupTransport } from './decorators/backup-transport.decorator';
-import { BaseFsBackupTransport } from './transports/fs.backup-transport';
+import { FsBackupTransport } from './transports/fs.backup-transport';
+import { BackupLayoutTestUtilities } from '../__testing__/backup/backup-layout-test.utilities';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -28,9 +30,10 @@ import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 const backupFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups-retention');
 
 @BackupTransport()
-class RetentionFsBackupTransport extends BaseFsBackupTransport {
-    override readonly name: string = 'retention-fs-backup-transport';
-    protected override readonly backupBasePath: FsPath = backupFolder;
+class RetentionFsBackupTransport extends FsBackupTransport {
+    constructor() {
+        super('retention-fs-backup-transport', backupFolder);
+    }
 }
 
 @DataSource()
@@ -75,23 +78,27 @@ afterAll(async () => {
 /**
  * Takes a backup, and waits until the pass that stored it is over, retention included.
  * @param name - The name of the backup.
+ * @returns The backup, completed.
  */
-async function takeBackup(name: string): Promise<void> {
+async function takeBackup(name: string): Promise<BackupEntity> {
     const backupService: BackupServiceInterface = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
-    await backupService.waitForBackup(await backupService.queueBackup({ name }));
+    const backup: BackupEntity = await backupService.waitForBackup(await backupService.queueBackup({ name }));
     await firstValueFrom(backupService.isCreatingBackup.pipe(first(creating => !creating)));
+    return backup;
 }
 
 // every backup was kept until the application deleted it
 describe('BackupService - a retention', () => {
     it('deletes the backups it keeps no longer once a backup completes, from the transports and the database', async () => {
-        await takeBackup('first');
-        await takeBackup('second');
+        const first: BackupEntity = await takeBackup('first');
+        const second: BackupEntity = await takeBackup('second');
         await takeBackup('third');
 
         const names: string[] = (await inject(repositoryTokenFor(BackupEntity)).findAll({ limit: 'all' })).map(b => b.name);
         expect(names.sort()).toStrictEqual(['second', 'third']);
-        expect(await FsUtilities.exists(FsUtilities.getPath(backupFolder, 'first'))).toBe(false);
-        expect(await FsUtilities.exists(FsUtilities.getPath(backupFolder, 'second', ProjectsStore.name))).toBe(true);
+        expect(await FsUtilities.exists(BackupLayoutTestUtilities.resolveBackupFolder(backupFolder, first))).toBe(false);
+        const resource: BackupResourceEntity | undefined = second.resources.find(r => r.name === ProjectsStore.name);
+        assert(resource, 'the backup holds no resource');
+        expect(await FsUtilities.exists(BackupLayoutTestUtilities.resolveResourcePath(backupFolder, second, resource))).toBe(true);
     }, 20000);
 });

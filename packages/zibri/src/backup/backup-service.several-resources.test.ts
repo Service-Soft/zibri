@@ -14,7 +14,10 @@ import { BackupServiceInterface } from './backup-service.interface';
 import { BackupStatus } from './backup-status.enum';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BackupTransport } from './decorators/backup-transport.decorator';
-import { BaseFsBackupTransport } from './transports/fs.backup-transport';
+import { RestoreJournalUtilities } from './restore-journal.utilities';
+import { FsBackupTransport } from './transports/fs.backup-transport';
+import { BackupLayoutTestUtilities } from '../__testing__/backup/backup-layout-test.utilities';
+import { BackupTransportSessionTestUtilities } from '../__testing__/backup/backup-transport-session-test.utilities';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -31,15 +34,17 @@ import { defineProvider } from '../di/models/di-provider.model';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
+import { ConflictError } from '../error-handling/errors/conflict.error';
 import { Newable } from '../types/newable.type';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 
 const backupFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups-several-resources');
 
 @BackupTransport()
-class SeveralResourcesFsBackupTransport extends BaseFsBackupTransport {
-    override readonly name: string = 'several-resources-fs-backup-transport';
-    protected override readonly backupBasePath: FsPath = backupFolder;
+class SeveralResourcesFsBackupTransport extends FsBackupTransport {
+    constructor() {
+        super('several-resources-fs-backup-transport', backupFolder);
+    }
 }
 
 @Entity({ tenant: 'shared' })
@@ -167,9 +172,14 @@ describe('BackupService — a backup of several resources', () => {
     }, 15000);
 
     it('applies no resource while the archive of another one can still turn out unusable', async () => {
-        const archive: FsPath = FsUtilities.getPath(backupFolder, backup.name, getResource(backup, SettingsStore.name).name);
+        const settings: BackupResourceEntity = getResource(backup, SettingsStore.name);
+        const { id: chunkId, path: archive } = await BackupLayoutTestUtilities.resolveFirstPlainChunk(backupFolder, backup, settings);
         const original: Buffer = await readFile(archive);
-        await writeFile(archive, Buffer.concat([original, Buffer.from('altered')]));
+        // changed in place rather than grown: one larger than recorded is refused before it is read, and
+        // what tells this one apart is that its data is not that of its id
+        const altered: Buffer = Buffer.from(original);
+        altered[altered.length - 1] = (altered.at(-1) ?? 0) ^ 0xff;
+        await writeFile(archive, altered);
         // the settings archive arrives only once the notes are applied, or after a second when nothing
         // applies them first. Without the wait, a restore that applies each resource as soon as its own
         // archive is checked would still pass whenever the small archive happened to be checked first
@@ -180,18 +190,22 @@ describe('BackupService — a backup of several resources', () => {
             await restoreNotes.call(this, data);
             notesApplied();
         });
-        const retrieveData: SeveralResourcesFsBackupTransport['retrieveData'] = SeveralResourcesFsBackupTransport.prototype.retrieveData;
-        jest.spyOn(SeveralResourcesFsBackupTransport.prototype, 'retrieveData').mockImplementation(
-            async function(this: SeveralResourcesFsBackupTransport, b, resource) {
-                if (resource.name === SettingsStore.name) {
-                    await Promise.race([applied, sleep(1000)]);
-                }
-                return await retrieveData.call(this, b, resource);
+        const openSession: SeveralResourcesFsBackupTransport['openSession'] = SeveralResourcesFsBackupTransport.prototype.openSession;
+        jest.spyOn(SeveralResourcesFsBackupTransport.prototype, 'openSession').mockImplementation(
+            async function(this: SeveralResourcesFsBackupTransport) {
+                return BackupTransportSessionTestUtilities.intercept(await openSession.call(this), {
+                    get: async (key, maxBytes, get) => {
+                        if (key.endsWith(`/${settings.id}`)) {
+                            await Promise.race([applied, sleep(1000)]);
+                        }
+                        return await get(key, maxBytes);
+                    }
+                });
             }
         );
 
         try {
-            await expect(getBackupService().restore(backup)).rejects.toThrow('is not the data backup "several" recorded');
+            await expect(getBackupService().restore(backup)).rejects.toThrow(`The chunk ${chunkId} is not the chunk it is stored as`);
         }
         finally {
             await writeFile(archive, original);
@@ -207,6 +221,19 @@ describe('BackupService — a backup of several resources', () => {
         await expect(getBackupService().restore(backup)).rejects.toThrow('the settings could not be applied');
 
         expect(await getNoteTexts()).toEqual(['current']);
+        expect(inject(SettingsStore).value).toBe('current');
+    }, 15000);
+
+    it('puts nothing back without putBack when a later one fails to apply, and names what holds what', async () => {
+        inject(SettingsStore).restoresToFail = 1;
+
+        const failed: unknown = await getBackupService().restore(backup, { putBack: false })
+            .catch((error: unknown) => error);
+
+        expect(failed).toBeInstanceOf(Error);
+        expect((failed as Error).message).toContain('nothing was put back');
+        expect((failed as Error).message).toContain('"NotesDataSource" hold the backup\'s data, and "SettingsStore" holds what the restore got to');
+        expect(await getNoteTexts()).toEqual(['backed up']);
         expect(inject(SettingsStore).value).toBe('current');
     }, 15000);
 
@@ -238,7 +265,8 @@ describe('BackupService — a backup of several resources', () => {
         }
     }, 15000);
 
-    it('names a resource it could not put back, and keeps what that resource held', async () => {
+    it('names a resource it could not put back, keeps what that resource held, and puts it back at the next start', async () => {
+        assert(server, 'the server did not start');
         // the restore and the undo both fail
         inject(SettingsStore).restoresToFail = 2;
 
@@ -247,14 +275,26 @@ describe('BackupService — a backup of several resources', () => {
 
         assert(error instanceof Error, 'the restore did not fail');
         expect(error.message).toContain(`"${SettingsStore.name}" could not be put back the way they were`);
+        expect(error.message).toContain('put back at the next start');
         expect(error.cause).toEqual(new Error('the settings could not be applied'));
         const kept: string | undefined = /is kept in (.+)\.$/m.exec(error.message)?.[1];
         assert(kept, 'the error names no file');
-        expect(await readFile(kept, 'utf8')).toBe('current');
         // the resources that could be put back are
         expect(await getNoteTexts()).toEqual(['current']);
-        await FsUtilities.rm(FsUtilities.getPath(kept));
-    }, 15000);
+        // named by the journal of the restore, as a killed restore leaves it
+        const journalPath: FsPath = RestoreJournalUtilities.getPath(inject(ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER), backup.id);
+        expect((await RestoreJournalUtilities.resolve(journalPath)).applied.map(e => e.snapshotPath)).toStrictEqual([kept]);
+        // which a restore before that would take its own snapshot over
+        await expect(getBackupService().restore(backup)).rejects.toThrow(ConflictError);
+        expect(await FsUtilities.exists(FsUtilities.getPath(kept))).toBe(true);
+
+        await server.reInit();
+
+        // a restart builds the store anew, so the value is only there when the restart put it back
+        expect(inject(SettingsStore).value).toBe('current');
+        expect(await FsUtilities.exists(FsUtilities.getPath(kept))).toBe(false);
+        expect(await FsUtilities.exists(journalPath)).toBe(false);
+    }, 30000);
 
     it('counts an unencrypted backup towards the master key that was current when it was taken', async () => {
         assert(server, 'the server did not start');

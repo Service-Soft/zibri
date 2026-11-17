@@ -21,7 +21,8 @@ export interface CacheServiceInterface {
      * Registers something kept in memory besides the caches, such as the roles, to be told whenever a
      * tag is invalidated on any instance. Called while the application starts, from `onAppInit`.
      * The start is refused with a MissingEntitiesError naming the registrant when the application
-     * declares no `CacheInvalidation`.
+     * declares no `CacheInvalidation`. What holds stored rows also listens for the tags of
+     * `CacheRestoreTagUtilities`, which a restore invalidates.
      * @param app - The application starting.
      * @param registrant - What registers, for the error.
      * @param tag - The tags to listen for: one tag, or a matcher like the tags of a cache.

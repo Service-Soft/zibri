@@ -2,6 +2,7 @@ import type { GlideClient } from '@valkey/valkey-glide';
 import { RoundTripCounter } from 'zibri-testing';
 
 import { ValKeyDataSource, ValKeyOptions } from '../../data-source/data-sources/val-key/val-key-data-source.model';
+import { ValKeyRestoreMode } from '../../data-source/data-sources/val-key/val-key-restore-mode.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
 import { Migration } from '../../data-source/migration/migration.model';
@@ -32,6 +33,10 @@ export type CreateTestValKeyDataSourceOptions = {
      * applications leave it out.
      */
     allowOrphan?: boolean,
+    /**
+     * How a restore of the data source writes a backup, the application's or a tenant's. Unset unless given.
+     */
+    restoreMode?: ValKeyRestoreMode,
     /**
      * Records every call the data source makes on its client. A batch or a script is one call, since
      * it is sent as one request.
@@ -72,6 +77,7 @@ export function createTestValKeyDataSource(
         migrations = [],
         host = 'localhost',
         allowOrphan = false,
+        restoreMode,
         roundTrips
     } = options;
     const keyPrefix: string = `test-${UUIDUtilities.generate()}`;
@@ -87,6 +93,7 @@ export function createTestValKeyDataSource(
         entities: Newable<BaseEntity>[] = entities;
         override readonly repositories: RepositoryClass[] = repositories;
         override migrations: Newable<Migration>[] = migrations;
+        override readonly restoreMode: ValKeyRestoreMode | undefined = restoreMode;
 
         override async init(): Promise<void> {
             await super.init();

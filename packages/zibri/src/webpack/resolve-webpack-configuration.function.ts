@@ -4,8 +4,8 @@ import path from 'node:path';
 
 import type CopyWebpackPlugin from 'copy-webpack-plugin';
 import type MiniCssExtractPlugin from 'mini-css-extract-plugin';
-import type { Configuration, NormalModuleReplacementPlugin } from 'webpack';
-import { ZibriTsxVendorPlugin } from 'zibri-tsx/webpack';
+import type { Configuration, FileCacheOptions, NormalModuleReplacementPlugin } from 'webpack';
+import type * as ZibriTsxCompilerWebpack from 'zibri-tsx-compiler/webpack';
 
 import { GenerateSourcesOnBuildPlugin } from './generate-sources-on-build.plugin';
 import { RestartServerOnBuildPlugin } from './restart-server-on-build.plugin';
@@ -16,6 +16,16 @@ import { InternalError } from '../error-handling/internal-error.model';
  * The stylesheet of the pages, relative to the application, and where the build writes it.
  */
 const STYLESHEET: string = 'assets/public/style.css';
+
+/**
+ * The file of the application that packages are resolved from, as its own build would resolve them.
+ */
+const PACKAGE_FILE: string = 'package.json';
+
+/**
+ * The loader and plugins of the compiler of the templates.
+ */
+const TEMPLATE_COMPILER: string = 'zibri-tsx-compiler/webpack';
 
 /**
  * The part of the webpack package the configuration constructs itself.
@@ -49,17 +59,94 @@ type ModuleFilenameInfo = {
  */
 function requireFromApplication<T>(root: string, name: string): T {
     try {
-        return createRequire(path.join(root, 'package.json'))(name) as T;
+        return createRequire(path.join(root, PACKAGE_FILE))(name) as T;
     }
     catch (error) {
-        throw new InternalError(
-            [
-                `Building the application at "${root}" needs "${name}", which it does not have installed.`,
-                `Run "npm i -D ${name}" there.`
-            ],
-            { cause: error }
-        );
+        throw resolveMissingPackageError(root, name, error);
     }
+}
+
+/**
+ * Checks that the application has the loaders the configuration names installed.
+ *
+ * A loader is resolved by webpack only once a module needs it, which fails that module with a message of its own, naming
+ * neither this configuration nor what to install. Resolved here, a missing one fails before the build starts.
+ * @param root - The application's root.
+ * @param names - The loaders.
+ * @throws When the application does not have one of them.
+ */
+function validateLoadersInstalled(root: string, names: string[]): void {
+    const resolve: NodeJS.RequireResolve = createRequire(path.join(root, PACKAGE_FILE)).resolve;
+    for (const name of names) {
+        try {
+            resolve(name);
+        }
+        catch (error) {
+            throw resolveMissingPackageError(root, name, error);
+        }
+    }
+}
+
+/**
+ * The error of a package the build of the application needs, which it does not have installed.
+ * @param root - The application's root.
+ * @param name - The package.
+ * @param cause - Why it could not be loaded.
+ * @returns The error.
+ */
+function resolveMissingPackageError(root: string, name: string, cause: unknown): InternalError {
+    return new InternalError(
+        [
+            `Building the application at "${root}" needs "${name}", which it does not have installed.`,
+            `Run "npm i -D ${resolvePackageName(name)}" there.`
+        ],
+        { cause }
+    );
+}
+
+/**
+ * The package a module is in, which is what npm installs: `zibri-tsx-compiler` of `zibri-tsx-compiler/webpack`, and
+ * `@scope/name` of `@scope/name/path`.
+ * @param specifier - The module, as it is loaded.
+ * @returns The package.
+ */
+function resolvePackageName(specifier: string): string {
+    const segments: string[] = specifier.split('/');
+    return segments.slice(0, specifier.startsWith('@') ? 2 : 1).join('/');
+}
+
+/**
+ * The cache on disk of a build for an editor, so the next build compiles only what changed since.
+ *
+ * Webpack checks a module against its files, the app's own and those of the local packages it bundles from a monorepo
+ * alike, as it resolves them to where they are rather than through `node_modules`. What it cannot see is the build:
+ * a change to one starts the cache over.
+ * @param root - The application's root.
+ * @returns The cache.
+ */
+function resolveBuildCache(root: string): FileCacheOptions {
+    const resolve: NodeJS.RequireResolve = createRequire(path.join(root, PACKAGE_FILE)).resolve;
+    const configFile: string = path.join(root, 'webpack.config.js');
+    // the compiler of the templates prints a page written in markdown with zibri-mdx, which it loads from the
+    // application, so webpack follows its requires to neither. A project without pages has no zibri-mdx
+    let printer: string[] = [];
+    try {
+        printer = [resolve('zibri-mdx')];
+    }
+    catch {
+        printer = [];
+    }
+    return {
+        type: 'filesystem',
+        // beside the application, wherever webpack is started from, such as the root of a monorepo
+        cacheDirectory: path.join(root, 'node_modules', '.cache', 'webpack'),
+        // the maps name each source by its absolute path from where webpack was started, which no module knows
+        version: process.cwd(),
+        buildDependencies: {
+            config: [__filename, ...existsSync(configFile) ? [configFile] : []],
+            templates: [resolve(TEMPLATE_COMPILER), ...printer]
+        }
+    };
 }
 
 /**
@@ -76,6 +163,9 @@ function requireFromApplication<T>(root: string, name: string): T {
  * A map is written beside the bundle: with the sources in it for an editor, or with the file and
  * line of every frame alone for a deployment, which starts the application with
  * `node --enable-source-maps` so that its stack traces name them.
+ *
+ * A build for an editor is cached in `node_modules/.cache/webpack`, so the next one, `npm start` included, compiles
+ * only what changed. A build for a deployment runs once in a fresh image, and caches nothing.
  *
  * Use it as the whole config, or change what it returns, like this.
  * ```js
@@ -94,14 +184,25 @@ export function resolveWebpackConfiguration(options: WebpackConfigurationOptions
     const CopyPlugin: typeof CopyWebpackPlugin = requireFromApplication(root, 'copy-webpack-plugin');
     const ReplacementPlugin: typeof NormalModuleReplacementPlugin = requireFromApplication<WebpackModule>(root, 'webpack')
         .NormalModuleReplacementPlugin;
+    // the compiler of the templates is the application's devDependency like the rest of its build
+    const { ZibriTsxTypeCheckPlugin, ZibriTsxVendorPlugin }: typeof ZibriTsxCompilerWebpack = requireFromApplication(
+        root,
+        TEMPLATE_COMPILER
+    );
     // an application without pages has no stylesheet, and none of the packages that build one
     const MiniCssPlugin: typeof MiniCssExtractPlugin | undefined = existsSync(path.join(root, STYLESHEET))
         ? requireFromApplication(root, 'mini-css-extract-plugin')
         : undefined;
+    validateLoadersInstalled(root, [
+        'ts-loader',
+        'source-map-loader',
+        'handlebars-loader',
+        ...MiniCssPlugin == undefined ? [] : ['css-loader', 'postcss-loader']
+    ]);
 
-    // the template directories compiled by zibri-tsx: pages, components, and the emails and their components too
-    const tsxTemplateDirs: string[] = ['pages', 'components', 'emails', 'email-components']
-        .map(folder => path.join(root, 'src', 'templates', folder));
+    // every template is compiled by zibri-tsx, in whichever folder of the templates it is, as the jest preset does:
+    // the pages and their components, the emails and theirs, the explorer, and a folder of the project's own
+    const tsxTemplateDirs: string[] = [path.join(root, 'src', 'templates')];
 
     return {
         target: 'node',
@@ -113,6 +214,8 @@ export function resolveWebpackConfiguration(options: WebpackConfigurationOptions
             { message: /require\.extensions is not supported by webpack\./ }
         ],
         mode: 'none',
+        // the image of a deployment copies node_modules, which a cache would only make larger
+        cache: sourceMap === 'with-sources' ? resolveBuildCache(root) : false,
         entry: {
             bundle: './src/index.ts',
             ...MiniCssPlugin == undefined ? {} : { style: `./${STYLESHEET}` }
@@ -147,7 +250,9 @@ export function resolveWebpackConfiguration(options: WebpackConfigurationOptions
             'bufferutil',
             'macos-temperature-sensor',
             'express',
-            'handlebars'
+            'handlebars',
+            // a dependency of zibri, so in the deployment's node_modules anyway: bundled, the image carried it twice
+            'undici'
         ].map(name => [name, `commonjs2 ${name}`])),
         resolve: {
             extensions: ['.ts', '.tsx', '.js', '.css']
@@ -155,13 +260,16 @@ export function resolveWebpackConfiguration(options: WebpackConfigurationOptions
         module: {
             rules: [
                 {
-                    test: /\.tsx$/,
+                    // a page written in markdown is a template too
+                    test: /\.(tsx|mdx?)$/,
                     include: tsxTemplateDirs,
-                    use: 'zibri-tsx/webpack'
+                    use: TEMPLATE_COMPILER
                 },
                 {
                     test: /\.tsx?$/,
-                    exclude: tsxTemplateDirs,
+                    // only the templates themselves: a module of plain typescript beside them, such as one creating a
+                    // context, is compiled like the rest of the application
+                    exclude: (file: string) => file.endsWith('.tsx') && tsxTemplateDirs.some(dir => file.startsWith(`${dir}${path.sep}`)),
                     loader: 'ts-loader',
                     // without it ts-loader compiles everything the tsconfig includes, tests too, and a type
                     // error in a test then fails the build and keeps "start" from restarting the server
@@ -215,9 +323,15 @@ export function resolveWebpackConfiguration(options: WebpackConfigurationOptions
                 outDir: path.join(root, 'assets', 'public', 'vendor'),
                 resolveFrom: root
             }),
+            // the templates skip ts-loader, which reports the type errors of the rest
+            new ZibriTsxTypeCheckPlugin({
+                tsconfig: path.join(root, 'tsconfig.json'),
+                templateDirs: tsxTemplateDirs
+            }),
             new RestartServerOnBuildPlugin(root),
             ...MiniCssPlugin == undefined ? [] : [new MiniCssPlugin({ filename: STYLESHEET })],
-            // a package a template imports with ?client is the package itself on the server
+            // a ?client import outside a template is the package itself on the server. The compiler leaves
+            // those of a template out of the server render
             new ReplacementPlugin(
                 /^([^?]+)\?client$/,
                 resource => resource.request = resource.request.replace(/\?client$/, '')

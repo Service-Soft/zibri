@@ -1,4 +1,3 @@
-/* eslint-disable jsdoc/require-jsdoc */
 import { afterEach, describe, expect, it } from '@jest/globals';
 
 import { type Relation } from '../../__testing__/relation.type';

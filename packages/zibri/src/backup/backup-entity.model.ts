@@ -2,6 +2,7 @@ import { BACKUP_FORMAT_VERSION } from './backup-format';
 import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model';
 import { BackupStatus } from './backup-status.enum';
 import { MasterKeyReference } from '../auth/encryption/master-key-reference.model';
+import { FrameworkColumnRegistry } from '../data-source/migration/framework-column.registry';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
@@ -74,11 +75,18 @@ export class BackupEntity extends BaseEntity {
     @Property.string({ enum: BackupStatus, default: BackupStatus.COMPLETED })
     status!: BackupStatus;
     /**
+     * The tenant whose rows the backup holds, or null for a backup of the whole application.
+     */
+    @Property.string({ format: 'uuid', required: false })
+    tenantId: string | undefined | null;
+    /**
      * The resources that have been backed up.
      */
     @Property.oneToMany({ target: () => BackupResourceEntity, inverseSide: 'backup' })
     resources!: BackupResourceEntity[];
 }
+
+FrameworkColumnRegistry.register({ entity: BackupEntity, property: 'tenantId' });
 
 /**
  * The keys a backup gives itself, so that creating one names none of them.
@@ -88,8 +96,8 @@ type GeneratedBackupKeys = 'createdAt' | 'id' | 'resources' | 'name' | 'zibriVer
 /**
  * The data required to create a new Backup Entity.
  */
-export type BackupEntityCreateData = OmitStrict<BackupEntity, GeneratedBackupKeys>
-    & Partial<Pick<BackupEntity, 'name'>>
+export type BackupEntityCreateData = OmitStrict<BackupEntity, GeneratedBackupKeys | 'tenantId'>
+    & Partial<Pick<BackupEntity, 'name' | 'tenantId'>>
     & {
         /**
          * The resources that have been backed up.

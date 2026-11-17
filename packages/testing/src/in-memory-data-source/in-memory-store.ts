@@ -283,6 +283,45 @@ export class InMemoryStore implements InMemoryScope {
     }
 
     /**
+     * Copies the rows and joins the store holds as they are now, for a transaction to read as of this moment.
+     *
+     * The copy shares the rows and the members of the joins with the store, which replaces a row or a join
+     * it writes and never changes one it holds.
+     * @returns The copy.
+     */
+    copy(): InMemoryStore {
+        const res: InMemoryStore = new InMemoryStore();
+        for (const [tableName, rows] of this.tables) {
+            res.tables.set(tableName, new Map(rows));
+        }
+        for (const [key, members] of this.joins) {
+            res.joins.set(key, members);
+        }
+        return res;
+    }
+
+    /**
+     * Whether a row is held as another store holds it: the same row, not one with the same values.
+     * @param other - The other store, such as a copy of this one.
+     * @param tableName - The table the row is in.
+     * @param id - The id of the row.
+     * @returns Whether it is, which it is for a row neither holds.
+     */
+    holdsSameRow(other: InMemoryStore, tableName: string, id: string): boolean {
+        return this.tables.get(tableName)?.get(id) === other.tables.get(tableName)?.get(id);
+    }
+
+    /**
+     * Whether the members of a join are held as another store holds them: the same members, not equal ones.
+     * @param other - The other store, such as a copy of this one.
+     * @param key - The key the join is stored under.
+     * @returns Whether they are, which they are for a join neither holds.
+     */
+    holdsSameJoin(other: InMemoryStore, key: string): boolean {
+        return this.joins.get(key) === other.joins.get(key);
+    }
+
+    /**
      * Copies everything the store holds out of it.
      * @param left - The tables whose rows the snapshot leaves out.
      * @returns The snapshot, sharing nothing with the store it was taken from.
@@ -300,6 +339,20 @@ export class InMemoryStore implements InMemoryScope {
             joins[key] = [...members];
         }
         return { tables, joins, sequences: Object.fromEntries(this.sequences), keyLists: Object.fromEntries(this.keyLists) };
+    }
+
+    /**
+     * Removes every row but those of the given tables, as a restore removing what is stored before it
+     * applies the backup does. The joins go as well, as {@link restore} replaces them.
+     * @param kept - The tables whose rows stay.
+     */
+    removeRows(kept: ReadonlySet<string>): void {
+        for (const tableName of this.tables.keys()) {
+            if (!kept.has(tableName)) {
+                this.tables.delete(tableName);
+            }
+        }
+        this.joins.clear();
     }
 
     /**

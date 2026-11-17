@@ -25,5 +25,9 @@ export type ThreadJobStartMessage = {
     /**
      * The last checkpoint the job stored, which this run resumes from, or undefined for none.
      */
-    checkpoint: ThreadJobCheckpoint<unknown> | undefined
+    checkpoint: ThreadJobCheckpoint<unknown> | undefined,
+    /**
+     * How many frames a stack trace of the job keeps, as many as the application's.
+     */
+    stackTraceLimit: number
 };

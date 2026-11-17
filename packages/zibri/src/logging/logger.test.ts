@@ -240,7 +240,8 @@ describe('Logger — real error logged end to end through a request', () => {
         // handler had blanked - which is what an aggregator groups and fingerprints on
         expect(relevant?.context.error?.name).toBe('InternalError');
         expect(relevant?.context.error?.stackTrace.some(l => l.includes('LoggerIntegrationController.boom'))).toBe(true);
-        expect(relevant?.context.error?.paragraphs.some(p => p.includes('LoggerIntegrationController.boom'))).toBe(true);
+        // kept once, in the stack trace, rather than again among the paragraphs
+        expect(relevant?.context.error?.paragraphs.some(p => p.includes('LoggerIntegrationController.boom'))).toBe(false);
         expect(relevant?.context.origin).toEqual(expect.any(String));
         expect(relevant?.context.request?.method).toBe(HttpMethod.GET);
         expect(relevant?.context.request?.url).toContain('/logger-integration-test/boom');

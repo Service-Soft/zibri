@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { Pg, PgSessionClient } from './postgres-client.model';
-import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
+import { PgSessionClient } from './postgres-client.model';
+import { PostgresDataSource } from './postgres-data-source.model';
+import { connectAsAnotherInstance } from '../../../__testing__/connect-as-another-instance.function';
 import { TestServerTimeouts, TestTimeouts } from '../../../__testing__/constants';
 import { holdUntilLetGo } from '../../../__testing__/hold-until-let-go.function';
 import { createTestDataSource } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -9,7 +10,6 @@ import { StartedTestServer, startTestServer } from '../../../__testing__/test-se
 import { waitUntil } from '../../../__testing__/wait-until.function';
 import { inject } from '../../../di/inject.function';
 import { Newable } from '../../../types/newable.type';
-import { optionalPeer } from '../../../utilities/optional-peer.function';
 import { PromiseUtilities } from '../../../utilities/promise.utilities';
 import { SCHEMA_LOCK_KEY } from '../data-source.interface';
 
@@ -53,24 +53,6 @@ afterAll(async () => {
 }, timeouts.shutdown);
 
 /**
- * Opens a connection of its own to the database of the data source, as another instance has.
- * @returns The connection, open.
- */
-async function connectAsAnotherInstance(): Promise<PgSessionClient> {
-    const options: PostgresOptions = inject(dataSourceClass).options;
-    const pg: Pg = optionalPeer<Pg>('pg', 'Connecting as another instance');
-    const client: PgSessionClient = new pg.Client({
-        host: options.host,
-        port: options.port,
-        user: options.username,
-        password: options.password?.toString(),
-        database: options.database
-    });
-    await client.connect();
-    return client;
-}
-
-/**
  * Builds the data source of something else connecting to the database of the data source.
  * @param schema - The schema it keeps its tables in, the data source's own when not given.
  * @returns The data source, which needs no setup to hold the schema lock.
@@ -90,7 +72,7 @@ describe('instances waiting for the schema setup of another', () => {
         if (server == undefined) {
             throw new Error('the server did not start');
         }
-        const client: PgSessionClient = await connectAsAnotherInstance();
+        const client: PgSessionClient = await connectAsAnotherInstance(inject(dataSourceClass));
         const letGo: () => Promise<void> = await holdUntilLetGo(async whileHeld => await createLockHolder().holdSchemaLock(whileHeld));
         try {
             const restarted: Promise<void> = server.reInit();
@@ -122,7 +104,7 @@ describe('applications sharing a database, each in a schema of its own', () => {
         if (server == undefined) {
             throw new Error('the server did not start');
         }
-        const client: PgSessionClient = await connectAsAnotherInstance();
+        const client: PgSessionClient = await connectAsAnotherInstance(inject(dataSourceClass));
         await client.query(`CREATE SCHEMA IF NOT EXISTS "${OTHER_APPLICATION_SCHEMA}"`);
         await client.end();
 

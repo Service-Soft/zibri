@@ -290,6 +290,12 @@ implements AuthControllerStrategyInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async endEveryLogin(transaction: RepositoryTransaction | undefined): Promise<void> {
+        // the refresh tokens only, as with endLogins
+        await this.refreshTokenRepository.deleteAll({}, { transaction });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async endFederatedLogins(session: FederatedSessionMatch, transaction: RepositoryTransaction | undefined): Promise<void> {
         // every token of a family carries the session, so this ends whole families. The access tokens
         // stay valid as with endLogins

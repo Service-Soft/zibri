@@ -68,7 +68,8 @@ describe('NewCommand', () => {
         expect(await FsUtilities.exists(path.join(appDir, 'tsconfig.json') as Path)).toBe(true);
         expect(await FsUtilities.exists(path.join(appDir, 'webpack.config.js') as Path)).toBe(true);
         expect(await FsUtilities.exists(path.join(appDir, 'postcss.config.js') as Path)).toBe(true);
-        expect(await FsUtilities.exists(path.join(appDir, 'tailwind.config.js') as Path)).toBe(true);
+        // Tailwind 4 takes its theme from the stylesheet
+        expect(await FsUtilities.exists(path.join(appDir, 'tailwind.config.js') as Path)).toBe(false);
         expect(await FsUtilities.exists(path.join(appDir, 'src', 'index.ts') as Path)).toBe(true);
         expect(await FsUtilities.exists(path.join(appDir, 'src', 'controllers', 'page.controller.ts') as Path)).toBe(true);
         expect(await FsUtilities.exists(path.join(appDir, 'src', 'models', 'user.model.ts') as Path)).toBe(true);
@@ -90,6 +91,23 @@ describe('NewCommand', () => {
         expect(owned).toStrictEqual(['/app/.zibri']);
     });
 
+    // what `zi migrate` and the migrate scripts start is the build, as the image starts it: a name of another file
+    // fails every one of them with "Cannot find module"
+    it('names the file the image starts as main, and runs the migrate scripts with it', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
+
+        const appDir: Path = path.join(workDir, 'api') as Path;
+        const dockerfile: string = await FsUtilities.readFile(path.join(appDir, 'Dockerfile') as Path);
+        const started: string | undefined = /^CMD \[.*"([^"]+\.js)"\]$/m.exec(dockerfile)?.[1];
+        const packageJson: unknown = JSON.parse(await FsUtilities.readFile(path.join(appDir, 'package.json') as Path));
+
+        expect(started).toBe('dist/bundle.js');
+        expect(packageJson).toMatchObject({
+            main: `./${started}`,
+            scripts: { 'migrate:list': `node ${started} migrate list`, 'migrate:down': `node ${started} migrate down` }
+        });
+    });
+
     it('writes a package.json with the app name, without going through "npm init"', async () => {
         await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
 
@@ -98,14 +116,16 @@ describe('NewCommand', () => {
         expect(packageJson).toEqual({
             name: 'api',
             version: '1.0.0',
-            main: './dist/index.js',
+            main: './dist/bundle.js',
             scripts: {
                 start: 'webpack --watch',
                 build: 'webpack',
-                test: 'jest',
+                test: 'node --experimental-vm-modules node_modules/jest/bin/jest.js',
                 // run by the build, which carries the migrations to revert: a deployment has no cli
-                'migrate:list': 'node dist/index.js migrate list',
-                'migrate:down': 'node dist/index.js migrate down'
+                'migrate:list': 'node dist/bundle.js migrate list',
+                'migrate:down': 'node dist/bundle.js migrate down',
+                'reset-admin': 'node dist/bundle.js reset-admin',
+                'end-every-login': 'node dist/bundle.js end-every-login'
             },
             keywords: ['zibri'],
             // the author is read off the machine this runs on, the way npm reads it, so the only
@@ -113,7 +133,12 @@ describe('NewCommand', () => {
             // what a scaffold that skips this leaves behind for its author to find later.
             author: expect.stringMatching(/\S/),
             license: 'MIT',
-            description: ''
+            description: '',
+            // the glob of the test-exclude jest's coverage asks for is deprecated, and npm says so on every install. The
+            // glob jest asks for and the minimatch of test-exclude have an advisory each, which npm audit reports
+            overrides: { 'glob@^13.0.0': '^14.0.2', 'test-exclude': { '.': '^8.0.0', minimatch: '^11.0.1' } },
+            // npm warns about every dependency whose install script it was not told about
+            allowScripts: { re2: true, '@parcel/watcher': false }
         });
     });
 
@@ -159,12 +184,12 @@ describe('NewCommand', () => {
         it('writes a JSON API: no pages, no stylesheet, no examples and no mailing list', async () => {
             const absent: string[] = [
                 'postcss.config.js',
-                'tailwind.config.js',
                 'assets/public/style.css',
                 'src/tsx.d.ts',
                 'src/controllers/page.controller.ts',
                 'src/__testing__/home-page.test.ts',
                 'src/templates/components',
+                'src/templates/explorer',
                 'src/templates/pages',
                 'src/templates/emails/log.tsx',
                 'src/templates/emails/mailing-list-subscribe-confirmation.tsx'
@@ -172,8 +197,7 @@ describe('NewCommand', () => {
             const present: string[] = [
                 'webpack.config.js',
                 'src/__testing__/health.test.ts',
-                'src/templates/emails/password-reset.tsx',
-                'assets/public/open-api/swagger-ui-bundle.js'
+                'src/templates/emails/password-reset.tsx'
             ];
 
             const exists: (relativePath: string) => Promise<boolean> = async relativePath => FsUtilities.exists(path.join(appDir, relativePath) as Path);
@@ -190,6 +214,7 @@ describe('NewCommand', () => {
             expect(await read('src/controllers/index.ts')).not.toContain('page.controller');
             const providers: string = await read('src/providers.ts');
             expect(providers).not.toContain('ErrorPage');
+            expect(providers).not.toContain('ExplorerPage');
             expect(providers).not.toContain('MAILING_LIST');
             expect(await read('src/data-sources/db/entities.ts')).not.toContain('MailingList');
         });
@@ -197,7 +222,7 @@ describe('NewCommand', () => {
         it('installs nothing that builds a stylesheet or draws a chart', () => {
             const installs: string = execSpy.mock.calls.map(([command]) => command).join(' ');
 
-            for (const name of ['tailwindcss', 'postcss', 'autoprefixer', 'css-loader', 'mini-css-extract-plugin', 'chart.js']) {
+            for (const name of ['tailwindcss', '@tailwindcss/postcss', 'postcss', 'css-loader', 'mini-css-extract-plugin', 'chart.js']) {
                 expect(installs).not.toContain(` ${name}`);
             }
             expect(installs).toContain(' webpack@');
@@ -248,7 +273,7 @@ describe('NewCommand', () => {
         expect(unresolved).toEqual([]);
     }, 20000);
 
-    it('asks for the features, offering every one checked but the mailing list', async () => {
+    it('asks for the features, offering every one checked but the docs and the mailing list', async () => {
         const promptSpy: jest.SpiedFunction<typeof InquirerUtilities.prompt> = jest.spyOn(InquirerUtilities, 'prompt')
             .mockResolvedValue({ features: ['pages'] });
 
@@ -259,6 +284,7 @@ describe('NewCommand', () => {
             type: 'checkbox',
             choices: [
                 { value: 'pages', checked: true },
+                { value: 'docs', checked: false },
                 { value: 'mailingList', checked: false },
                 { value: 'metricsDashboard', checked: true },
                 { value: 'logEmail', checked: true }

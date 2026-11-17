@@ -19,6 +19,7 @@ import { checkConstraintName } from '../../check-constraint-name.function';
 import { CheckConstraintViolationError } from '../../check-constraint-violation.error';
 import { indexName, trigramIndexName, TRIGRAM_INDEX_PREFIX } from '../../index-name.function';
 import { literalToSql } from '../../literal-to-sql.function';
+import { FrameworkColumnRegistry } from '../../migration/framework-column.registry';
 import { MigratedEntityUtilities, MovedEntity } from '../../migration/migrated-entity.utilities';
 import { ConversionRefusal } from '../../models/conversion-refusal.enum';
 import { MigrationPropertyMetadata } from '../../models/migration-property-metadata.model';
@@ -101,7 +102,7 @@ type StoredKeyRow = {
      */
     constraint: boolean,
     /**
-     * Whether it carries {@link DECLARED_KEY_COMMENT}, which says the data source created it.
+     * Whether it carries one of {@link DECLARED_KEY_COMMENTS}, which says the data source created it.
      */
     marked: boolean
 };
@@ -151,7 +152,25 @@ type DeclaredKey = {
     /**
      * Finds values more than one row holds, for a unique.
      */
-    duplicates: string | undefined
+    duplicates: string | undefined,
+    /**
+     * Whether it only makes reads faster, which a start leaves to be built once it runs: an index that is no unique.
+     */
+    speedsUpReadsOnly: boolean
+};
+
+/**
+ * What keeping the declared keys of the entities did.
+ */
+export type KeyReconciliation = {
+    /**
+     * Whether anything was created or dropped, or is left to be built.
+     */
+    changed: boolean,
+    /**
+     * Whether indexes that only make reads faster are left to {@link PostgresSchemaManager.buildIndexes}.
+     */
+    indexesLeft: boolean
 };
 
 /**
@@ -196,7 +215,17 @@ type StoredConstraintRow = {
  * The comment on every index the data source creates for what an entity declares, which tells its own
  * indexes apart from everybody else's on the same table.
  */
-const DECLARED_KEY_COMMENT: string = 'Kept by zibri as an entity declares it, and dropped once none does.';
+// one of its own from 3.1 on: a build of 3.0 counts an index carrying the comment it writes as its own, and drops
+// one its entities do not declare, such as the index of the column of a relation 3.1 adds. Started after an instance
+// of 3.1, it took those away, and the next start of 3.1 built them again
+const DECLARED_KEY_COMMENT: string = 'Kept by zibri 3.1 or later as an entity declares it, and dropped once none does.';
+
+/**
+ * Every comment the data source has marked its own indexes with: the one it writes, and those of the releases before,
+ * each of which it counts as its own as well.
+ */
+// TODO 4.0: the comment of 3.0 counted no more, once no index of a build of 3.0 is left unmarked by a start since
+const DECLARED_KEY_COMMENTS: string[] = [DECLARED_KEY_COMMENT, 'Kept by zibri as an entity declares it, and dropped once none does.'];
 
 /**
  * Whether an index is named the way typeorm named one by default, which is how 2.x named the indexes
@@ -219,6 +248,24 @@ const MAX_IDENTIFIER_BYTES: number = 63;
  * A cast postgres writes after a default it lists, such as `::character varying`.
  */
 const TRAILING_CAST_PATTERN: RegExp = /::[a-z][ a-z]*(\(\d+(,\d+)?\))?(\[])?$/i;
+
+/**
+ * A column the framework added to one of its entities, which a table of the data source is to have.
+ */
+type WantedFrameworkColumn = {
+    /**
+     * The table.
+     */
+    table: string,
+    /**
+     * The column.
+     */
+    column: PostgresColumn,
+    /**
+     * What the rows stored before the column hold once it is added, or undefined for none.
+     */
+    storedValue: string | undefined
+};
 
 /**
  * Lists the columns of tables in the current schema.
@@ -259,7 +306,7 @@ const STORED_CONSTRAINTS_SQL: string = `
  */
 const STORED_KEYS_SQL: string = `
     SELECT t.relname AS "table", i.relname AS "name", x.indisvalid AS "valid", c.conname IS NOT NULL AS "constraint",
-        coalesce(obj_description(i.oid, 'pg_class') = $2, false) AS "marked"
+        coalesce(obj_description(i.oid, 'pg_class') = ANY($2), false) AS "marked"
     FROM pg_index x
     JOIN pg_class i ON i.oid = x.indexrelid
     JOIN pg_class t ON t.oid = x.indrelid
@@ -1228,6 +1275,53 @@ export class PostgresSchemaManager {
         ]);
     }
 
+    /**
+     * Adds the columns the framework added to its entities since 3.0 to the tables of this data source that lack
+     * them, as an application managing the schema by migrations writes none for them. A table that is not there is
+     * left to {@link validateTablesExist}.
+     * @param run - Runs a statement.
+     * @returns The columns added, as `table.column`.
+     */
+    async addFrameworkColumns(run: PostgresRun): Promise<string[]> {
+        const wanted: WantedFrameworkColumn[] = FrameworkColumnRegistry.getAll().flatMap(framework => {
+            const declared: Newable<BaseEntity> = framework.entity;
+            return this.entities
+                .filter(e => e === declared || e.prototype instanceof declared)
+                .flatMap(entity => {
+                    const table: PostgresTable = this.schema.getTable(entity);
+                    const column: PostgresColumn | undefined = table.columns.find(c => c.property === framework.property);
+                    return column == undefined ? [] : [{ table: table.name, column, storedValue: framework.storedValue?.() }];
+                });
+        });
+        if (!wanted.length) {
+            return [];
+        }
+        const stored: Record<string, unknown>[] = await run(STORED_COLUMNS_SQL, [[...new Set(wanted.map(w => w.table))]]);
+        const added: string[] = [];
+        for (const { table, column, storedValue } of wanted) {
+            const columnsOfTable: Record<string, unknown>[] = stored.filter(c => c['table'] === table);
+            if (!columnsOfTable.length || columnsOfTable.some(c => c['name'] === column.name)) {
+                continue;
+            }
+            if (storedValue == undefined) {
+                await run(`ALTER TABLE ${this.escape(table)} ADD COLUMN ${this.columnSql({ ...column, nullable: true })}`);
+            }
+            else {
+                // a constant default is kept beside the table rather than written into each row, so the rows stored
+                // before get the value at once, however many there are. Dropped again: a row written since has what
+                // its writer gives it
+                await run(`ALTER TABLE ${this.escape(table)} ADD COLUMN ${this.columnSql({
+                    ...column,
+                    nullable: true,
+                    default: literalToSql(storedValue)
+                })}`);
+                await run(`ALTER TABLE ${this.escape(table)} ALTER COLUMN ${this.escape(column.name)} DROP DEFAULT`);
+            }
+            added.push(`${table}.${column.name}`);
+        }
+        return added;
+    }
+
     private async findExistingTables(run: PostgresRun, names: string[]): Promise<Set<string>> {
         const rows: Record<string, unknown>[] = await run(
             'SELECT tablename AS "name" FROM pg_tables WHERE schemaname = current_schema() AND tablename = ANY($1)',
@@ -1319,11 +1413,14 @@ export class PostgresSchemaManager {
      * created that no entity declares anymore.
      * @param run - Runs a statement on a session of its own, with no transaction: an index is built
      * concurrently, which writes go on beside.
-     * @returns Whether anything was created or dropped.
+     * @param leaveIndexes - Whether the indexes that only make reads faster are left to {@link buildIndexes}, rather
+     * than built here.
+     * @returns Whether anything was created or dropped, and whether indexes are left.
      */
-    async reconcileKeys(run: PostgresRun): Promise<boolean> {
+    async reconcileKeys(run: PostgresRun, leaveIndexes: boolean): Promise<KeyReconciliation> {
         const tables: string[] = this.entities.map(entity => this.schema.getTable(entity).name);
         let changed: boolean = await this.buildOnTablesCreatedByMigrations(run);
+        let indexesLeft: boolean = false;
         // read for every table at once, so that a boot finding everything in place costs the same
         // however many entities it declares
         const keys: StoredKeyRow[] = await this.readStoredKeys(run, tables);
@@ -1332,9 +1429,44 @@ export class PostgresSchemaManager {
             const tableName: string = this.schema.getTable(entity).name;
             const keysOf: StoredKeyRow[] = keys.filter(k => k.table === tableName);
             const checksOf: StoredCheckRow[] = checks.filter(c => c.table === tableName);
-            changed = await this.reconcileKeysOf(run, entity, keysOf, checksOf) || changed;
+            const reconciled: KeyReconciliation = await this.reconcileKeysOf(run, entity, keysOf, checksOf, leaveIndexes);
+            changed = reconciled.changed || changed;
+            indexesLeft = reconciled.indexesLeft || indexesLeft;
         }
-        return changed;
+        return { changed, indexesLeft };
+    }
+
+    /**
+     * Builds the indexes that only make reads faster, which a start left: those an entity declares that its table
+     * has not, and those a build that stopped left behind invalid, dropped and built again.
+     *
+     * Run while no other instance builds them, under a lock of their own: a build still running looks like one that
+     * failed, and dropping it would only make it start over.
+     * @param run - Runs a statement on a session of its own, with no transaction.
+     * @returns The indexes built, as `table.index`.
+     */
+    async buildIndexes(run: PostgresRun): Promise<string[]> {
+        const tables: string[] = this.entities.map(entity => this.schema.getTable(entity).name);
+        const keys: StoredKeyRow[] = await this.readStoredKeys(run, tables);
+        const built: string[] = [];
+        for (const entity of this.entities) {
+            const tableName: string = this.schema.getTable(entity).name;
+            const stored: Map<string, StoredKeyRow> = new Map(keys.filter(k => k.table === tableName).map(k => [k.name, k]));
+            for (const key of this.resolveDeclaredKeys(entity).filter(k => k.speedsUpReadsOnly)) {
+                const name: string = PostgresSchemaManager.toStoredIdentifier(key.name);
+                const found: StoredKeyRow | undefined = stored.get(name);
+                if (found?.valid === true) {
+                    continue;
+                }
+                if (found != undefined) {
+                    await run(`DROP INDEX CONCURRENTLY IF EXISTS ${this.escape(name)}`);
+                }
+                await this.createDeclaredKey(run, entity, key);
+                await run(`COMMENT ON INDEX ${this.escape(name)} IS ${literalToSql(DECLARED_KEY_COMMENT)}`);
+                built.push(`${tableName}.${name}`);
+            }
+        }
+        return built;
     }
 
     /**
@@ -1366,11 +1498,17 @@ export class PostgresSchemaManager {
         run: PostgresRun,
         entity: Newable<BaseEntity>,
         stored: StoredKeyRow[],
-        storedChecks: StoredCheckRow[]
-    ): Promise<boolean> {
+        storedChecks: StoredCheckRow[],
+        leaveIndexes: boolean
+    ): Promise<KeyReconciliation> {
         const tableName: string = this.schema.getTable(entity).name;
         const declared: DeclaredKey[] = this.resolveDeclaredKeys(entity);
         const declaredNames: Set<string> = new Set(declared.map(k => PostgresSchemaManager.toStoredIdentifier(k.name)));
+        // left to buildIndexes, which another instance may be running: one of these that is invalid can be a build
+        // still running rather than one that failed
+        const leftNames: Set<string> = new Set(
+            leaveIndexes ? declared.filter(k => k.speedsUpReadsOnly).map(k => PostgresSchemaManager.toStoredIdentifier(k.name)) : []
+        );
         // what this data source created, which carries its comment - or, from before it did, the name of
         // one declared now. And what 2.x left, which typeorm named. Everything else is somebody else's
         const owned: StoredKeyRow[] = stored.filter(
@@ -1378,16 +1516,17 @@ export class PostgresSchemaManager {
         );
 
         // what a build that failed leaves behind: an index that serves nothing and is kept up all the same
-        for (const leftover of owned.filter(k => !k.valid)) {
+        for (const leftover of owned.filter(k => !k.valid && !leftNames.has(k.name))) {
             await run(`DROP INDEX CONCURRENTLY IF EXISTS ${this.escape(leftover.name)}`);
             this.logger.info(`Dropped the index "${leftover.name}" of the table "${tableName}": building it had failed.`);
         }
         const kept: Map<string, StoredKeyRow> = new Map(owned.filter(k => k.valid).map(k => [k.name, k]));
         const missing: DeclaredKey[] = declared.filter(k => !kept.has(PostgresSchemaManager.toStoredIdentifier(k.name)));
+        const left: DeclaredKey[] = missing.filter(k => leftNames.has(PostgresSchemaManager.toStoredIdentifier(k.name)));
         const abandoned: StoredKeyRow[] = [...kept.values()].filter(k => !declaredNames.has(k.name));
 
         // created before anything is dropped, so that a unique whose name changed is enforced throughout
-        for (const key of missing) {
+        for (const key of missing.filter(k => !left.includes(k))) {
             await this.createDeclaredKey(run, entity, key);
         }
         // an index built before the constraint could take it over, by a boot that stopped in between
@@ -1397,8 +1536,12 @@ export class PostgresSchemaManager {
         for (const key of unconstrained) {
             await this.inShortLock(run, key.constrain ?? '');
         }
-        // marked after it is built rather than with it, which a concurrent build cannot be
-        for (const key of declared.filter(k => kept.get(PostgresSchemaManager.toStoredIdentifier(k.name))?.marked !== true)) {
+        // marked after it is built rather than with it, which a concurrent build cannot be. One left is marked once
+        // it is built
+        const unmarked: DeclaredKey[] = declared.filter(
+            k => !left.includes(k) && kept.get(PostgresSchemaManager.toStoredIdentifier(k.name))?.marked !== true
+        );
+        for (const key of unmarked) {
             const index: string = this.escape(PostgresSchemaManager.toStoredIdentifier(key.name));
             await run(`COMMENT ON INDEX ${index} IS ${literalToSql(DECLARED_KEY_COMMENT)}`);
         }
@@ -1410,7 +1553,7 @@ export class PostgresSchemaManager {
             this.logger.info(`Dropped the index "${key.name}" of the table "${tableName}": no entity declares it anymore.`);
         }
         const checksChanged: boolean = await this.reconcileChecksOf(run, entity, tableName, storedChecks);
-        return missing.length > 0 || abandoned.length > 0 || checksChanged;
+        return { changed: missing.length > 0 || abandoned.length > 0 || checksChanged, indexesLeft: left.length > 0 };
     }
 
     /**
@@ -1520,7 +1663,8 @@ export class PostgresSchemaManager {
                 buildOnEmptyTable: `CREATE UNIQUE INDEX ${definition}`,
                 constrain: where == undefined ? `ALTER TABLE ${table} ADD CONSTRAINT ${quoted} UNIQUE USING INDEX ${quoted}` : undefined,
                 duplicates: `SELECT json_build_array(${list})::text AS "values" FROM ${table} WHERE ${valued}${andWhereSql}`
-                    + ` GROUP BY ${list} HAVING count(*) > 1 LIMIT 3`
+                    + ` GROUP BY ${list} HAVING count(*) > 1 LIMIT 3`,
+                speedsUpReadsOnly: false
             });
         }
         for (const index of groups.indexes) {
@@ -1532,7 +1676,8 @@ export class PostgresSchemaManager {
                 build: `CREATE INDEX CONCURRENTLY ${definition}`,
                 buildOnEmptyTable: `CREATE INDEX ${definition}`,
                 constrain: undefined,
-                duplicates: undefined
+                duplicates: undefined,
+                speedsUpReadsOnly: true
             });
         }
         // without the extension there is no operator class to build these with, and the warning that
@@ -1547,11 +1692,56 @@ export class PostgresSchemaManager {
                     build: `CREATE INDEX CONCURRENTLY ${definition}`,
                     buildOnEmptyTable: `CREATE INDEX ${definition}`,
                     constrain: undefined,
-                    duplicates: undefined
+                    duplicates: undefined,
+                    speedsUpReadsOnly: true
                 });
             }
         }
+        res.push(...this.resolveKeyColumnIndexes(entity, groups));
         return res;
+    }
+
+    /**
+     * Builds the statements creating an index on the column of each relation to one row of an entity, which
+     * nothing the entity declares starts with already.
+     *
+     * Postgres indexes the key a foreign key refers to, never the column holding it: deleting a row checks,
+     * or cascades to, the rows pointing at it by that column, and without an index read the whole table
+     * for every row deleted. On the column alone, as the check looks it up, also for an entity of a tenant,
+     * whose declared indexes start with the tenant.
+     * @param entity - The entity.
+     * @param groups - What it declares unique or indexed, the tenant put in front.
+     * @returns Each one, under the name an index declared on the column alone has.
+     */
+    private resolveKeyColumnIndexes(entity: Newable<BaseEntity>, groups: KeyGroups): DeclaredKey[] {
+        const postgresTable: PostgresTable = this.schema.getTable(entity);
+        const firstColumnOf: (properties: string[]) => string | undefined = properties => properties[0] == undefined
+            ? undefined
+            : this.schema.getColumn(entity, properties[0]).name;
+        // a unique of some rows only leaves the others to a read of the whole table
+        const covered: Set<string | undefined> = new Set([
+            ...groups.indexes.map(index => firstColumnOf(index)),
+            ...groups.uniques.filter(u => u.where == undefined || coversEveryRow(u.where)).map(u => firstColumnOf(u.properties)),
+            ...postgresTable.uniques.map(u => u.columns[0]),
+            postgresTable.primaryKey.columns[0]
+        ]);
+        const table: string = this.escape(postgresTable.name);
+        return postgresTable.foreignKeys
+            .map(key => key.columns[0])
+            .filter((column): column is string => column != undefined && !covered.has(column))
+            .map(column => {
+                const name: string = indexName(postgresTable.name, [column]);
+                const definition: string = `${this.escape(name)} ON ${table} (${this.escape(column)})`;
+                return {
+                    name,
+                    properties: [column],
+                    build: `CREATE INDEX CONCURRENTLY ${definition}`,
+                    buildOnEmptyTable: `CREATE INDEX ${definition}`,
+                    constrain: undefined,
+                    duplicates: undefined,
+                    speedsUpReadsOnly: true
+                };
+            });
     }
 
     /**
@@ -1613,7 +1803,7 @@ export class PostgresSchemaManager {
     }
 
     private async readStoredKeys(run: PostgresRun, tableNames: string[]): Promise<StoredKeyRow[]> {
-        return (await run(STORED_KEYS_SQL, [tableNames, DECLARED_KEY_COMMENT])).map(row => ({
+        return (await run(STORED_KEYS_SQL, [tableNames, DECLARED_KEY_COMMENTS])).map(row => ({
             table: String(row['table']),
             name: String(row['name']),
             valid: row['valid'] === true,

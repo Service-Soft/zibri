@@ -8,6 +8,7 @@ import { MultithreadingServiceInterface } from './multithreading-service.interfa
 import { MultithreadingService, PersistedFunctionJobError } from './multithreading.service';
 import { ThreadJobWorker } from './thread-job-worker';
 import { TestTimeouts } from '../../__testing__/constants';
+import { describeThreadJob } from '../../__testing__/describe-thread-job.function';
 import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
@@ -277,6 +278,37 @@ describe('MultithreadingService', () => {
 
         expect(res.status).toBe(ThreadJobStatus.COMPLETED);
         expect(res.result).toEqual(55);
+    }, 30000);
+
+    // a job queued while the only worker was on its way out, as one is right after a job that threw where nothing
+    // could catch it, found no worker free, and the replacement started after it took nothing until a poll looked.
+    // The harness has no poll, so here it never did
+    it('hands a job that waited while a worker died to the worker replacing it', async () => {
+        assert(multithreadingService instanceof MultithreadingService);
+        const idleWorkers: ThreadJobWorker[] = multithreadingService['idleWorkers'];
+        expect(idleWorkers.length).toBe(1);
+        const threadJobRepo: ThreadJobRepository = inject(repositoryTokenFor(ThreadJobEntity));
+        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
+        const workerData: BaseThreadJobWorkerData & { amount: number } = { filePath, amount: 10 };
+        // the row alone, as a job queued while no worker was free is
+        const waiting: AnyThreadJobEntity = await threadJobRepo.create({
+            queuedAtMs: Date.now(),
+            status: ThreadJobStatus.IN_QUEUE,
+            priority: false,
+            progress: 0,
+            attempts: 0,
+            timeoutInMs: Ms.SECOND * 10,
+            workerData
+        });
+
+        await idleWorkers[0]?.worker.terminate();
+        await waitUntil(
+            async () => (await threadJobRepo.findById(waiting.id)).status === ThreadJobStatus.COMPLETED,
+            15000,
+            async () => await describeThreadJob(threadJobRepo, waiting.id)
+        );
+
+        expect((await threadJobRepo.findById(waiting.id)).result).toEqual(55);
     }, 30000);
 
     it('fails the job with a timeout error when it does not complete in time', async () => {

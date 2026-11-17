@@ -2,8 +2,8 @@
 
 Conventions for every package in this repository. Read this before your first change.
 
-Changing `packages/tsx`? Read [its goals](./packages/tsx/GOALS.md) first: they are what every change to
-the compiler is measured against.
+Changing `packages/tsx` or `packages/tsx-compiler`? Read [their goals](./packages/tsx/GOALS.md) first: they are what
+every change to the compiler is measured against.
 
 Where this and the surrounding code disagree, this wins — the code predates some of it. Where this
 and the linter disagree, the linter wins and this file is wrong; open an issue.
@@ -20,6 +20,7 @@ and the linter disagree, the linter wins and this file is wrong; open an issue.
 - [Shape of the code](#shape-of-the-code)
 - [Types](#types)
 - [Comments and JSDoc](#comments-and-jsdoc)
+- [Messages for the user](#messages-for-the-user)
 - [The documentation](#the-documentation)
 - [Tests](#tests)
 
@@ -78,6 +79,7 @@ thing it is:
 | `.enum.ts` | An enum |
 | `.type.ts` | A standalone type alias |
 | `.test.ts` | Tests for the file of the same name |
+| `.browser.test.ts` | Tests of what the file of the same name does in a real browser |
 | `.cases.ts` | Test cases shared by several `.test.ts` files |
 | `.instance-options.ts` | What every instance of the `.cluster.test.ts` beside it boots with |
 
@@ -85,6 +87,13 @@ thing it is:
 follow the same idea for their own kinds.
 
 **A test sits next to what it tests.** `repository.ts` and `repository.test.ts` share a directory.
+
+**A name is public unless only Zibri needs it.** A package has its main entry point and an `internal` one
+(`zibri/internal`, `zibri-tsx/internal`), which any release can change. A name goes on the main one when an
+application writes or calls it, when a public signature reaches it, when it is an error class or the `is…` guard of a
+public type, and whenever it could be useful to an application, such as `escapeText`. `internal` holds only what
+compiled code, the other Zibri packages or a custom version of something Zibri ships need. A name a minor release
+moves off the main entry point stays there, `@deprecated`, until the next major.
 
 # Shape of the code
 
@@ -157,6 +166,20 @@ whoever has to change this in a year.
 Comment density matches the surrounding file. A comment restating the code is noise; a comment
 explaining a decision is the most valuable line on the screen.
 
+# Messages for the user
+
+**A validation message says what the value needs to be.** It is only read when the value is not that,
+so a rule stated as a fact is false for the one value it is shown for. "A password has at least 15
+characters" is what the password does not do; "A password needs to be at least 15 characters long" is
+what its author has to change.
+
+**"needs to" is the one wording of a requirement.** Not "has to", "should" or "must", and not the plain
+present ("An externalId is a string"). A problem reported under a key starts at the verb, since the key
+is its subject: `needs to be at most 5`.
+
+**A fact about what was refused stays a fact**, as long as it is true of that value: `is required`,
+`The role 'admin' does not exist`, `The filter cannot be read at "x"`.
+
 # The documentation
 
 `packages/zibri/docs/` is for people using the framework, and it has its own rules: read
@@ -187,17 +210,30 @@ that is never red is not a suite that is passing. Leave it red and report it.
 | `test:benchmark` | `*.benchmark.test.ts`, in band: timings reported against a `*.baseline.json` beside each suite, never failing |
 | `test:benchmark:compare` | `test:benchmark` on your checkout and on `release`, in turns; fails on an operation that got slower |
 | `test:heavy` | Long-running suites, in band |
+| `test:browser` | `*.browser.test.ts` of `zibri-tsx` and the sandbox, in Chromium: run `npx playwright install chromium` once |
 
-CI runs every one of them: `test:ci` runs all but the benchmarks, which a job of its own runs through
-`test:benchmark:compare`.
+CI runs every one of them: `test:ci` runs all but the benchmarks, which jobs of their own run through
+`test:benchmark:compare`, one per group of `packages/zibri/benchmark-groups.json`.
 
 **A slower operation fails the build, measured against the release.** `test:benchmark:compare`
 builds `origin/release` in a worktree beside your checkout and runs the benchmarks on both, four
 times each, in turns on the same machine. An operation whose median is more than 1.3× the release's
-fails it. Run `git fetch origin release` first. When a slowdown is worth it, add it to
+fails it. A suite only one side has runs once: it is compared with nothing, and a group with no suite
+on the release does not build the release. The same holds for a figure a suite reports beside its timings with
+`BenchmarkUtilities.writeFigureReport`, such as the peak memory or CPU time of a backup. Memory only
+counts once it is also more than 16 MiB above the release's. Run `git fetch origin release` first. When a slowdown is worth it, add it to
 `packages/zibri/benchmark-allowances.json` as `{ "against": "<release version>", "name": "<operation>",
 "ratio": 1.6, "reason": "..." }`. It counts until that release is replaced, and the comparison names
 the allowances that no longer apply.
+
+**The benchmark job takes as long as its longest group.** Each group of `packages/zibri/benchmark-groups.json`
+is compared on a runner of its own, both sides of each of its suites in turns, and `rest` takes every suite no
+group names. `npm run test:benchmark:compare -w zibri -- <group>` compares one group. A suite that takes minutes
+gets a group of its own, so a measurement of it that takes long belongs in a suite of its own. A group names its
+suites and, with `rounds`, how often each side runs them when four is too many: a suite that takes minutes and
+takes a median of its own in every run is compared in two. The comparison ends with what each run took. What a backup holds
+after a collection is measured in the first round of your checkout alone, and
+`ZIBRI_BENCHMARK_SKIP_HELD_MEMORY=1` leaves it out of a run.
 
 **What a deployment weighs is held to a limit.** The cli's docker suite fails when the generated
 project's bundle, `dist` or pruned `node_modules` outgrows
@@ -207,6 +243,16 @@ grow, and say why beside it.
 **Recorded baselines are your own machine's, never committed.** `ZIBRI_BENCHMARK_UPDATE_BASELINE=1`
 (or `ZIBRI_DEPLOYMENT_UPDATE_BASELINE=1` for the deployment) records the run as your `*.baseline.json`,
 which later runs are reported against.
+
+**What runs in the browser is tested in a browser.** A fake DOM missed that handlers wrapped by a child
+component never ran, on every page. The sandbox opens its pages from its own routes with
+`startPageBrowser` of `zibri-testing`; zibri-tsx, which builds before it, uses
+`packages/tsx/src/__testing__/browser.helper.ts`.
+
+**A browser test finds an element by its id, and checks accessibility in assertions of their own.**
+Finding an element by its role checks the role as a side effect, and whoever later finds it another
+way removes a check they did not know was there. No line of a test checks something in passing while
+doing something else.
 
 **Most suites need a container runtime.** `startTestServer()` starts Postgres and ValKey through
 testcontainers, so they need Docker or Podman running.

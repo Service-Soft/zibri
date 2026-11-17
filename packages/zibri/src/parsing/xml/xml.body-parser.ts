@@ -62,7 +62,7 @@ export class XmlBodyParser implements BodyParserInterface<MimeType.XML> {
             return undefined;
         }
         if (typeof xml !== 'string') {
-            throw new BadRequestError($ts`an XML body has to be sent as text`);
+            throw new BadRequestError($ts`an XML body needs to be sent as text`);
         }
         try {
             const root: XmlElementNode = XmlReaderUtilities.resolveRootElement(xml);

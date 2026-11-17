@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
 import { InvalidTwoFactorCodeError } from '../../invalid-two-factor-code.error';
+import { SecondFactorMissingError } from '../../second-factor-missing.error';
 import { NoRegistrationRequestData } from '../no-registration-request-data.model';
 import { TwoFactorMethod } from '../two-factor-method.interface';
 import { base32Encode } from './base32-encode.function';
@@ -198,10 +199,9 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpRegistration
         for (const c of credentials) {
             const step: number | undefined = this.findCodeStep(c.secret, data.token);
             if (step != undefined) {
-                // spent here too: confirming is a successful validation, so letting the same digits
-                // through again afterwards would leave the very first code a user enters open to
-                // being used a second time
-                await this.consumeStep(c.id, step);
+                // left unspent: enrolling at login continues with the second factor, which an authenticator
+                // still shows the same code for, and the user waited for the next one. It passes one
+                // check more within its step, once per enrollment, and only with a session or a login ticket
                 await this.otpCredentialsRepository.updateById(c.id, { confirmed: true });
                 return;
             }
@@ -266,7 +266,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpRegistration
     private extractTokenFromRequestContext(context: HttpRequestContext | WebsocketRequestContext): string {
         const code: string | undefined = findHeader(context.request.headers, this.otpHeader);
         if (!code) {
-            throw new UnauthorizedError($ts`"${this.otpHeader}" header not found`);
+            throw new SecondFactorMissingError($ts`"${this.otpHeader}" header not found`);
         }
         if (code.length !== this.otpLength) {
             throw new UnauthorizedError($ts`The provided two factor code is not ${this.otpLength} digits long.`);

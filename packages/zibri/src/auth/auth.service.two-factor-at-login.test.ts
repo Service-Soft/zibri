@@ -352,13 +352,17 @@ describe('AuthService - a second factor at login', () => {
             const registered: Response = await continueWith('/registration/request?method=otp', ticket);
             expect(registered.status).toBe(200);
             const { secret }: { secret: string } = await registered.json() as { secret: string };
-            // the code one step back, so that the one the login completes with is still unspent
-            const earlier: string = new TOTP({ secret }).generate({ timestamp: Date.now() - (30 * Ms.SECOND) });
-            expect((await continueWith('/registration/confirm?method=otp', ticket, {}, { token: earlier })).status).toBe(204);
 
-            const res: Response = await continueWith('/confirm', ticket, { [otpHeader]: new TOTP({ secret }).generate() });
+            const code: string = new TOTP({ secret }).generate();
+            expect((await continueWith('/registration/confirm?method=otp', ticket, {}, { token: code })).status).toBe(204);
+            expect(await loginsOf(user)).toBe(0);
+
+            // the code that turned the factor on, which the authenticator still shows: spent by the enrollment,
+            // it was refused, and the user waited for the next one to finish logging in
+            const res: Response = await continueWith('/confirm', ticket, { [otpHeader]: code });
 
             expect(res.status).toBe(200);
+            expect(await res.json()).toEqual(expect.objectContaining({ accessToken: expect.any(Object) }));
             expect(await loginsOf(user)).toBe(1);
         });
 

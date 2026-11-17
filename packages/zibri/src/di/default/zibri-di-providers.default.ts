@@ -1,7 +1,9 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import os from 'node:os';
 
-import { EmailService } from '../../email/email.service';
+import { AsyncApiService } from '../../async-api/async-api.service';
+import { S3TenantBackupTransportKind } from '../../backup/tenant/s3.tenant-backup-transport-kind';
+import { SftpTenantBackupTransportKind } from '../../backup/tenant/sftp.tenant-backup-transport-kind';
 import { errorHandler } from '../../error-handling/error-handler';
 import { inject } from '../inject.function';
 import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
@@ -39,6 +41,7 @@ import { DataSourceService } from '../../data-source/data-source.service';
 import { RepositoryHooks } from '../../data-source/hooks/repository-hooks.model';
 import { PdfFontOptions } from '../../document/pdf-font-options.model';
 import { EmailRateLimiter } from '../../email/email.rate-limiter';
+import { EmailService } from '../../email/email.service';
 import { LoggingEmailTransport } from '../../email/transports/logging.email-transport';
 import { EventService } from '../../event/event.service';
 import { GlobalRegistry } from '../../global/global-registry';
@@ -68,6 +71,7 @@ import { MembershipService } from '../../tenancy/membership/membership.service';
 import { TenantService } from '../../tenancy/tenant.service';
 import { InMemoryTraceBuffer } from '../../tracing/in-memory.trace-buffer';
 import { OpenTelemetryTracer } from '../../tracing/open-telemetry/open-telemetry.tracer';
+import { MarkdownService } from '../../tsx/markdown.service';
 import { FsUtilities } from '../../utilities/fs.utilities';
 import { Ms } from '../../utilities/ms';
 import { resolveAppRoot } from '../../utilities/resolve-app-root.function';
@@ -140,6 +144,12 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     BACKUP_SERVICE: { useClass: BackupService },
     GLOBAL_ERROR_HANDLER: { useFactory: () => errorHandler },
     ERROR_PAGE_TEMPLATE: { useFactory: () => undefined },
+    // none, so each construct renders as its plain element
+    MDX_COMPONENTS: { useFactory: () => ({}) },
+    MDX_EMAIL_COMPONENTS: { useFactory: () => ({}) },
+    // off, so an application rendering no markdown at runtime needs no package for it
+    MARKDOWN_OPTIONS: { useFactory: () => ({ renderAtRuntime: false }) },
+    MARKDOWN_SERVICE: { useClass: MarkdownService },
     OPEN_API_SERVICE: { useClass: OpenApiService },
     // the explorer, its scripts and the spec, behind `defaultAuth` like every route that says nothing
     // of its own: the document is every route, model and permission name, which an application
@@ -147,6 +157,11 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // did. A browser navigating to the explorer carries no Authorization header, so an
     // application that wants it open says so here, `{ skip: true }`, independent of its default
     OPEN_API_AUTH: { useFactory: (): RouteAuthConfiguration => ({}) },
+    OPEN_API_EXPLORER_TEMPLATE: { useFactory: () => undefined },
+    // undefined names the application itself, which only the services can describe
+    OPEN_API_SERVERS: { useFactory: () => undefined },
+    ASYNC_API_SERVERS: { useFactory: () => undefined },
+    ASYNC_API_SERVICE: { useClass: AsyncApiService },
     PARSER: { useClass: Parser },
     VALIDATION_SERVICE: { useClass: ValidationService },
     DATA_SOURCE_SERVICE: { useClass: DataSourceService },
@@ -199,6 +214,9 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // how long a shutting down instance waits for work it holds a lease on before taking the lease
     // away. Comfortably inside the shutdown timeout, or the hook is cut off before it can release.
     LEASE_DRAIN_TIMEOUT_IN_MS: { useFactory: () => Ms.SECOND * 10 },
+    // how often a lease or a backup that is still waited for says what it waits for. Long enough that a wait
+    // which ends normally says nothing, short enough that one which never ends is seen within a minute
+    WAIT_REPORT_INTERVAL_IN_MS: { useFactory: () => Ms.SECOND * 30 },
     // a container's hostname is its pod's name, which is what an operator looks for. The pid tells
     // apart the processes of one host
     INSTANCE_ID: { useFactory: () => `${os.hostname()}:${process.pid}` },
@@ -318,8 +336,26 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // a transport that cannot be reached for a while is the failure a retry is for, and three tries
     // over a few minutes outlast most of those without holding a backup open for an outage
     BACKUP_MAX_ATTEMPTS: { useValue: 3 },
+    // one at a time per instance: each resource being stored holds a dump running and a staging file
+    // as large as the resource, and an instance that saw ten due started ten of each at once
+    BACKUP_MAX_CONCURRENT_RESOURCES: { useValue: 1 },
     BACKUP_RETRY_DELAY_IN_MS: { useFactory: () => Ms.MINUTE },
     BACKUP_RETENTION: { useValue: undefined },
+    // about 1 MiB a chunk: an object per chunk keeps 100 GB of new data at about 100 000 objects, and a
+    // smaller chunk would deduplicate more only with chunks packed into larger objects
+    BACKUP_CHUNKING_OPTIONS: {
+        useValue: { minChunkBytes: 256 * 1024, averageChunkBytes: 1024 * 1024, maxChunkBytes: 4 * 1024 * 1024, compressionLevel: 3 }
+    },
+    // off: reading the chunks back costs the egress of everything read, which an application decides on
+    BACKUP_SCRUB_OPTIONS: { useValue: undefined },
+    // in effect only for an application declaring TenantBackupTransport
+    BACKUP_TENANT_TRANSPORT_OPTIONS: {
+        useFactory: () => ({
+            kinds: [new S3TenantBackupTransportKind(), new SftpTenantBackupTransportKind()],
+            allowedHosts: undefined,
+            allowPrivateNetworks: false
+        })
+    },
     // the route history belongs to the deployment, so it is resolved from the application's root:
     // an installed copy of the framework is the one place it must not land, and that is where
     // resolving it from this file put it for an application that does not bundle.

@@ -1,11 +1,13 @@
 import assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { builtinModules } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { describe, expect, it } from '@jest/globals';
 
+import { PACKAGES_LEFT_TO_THE_APPLICATION } from '../__testing__/packages-left-to-the-application';
 import { JsonUtilities } from '../utilities/json.utilities';
 
 /**
@@ -75,6 +77,91 @@ function inConsumerProcess<T>(script: string): T {
         stdio: ['ignore', 'pipe', 'pipe']
     });
     return JsonUtilities.parse(output);
+}
+
+/**
+ * The sections of a manifest that decide what a consumer has installed beside the package.
+ */
+type InstalledBeside = {
+    /**
+     * What is installed with the package.
+     */
+    dependencies?: Record<string, string>,
+    /**
+     * What the consumer installs, the package asking for it.
+     */
+    peerDependencies?: Record<string, string>
+};
+
+/**
+ * The fields of a manifest that tell TypeScript where a package's declarations are.
+ */
+type PackageManifest = {
+    /**
+     * The file a require of the package loads.
+     */
+    main?: string,
+    /**
+     * The declarations of the main file.
+     */
+    types?: string,
+    /**
+     * The older name of `types`.
+     */
+    typings?: string,
+    /**
+     * The declarations per version of TypeScript.
+     */
+    typesVersions?: unknown,
+    /**
+     * The entry points, each of which may name its declarations.
+     */
+    exports?: unknown
+};
+
+/**
+ * The packages the built declarations import, by the name a consumer installs them under.
+ * @returns The names, without node's own modules and without the package itself.
+ */
+function findDeclarationImports(): string[] {
+    const declarations: string[] = readdirSync(path.join(packageDir, 'dist', 'cjs'), { recursive: true, encoding: 'utf8' })
+        .filter(file => file.endsWith('.d.ts'));
+    const names: Set<string> = new Set();
+    for (const file of declarations) {
+        const source: string = readFileSync(path.join(packageDir, 'dist', 'cjs', file), 'utf8');
+        for (const [, specifier = ''] of source.matchAll(/(?:from |import\()'([^'.][^']*)'/g)) {
+            // a scoped package is named by its first two segments, any other by its first
+            const name: string = specifier.split('/').slice(0, specifier.startsWith('@') ? 2 : 1)
+                .join('/');
+            if (!name.startsWith('node:') && !builtinModules.includes(name) && name !== 'zibri') {
+                names.add(name);
+            }
+        }
+    }
+    return [...names].sort();
+}
+
+/**
+ * Whether a package carries declarations of its own, rather than leaving them to `@types`.
+ * @param name - The package.
+ * @returns True when its manifest names its declarations, or it has an `index.d.ts`.
+ */
+function hasOwnDeclarations(name: string): boolean {
+    // looked up the way node looks for a package rather than resolved, which a package's `exports`
+    // can refuse for its manifest
+    const manifestPath: string | undefined = [packageDir, repoRoot]
+        .map(directory => path.join(directory, 'node_modules', name, 'package.json'))
+        .find(candidate => existsSync(candidate));
+    assert(manifestPath, `${name} is not installed`);
+    const manifest: PackageManifest = JsonUtilities.parse(readFileSync(manifestPath, 'utf8'));
+    const main: string = path.join(path.dirname(manifestPath), manifest.main ?? 'index.js');
+    // where TypeScript looks for them: what the manifest names, and otherwise beside the main file
+    return manifest.types != undefined
+        || manifest.typings != undefined
+        || manifest.typesVersions != undefined
+        || JsonUtilities.stringify(manifest.exports ?? {}).includes('"types"')
+        || existsSync(main.replace(/\.c?js$/, '.d.ts'))
+        || existsSync(path.join(main, 'index.d.ts'));
 }
 
 describe('the published package', () => {
@@ -147,15 +234,37 @@ describe('the published package', () => {
         expect(testMaterial).toEqual([]);
     });
 
+    it('ships no source its build left out', () => {
+        const files: Set<string> = new Set(packed().files);
+
+        // the build compiles what its entry points reach, while `files` ships the directory: a source
+        // nothing reaches goes out without code, declarations or a map leading to it. The one found was
+        // a function whose last caller in the framework had gone, kept alive by a benchmark importing
+        // it, which no name above gives away as test material.
+        const leftOut: string[] = [...files].filter(f => f.startsWith('src/')
+            && !files.has(f.replace(/^src\//, 'dist/cjs/').replace(/\.tsx?$/, '.js')));
+
+        expect(leftOut).toEqual([]);
+    });
+
     it('installs at a size a consumer would accept', () => {
         const megabytes: number = packed().unpackedSize / 1024 / 1024;
 
-        // measured 2026-11-01: `dist` is 10.9MB, of which 4 is the code that runs and the rest its
-        // declarations and the maps of both, and the sources the maps lead into are 6.8MB, 17.7 all
-        // told. The ceiling sits just above that: growing past it is a reason to look at what grew,
-        // which once found test cases, fonts twice over and comments in code that runs, and once the
-        // postgres layer that replaced typeorm. The number this was first written against is 50MB.
-        expect(megabytes).toBeLessThan(18);
+        // measured 2026-11-17: `dist` is 12.3MB, of which 4.5 is the code that runs and the rest its
+        // declarations and the maps of both, and the sources the maps lead into are 7.6MB, 20.00 all
+        // told. Nothing else is in the tarball, so a kilobyte of source ships as 2.6: itself, its code,
+        // its declarations and the maps of both. The ceiling sits just above the measurement: growing
+        // past it is a reason to look at what grew, which once found test cases, fonts twice over and
+        // comments in code that runs, and once the postgres layer that replaced typeorm. Raised from 18
+        // for 3.1, whose 3,400 lines of framework code since 2026-11-01 are the 0.24MB `dist` grew by,
+        // from 18.5 on 2026-11-13 at 18.92, and from 20 on 2026-11-17: the sources grew by 0.8MB since
+        // 2026-11-10, of which 0.45 is `src/backup` (backups reading only what changed, backups of
+        // tenants, the second repository layout and its garbage collection) and 0.24 the data sources
+        // those read through. What is left to save without giving up the sources or the maps is the
+        // 0.2MB of `__decorate`, `__metadata` and `__param` that tsc writes into each of 321 files, which
+        // `importHelpers` would take from tslib instead. The number this was first written against is
+        // 50MB.
+        expect(megabytes).toBeLessThan(21);
     });
 
     it('ships its comments once in the sources and the declarations, not in the code that runs', () => {
@@ -166,6 +275,28 @@ describe('the published package', () => {
         // the declarations, and a source map leads to the sources
         expect(code).not.toContain('/**');
         expect(declarations).toContain('/**');
+    });
+
+    it('has a consumer install the declarations of every package its own declarations import', () => {
+        const manifest: InstalledBeside = JsonUtilities.parse(readFileSync(path.join(packageDir, 'package.json'), 'utf8'));
+        const installed: Set<string> = new Set([
+            ...Object.keys(manifest.dependencies ?? {}),
+            ...Object.keys(manifest.peerDependencies ?? {}),
+            // such as the webpack whose configuration `zibri/webpack` answers, which the application builds with
+            ...PACKAGES_LEFT_TO_THE_APPLICATION
+        ]);
+        const missing: string[] = findDeclarationImports().filter(name => {
+            // DefinitelyTyped writes a scoped package's name without its @ and with __ for its /
+            const typesPackage: string = `@types/${name.replace(/^@/, '').replace('/', '__')}`;
+            return hasOwnDeclarations(name) ? !installed.has(name) : !installed.has(typesPackage);
+        });
+
+        // a consumer's build skips the declarations of its libraries, so an import of a package it
+        // never installed is no error there: every type built from it silently becomes `any`. Only a
+        // template looping over such a type with an untyped callback showed it, as the generated
+        // project's build failing on implicit `any`s. This workspace hoists every package, so nothing
+        // else here can see it
+        expect(missing).toStrictEqual([]);
     });
 
     it('advertises no entry point that the build does not produce', () => {
@@ -243,7 +374,7 @@ describe('the published package', () => {
 describe('the packages released together', () => {
     // npm shows a package's README as its page, and the repository's README links each one,
     // so an empty one is the first thing a reader of the package meets
-    it.each(['zibri', 'cli', 'tsx', 'testing'])('give %s a README saying how to install it and where its documentation is', name => {
+    it.each(['zibri', 'contract', 'cli', 'tsx', 'tsx-compiler', 'mdx', 'testing'])('give %s a README saying how to install it and where its documentation is', name => {
         const readme: string = readFileSync(path.join(repoRoot, 'packages', name, 'README.md'), 'utf8');
 
         expect(readme).toMatch(/^# /m);

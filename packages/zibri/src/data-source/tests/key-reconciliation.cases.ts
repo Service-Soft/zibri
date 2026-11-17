@@ -46,11 +46,9 @@ export class PlainWidget extends BaseEntity {
  */
 @Entity({ tenant: 'shared', tableName: 'reconciled_widget', allowOrphan: true, allowDuplicate: true, uniques: [['code']] })
 export class KeyedWidget extends BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string()
     code!: string;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string({ index: true })
     shelf!: string;
 }
@@ -66,11 +64,9 @@ export class KeyedWidget extends BaseEntity {
     uniques: [{ properties: ['code'], where: whereFor<ShelfXWidget>({ shelf: 'x' }) }]
 })
 export class ShelfXWidget extends BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string()
     code!: string;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string()
     shelf!: string;
 }
@@ -86,11 +82,9 @@ export class ShelfXWidget extends BaseEntity {
     uniques: [{ properties: ['code'], where: whereFor<ShelfYWidget>({ shelf: 'y' }) }]
 })
 export class ShelfYWidget extends BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string()
     code!: string;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string()
     shelf!: string;
 }
@@ -106,11 +100,9 @@ export class ShelfYWidget extends BaseEntity {
     checks: [whereFor<CheckedWidget>({ shelf: { not: 'z' } })]
 })
 export class CheckedWidget extends BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string()
     code!: string;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string()
     shelf!: string;
 }

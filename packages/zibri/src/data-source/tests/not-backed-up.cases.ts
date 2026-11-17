@@ -1,8 +1,10 @@
+import assert from 'node:assert';
 import { Readable } from 'node:stream';
 import { buffer } from 'node:stream/consumers';
 
 import { describe, expect, it } from '@jest/globals';
 
+import { BackupDataOptionsTestUtilities } from '../../__testing__/backup/backup-data-options-test.utilities';
 import { BackupEntity } from '../../backup/backup-entity.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
@@ -21,7 +23,6 @@ import { Repository } from '../repository/repository';
  */
 @Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 export class BackedUpNote extends BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string()
     text!: string;
 }
@@ -31,11 +32,9 @@ export class BackedUpNote extends BaseEntity {
  */
 @Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true, backedUp: false })
 export class KeptGrant extends BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string()
     name!: string;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.oneToMany({ target: () => KeptRenewal, inverseSide: 'grant' })
     renewals!: KeptRenewal[];
 }
@@ -46,15 +45,12 @@ export class KeptGrant extends BaseEntity {
  */
 @Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true, backedUp: false })
 export class KeptRenewal extends BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.manyToOne({ target: () => KeptGrant, joinColumn: 'grantId', inverseSide: 'renewals' })
     grant?: KeptGrant;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string({ format: 'uuid' })
     grantId!: string;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string()
     reason!: string;
 }
@@ -73,7 +69,13 @@ export function describeNotBackedUp(dataSourceName: string, dataSourceOf: () => 
             await notes.create({ text: 'backed up' });
             await grants.create({ name: 'held when the backup was taken' });
             // the data source ignores which backup the data is for
-            const backup: Buffer = await buffer(await dataSource.createBackupData(Object.assign(new BackupEntity(), { name: 'kept' })));
+            // as a backup cut into chunks asks for it, which is how a backup is stored
+            const backup: Buffer = await buffer(
+                await dataSource.createBackupData(
+                    Object.assign(new BackupEntity(), { name: 'kept' }),
+                    BackupDataOptionsTestUtilities.resolve()
+                )
+            );
 
             await notes.deleteAll({});
             await grants.deleteAll({});
@@ -91,7 +93,10 @@ export function describeNotBackedUp(dataSourceName: string, dataSourceOf: () => 
             const grants: Repository<KeptGrant> = dataSource.getRepository(KeptGrant);
             const renewals: Repository<KeptRenewal> = dataSource.getRepository(KeptRenewal);
             const backup: Buffer = await buffer(
-                await dataSource.createBackupData(Object.assign(new BackupEntity(), { name: 'kept renewals' }))
+                await dataSource.createBackupData(
+                    Object.assign(new BackupEntity(), { name: 'kept renewals' }),
+                    BackupDataOptionsTestUtilities.resolve()
+                )
             );
             await renewals.deleteAll({});
             await grants.deleteAll({});
@@ -101,6 +106,36 @@ export function describeNotBackedUp(dataSourceName: string, dataSourceOf: () => 
             await dataSource.restoreBackup(Readable.from([backup]));
 
             expect((await renewals.findAll()).map(r => [r.grantId, r.reason])).toEqual([[grant.id, 'renewed now']]);
+        });
+
+        // what a restore with deleteFirst does before it applies the backup, so that the server holds the
+        // backup's rows alone
+        it('deletes what a backup takes, keeps the rows a backup leaves out, and restores after it', async () => {
+            const dataSource: DataSourceInterface = dataSourceOf();
+            const notes: Repository<BackedUpNote> = dataSource.getRepository(BackedUpNote);
+            const grants: Repository<KeptGrant> = dataSource.getRepository(KeptGrant);
+            await notes.deleteAll({});
+            await grants.deleteAll({});
+            await notes.create({ text: 'backed up' });
+            const backup: Buffer = await buffer(
+                await dataSource.createBackupData(
+                    Object.assign(new BackupEntity(), { name: 'deleted first' }),
+                    BackupDataOptionsTestUtilities.resolve()
+                )
+            );
+            await notes.create({ text: 'written after the backup' });
+            await grants.create({ name: 'held now' });
+            assert(dataSource.deleteBackedUpData, 'the data source deletes nothing first');
+
+            await dataSource.deleteBackedUpData();
+
+            expect(await notes.findAll()).toEqual([]);
+            expect((await grants.findAll()).map(g => g.name)).toEqual(['held now']);
+
+            await dataSource.restoreBackup(Readable.from([backup]));
+
+            expect((await notes.findAll()).map(n => n.text)).toEqual(['backed up']);
+            expect((await grants.findAll()).map(g => g.name)).toEqual(['held now']);
         });
     });
 }

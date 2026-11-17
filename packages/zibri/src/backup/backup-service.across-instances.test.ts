@@ -12,7 +12,7 @@ import { BackupServiceInterface } from './backup-service.interface';
 import { BackupStatus } from './backup-status.enum';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BackupTransport } from './decorators/backup-transport.decorator';
-import { BaseFsBackupTransport } from './transports/fs.backup-transport';
+import { FsBackupTransport } from './transports/fs.backup-transport';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -32,9 +32,10 @@ import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 const backupFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups-across-instances');
 
 @BackupTransport()
-class AcrossInstancesFsBackupTransport extends BaseFsBackupTransport {
-    override readonly name: string = 'across-instances-fs-backup-transport';
-    protected override readonly backupBasePath: FsPath = backupFolder;
+class AcrossInstancesFsBackupTransport extends FsBackupTransport {
+    constructor() {
+        super('across-instances-fs-backup-transport', backupFolder);
+    }
 }
 
 @DataSource()

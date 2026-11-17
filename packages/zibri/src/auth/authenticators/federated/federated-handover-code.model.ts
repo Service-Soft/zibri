@@ -11,7 +11,8 @@ import { ProviderAuthentication } from '../../models/provider-authentication.mod
  *
  * Spent once, by the browser the login was started in or by the frontend holding the PKCE verifier.
  */
-@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate' })
+// not backed up: a restore keeps the codes of now, so that one used since the backup stays used
+@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate', backedUp: false })
 export class FederatedHandoverCode extends BaseEntity {
     /**
      * The code.

@@ -43,6 +43,10 @@ export enum AuditAction {
      */
     PASSWORD_CHANGE_REQUIRED = 'auth.password.change-required',
     /**
+     * Setting the password of a user without the one they have, such as from a support tool.
+     */
+    PASSWORD_SET = 'auth.password.set',
+    /**
      * A user ending one of their logins, such as one on a device they lost.
      */
     LOGIN_ENDED = 'auth.login.ended',
@@ -50,6 +54,10 @@ export enum AuditAction {
      * A user ending every one of their logins.
      */
     LOGINS_ENDED = 'auth.logins.ended',
+    /**
+     * Ending every login of every user, such as once a secret got out.
+     */
+    EVERY_LOGIN_ENDED = 'auth.every-login.ended',
     /**
      * Verifying the email address of a user, by a link mailed to it.
      */
@@ -147,6 +155,11 @@ export enum AuditAction {
      * Deleting a user's membership in a tenant, and their roles in it with it. Recorded in that tenant.
      */
     MEMBERSHIP_DELETED = 'auth.membership.deleted',
+    /**
+     * Replacing a tenant's rows with those of a backup of the tenant. Recorded in that tenant, with the
+     * name of the backup as `subject`.
+     */
+    TENANT_RESTORED = 'backup.tenant.restored',
     /**
      * A client asking the authorization server for an access token with its api key.
      */

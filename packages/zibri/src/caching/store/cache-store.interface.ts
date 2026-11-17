@@ -21,7 +21,13 @@ export type CacheStoreConfig = {
     /**
      * How to handle caches that exceed their maxEntries or maxBytes.
      */
-    readonly removeOnOverflow: RemoveOnOverflowStrategy
+    readonly removeOnOverflow: RemoveOnOverflowStrategy,
+    /**
+     * Whether each tenant has entries of its own, keyed by the tenant active when the store is asked.
+     * False for a store keying by `cacheKeyOf(key, false)`, whose keys say which tenant they are for.
+     * Defaults to true.
+     */
+    readonly perTenant?: boolean
 };
 
 /**

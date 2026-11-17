@@ -1,4 +1,3 @@
-/* eslint-disable jsdoc/require-jsdoc */
 import { beforeEach, describe, expect, it } from '@jest/globals';
 
 import { EncryptionKey, EncryptionKeyStatus } from '../../auth/encryption/encryption-key.model';

@@ -18,18 +18,21 @@ export abstract class PostgresRestoreSqlUtilities {
      * @param preamble - What runs before the dump's statements.
      * @param statements - The dump's statements.
      * @param read - Settles once the archive was read, and fails when it could not be.
-     * @param epilogue - What runs after the dump's statements.
-     * @yields The preamble, the statements, then the epilogue.
+     * @param changes - What runs after the dump's statements: the changes of the backups after it.
+     * @param epilogue - What runs after the changes.
+     * @yields The preamble, the statements, the changes, then the epilogue.
      */
     static async* resolveScript(
         preamble: string,
         statements: Readable,
         read: Promise<void>,
+        changes: AsyncIterable<string>,
         epilogue: string
     ): AsyncGenerator<string | Buffer> {
         yield preamble;
         yield* statements;
         await read;
+        yield* changes;
         yield epilogue;
     }
 

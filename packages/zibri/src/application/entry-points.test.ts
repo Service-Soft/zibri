@@ -16,12 +16,14 @@ describe('the entry points', () => {
     it('pass on every name the files behind them export, each on exactly one of them', () => {
         const main: Set<string> = new Set(EntryPointUtilities.resolveNames('index.ts').map(exported => exported.name));
         const internal: Set<string> = new Set(EntryPointUtilities.resolveNames('internal.ts').map(exported => exported.name));
+        // a name moved to `zibri` stays on `zibri/internal` as well, deprecated, until the next major
+        const movedToMain: Set<string> = new Set(EntryPointUtilities.resolveDeprecatedNames('internal.ts'));
         const declared: ExportedName[] = [
             ...EntryPointUtilities.resolveReexportedFileNames('index.ts'),
             ...EntryPointUtilities.resolveReexportedFileNames('internal.ts')
         ];
 
-        const onBoth: string[] = [...main].filter(name => internal.has(name));
+        const onBoth: string[] = [...main].filter(name => internal.has(name) && !movedToMain.has(name));
         const onNeither: string[] = declared
             .filter(exported => !main.has(exported.name) && !internal.has(exported.name))
             .map(exported => `${exported.name} (${exported.file})`);

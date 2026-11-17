@@ -1,5 +1,6 @@
 import { EncryptionKey, EncryptionKeyCreateData } from './encryption-key.model';
 import { EncryptionString } from './encryption.utilities';
+import { KeptEncryptionKeys } from './kept-encryption-keys.model';
 import { KeysInUse } from './keys-in-use.model';
 import { RetiredKeyUsage } from './retired-key-usage.model';
 import { BaseEncryptOptions, EncryptionStrategyInterface } from './strategies/encryption-strategy.interface';
@@ -30,7 +31,12 @@ export type DeleteEncryptionKeyOptions = BaseRepositoryOptions & {
     /**
      * Whether or not it is allowed to delete the default key.
      */
-    allowDefault?: boolean
+    allowDefault?: boolean,
+    /**
+     * Whether a key may be deleted while stored values or recorded backups still need it, which leaves
+     * them unreadable. Defaults to false, which refuses with an `EncryptionKeyInUseError`.
+     */
+    allowInUse?: boolean
 };
 
 /**
@@ -139,5 +145,19 @@ export interface EncryptionServiceInterface {
      * Reads every row of every entity holding an encrypted property, so it costs as much as one full
      * pass of `EncryptionRotationCronJob`. The rows that job could not rewrite are named per key.
      */
-    resolveRetiredKeyUsage: () => Promise<RetiredKeyUsage>
+    resolveRetiredKeyUsage: () => Promise<RetiredKeyUsage>,
+    /**
+     * Reads the keys stored now, which a restore of the data source holding them keeps beside those of
+     * the backup with `putBackKeptKeys`. Optional until 4.0, for an encryption service of your own.
+     */
+    // TODO 4.0: required
+    resolveKeptKeys?: () => Promise<KeptEncryptionKeys>,
+    /**
+     * Writes back the keys `resolveKeptKeys` read, once a restore replaced what was stored: each key the
+     * restore took away is there again, under the row of its strategy that the application holds, and the
+     * default keys and strategy stay the default. The backup's own keys stay beside them. Writing them back
+     * twice changes nothing. Optional until 4.0, for an encryption service of your own.
+     */
+    // TODO 4.0: required
+    putBackKeptKeys?: (kept: KeptEncryptionKeys) => Promise<void>
 }

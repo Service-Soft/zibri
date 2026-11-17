@@ -1,0 +1,50 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { describe, expect, it } from '@jest/globals';
+import { Diagnostic } from 'zibri-tsx';
+
+import { validate, ValidationCode } from './validate';
+import { parseTemplateOk } from '../__testing__/parse.helper';
+import { collectTsxFiles, resolveTemplateName } from '../__testing__/sandbox.helper';
+
+function diagnose(source: string): Diagnostic[] {
+    return validate(parseTemplateOk(source));
+}
+
+describe('validate', () => {
+    it('accepts a well-formed component', () => {
+        expect(diagnose('export const Page = ({ title }: Props) => <h1>{title}</h1>;')).toEqual([]);
+    });
+
+    it('accepts a component with no props', () => {
+        expect(diagnose('export const Page = () => <h1>hi</h1>;')).toEqual([]);
+    });
+
+    it('rejects a component with multiple parameters', () => {
+        const [diagnostic] = diagnose('export const Page = (a, b) => <div>{a}{b}</div>;');
+        expect(diagnostic.code).toBe(ValidationCode.MULTIPLE_PARAMS);
+    });
+
+    it('rejects an async component', () => {
+        const [diagnostic] = diagnose('export const Page = async () => <div/>;');
+        expect(diagnostic.code).toBe(ValidationCode.ASYNC_COMPONENT);
+    });
+
+    it('does not flag a two-argument map callback that returns JSX', () => {
+        expect(diagnose('export const List = ({ items }) => <ul>{items.map((item, index) => <li>{index}{item}</li>)}</ul>;')).toEqual([]);
+    });
+});
+
+describe('validate against real sandbox templates', () => {
+    const templatesDir: string = join(__dirname, '..', '..', '..', 'sandbox', 'src', 'templates');
+    const files: string[] = collectTsxFiles(templatesDir);
+
+    it.each(files.map(f => [resolveTemplateName(templatesDir, f), f] as const))(
+        'reports no errors for %s',
+        (_name, file) => {
+            const diagnostics: Diagnostic[] = validate(parseTemplateOk(readFileSync(file, 'utf8')));
+            expect(diagnostics).toEqual([]);
+        }
+    );
+});

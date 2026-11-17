@@ -1,3 +1,13 @@
+import vm from 'node:vm';
+
+// @faker-js/faker ships as ESM-only .js since v10, and jose, openid-client and the oauth4webapi it is built on always
+// have, as do the markdown parser of zibri-mdx and what it is built on. Run with --experimental-vm-modules, as the
+// scripts of package.json run it, jest loads such a package as it is, and one compiled to commonjs it would still load
+// as an es module, failing on `exports`. Run without, by an editor say, matching them here (and un-ignoring them below)
+// lets ts-jest down-compile "import"/"export" to CommonJS for Jest's runtime. The framework's optionalPeer goes through
+// it too: inside a test, the require createRequire hands back is Jest's own. Asked the way jest asks
+const loadsEsModules = typeof vm.SourceTextModule?.prototype?.hasAsyncGraph === 'function';
+const esmPackages = '@faker-js/faker|jose|openid-client|oauth4webapi';
 
 /** @type {import('ts-jest').JestConfigWithTsJest} **/
 const config = {
@@ -5,22 +15,21 @@ const config = {
     rootDir: 'src',
     transform: {
         '^.+.tsx?$': ['ts-jest'],
-        // @faker-js/faker ships as ESM-only .js since v10, and jose, openid-client and the
-        // oauth4webapi it is built on always have; matching them here (and un-ignoring them below)
-        // lets ts-jest down-compile "import"/"export" to CommonJS for Jest's runtime. The framework's
-        // optionalPeer goes through it too: inside a test, the require createRequire hands back is
-        // Jest's own.
-        '/node_modules/(@faker-js/faker|jose|openid-client|oauth4webapi)/.+\\.js$': [
-            'ts-jest',
-            {
-                tsconfig: {
-                    allowJs: true,
-                    module: 'commonjs'
-                }
+        ...loadsEsModules
+            ? {}
+            : {
+                [`/node_modules/(${esmPackages})/.+\\.js$`]: [
+                    'ts-jest',
+                    {
+                        tsconfig: {
+                            allowJs: true,
+                            module: 'commonjs'
+                        }
+                    }
+                ]
             }
-        ]
     },
-    transformIgnorePatterns: ['/node_modules/(?!(@faker-js/faker|jose|openid-client|oauth4webapi)/)'],
+    transformIgnorePatterns: loadsEsModules ? ['/node_modules/'] : [`/node_modules/(?!(${esmPackages})/)`],
     // The harness is a package of its own, and this suite is its consumer - but it is also the
     // framework the harness imports. Both names resolve to the sources beside this file rather than
     // to a built `dist`: one physical copy of the framework in the process (two would be refused at
@@ -28,7 +37,8 @@ const config = {
     moduleNameMapper: {
         '^zibri$': '<rootDir>/index.ts',
         '^zibri/internal$': '<rootDir>/internal.ts',
-        '^zibri-testing$': '<rootDir>/../../testing/src/index.ts'
+        '^zibri-testing$': '<rootDir>/../../testing/src/index.ts',
+        '^zibri-contract$': '<rootDir>/../../contract/src/index.ts'
     },
     globalSetup: '<rootDir>/jest.global-setup.ts',
     setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
@@ -38,6 +48,10 @@ const config = {
     // whole environment alive. `node scripts/find-retained-test-environments.mjs <files>` names what
     // does; this restarts a worker before whatever is left adds up
     workerIdleMemoryLimit: '1GB',
+    // on disk rather than in the temp folder, jest's default, which on many machines is a tmpfs: the
+    // transformed sources of every run, gigabytes of them, sat in memory and swap there, and were
+    // gone after every reboot
+    cacheDirectory: '<rootDir>/../node_modules/.cache/jest',
     // with coverage, jest's own process received the sources of every module once per test file that
     // loaded it, and kept them all until the run was done: past 4 GB for this suite
     runner: '<rootDir>/__testing__/deduplicating-coverage.test-runner.ts',

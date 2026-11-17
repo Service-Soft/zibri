@@ -128,7 +128,7 @@ describe('NewCommand (sandbox parity, without installing)', () => {
             .filter(line => line !== '');
 
         // the install output and the build output, the secrets, and the folder
-        // docs/creating-endpoints.md tells the reader to ignore - which nothing had been creating
+        // docs/endpoints/creating-endpoints.md tells the reader to ignore - which nothing had been creating
         // for them. `versions` is deliberately absent: those snapshots are what the next version is
         // validated against, so they belong in the repository.
         expect(entries).toEqual(expect.arrayContaining(['node_modules', 'dist', '.env', '.zibri/']));

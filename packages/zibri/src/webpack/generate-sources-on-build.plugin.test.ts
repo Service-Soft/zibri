@@ -2,12 +2,12 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
 import { GenerateSourcesOnBuildPlugin, WebpackCompileCompiler } from './generate-sources-on-build.plugin';
 import { testFileFolder } from '../__testing__/constants';
+import { ConsoleUtilities } from '../logging/console.utilities';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { resolveZibriRoot } from '../utilities/resolve-zibri-root.function';
 
 const root: FsPath = FsUtilities.getPath(testFileFolder, 'generate-sources-on-build');
 
-let originalCwd: FsPath;
 let runBeforeCompile: () => Promise<void> = async () => {};
 
 const compiler: WebpackCompileCompiler = {
@@ -24,14 +24,25 @@ describe('GenerateSourcesOnBuildPlugin', () => {
     beforeAll(async () => {
         await FsUtilities.createFile(FsUtilities.getPath(root, 'src', 'models', 'generated', 'providers.ts'), 'export const providers = [];');
         await FsUtilities.createFile(FsUtilities.getPath(root, 'src', 'app.ts'), 'const own = $t`A string of the project ${name}`;');
-        originalCwd = process.cwd() as FsPath;
-        // the entity generation reads the providers file from the working directory, as a build runs there
-        process.chdir(root);
+        await FsUtilities.createFile(FsUtilities.getPath(root, 'src', 'templates', 'emails', 'greeting.hbs'), '<p>Hello {{name}}</p>');
     });
 
     afterAll(async () => {
-        process.chdir(originalCwd);
         await FsUtilities.rm(root);
+    });
+
+    // `webpack -c api/webpack.config.js` started in the root of a monorepo builds the project the configuration names
+    it('generates the types of the handlebars templates and the entities of the project it is given, wherever the build starts', async () => {
+        const infoSpy: jest.SpiedFunction<typeof ConsoleUtilities.info> = jest.spyOn(ConsoleUtilities, 'info');
+        new GenerateSourcesOnBuildPlugin(root).apply(compiler);
+
+        await runBeforeCompile();
+
+        expect(process.cwd()).not.toBe(root);
+        expect(await FsUtilities.exists(FsUtilities.getPath(root, 'src', 'templates', 'emails', 'greeting.hbs.ts'))).toBe(true);
+        // the providers file of the project is found, so nothing says it is missing
+        expect(infoSpy.mock.calls.map(([message]) => String(message))).not.toContainEqual(expect.stringContaining('providers.ts'));
+        infoSpy.mockRestore();
     });
 
     // the framework's strings come from the source.xlf it ships, so a build scans the project

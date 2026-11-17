@@ -9,7 +9,17 @@ import { BackupRetentionUtilities, RetainedBackup } from './backup-retention.uti
  * @returns The backup.
  */
 function backupAt(createdAt: string): RetainedBackup {
-    return { id: createdAt, createdAt: new Date(createdAt) };
+    return { id: createdAt, createdAt: new Date(createdAt), resources: [] };
+}
+
+/**
+ * Backups of which each one but the first builds on the one before it, as backups reading only what
+ * changed do.
+ * @param createdAt - When each was taken, as ISO strings, the oldest first.
+ * @returns The backups.
+ */
+function chainedBackups(createdAt: string[]): RetainedBackup[] {
+    return createdAt.map((at, i) => ({ ...backupAt(at), resources: [{ baseBackupId: createdAt[i - 1] ?? null }] }));
 }
 
 /**
@@ -100,9 +110,47 @@ describe('BackupRetentionUtilities', () => {
         ]);
     });
 
+    it('keeps every backup a kept backup builds on, back to the one in full, and lets a chain go once none of it is kept', () => {
+        const older: RetainedBackup[] = chainedBackups(['2026-03-16T03:00:00.000Z', '2026-03-17T03:00:00.000Z', '2026-03-18T03:00:00.000Z']);
+        const newer: RetainedBackup[] = chainedBackups(['2026-03-23T03:00:00.000Z', '2026-03-24T03:00:00.000Z', '2026-03-25T03:00:00.000Z']);
+
+        expect(findKept([...older, ...newer], { timeZone: 'UTC', last: 1 })).toStrictEqual([
+            '2026-03-25T03:00:00.000Z',
+            '2026-03-24T03:00:00.000Z',
+            '2026-03-23T03:00:00.000Z'
+        ]);
+    });
+
+    it('keeps the base of a base that was taken after the backup building on it, as a retried attempt builds on whatever completed last', () => {
+        const full: RetainedBackup = backupAt('2026-03-20T03:00:00.000Z');
+        // taken late on the 21st, retried, and built on the one taken in the night after it
+        const retried: RetainedBackup = { ...backupAt('2026-03-21T23:00:00.000Z'), resources: [{ baseBackupId: '2026-03-22T01:00:00.000Z' }] };
+        const builtOn: RetainedBackup = { ...backupAt('2026-03-22T01:00:00.000Z'), resources: [{ baseBackupId: full.id }] };
+        const newestFull: RetainedBackup = backupAt('2026-03-22T02:00:00.000Z');
+
+        expect(findKept([full, retried, builtOn, newestFull], { timeZone: 'UTC', daily: 2 }, '2026-03-22T03:00:00.000Z')).toStrictEqual([
+            '2026-03-22T02:00:00.000Z',
+            '2026-03-22T01:00:00.000Z',
+            '2026-03-21T23:00:00.000Z',
+            '2026-03-20T03:00:00.000Z'
+        ]);
+    });
+
     it('refuses a retention that names no rule, or a count that is not a positive whole number', () => {
         expect(() => BackupRetentionUtilities.validateRetention({ timeZone: 'UTC' })).toThrow('names no rule');
         expect(() => BackupRetentionUtilities.validateRetention({ timeZone: 'UTC', daily: 0, weekly: 1.5 })).toThrow('daily, weekly does not');
         expect(() => BackupRetentionUtilities.validateRetention({ timeZone: 'UTC', daily: 7, monthly: 12 })).not.toThrow();
+    });
+
+    it('refuses a fullRead that is no period', () => {
+        // @ts-expect-error a period that does not exist, as a configuration read at runtime can hold
+        expect(() => BackupRetentionUtilities.validateRetention({ timeZone: 'UTC', daily: 7, fullRead: 'fortnightly' })).toThrow('fullRead');
+        expect(() => BackupRetentionUtilities.validateRetention({ timeZone: 'UTC', daily: 7, fullRead: 'weekly' })).not.toThrow();
+    });
+
+    it('tells whether two moments fall in the same period, in the time zone given', () => {
+        // Sunday the 29th and Monday the 30th are two ISO weeks, and 23:30 UTC on the 29th is the 30th in Berlin
+        expect(BackupRetentionUtilities.isSamePeriod(new Date('2026-03-29T12:00:00.000Z'), new Date('2026-03-30T12:00:00.000Z'), 'weekly', 'UTC')).toBe(false);
+        expect(BackupRetentionUtilities.isSamePeriod(new Date('2026-03-29T23:30:00.000Z'), new Date('2026-03-30T12:00:00.000Z'), 'weekly', 'Europe/Berlin')).toBe(true);
     });
 });

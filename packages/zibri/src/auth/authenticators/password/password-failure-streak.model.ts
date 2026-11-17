@@ -8,7 +8,8 @@ import { OmitStrict } from '../../../types/omit-strict.type';
  *
  * One row per user, removed by the next correct password.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+// not backed up: a restore keeps the streaks of now, so that it hands no one guessing fresh attempts
+@Entity({ tenant: 'shared', allowOrphan: true, backedUp: false })
 export class PasswordFailureStreak extends BaseEntity {
     /**
      * The user the passwords were presented for.

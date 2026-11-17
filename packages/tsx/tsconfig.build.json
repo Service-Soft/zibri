@@ -1,4 +1,9 @@
 {
+    "compilerOptions": {
+        // the runtime alone: nothing it ships imports the compiler or itself by name
+        "paths": {},
+        "rootDir": "src"
+    },
     "exclude": ["src/**/*.test.ts", "src/__testing__"],
     "extends": "./tsconfig.json"
 }

@@ -4,6 +4,7 @@ import 'reflect-metadata';
 
 // application
 export * from './application/application';
+export * from './application/app-command.model';
 export * from './application/application-options.model';
 export * from './application/zibri-environment.type';
 
@@ -50,6 +51,8 @@ export * from './auth/models/require-2fa-provider-factors.model';
 export * from './auth/models/provider-authentication.model';
 export * from './auth/models/ended-login.model';
 export * from './auth/models/logout-result.model';
+export * from './auth/models/current-user-profile.model';
+export * from './auth/models/current-user-membership.model';
 export { LoginTicket } from './auth/models/login-ticket.model';
 export * from './auth/models/login-ticket-purpose.enum';
 
@@ -204,10 +207,13 @@ export * from './auth/authenticators/password/password-reset-email-template.mode
 export * from './auth/authenticators/password/request-password-reset-data.model';
 export * from './auth/authenticators/password/confirm-password-reset-data.model';
 export * from './auth/authenticators/password/change-password-data.model';
+export * from './auth/authenticators/password/set-password-data.model';
 export * from './auth/authenticators/password/change-password-at-login-input.model';
 export * from './auth/authenticators/password/password-change-required.error';
 export * from './auth/email-verification/email-verification-options.model';
 export * from './auth/email-verification/email-verification-purpose.type';
+export * from './auth/email-verification/email-verification-token-purpose.type';
+export * from './auth/email-verification/email-confirmation.model';
 export * from './auth/email-verification/email-verification-email-template.model';
 export * from './auth/email-verification/email-changed-email-template.model';
 export * from './auth/email-verification/email-verification-service.interface';
@@ -324,12 +330,14 @@ export * from './auth/user/user.service';
 export * from './auth/2fa/two-factor-service.interface';
 export * from './auth/2fa/two-factor.service';
 export * from './auth/2fa/two-factor-methods.model';
+export * from './auth/2fa/two-factor-registrations.model';
 export { TwoFactorFailureStreak } from './auth/2fa/two-factor-failure-streak.model';
 export * from './auth/2fa/two-factor-failure-limit.model';
 export * from './auth/2fa/two-factor-throttled.error';
 export * from './auth/2fa/two-factor-locked.error';
 export * from './auth/2fa/invalid-two-factor-code.error';
 export * from './auth/2fa/reauthentication-required.error';
+export * from './auth/2fa/second-factor-missing.error';
 export * from './auth/2fa/second-factor-required.error';
 export * from './auth/2fa/two-factor-at-login.type';
 
@@ -355,6 +363,7 @@ export * from './auth/2fa/methods/otp/otp-code-already-used.error';
 export { OtpCredentials } from './auth/2fa/methods/otp/otp-credentials.model';
 export { type OtpValidationWindowInMs } from './auth/2fa/methods/otp/otp.utilities';
 
+export * from './auth/encryption/encryption-key-in-use.error';
 export * from './auth/encryption/encryption-key.model';
 export * from './auth/encryption/encryption-master-options.model';
 export * from './auth/encryption/encryption-service.interface';
@@ -364,6 +373,7 @@ export { EncryptionRotationFailure } from './auth/encryption/encryption-rotation
 export { EncryptionRotationProgress } from './auth/encryption/encryption-rotation-progress.model';
 export * from './auth/encryption/encryption.utilities';
 export * from './auth/encryption/keys-in-use.model';
+export * from './auth/encryption/kept-encryption-keys.model';
 export * from './auth/encryption/master-key-reference.model';
 export * from './auth/encryption/retired-key-usage.model';
 export { SigningKey } from './auth/encryption/signing-key.model';
@@ -453,6 +463,11 @@ export { type ArrayParamItemMetadataInput, type ArrayParamMetadataInput } from '
 export { type OneOfPathParamMetadataInput, type OneOfQueryParamMetadataInput, type PathParamShapeMetadataInput, type QueryParamShapeMetadataInput } from './routing/models/one-of-param-metadata.model';
 export * from './routing/models/crud-controller-options.model';
 export * from './routing/models/crud-controller.model';
+export * from './routing/filter/filter.utilities';
+// the shared list types, so a backend doesn't need zibri-contract as its own dependency.
+// OrderDirection isn't among them: zibri's own is the same type.
+export { type FilterConfig, type FilterRange, type FilterValue, type OrderConfig, type OrderValue } from 'zibri-contract';
+export { type ArrayFilterMatch, type BooleanFilterMatch, type FilterMatch, type RangeFilterMatch, type StringFilterMatch } from 'zibri-contract';
 
 // context
 export * from './context/als.utilities';
@@ -467,6 +482,7 @@ export * from './context/cache/cache.context';
 
 // error handling
 export * from './error-handling/error-handler.model';
+export * from './error-handling/error-response-body.model';
 export * from './error-handling/error.utilities';
 export * from './error-handling/external-error.model';
 export * from './error-handling/internal-error.model';
@@ -549,7 +565,17 @@ export { type EmailLoggerTransportConfig, type EmailLoggerTransportConfigInput }
 // openapi
 export * from './open-api/open-api.service';
 export * from './open-api/open-api-service.interface';
-export { type EmptyOpenApiResponse, type ErrorOpenApiResponse, type FileOpenApiResponse, type HtmlOpenApiResponse, isOpenApiReferenceObject, type JsonOpenApiResponse, type OpenApiComponentsObject, type OpenApiDefinition, type OpenApiReferenceObject, type OpenApiResponse, type OpenApiSecuritySchemeObject, type OpenApiSecuritySchemeType, type RedirectHttpStatus, type RedirectOpenApiResponse } from './open-api/open-api.model';
+// every part of the document, as each is reached through `OpenApiDefinition`
+export * from './open-api/open-api.model';
+export * from './open-api/explorer/open-api-explorer.model';
+export * from './open-api/explorer/open-api-explorer-operation.model';
+export * from './open-api/explorer/open-api-explorer-security-scheme.model';
+export * from './open-api/explorer/open-api-explorer.utilities';
+export * from './async-api/async-api.model';
+export * from './async-api/async-api-service.interface';
+export * from './async-api/async-api.service';
+export * from './async-api/explorer/async-api-explorer-operation.model';
+export * from './async-api/explorer/async-api-explorer.utilities';
 export { type KeysetPage, type PaginationResult } from './data-source/models/pagination-result.model';
 
 export * from './open-api/decorators/response.decorator';
@@ -707,6 +733,7 @@ export * from './data-source/data-sources/postgres/postgres-pooler.model';
 export * from './data-source/data-sources/postgres/postgres-data-source.model';
 
 export * from './data-source/data-sources/val-key/val-key-backup-mode.model';
+export * from './data-source/data-sources/val-key/val-key-restore-mode.model';
 export * from './data-source/data-sources/val-key/val-key-data-source.model';
 
 export * from './data-source/driver/removal-reach.model';
@@ -721,6 +748,7 @@ export * from './data-source/transaction/spanning-transaction-restore-failure.mo
 export * from './data-source/transaction/spanning-transaction.model';
 export * from './data-source/transaction/transaction-conflict.error';
 export * from './data-source/transaction/transaction-deadlock.error';
+export * from './data-source/transaction/transaction-locks-lost.error';
 export * from './data-source/transaction/transaction-serialization.error';
 export * from './data-source/transaction/transaction-upsert-conflict.error';
 export * from './data-source/transaction/transaction.model';
@@ -894,6 +922,14 @@ export * from './tsx/tsx.utilities';
 export * from './tsx/tsx-component.model';
 export * from './tsx/tsx-email-component.model';
 export * from './tsx/email';
+export * from './tsx/mdx';
+export * from './tsx/markdown.component';
+export * from './tsx/markdown-options.model';
+export * from './tsx/markdown-service.interface';
+export * from './tsx/markdown.service';
+export * from './tsx/docs/docs-site.model';
+export * from './tsx/docs/docs-search-entry.model';
+export * from './tsx/docs/docs.utilities';
 export * from './tsx/on-client.hook';
 export * from './tsx/on-server.hook';
 
@@ -1080,23 +1116,56 @@ export * from './backup/incomplete-backup.error';
 export * from './backup/init-backup-service.error';
 export * from './backup/restore-not-undone.error';
 export * from './backup/restore-stopped.error';
+export * from './backup/not-enough-restore-space.error';
+export * from './backup/not-enough-restore-space-reason.type';
+export * from './backup/restore-options.model';
+export * from './backup/restore-space.model';
 export * from './backup/unreadable-backup.error';
 export * from './backup/backup-format';
 export * from './backup/backup-retention.model';
+export * from './backup/backup-period.type';
 export * from './backup/backup-status.enum';
 export * from './backup/run-queued-backups.cron-job';
+export * from './backup/backup-garbage-collection.cron-job';
 export * from './backup/backup.service';
 export * from './backup/backup-service.interface';
 export * from './backup/backup-resource.interface';
+export * from './backup/incremental-backup-resource.interface';
+export * from './backup/incremental-backup-data.model';
+export * from './backup/tenant-export-format.type';
+export * from './backup/tenant/tenant-backup-transport.model';
+export * from './backup/tenant/tenant-backup-transport-options.model';
+export * from './backup/tenant/tenant-backup-transport-kind.interface';
+export * from './backup/tenant/tenant-transport-network.model';
+export * from './backup/tenant/s3.tenant-backup-transport-kind';
+export * from './backup/tenant/sftp.tenant-backup-transport-kind';
+export * from './backup/tenant/tenant-s3-transport-settings.model';
+export * from './backup/tenant/tenant-s3-transport-secret.model';
+export * from './backup/tenant/tenant-sftp-transport-settings.model';
+export * from './backup/tenant/tenant-sftp-transport-secret.model';
+export * from './backup/tenant/tenant-backup-settings.model';
+export * from './backup/tenant/tenant-backup-retention.model';
+export * from './backup/backup-data-options.model';
 export { BackupResourceEntity } from './backup/backup-resource-entity.model';
+export { BackupChunkEntity } from './backup/backup-chunk-entity.model';
+export * from './backup/repository/backup-chunking-options.model';
+export * from './backup/repository/backup-scrub-options.model';
 
 export * from './backup/transports/backup-transport.interface';
+export * from './backup/transports/backup-transport-session.interface';
+export * from './backup/transports/backup-key-not-found.error';
+export * from './backup/transports/backup-key-access-denied.error';
+export * from './backup/transports/resolve-backup-key-segments.function';
+export * from './backup/transports/base.backup-transport';
 export * from './backup/transports/fs.backup-transport';
 export * from './backup/transports/s3.backup-transport';
+export * from './backup/transports/sftp.backup-transport';
+export * from './backup/transports/base-fs.backup-transport';
+export * from './backup/transports/base-s3.backup-transport';
 export * from './backup/transports/s3/s3-backup-transport-options.model';
 export * from './backup/transports/s3/s3-credentials.model';
 export * from './backup/transports/s3/s3-server-side-encryption.model';
-export * from './backup/transports/sftp.backup-transport';
+export * from './backup/transports/base-sftp.backup-transport';
 export * from './backup/transports/sftp/sftp-authentication.model';
 export * from './backup/transports/sftp/sftp-backup-transport-options.model';
 
@@ -1116,6 +1185,7 @@ export * from './http-client/circuit-open.error';
 export * from './http-client/http-client-circuit-breaker-options.model';
 export * from './http-client/http-client-idempotency-key.model';
 export * from './http-client/http-client-redirect.model';
+export * from './http-client/http-client-buffered-body.model';
 
 // caching
 export * from './caching/cache-service.interface';
@@ -1125,6 +1195,7 @@ export { CacheInvalidation } from './caching/cache-invalidation.model';
 export * from './caching/cache-invalidation.cron-job';
 export * from './caching/cache-expiry-cleanup.cron-job';
 export * from './caching/cache-key.function';
+export * from './caching/cache-restore-tag.utilities';
 
 export * from './caching/cache/cache-operation.enum';
 export * from './caching/cache/cache-options.model';

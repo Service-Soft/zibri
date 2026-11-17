@@ -1556,6 +1556,101 @@ export class Repository<
     }
 
     /**
+     * Reads the rows a filter matches exactly as they are stored, for a copy of them: encrypted and
+     * hashed values as they are, with the given relations. Nothing narrows the read, not the active
+     * tenant, a scope or soft deletion, and no hook runs. Through {@link insertAsStored} the rows come
+     * back as they were.
+     * @param where - The rows.
+     * @param relations - The relations to read with each row.
+     * @param transaction - The transaction to read in, such as one reading several entities as of one moment.
+     * @yields Each row.
+     */
+    async* streamAsStored(
+        where: Where<T>,
+        relations: FindAllOptions<T>['relations'],
+        transaction?: RepositoryTransaction
+    ): AsyncIterable<T> {
+        yield* this.driver.stream({ where, relations, transaction });
+    }
+
+    /**
+     * Writes rows read by {@link streamAsStored} back as they were stored, with their ids and the
+     * relations they carry. Nothing is encrypted, hashed, chained or recorded as a change set, and the
+     * tenant of each row is not checked: what is written is what was read.
+     * @param rows - The rows.
+     * @param transaction - The transaction to write in, or undefined to write them as they come.
+     */
+    async insertAsStored(rows: DeepPartial<T>[], transaction: RepositoryTransaction | undefined): Promise<void> {
+        await this.driver.insert(rows, transaction);
+    }
+
+    /**
+     * Writes values to the stored rows holding their ids, as they are given, with the relations they
+     * carry: what {@link insertAsStored} writes, for the rows written already. Nothing is encrypted, hashed,
+     * chained or recorded as a change set.
+     * @param rows - The values to write, each with the id of its row.
+     * @param transaction - The transaction to write in, or undefined to write them as they come.
+     */
+    async updateEachAsStored(rows: DeepPartial<T>[], transaction: RepositoryTransaction | undefined): Promise<void> {
+        await this.driver.updateEach(rows, { id: { oneOf: rows.map(r => r.id) } } as Where<T>, transaction);
+    }
+
+    /**
+     * Writes rows read by {@link streamAsStored} over the stored rows holding their ids, as they were
+     * stored: every value they give replaces the stored one whole, objects included, with the relations
+     * they carry. Nothing is encrypted, hashed, chained or recorded as a change set.
+     * @param rows - The rows, each with its id.
+     * @param transaction - The transaction to write in, or undefined to write them as they come.
+     */
+    async saveAsStored(rows: DeepPartial<T>[], transaction: RepositoryTransaction | undefined): Promise<void> {
+        await this.driver.save(rows, transaction, false);
+    }
+
+    /**
+     * Resolves every value a property holds among the rows a filter matches, as stored, each once.
+     * Nothing narrows the read, not the active tenant, a scope or soft deletion.
+     * @param property - The property.
+     * @param where - The rows, or undefined for every row.
+     * @param transaction - The transaction to read in.
+     * @returns The values, without the rows holding none.
+     */
+    async resolveDistinctAsStored(
+        property: string,
+        where: Where<T> | undefined,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<unknown[]> {
+        const groups: AggregateRow[] = await this.driver.aggregate({
+            fn: 'count',
+            property: undefined,
+            groupBy: [property],
+            where,
+            transaction
+        });
+        return groups.map(g => g.group[property]).filter(value => value != undefined);
+    }
+
+    /**
+     * Writes the same values to every row a filter matches, as they are given, past every rule of the
+     * repository, for what {@link insertAsStored} writes again.
+     * @param where - The rows.
+     * @param data - The values.
+     * @param transaction - The transaction to write in, or undefined to write them as they come.
+     */
+    async updateAllAsStored(where: Where<T>, data: DeepPartial<T>, transaction: RepositoryTransaction | undefined): Promise<void> {
+        await this.driver.updateAll({ where, data, transaction });
+    }
+
+    /**
+     * Removes every row a filter matches, past every rule of the repository: neither soft deleted nor
+     * refused as append-only, for what {@link insertAsStored} writes again.
+     * @param where - The rows.
+     * @param transaction - The transaction to remove in, or undefined to remove them as they come.
+     */
+    async removeAsStored(where: Where<T>, transaction: RepositoryTransaction | undefined): Promise<void> {
+        await this.driver.removeMatching(where, undefined, transaction);
+    }
+
+    /**
      * Finds all entities with the given options, in paginated form.
      *
      * The page and the total describe one moment: they are read together, so `totalAmount` counts

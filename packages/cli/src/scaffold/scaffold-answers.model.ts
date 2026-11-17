@@ -78,9 +78,11 @@ export const scaffoldQuestions: QuestionsFor<ScaffoldAnswers> = {
         name: 'features',
         type: 'checkbox',
         message: 'features (none is a JSON API)',
-        // every one checked but the mailing list, which adds public routes and tables of its own
+        // every one checked but the docs, which only some applications serve, and the mailing list, which adds public
+        // routes and tables of its own
         choices: [
             { name: 'pages: home page, assets explorer, error page', value: 'pages', checked: true },
+            { name: 'docs: documentation in markdown at /docs, with a search', value: 'docs', checked: false },
             { name: 'mailing list: subscriptions, with their pages and email', value: 'mailingList', checked: false },
             { name: 'metrics dashboard: an example page with charts', value: 'metricsDashboard', checked: true },
             { name: 'log email: an example email built from data', value: 'logEmail', checked: true }

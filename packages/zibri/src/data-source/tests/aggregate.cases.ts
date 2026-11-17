@@ -1,5 +1,3 @@
-/* eslint-disable jsdoc/require-jsdoc */
-
 import { afterEach, describe, expect, it } from '@jest/globals';
 
 import { BaseEntity } from '../../entity/base-entity.model';

@@ -1,10 +1,12 @@
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
 import { NewCommand } from './new.command';
 import { version } from '../../../package.json';
+import { BundlePart } from '../../__testing__/bundle-part.model';
 import { testFileFolder } from '../../__testing__/constants';
 import { DeploymentMeasurement } from '../../__testing__/deployment-measurement.model';
 import { DeploymentMeasurementUtilities } from '../../__testing__/deployment-measurements.utilities';
@@ -44,7 +46,19 @@ const REGISTRY_IMAGE: string = 'verdaccio/verdaccio:6';
 const REGISTRY_PORT: number = 4873;
 
 /**
- * The registry as the machine running this test reaches it, which is where the three workspace
+ * The folders of the workspace packages the generated project installs, under `packages`, in the order of a release:
+ * each is built before it is published, against the build of those it names. Every package a release publishes but
+ * the cli, which the test runs from its source.
+ */
+const PUBLISHED_FOLDERS: string[] = resolveReleasedFolders().filter(folder => folder !== 'cli');
+
+/**
+ * The names of those packages on the registry, which only it holds.
+ */
+const PUBLISHED_PACKAGES: string[] = PUBLISHED_FOLDERS.map(folder => folder === 'zibri' ? 'zibri' : `zibri-${folder}`);
+
+/**
+ * The registry as the machine running this test reaches it, which is where the workspace
  * packages are published and where the generator installs them from.
  */
 const REGISTRY_FROM_HOST: string = `http://127.0.0.1:${REGISTRY_PORT}`;
@@ -127,6 +141,22 @@ let applicationStartedAtMs: number = 0;
  * How long the application took from its start to its first ready answer.
  */
 let timeToReadyMs: number = 0;
+
+/**
+ * The folders of the packages a release publishes, in its order, read out of `release-version.mjs` rather than listed
+ * here: a list of its own missed `zibri-contract` when `zibri` began to depend on it, and the install found no version.
+ * Read in a process of its own, as the script is an ES module.
+ * @returns The folders, under `packages`.
+ */
+function resolveReleasedFolders(): string[] {
+    const script: string = pathToFileURL(path.join(REPOSITORY_ROOT, '.github', 'scripts', 'release-version.mjs')).href;
+    const output: string = execFileSync(
+        process.execPath,
+        ['--input-type=module', '--eval', `const { published } = await import('${script}'); console.log(published.join('\\n'));`],
+        { cwd: REPOSITORY_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+    );
+    return output.trim().split('\n');
+}
 
 function run(command: string, cwd: string = REPOSITORY_ROOT): string {
     try {
@@ -237,7 +267,7 @@ async function assertPublished(packageName: string): Promise<void> {
 /**
  * Builds a workspace package and publishes it to the throwaway registry.
  *
- * None of the three are on the public registry yet, and the generated Dockerfile installs before it
+ * None of them are on the public registry at this version, and the generated Dockerfile installs before it
  * copies any sources - deliberately, so that a source change reuses the dependency layer. That
  * ordering leaves no way to reach a local file, so the packages are served the way a real consumer
  * gets them instead. It is also the more faithful test: what is exercised is the published shape.
@@ -337,7 +367,7 @@ async function waitForApplication(container: string, port: number): Promise<void
 }
 
 /**
- * Starts the registry the three workspace packages are served from, and waits for it to answer.
+ * Starts the registry the workspace packages are served from, and waits for it to answer.
  *
  * Its storage stays inside the container, so every run starts from an empty registry and the publish
  * below cannot collide with a version it already holds.
@@ -350,19 +380,11 @@ async function startRegistry(): Promise<void> {
         '    npmjs:',
         '        url: https://registry.npmjs.org/',
         'packages:',
-        // the three that are only here. Named before the catch-all and without an uplink, so that a
+        // the ones that are only here. Named before the catch-all and without an uplink, so that a
         // name which also exists publicly resolves to what this run published rather than to npm
-        '    \'zibri\':',
-        '        access: $all',
-        '        publish: $all',
-        '    \'zibri-tsx\':',
-        '        access: $all',
-        '        publish: $all',
-        '    \'zibri-testing\':',
-        '        access: $all',
-        '        publish: $all',
+        ...PUBLISHED_PACKAGES.flatMap(name => [`    '${name}':`, '        access: $all', '        publish: $all']),
         // everything else is proxied, which is what makes this a registry the whole install can go
-        // through rather than one holding three packages and nothing they depend on
+        // through rather than one holding the framework and nothing it depends on
         '    \'**\':',
         '        access: $all',
         '        proxy: npmjs',
@@ -430,17 +452,17 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         runQuietly(`docker network create ${NETWORK_NAME}`);
         await startRegistry();
 
-        publishWorkspacePackage(path.join('packages', 'zibri'));
-        publishWorkspacePackage(path.join('packages', 'tsx'));
-        publishWorkspacePackage(path.join('packages', 'testing'));
+        for (const folder of PUBLISHED_FOLDERS) {
+            publishWorkspacePackage(path.join('packages', folder));
+        }
 
         // asked of the registry rather than assumed from the publish exiting zero. The install below
         // reports a version it cannot find as "no matching version", which reads identically whether
         // the registry never received the package or whether the request went somewhere else
         // entirely - and those want opposite fixes.
-        await assertPublished('zibri');
-        await assertPublished('zibri-tsx');
-        await assertPublished('zibri-testing');
+        for (const name of PUBLISHED_PACKAGES) {
+            await assertPublished(name);
+        }
 
         // ZIBRI_CLI_LOCAL_DEV is deliberately not set: the generator is asked for the same project it
         // writes for anybody else, one that depends on the framework by name. What makes that
@@ -657,13 +679,26 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
             BASELINE_PATH,
             process.env['ZIBRI_DEPLOYMENT_UPDATE_BASELINE'] === '1'
         );
-        process.stdout.write(`\n${report}\n\n`);
+        // what the bundle is made of, by the map the image carries beside it: printed with the report, and named by a
+        // bundle over its limit, so that a growth says where it is
+        const bundlePath: Path = getPath(workDir, 'bundle.js');
+        const bundleMapPath: Path = getPath(workDir, 'bundle.js.map');
+        run(`docker cp ${APPLICATION_CONTAINER}:/app/dist/bundle.js "${bundlePath}"`);
+        run(`docker cp ${APPLICATION_CONTAINER}:/app/dist/bundle.js.map "${bundleMapPath}"`);
+        const parts: BundlePart[] = DeploymentMeasurementUtilities.resolveBundleParts(
+            await FsUtilities.readFile(bundlePath),
+            await FsUtilities.readFile(bundleMapPath)
+        );
+        const largest: string = parts.slice(0, 12).map(part => `${part.name} ${(part.bytes / 1000).toFixed(0)} KB`)
+            .join(', ');
+        process.stdout.write(`\n${report}\n\nthe largest parts of the bundle: ${largest}\n\n`);
 
         expect(measurements.every(measurement => Number.isFinite(measurement.value) && measurement.value > 0)).toBe(true);
         // a limit whose measurement is gone or renamed counts as exceeded, so it cannot stop holding unseen
         const exceeded: string[] = Object.entries(DEPLOYMENT_SIZE_LIMITS)
             .filter(([name, limit]) => !((measurements.find(measurement => measurement.name === name)?.value ?? Infinity) <= limit))
-            .map(([name, limit]) => `${name}: ${measurements.find(measurement => measurement.name === name)?.value} bytes, limit ${limit}`);
+            .map(([name, limit]) => `${name}: ${measurements.find(measurement => measurement.name === name)?.value} bytes, limit ${limit}`
+                + (name === 'bundle' ? `. Its largest parts: ${largest}` : ''));
         expect(exceeded).toStrictEqual([]);
     });
 
@@ -682,6 +717,18 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         // the stylesheet's entry and the stylesheet get a map of a few kilobytes each beside the bundle's
         expect(run(`docker exec ${APPLICATION_CONTAINER} find /app/dist -name '*.map'`)).toContain('/app/dist/bundle.js.map');
         expect(run(`docker exec ${APPLICATION_CONTAINER} grep -rl sourcesContent /app/dist --include='*.map' || true`).trim()).toBe('');
+    });
+
+    // a frame of zibri is the bundle's too, mapped through the map zibri ships beside its build to the source it
+    // ships: a master key too short for its strategy throws from zibri while the application starts, once it read
+    // the keys from the database
+    it('names the source file and line of zibri in a stack trace', () => {
+        const output: string = run(
+            `docker run --rm --network ${NETWORK_NAME} --env-file "${containerEnvPath}" -e MASTER_KEY=AAAA ${IMAGE_TAG} 2>&1 || true`
+        );
+
+        expect(output).toContain('needs to be 32 bytes long');
+        expect(output).toMatch(/\(\/app\/node_modules\/zibri\/src\/auth\/encryption\/strategies\/aes-gcm\.encryption-strategy\.ts:\d+:\d+\)/);
     });
 
     it('leaves the secrets it was generated with out of the image', () => {

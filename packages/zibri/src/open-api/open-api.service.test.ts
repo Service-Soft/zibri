@@ -1,20 +1,27 @@
 import assert from 'node:assert';
-import { Script } from 'node:vm';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { Response } from './decorators/response.decorator';
-import { OpenApiDefinition, OpenApiOperation, OpenApiReferenceObject, OpenApiSchemaObject } from './open-api.model';
+import { OpenApiExplorerMethod, OpenApiExplorerOperation, OpenApiExplorerTag } from './explorer/open-api-explorer-operation.model';
+import { OpenApiExplorerUtilities } from './explorer/open-api-explorer.utilities';
+import { OpenApiContentObject, OpenApiDefinition, OpenApiMediaTypeObject, OpenApiOperation, OpenApiReferenceObject, OpenApiResponseObject, OpenApiSchemaObject, OpenApiServerObject } from './open-api.model';
 import { OpenApiService } from './open-api.service';
 import { TestTimeouts } from '../__testing__/constants';
+import { explorerTestProviders } from '../__testing__/explorer-test-providers';
 import { type Relation } from '../__testing__/relation.type';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerPermissions, defaultTestServerProviders, defaultTestServerRoles, rolesAndPermissionsProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { ZibriApplication } from '../application/application';
+import { type AssetServiceInterface } from '../assets/asset-service.interface';
+import { type AuthServiceInterface } from '../auth/auth-service.interface';
 import { Auth } from '../auth/decorators/auth.decorator';
+import { type RouteAuthConfiguration } from '../auth/models/route-auth-configuration.model';
 import { definePermissions, definePlatformPermissions } from '../auth/roles/define-permissions.function';
 import { type PaginationResult } from '../data-source/models/pagination-result.model';
+import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider, DiProvider } from '../di/models/di-provider.model';
@@ -29,6 +36,8 @@ import { HttpStatus } from '../http/http-status.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { RedirectResponse } from '../http/redirect-response.model';
+import { $ts } from '../localization/translate.function';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
 import { XmlAttribute } from '../parsing/xml/xml-attribute.decorator';
@@ -44,6 +53,8 @@ import { Patch } from '../routing/decorators/patch.decorator';
 import { Post } from '../routing/decorators/post.decorator';
 import { type RouterInterface } from '../routing/router.interface';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { Version } from '../versioning/version.model';
+import { type VersioningServiceInterface } from '../versioning/versioning-service.interface';
 
 class Tag {
     @Property.string()
@@ -372,6 +383,12 @@ function schemaOf(value: OpenApiSchemaObject | OpenApiReferenceObject | undefine
     return value;
 }
 
+function responseOf(operation: OpenApiOperation, status: string): OpenApiResponseObject {
+    const response: OpenApiResponseObject | OpenApiReferenceObject | undefined = operation.responses?.[status];
+    assert(response && !('$ref' in response), `no response for ${status}`);
+    return response;
+}
+
 // a route with no controller behind it, registered from a lifecycle hook the way AssetService
 // registers /favicon.ico. It has to be an init hook rather than a line in beforeAll: the document is
 // built once in afterAppInit, so a route registered after the app is up is not in it.
@@ -461,6 +478,10 @@ describe('OpenApiService', () => {
         expect(spec.tags).toEqual(expect.arrayContaining([{ name: 'ItemController' }]));
     });
 
+    it('names the application as its server, relative to where the document is read from', () => {
+        expect(spec.servers).toEqual([{ url: '/', description: expect.stringContaining('This application.') }]);
+    });
+
     it('registers a security scheme per auth strategy', () => {
         expect(spec.components?.securitySchemes).toBeDefined();
         expect(Object.keys(spec.components?.securitySchemes ?? {}).length).toBeGreaterThan(0);
@@ -515,8 +536,7 @@ describe('OpenApiService', () => {
 
     it('resolves a hasOne relation schema, excluding the inverse back-reference key', () => {
         const operation: OpenApiOperation = op('/items/{id}/owner', 'get');
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
-        const schema: OpenApiSchemaObject = schemaOf(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema);
+        const schema: OpenApiSchemaObject = schemaOf(responseOf(operation, '200').content?.[MimeType.JSON]?.schema);
         expect(schema.properties?.['pet']).toMatchObject({
             type: 'object',
             properties: { name: { type: 'string' } }
@@ -527,8 +547,7 @@ describe('OpenApiService', () => {
 
     it('resolves a oneToMany relation as an array of the target entity schema', () => {
         const operation: OpenApiOperation = op('/items/{id}/team', 'get');
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
-        const schema: OpenApiSchemaObject = schemaOf(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema);
+        const schema: OpenApiSchemaObject = schemaOf(responseOf(operation, '200').content?.[MimeType.JSON]?.schema);
         expect(schema.properties?.['players']).toMatchObject({
             type: 'array',
             items: { type: 'object', properties: { name: { type: 'string' } } }
@@ -539,8 +558,7 @@ describe('OpenApiService', () => {
 
     it('still omits a genuine multi-hop cycle (A -> B -> C -> A) that back-reference exclusion cannot break', () => {
         const operation: OpenApiOperation = op('/items/{id}/chain', 'get');
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
-        const schema: OpenApiSchemaObject = schemaOf(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema);
+        const schema: OpenApiSchemaObject = schemaOf(responseOf(operation, '200').content?.[MimeType.JSON]?.schema);
         const nodeB: OpenApiSchemaObject = schemaOf(schema.properties?.['next']);
         expect(nodeB.properties?.['name']).toMatchObject({ type: 'string' });
         const nodeC: OpenApiSchemaObject = schemaOf(nodeB.properties?.['next']);
@@ -552,8 +570,7 @@ describe('OpenApiService', () => {
 
     it('builds a response schema with primitive, enum, regex, nested object and array properties', () => {
         const operation: OpenApiOperation = op('/items/{id}', 'get');
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
-        const schema: OpenApiSchemaObject = schemaOf(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema);
+        const schema: OpenApiSchemaObject = schemaOf(responseOf(operation, '200').content?.[MimeType.JSON]?.schema);
         expect(schema.type).toBe('object');
         expect(schema.properties?.['category']).toMatchObject({ type: 'string', enum: ['books', 'toys'] });
         expect(schemaOf(schema.properties?.['category']).pattern).toBeTruthy();
@@ -567,8 +584,7 @@ describe('OpenApiService', () => {
 
     it('describes a property with what openapi defines, and nothing only the framework reads', () => {
         const operation: OpenApiOperation = op('/items/{id}', 'get');
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
-        const schema: OpenApiSchemaObject = schemaOf(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema);
+        const schema: OpenApiSchemaObject = schemaOf(responseOf(operation, '200').content?.[MimeType.JSON]?.schema);
 
         // `primary` is a storage fact, and a regex is a pattern without the slashes that delimit it
         expect(schema.properties?.['id']).toStrictEqual({ type: 'string', format: 'uuid' });
@@ -589,16 +605,14 @@ describe('OpenApiService', () => {
 
     it('builds an array response schema for @Response.array()', () => {
         const operation: OpenApiOperation = op('/items/', 'post');
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
-        const schema: OpenApiSchemaObject = schemaOf(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema);
+        const schema: OpenApiSchemaObject = schemaOf(responseOf(operation, '200').content?.[MimeType.JSON]?.schema);
         expect(schema.type).toBe('array');
         expect(schemaOf(schema.items).type).toBe('object');
     });
 
     it('builds an items/totalAmount envelope schema for @Response.paginated()', () => {
         const operation: OpenApiOperation = op('/items/paginated', 'get');
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
-        const schema: OpenApiSchemaObject = schemaOf(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema);
+        const schema: OpenApiSchemaObject = schemaOf(responseOf(operation, '200').content?.[MimeType.JSON]?.schema);
         expect(schema.type).toBe('object');
         expect(schema.properties?.['totalAmount']).toMatchObject({ type: 'integer', format: 'int64' });
         const items: OpenApiSchemaObject = schemaOf(schema.properties?.['items']);
@@ -610,9 +624,7 @@ describe('OpenApiService', () => {
         const operation: OpenApiOperation = op('/items/export', 'get');
         // 204 rather than 200: a route that returns nothing says so, and the document has to agree
         // with what the router actually answers
-        expect(operation.responses?.['204']).toBeDefined();
-        // eslint-disable-next-line typescript/no-unsafe-member-access
-        expect(operation.responses?.['204']?.content).toBeUndefined();
+        expect(responseOf(operation, '204').content).toBeUndefined();
     });
 
     it('builds a request body schema with a nested object property and a required list', () => {
@@ -702,11 +714,8 @@ describe('OpenApiService', () => {
 
     it('describes a response that can be json or xml under both, the xml one naming its root', () => {
         const operation: OpenApiOperation = op('/items/orders', 'post');
-        // eslint-disable-next-line typescript/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
-        const content = operation.responses?.['200']?.content;
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
+        const content: OpenApiContentObject | undefined = responseOf(operation, '200').content;
         const json: OpenApiSchemaObject = schemaOf(content?.[MimeType.JSON]?.schema);
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
         const xml: OpenApiSchemaObject = schemaOf(content?.[MimeType.XML]?.schema);
 
         expect(json.xml).toBeUndefined();
@@ -717,11 +726,8 @@ describe('OpenApiService', () => {
 
     it('names the namespace of every element a prefixed root puts in one, as the document is written', async () => {
         const operation: OpenApiOperation = op('/items/envelope', 'get');
-        // eslint-disable-next-line typescript/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
-        const content = operation.responses?.['200']?.content;
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
+        const content: OpenApiContentObject | undefined = responseOf(operation, '200').content;
         const json: OpenApiSchemaObject = schemaOf(content?.[MimeType.JSON]?.schema);
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
         const xml: OpenApiSchemaObject = schemaOf(content?.[MimeType.XML]?.schema);
         const envelopeNamespace: { namespace: string, prefix: string } = { namespace: 'urn:example:envelope', prefix: 'e' };
         const header: OpenApiSchemaObject = schemaOf(xml.properties?.['header']);
@@ -771,17 +777,13 @@ describe('OpenApiService', () => {
 
     it('builds a binary schema for a file response', () => {
         const operation: OpenApiOperation = op('/items/download', 'get');
-        // eslint-disable-next-line typescript/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
-        const content = operation.responses?.['200']?.content;
-        // eslint-disable-next-line typescript/no-unsafe-member-access
+        const content: OpenApiContentObject | undefined = responseOf(operation, '200').content;
         expect(content?.[MimeType.OCTET_STREAM]?.schema).toEqual({ type: 'string', format: 'binary' });
     });
 
     it('builds an html schema for an html response', () => {
         const operation: OpenApiOperation = op('/items/page', 'get');
-        // eslint-disable-next-line typescript/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
-        const content = operation.responses?.['200']?.content;
-        // eslint-disable-next-line typescript/no-unsafe-member-access
+        const content: OpenApiContentObject | undefined = responseOf(operation, '200').content;
         expect(content?.[MimeType.HTML]?.schema).toEqual({ type: 'string', format: 'html' });
     });
 
@@ -796,20 +798,14 @@ describe('OpenApiService', () => {
 
     it('merges multiple responses declared for the same status into a oneOf schema', () => {
         const operation: OpenApiOperation = op('/items/multi-status', 'get');
-        // eslint-disable-next-line typescript/typedef, typescript/no-unsafe-assignment
-        const badRequest = operation.responses?.['400'];
-        // eslint-disable-next-line typescript/strict-boolean-expressions
-        assert(badRequest && !('$ref' in badRequest));
-        // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
-        const schema: OpenApiSchemaObject = schemaOf(badRequest.content?.[MimeType.JSON]?.schema);
+        const schema: OpenApiSchemaObject = schemaOf(responseOf(operation, '400').content?.[MimeType.JSON]?.schema);
         expect(schema.oneOf).toBeDefined();
     });
 
     it('includes a manually registered route marked useInOpenApi: true', () => {
         const operation: OpenApiOperation = op('/manual/ping', 'get');
         expect(operation.tags).toEqual(['Manual']);
-        // eslint-disable-next-line typescript/no-unsafe-member-access
-        expect(operation.responses?.['200']?.content?.[MimeType.JSON]?.schema).toMatchObject({
+        expect(responseOf(operation, '200').content?.[MimeType.JSON]?.schema).toMatchObject({
             type: 'object',
             properties: { ok: { type: 'boolean' } }
         });
@@ -820,13 +816,104 @@ describe('OpenApiService', () => {
         expect(res.status).toBe(404);
     });
 
-    it('serves the explorer HTML page, naming the document of the registered version', async () => {
-        const res: globalThis.Response = await fetch(`${baseUrl}/explorer`);
-        expect(res.status).toBe(200);
-        expect(res.headers.get('content-type')).toContain('text/html');
-        const html: string = await res.text();
-        expect(html).toContain('swagger-ui-init.js');
-        expect(html).toContain('"url":"/explorer/spec/1.0.0"');
+    // a link or a bookmark of the explorer, such as one 3.0 served there without a template, leads to what is
+    // there in its place
+    it('sends the explorer on to the document of the latest version without a template', async () => {
+        const res: globalThis.Response = await fetch(`${baseUrl}/explorer`, { redirect: 'manual' });
+
+        expect(res.status).toBe(303);
+        expect(res.headers.get(KnownHeader.LOCATION)).toBe('/explorer/spec/1.0.0');
+        expect((await fetch(`${baseUrl}/explorer/spec/1.0.0`)).status).toBe(200);
+    });
+
+    // what the explorer page reads of the document while it renders, checked against the routes the document
+    // describes: an example of a body is one the route accepts
+    describe('read by the explorer', () => {
+        function explorerOperation(path: string, method: OpenApiExplorerMethod): OpenApiExplorerOperation {
+            const found: OpenApiExplorerOperation | undefined = OpenApiExplorerUtilities.resolveTags(spec)
+                .flatMap(tag => tag.operations)
+                .find(operation => operation.path === path && operation.method === method);
+            assert(found, `no operation ${method} ${path}`);
+            return found;
+        }
+
+        function requestContent(path: string, method: OpenApiExplorerMethod, mimeType: string): OpenApiMediaTypeObject {
+            const content: OpenApiMediaTypeObject | undefined = explorerOperation(path, method).requestBody?.content[mimeType];
+            assert(content, `no ${mimeType} body of ${method} ${path}`);
+            return content;
+        }
+
+        it('groups the operations by controller, with the permissions and the schemes of each', () => {
+            const tags: OpenApiExplorerTag[] = OpenApiExplorerUtilities.resolveTags(spec);
+            const schemes: string[] = OpenApiExplorerUtilities.resolveSecuritySchemes(spec).map(scheme => scheme.name);
+
+            expect(tags.map(tag => tag.name)).toEqual(['ItemController', 'Manual']);
+            expect(explorerOperation('/items/{id}', 'get')).toMatchObject({
+                id: 'ItemController-get--items-id-',
+                securitySchemes: schemes,
+                parameters: [
+                    { name: 'id', in: 'path' },
+                    { name: 'verbose', in: 'query' },
+                    { name: 'tags', in: 'query' },
+                    { name: 'x-request-id', in: 'header' }
+                ]
+            });
+            expect(explorerOperation('/items/export', 'get').permissions).toEqual(['items.export']);
+            expect(explorerOperation('/items/purge', 'get').permissions).toEqual(['items.purge']);
+            expect(explorerOperation('/manual/ping', 'get').responses.map(response => response.status)).toEqual(['200']);
+        });
+
+        it('builds a json example of a request body, which the route accepts', async () => {
+            const example: string = OpenApiExplorerUtilities.resolveContentExample(spec, MimeType.JSON, requestContent('/items/', 'post', MimeType.JSON), 'request');
+
+            const res: globalThis.Response = await fetch(`${baseUrl}/items/`, { method: 'POST', headers: { 'content-type': MimeType.JSON }, body: example });
+
+            expect(res.status).toBe(200);
+            expect(JSON.parse(example)).toMatchObject({ name: 'string', tag: { label: 'string' }, secondaryTag: { shape: 'Tag', value: { label: 'string' } } });
+        });
+
+        it('builds an xml example of a request body, which the route reads as the document it describes', async () => {
+            const example: string = OpenApiExplorerUtilities.resolveContentExample(spec, MimeType.XML, requestContent('/items/orders', 'post', MimeType.XML), 'request');
+
+            const res: globalThis.Response = await fetch(`${baseUrl}/items/orders`, {
+                method: 'POST',
+                headers: { 'content-type': MimeType.XML, accept: MimeType.JSON },
+                body: example
+            });
+
+            expect(res.status).toBe(200);
+            expect(await res.json()).toEqual({ orderId: 'string', lines: [{ name: 'string' }] });
+            expect(example).toBe([
+                '<?xml version="1.0" encoding="UTF-8"?>',
+                '<Order xmlns="urn:example:orders" id="string">',
+                '    <Line>',
+                '        <name>string</name>',
+                '    </Line>',
+                '</Order>'
+            ].join('\n'));
+        });
+
+        it('builds an xml example of a response in the namespaces and prefixes of its document', async () => {
+            const content: OpenApiMediaTypeObject | undefined = explorerOperation('/items/envelope', 'get').responses
+                .find(response => response.status === '200')?.response.content?.[MimeType.XML];
+            assert(content);
+
+            const example: string = OpenApiExplorerUtilities.resolveContentExample(spec, MimeType.XML, content, 'response');
+
+            expect(example).toBe([
+                '<?xml version="1.0" encoding="UTF-8"?>',
+                '<e:Envelope xmlns:e="urn:example:envelope" version="string">',
+                // the element of a property is in the namespace of the model holding it, its own elements in its own
+                '    <e:header>',
+                '        <h:id xmlns:h="urn:example:header">string</h:id>',
+                '    </e:header>',
+                '    <e:Party>',
+                '        <e:name>string</e:name>',
+                '    </e:Party>',
+                '</e:Envelope>'
+            ].join('\n'));
+            expect(await XmlUtilities.parseFrom(XmlEnvelope, example)).toEqual({ version: 'string', header: { id: 'string' }, parties: [{ name: 'string' }] });
+        });
     });
 });
 
@@ -835,6 +922,14 @@ describe('OpenApiService', () => {
  */
 class ApiDocsService extends OpenApiService {
     override readonly openApiRoute: Route = '/docs';
+
+    override async createOpenApiDefinition(app: ZibriApplication, version: Version): Promise<OpenApiDefinition> {
+        const definition: OpenApiDefinition = await super.createOpenApiDefinition(app, version);
+        return {
+            ...definition,
+            servers: [{ url: 'https://api.example.com/v1' }, { url: '/relative' }, { url: 'https://{region}.example.com' }]
+        };
+    }
 }
 
 describe('OpenApiService extended under a route of its own', () => {
@@ -849,6 +944,7 @@ describe('OpenApiService extended under a route of its own', () => {
             dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
             providers: [
                 ...itemProviders,
+                ...explorerTestProviders,
                 defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_SERVICE, useClass: ApiDocsService })
             ]
         });
@@ -859,10 +955,16 @@ describe('OpenApiService extended under a route of its own', () => {
         await server?.shutdown();
     }, TestTimeouts.inMemory.shutdown);
 
+    it('lets the page send a request to each server the document names with a full url', async () => {
+        const explorer: globalThis.Response = await fetch(`${baseUrl}/docs`);
+
+        expect(explorer.headers.get('content-security-policy')).toContain('connect-src \'self\' https://api.example.com;');
+    });
+
     it('serves the explorer and the document under that route, and nothing under /explorer', async () => {
         const explorer: globalThis.Response = await fetch(`${baseUrl}/docs`);
         expect(explorer.status).toBe(200);
-        expect(await explorer.text()).toContain('/docs/swagger-ui-init.js');
+        expect(await explorer.text()).toContain('<li>1.0.0 (latest)|/docs/1.0.0|/docs/spec/1.0.0</li>');
 
         const document: globalThis.Response = await fetch(`${baseUrl}/docs/spec/1.0.0`);
         expect(document.status).toBe(200);
@@ -873,6 +975,62 @@ describe('OpenApiService extended under a route of its own', () => {
         expect((await fetch(`${baseUrl}/explorer`)).status).toBe(404);
     });
 });
+/**
+ * The default service as an application of 3.0 extended it, with a constructor of its own handing its parameters on.
+ */
+class AuditedOpenApiService extends OpenApiService {
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.LOGGER)
+        logger: LoggerInterface,
+        @Inject(ZIBRI_DI_TOKENS.ASSET_SERVICE)
+        assetService: AssetServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.AUTH_SERVICE)
+        authService: AuthServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.ROUTER)
+        router: RouterInterface,
+        @Inject(ZIBRI_DI_TOKENS.VERSIONING_SERVICE)
+        versioningService: VersioningServiceInterface,
+        @Inject(ZIBRI_DI_TOKENS.OPEN_API_AUTH)
+        auth: RouteAuthConfiguration
+    ) {
+        super(logger, assetService, authService, router, versioningService, auth);
+    }
+}
+
+describe('OpenApiService extended with a constructor of its own, as 3.0 took it', () => {
+    let server: StartedTestServer;
+    let baseUrl: string;
+
+    beforeAll(async () => {
+        server = await startTestServer({
+            controllers: [ItemController],
+            version: '1.0.0',
+            // orphan allowed, since the suites around it boot servers of their own while this class exists
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
+            providers: [
+                ...itemProviders,
+                ...explorerTestProviders,
+                defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_SERVICE, useClass: AuditedOpenApiService })
+            ]
+        });
+        baseUrl = await server.start();
+    }, TestTimeouts.inMemory.start);
+
+    afterAll(async () => {
+        await server?.shutdown();
+    }, TestTimeouts.inMemory.shutdown);
+
+    it('serves the explorer and the document', async () => {
+        const explorer: globalThis.Response = await fetch(`${baseUrl}/explorer`);
+        const document: globalThis.Response = await fetch(`${baseUrl}/explorer/spec/1.0.0`);
+        // eslint-disable-next-line typescript/no-unsafe-assignment
+        const spec: OpenApiDefinition = await document.json();
+
+        expect(explorer.status).toBe(200);
+        expect(spec.openapi).toBe('3.1.0');
+    });
+});
+
 // the explorer and the document answered everyone whatever the
 // application's default said, the permission names of every route included
 describe('OpenApiService in an application that requires a login by default', () => {
@@ -908,12 +1066,9 @@ describe('OpenApiService in an application that requires a login by default', ()
     }, TestTimeouts.inMemory.start);
 });
 
-// the explorer's scripts were string arrays in the service, and
-// the name of the application was written into one of them as it was, so a quote in it broke the script
-describe('OpenApiService explorer of an application whose name needs escaping', () => {
+describe('OpenApiService rendering the explorer template it is given', () => {
+    // a name the page has to escape, as it is written into its markup
     const name: string = 'Ada\'s "Tasks" </script><b>';
-    // the explorer's files as an application is scaffolded with them
-    const sandboxAssetsPath: FsPath = FsUtilities.getPath(__dirname, '..', '..', '..', 'sandbox', 'assets');
     let server: StartedTestServer;
     let baseUrl: string;
 
@@ -924,7 +1079,7 @@ describe('OpenApiService explorer of an application whose name needs escaping', 
             version: '1.0.0',
             // orphan allowed, since the suites above boot servers of their own while this class exists
             dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
-            providers: [...itemProviders, defineProvider({ token: ZIBRI_DI_TOKENS.ASSETS_PATH, useValue: sandboxAssetsPath })]
+            providers: [...itemProviders, ...explorerTestProviders]
         });
         baseUrl = await server.start();
     }, TestTimeouts.inMemory.start);
@@ -933,29 +1088,57 @@ describe('OpenApiService explorer of an application whose name needs escaping', 
         await server?.shutdown();
     }, TestTimeouts.inMemory.shutdown);
 
-    it('serves scripts that parse', async () => {
-        for (const file of ['swagger-ui-init.js', 'custom.js']) {
-            const res: globalThis.Response = await fetch(`${baseUrl}/explorer/${file}`);
-            expect(res.status).toBe(200);
-            const js: string = await res.text();
-            expect(() => new Script(js, { filename: file })).not.toThrow();
-        }
+    it.each([
+        ['/explorer', 'the latest version'],
+        ['/explorer/1.0.0', 'the version it names']
+    ])('renders it at %s on the document of %s, with every version and what a request is sent with', async path => {
+        const res: globalThis.Response = await fetch(`${baseUrl}${path}`);
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toContain('text/html');
+        const html: string = await res.text();
+
+        expect(html).toContain('<p id="version">1.0.0</p>');
+        expect(html).toContain('<li>1.0.0 (latest)|/explorer/1.0.0|/explorer/spec/1.0.0</li>');
+        expect(html).toMatch(/<p id="paths">[^<]*\/items\/\{id\}/);
+        expect(html).toContain('<p id="header">x-version</p>');
+        expect(html).toContain('<p id="assets">/assets</p>');
+        expect(res.headers.get('content-security-policy')).toContain('connect-src \'self\';');
     });
 
-    it('hands the scripts the name as it is, and keeps it out of the markup of the page', async () => {
+    it('escapes the name of the application in the page', async () => {
         const html: string = await (await fetch(`${baseUrl}/explorer`)).text();
-        const marker: string = '<script id="zibri-explorer-config" type="application/json">';
-        const start: number = html.indexOf(marker);
-        expect(start).toBeGreaterThan(-1);
-        const json: string = html.slice(start + marker.length, html.indexOf('</script>', start));
-        const config: unknown = JSON.parse(json);
-        expect(config).toEqual({
-            appName: name,
-            logoSrc: '/assets/logo.jpg',
-            urls: [{ url: '/explorer/spec/1.0.0', name: '1.0.0 (latest)' }],
-            primaryName: '1.0.0'
-        });
+
         expect(html).not.toContain('</script><b>');
-        expect(html).toContain('<title>Ada\'s &quot;Tasks&quot; &lt;/script&gt;&lt;b&gt; | Explorer</title>');
+        expect(html).toContain('<title>Ada\'s "Tasks" &lt;/script&gt;&lt;b&gt; | Explorer</title>');
     });
+
+    it('answers with a 404 for a version the application does not have', async () => {
+        expect((await fetch(`${baseUrl}/explorer/9.9.9`)).status).toBe(404);
+    });
+});
+describe('OpenApiService with the servers an application names', () => {
+    it('names them instead of the application itself', async () => {
+        // a factory, as $ts needs the application started
+        const servers: () => OpenApiServerObject[] = () => [
+            { url: '/', description: $ts`This application` },
+            { url: 'https://api.example.com', description: $ts`Production` }
+        ];
+        const server: StartedTestServer = await startTestServer({
+            controllers: [ItemController],
+            version: '1.0.0',
+            // orphan allowed, since the suites above boot servers of their own while this class exists
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
+            providers: [...itemProviders, defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_SERVERS, useFactory: servers })]
+        });
+        try {
+            const baseUrl: string = await server.start();
+            // eslint-disable-next-line typescript/no-unsafe-assignment
+            const definition: OpenApiDefinition = await (await fetch(`${baseUrl}/explorer/spec/1.0.0`)).json();
+
+            expect(definition.servers).toEqual(servers());
+        }
+        finally {
+            await server.shutdown();
+        }
+    }, TestTimeouts.inMemory.start);
 });

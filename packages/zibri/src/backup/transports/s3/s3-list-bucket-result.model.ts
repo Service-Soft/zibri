@@ -1,3 +1,4 @@
+import { S3CommonPrefix } from './s3-common-prefix.model';
 import { S3ListedObject } from './s3-listed-object.model';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { XmlElement } from '../../../parsing/xml/xml-element.decorator';
@@ -26,4 +27,11 @@ export class S3ListBucketResult {
     @XmlElement('Contents')
     @Property.array({ required: false, items: { type: 'object', cls: () => S3ListedObject, allowAdditionalProperties: true } })
     contents?: S3ListedObject[];
+
+    /**
+     * The prefixes on this page, when the listing was asked for with a delimiter.
+     */
+    @XmlElement('CommonPrefixes')
+    @Property.array({ required: false, items: { type: 'object', cls: () => S3CommonPrefix, allowAdditionalProperties: true } })
+    commonPrefixes?: S3CommonPrefix[];
 }

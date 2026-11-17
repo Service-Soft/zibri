@@ -24,4 +24,4 @@ zi new api github isLoggedIn pages,mailingList
 ```
 
 The full documentation is at
-[service-soft.github.io/zibri/documents/getting-started](https://service-soft.github.io/zibri/documents/getting-started.html).
+[service-soft.github.io/zibri](https://service-soft.github.io/zibri/).

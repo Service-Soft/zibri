@@ -1,4 +1,4 @@
-import { cspellOptions } from 'eslint-config-service-soft';
+import { cspellOptions } from '@service-soft/eslint-config';
 import baseConfig from '../../eslint.config.mjs';
 
 /** @type {import('eslint').Linter.Config} */
@@ -27,6 +27,21 @@ export default [
         files: ['**/__testing__/**/*.ts', '**/*.instance-options.ts'],
         rules: {
             'jsdoc/require-jsdoc': 'off'
+        }
+    },
+    {
+        // tests and the cases they share are published nowhere: what they hold is said by their names, and a
+        // comment where one helps
+        files: ['**/*.test.ts', '**/*.cases.ts'],
+        rules: {
+            'jsdoc/require-jsdoc': 'off',
+            'jsdoc/require-description': 'off',
+            'jsdoc/require-param': 'off',
+            'jsdoc/require-param-description': 'off',
+            'jsdoc/require-returns': 'off',
+            'jsdoc/require-yields': 'off',
+            'jsdoc/require-throws': 'off',
+            'jsdoc/check-indentation': 'off'
         }
     },
     {

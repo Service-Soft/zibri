@@ -1,4 +1,6 @@
 import { AssetServiceInterface } from '../../assets/asset-service.interface';
+import { AsyncApiServiceInterface } from '../../async-api/async-api-service.interface';
+import { AsyncApiServer } from '../../async-api/async-api.model';
 import { type AuditIntegrity } from '../../audit/audit-integrity.type';
 import { AuditServiceInterface } from '../../audit/audit-service.interface';
 import { SmsCodeLimits } from '../../auth/2fa/methods/code/sms-code-limits.model';
@@ -41,6 +43,9 @@ import { JwtServiceInterface } from '../../auth/strategies/jwt/jwt-service.inter
 import { UserServiceInterface } from '../../auth/user/user-service.interface';
 import { BackupRetention } from '../../backup/backup-retention.model';
 import { BackupServiceInterface } from '../../backup/backup-service.interface';
+import { BackupChunkingOptions } from '../../backup/repository/backup-chunking-options.model';
+import { BackupScrubOptions } from '../../backup/repository/backup-scrub-options.model';
+import { TenantBackupTransportOptions } from '../../backup/tenant/tenant-backup-transport-options.model';
 import { WriteThroughReadThroughCache } from '../../caching/cache/read-through/write-through-read-through.cache';
 import { CacheServiceInterface } from '../../caching/cache-service.interface';
 import { CacheContext } from '../../context/cache/cache.context';
@@ -71,7 +76,9 @@ import { LoggerTransport, BaseLoggerTransportConfig } from '../../logging/transp
 import { MetricsServiceInterface } from '../../metrics/metrics-service.interface';
 import { MultithreadingOptions, MultithreadingOptionsInput } from '../../multithreading/models/multithreading-options.model';
 import { MultithreadingServiceInterface } from '../../multithreading/services/multithreading-service.interface';
+import { OpenApiExplorerTemplate } from '../../open-api/explorer/open-api-explorer.model';
 import { OpenApiServiceInterface } from '../../open-api/open-api-service.interface';
+import { OpenApiServerObject } from '../../open-api/open-api.model';
 import { FormDataLimits } from '../../parsing/form-data/form-data-limits.model';
 import { CspOptions, CspOptionsInput } from '../../parsing/html/csp-options.model';
 import { ParserInterface } from '../../parsing/parser.interface';
@@ -85,6 +92,9 @@ import { TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { OpenTelemetrySpanExporter } from '../../tracing/open-telemetry/open-telemetry-api.model';
 import { TraceBufferInterface } from '../../tracing/trace-buffer.interface';
 import { TracerInterface } from '../../tracing/tracer.interface';
+import { MarkdownOptions } from '../../tsx/markdown-options.model';
+import { MarkdownServiceInterface } from '../../tsx/markdown-service.interface';
+import { MdxComponents } from '../../tsx/mdx';
 import { Newable } from '../../types/newable.type';
 import { type RetentionInMs } from '../../types/retention-in-ms.type';
 import { FsPath } from '../../utilities/fs.utilities';
@@ -140,8 +150,16 @@ export const ZIBRI_DI_TOKENS = {
     BACKUP_SERVICE: ziToken<BackupServiceInterface>('zi.backup_service'),
     GLOBAL_ERROR_HANDLER: ziToken<GlobalErrorHandler>('zi.global_error_handler'),
     ERROR_PAGE_TEMPLATE: ziToken<ErrorPageTemplate | undefined>('zi.error_page_template'),
+    MDX_COMPONENTS: ziToken<MdxComponents>('zi.mdx_components'),
+    MDX_EMAIL_COMPONENTS: ziToken<MdxComponents>('zi.mdx_email_components'),
+    MARKDOWN_OPTIONS: ziToken<MarkdownOptions>('zi.markdown_options'),
+    MARKDOWN_SERVICE: ziToken<MarkdownServiceInterface>('zi.markdown_service'),
     OPEN_API_SERVICE: ziToken<OpenApiServiceInterface>('zi.open_api_service'),
     OPEN_API_AUTH: ziToken<RouteAuthConfiguration>('zi.open_api_auth'),
+    OPEN_API_EXPLORER_TEMPLATE: ziToken<OpenApiExplorerTemplate | undefined>('zi.open_api_explorer_template'),
+    OPEN_API_SERVERS: ziToken<OpenApiServerObject[] | undefined>('zi.open_api_servers'),
+    ASYNC_API_SERVICE: ziToken<AsyncApiServiceInterface>('zi.async_api_service'),
+    ASYNC_API_SERVERS: ziToken<Record<string, AsyncApiServer> | undefined>('zi.async_api_servers'),
     AUTH_SERVICE: ziToken<AuthServiceInterface>('zi.auth_service'),
     ROUTE_AUTH_SERVICE: ziToken<RouteAuthServiceInterface>('zi.route_auth_service'),
     REVALIDATE_USER_ON_AUTH_CHECK: ziToken<boolean>('zi.revalidate_user_on_auth_check'),
@@ -227,6 +245,7 @@ export const ZIBRI_DI_TOKENS = {
     TENANT_SERVICE: ziToken<TenantServiceInterface>('zi.tenant_service'),
     MEMBERSHIP_SERVICE: ziToken<MembershipServiceInterface>('zi.membership_service'),
     LEASE_DRAIN_TIMEOUT_IN_MS: ziToken<number>('zi.lease_drain_timeout_in_ms'),
+    WAIT_REPORT_INTERVAL_IN_MS: ziToken<number>('zi.wait_report_interval_in_ms'),
     /**
      * Which instance of the application this process is, recorded on the leases it holds and the
      * thread jobs it runs.
@@ -282,9 +301,13 @@ export const ZIBRI_DI_TOKENS = {
     BACKUP_SHUTDOWN_WAIT_IN_MS: ziToken<number>('zi.backup_shutdown_wait_in_ms'),
     BACKUP_STOPPING_TIMEOUT_IN_MS: ziToken<number>('zi.backup_stopping_timeout_in_ms'),
     BACKUP_MAX_ATTEMPTS: ziToken<number>('zi.backup_max_attempts'),
+    BACKUP_MAX_CONCURRENT_RESOURCES: ziToken<number>('zi.backup_max_concurrent_resources'),
     BACKUP_RETRY_DELAY_IN_MS: ziToken<number>('zi.backup_retry_delay_in_ms'),
     // undefined for an application that keeps every backup until it deletes one itself
     BACKUP_RETENTION: ziToken<BackupRetention | undefined>('zi.backup_retention'),
+    BACKUP_CHUNKING_OPTIONS: ziToken<BackupChunkingOptions>('zi.backup_chunking_options'),
+    BACKUP_SCRUB_OPTIONS: ziToken<BackupScrubOptions | undefined>('zi.backup_scrub_options'),
+    BACKUP_TENANT_TRANSPORT_OPTIONS: ziToken<TenantBackupTransportOptions>('zi.backup_tenant_transport_options'),
     VERSIONS_PATH: ziToken<FsPath>('zi.versions_path'),
     TRANSLATIONS_PATH: ziToken<FsPath>('zi.translations_path'),
     ASSETS_PATH: ziToken<FsPath>('zi.assets_path'),

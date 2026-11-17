@@ -34,6 +34,11 @@ export type QueueDefinition<T extends QueuedWorkItem> = {
      */
     claimedPer: 'item' | 'batch',
     /**
+     * How many rows of the queue `poll` runs at once on this instance, however many polls overlap. A
+     * row beyond it is left due, for another instance or a later poll. No limit when left out.
+     */
+    maxConcurrentPerInstance?: number,
+    /**
      * How long the first retry waits, doubling for each one after it.
      */
     firstRetryDelayInMs: number,

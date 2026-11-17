@@ -317,7 +317,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
                 }
                 catch (error) {
                     throw new BadRequestError(
-                        $ts`The public key of an api key has to be an EC, Ed25519 or RSA key, PEM encoded or as a JSON Web Key.`,
+                        $ts`The public key of an api key needs to be an EC, Ed25519 or RSA key, PEM encoded or as a JSON Web Key.`,
                         { cause: error }
                     );
                 }
@@ -335,7 +335,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
                     };
                 }
                 catch (error) {
-                    throw new BadRequestError($ts`The certificate of an api key has to be PEM encoded.`, { cause: error });
+                    throw new BadRequestError($ts`The certificate of an api key needs to be PEM encoded.`, { cause: error });
                 }
             }
         }
@@ -349,7 +349,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
      */
     private validateJwksUrl(url: string): string {
         if (!URL.canParse(url) || !UrlUtilities.isPrivate(new URL(url))) {
-            throw new BadRequestError($ts`The JSON Web Key Set of an api key has to be at an https url.`);
+            throw new BadRequestError($ts`The JSON Web Key Set of an api key needs to be at an https url.`);
         }
         return url;
     }

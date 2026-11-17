@@ -115,9 +115,12 @@ export class WebsocketFrameScanner {
 
     private readPayload(chunk: Buffer, offset: number): number {
         const take: number = Math.min(this.payloadRemaining, chunk.length - offset);
-        if (this.dataFrame && this.sizes.needsPrefix) {
-            const unmasked: Buffer = Buffer.allocUnsafe(take);
-            for (let i: number = 0; i < take; i++) {
+        // no more than is read to find the event: unmasked a byte at a time, all that arrived with the first bytes
+        // of a message cost a message of 60 KiB sixty times what one of a kilobyte did
+        const read: number = this.dataFrame ? Math.min(take, this.sizes.prefixBytesNeeded) : 0;
+        if (read > 0) {
+            const unmasked: Buffer = Buffer.allocUnsafe(read);
+            for (let i: number = 0; i < read; i++) {
                 unmasked[i] = (chunk[offset + i] ?? 0) ^ (this.mask[(this.payloadOffset + i) % 4] ?? 0);
             }
             this.refusal = this.sizes.feedPrefix(unmasked);

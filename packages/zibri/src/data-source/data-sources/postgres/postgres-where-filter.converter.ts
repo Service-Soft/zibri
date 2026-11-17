@@ -397,9 +397,36 @@ export class PostgresWhereFilterConverter {
      * @param similarTo - The search the text is compared with.
      * @returns The expression, with the search bound rather than written into it.
      */
-    similarityExpression(column: string, similarTo: string): ParameterizedSql {
+    similarityExpression(column: ParameterizedSql, similarTo: string): ParameterizedSql {
         const parameters: PostgresParameters = this.createParameters();
-        return { sql: `similarity(${column}, ${parameters.add(similarTo)})`, parameters: parameters.values };
+        return {
+            sql: `similarity(${column.sql}, ${parameters.add(similarTo)})`,
+            parameters: { ...column.parameters, ...parameters.values }
+        };
+    }
+
+    /**
+     * The expression a read is ordered by when it orders by a property inside an object: the value
+     * read out of the json of its column, as a condition on it reads it, so that it sorts as a column
+     * of its type would.
+     * @param column - The column holding the object, as sql.
+     * @param columnKey - The property the column is declared as, which names the cast in an error.
+     * @param path - The properties to follow inside the object, ending in the one ordered by.
+     * @param metadata - The property ordered by, which says what its value is cast to, or undefined when
+     * the object doesn't declare it.
+     * @returns The expression, with the names of the properties bound rather than written into it.
+     */
+    jsonValueExpression(
+        column: string,
+        columnKey: string,
+        path: readonly string[],
+        metadata: PropertyMetadata | undefined
+    ): ParameterizedSql {
+        const parameters: PostgresParameters = this.createParameters();
+        // json down to the object holding the property, and its value as text
+        const steps: string = path.map((key, i) => `${i === path.length - 1 ? '->>' : '->'}${parameters.add(key)}::text`).join('');
+        const cast: string = this.getJsonbCast(metadata, [columnKey, ...path].join('.'));
+        return { sql: `(${column}${steps})${cast}`, parameters: parameters.values };
     }
 
     /**

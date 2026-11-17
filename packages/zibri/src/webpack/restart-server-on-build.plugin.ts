@@ -15,7 +15,7 @@ export type WebpackStats = {
 
 /**
  * The part of webpack's compiler the plugin uses. Typed structurally, like the plugins of
- * `zibri-tsx/webpack`, so a compiler can be stood in for.
+ * `zibri-tsx-compiler/webpack`, so a compiler can be stood in for.
  */
 export type WebpackWatchCompiler = {
     /**

@@ -5,20 +5,19 @@ import { describe, expect, it } from '@jest/globals';
 import { defaultTestProviders } from 'zibri-testing';
 
 import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
+import { DOCS_DIR, DocsPagesUtilities } from '../../__testing__/docs-pages.utilities';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../plugin/invoicing/invoicing.tokens';
 import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from '../../plugin/mailing-list/mailing-list.tokens';
 import { ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from '../../plugin/payment/payment.tokens';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { TokenRecord, tokenName } from '../models/di-token.model';
 
-const DOCS_DIR: string = path.join(__dirname, '..', '..', '..', 'docs');
-
 /**
  * A page that lists the tokens of one token object, in tables headed `| Token | Type | What it is |`.
  */
 type TokenPage = {
     /**
-     * The page's file name.
+     * The page's path below `docs/`.
      */
     page: string,
     /**
@@ -28,10 +27,10 @@ type TokenPage = {
 };
 
 const TOKEN_PAGES: TokenPage[] = [
-    { page: 'configuration.md', record: ZIBRI_DI_TOKENS },
-    { page: 'invoicing-plugin.md', record: ZIBRI_INVOICING_PLUGIN_DI_TOKENS },
-    { page: 'mailing-list-plugin.md', record: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS },
-    { page: 'payment-plugin.md', record: ZIBRI_PAYMENT_PLUGIN_DI_TOKENS }
+    { page: 'application/configuration.md', record: ZIBRI_DI_TOKENS },
+    { page: 'plugins/invoicing-plugin.md', record: ZIBRI_INVOICING_PLUGIN_DI_TOKENS },
+    { page: 'plugins/mailing-list-plugin.md', record: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS },
+    { page: 'plugins/payment-plugin.md', record: ZIBRI_PAYMENT_PLUGIN_DI_TOKENS }
 ];
 
 /**
@@ -55,7 +54,7 @@ type TokenRow = {
 
 /**
  * Reads the rows of every token table of a page.
- * @param page - The page's file name.
+ * @param page - The page's path below `docs/`.
  * @returns The rows, in the order of the page.
  */
 function findTokenRows(page: string): TokenRow[] {
@@ -70,14 +69,14 @@ function findTokenRows(page: string): TokenRow[] {
         if (!raw.startsWith('|')) {
             inTokenTable = false;
         }
-        const row: RegExpExecArray | null = /^\| (?:\[`(\w+)`]\((?:\.\/([\w-]+\.md))?(?:#[\w-]+)?\)|`(\w+)`) \|/.exec(raw);
+        const row: RegExpExecArray | null = /^\| (?:\[`(\w+)`]\(((?:\.{1,2}\/)*[\w/-]+\.md)?(?:#[\w-]+)?\)|`(\w+)`) \|/.exec(raw);
         if (!inTokenTable || row == undefined) {
             continue;
         }
         const linked: boolean = row[1] != undefined;
         rows.push({
             key: row[1] ?? row[3] ?? '',
-            page: linked ? row[2] ?? page : undefined,
+            page: linked ? row[2] == undefined ? page : DocsPagesUtilities.resolveLinkedPage(page, row[2]) : undefined,
             line: index + 1
         });
     }

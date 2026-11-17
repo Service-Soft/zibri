@@ -2,16 +2,19 @@ import { Readable } from 'node:stream';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { InMemoryDataSource, resetInMemoryStore } from 'zibri-testing';
+import { InMemoryDataSource, InMemoryStore, InMemoryTransaction, resetInMemoryStore } from 'zibri-testing';
 
 import { ZibriApplication } from '../application/application';
+import { IsolationLevel } from '../data-source/data-sources/data-source.interface';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
 import { FindAllPaginatedOptions } from '../data-source/models/options/find-all-paginated-options.model';
 import { KeysetPage, PaginationResult } from '../data-source/models/pagination-result.model';
 import { Repository } from '../data-source/repository/repository';
 import { RepositoryClass } from '../data-source/repository/repository-class.type';
+import { TransactionSerializationError } from '../data-source/transaction/transaction-serialization.error';
 import { Transaction } from '../data-source/transaction/transaction.model';
 import { UniqueConstraintViolationError } from '../data-source/unique-constraint-violation.error';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { initDiContainer } from '../di/init-di-container.function';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
@@ -19,6 +22,7 @@ import { EntityOrder } from '../entity/models/entity-order.model';
 import { BadRequestError } from '../error-handling/errors/bad-request.error';
 import { InternalError } from '../error-handling/internal-error.model';
 import { EventSubscriberRegistration } from '../event/event-subscriber-registration.model';
+import { LoggerInterface } from '../logging/logger.interface';
 import { Newable } from '../types/newable.type';
 import { Company } from './mocks/entities/company.entity';
 import { Profile } from './mocks/entities/profile.entity';
@@ -479,6 +483,71 @@ describe('InMemoryDataSource', () => {
         await committed.commit();
 
         expect((await users.findById(kept.id)).name).toBe('Kept');
+    });
+
+    it('reads as of its first statement in a repeatable read transaction, with its own writes on top', async () => {
+        const users: Repository<User> = started.dataSource.getRepository(User);
+        const before: User = await users.create(mockCreateUserData({ name: 'Before' }));
+        const transaction: Transaction = started.dataSource.startTransaction({ isolationLevel: IsolationLevel.REPEATABLE_READ });
+        // as on postgres, what the transaction reads is fixed by its first statement, not by its start
+        await users.create(mockCreateUserData({ name: 'Before the first statement' }));
+        await users.findById(before.id, { transaction });
+
+        await users.create(mockCreateUserData({ name: 'Since' }));
+        await users.updateById(before.id, { name: 'Renamed since' });
+        await users.deleteById(before.id);
+        await users.create(mockCreateUserData({ name: 'Own' }), { transaction });
+
+        expect((await users.findAll({ transaction })).map(u => u.name).sort()).toEqual(['Before', 'Before the first statement', 'Own']);
+        expect((await users.findAll()).map(u => u.name).sort()).toEqual(['Before the first statement', 'Since']);
+        await transaction.rollback();
+    });
+
+    // as 3.0 built one, before a transaction said how it reads
+    it('reads as committed in a transaction built without saying how it reads', async () => {
+        const store: InMemoryStore = new InMemoryStore();
+        const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+        const reading: InMemoryTransaction = new InMemoryTransaction(store, 0, logger);
+        expect(reading.readRow('notes', 'first')).toBeUndefined();
+
+        const writing: InMemoryTransaction = new InMemoryTransaction(store, 0, logger);
+        writing.writeRow('notes', 'first', { text: '"written since"' });
+        await writing.commit();
+
+        expect(reading.readRow('notes', 'first')).toEqual({ text: '"written since"' });
+        await reading.rollback();
+    });
+
+    it('ends a repeatable read transaction writing a row another one changed since, to run again', async () => {
+        const users: Repository<User> = started.dataSource.getRepository(User);
+        const user: User = await users.create(mockCreateUserData({ name: 'Ada' }));
+        const unrelated: User = await users.create(mockCreateUserData({ name: 'Grace' }));
+        const transaction: Transaction = started.dataSource.startTransaction({ isolationLevel: IsolationLevel.REPEATABLE_READ });
+        await users.findById(user.id, { transaction });
+
+        await users.updateById(user.id, { name: 'Changed outside' });
+        await users.updateById(user.id, { name: 'Changed inside' }, { transaction });
+        await users.updateById(unrelated.id, { name: 'Grace, inside' }, { transaction });
+
+        await expect(transaction.commit()).rejects.toThrow(TransactionSerializationError);
+        // ended, and nothing it wrote applied
+        expect(transaction.isFinished).toBe(true);
+        expect((await users.findById(user.id)).name).toBe('Changed outside');
+        expect((await users.findById(unrelated.id)).name).toBe('Grace');
+    });
+
+    it('commits a repeatable read transaction whose rows nobody else changed since', async () => {
+        const users: Repository<User> = started.dataSource.getRepository(User);
+        const user: User = await users.create(mockCreateUserData({ name: 'Ada' }));
+        const other: User = await users.create(mockCreateUserData({ name: 'Grace' }));
+        const transaction: Transaction = started.dataSource.startTransaction({ isolationLevel: IsolationLevel.REPEATABLE_READ });
+        await users.findById(user.id, { transaction });
+
+        await users.updateById(other.id, { name: 'Grace, outside' });
+        await users.updateById(user.id, { name: 'Ada, inside' }, { transaction });
+        await transaction.commit();
+
+        expect((await users.findAll()).map(u => u.name).sort()).toEqual(['Ada, inside', 'Grace, outside']);
     });
 
     it('runs the work waiting for a commit once it is done, and drops it on a rollback', async () => {

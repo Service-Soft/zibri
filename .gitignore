@@ -4,7 +4,8 @@ tmp
 /out-tsc
 coverage
 *.hbs.ts
-packages/zibri/docs/generated
+packages/zibri/docs/.generated
+packages/docs-site/.generated
 file-output
 .vscode
 .zibri/

@@ -8,7 +8,8 @@ import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
 /**
  * A login at a provider that has been started and not yet come back.
  */
-@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate' })
+// not backed up: a restore keeps the logins under way now, so that one finished since the backup stays finished
+@Entity({ tenant: 'shared', allowOrphan: true, expiresBy: 'expirationDate', backedUp: false })
 export class FederatedLoginAttempt extends BaseEntity {
     /**
      * What the provider hands back to find this attempt again: the `state` of OAuth, the `RelayState`

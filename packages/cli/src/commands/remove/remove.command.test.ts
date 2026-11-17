@@ -57,7 +57,7 @@ describe('RemoveCommand', () => {
         expect(await project.exists('src/templates/pages/subscribe-success.tsx')).toBe(false);
         expect(await project.exists('src/templates/emails/mailing-list-subscribe-confirmation.tsx')).toBe(false);
         expect(await project.read(PREFERENCES_PAGE)).toBe(changed);
-        expect((await project.resolveManifest()).answers.features).toEqual(['pages', 'metricsDashboard', 'logEmail']);
+        expect((await project.resolveManifest()).answers.features).toEqual(['pages', 'docs', 'metricsDashboard', 'logEmail']);
     });
 
     it('takes the lines of the feature out of the files it shares with the project', async () => {
@@ -68,6 +68,16 @@ describe('RemoveCommand', () => {
         expect(options).not.toContain('MailingList');
         expect(await project.read('src/providers.ts')).not.toContain('MAILING_LIST');
         expect(await project.read('src/data-sources/db/entities.ts')).not.toContain('MailingList');
+    });
+
+    it('takes the links to the documentation off the home page and the navbar', async () => {
+        expect(await project.read('src/templates/pages/home.tsx')).toContain('id="home-docs"');
+
+        await remove('docs');
+
+        expect(await project.read('src/templates/pages/home.tsx')).not.toContain('/docs');
+        expect(await project.read('src/templates/components/navbar.tsx')).not.toContain('/docs');
+        expect(await project.exists('assets/public/docs.svg')).toBe(false);
     });
 
     it('uninstalls what only the feature needs', async () => {

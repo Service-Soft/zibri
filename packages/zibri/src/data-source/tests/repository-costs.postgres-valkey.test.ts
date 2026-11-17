@@ -153,7 +153,7 @@ describe('what a call on many rows costs, on ValKey', () => {
         expect({ thousand, thousandAndOne, twoThousandAndOne }).toEqual({ thousand: 1, thousandAndOne: 2, twoThousandAndOne: 3 });
     }, 60000);
 
-    it('writes as many rows in as many round trips as docs/costs.md says', async () => {
+    it('writes as many rows in as many round trips as docs/data/costs.md says', async () => {
         const counts: Record<string, number>[] = [];
         for (const rowCount of BULK_ROW_COUNTS) {
             counts.push(await resolveBulkCosts(rowCount));
@@ -170,11 +170,11 @@ describe('what a call on many rows costs, on ValKey', () => {
  * @returns Its rows, past the heading, as they are written.
  */
 async function resolveWriteRows(): Promise<string[]> {
-    const page: string = await FsUtilities.readFile(FsUtilities.getPath(__dirname, '..', '..', '..', 'docs', 'costs.md'));
+    const page: string = await FsUtilities.readFile(FsUtilities.getPath(__dirname, '..', '..', '..', 'docs', 'data', 'costs.md'));
     const lines: string[] = page.split('\n');
     const headingAt: number = lines.findIndex(l => l.startsWith('| Write |'));
     if (headingAt === -1) {
-        throw new Error('docs/costs.md has no table of writes by the number of rows.');
+        throw new Error('docs/data/costs.md has no table of writes by the number of rows.');
     }
     const rows: string[] = [];
     // past the heading and the line under it, up to the first line that is no longer the table

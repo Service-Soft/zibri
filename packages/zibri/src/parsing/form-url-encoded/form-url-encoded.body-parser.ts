@@ -61,7 +61,7 @@ export class FormUrlEncodedBodyParser implements BodyParserInterface<MimeType.FO
             return undefined;
         }
         if (typeof text !== 'string') {
-            throw new BadRequestError($ts`A url encoded form has to be sent as text.`);
+            throw new BadRequestError($ts`A url encoded form needs to be sent as text.`);
         }
         const fields: FormFields = new Map();
         for (const [name, value] of new URLSearchParams(text)) {

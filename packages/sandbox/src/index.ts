@@ -9,7 +9,8 @@ export let logger: LoggerInterface;
 
 async function start(): Promise<void> {
     const app: ZibriApplication = new ZibriApplication(applicationOptions);
-    // "migrate list" and "migrate down <version | migration name>" run in place of starting
+    // "migrate list", "migrate down <version | migration name>" and the commands in src/commands,
+    // such as "reset-admin", run in place of starting
     if (await app.runCommand(process.argv.slice(2))) {
         return;
     }

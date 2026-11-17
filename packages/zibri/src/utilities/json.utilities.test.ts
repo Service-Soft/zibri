@@ -114,7 +114,6 @@ describe('JsonUtilities', () => {
             expectSameSizeAsStringify({
                 key: 'user:1',
                 value: {
-                    // eslint-disable-next-line cspell/spellchecker
                     value: { id: 'u1', name: 'Ünïcödé', roles: ['admin', 'user'] },
                     tags: ['user'],
                     createdAt: new Date('2026-09-09T12:00:00.000Z'),

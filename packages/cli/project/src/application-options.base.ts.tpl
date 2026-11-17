@@ -5,7 +5,8 @@ import { OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOption
 import { OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOptions } from 'zibri';
 {{/mailingList}}
 
-import { AppAuthController{{#mailingList}}, AppMailingListController{{/mailingList}}, HealthController{{#pages}}, PageController{{/pages}} } from './controllers';
+import { endEveryLoginCommand, resetAdminCommand } from './commands';
+import { AppAuthController{{#mailingList}}, AppMailingListController{{/mailingList}}{{#docs}}, DocsController{{/docs}}, HealthController{{#pages}}, PageController{{/pages}} } from './controllers';
 import { requireOneOfEnv, requireUrlEnv } from './env';
 import { version } from '../package.json';
 import { providers } from './providers';
@@ -26,9 +27,10 @@ export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSo
     name: '{{name}}',
     baseUrl: requireUrlEnv('BASE_URL'),
     plugins: [{{#mailingList}}new ZibriMailingListPlugin(){{/mailingList}}],
-    controllers: [HealthController{{#pages}}, PageController{{/pages}}{{#mailingList}}, AppMailingListController{{/mailingList}}, AppAuthController],
+    controllers: [HealthController{{#pages}}, PageController{{/pages}}{{#docs}}, DocsController{{/docs}}{{#mailingList}}, AppMailingListController{{/mailingList}}, AppAuthController],
     websocketControllers: [],
     cronJobs: [],
+    commands: [resetAdminCommand, endEveryLoginCommand],
     version,
     environment: requireOneOfEnv('ENVIRONMENT', ZIBRI_ENVIRONMENTS),
 {{#publicByDefault}}

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { createReadStream, createWriteStream, Dirent, existsSync, readFileSync, ReadStream, Stats, WriteStream } from 'node:fs';
-import { access, writeFile, mkdir, readFile, readdir, rm, rmdir, rename, stat, glob, link, open, FileHandle } from 'node:fs/promises';
+import { createReadStream, createWriteStream, Dirent, existsSync, readFileSync, ReadStream, Stats, StatsFs, WriteStream } from 'node:fs';
+import { access, writeFile, mkdir, readFile, readdir, rm, rmdir, rename, stat, statfs, glob, link, open, FileHandle } from 'node:fs/promises';
 import path from 'node:path';
 
 import { InternalError } from '../error-handling/internal-error.model';
@@ -158,6 +158,22 @@ export abstract class FsUtilities {
     }
 
     /**
+     * Resolves how many bytes the disk holding a path has free for this process.
+     * @param p - The path, which need not exist yet: the disk of the nearest folder above it that does.
+     * @returns The bytes free.
+     */
+    static async resolveFreeBytes(p: FsPath): Promise<number> {
+        let current: FsPath = p;
+        // a folder that is only created once something is staged in it is on the disk of the folder above it
+        while (!await this.exists(current) && path.dirname(current) !== current) {
+            current = path.dirname(current) as FsPath;
+        }
+        const stats: StatsFs = await statfs(current);
+        // what an unprivileged process may take, without the blocks the file system keeps for root
+        return stats.bavail * stats.bsize;
+    }
+
+    /**
      * Checks if a file at the given path exists.
      * @param path - The path to check.
      * @returns True when a file could be accessed and false otherwise.
@@ -193,11 +209,39 @@ export abstract class FsUtilities {
     }
 
     /**
+     * Opens a file to be read.
+     * @param p - The file.
+     * @returns Its handle, which the caller closes, or hands to a stream that closes it.
+     */
+    static async openForReading(p: FsPath): Promise<FileHandle> {
+        return await open(p, 'r');
+    }
+
+    /**
      * Writes what the system still holds of a file to the disk, so that it outlasts the machine going down.
      * @param p - The file.
      */
     static async sync(p: FsPath): Promise<void> {
         const handle: FileHandle = await open(p, 'r+');
+        try {
+            await handle.sync();
+        }
+        finally {
+            await handle.close();
+        }
+    }
+
+    /**
+     * Writes what the system still holds of the entries of a directory to the disk, such as a file renamed
+     * into it or a directory created in it, so that they outlast the machine going down. Nothing on
+     * Windows, which cannot open a directory to do so.
+     * @param p - The directory.
+     */
+    static async syncDirectory(p: FsPath): Promise<void> {
+        if (process.platform === 'win32') {
+            return;
+        }
+        const handle: FileHandle = await open(p, 'r');
         try {
             await handle.sync();
         }
@@ -417,9 +461,12 @@ export abstract class FsUtilities {
      * Creates a directory at the given path.
      * @param path - The path of the directory to create.
      * @param recursive - Whether or not missing directories in the path should be created as well. Defaults to true.
+     * @returns The first directory it created, the one closest to the root, or undefined when it created none.
      */
-    static async mkdir(path: FsPath, recursive: boolean = true): Promise<void> {
-        await mkdir(path, { recursive });
+    static async mkdir(path: FsPath, recursive: boolean = true): Promise<FsPath | undefined> {
+        const created: string | undefined = await mkdir(path, { recursive });
+        // without recursive, the directory is created or the call throws
+        return recursive ? created == undefined ? undefined : this.getPath(created) : path;
     }
 
     /**

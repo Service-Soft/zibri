@@ -1,12 +1,5 @@
+// the one a frontend reads the type of a change set by, so both sides name the same values
 /**
- * The type of the change set.
- * Can bei either CREATE, REPLACE, RESET, UPDATE or DELETE.
+ * What happened to an entity in a change set.
  */
-export enum ChangeSetType {
-    CREATE = 'create',
-    REPLACE = 'replace',
-    RESET = 'reset',
-    UPDATE = 'update',
-    DELETE = 'delete',
-    RESTORE = 'restore'
-}
+export { ChangeSetType } from 'zibri-contract';

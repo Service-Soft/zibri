@@ -1370,6 +1370,9 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         worker: ThreadJobWorker,
         traceContext: TraceSpanContext
     ): Promise<void> {
+        // before the start is written, and counted: a worker that ended while the claim was taken was never given the
+        // job, and a start counted for it is one of the few a job gets before it is ended as started too often
+        this.validateWorkerIsTaken(job, worker);
         // progress goes back to where the job starts from: its last checkpoint, or the beginning. A job
         // taken over from an instance that stopped existing keeps how far *it* got on the row until
         // here, which is worth having while nothing is running it and wrong the moment something is.
@@ -1395,19 +1398,42 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         if (this.poolState === 'stopped' || !this.runningJobs.includes(job)) {
             return;
         }
+        // again, for one that ended while that write was out
+        this.validateWorkerIsTaken(job, worker);
 
         const message: ThreadJobStartMessage = {
             workerData: job.workerData,
             traceContext,
             tenantId: job.tenantId,
             jobId: job.id,
-            checkpoint: job.checkpoint ?? undefined
+            checkpoint: job.checkpoint ?? undefined,
+            // a thread has an `Error` of its own, which starts at node's default
+            stackTraceLimit: Error.stackTraceLimit
         };
         worker.worker.postMessage(message);
         worker.timeout = setTimeout(
             () => void this.trackWorkerEvent(this.stopOverdueJob(job, worker), worker.threadId),
             job.timeoutInMs
         );
+    }
+
+    /**
+     * Validates that the worker taken for a job is still there to be given it.
+     *
+     * A worker can end between being taken for a job and getting it, while the claim or the write of the start is
+     * out. Its exit found no job on it then, and replaced it: a job posted to it is never answered, and waits for its
+     * timeout. Thrown, the claim is handed back and the next round gives the job to the replacement.
+     * @param job - The job.
+     * @param worker - The worker taken for it.
+     * @throws When the worker ended.
+     */
+    private validateWorkerIsTaken(
+        job: ThreadJob<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown>,
+        worker: ThreadJobWorker
+    ): void {
+        if (!this.workers.includes(worker)) {
+            throw new InternalError(`The worker ${worker.threadId} taken for thread job ${job.id} ended before it was given the job`);
+        }
     }
 
     /**
@@ -1506,11 +1532,12 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
      * because it was asked to.
      * @param exitCode - The code the worker exited with.
      * @param threadId - The thread id of the worker that exited.
+     * @returns Whether a replacement was started.
      */
-    private replaceDeadWorker(exitCode: number, threadId: number): void {
+    private replaceDeadWorker(exitCode: number, threadId: number): boolean {
         const worker: ThreadJobWorker | undefined = this.getWorkerByThreadId(threadId);
         if (!worker) {
-            return;
+            return false;
         }
 
         clearTimeout(worker.timeout);
@@ -1523,15 +1550,15 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
                 worker.isInitializingSubject.error(
                     new InternalError(`Worker ${threadId} exited with code ${exitCode} before initialization completed`)
                 );
-                return;
+                return false;
             }
             case 'stopped': {
-                return;
+                return false;
             }
             case 'running': {
-                this.logger.warn(`Thread job worker ${threadId} exited with code ${exitCode} while idle. Starting a replacement.`);
+                this.logger.warn(`Thread job worker ${threadId} exited with code ${exitCode} holding no job. Starting a replacement.`);
                 this.initWorker(worker.priority);
-                return;
+                return true;
             }
         }
     }

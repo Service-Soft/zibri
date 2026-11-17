@@ -2,12 +2,14 @@ import { describe, expect, it, jest } from '@jest/globals';
 
 import { logToConsole } from './log-to-console.function';
 import { BaseLoggerTransportConfig } from './logger-transport.model';
+import { errorToLoggedError } from '../error-to-logged-error.function';
 import { LogLevel } from '../log-level.enum';
 import { Log } from '../log.model';
 
 function createLog(level: LogLevel, overrides: Partial<Log> = {}): Log {
     return {
         id: 'id',
+        application: 'Task tracker',
         createdAt: new Date(),
         cleanupAt: new Date(),
         message: 'the message',
@@ -60,6 +62,21 @@ describe('logToConsole', () => {
         expect(spy).toHaveBeenCalledWith(expect.any(String), expect.stringContaining('origin.ts'));
         expect(spy).toHaveBeenCalledWith('paragraph 1');
         expect(spy).toHaveBeenCalledWith('paragraph 2');
+        expect(spy).not.toHaveBeenCalledWith('stack trace:');
+        spy.mockRestore();
+    });
+
+    it('logs the stack trace of an error after its paragraphs, once', async () => {
+        const spy: jest.SpiedFunction<typeof console.error> = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const error: Error = new Error('the database is down');
+
+        await logToConsole([createLog(LogLevel.ERROR, { context: { origin: 'origin.ts', error: errorToLoggedError(error) } })], config);
+
+        expect(spy.mock.calls.slice(1)).toEqual([
+            ['the database is down'],
+            ['stack trace:'],
+            ...error.stack?.split('\n').map(line => [`    ${line}`]) ?? []
+        ]);
         spy.mockRestore();
     });
 

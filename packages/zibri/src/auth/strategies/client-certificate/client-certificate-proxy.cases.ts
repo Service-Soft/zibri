@@ -169,16 +169,11 @@ export function describeBehindProxy(proxyName: string, proxy: ClientCertificateP
          * tunnel testcontainers opens to it, and finds the user by the email address in its common name.
          */
         class ProxyClientCertificateAuthStrategy extends BaseClientCertificateAuthStrategy<string, JwtUser> {
-            // eslint-disable-next-line jsdoc/require-jsdoc
             readonly header: string = proxy.header;
-            // eslint-disable-next-line jsdoc/require-jsdoc
             readonly headerFormat: ClientCertificateHeaderFormat = proxy.headerFormat;
-            // eslint-disable-next-line jsdoc/require-jsdoc
             readonly trustedProxies: string[] = ['127.0.0.1', '::1'];
-            // eslint-disable-next-line jsdoc/require-jsdoc
             readonly certificateAuthorities: string[] = [authority.certificate];
 
-            // eslint-disable-next-line jsdoc/require-jsdoc
             async resolveUserByCertificate(certificate: X509Certificate): Promise<JwtUser | undefined> {
                 const email: string | undefined = /^CN=(.+)$/m.exec(certificate.subject)?.[1];
                 return email == undefined

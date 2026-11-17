@@ -83,9 +83,30 @@ export function offsetToLineColumn(source: string, offset: number): LineColumn {
  * @returns The error to report.
  */
 export function resolveCompileError(diagnostics: Diagnostic[], source: string, file: string): Error {
-    const lines: string[] = diagnostics.map(diagnostic => {
+    return new Error(`zibri-tsx failed to compile:\n${resolveLocatedLines(diagnostics, source, file)}`);
+}
+
+/**
+ * Formats the warnings of a template that compiled into one readable warning.
+ * @param warnings - The warnings to format.
+ * @param source - The source they refer to.
+ * @param file - The file path, for context.
+ * @returns The warning to report.
+ */
+export function resolveCompileWarning(warnings: Diagnostic[], source: string, file: string): Error {
+    return new Error(`zibri-tsx compiled with warnings:\n${resolveLocatedLines(warnings, source, file)}`);
+}
+
+/**
+ * One line per diagnostic, naming the file, the line and the column it is at.
+ * @param diagnostics - The diagnostics.
+ * @param source - The source they refer to.
+ * @param file - The file path.
+ * @returns The lines.
+ */
+function resolveLocatedLines(diagnostics: Diagnostic[], source: string, file: string): string {
+    return diagnostics.map(diagnostic => {
         const { line, column } = offsetToLineColumn(source, diagnostic.span.start);
         return `${file}:${line}:${column} ${diagnostic.code} ${diagnostic.message}`;
-    });
-    return new Error(`zibri-tsx failed to compile:\n${lines.join('\n')}`);
+    }).join('\n');
 }

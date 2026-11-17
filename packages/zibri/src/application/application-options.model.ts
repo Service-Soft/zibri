@@ -1,3 +1,4 @@
+import { AppCommand } from './app-command.model';
 import { ZibriEnvironment } from './zibri-environment.type';
 import { TwoFactorAtLogin } from '../auth/2fa/two-factor-at-login.type';
 import { TwoFactorFailureLimit } from '../auth/2fa/two-factor-failure-limit.model';
@@ -5,7 +6,7 @@ import { TwoFactorMethods } from '../auth/2fa/two-factor-methods.model';
 import { Authenticators } from '../auth/authenticators/authenticators.model';
 import { PasswordFailureLimit } from '../auth/authenticators/password/password-failure-limit.model';
 import { AuthStrategies } from '../auth/strategies/auth-strategies.model';
-import { BackupTransportInterface } from '../backup/transports/backup-transport.interface';
+import { BackupTransportSupporting } from '../backup/transports/backup-transport.interface';
 import { CronJob } from '../cron/cron-job.model';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { DiProvider } from '../di/models/di-provider.model';
@@ -177,21 +178,20 @@ export type ZibriApplicationOptions = {
      */
     bodyParsers?: Newable<AnyBodyParser>[],
     /**
-     * The auth strategies to register.
+     * The auth strategies to register. `JwtAuthStrategy` when left out.
      *
-     * If nothing is provided, the Zibri default jwt auth strategy will be used.
+     * An empty list runs the application without logins: it registers no strategy, and neither an authenticator nor
+     * a two factor method unless they are named, and a route needing a login fails the start.
      */
     authStrategies?: AuthStrategies,
     /**
-     * The authenticators to register.
-     *
-     * If nothing is provided, the Zibri default password authenticator will be used.
+     * The authenticators to register. `PasswordAuthenticator` when left out and the application registers a strategy,
+     * none for an empty list.
      */
     authenticators?: Authenticators,
     /**
-     * The two factor methods to register.
-     *
-     * If nothing is provided, the Zibri default otp two factor method will be used.
+     * The two factor methods to register. `OtpTwoFactorMethod` when left out and the application registers a strategy,
+     * none for an empty list.
      */
     twoFactorMethods?: TwoFactorMethods,
     /**
@@ -215,13 +215,26 @@ export type ZibriApplicationOptions = {
      */
     passwordFailureLimit?: PasswordFailureLimit,
     /**
+     * How many frames a stack trace keeps, in the process and in its thread jobs. `0` turns stack traces
+     * off. Below 3, the origin of a log entry is `unknown`.
+     *
+     * Defaults to 50.
+     */
+    stackTraceLimit?: number,
+    /**
      * The cron jobs to register in the app.
      */
     cronJobs?: Newable<CronJob>[],
     /**
      * The configured backup transports of the app.
      */
-    backupTransports?: Newable<BackupTransportInterface>[],
+    // TODO 4.0: transports supporting v2 only
+    backupTransports?: Newable<BackupTransportSupporting>[],
+    /**
+     * The commands of the app, which `runCommand` runs in place of starting it, beside the migration
+     * commands.
+     */
+    commands?: AppCommand[],
     /**
      * The plugins to be used.
      */

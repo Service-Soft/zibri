@@ -20,7 +20,9 @@ const context: PdfFontFallbackContext = {
         ['Roboto', drawing(LATIN)],
         ['Serif', drawing(LATIN)],
         ['Cjk', drawing('山田太郎 ')],
+        // eslint-disable-next-line cspell/spellchecker
         ['Hebrew', drawing('שלום')],
+        // eslint-disable-next-line cspell/spellchecker
         ['Everything', drawing(`${LATIN}山田太郎שלום`)]
     ]),
     fallbacks: ['Cjk', 'Hebrew', 'Everything'],
@@ -55,6 +57,7 @@ describe('PdfFontFallbackUtilities', () => {
     });
 
     it('takes the fallbacks in their order, and skips one that lacks the character', () => {
+        // eslint-disable-next-line cspell/spellchecker
         expect(apply('שלום 山田')).toEqual({ text: [{ text: 'שלום ', font: 'Hebrew' }, { text: '山田', font: 'Cjk' }] });
     });
 

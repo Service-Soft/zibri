@@ -1,5 +1,6 @@
 import { BackupEntity } from './backup-entity.model';
 import { type EncryptionString } from '../auth/encryption/encryption.utilities';
+import { FrameworkColumnRegistry } from '../data-source/migration/framework-column.registry';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { QueuedWorkEntity } from '../queue/queued-work-entity.model';
@@ -23,6 +24,13 @@ export class BackupResourceEntity extends QueuedWorkEntity {
      */
     @Property.number({ format: 'integer', required: false })
     size: number | undefined | null;
+    /**
+     * The bytes the data took on the disk of the instance that stored it, compressed as a restore stages
+     * it, which says how much room restoring it takes. Null for a backup that recorded none, whose `size`
+     * is all that is known of it.
+     */
+    @Property.number({ format: 'integer', required: false })
+    stagedSize: number | undefined | null;
     /**
      * The sha256 of the data, as every transport received it.
      *
@@ -52,6 +60,18 @@ export class BackupResourceEntity extends QueuedWorkEntity {
     @Property.array({ items: { type: 'string' } })
     transportNames!: string[];
     /**
+     * The backup whose data of this resource this one holds the changes since, or null when it holds the
+     * resource's data in full.
+     */
+    @Property.string({ format: 'uuid', required: false })
+    baseBackupId: string | undefined | null;
+    /**
+     * Where the resource reads on from once this backup completed, as the resource wrote it, or null for a
+     * resource that always reads in full.
+     */
+    @Property.string({ required: false })
+    readCursor: string | undefined | null;
+    /**
      * The backup that this resource belongs to.
      */
     @Property.belongsToOne({ target: () => BackupEntity, joinColumn: 'backupId', inverseSide: 'resources' })
@@ -63,10 +83,17 @@ export class BackupResourceEntity extends QueuedWorkEntity {
     backupId!: string;
 }
 
+FrameworkColumnRegistry.register(
+    { entity: BackupResourceEntity, property: 'stagedSize' },
+    { entity: BackupResourceEntity, property: 'baseBackupId' },
+    { entity: BackupResourceEntity, property: 'readCursor' }
+);
+
 /**
  * The data required to create a new backup resource.
  */
 export type BackupResourceEntityCreateData = OmitStrict<
     BackupResourceEntity,
-    'id' | 'completed' | 'backup' | 'backupId' | 'size' | 'checksum' | 'encryptedKey' | 'attempts' | 'nextAttemptAt' | 'error'
+    'id' | 'completed' | 'backup' | 'backupId' | 'size' | 'stagedSize' | 'checksum' | 'encryptedKey' | 'attempts' | 'nextAttemptAt'
+    | 'error' | 'baseBackupId' | 'readCursor'
 >;

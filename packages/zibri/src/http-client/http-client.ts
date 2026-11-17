@@ -1,9 +1,12 @@
 import { setTimeout as wait } from 'node:timers/promises';
 
+import { FormData as UndiciFormData, fetch as undiciFetch } from 'undici';
+
 import { CircuitBreaker } from './circuit-breaker.model';
 import { CircuitOpenError } from './circuit-open.error';
 import { FetchForLibraryOptions } from './fetch-for-library-options.model';
 import { HttpClientBodyUtilities } from './http-client-body.utilities';
+import { HttpClientBufferedBody } from './http-client-buffered-body.model';
 import { HttpClientIdempotencyKey } from './http-client-idempotency-key.model';
 import { type HttpClientDispatcher, type HttpClientOptions } from './http-client-options.model';
 import { HttpClientRedirect } from './http-client-redirect.model';
@@ -35,6 +38,7 @@ import { TraceSpanKind } from '../tracing/trace-span-kind.enum';
 import { TraceSpanInterface } from '../tracing/trace-span.interface';
 import { TracingUtilities } from '../tracing/tracing.utilities';
 import { isNewable } from '../types/newable.type';
+import { OmitStrict } from '../types/omit-strict.type';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { Ms } from '../utilities/ms';
 import { BigNumber } from '../utilities/number.utilities';
@@ -74,17 +78,68 @@ type FollowedRequest = SentRequest & {
 type RedirectMode = HttpClientRedirect | 'manual';
 
 /**
+ * What a call is sent as, before each request of it is made: a buffered body is still its chunks, of
+ * which every request streams its own.
+ */
+type ClientRequestInit = OmitStrict<RequestInit, 'body'> & {
+    /**
+     * The body.
+     */
+    body?: RequestInit['body'] | HttpClientBufferedBody
+};
+
+/**
  * What `fetch` is actually called with.
  *
- * `dispatcher` is undici's own addition to `RequestInit` rather than part of the fetch standard,
- * which is why the DOM lib does not know about it - node's `fetch` is undici's and reads it.
+ * `dispatcher` and `duplex` are undici's own additions to `RequestInit` rather than part of the
+ * fetch standard, which is why the DOM lib does not know about them - undici's `fetch` reads them.
  */
 type DispatchedRequestInit = RequestInit & {
     /**
-     * What to send the request over, or absent for node's own.
+     * What to send the request over, or absent for undici's default.
      */
-    dispatcher?: HttpClientDispatcher
+    dispatcher?: HttpClientDispatcher,
+    /**
+     * `'half'` for a body that is a stream, which undici's `fetch` refuses without it.
+     */
+    duplex?: 'half'
 };
+
+/**
+ * The fetch every request is sent with, in the platform's types.
+ */
+type PlatformFetch = (url: string, init: DispatchedRequestInit) => Promise<Response>;
+
+// undici's own fetch rather than node's, whose bundled undici (the 7 line, in node 24) throws an
+// assertion from a socket's end event when a server closes the connection while a response body is
+// paused by a slow reader - which nothing can catch, so it ended the process. Fixed in undici 8; held
+// by http-client.streamed-download.test.ts.
+// The one conversion of its types: undici declares the same fetch against its own copy of the web
+// types (a Blob with textStream, an iterator without Symbol.dispose), which TypeScript cannot relate
+// to the platform's. Naming undici's types instead would put them into fetchForLibrary, and pin what
+// an application hands it to one undici version. Obsolete once undici's declarations and the
+// platform's are the same
+const sendFetch: PlatformFetch = undiciFetch as unknown as PlatformFetch;
+
+/**
+ * Copies a FormData of the platform into one of undici, whose fetch knows a FormData by its brand and sends any other
+ * as the text "[object FormData]". The copy holds the same values, so no file is read before the request is sent.
+ * @param form - The FormData of the platform.
+ * @returns The FormData of undici, in the platform's type, as the fetch it is sent with takes it.
+ */
+function toUndiciFormData(form: FormData): FormData {
+    const copy: UndiciFormData = new UndiciFormData();
+    for (const [name, value] of form.entries()) {
+        if (typeof value === 'string') {
+            copy.append(name, value);
+            continue;
+        }
+        // undici names a file it does not know as its own "blob" unless the name is passed along
+        copy.append(name, value, value.name);
+    }
+    // the same conversion as the one of sendFetch, for the same reason
+    return copy as unknown as FormData;
+}
 
 /**
  * The methods a request can be repeated with, because sending one twice says the same thing as
@@ -393,7 +448,7 @@ export class HttpClient implements HttpClientInterface {
             ResponseBody
         > | undefined
     ): Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>> {
-        // a forbidden method of the fetch standard, which node's fetch refuses with a bare TypeError
+        // a forbidden method of the fetch standard, which fetch refuses with a bare TypeError
         if (method === HttpMethod.TRACE) {
             throw new InternalError('The http client cannot send a TRACE request: fetch refuses the method.');
         }
@@ -533,7 +588,7 @@ export class HttpClient implements HttpClientInterface {
         const headers: Record<string, HttpClientHeaderValue> | undefined = idempotencyHeader == undefined
             ? options?.headers
             : { ...options?.headers, [idempotencyHeader[0]]: idempotencyHeader[1] };
-        const init: RequestInit = this.buildRequestInit(method, requestBody, headers, options?.requestBodyType);
+        const init: ClientRequestInit = this.buildRequestInit(method, requestBody, headers, options?.requestBodyType);
 
         // resolved before anything is sent, so that a declaration that cannot work is refused without a request
         const responseBodyMetadata: BodyMetadata | undefined = options?.responseBody
@@ -578,7 +633,8 @@ export class HttpClient implements HttpClientInterface {
                     options?.dispatcher ?? this.clientOptions.dispatcher,
                     requestSignal,
                     requestBody,
-                    options?.headers
+                    options?.headers,
+                    options?.validateRedirect
                 );
                 release = sent.release;
                 // the convention counts a redirect as a resend, like another attempt
@@ -816,8 +872,8 @@ export class HttpClient implements HttpClientInterface {
         body: unknown,
         headers?: Record<string, HttpClientHeaderValue>,
         requestBodyType: HttpClientRequestBodyMimeType = this.resolveContentTypeHeader(headers, body)
-    ): RequestInit {
-        const init: RequestInit = {
+    ): ClientRequestInit {
+        const init: ClientRequestInit = {
             // fetch requires the canonical uppercase HTTP method token, unlike our lowercase HttpMethod enum values.
             method: method.toUpperCase(),
             headers: this.withTraceContext(headers)
@@ -828,7 +884,7 @@ export class HttpClient implements HttpClientInterface {
         }
 
         const isPreEncoded: boolean = body instanceof FormData || body instanceof Blob
-            || body instanceof ArrayBuffer || body instanceof ReadableStream;
+            || body instanceof ArrayBuffer || body instanceof ReadableStream || body instanceof HttpClientBufferedBody;
         const serialization: RequestBodySerialization = requestBodySerializationForMimeType[requestBodyType];
 
         if ((serialization === 'json' || serialization === 'xml') && isPreEncoded) {
@@ -861,7 +917,15 @@ export class HttpClient implements HttpClientInterface {
                 break;
             }
             case 'raw': {
-                init.body = body as BodyInit;
+                if (body instanceof HttpClientBufferedBody) {
+                    // fetch knows no length of a stream, and would send it chunked
+                    const initHeaders: Headers = new Headers(init.headers);
+                    initHeaders.set(KnownHeader.CONTENT_LENGTH, String(body.byteLength));
+                    init.headers = Object.fromEntries(initHeaders.entries());
+                    init.body = body;
+                    break;
+                }
+                init.body = body instanceof FormData ? toUndiciFormData(body) : body as BodyInit;
                 break;
             }
         }
@@ -893,9 +957,16 @@ export class HttpClient implements HttpClientInterface {
         if (body instanceof FormData) {
             return MimeType.FORM_DATA;
         }
-        return body instanceof Blob || body instanceof ArrayBuffer || body instanceof ReadableStream
+        return this.isBodyOctetStream(body)
             ? MimeType.OCTET_STREAM
             : MimeType.JSON;
+    }
+
+    private isBodyOctetStream(body: unknown): boolean {
+        return body instanceof Blob
+            || body instanceof ArrayBuffer
+            || body instanceof ReadableStream
+            || body instanceof HttpClientBufferedBody;
     }
 
     /**
@@ -982,27 +1053,29 @@ export class HttpClient implements HttpClientInterface {
      * @param init - The request to send.
      * @param redirect - What to do with a redirect.
      * @param timeoutInMs - How long the whole answer may take, every hop included.
-     * @param dispatcher - What to send it over, or undefined for node's own.
+     * @param dispatcher - What to send it over, or undefined for undici's default.
      * @param requestSignal - The deadline of the request this is being sent for, if there is one.
      * @param requestBody - The body that was sent, for the error.
      * @param requestHeaders - The headers that were sent, for the error.
+     * @param validateRedirect - What checks where a redirect leads before it is followed, if anything.
      * @returns The response that is no redirect to follow, the release for its deadline, and how many redirects led to it.
      * @throws An HttpClientError carrying the redirect, when one is refused.
      */
     private async sendFollowingRedirects(
         method: HttpMethod,
         url: string,
-        init: RequestInit,
+        init: ClientRequestInit,
         redirect: RedirectMode,
         timeoutInMs: number,
         dispatcher: HttpClientDispatcher | undefined,
         requestSignal: AbortSignal | undefined,
         requestBody: unknown,
-        requestHeaders: Record<string, HttpClientHeaderValue> | undefined
+        requestHeaders: Record<string, HttpClientHeaderValue> | undefined,
+        validateRedirect?: (to: URL) => Promise<void>
     ): Promise<FollowedRequest> {
         const startedAt: number = Date.now();
         let hopUrl: string = url;
-        let hopInit: RequestInit = { ...init, redirect: 'manual' };
+        let hopInit: ClientRequestInit = { ...init, redirect: 'manual' };
         for (let redirects: number = 0; ; redirects++) {
             const sent: SentRequest = await this.sendRequest(
                 method,
@@ -1021,7 +1094,11 @@ export class HttpClient implements HttpClientInterface {
             }
             const from: URL = new URL(hopUrl);
             const to: URL = new URL(location, from);
-            const refusal: string | undefined = this.findRedirectRefusal(redirect, from, to, redirects);
+            const refusal: string | undefined = this.findRedirectRefusal(redirect, from, to, redirects)
+                ?? await validateRedirect?.(to).then(
+                    () => undefined,
+                    (error: unknown) => error instanceof Error ? error.message : String(error)
+                );
             if (refusal != undefined) {
                 try {
                     throw await HttpClientBodyUtilities.buildResponseError(
@@ -1081,7 +1158,7 @@ export class HttpClient implements HttpClientInterface {
      * @param to - Where it leads.
      * @returns The request to send to where it leads.
      */
-    private resolveRedirectedInit(init: RequestInit, status: number, from: URL, to: URL): RequestInit {
+    private resolveRedirectedInit(init: ClientRequestInit, status: number, from: URL, to: URL): ClientRequestInit {
         const headers: Headers = new Headers(init.headers);
         const method: string = init.method ?? 'GET';
         // a 303 asks for a GET of the result, and a 301 or 302 after a POST is followed with a GET
@@ -1118,7 +1195,7 @@ export class HttpClient implements HttpClientInterface {
      * @param url - The url to request.
      * @param init - The request to send.
      * @param timeoutInMs - How long the whole answer may take.
-     * @param dispatcher - What to send it over, or undefined for node's own.
+     * @param dispatcher - What to send it over, or undefined for undici's default.
      * @param requestSignal - The deadline of the request this is being sent for, if there is one.
      * @returns The response, and the release for its deadline.
      * @throws A CircuitOpenError without sending anything while the origin's circuit is open.
@@ -1126,7 +1203,7 @@ export class HttpClient implements HttpClientInterface {
     private async sendRequest(
         method: HttpMethod,
         url: string,
-        init: RequestInit,
+        init: ClientRequestInit,
         timeoutInMs: number,
         dispatcher: HttpClientDispatcher | undefined,
         requestSignal: AbortSignal | undefined
@@ -1168,13 +1245,13 @@ export class HttpClient implements HttpClientInterface {
      * @param url - The url to request.
      * @param init - The request to send.
      * @param timeoutInMs - How long the whole answer may take.
-     * @param dispatcher - What to send it over, or undefined for node's own.
+     * @param dispatcher - What to send it over, or undefined for undici's default.
      * @param requestSignal - The deadline of the request this is being sent for, if there is one.
      * @returns The response, and the release for its deadline.
      */
     private async sendThroughDeadline(
         url: string,
-        init: RequestInit,
+        init: ClientRequestInit,
         timeoutInMs: number,
         dispatcher: HttpClientDispatcher | undefined,
         requestSignal: AbortSignal | undefined
@@ -1188,12 +1265,17 @@ export class HttpClient implements HttpClientInterface {
             : controller.signal;
         const release: () => void = () => clearTimeout(timeout);
         try {
+            // made here, once per request: a stream is read by the one request it is sent with, and an
+            // attempt or a redirect after it would send nothing
+            const sendable: DispatchedRequestInit = init.body instanceof HttpClientBufferedBody
+                ? { ...init, body: init.body.createStream(), duplex: 'half' }
+                : { ...init, body: init.body };
             // omitted entirely when there is none, so an unconfigured client sends exactly what a
             // plain fetch would
             const request: DispatchedRequestInit = dispatcher
-                ? { ...init, signal, dispatcher }
-                : { ...init, signal };
-            return { response: await fetch(url, request), release };
+                ? { ...sendable, signal, dispatcher }
+                : { ...sendable, signal };
+            return { response: await sendFetch(url, request), release };
         }
         catch (error) {
             release();

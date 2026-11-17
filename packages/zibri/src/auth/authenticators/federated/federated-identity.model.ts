@@ -7,7 +7,8 @@ import { OmitClass } from '../../../entity/omit-class.model';
  * An identity at a provider, linked to a user: to log in as them, to call the provider's apis for
  * them, or both.
  */
-@Entity({ tenant: 'shared', allowOrphan: true, uniques: [['issuer', 'subject']] })
+// kept for the current users: an identity unlinked since the backup stays unlinked
+@Entity({ tenant: 'shared', allowOrphan: true, uniques: [['issuer', 'subject']], backedUp: 'keptForCurrentUsers' })
 export class FederatedIdentity extends BaseEntity {
     /**
      * The issuer the provider's identities are known by: the `iss` of an OpenID Connect provider's ID

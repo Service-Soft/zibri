@@ -2,9 +2,11 @@ import { AesGcmEncryptionStrategy, CompanyInfo, defineDateFormat, defineProvider
 
 import { optionalEnv, requireEnv, requirePortEnv, requireUrlEnv } from './env';
 import { permissions, Tenant } from './models';
+import { markdownComponents } from './templates/components/markdown-components';
 import { MailingListBaseEmail } from './templates/email-components/mailing-list-base-email';
 import { MailingListSubscribeConfirmationEmail } from './templates/emails/mailing-list-subscribe-confirmation';
 import { PasswordResetEmail } from './templates/emails/password-reset';
+import { ExplorerPage } from './templates/explorer/explorer';
 import { ErrorPage } from './templates/pages/error';
 import { MailingListPreferencesPage } from './templates/pages/mailing-list-preferences';
 import { MailingListUnsubscribeConfirmationPage } from './templates/pages/mailing-list-unsubscribe-confirmation';
@@ -16,6 +18,15 @@ export const providers: DiProvider<unknown>[] = [
         useFactory: () => ErrorPage
     }),
     defineProvider({
+        token: ZIBRI_DI_TOKENS.OPEN_API_EXPLORER_TEMPLATE,
+        useFactory: () => ExplorerPage
+    }),
+    defineProvider({
+        // what the pages written in markdown render, see the templating docs
+        token: ZIBRI_DI_TOKENS.MDX_COMPONENTS,
+        useValue: markdownComponents
+    }),
+    defineProvider({
         token: ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS,
         useFactory: () => [LoggerTransport.console(LogLevel.INFO)]
     }),
@@ -25,7 +36,7 @@ export const providers: DiProvider<unknown>[] = [
             currentMasterStrategy: new AesGcmEncryptionStrategy(),
             currentMasterKey: {
                 id: 'k1',
-                value: requireEnv('MASTER_KEY')
+                value: Buffer.from(requireEnv('MASTER_KEY'), 'base64url')
             }
         }
     }),

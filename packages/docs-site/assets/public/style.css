@@ -1,0 +1,46 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-*: initial;
+  --color-primary: #0e456f;
+  --color-white: whitesmoke;
+  --color-secondary: #00b4d8;
+  --color-warning: #e5a50a;
+  --color-gray: #2a2a35;
+  --color-dark-gray: #1a1a26;
+  --color-disabled: lightgrey;
+  --color-disabled-dark: grey;
+  /* the text of code that is of no kind */
+  --color-code: #d4d4d4;
+
+  --shadow-*: initial;
+  --shadow-elevation:
+    0px 5px 5px -3px rgba(0, 0, 0, 0.2), 0px 8px 10px 1px rgba(0, 0, 0, 0.14),
+    0px 3px 14px 2px rgba(0, 0, 0, 0.12);
+}
+
+html, body {
+    padding: 0;
+    margin: 0;
+    font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
+    background-color: #2a2a35;
+}
+
+/* the code of a page, by the kind of each token, in the colors of VS Code's Dark Modern */
+.shiki-token-keyword { color: #569cd6; }
+.shiki-token-keyword-control { color: #c586c0; }
+.shiki-token-type { color: #4ec9b0; }
+.shiki-token-function { color: #dcdcaa; }
+.shiki-token-variable { color: #9cdcfe; }
+.shiki-token-constant { color: #4fc1ff; }
+.shiki-token-number { color: #b5cea8; }
+.shiki-token-string { color: #ce9178; }
+.shiki-token-regexp { color: #d16969; }
+.shiki-token-regexp-constant { color: #646695; }
+.shiki-token-escape { color: #d7ba7d; }
+.shiki-token-comment { color: #6a9955; }
+.shiki-token-tag-punctuation { color: #808080; }
+.shiki-token-list-marker { color: #6796e6; }
+.shiki-token-label { color: #c8c8c8; }
+.shiki-token-invalid { color: #f44747; }
+.shiki-token-header { color: #000080; }

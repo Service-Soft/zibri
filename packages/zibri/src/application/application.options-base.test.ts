@@ -5,14 +5,17 @@ import { createInMemoryDataSource,
     StartedTestServer,
     startTestServer } from 'zibri-testing';
 
+import { AppCommand } from './app-command.model';
 import { ZibriApplicationOptions } from './application-options.model';
-import { TestTimeouts } from '../__testing__/constants';
+import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { Authenticators } from '../auth/authenticators/authenticators.model';
 import { AuthStrategies } from '../auth/strategies/auth-strategies.model';
+import { FsBackupTransport } from '../backup/transports/fs.backup-transport';
 import { CronJob } from '../cron/cron-job.model';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
 import { Newable } from '../types/newable.type';
+import { FsUtilities } from '../utilities/fs.utilities';
 
 /**
  * Testing an application by building it from the options it ships with.
@@ -42,6 +45,13 @@ class ReplacementController {
     @Get('/')
     get(): { from: string } {
         return { from: 'the test' };
+    }
+}
+
+// undecorated, since only the merge reads it and no application of this file boots with it
+class ShippedFsBackupTransport extends FsBackupTransport {
+    constructor() {
+        super('shipped-fs-backup-transport', FsUtilities.getPath(testFileFolder, 'options-base-backups'));
     }
 }
 
@@ -145,6 +155,19 @@ describe('a test server built from an application\'s own options', () => {
         // named by neither, so the harness answers - and the application's own data sources survive
         expect(resolved.websocketControllers).toEqual([]);
         expect(resolved.dataSources).toEqual([dataSourceClass]);
+    });
+
+    it('keeps the backup transports and the commands the application declares', () => {
+        // both were left out of the merge, so a test built from an application's options booted
+        // without its transports, and ran none of its commands
+        const command: AppCommand = { name: 'reset-admin', description: 'Lets the default admin in again', run: async () => {} };
+        const resolved: ZibriApplicationOptions = resolveApplicationOptions(
+            { application: { ...applicationOptions, backupTransports: [ShippedFsBackupTransport], commands: [command] } },
+            { name: 'harness', dataSources: () => [], providers: [] }
+        );
+
+        expect(resolved.backupTransports).toEqual([ShippedFsBackupTransport]);
+        expect(resolved.commands).toEqual([command]);
     });
 
     it('treats an override that came out undefined as one nobody named', () => {

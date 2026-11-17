@@ -1,6 +1,6 @@
 /**
  * Name of the second parameter every generated setup function takes: the render-time data for that
- * one instance (`{ handlers, props }`), kept apart from the component's own props.
+ * one instance (`{ handlers, props, refs, states, bindings }`), kept apart from the component's own props.
  */
 export const SETUP_RUNTIME_PARAM: string = '__ssr';
 
@@ -8,36 +8,45 @@ export const SETUP_RUNTIME_PARAM: string = '__ssr';
  * The client-side bootstrap that reattaches event handlers to server-rendered elements. It joins
  * the build-time `__handlers` table (site id → event + factory) with the handler entries this
  * instance was rendered with (instance id → site id + captured values) and calls `addEventListener`
- * for each stamped element. Emitted verbatim into the generated client script.
+ * for each element stamped with the entry. The stamped elements come from the one pass over the
+ * document the page makes before any setup runs (`__zibriStamps`). Emitted verbatim into the generated
+ * client script.
  *
  * The entries are per instance, not global: the setup of a component rendered several times runs
- * once per instance and sees the whole document, so a shared registry would make every run attach
- * every element - duplicating listeners and, since site ids are allocated per component, attaching
- * handlers across components whose ids collide.
+ * once per instance, so a shared registry would make every run attach every element - duplicating
+ * listeners and, since site ids are allocated per component, attaching handlers across components whose
+ * ids collide. A throw is reported by the setup's own wrapper, like any other throw in a setup.
  */
 export const REATTACH_RUNTIME: string = `(function () {
-    try {
-        var registry = (${SETUP_RUNTIME_PARAM} && ${SETUP_RUNTIME_PARAM}.handlers) || [];
-        var byInstance = {};
-        for (var i = 0; i < registry.length; i++) { byInstance[registry[i].id] = registry[i]; }
-        var elements = document.querySelectorAll('[data-ssr-handlers]');
-        for (var e = 0; e < elements.length; e++) {
-            var el = elements[e];
-            var raw = el.getAttribute('data-ssr-handlers');
-            if (!raw) { continue; }
-            var items = raw.split('|');
-            for (var k = 0; k < items.length; k++) {
-                var parts = items[k].split(':');
-                var instanceId = parts[0];
-                var eventName = parts[1];
-                var entry = byInstance[instanceId];
-                if (!entry) { continue; }
-                var def = __handlers[entry.site];
-                if (!def) { continue; }
-                el.addEventListener(eventName || def.event, def.make.apply(null, entry.captured || []));
-            }
+    var registry = (${SETUP_RUNTIME_PARAM} && ${SETUP_RUNTIME_PARAM}.handlers) || [];
+    for (var i = 0; i < registry.length; i++) {
+        var entry = registry[i];
+        var def = __handlers[entry.site];
+        var stamped = __zibriCurrent.stamps.get(entry.id) || [];
+        if (!def) { continue; }
+        for (var s = 0; s < stamped.length; s++) {
+            stamped[s].element.addEventListener(stamped[s].event || def.event, def.make.apply(null, entry.captured || []));
         }
-    } catch (error) {
-        console.error('ssr handler reattach failed', error);
+    }
+})();`;
+
+/**
+ * The client-side bootstrap that hands the page the bindings of this instance: for each binding entry it was
+ * rendered with, the kind of its site, the attribute it writes and the function computing it, made with the values
+ * the entry captured. The page runs them again whenever a state changes (`__zibriBind`). Emitted verbatim into the
+ * generated client script, per instance like {@link REATTACH_RUNTIME}. A value handed to a component writes where the
+ * component forwards it, which the entry says. A state itself on the `value` or `checked` of a control is written back
+ * when the user changes it.
+ */
+export const BIND_RUNTIME: string = `(function () {
+    var entries = (${SETUP_RUNTIME_PARAM} && ${SETUP_RUNTIME_PARAM}.bindings) || [];
+    for (var i = 0; i < entries.length; i++) {
+        var def = __bindingSites[entries[i].site];
+        if (!def) { continue; }
+        var attribute = entries[i].attribute || def.attribute;
+        __zibriBind(entries[i].id, entries[i].kind || def.kind, attribute, def.make.apply(null, entries[i].captured || []));
+        if (def.write && (attribute === 'value' || attribute === 'checked')) {
+            __zibriWriteBack(entries[i].id, attribute, def.write.apply(null, entries[i].captured || []));
+        }
     }
 })();`;

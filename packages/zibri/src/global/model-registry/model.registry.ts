@@ -4,6 +4,7 @@ import { ExcludeDescriptor } from './exclude-descriptor';
 import { HashDescriptor } from './hash-descriptor';
 import { KeyDescriptor } from './key-descriptor';
 import { OptimisticLockDescriptor } from './optimistic-lock-descriptor';
+import { OrderDescriptor } from './order-descriptor';
 import { Newable } from '../../types/newable.type';
 
 /**
@@ -33,7 +34,11 @@ export type ModelRegistryData<T> = {
     /**
      * Pre-built set of properties this class refuses to have written blindly.
      */
-    readonly optimisticLockDescriptor: OptimisticLockDescriptor
+    readonly optimisticLockDescriptor: OptimisticLockDescriptor,
+    /**
+     * Pre-built properties a list of this class can be ordered by without a config.
+     */
+    readonly orderDescriptor: OrderDescriptor
 };
 
 /**
@@ -84,7 +89,8 @@ export abstract class ModelRegistry {
                 hashDescriptor: new HashDescriptor(),
                 defaultDescriptor: new DefaultDescriptor(),
                 keyDescriptor: new KeyDescriptor(),
-                optimisticLockDescriptor: new OptimisticLockDescriptor()
+                optimisticLockDescriptor: new OptimisticLockDescriptor(),
+                orderDescriptor: new OrderDescriptor()
             };
             this.cache.set(entityClass, modelRegistryData);
         }
@@ -117,6 +123,7 @@ export abstract class ModelRegistry {
         modelRegistryData.defaultDescriptor.update(entityClass);
         modelRegistryData.keyDescriptor.update(entityClass);
         modelRegistryData.optimisticLockDescriptor.update(entityClass);
+        modelRegistryData.orderDescriptor.update(entityClass);
     }
 
     /**
@@ -156,7 +163,8 @@ export abstract class ModelRegistry {
             res += modelRegistryData.encryptionDescriptor.nestedCount()
                 + modelRegistryData.hashDescriptor.nestedCount()
                 + modelRegistryData.excludeDescriptor.nestedCount()
-                + modelRegistryData.defaultDescriptor.nestedCount();
+                + modelRegistryData.defaultDescriptor.nestedCount()
+                + modelRegistryData.orderDescriptor.nestedCount();
         }
         return res;
     }

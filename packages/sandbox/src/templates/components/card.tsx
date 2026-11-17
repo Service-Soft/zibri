@@ -6,7 +6,7 @@ type Props = {
 };
 
 export const Card: TsxComponent<Props> = ({ className = '', children }) => {
-    return <div className={`p-4 rounded bg-dark-gray text-white shadow-elevation ${className}`}>
+    return <div className={`p-4 rounded-sm bg-dark-gray text-white shadow-elevation ${className}`}>
         {children}
     </div>;
 };

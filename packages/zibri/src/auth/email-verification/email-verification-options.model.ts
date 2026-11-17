@@ -25,6 +25,12 @@ export type EmailVerificationOptions = {
      */
     requiredForLogin: boolean,
     /**
+     * Whether a change of an address waits for the previous address to approve it as well: a link is
+     * mailed to both, and the change takes effect once both were followed. Off by default, as a user
+     * who lost the previous inbox can't change their address then.
+     */
+    previousAddressConfirms?: boolean,
+    /**
      * How long a link works. A day by default.
      */
     linkExpiresInMs?: number

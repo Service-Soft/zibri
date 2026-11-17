@@ -4,6 +4,7 @@ import { buffer } from 'node:stream/consumers';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, resetInMemoryStore } from 'zibri-testing';
 
+import { BackupDataOptionsTestUtilities } from '../../__testing__/backup/backup-data-options-test.utilities';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -44,7 +45,6 @@ export class RestoredWidget extends BaseEntity {
  */
 @Entity({ tenant: 'shared', tableName: 'restored_widget', allowOrphan: true, allowDuplicate: true })
 export class ColoredWidget extends BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string()
     name!: string;
 
@@ -60,7 +60,6 @@ export class ColoredWidget extends BaseEntity {
  */
 @Entity({ tenant: 'shared', tableName: 'restored_widget', allowOrphan: true, allowDuplicate: true, uniques: [['name']] })
 export class UniquelyNamedWidget extends BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.string()
     name!: string;
 }
@@ -227,7 +226,9 @@ export function describeRestoreMigrations(dataSourceName: string, restored: Rest
                 use(next);
                 await server.reInit({ version: next.version });
             },
-            backUp: async () => await buffer(await inject(dataSourceClass).createBackupData(backup)),
+            backUp: async () => await buffer(
+                await inject(dataSourceClass).createBackupData(backup, BackupDataOptionsTestUtilities.resolve())
+            ),
             restore: async data => await inject(dataSourceClass).restoreBackup(Readable.from([data])),
             shutdown: async () => await server.shutdown()
         };

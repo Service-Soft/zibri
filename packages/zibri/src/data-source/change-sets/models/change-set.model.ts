@@ -14,7 +14,11 @@ import { OmitStrict } from '../../../types/omit-strict.type';
     allowOrphan: true,
     allowDuplicate: true,
     defaultOrder: { createdAt: 'ASC' },
-    defaultRelations: { changes: true }
+    defaultRelations: { changes: true },
+    // the history of a row is read by it, from a moment on, and the change sets of a tenant are deleted with
+    // a restore of the tenant: without it each read the whole table. Behind the tenant, as every index of
+    // an entity of a tenant is, which the delete reads by
+    indexes: [['changeSetEntityId', 'createdAt']]
 })
 export class ChangeSet extends BaseEntity {
     /**

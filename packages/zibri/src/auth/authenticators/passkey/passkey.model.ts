@@ -7,7 +7,8 @@ import { OmitClass } from '../../../entity/omit-class.model';
  * A passkey of a user: the public half of a key their device holds, which is a second factor, and
  * logs them in when the device stores it.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+// kept for the current users: a passkey removed since the backup stays removed
+@Entity({ tenant: 'shared', allowOrphan: true, backedUp: 'keptForCurrentUsers' })
 export class Passkey extends BaseEntity {
     /**
      * The user the passkey belongs to.
