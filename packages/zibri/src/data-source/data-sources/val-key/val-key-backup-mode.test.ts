@@ -128,6 +128,15 @@ class SyncCheckingValKeyDataSource extends BackedUpValKeyDataSource {
  */
 const LARGE_ITEMS: number = 1000;
 
+/**
+ * How many members the set of a case holds that leaves the server no room for its copy: about 4 MiB.
+ */
+// far more than the server frees meanwhile, as the 8 MiB of the items are. The server counts the buffer of a
+// request as used until it trims it a while later, and a case before these reads and writes a set of 1500 members
+// in one request each: trimmed once a case had measured what is free, that was about the room a copy of such a
+// set takes, which then fit where the case leaves none
+const MEMBERS_WITHOUT_ROOM: number = 20_000;
+
 let server: StartedTestServer | undefined;
 let dataSource: BackedUpValKeyDataSource;
 let items: Repository<StockedItem>;
@@ -781,7 +790,7 @@ describe('a valkey backup', () => {
 
         it('lets a write of it whole go on when the server has no room for its copy, and fails the walk instead', async () => {
             dataSource.backupMode = 'walk';
-            const [key] = await createLargeSet();
+            const [key] = await createLargeSet(MEMBERS_WITHOUT_ROOM);
             // keys the walk reads after the set, so that it reads on once the write could not be held for it
             await items.createAll(Array.from({ length: 1500 }, (_, i) => ({ code: `${i}` })));
             const reading: AsyncIterator<unknown> = dataSource.createBackupData(undefined, BackupDataOptionsTestUtilities.resolve())[Symbol.asyncIterator]();
@@ -832,7 +841,7 @@ describe('a valkey backup', () => {
         // under an eviction policy, the copy would have the server evict the application's own keys for it
         it('refuses to walk it when the server has no room for its copy, and leaves no copy', async () => {
             dataSource.backupMode = 'walk';
-            await createLargeSet();
+            await createLargeSet(MEMBERS_WITHOUT_ROOM);
 
             await withFreeMemory(64 * 1024, async () => {
                 await expect(readBackup(dataSource.createBackupData(undefined, BackupDataOptionsTestUtilities.resolve()))).rejects.toThrow(/Valkey needs to have \d+ MiB free for the copy/);
