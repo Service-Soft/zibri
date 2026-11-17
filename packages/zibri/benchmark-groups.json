@@ -1,13 +1,13 @@
 {
-    "postgres": { "suites": ["src/backup/backup.postgres.benchmark.test.ts"], "rounds": 2 },
-    "postgres-incremental": { "suites": ["src/backup/backup.postgres-incremental.benchmark.test.ts"], "rounds": 2 },
-    "val-key-snapshot": { "suites": ["src/backup/backup.val-key-snapshot.benchmark.test.ts"], "rounds": 2 },
-    "val-key-snapshot-unchanged": { "suites": ["src/backup/backup.val-key-snapshot-unchanged.benchmark.test.ts"], "rounds": 2 },
-    "val-key-walk": { "suites": ["src/backup/backup.val-key-walk.benchmark.test.ts"], "rounds": 2 },
-    "val-key-walk-direct": { "suites": ["src/backup/backup.val-key-walk-direct.benchmark.test.ts"], "rounds": 2 },
-    "val-key-walk-unchanged": { "suites": ["src/backup/backup.val-key-walk-unchanged.benchmark.test.ts"], "rounds": 2 },
-    "backup-pipeline": { "suites": ["src/backup/backup.benchmark.test.ts"], "rounds": 2 },
-    "backup-s3": { "suites": ["src/backup/backup.s3.benchmark.test.ts"], "rounds": 2 },
-    "backup-sftp": { "suites": ["src/backup/backup.sftp.benchmark.test.ts"], "rounds": 2 },
-    "tenant-rows": { "suites": ["src/backup/tenant-rows.backup-resource.benchmark.test.ts"] }
+    "backup-pipeline": { "rounds": 2, "suites": ["src/backup/backup.benchmark.test.ts"] },
+    "backup-s3": { "rounds": 2, "suites": ["src/backup/backup.s3.benchmark.test.ts"] },
+    "backup-sftp": { "rounds": 2, "suites": ["src/backup/backup.sftp.benchmark.test.ts"] },
+    "postgres": { "rounds": 2, "suites": ["src/backup/backup.postgres.benchmark.test.ts"] },
+    "postgres-incremental": { "rounds": 2, "suites": ["src/backup/backup.postgres-incremental.benchmark.test.ts"] },
+    "tenant-rows": { "suites": ["src/backup/tenant-rows.backup-resource.benchmark.test.ts"] },
+    "val-key-snapshot": { "rounds": 2, "suites": ["src/backup/backup.val-key-snapshot.benchmark.test.ts"] },
+    "val-key-snapshot-unchanged": { "rounds": 2, "suites": ["src/backup/backup.val-key-snapshot-unchanged.benchmark.test.ts"] },
+    "val-key-walk": { "rounds": 2, "suites": ["src/backup/backup.val-key-walk.benchmark.test.ts"] },
+    "val-key-walk-direct": { "rounds": 2, "suites": ["src/backup/backup.val-key-walk-direct.benchmark.test.ts"] },
+    "val-key-walk-unchanged": { "rounds": 2, "suites": ["src/backup/backup.val-key-walk-unchanged.benchmark.test.ts"] }
 }
