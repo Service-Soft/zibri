@@ -48,7 +48,8 @@ type BenchmarkComparison = {
  */
 type BenchmarkReadRound = {
     values: Record<string, number>,
-    units: Record<string, string>
+    units: Record<string, string>,
+    slacks: Record<string, number>
 };
 
 /**
@@ -108,6 +109,7 @@ function callScript<T>(name: string, args: unknown[]): T | { error: string } {
  * @param allowances - The allowances the repository records.
  * @param releaseVersion - The version of the release.
  * @param units - What each value is counted in, by its name.
+ * @param slacks - How much more than on the release a value may be before its ratio counts, by its name.
  * @returns The comparison.
  */
 function compare(
@@ -115,13 +117,15 @@ function compare(
     current: BenchmarkRound[],
     allowances: BenchmarkAllowance[],
     releaseVersion: string,
-    units: Record<string, string> = {}
+    units: Record<string, string> = {},
+    slacks: Record<string, number> = {}
 ): BenchmarkComparison {
+    const args: string = JsonUtilities.stringify([release, current, allowances, releaseVersion, units, slacks]);
     const output: string = execFileSync(process.execPath, [
         '--input-type=module', '--eval', `
         const { resolveComparison, resolveStaleAllowances } = await import('${pathToFileURL(scriptPath).href}');
-        const [release, current, allowances, releaseVersion, units] = ${JsonUtilities.stringify([release, current, allowances, releaseVersion, units])};
-        const comparison = resolveComparison(release, current, allowances, releaseVersion, units);
+        const [release, current, allowances, releaseVersion, units, slacks] = ${args};
+        const comparison = resolveComparison(release, current, allowances, releaseVersion, units, slacks);
         const staleAllowances = resolveStaleAllowances(allowances, comparison.rows, releaseVersion);
         console.log(JSON.stringify({ ...comparison, staleAllowances }));
     `
@@ -228,12 +232,16 @@ describe('comparing the benchmarks with the release', () => {
     it('reads timings and figures from the reports, each with what it is counted in', () => {
         const round: BenchmarkReadRound = readRound([
             [{ timing: { name: 'GET one row', medianMs: 0.8, p95Ms: 1.1 }, baseline: undefined }],
-            [{ figure: { name: 'peak memory of a backup', value: 52_000_000, unit: 'bytes' } }]
+            [
+                { figure: { name: 'peak memory of a backup', value: 52_000_000, unit: 'bytes' } },
+                { figure: { name: 'slowest answer during a backup', value: 9, unit: 'ms', slack: 10 } }
+            ]
         ]);
 
         expect(round).toEqual({
-            values: { 'GET one row': 0.8, 'peak memory of a backup': 52_000_000 },
-            units: { 'GET one row': 'ms', 'peak memory of a backup': 'bytes' }
+            values: { 'GET one row': 0.8, 'peak memory of a backup': 52_000_000, 'slowest answer during a backup': 9 },
+            units: { 'GET one row': 'ms', 'peak memory of a backup': 'bytes', 'slowest answer during a backup': 'ms' },
+            slacks: { 'slowest answer during a backup': 10 }
         });
     });
 
@@ -246,18 +254,33 @@ describe('comparing the benchmarks with the release', () => {
         expect(comparison.failed).toBe(true);
     });
 
-    // peak memory of a few dozen MiB moves by more than the ratio from one run to the next, with when
-    // the collector happens to run
-    it('passes memory within 16 MiB of the release whatever its ratio, and fails it beyond', () => {
+    // what memory grows by over a phase moves by tens of MiB from one run to the next, with when the collector
+    // runs and whether the pages freed before were kept: the same code on both sides came out 30 MiB apart
+    it('passes memory within 64 MiB of the release whatever its ratio, and fails it beyond', () => {
         const mib: number = 1024 * 1024;
         const figure: (bytes: number) => BenchmarkRound[] = bytes => [1, 2, 3, 4].map(() => ({ 'peak memory of a backup': bytes }));
         const units: Record<string, string> = { 'peak memory of a backup': 'bytes' };
 
-        const within: BenchmarkComparison = compare(figure(30 * mib), figure(42 * mib), [], '3.0.0', units);
-        const beyond: BenchmarkComparison = compare(figure(30 * mib), figure(50 * mib), [], '3.0.0', units);
+        const within: BenchmarkComparison = compare(figure(5 * mib), figure(65 * mib), [], '3.0.0', units);
+        const beyond: BenchmarkComparison = compare(figure(5 * mib), figure(75 * mib), [], '3.0.0', units);
 
         expect(within.failed).toBe(false);
         expect(beyond.failed).toBe(true);
+    });
+
+    // the slowest of the answers of a server during a run is one answer, which a machine doing something else for
+    // a moment doubles: the same code on both sides came out 6 ms apart, of 7
+    it('passes a figure within the slack it names whatever its ratio, and fails it beyond', () => {
+        const name: string = 'slowest answer during a backup';
+        const figure: (ms: number) => BenchmarkRound[] = ms => [1, 2].map(() => ({ [name]: ms }));
+
+        const within: BenchmarkComparison = compare(figure(7), figure(16), [], '3.0.0', { [name]: 'ms' }, { [name]: 10 });
+        const beyond: BenchmarkComparison = compare(figure(7), figure(18), [], '3.0.0', { [name]: 'ms' }, { [name]: 10 });
+        const withoutSlack: BenchmarkComparison = compare(figure(7), figure(16), [], '3.0.0', { [name]: 'ms' });
+
+        expect(within.failed).toBe(false);
+        expect(beyond.failed).toBe(true);
+        expect(withoutSlack.failed).toBe(true);
     });
 
     it('refuses two measurements of the same name, since neither could be compared', () => {

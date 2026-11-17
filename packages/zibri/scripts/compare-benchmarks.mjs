@@ -24,7 +24,10 @@ const ROUNDS = 4;
 // how much more memory than on the release a figure may hold before its ratio counts at all: peak
 // memory of a few dozen MiB moves by more than the ratio from one run to the next, with when the
 // collector happens to run
-export const MEMORY_SLACK_BYTES = 16 * 1024 * 1024;
+// 64 MiB, by what the same code on both sides differed by: what a phase grows the memory by came out up
+// to 30 MiB apart as the mean of two rounds, with whether the pages freed before it were kept. A backup
+// that starts holding a resource of 100 MB whole is beyond it still
+export const MEMORY_SLACK_BYTES = 64 * 1024 * 1024;
 
 const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = path.resolve(packageDir, '..', '..');
@@ -57,27 +60,34 @@ export function medianOf(values) {
 }
 
 // one run of the suites, from the content of each of its reports: { values: { [name]: value },
-// units: { [name]: unit } }. An entry is a timing ({ timing: { name, medianMs } }), which is all a
-// release before 3.1 reports, or a figure ({ figure: { name, value, unit } })
+// units: { [name]: unit }, slacks: { [name]: slack } }. An entry is a timing ({ timing: { name, medianMs } }),
+// which is all a release before 3.1 reports, or a figure ({ figure: { name, value, unit, slack? } })
 export function resolveRound(reports) {
     const values = {};
     const units = {};
+    const slacks = {};
     for (const entry of reports.flat()) {
         const measured = entry.timing == undefined
-            ? { name: entry.figure.name, value: entry.figure.value, unit: entry.figure.unit }
+            ? { name: entry.figure.name, value: entry.figure.value, unit: entry.figure.unit, slack: entry.figure.slack }
             : { name: entry.timing.name, value: entry.timing.medianMs, unit: 'ms' };
         if (values[measured.name] != undefined) {
             throw new Error(`Two benchmarks are named "${measured.name}", so neither can be compared.`);
         }
         values[measured.name] = measured.value;
         units[measured.name] = measured.unit;
+        if (measured.slack != undefined) {
+            slacks[measured.name] = measured.slack;
+        }
     }
-    return { values, units };
+    return { values, units, slacks };
 }
 
 // each round is { [name]: value }, as one run of the suites reported it. Lower is better for every
-// one of them. units is { [name]: unit }, as resolveRound reads it: 'ms' when a name has none
-export function resolveComparison(releaseRounds, currentRounds, allowances, releaseVersion, units = {}) {
+// one of them. units is { [name]: unit }, as resolveRound reads it: 'ms' when a name has none. slacks is
+// { [name]: slack }: how much more than on the release a value may be before its ratio counts at all,
+// for a figure that says so. One that says nothing has MEMORY_SLACK_BYTES when it counts bytes, and none
+// otherwise
+export function resolveComparison(releaseRounds, currentRounds, allowances, releaseVersion, units = {}, slacks = {}) {
     const names = [...new Set(currentRounds.flatMap(round => Object.keys(round)))];
     const rows = names.map(name => {
         const currentMs = medianOf(currentRounds.map(round => round[name]).filter(ms => ms != undefined));
@@ -91,7 +101,8 @@ export function resolveComparison(releaseRounds, currentRounds, allowances, rele
         const ratio = releaseMs === 0 && currentMs === 0 ? 1 : currentMs / releaseMs;
         const limit = allowances.find(allowance => allowance.name === name && allowance.against === releaseVersion)?.ratio
             ?? SLOWER_FROM_RATIO;
-        const beyondSlack = units[name] !== 'bytes' || currentMs - releaseMs > MEMORY_SLACK_BYTES;
+        const slack = slacks[name] ?? (units[name] === 'bytes' ? MEMORY_SLACK_BYTES : 0);
+        const beyondSlack = currentMs - releaseMs > slack;
         return { name, releaseMs, currentMs, ratio, limit, verdict: ratio > limit && beyondSlack ? 'worse' : 'ok' };
     });
     // what only the release measures: removed here, or renamed, in which case its new name is a row that
@@ -338,7 +349,7 @@ export function resolveRunsTable(taken) {
 // an empty list runs nothing, for a side without any suite of the group, or none left to run in a round
 function runSuites(root, script, suites, measureHeld, label) {
     if (suites.length === 0) {
-        return { values: {}, units: {} };
+        return { values: {}, units: {}, slacks: {} };
     }
     const reportsDir = reportsDirOf(root);
     // a report an earlier run left behind would be read as this one's
@@ -394,12 +405,15 @@ function compareWithRelease(script, group) {
     // every suite was compared, which the summary of the groups does
     const conclude = (releaseRounds, currentRounds) => {
         const units = Object.assign({}, ...currentRounds.map(round => round.units));
+        // of the checkout, as the units are: what a figure is held to is said by the code that is judged
+        const slacks = Object.assign({}, ...currentRounds.map(round => round.slacks));
         const comparison = resolveComparison(
             releaseRounds.map(round => round.values),
             currentRounds.map(round => round.values),
             readAllowances(),
             manifest.version,
-            units
+            units,
+            slacks
         );
         writeComparison(group, comparison, units);
         const staleAllowances = group == undefined ? resolveStaleAllowances(readAllowances(), comparison.rows, manifest.version) : [];

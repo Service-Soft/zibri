@@ -221,7 +221,8 @@ times each, in turns on the same machine. An operation whose median is more than
 fails it. A suite only one side has runs once: it is compared with nothing, and a group with no suite
 on the release does not build the release. The same holds for a figure a suite reports beside its timings with
 `BenchmarkUtilities.writeFigureReport`, such as the peak memory or CPU time of a backup. Memory only
-counts once it is also more than 16 MiB above the release's. Run `git fetch origin release` first. When a slowdown is worth it, add it to
+counts once it is also more than 64 MiB above the release's, and a figure that names a `slack` once it is that much
+above it: what the same code differs by from one run to the next. Run `git fetch origin release` first. When a slowdown is worth it, add it to
 `packages/zibri/benchmark-allowances.json` as `{ "against": "<release version>", "name": "<operation>",
 "ratio": 1.6, "reason": "..." }`. It counts until that release is replaced, and the comparison names
 the allowances that no longer apply.

@@ -159,6 +159,14 @@ const RECORD_SLACK_BYTES: number = MIB;
 const LINEAR_SLACK_RATIO: number = 1.5;
 
 /**
+ * How much slower than on the release the slowest answer of a Valkey server may be before the comparison with
+ * the release counts it.
+ */
+// one answer of a run, which the machine doing something else for a moment doubles: the same code on both
+// sides came out 6 ms apart, of 7. A server kept from answering for tens of milliseconds is beyond it still
+const SLOWEST_ANSWER_SLACK_IN_MS: number = 10;
+
+/**
  * How long measuring every scenario of a suite may take.
  */
 const MEASURING_TIMEOUT_IN_MS: number = 60 * 60 * 1000;
@@ -847,9 +855,15 @@ function toServerFigures(measurement: BackupMeasurement): BenchmarkFigure[] {
         {
             name: `slowest Valkey answer during backup of ${measurement.name}`,
             value: Math.max(...backups.map(s => s.slowestAnswerMs)),
-            unit: 'ms'
+            unit: 'ms',
+            slack: SLOWEST_ANSWER_SLACK_IN_MS
         },
-        { name: `slowest Valkey answer during restore of ${measurement.name}`, value: restore.slowestAnswerMs, unit: 'ms' },
+        {
+            name: `slowest Valkey answer during restore of ${measurement.name}`,
+            value: restore.slowestAnswerMs,
+            unit: 'ms',
+            slack: SLOWEST_ANSWER_SLACK_IN_MS
+        },
         {
             name: `peak Valkey memory of backup of ${measurement.name}`,
             value: Math.max(...backups.map(s => s.peakUsedMemoryGrowthBytes)),
