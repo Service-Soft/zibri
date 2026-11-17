@@ -52,9 +52,23 @@ type BenchmarkReadRound = {
 };
 
 /**
- * The suites of each group a benchmark job's runner compares, by the group's name.
+ * What a benchmark job's runner compares.
  */
-type BenchmarkGroups = Record<string, string[]>;
+type BenchmarkGroup = {
+    /**
+     * Its suites, as paths relative to the package.
+     */
+    suites: string[],
+    /**
+     * How often each side runs a suite both have, 4 unless given.
+     */
+    rounds?: number
+};
+
+/**
+ * The group each runner of the benchmark job compares, by the group's name.
+ */
+type BenchmarkGroups = Record<string, BenchmarkGroup>;
 
 /**
  * What a group's runner wrote: its comparison, by the group it compared.
@@ -290,8 +304,8 @@ describe('comparing the benchmarks with the release', () => {
 
 describe('comparing the benchmarks in groups, each on a runner of its own', () => {
     const groups: BenchmarkGroups = {
-        'val-key': ['src/val-key.benchmark.test.ts'],
-        postgres: ['src/postgres.benchmark.test.ts']
+        'val-key': { suites: ['src/val-key.benchmark.test.ts'] },
+        postgres: { suites: ['src/postgres.benchmark.test.ts'], rounds: 2 }
     };
 
     const groupComparison: (group: string, rows: BenchmarkGroupComparison['rows']) => BenchmarkGroupComparison = (group, rows) => ({
@@ -324,13 +338,69 @@ describe('comparing the benchmarks in groups, each on a runner of its own', () =
 
     it('refuses groups naming a suite that is gone, one suite twice, or the rest by name', () => {
         const result: unknown = callScript('validateGroups', [
-            { 'val-key': ['src/val-key.benchmark.test.ts', 'src/gone.benchmark.test.ts'], other: ['src/val-key.benchmark.test.ts'], rest: [] },
+            {
+                'val-key': { suites: ['src/val-key.benchmark.test.ts', 'src/gone.benchmark.test.ts'] },
+                other: { suites: ['src/val-key.benchmark.test.ts'], rounds: 0 },
+                rest: { suites: [] }
+            },
             ['src/val-key.benchmark.test.ts']
         ]);
 
         expect(result).toMatchObject({ error: expect.stringContaining('"src/gone.benchmark.test.ts" is no benchmark suite of this checkout') });
         expect(result).toMatchObject({ error: expect.stringContaining('"src/val-key.benchmark.test.ts" is in more than one group') });
         expect(result).toMatchObject({ error: expect.stringContaining('"rest" is the group of every suite no other group names') });
+        expect(result).toMatchObject({ error: expect.stringContaining('the rounds of "other" need to be a whole number of at least 1, not 0') });
+    });
+
+    // a suite that takes minutes, and takes the median of several backups and restores in each of its runs, is
+    // compared in fewer rounds than one of an operation that takes a millisecond
+    it('runs a group as often as it says, and four times when it says nothing', () => {
+        expect(callScript('resolveGroupRounds', [groups, 'postgres'])).toBe(2);
+        expect(callScript('resolveGroupRounds', [groups, 'val-key'])).toBe(4);
+        expect(callScript('resolveGroupRounds', [groups, 'rest'])).toBe(4);
+    });
+
+    // every round ran every suite of both sides: one the release does not measure four times, to be compared with
+    // nothing, which was most of what the job took while the release measured few of them
+    it('runs a suite only one side has once, and one both have in every round', () => {
+        const current: string[] = ['src/both.benchmark.test.ts', 'src/added.benchmark.test.ts'];
+        const release: string[] = ['src/both.benchmark.test.ts', 'src/removed.benchmark.test.ts'];
+
+        expect(callScript('resolveRoundSuites', [current, release, 0])).toStrictEqual({ current, release });
+        expect(callScript('resolveRoundSuites', [current, release, 1])).toStrictEqual({
+            current: ['src/both.benchmark.test.ts'],
+            release: ['src/both.benchmark.test.ts']
+        });
+    });
+
+    // nothing said which suite a job spent its half hour on, short of reading its log
+    it('says what each run of a side took, and which suites it ran', () => {
+        expect(callScript('resolveRunsTable', [
+            [
+                { label: 'round 1, release', suites: ['src/http.benchmark.test.ts'], seconds: 62 },
+                { label: 'round 1, this checkout', suites: ['src/http.benchmark.test.ts', 'src/backup/backup.benchmark.test.ts'], seconds: 140 }
+            ]
+        ])).toBe([
+            '| run | suites | took |',
+            '|---|---|---|',
+            '| round 1, release | http.benchmark.test.ts | 62 s |',
+            '| round 1, this checkout | http.benchmark.test.ts, backup.benchmark.test.ts | 140 s |'
+        ].join('\n'));
+    });
+
+    // the release is installed and built to be run: of a group it measures nothing of, for nothing
+    it('reads the suites of the release off its files and its script, before it is built', () => {
+        const script: string = 'node jest.js --runInBand --testPathPatterns="\\.benchmark\\.test\\.ts$"';
+        const files: string[] = [
+            'packages/zibri/src/http.benchmark.test.ts',
+            'packages/zibri/src/http.test.ts',
+            'packages/cli/src/cli.benchmark.test.ts',
+            'packages/zibri/src/backup/backup.benchmark.test.ts'
+        ];
+
+        expect(callScript('resolveListedSuites', [files, script])).toStrictEqual(['src/backup/backup.benchmark.test.ts', 'src/http.benchmark.test.ts']);
+        // a script that names its suites another way is asked by running it, once the release is built
+        expect(callScript('resolveListedSuites', [files, 'node jest.js --config benchmark.config.js'])).toBeNull();
     });
 
     it('groups the suites of this checkout as the job runs them', () => {

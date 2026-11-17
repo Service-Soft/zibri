@@ -218,7 +218,8 @@ CI runs every one of them: `test:ci` runs all but the benchmarks, which jobs of 
 **A slower operation fails the build, measured against the release.** `test:benchmark:compare`
 builds `origin/release` in a worktree beside your checkout and runs the benchmarks on both, four
 times each, in turns on the same machine. An operation whose median is more than 1.3× the release's
-fails it. The same holds for a figure a suite reports beside its timings with
+fails it. A suite only one side has runs once: it is compared with nothing, and a group with no suite
+on the release does not build the release. The same holds for a figure a suite reports beside its timings with
 `BenchmarkUtilities.writeFigureReport`, such as the peak memory or CPU time of a backup. Memory only
 counts once it is also more than 16 MiB above the release's. Run `git fetch origin release` first. When a slowdown is worth it, add it to
 `packages/zibri/benchmark-allowances.json` as `{ "against": "<release version>", "name": "<operation>",
@@ -228,7 +229,9 @@ the allowances that no longer apply.
 **The benchmark job takes as long as its longest group.** Each group of `packages/zibri/benchmark-groups.json`
 is compared on a runner of its own, both sides of each of its suites in turns, and `rest` takes every suite no
 group names. `npm run test:benchmark:compare -w zibri -- <group>` compares one group. A suite that takes minutes
-gets a group of its own, so a measurement of it that takes long belongs in a suite of its own. What a backup holds
+gets a group of its own, so a measurement of it that takes long belongs in a suite of its own. A group names its
+suites and, with `rounds`, how often each side runs them when four is too many: a suite that takes minutes and
+takes a median of its own in every run is compared in two. The comparison ends with what each run took. What a backup holds
 after a collection is measured in the first round of your checkout alone, and
 `ZIBRI_BENCHMARK_SKIP_HELD_MEMORY=1` leaves it out of a run.
 

@@ -4,6 +4,7 @@ import { setTimeout as wait } from 'node:timers/promises';
 import { afterAll, describe, expect, it } from '@jest/globals';
 import { resolveTypeScriptForkOptions } from 'zibri-testing';
 
+import { BackupComparisonUtilities, ComparedMeasurement } from './backup-comparison.utilities';
 import { BACKUP_MEASUREMENT_CONFIG_ENV,
     BackupMeasurement,
     BackupMeasurementConfig,
@@ -156,12 +157,6 @@ const RECORD_SLACK_BYTES: number = MIB;
  * How much a duration may grow beyond the growth of the data, before it counts as worse than linear.
  */
 const LINEAR_SLACK_RATIO: number = 1.5;
-
-/**
- * How much longer, or larger, a measurement may come out than the one it is compared with: what two
- * processes measuring the same thing one after another differ by.
- */
-const COMPARED_SLACK_RATIO: number = 1.1;
 
 /**
  * How long measuring every scenario of a suite may take.
@@ -327,6 +322,11 @@ type TakenMeasurement = {
     scenario: BackupScenario,
     measurement: BackupMeasurement
 };
+
+/**
+ * What a measurement is compared by, and the scenario to measure again when it is over what it is compared with.
+ */
+type ComparedTakenMeasurement = ComparedMeasurement & Pick<TakenMeasurement, 'scenario'>;
 
 /**
  * A measurement taken the way every measurement of the suites is: {@link BACKUPS} encrypted backups
@@ -751,34 +751,58 @@ function resolveSeries(taken: TakenMeasurement[]): Map<string, TakenMeasurement[
 }
 
 /**
- * Where a measurement takes longer or stores more than the measurement of the same size it is compared
- * with: its backups, its restore, and what the transport holds after them.
+ * A measurement as it is compared with another of its suite, with the scenario it was taken of.
  * @param t - The measurement.
- * @param taken - Every measurement.
- * @returns One line per difference, none for a measurement compared with nothing.
+ * @returns What it is compared by.
  */
-function findComparedViolations(t: TakenMeasurement, taken: TakenMeasurement[]): string[] {
-    const against: string | undefined = t.scenario.comparedWith;
-    if (against == undefined) {
-        return [];
-    }
-    const reference: TakenMeasurement | undefined = taken.find(
-        r => r.scenario.series === against && dataBytesOf(r.scenario) === dataBytesOf(t.scenario)
-    );
-    if (reference == undefined) {
-        return [`${t.measurement.name}: nothing of "${against}" was measured at its size`];
-    }
-    const figures: [string, (m: BackupMeasurement) => number][] = [
-        ['backup', m => medianOf(m.backups.map(b => b.durationMs))],
-        ['restore', m => m.restore.durationMs],
-        ['stored bytes', m => m.bytesStored]
-    ];
-    return figures.flatMap(([figure, read]) => {
-        const ratio: number = read(t.measurement) / read(reference.measurement);
-        return ratio <= COMPARED_SLACK_RATIO
-            ? []
-            : [`${t.measurement.name}: ${figure} ${ratio.toFixed(2)}x of ${reference.measurement.name}, at most ${COMPARED_SLACK_RATIO}x`];
+function toCompared(t: TakenMeasurement): ComparedTakenMeasurement {
+    return {
+        scenario: t.scenario,
+        name: t.measurement.name,
+        series: t.scenario.series,
+        comparedWith: t.scenario.comparedWith,
+        dataBytes: dataBytesOf(t.scenario),
+        backupMs: medianOf(t.measurement.backups.map(b => b.durationMs)),
+        restoreMs: t.measurement.restore.durationMs,
+        storedBytes: t.measurement.bytesStored
+    };
+}
+
+/**
+ * Measures a scenario once more, to confirm what its first measurement was compared as.
+ * @param scenario - The scenario.
+ * @returns The measurement.
+ */
+async function measureAgain(scenario: BackupScenario): Promise<TakenMeasurement> {
+    const measurement: BackupMeasurement = await runMeasurement({
+        ...scenario.config,
+        // a place of its own: where it was measured before holds the backups of that measurement
+        transport: resolveTransportBeside(scenario.config.transport),
+        // what it holds after a collection is a design the first measurement was held to
+        measureHeld: false
     });
+    // eslint-disable-next-line no-console
+    console.log(`measured again:\n${describeMeasurement(scenario.config, measurement)}`);
+    return { scenario, measurement };
+}
+
+/**
+ * Where a transport stores into when a scenario is measured a second time.
+ * @param transport - The transport of the scenario.
+ * @returns The same transport, storing beside where it did.
+ */
+function resolveTransportBeside(transport: MeasuredTransportConfig): MeasuredTransportConfig {
+    switch (transport.kind) {
+        case 'fs': {
+            return { ...transport, path: `${transport.path}-again` };
+        }
+        case 's3': {
+            return { ...transport, options: { ...transport.options, prefix: `${transport.options.prefix ?? ''}-again` } };
+        }
+        case 'sftp': {
+            return { ...transport, options: { ...transport.options, path: `${transport.options.path}-again` } };
+        }
+    }
 }
 
 /**
@@ -1010,8 +1034,13 @@ export function describeBackupCosts(options: BackupBenchmarkOptions): void {
             expect(slower).toStrictEqual([]);
         });
 
-        it('takes no longer and stores no more than what each measurement is compared with', () => {
-            expect(taken.flatMap(t => findComparedViolations(t, taken))).toStrictEqual([]);
-        });
+        it('takes no longer and stores no more than what each measurement is compared with', async () => {
+            const violations: string[] = await BackupComparisonUtilities.findConfirmedViolations(
+                taken.map(toCompared),
+                async compared => toCompared(await measureAgain(compared.scenario))
+            );
+
+            expect(violations).toStrictEqual([]);
+        }, MEASURING_TIMEOUT_IN_MS);
     });
 }

@@ -17,7 +17,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 // allowance for that release says otherwise
 export const SLOWER_FROM_RATIO = 1.3;
 
-// how often each side runs the suites; the median of the rounds is what is compared
+// how often each side runs a suite both have, unless its group says otherwise; the median of the rounds
+// is what is compared
 const ROUNDS = 4;
 
 // how much more memory than on the release a figure may hold before its ratio counts at all: peak
@@ -34,10 +35,11 @@ export const worktreeParent = path.dirname(repoRoot);
 // a slowdown found to be worth it: { against, name, ratio, reason }, counting for as long as the
 // release `against` is the one compared with
 const allowancesPath = path.join(packageDir, 'benchmark-allowances.json');
-// the suites each runner of the benchmark job compares: { [group]: [suite, ...] }, each suite as a path
-// relative to the package. A group is made of whole suites, and every operation is measured by one
-// suite, so both sides of each are still run on one machine, in turns - which is what the threshold
-// relies on. The job takes as long as its longest group rather than as long as every suite
+// the suites each runner of the benchmark job compares: { [group]: { suites: [suite, ...], rounds? } },
+// each suite as a path relative to the package, and how often each side runs it when that is not ROUNDS.
+// A group is made of whole suites, and every operation is measured by one suite, so both sides of each
+// are still run on one machine, in turns - which is what the threshold relies on. The job takes as long
+// as its longest group rather than as long as every suite
 const groupsPath = path.join(packageDir, 'benchmark-groups.json');
 
 // the group of every suite no other group names, so that a suite added, or one only the release has,
@@ -119,7 +121,8 @@ export function resolveStaleAllowances(allowances, rows, releaseVersion) {
     });
 }
 
-// groups is { [group]: [suite, ...] }; the names of the groups the job runs, the rest included
+// groups is { [group]: { suites: [suite, ...], rounds? } }; the names of the groups the job runs, the
+// rest included
 export function resolveGroupNames(groups) {
     return [...Object.keys(groups), REST_GROUP];
 }
@@ -127,24 +130,64 @@ export function resolveGroupNames(groups) {
 // suites are those one side has, as paths relative to the package; the ones of the group among them
 export function resolveGroupSuites(groups, group, suites) {
     if (group === REST_GROUP) {
-        const grouped = new Set(Object.values(groups).flat());
+        const grouped = new Set(Object.values(groups).flatMap(named => named.suites));
         return suites.filter(suite => !grouped.has(suite));
     }
     const named = groups[group];
     if (named == undefined) {
         throw new Error(`There is no benchmark group "${group}", only ${resolveGroupNames(groups).join(', ')}.`);
     }
-    return suites.filter(suite => named.includes(suite));
+    return suites.filter(suite => named.suites.includes(suite));
+}
+
+// how often each side runs a suite of the group that both have: what the group says, such as fewer for
+// suites that take minutes and take a median of their own in every run, and ROUNDS otherwise, as for
+// the rest and for a comparison of every suite
+export function resolveGroupRounds(groups, group) {
+    return groups[group]?.rounds ?? ROUNDS;
+}
+
+// the suites each side runs in a round, of those it has: all of them in the first, and from then on
+// those both have. A suite only one side has is compared with nothing, so that running it again is
+// time spent on a median nobody reads, and its own checks have run by then
+export function resolveRoundSuites(currentSuites, releaseSuites, round) {
+    if (round === 0) {
+        return { current: currentSuites, release: releaseSuites };
+    }
+    return {
+        current: currentSuites.filter(suite => releaseSuites.includes(suite)),
+        release: releaseSuites.filter(suite => currentSuites.includes(suite))
+    };
+}
+
+// the suites a ref's script runs, read off the files of the ref and the pattern its script names
+// rather than by running it, which takes the ref installed: files as paths relative to the repository,
+// the suites as paths relative to the package. Nothing for a script that names no pattern, whose
+// suites only running it tells
+export function resolveListedSuites(files, script) {
+    const pattern = /--testPathPatterns="([^"]+)"/.exec(script)?.[1];
+    if (pattern == undefined) {
+        return undefined;
+    }
+    const matches = new RegExp(pattern);
+    const packagePrefix = 'packages/zibri/';
+    return files
+        .filter(file => file.startsWith(packagePrefix) && matches.test(file))
+        .map(file => file.slice(packagePrefix.length))
+        .sort();
 }
 
 // against the suites of the checkout: a group naming a suite that is gone would compare nothing, and
 // one named twice would be compared on two runners
 export function validateGroups(groups, suites) {
-    const named = Object.values(groups).flat();
+    const named = Object.values(groups).flatMap(group => group.suites);
     const problems = [
         ...named.filter(suite => !suites.includes(suite)).map(suite => `"${suite}" is no benchmark suite of this checkout`),
         ...named.filter((suite, index) => named.indexOf(suite) !== index).map(suite => `"${suite}" is in more than one group`),
-        ...Object.hasOwn(groups, REST_GROUP) ? [`"${REST_GROUP}" is the group of every suite no other group names`] : []
+        ...Object.hasOwn(groups, REST_GROUP) ? [`"${REST_GROUP}" is the group of every suite no other group names`] : [],
+        ...Object.entries(groups)
+            .filter(([, group]) => group.rounds != undefined && (!Number.isInteger(group.rounds) || group.rounds < 1))
+            .map(([name, group]) => `the rounds of "${name}" need to be a whole number of at least 1, not ${group.rounds}`)
     ];
     if (problems.length > 0) {
         throw new Error(`${path.relative(repoRoot, groupsPath)} needs fixing:\n${problems.join('\n')}`);
@@ -280,10 +323,21 @@ function listSuites(root, script) {
         .sort();
 }
 
-// suites undefined runs every one the script runs; an empty list runs nothing, for a side without any
-// suite of the group
-function runSuites(root, script, suites, measureHeld) {
-    if (suites?.length === 0) {
+// what each run of a side's suites took, in the order they ran: where the time of the job went
+const runs = [];
+
+// taken is [{ label, suites, seconds }], the suites as paths relative to the package
+export function resolveRunsTable(taken) {
+    return [
+        '| run | suites | took |',
+        '|---|---|---|',
+        ...taken.map(ran => `| ${ran.label} | ${ran.suites.map(suite => path.posix.basename(suite)).join(', ')} | ${ran.seconds} s |`)
+    ].join('\n');
+}
+
+// an empty list runs nothing, for a side without any suite of the group, or none left to run in a round
+function runSuites(root, script, suites, measureHeld, label) {
+    if (suites.length === 0) {
         return { values: {}, units: {} };
     }
     const reportsDir = reportsDirOf(root);
@@ -298,12 +352,19 @@ function runSuites(root, script, suites, measureHeld) {
     }
     // by path rather than by another pattern, which jest would match in addition to the script's own:
     // the paths are all it runs, whatever the script names
-    const selection = suites == undefined
-        ? []
-        : ['--', '--runTestsByPath', ...suites.map(suite => path.join(root, 'packages', 'zibri', suite))];
+    const selection = ['--', '--runTestsByPath', ...suites.map(suite => path.join(root, 'packages', 'zibri', suite))];
+    const startedAt = Date.now();
     run('npm', ['run', script, '-w', 'zibri', ...selection], root, env);
+    runs.push({ label, suites, seconds: Math.round((Date.now() - startedAt) / 1000) });
 
     return resolveRound(reportsIn(reportsDir).map(name => JSON.parse(readFileSync(path.join(reportsDir, name), 'utf8'))));
+}
+
+// the files of a ref, as paths relative to the repository
+function listFilesAt(ref) {
+    return execFileSync('git', ['ls-tree', '-r', '--name-only', ref, '--', 'packages/zibri/src'], { cwd: repoRoot, encoding: 'utf8' })
+        .split(/\r?\n/)
+        .filter(Boolean);
 }
 
 function writeComparison(group, comparison, units) {
@@ -316,15 +377,44 @@ function compareWithRelease(script, group) {
     validateRef(against);
     const manifest = readJsonAt(against, 'packages/zibri/package.json');
     const groups = readGroups();
-    const checkoutSuites = group == undefined ? undefined : listSuites(repoRoot, script);
-    if (checkoutSuites != undefined) {
+    const checkoutSuites = listSuites(repoRoot, script);
+    if (group != undefined) {
         validateGroups(groups, checkoutSuites);
     }
-    const currentSuites = checkoutSuites == undefined ? undefined : resolveGroupSuites(groups, group, checkoutSuites);
+    // the suites of the group among those a side has, every suite without one
+    const ofGroup = suites => group == undefined ? suites : resolveGroupSuites(groups, group, suites);
+    const currentSuites = ofGroup(checkoutSuites);
     if (manifest?.scripts?.[script] == undefined) {
         write(`${against} runs no "${script}", so there is nothing to compare with yet.`);
         // written all the same, so that the summary of the groups finds one of each
         writeComparison(group, { releaseVersion: manifest?.version, rows: [], failed: false }, {});
+        return;
+    }
+    // what is compared, written, and what fails the job. The allowances that no longer apply only once
+    // every suite was compared, which the summary of the groups does
+    const conclude = (releaseRounds, currentRounds) => {
+        const units = Object.assign({}, ...currentRounds.map(round => round.units));
+        const comparison = resolveComparison(
+            releaseRounds.map(round => round.values),
+            currentRounds.map(round => round.values),
+            readAllowances(),
+            manifest.version,
+            units
+        );
+        writeComparison(group, comparison, units);
+        const staleAllowances = group == undefined ? resolveStaleAllowances(readAllowances(), comparison.rows, manifest.version) : [];
+        write(resolveTable(comparison, units, staleAllowances));
+        write(resolveRunsTable(runs));
+        if (comparison.failed) {
+            process.exitCode = 1;
+        }
+    };
+
+    // asked before the release is installed and built, which takes minutes: with none of the suites on
+    // it, those of the checkout are compared with nothing, and run once for the checks of their own
+    const listedOnRelease = resolveListedSuites(listFilesAt(against), manifest.scripts[script]);
+    if (listedOnRelease != undefined && ofGroup(listedOnRelease).length === 0) {
+        conclude([], [runSuites(repoRoot, script, currentSuites, true, 'this checkout, which alone has the suites')]);
         return;
     }
 
@@ -338,34 +428,22 @@ function compareWithRelease(script, group) {
         }
         // the same group on the release, by the groups of this checkout: a suite is compared on the
         // runner it is run on here
-        const releaseSuites = group == undefined ? undefined : resolveGroupSuites(groups, group, listSuites(worktree, script));
+        const releaseSuites = ofGroup(listSuites(worktree, script));
         const releaseRounds = [];
         const currentRounds = [];
-        for (let round = 0; round < ROUNDS; round++) {
+        for (let round = 0; round < resolveGroupRounds(groups, group); round++) {
+            const suites = resolveRoundSuites(currentSuites, releaseSuites, round);
             // the release first every other round, so that a machine slowing down or speeding up over
             // the run weighs on both sides alike
-            const sides = [[worktree, releaseSuites, releaseRounds, false], [repoRoot, currentSuites, currentRounds, round === 0]];
-            for (const [root, suites, rounds, measureHeld] of round % 2 === 0 ? sides : sides.reverse()) {
-                rounds.push(runSuites(root, script, suites, measureHeld));
+            const sides = [
+                [worktree, suites.release, releaseRounds, false, `round ${round + 1}, release`],
+                [repoRoot, suites.current, currentRounds, round === 0, `round ${round + 1}, this checkout`]
+            ];
+            for (const [root, ofSide, rounds, measureHeld, label] of round % 2 === 0 ? sides : sides.reverse()) {
+                rounds.push(runSuites(root, script, ofSide, measureHeld, label));
             }
         }
-
-        const units = Object.assign({}, ...currentRounds.map(round => round.units));
-        const comparison = resolveComparison(
-            releaseRounds.map(round => round.values),
-            currentRounds.map(round => round.values),
-            readAllowances(),
-            manifest.version,
-            units
-        );
-        writeComparison(group, comparison, units);
-        // the allowances that no longer apply only once every suite was compared, which the summary of
-        // the groups does
-        const staleAllowances = group == undefined ? resolveStaleAllowances(readAllowances(), comparison.rows, manifest.version) : [];
-        write(resolveTable(comparison, units, staleAllowances));
-        if (comparison.failed) {
-            process.exitCode = 1;
-        }
+        conclude(releaseRounds, currentRounds);
     }
     finally {
         run('git', ['worktree', 'remove', '--force', worktree], repoRoot);
