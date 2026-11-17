@@ -38,22 +38,20 @@ jobs:
             # `zi new` installs zibri and zibri-testing at the cli's own version, so one left behind
             # is a release where every generated project fails to install.
             # and the npm tag it goes out under: `latest` for the newest release, `latest-<major>` for
-            # a fix to an older one, `next` for a prerelease
-            - name: read the version this release publishes
+            # a fix to an older one, `next` for a prerelease. And the packages the registry does not
+            # have at that version yet, as a json list: a release that went out halfway is finished
+            # by the next run, and one with nothing left to publish is refused
+            - name: read the version this release publishes, and what of it is not published yet
               id: version
               run: node .github/scripts/release-version.mjs >> "$GITHUB_OUTPUT"
             # the publishes authenticate through npm's trusted publishing, which is set up on npmjs.com
             # per package - so a package the registry has never seen has nowhere to be set up, and the
             # registry answers its publish with a 404 after the attestation is already logged
-            - name: refuse a package the registry has never seen, and a version it already has
+            - name: refuse a package the registry has never seen
               run: |
                 for package in zibri-contract zibri-tsx zibri-tsx-compiler zibri-mdx zibri zibri-testing zibri-cli; do
                   if ! npm view "$package" name > /dev/null 2>&1; then
                     echo "$package is not on the registry, and trusted publishing cannot create it: request to let it be published once by hand"
-                    exit 1
-                  fi
-                  if npm view "$package@${{ steps.version.outputs.version }}" version > /dev/null 2>&1; then
-                    echo "$package@${{ steps.version.outputs.version }} is already published - bump every package or none"
                     exit 1
                   fi
                 done
@@ -73,7 +71,8 @@ jobs:
               run: node .github/scripts/check-consumer-tree.mjs
 
             # every build before any publish: a build failing after a publish is the likeliest way
-            # to lose a release halfway, and ordering alone removes it.
+            # to lose a release halfway, and ordering alone removes it. Every package is built, the
+            # ones already published included, since the later ones type check against their dist.
             # zibri-tsx first: zibri type checks against its built dist and depends on it as a peer, and
             # zibri-tsx-compiler and zibri-mdx type check against it too. zibri-mdx and zibri after the
             # compiler, whose types they name. zibri-testing after zibri, which it peer depends on and
@@ -87,25 +86,43 @@ jobs:
             - run: npm run build -w zibri-cli
 
             # and a rehearsal of each, because npm refuses a package for reasons a build never
-            # sees - a file the packer cannot read, a name this account may not publish under
-            - run: npm publish -w zibri-contract --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
-            - run: npm publish -w zibri-tsx --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
-            - run: npm publish -w zibri-tsx-compiler --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
-            - run: npm publish -w zibri-mdx --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
-            - run: npm publish -w zibri --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
-            - run: npm publish -w zibri-testing --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
-            - run: npm publish -w zibri-cli --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
+            # sees - a file the packer cannot read, a name this account may not publish under.
+            # A package the registry already has at this version is neither rehearsed nor published:
+            # npm refuses to publish over it.
+            - if: contains(fromJSON(steps.version.outputs.publish), 'zibri-contract')
+              run: npm publish -w zibri-contract --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
+            - if: contains(fromJSON(steps.version.outputs.publish), 'zibri-tsx')
+              run: npm publish -w zibri-tsx --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
+            - if: contains(fromJSON(steps.version.outputs.publish), 'zibri-tsx-compiler')
+              run: npm publish -w zibri-tsx-compiler --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
+            - if: contains(fromJSON(steps.version.outputs.publish), 'zibri-mdx')
+              run: npm publish -w zibri-mdx --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
+            - if: contains(fromJSON(steps.version.outputs.publish), 'zibri')
+              run: npm publish -w zibri --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
+            - if: contains(fromJSON(steps.version.outputs.publish), 'zibri-testing')
+              run: npm publish -w zibri-testing --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
+            - if: contains(fromJSON(steps.version.outputs.publish), 'zibri-cli')
+              run: npm publish -w zibri-cli --provenance --tag "${{ steps.version.outputs.dist_tag }}" --dry-run
 
             # --provenance on each publish, because `id-token: write` above is granted for it. Asking
             # for the permission and never producing the attestation left consumers with no
             # supply-chain provenance while the setup implied there was some.
-            - run: npm publish -w zibri-contract --provenance --tag "${{ steps.version.outputs.dist_tag }}"
-            - run: npm publish -w zibri-tsx --provenance --tag "${{ steps.version.outputs.dist_tag }}"
-            - run: npm publish -w zibri-tsx-compiler --provenance --tag "${{ steps.version.outputs.dist_tag }}"
-            - run: npm publish -w zibri-mdx --provenance --tag "${{ steps.version.outputs.dist_tag }}"
-            - run: npm publish -w zibri --provenance --tag "${{ steps.version.outputs.dist_tag }}"
-            - run: npm publish -w zibri-testing --provenance --tag "${{ steps.version.outputs.dist_tag }}"
-            - run: npm publish -w zibri-cli --provenance --tag "${{ steps.version.outputs.dist_tag }}"
+            # contains() on the parsed list matches whole names: on the raw string, 'zibri' would
+            # match every package
+            - if: contains(fromJSON(steps.version.outputs.publish), 'zibri-contract')
+              run: npm publish -w zibri-contract --provenance --tag "${{ steps.version.outputs.dist_tag }}"
+            - if: contains(fromJSON(steps.version.outputs.publish), 'zibri-tsx')
+              run: npm publish -w zibri-tsx --provenance --tag "${{ steps.version.outputs.dist_tag }}"
+            - if: contains(fromJSON(steps.version.outputs.publish), 'zibri-tsx-compiler')
+              run: npm publish -w zibri-tsx-compiler --provenance --tag "${{ steps.version.outputs.dist_tag }}"
+            - if: contains(fromJSON(steps.version.outputs.publish), 'zibri-mdx')
+              run: npm publish -w zibri-mdx --provenance --tag "${{ steps.version.outputs.dist_tag }}"
+            - if: contains(fromJSON(steps.version.outputs.publish), 'zibri')
+              run: npm publish -w zibri --provenance --tag "${{ steps.version.outputs.dist_tag }}"
+            - if: contains(fromJSON(steps.version.outputs.publish), 'zibri-testing')
+              run: npm publish -w zibri-testing --provenance --tag "${{ steps.version.outputs.dist_tag }}"
+            - if: contains(fromJSON(steps.version.outputs.publish), 'zibri-cli')
+              run: npm publish -w zibri-cli --provenance --tag "${{ steps.version.outputs.dist_tag }}"
 
             # last, because a tag says a version exists - on the commit that produced it, with the
             # notes written for it. Marked latest only when npm's `latest` is this release too.

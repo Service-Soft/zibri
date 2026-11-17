@@ -93,10 +93,26 @@ export function resolveDistTag(version, publishedVersions) {
     return `latest-${major}`;
 }
 
-// the packages are released in lockstep, so zibri's versions are the release's versions
-function findPublishedVersions() {
+// A release that went out halfway - one package refused by the registry after the others were
+// accepted, say for trusted publishing not being set up for it - is finished by the next run rather
+// than refused by it: what the registry already has at this version is left out, the rest is
+// published. A run with nothing left to publish is a version nobody bumped.
+// this needs to be exported, as its manually string imported into the ci-workflows.test.ts
+export function resolvePackagesToPublish(version, publishedVersions) {
+    const unpublished = Object.entries(publishedVersions)
+        .filter(([, versions]) => !versions.includes(version))
+        .map(([name]) => name);
+    if (unpublished.length === 0) {
+        throw new Error(`every package of release ${version} is already published - bump the version`);
+    }
+    return unpublished;
+}
+
+// a package the registry has never seen has no versions; that it cannot be published by this job
+// is for the workflow to say
+function findPublishedVersions(name) {
     try {
-        const versions = JSON.parse(execFileSync('npm', ['view', 'zibri', 'versions', '--json'], { encoding: 'utf8' }));
+        const versions = JSON.parse(execFileSync('npm', ['view', name, 'versions', '--json'], { encoding: 'utf8' }));
         // npm prints a lone version as a string rather than a list of one
         return Array.isArray(versions) ? versions : [versions];
     }
@@ -112,8 +128,17 @@ function main() {
     const manifests = declaredManifests();
     const version = releaseVersion(declaredVersions(manifests));
     validateInternalRanges(manifests, version);
+    const publishedVersions = Object.fromEntries(Object.keys(manifests).map(name => [name, findPublishedVersions(name)]));
+    const toPublish = resolvePackagesToPublish(version, publishedVersions);
+    for (const name of Object.keys(manifests).filter(n => !toPublish.includes(n))) {
+        // stderr, so it reaches the log rather than $GITHUB_OUTPUT
+        // eslint-disable-next-line no-console
+        console.error(`${name}@${version} is already published, and is left out of this run`);
+    }
     process.stdout.write(`version=${version}\n`);
-    process.stdout.write(`dist_tag=${resolveDistTag(version, findPublishedVersions())}\n`);
+    // the packages are released in lockstep, so zibri's versions are the release's versions
+    process.stdout.write(`dist_tag=${resolveDistTag(version, publishedVersions.zibri)}\n`);
+    process.stdout.write(`publish=${JSON.stringify(toPublish)}\n`);
 }
 
 // argv[1] is undefined when this module is imported by a `--eval` script rather than run

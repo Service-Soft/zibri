@@ -285,6 +285,11 @@ describe('MultithreadingService', () => {
     // The harness has no poll, so here it never did
     it('hands a job that waited while a worker died to the worker replacing it', async () => {
         assert(multithreadingService instanceof MultithreadingService);
+        const pool: MultithreadingService = multithreadingService;
+        // the job of the case before this one completed, which ends in a round looking for work. Still under way,
+        // it found the row queued below and gave it to the worker that is then terminated: a job on a worker that
+        // is killed fails, as it is meant to, and the case with it
+        await waitUntil(() => pool['eventsInHandling'].size === 0 && pool['selectionRound'] == undefined && pool['claimsHeldHere'].size === 0);
         const idleWorkers: ThreadJobWorker[] = multithreadingService['idleWorkers'];
         expect(idleWorkers.length).toBe(1);
         const threadJobRepo: ThreadJobRepository = inject(repositoryTokenFor(ThreadJobEntity));

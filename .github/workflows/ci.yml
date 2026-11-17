@@ -62,7 +62,7 @@ jobs:
             fail-fast: false
             matrix:
                 node: ${{ fromJSON(needs.node-versions.outputs.majors) }}
-                shard: [1, 2, 3]
+                shard: [1, 2, 3, 4]
         runs-on: ubuntu-latest
         # a ceiling for each job that runs tests: a run that hangs - a jest that does not exit, a hook
         # that waits on something gone - otherwise holds the runner for the platform's six hours
@@ -96,7 +96,7 @@ jobs:
             # what keeps a coverage run of this size in memory. The reporter is lcov alone: the json
             # reporter writes the whole merged map as one string, and `lcov` renders a page per file,
             # and the upload needs neither
-            - run: npm run test:normal -w zibri -- --shard=${{ matrix.shard }}/3 --coverage --coverageDirectory=__testing__/coverage/raw/normal --coverageReporters=lcovonly
+            - run: npm run test:normal -w zibri -- --shard=${{ matrix.shard }}/4 --coverage --coverageDirectory=__testing__/coverage/raw/normal --coverageReporters=lcovonly
             - uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
               with:
                 token: ${{ secrets.CODECOV_TOKEN }}

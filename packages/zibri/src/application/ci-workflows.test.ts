@@ -815,22 +815,57 @@ describe('the release workflow', () => {
         expect(Math.max(...dryRuns)).toBeLessThan(Math.min(...publishes));
     });
 
-    it('refuses a version the registry already has, before publishing anything', () => {
+    it('refuses a version the registry already has for every package, and finishes one it has for some', () => {
+        const res: Record<string, string[] | string> = inResolverProcess(`
+            const { resolvePackagesToPublish } = await import('${pathToFileURL(releaseVersionPath).href}');
+            const outcome = published => {
+                try {
+                    return resolvePackagesToPublish('3.1.0', published);
+                }
+                catch (error) {
+                    return error.message;
+                }
+            };
+            console.log(JSON.stringify({
+                none: outcome({ 'zibri-tsx': ['3.0.0'], zibri: ['3.0.0'], 'zibri-cli': [] }),
+                some: outcome({ 'zibri-tsx': ['3.0.0', '3.1.0'], zibri: ['3.0.0'], 'zibri-cli': ['3.1.0'] }),
+                every: outcome({ 'zibri-tsx': ['3.1.0'], zibri: ['3.0.0', '3.1.0'], 'zibri-cli': ['3.1.0'] }),
+                otherVersionsOnly: outcome({ 'zibri-tsx': ['3.1.0-rc.1', '3.1.1'], zibri: ['3.1.0'] })
+            }));
+        `);
+
+        expect(res['none']).toStrictEqual(['zibri-tsx', 'zibri', 'zibri-cli']);
+        // a release that went out halfway is finished, not refused: npm would refuse a publish over
+        // the packages it already has, and every later run with them
+        expect(res['some']).toStrictEqual(['zibri']);
+        // forgetting to bump is the everyday version of this, answered before anything is built
+        expect(res['every']).toContain('every package of release 3.1.0 is already published');
+        expect(res['otherVersionsOnly']).toStrictEqual(['zibri-tsx']);
+    });
+
+    it('rehearses and publishes each package only when the registry does not have it at this version', () => {
         const steps: string[] = deploySteps();
-        const check: number = steps.findIndex(line => line.includes('npm view'));
+        const resolved: number = steps.findIndex(line => line.includes('node .github/scripts/release-version.mjs >> "$GITHUB_OUTPUT"'));
+        const publishLines: number[] = indexesMatching(steps, line => line.includes('npm publish'));
 
-        // forgetting to bump one of them is the everyday version of this, and npm answers it with a
-        // conflict at the moment of publish - which for the last package is after the others have
-        // gone out. Asked up front, it costs a failed release instead of a broken one.
-        expect(check).toBeGreaterThanOrEqual(0);
-        expect(check).toBeLessThan(Math.min(...indexesMatching(steps, isRealPublish)));
-
-        // and it has to ask about every one of them: a package the loop does not name is one whose
-        // version nothing checks, which is the same half released state by a slower route.
-        const asked: string = steps.slice(check - 2, check + 2).join('\n');
-        for (const name of publishedPackages()) {
-            expect(asked).toContain(name);
+        expect(resolved).toBeGreaterThanOrEqual(0);
+        expect(resolved).toBeLessThan(Math.min(...publishLines));
+        // each publish names its own package in its condition: one gated on another package's name
+        // publishes over a version the registry has, or leaves one out it does not
+        const conditions: { line: string, condition: string }[] = publishLines.map(index => ({
+            line: steps[index] ?? '',
+            condition: steps[index - 1] ?? ''
+        }));
+        for (const { line, condition } of conditions) {
+            const name: string | undefined = /npm publish -w (\S+)/.exec(line)?.[1];
+            expect({ line, condition }).toEqual({
+                line,
+                condition: `            - if: contains(fromJSON(steps.version.outputs.publish), '${name}')`
+            });
         }
+        // and every package of the release has a publish, so no package is left out by omission
+        const published: string[] = steps.filter(isRealPublish).map(line => /npm publish -w (\S+)/.exec(line)?.[1] ?? '');
+        expect([...published].sort()).toStrictEqual([...publishedPackages()].sort());
     });
 
     // the job authenticates through npm's trusted publishing, which is set up on npmjs.com per
