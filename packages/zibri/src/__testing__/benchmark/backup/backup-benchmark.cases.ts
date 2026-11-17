@@ -167,6 +167,15 @@ const LINEAR_SLACK_RATIO: number = 1.5;
 const SLOWEST_ANSWER_SLACK_IN_MS: number = 10;
 
 /**
+ * What a measured process runs with unless it was started with something else: the thresholds of glibc's
+ * allocator set to where they start, as `scripts/compare-benchmarks.mjs` sets them for both sides.
+ */
+// left alone, the allocator raises them as a process frees larger blocks and keeps what it freed from then on, so
+// what a phase grows the memory by depended on what the phases before it had freed: by all it needs, or by next
+// to nothing. Set, a run on its own measures what the comparison with the release measures
+const ALLOCATOR_ENV: NodeJS.ProcessEnv = { MALLOC_MMAP_THRESHOLD_: '131072', MALLOC_TRIM_THRESHOLD_: '131072' };
+
+/**
  * How long measuring every scenario of a suite may take.
  */
 const MEASURING_TIMEOUT_IN_MS: number = 60 * 60 * 1000;
@@ -673,7 +682,7 @@ async function runMeasurement(scenarioConfig: BackupMeasurementConfig): Promise<
         execPath,
         execArgv: forkArgs,
         stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
-        env: { ...env, [BACKUP_MEASUREMENT_CONFIG_ENV]: JsonUtilities.stringify(config) }
+        env: { ...ALLOCATOR_ENV, ...env, [BACKUP_MEASUREMENT_CONFIG_ENV]: JsonUtilities.stringify(config) }
     });
     try {
         const result: BackupMeasurementResult = await new Promise<BackupMeasurementResult>((resolve, reject) => {

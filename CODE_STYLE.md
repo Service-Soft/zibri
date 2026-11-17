@@ -222,7 +222,9 @@ fails it. A suite only one side has runs once: it is compared with nothing, and 
 on the release does not build the release. The same holds for a figure a suite reports beside its timings with
 `BenchmarkUtilities.writeFigureReport`, such as the peak memory or CPU time of a backup. Memory only
 counts once it is also more than 64 MiB above the release's, and a figure that names a `slack` once it is that much
-above it: what the same code differs by from one run to the next. Run `git fetch origin release` first. When a slowdown is worth it, add it to
+above it: what the same code differs by from one run to the next. Both sides run with the thresholds of glibc's
+allocator set (`MALLOC_MMAP_THRESHOLD_`, `MALLOC_TRIM_THRESHOLD_`), so that what a phase grows the memory by is what
+it needs rather than what the phases before it left behind. Run `git fetch origin release` first. When a slowdown is worth it, add it to
 `packages/zibri/benchmark-allowances.json` as `{ "against": "<release version>", "name": "<operation>",
 "ratio": 1.6, "reason": "..." }`. It counts until that release is replaced, and the comparison names
 the allowances that no longer apply.

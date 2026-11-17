@@ -268,6 +268,25 @@ describe('comparing the benchmarks with the release', () => {
         expect(beyond.failed).toBe(true);
     });
 
+    // what a phase grows the memory by came out in two ways for the same code, 120 MiB apart for a restore of
+    // 100 MB: by all it needs, or by little where the allocator had kept what the phases before it freed. Which
+    // of the two, the allocator decides anew as a process runs, unless its thresholds are set
+    it('runs the suites of both sides with the thresholds of the allocator set, and without recording a baseline', () => {
+        const startedWith: Record<string, string> = { PATH: '/usr/bin', ZIBRI_BENCHMARK_UPDATE_BASELINE: '1' };
+
+        expect(callScript('resolveRunEnvironment', [startedWith, true])).toStrictEqual({
+            PATH: '/usr/bin',
+            MALLOC_MMAP_THRESHOLD_: '131072',
+            MALLOC_TRIM_THRESHOLD_: '131072'
+        });
+        expect(callScript('resolveRunEnvironment', [startedWith, false])).toStrictEqual({
+            PATH: '/usr/bin',
+            MALLOC_MMAP_THRESHOLD_: '131072',
+            MALLOC_TRIM_THRESHOLD_: '131072',
+            ZIBRI_BENCHMARK_SKIP_HELD_MEMORY: '1'
+        });
+    });
+
     // the slowest of the answers of a server during a run is one answer, which a machine doing something else for
     // a moment doubles: the same code on both sides came out 6 ms apart, of 7
     it('passes a figure within the slack it names whatever its ratio, and fails it beyond', () => {

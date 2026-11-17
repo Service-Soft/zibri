@@ -53,6 +53,14 @@ export const REST_GROUP = 'rest';
 // checkout, which its first round makes, and a quarter of a measurement's time in every other one
 const SKIP_HELD_MEMORY_ENV = 'ZIBRI_BENCHMARK_SKIP_HELD_MEMORY';
 
+// what glibc hands back to the system as it is freed, set for the suites of both sides: everything of
+// 128 KiB or more, its starting point. Left alone, it raises that as a process frees larger blocks, and
+// keeps what it freed from then on, so what a phase grows the memory by depends on what the phases
+// before it happened to free: a restore of 100 MB of valkey came out at 69 MiB in one round and at 186
+// in the next, of the same code. Set, a phase grows it by what it needs each time. On the release as
+// well, whose suites do not set it themselves. Other allocators take no notice
+const ALLOCATOR_ENV = { MALLOC_MMAP_THRESHOLD_: '131072', MALLOC_TRIM_THRESHOLD_: '131072' };
+
 export function medianOf(values) {
     const sorted = [...values].sort((a, b) => a - b);
     const middle = Math.floor(sorted.length / 2);
@@ -346,6 +354,18 @@ export function resolveRunsTable(taken) {
     ].join('\n');
 }
 
+// the environment a side's suites are run in, from the one the comparison was started in: without
+// recording a baseline, without the live phases unless they are measured, and with the thresholds of
+// the allocator set
+export function resolveRunEnvironment(startedIn, measureHeld) {
+    const env = { ...startedIn, ...ALLOCATOR_ENV };
+    delete env.ZIBRI_BENCHMARK_UPDATE_BASELINE;
+    if (!measureHeld) {
+        env[SKIP_HELD_MEMORY_ENV] = '1';
+    }
+    return env;
+}
+
 // an empty list runs nothing, for a side without any suite of the group, or none left to run in a round
 function runSuites(root, script, suites, measureHeld, label) {
     if (suites.length === 0) {
@@ -356,16 +376,11 @@ function runSuites(root, script, suites, measureHeld, label) {
     for (const name of reportsIn(reportsDir)) {
         rmSync(path.join(reportsDir, name));
     }
-    const env = { ...process.env };
-    delete env.ZIBRI_BENCHMARK_UPDATE_BASELINE;
-    if (!measureHeld) {
-        env[SKIP_HELD_MEMORY_ENV] = '1';
-    }
     // by path rather than by another pattern, which jest would match in addition to the script's own:
     // the paths are all it runs, whatever the script names
     const selection = ['--', '--runTestsByPath', ...suites.map(suite => path.join(root, 'packages', 'zibri', suite))];
     const startedAt = Date.now();
-    run('npm', ['run', script, '-w', 'zibri', ...selection], root, env);
+    run('npm', ['run', script, '-w', 'zibri', ...selection], root, resolveRunEnvironment(process.env, measureHeld));
     runs.push({ label, suites, seconds: Math.round((Date.now() - startedAt) / 1000) });
 
     return resolveRound(reportsIn(reportsDir).map(name => JSON.parse(readFileSync(path.join(reportsDir, name), 'utf8'))));

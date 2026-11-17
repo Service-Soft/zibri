@@ -401,3 +401,4 @@ buildid
 logfile
 mkfifo
 blpop
+MMAP
