@@ -12,6 +12,23 @@ const pbkdf2Async: (password: string, salt: string, iterations: number, length: 
  */
 const BUSY_MS: number = 300;
 
+/**
+ * How many threads libuv's pool has unless it is told otherwise.
+ */
+const POOL_THREADS: number = 4;
+
+/**
+ * Keeps every thread of libuv's pool busy deriving a key, which is where pbkdf2 runs.
+ *
+ * All of them at once rather than one: whatever else the process does on its main thread meanwhile, a collection
+ * after the suites that ran in it before among it, is counted for the main thread as well. One thread of the pool
+ * working for 270 ms was outweighed by 340 ms of that, and the pool was taken for the idle one.
+ * @param iterations - How many iterations each derivation takes.
+ */
+async function keepPoolBusy(iterations: number): Promise<void> {
+    await Promise.all(Array.from({ length: POOL_THREADS }, async () => await pbkdf2Async('password', 'salt', iterations, 64, 'sha512')));
+}
+
 describe('ThreadCpuUtilities', () => {
     it('reads the name and the CPU time of a thread from its stat, a name holding spaces and parentheses among them', () => {
         // 250 ticks in user mode and 50 in the kernel, of 10 ms each
@@ -55,7 +72,7 @@ describe('ThreadCpuUtilities', () => {
     // the way a test drills into some work: what it returned, and what each kind of thread spent meanwhile
     (process.platform === 'linux' ? it : it.skip)('measures what a piece of work spends on each kind of thread', async () => {
         const { result, cpu } = await ThreadCpuUtilities.measure(async () => {
-            await pbkdf2Async('password', 'salt', 300_000, 64, 'sha512');
+            await keepPoolBusy(300_000);
             return 'derived';
         });
 
@@ -75,7 +92,7 @@ describe('ThreadCpuUtilities', () => {
         // pbkdf2 runs on libuv's pool, long enough for many ticks
         const poolUntil: number = performance.now() + BUSY_MS;
         while (performance.now() < poolUntil) {
-            await pbkdf2Async('password', 'salt', 100_000, 64, 'sha512');
+            await keepPoolBusy(100_000);
         }
         const afterPool: ThreadCpu | undefined = ThreadCpuUtilities.findThreadCpu();
         if (before == undefined || afterMain == undefined || afterPool == undefined) {
