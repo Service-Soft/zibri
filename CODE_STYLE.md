@@ -234,7 +234,11 @@ is compared on a runner of its own, both sides of each of its suites in turns, a
 group names. `npm run test:benchmark:compare -w zibri -- <group>` compares one group. A suite that takes minutes
 gets a group of its own, so a measurement of it that takes long belongs in a suite of its own. A group names its
 suites and, with `rounds`, how often each side runs them when four is too many: a suite that takes minutes and
-takes a median of its own in every run is compared in two. The comparison ends with what each run took. What a backup holds
+takes a median of its own in every run is compared in two. With `narrowed`, it names further rounds and the
+environment variables that have its suites measure less in them, such as `ZIBRI_BACKUP_CONTAINERS_BENCHMARK_SIZES_MB`
+set to `10`: a backup of 10 MB takes seconds and moves the most from one run to the next, so it is measured four
+times where one of 100 MB is measured twice. Each operation is compared by the median of the rounds that measured
+it. The comparison ends with what each run took. What a backup holds
 after a collection is measured in the first round of your checkout alone, and
 `ZIBRI_BENCHMARK_SKIP_HELD_MEMORY=1` leaves it out of a run.
 

@@ -38,11 +38,12 @@ export const worktreeParent = path.dirname(repoRoot);
 // a slowdown found to be worth it: { against, name, ratio, reason }, counting for as long as the
 // release `against` is the one compared with
 const allowancesPath = path.join(packageDir, 'benchmark-allowances.json');
-// the suites each runner of the benchmark job compares: { [group]: { suites: [suite, ...], rounds? } },
-// each suite as a path relative to the package, and how often each side runs it when that is not ROUNDS.
-// A group is made of whole suites, and every operation is measured by one suite, so both sides of each
-// are still run on one machine, in turns - which is what the threshold relies on. The job takes as long
-// as its longest group rather than as long as every suite
+// the suites each runner of the benchmark job compares: { [group]: { suites: [suite, ...], rounds?,
+// narrowed?: { rounds, env } } }, each suite as a path relative to the package, how often each side runs
+// it when that is not ROUNDS, and the rounds it runs after those in an environment that has it measure
+// less. A group is made of whole suites, and every operation is measured by one suite, so both sides of
+// each are still run on one machine, in turns - which is what the threshold relies on. The job takes as
+// long as its longest group rather than as long as every suite
 const groupsPath = path.join(packageDir, 'benchmark-groups.json');
 
 // the group of every suite no other group names, so that a suite added, or one only the release has,
@@ -166,6 +167,33 @@ export function resolveGroupRounds(groups, group) {
     return groups[group]?.rounds ?? ROUNDS;
 }
 
+// what each round of a group adds to the environment of its suites, in the order the rounds run: nothing
+// for those that run the suites as they are, and after them what the group narrows further rounds with,
+// such as the one size of data its suites then measure.
+// What a suite measures in seconds is what moves the most from one run to the next: one collection falling
+// into a restore of 10 MB, or one moment of a slow disk, is half of it, and nothing of a restore of 100 MB
+// that takes minutes. So a group run twice for what takes minutes is run again for what takes seconds,
+// and each operation is compared by the median of the rounds that measured it: of two, the median is the
+// mean, which one such round decided
+export function resolveRoundEnvironments(groups, group) {
+    const narrowed = groups[group]?.narrowed;
+    return [
+        ...Array.from({ length: resolveGroupRounds(groups, group) }, () => ({})),
+        ...Array.from({ length: narrowed?.rounds ?? 0 }, () => ({ ...narrowed.env }))
+    ];
+}
+
+// whether the narrowed rounds of a group say how many they are and what narrows them: an environment that
+// sets nothing would run everything again under another name
+function isNarrowing(narrowed) {
+    return Number.isInteger(narrowed.rounds)
+        && narrowed.rounds >= 1
+        && typeof narrowed.env === 'object'
+        && narrowed.env != undefined
+        && Object.keys(narrowed.env).length > 0
+        && Object.values(narrowed.env).every(value => typeof value === 'string');
+}
+
 // the suites each side runs in a round, of those it has: all of them in the first, and from then on
 // those both have. A suite only one side has is compared with nothing, so that running it again is
 // time spent on a median nobody reads, and its own checks have run by then
@@ -206,7 +234,11 @@ export function validateGroups(groups, suites) {
         ...Object.hasOwn(groups, REST_GROUP) ? [`"${REST_GROUP}" is the group of every suite no other group names`] : [],
         ...Object.entries(groups)
             .filter(([, group]) => group.rounds != undefined && (!Number.isInteger(group.rounds) || group.rounds < 1))
-            .map(([name, group]) => `the rounds of "${name}" need to be a whole number of at least 1, not ${group.rounds}`)
+            .map(([name, group]) => `the rounds of "${name}" need to be a whole number of at least 1, not ${group.rounds}`),
+        ...Object.entries(groups)
+            .filter(([, group]) => group.narrowed != undefined && !isNarrowing(group.narrowed))
+            .map(([name]) => `the narrowed rounds of "${name}" need to be { rounds, env }: a whole number of at least 1, `
+                + 'and at least one environment variable, each a string')
     ];
     if (problems.length > 0) {
         throw new Error(`${path.relative(repoRoot, groupsPath)} needs fixing:\n${problems.join('\n')}`);
@@ -355,10 +387,10 @@ export function resolveRunsTable(taken) {
 }
 
 // the environment a side's suites are run in, from the one the comparison was started in: without
-// recording a baseline, without the live phases unless they are measured, and with the thresholds of
-// the allocator set
-export function resolveRunEnvironment(startedIn, measureHeld) {
-    const env = { ...startedIn, ...ALLOCATOR_ENV };
+// recording a baseline, without the live phases unless they are measured, with the thresholds of the
+// allocator set, and with what a narrowed round of the group narrows it with
+export function resolveRunEnvironment(startedIn, measureHeld, narrowedWith = {}) {
+    const env = { ...startedIn, ...ALLOCATOR_ENV, ...narrowedWith };
     delete env.ZIBRI_BENCHMARK_UPDATE_BASELINE;
     if (!measureHeld) {
         env[SKIP_HELD_MEMORY_ENV] = '1';
@@ -367,7 +399,7 @@ export function resolveRunEnvironment(startedIn, measureHeld) {
 }
 
 // an empty list runs nothing, for a side without any suite of the group, or none left to run in a round
-function runSuites(root, script, suites, measureHeld, label) {
+function runSuites(root, script, suites, measureHeld, label, narrowedWith = {}) {
     if (suites.length === 0) {
         return { values: {}, units: {}, slacks: {} };
     }
@@ -380,7 +412,7 @@ function runSuites(root, script, suites, measureHeld, label) {
     // the paths are all it runs, whatever the script names
     const selection = ['--', '--runTestsByPath', ...suites.map(suite => path.join(root, 'packages', 'zibri', suite))];
     const startedAt = Date.now();
-    run('npm', ['run', script, '-w', 'zibri', ...selection], root, resolveRunEnvironment(process.env, measureHeld));
+    run('npm', ['run', script, '-w', 'zibri', ...selection], root, resolveRunEnvironment(process.env, measureHeld, narrowedWith));
     runs.push({ label, suites, seconds: Math.round((Date.now() - startedAt) / 1000) });
 
     return resolveRound(reportsIn(reportsDir).map(name => JSON.parse(readFileSync(path.join(reportsDir, name), 'utf8'))));
@@ -460,16 +492,17 @@ function compareWithRelease(script, group) {
         const releaseSuites = ofGroup(listSuites(worktree, script));
         const releaseRounds = [];
         const currentRounds = [];
-        for (let round = 0; round < resolveGroupRounds(groups, group); round++) {
+        for (const [round, narrowedWith] of resolveRoundEnvironments(groups, group).entries()) {
             const suites = resolveRoundSuites(currentSuites, releaseSuites, round);
+            const narrowed = Object.keys(narrowedWith).length > 0 ? ', narrowed' : '';
             // the release first every other round, so that a machine slowing down or speeding up over
             // the run weighs on both sides alike
             const sides = [
-                [worktree, suites.release, releaseRounds, false, `round ${round + 1}, release`],
-                [repoRoot, suites.current, currentRounds, round === 0, `round ${round + 1}, this checkout`]
+                [worktree, suites.release, releaseRounds, false, `round ${round + 1}, release${narrowed}`],
+                [repoRoot, suites.current, currentRounds, round === 0, `round ${round + 1}, this checkout${narrowed}`]
             ];
             for (const [root, ofSide, rounds, measureHeld, label] of round % 2 === 0 ? sides : sides.reverse()) {
-                rounds.push(runSuites(root, script, ofSide, measureHeld, label));
+                rounds.push(runSuites(root, script, ofSide, measureHeld, label, narrowedWith));
             }
         }
         conclude(releaseRounds, currentRounds);

@@ -17,6 +17,12 @@ import { testFileFolder } from '../constants';
 
 const packageDir: string = path.resolve(__dirname, '..', '..', '..');
 const scriptPath: string = path.join(packageDir, 'scripts', 'compare-benchmarks.mjs');
+const profileScriptPath: string = path.join(packageDir, 'scripts', 'profile-benchmarks.mjs');
+
+/**
+ * How often an operation is measured on each side unless a group says otherwise.
+ */
+const ROUNDS: number = 4;
 
 /**
  * The median time of each operation in one run of the suites, by its name.
@@ -63,7 +69,20 @@ type BenchmarkGroup = {
     /**
      * How often each side runs a suite both have, 4 unless given.
      */
-    rounds?: number
+    rounds?: number,
+    /**
+     * The rounds each side runs after those, measuring less in each.
+     */
+    narrowed?: {
+        /**
+         * How many.
+         */
+        rounds: number,
+        /**
+         * The environment variables that narrow what the suites measure.
+         */
+        env: Record<string, string>
+    }
 };
 
 /**
@@ -400,6 +419,82 @@ describe('comparing the benchmarks in groups, each on a runner of its own', () =
         expect(callScript('resolveGroupRounds', [groups, 'postgres'])).toBe(2);
         expect(callScript('resolveGroupRounds', [groups, 'val-key'])).toBe(4);
         expect(callScript('resolveGroupRounds', [groups, 'rest'])).toBe(4);
+    });
+
+    // compared in two rounds, the median of a backup of 10 MB was the mean of two samples, which one collection
+    // falling into a restore, or one moment of a slow disk, decided: four groups failed in one run of the same code
+    // on both sides. A backup of 10 MB takes seconds where one of 100 MB takes minutes, so it is measured again
+    it('runs further rounds in the environment a group narrows them with, after those of everything', () => {
+        const narrowing: BenchmarkGroups = {
+            ...groups,
+            postgres: { suites: ['src/postgres.benchmark.test.ts'], rounds: 2, narrowed: { rounds: 2, env: { SIZES_MB: '10' } } }
+        };
+
+        expect(callScript('resolveRoundEnvironments', [narrowing, 'postgres'])).toStrictEqual([{}, {}, { SIZES_MB: '10' }, { SIZES_MB: '10' }]);
+        expect(callScript('resolveRoundEnvironments', [narrowing, 'val-key'])).toStrictEqual([{}, {}, {}, {}]);
+        expect(callScript('resolveRoundEnvironments', [narrowing, 'rest'])).toStrictEqual([{}, {}, {}, {}]);
+        expect(callScript('resolveRunEnvironment', [{ PATH: '/usr/bin' }, true, { SIZES_MB: '10' }])).toStrictEqual({
+            PATH: '/usr/bin',
+            MALLOC_MMAP_THRESHOLD_: '131072',
+            MALLOC_TRIM_THRESHOLD_: '131072',
+            SIZES_MB: '10'
+        });
+    });
+
+    // the restore CPU of 10 MB through s3 as the release and the checkout measured it, of the same code: the first
+    // two rounds are what failed, the further ones what a narrowed round adds
+    it('compares an operation by the rounds that measured it, however many measured another', () => {
+        const small: string = 'CPU of restore of 10 MB';
+        const large: string = 'CPU of restore of 100 MB';
+        const release: BenchmarkRound[] = [{ [small]: 251, [large]: 3136 }, { [small]: 393, [large]: 3140 }];
+        const current: BenchmarkRound[] = [{ [small]: 451, [large]: 3154 }, { [small]: 396, [large]: 3150 }];
+
+        const inTwo: BenchmarkComparison = compare(release, current, [], '3.1.0');
+        const inFour: BenchmarkComparison = compare(
+            [...release, { [small]: 390 }, { [small]: 395 }],
+            [...current, { [small]: 392 }, { [small]: 398 }],
+            [],
+            '3.1.0'
+        );
+
+        expect(inTwo.rows).toMatchObject([{ name: small, verdict: 'worse' }, { name: large, verdict: 'ok' }]);
+        expect(inFour.rows).toMatchObject([{ name: small, verdict: 'ok' }, { name: large, verdict: 'ok' }]);
+        expect(inFour.rows[1]?.ratio).toBeCloseTo(3152 / 3138, 5);
+    });
+
+    it('refuses narrowed rounds that are no whole number, or that narrow nothing', () => {
+        const refused: (narrowed: unknown) => unknown = narrowed => callScript('validateGroups', [
+            { 'val-key': { suites: ['src/val-key.benchmark.test.ts'], narrowed } },
+            ['src/val-key.benchmark.test.ts']
+        ]);
+        const error: { error: unknown } = { error: expect.stringContaining('the narrowed rounds of "val-key" need to be') };
+
+        expect(refused({ rounds: 0, env: { SIZES_MB: '10' } })).toMatchObject(error);
+        expect(refused({ rounds: 2, env: {} })).toMatchObject(error);
+        expect(refused({ rounds: 2, env: { SIZES_MB: 10 } })).toMatchObject(error);
+        expect(refused({ rounds: 2, env: { SIZES_MB: '10' } })).toBeNull();
+    });
+
+    it('measures what is cheap to measure four times in every group, whatever it measures less often', () => {
+        const committed: BenchmarkGroups = JsonUtilities.parse(readFileSync(path.join(packageDir, 'benchmark-groups.json'), 'utf8'));
+
+        const measuredLess: string[] = Object.entries(committed)
+            .filter(([, group]) => (group.rounds ?? ROUNDS) + (group.narrowed?.rounds ?? 0) < ROUNDS)
+            .map(([name]) => name);
+
+        expect(measuredLess).toStrictEqual([]);
+    });
+
+    // a group was a list of suites once, and the script that profiles one read it as such still: it knew no group
+    it('names the suites of a group to the script that profiles them', () => {
+        const output: string = execFileSync(process.execPath, [
+            '--input-type=module', '--eval', `
+            const { resolveSuites } = await import('${pathToFileURL(profileScriptPath).href}');
+            console.log(JSON.stringify(resolveSuites(['postgres'])));
+        `
+        ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+
+        expect(JsonUtilities.parse(output)).toStrictEqual(['src/backup/backup.postgres.benchmark.test.ts']);
     });
 
     // every round ran every suite of both sides: one the release does not measure four times, to be compared with
