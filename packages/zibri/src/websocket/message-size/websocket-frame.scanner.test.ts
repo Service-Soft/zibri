@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 
 import { WebsocketFrameScanner } from './websocket-frame.scanner';
 import { WebsocketMessageLimitResolver, WebsocketMessageRefusal, WebsocketMessageSizeScanner } from './websocket-message-size.scanner';
@@ -210,5 +210,24 @@ describe('WebsocketFrameScanner', () => {
 
         expect(scan([frame({ opcode: 1, payload: packet(longName, 100) })]).refusal).toBeUndefined();
         expect(scan([frame({ opcode: 1, payload: packet(longName, 20_000) })]).refusal).toMatchObject({ event: undefined });
+    });
+
+    // all of the payload that arrived with its first bytes was unmasked, a byte at a time, where no more than the first
+    // kilobyte is read for the event: a message of 60 KiB arriving at once cost sixty times one of a kilobyte
+    it('unmasks no more of a message than the kilobyte its event is read from, however much arrives at once', () => {
+        const fedBytesOf: (payload: Buffer, pieceSize: number) => number[] = (payload, pieceSize) => {
+            const sizes: WebsocketMessageSizeScanner = new WebsocketMessageSizeScanner(resolveLimit);
+            const fed: jest.SpiedFunction<WebsocketMessageSizeScanner['feedPrefix']> = jest.spyOn(sizes, 'feedPrefix');
+            const scanner: WebsocketFrameScanner = new WebsocketFrameScanner(sizes);
+            for (const piece of pieces(frame({ opcode: 1, payload }), pieceSize)) {
+                expect(scanner.push(piece)).toBeUndefined();
+            }
+            return fed.mock.calls.map(([bytes]) => bytes.length);
+        };
+
+        // the event is within the first kilobyte, which is all that is read of the 9000 bytes arriving with it
+        expect(fedBytesOf(packet('other', 9000), 64 * 1024)).toStrictEqual([1024]);
+        // and of an event name that is not, the first kilobyte and no byte after it
+        expect(fedBytesOf(packet('e'.repeat(2000), 100), 800).reduce((sum, bytes) => sum + bytes, 0)).toBe(1024);
     });
 });

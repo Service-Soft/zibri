@@ -23,6 +23,16 @@ import { type LoggerInterface } from '../logging/logger.interface';
 const running: Map<string, number> = new Map();
 
 /**
+ * How many polls of each queue with a `maxConcurrentPerInstance` found no slot free in this process so
+ * far, by the queue's name.
+ *
+ * A poll that finds none leaves its rows to the slots that are taken, each of which reads the due rows
+ * again before it ends. One that read them before such a poll's rows were written found none of them:
+ * a slot that ends compares this with what it was before its last read, and reads again when it moved.
+ */
+const turnedAway: Map<string, number> = new Map();
+
+/**
  * How a claim on a row went: somebody else held it, its attempt was written down, or it ran without
  * being written down - handed back, or with the claim lost while it ran.
  */
@@ -42,13 +52,19 @@ export abstract class QueueUtilities {
     static async poll<T extends QueuedWorkItem>(queue: QueueDefinition<T>): Promise<boolean> {
         // asked before reading the rows too, so an instance with every slot taken does not query for them
         if (this.resolveFreeSlots(queue) <= 0) {
+            this.noteTurnedAway(queue);
             return false;
         }
+        const turnedAwayBeforeRead: number = this.countTurnedAway(queue);
         const due: T[] = await queue.findDue?.() ?? [];
         // asked again after the read: another poll may have taken slots meanwhile. From here to taking
         // them nothing is awaited, so no poll takes the same ones
         const free: number = this.resolveFreeSlots(queue);
-        if (!due.length || free <= 0) {
+        if (!due.length) {
+            return false;
+        }
+        if (free <= 0) {
+            this.noteTurnedAway(queue);
             return false;
         }
         if (queue.claimedPer === 'batch') {
@@ -60,9 +76,9 @@ export abstract class QueueUtilities {
         const candidates: T[] = [...due];
         const slots: Promise<boolean>[] = Array.from(
             { length: Math.min(free, due.length) },
-            async () => await this.inSlots(queue, 1, async () => queue.maxConcurrentPerInstance == undefined
+            async () => queue.maxConcurrentPerInstance == undefined
                 ? await this.runNextClaimed(queue, candidates) !== 'notClaimed'
-                : await this.runSlot(queue, candidates))
+                : await this.runSlot(queue, candidates, turnedAwayBeforeRead)
         );
         return (await Promise.all(slots)).some(Boolean);
     }
@@ -73,26 +89,54 @@ export abstract class QueueUtilities {
      * A slot that is done goes on with the rows it left for lack of a slot, rather than leaving them
      * to the next poll: the poll that queued them may be the only one coming, as when a backup is
      * queued, and a scheduled one may be half a minute away.
+     *
+     * A poll that found every slot taken meanwhile left its rows to the slots as well. A slot that finds
+     * nothing left reads again when one did so since its last read began, which may have been answered
+     * before that poll's rows were written: neither would run them otherwise.
      * @param queue - The queue.
      * @param candidates - The rows still to try, shared with the poll's other slots.
+     * @param turnedAwayBeforeRead - How many polls had found no slot free before the candidates were read.
      * @returns Whether a row ran.
      */
-    private static async runSlot<T extends QueuedWorkItem>(queue: QueueDefinition<T>, candidates: T[]): Promise<boolean> {
+    private static async runSlot<T extends QueuedWorkItem>(
+        queue: QueueDefinition<T>,
+        candidates: T[],
+        turnedAwayBeforeRead: number
+    ): Promise<boolean> {
+        // taken before the first await, so polls that overlap never count the same slot as free
+        this.takeSlots(queue, 1);
+        let held: boolean = true;
         let ranAny: boolean = false;
-        for (let attempted: ClaimedAttempt = await this.runNextClaimed(queue, candidates); attempted !== 'notClaimed';) {
-            ranAny = true;
-            // only past an attempt that was written down: a row handed back, as an application that
-            // stops hands back what it ran, or one whose claim was lost, is due again at once, and
-            // going on would claim it again for as long as the reason lasts
-            if (attempted === 'notRecorded') {
-                break;
+        try {
+            for (let before: number = turnedAwayBeforeRead; ;) {
+                const attempted: ClaimedAttempt = await this.runNextClaimed(queue, candidates);
+                // only past an attempt that was written down: a row handed back, as an application that
+                // stops hands back what it ran, or one whose claim was lost, is due again at once, and
+                // going on would claim it again for as long as the reason lasts
+                if (attempted === 'notRecorded') {
+                    return true;
+                }
+                if (attempted === 'recorded') {
+                    ranAny = true;
+                }
+                else if (this.countTurnedAway(queue) === before) {
+                    // given back where it is found that nobody was turned away, with nothing awaited between:
+                    // a poll arriving after this finds the slot free, and one before it is counted
+                    this.releaseSlots(queue, 1);
+                    held = false;
+                    return ranAny;
+                }
+                before = this.countTurnedAway(queue);
+                // read again rather than taken from the list: another instance may have run one since.
+                // One running in another slot is held, and passed over
+                candidates.splice(0, candidates.length, ...await queue.findDue?.() ?? []);
             }
-            // read again rather than taken from the list: another instance may have run one since.
-            // One running in another slot is held, and passed over
-            candidates.splice(0, candidates.length, ...await queue.findDue?.() ?? []);
-            attempted = await this.runNextClaimed(queue, candidates);
         }
-        return ranAny;
+        finally {
+            if (held) {
+                this.releaseSlots(queue, 1);
+            }
+        }
     }
 
     /**
@@ -149,19 +193,35 @@ export abstract class QueueUtilities {
             return await work();
         }
         // taken before the first await, so polls that overlap never count the same slot as free
-        running.set(queue.name, (running.get(queue.name) ?? 0) + count);
+        this.takeSlots(queue, count);
         try {
             return await work();
         }
         finally {
-            const left: number = (running.get(queue.name) ?? count) - count;
-            if (left > 0) {
-                running.set(queue.name, left);
-            }
-            else {
-                running.delete(queue.name);
-            }
+            this.releaseSlots(queue, count);
         }
+    }
+
+    private static takeSlots<T extends QueuedWorkItem>(queue: QueueDefinition<T>, count: number): void {
+        running.set(queue.name, (running.get(queue.name) ?? 0) + count);
+    }
+
+    private static releaseSlots<T extends QueuedWorkItem>(queue: QueueDefinition<T>, count: number): void {
+        const left: number = (running.get(queue.name) ?? count) - count;
+        if (left > 0) {
+            running.set(queue.name, left);
+        }
+        else {
+            running.delete(queue.name);
+        }
+    }
+
+    private static countTurnedAway<T extends QueuedWorkItem>(queue: QueueDefinition<T>): number {
+        return turnedAway.get(queue.name) ?? 0;
+    }
+
+    private static noteTurnedAway<T extends QueuedWorkItem>(queue: QueueDefinition<T>): void {
+        turnedAway.set(queue.name, this.countTurnedAway(queue) + 1);
     }
 
     /**

@@ -1634,13 +1634,19 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         // before staging, so that neither this instance's disk nor any transport ever holds
         // the data unencrypted
         const stored: Readable = key ? Readable.from(BackupEncryptionUtilities.encrypt(data, key)) : data;
-        const digest: BackupDigest = await this.stopOnShutdown(
-            data,
-            async () => await this.storeAndMeasure(stored, transports, backup, r)
-        );
-        // staged as it came, encrypted and uncompressed rather than as a restore stages it, so its size says
-        // nothing more than `size` does
-        return { ...digest, ...record, encryptedKey, stagedSize: undefined };
+        try {
+            const digest: BackupDigest = await this.stopOnShutdown(
+                data,
+                async () => await this.storeAndMeasure(stored, transports, backup, r)
+            );
+            // staged as it came, encrypted and uncompressed rather than as a restore stages it, so its size says
+            // nothing more than `size` does
+            return { ...digest, ...record, encryptedKey, stagedSize: undefined };
+        }
+        finally {
+            // whatever produces it ends with the attempt, also one that failed before anything read the data
+            data.destroy();
+        }
     }
 
     /**
@@ -1794,10 +1800,10 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
             ? Readable.from(BackupEncryptionUtilities.encryptStaged(compressed, stagingKey, stagingIv))
             : compressed;
         const p: FsPath = this.stagingPathFor(backup, r);
-        await FsUtilities.mkdir(this.stagingFolder);
-        // so that a reader can stat it before the writer has opened it
-        await FsUtilities.createFile(p, '');
         try {
+            await FsUtilities.mkdir(this.stagingFolder);
+            // so that a reader can stat it before the writer has opened it
+            await FsUtilities.createFile(p, '');
             const digest: BackupDigest = await this.stopOnShutdown(data, async () => {
                 // written without a digest: what the backup records is summed from its chunks
                 const written: Promise<void> = pipeline(staged, FsUtilities.createWriteStream(p));
@@ -1822,6 +1828,9 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
             return { ...digest, ...record, encryptedKey, stagedSize };
         }
         finally {
+            // whatever produces it ends with the attempt, also one that failed before anything read the data, such as
+            // on a staging folder that cannot be written: a dump, and the connection it reads through
+            data.destroy();
             await FsUtilities.rm(p);
         }
     }
@@ -3002,7 +3011,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
      * @param backup - The backup.
      * @param key - The key the backup recorded for the resource, decrypted, if any.
      * @param p - Where to stage it.
-     * @param encrypt - Whether to encrypt it on this instance's disk, when it arrives in one piece.
+     * @param encrypt - Whether to encrypt it on this instance's disk, unless it arrives as encrypted chunks.
      * @returns The staged file, and how it is stored.
      * @throws When the data is not what the backup recorded, or cannot be fetched or decrypted.
      */
@@ -3021,8 +3030,23 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
                 retrieved.chunks.destroy();
                 throw new CorruptBackupError(backup, resource, { checksum: retrieved.checksum, size: retrieved.size });
             }
+            // chunks of a backup taken before the resource was marked with encrypt are stored unencrypted, and as
+            // they were stored anybody reading this disk would read them: their data is staged instead, encrypted
+            // like what arrives in one piece
+            if (encrypt && retrieved.key == undefined) {
+                const file: StagedFile = this.resolveRestoreStagedFile(p, encrypt);
+                const data: Readable = Readable.from(BackupChunkUtilities.openAll(retrieved.chunks, retrieved.key));
+                await this.stopOnShutdown(retrieved.chunks, async () => await StagingUtilities.stage(data, file));
+                return file;
+            }
             // as they were stored: compressed already, and for an encrypted resource encrypted with the repository key
-            const chunksFile: StagedChunksFile = { path: p, compression: 'chunks', key: retrieved.key, size: retrieved.size };
+            const chunksFile: StagedChunksFile = {
+                path: p,
+                compression: 'chunks',
+                key: retrieved.key,
+                size: retrieved.size,
+                checksum: retrieved.checksum
+            };
             await this.stopOnShutdown(retrieved.chunks, async () => await StagingUtilities.writeChunks(retrieved.chunks, chunksFile));
             return chunksFile;
         }
@@ -3547,9 +3571,15 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         backup: BackupEntity
     ): Promise<Readable> {
         const retrieved: RetrievedBackupResource = await this.resolveRetrieved(transports, resource, backup, undefined);
-        return retrieved.kind === 'chunks'
-            ? Readable.from(BackupChunkUtilities.openAll(retrieved.chunks, retrieved.key))
-            : retrieved.data;
+        if (retrieved.kind === 'whole') {
+            return retrieved.data;
+        }
+        // as bytes, as the data of a resource stored in one piece is, rather than as the chunks, an object each
+        const data: Readable = Readable.from(BackupChunkUtilities.openAll(retrieved.chunks, retrieved.key), { objectMode: false });
+        // the chunks end with the data whichever way it ends: one destroyed before anything read from it never
+        // started what opens the chunks, which is what ends them otherwise, and their session would stay open
+        data.once('close', () => retrieved.chunks.destroy());
+        return data;
     }
 
     /**

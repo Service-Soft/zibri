@@ -70,6 +70,15 @@ export class WebsocketMessageSizeScanner {
     }
 
     /**
+     * How many more of the message's first bytes are read to know its limit, so that whoever hands them over
+     * prepares no more than that.
+     * @returns The number, none once the limit of the message is known.
+     */
+    get prefixBytesNeeded(): number {
+        return this.needsPrefix ? Math.max(0, MAX_PREFIX_BYTES - this.prefixBytes) : 0;
+    }
+
+    /**
      * Begins a message.
      * @param binary - Whether it is binary: an attachment of the binary event before it, or a message that carries no event.
      */

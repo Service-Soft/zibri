@@ -84,12 +84,27 @@ export function resolveComparison(releaseRounds, currentRounds, allowances, rele
             return { name, releaseMs: null, currentMs, ratio: null, limit: null, verdict: 'new' };
         }
         const releaseMs = medianOf(releaseTimes);
-        const ratio = currentMs / releaseMs;
+        // nothing on both sides is unchanged: divided, it is no number, which is within every limit and
+        // reads as one in the table. Nothing on the release and something here stays beyond every limit
+        const ratio = releaseMs === 0 && currentMs === 0 ? 1 : currentMs / releaseMs;
         const limit = allowances.find(allowance => allowance.name === name && allowance.against === releaseVersion)?.ratio
             ?? SLOWER_FROM_RATIO;
         const beyondSlack = units[name] !== 'bytes' || currentMs - releaseMs > MEMORY_SLACK_BYTES;
         return { name, releaseMs, currentMs, ratio, limit, verdict: ratio > limit && beyondSlack ? 'worse' : 'ok' };
     });
+    // what only the release measures: removed here, or renamed, in which case its new name is a row that
+    // is compared with nothing. Reported, so that a slowdown behind a rename has a row saying where to look
+    const gone = [...new Set(releaseRounds.flatMap(round => Object.keys(round)))]
+        .filter(name => !names.includes(name))
+        .map(name => ({
+            name,
+            releaseMs: medianOf(releaseRounds.map(round => round[name]).filter(ms => ms != undefined)),
+            currentMs: null,
+            ratio: null,
+            limit: null,
+            verdict: 'gone'
+        }));
+    rows.push(...gone);
     return { releaseVersion, rows, failed: rows.some(row => row.verdict === 'worse') };
 }
 
@@ -166,10 +181,10 @@ export function resolveTable(comparison, units = {}, staleAllowances = []) {
         }
         return unit === 'bytes' ? `${(value / (1024 * 1024)).toFixed(1)} MiB` : `${value.toFixed(3)} ms`;
     };
+    const notCompared = { new: 'not measured on the release', gone: 'no longer measured here' };
     const rows = comparison.rows.map(row => {
-        const verdict = row.verdict === 'new'
-            ? 'not measured on the release'
-            : `${row.ratio.toFixed(2)}x, limit ${row.limit}x${row.verdict === 'worse' ? ', **worse**' : ''}`;
+        const verdict = notCompared[row.verdict]
+            ?? `${row.ratio.toFixed(2)}x, limit ${row.limit}x${row.verdict === 'worse' ? ', **worse**' : ''}`;
         const unit = units[row.name] ?? 'ms';
         return `| ${row.name} | ${format(row.releaseMs, unit)} | ${format(row.currentMs, unit)} | ${verdict} |`;
     });

@@ -234,20 +234,37 @@ describe('the published package', () => {
         expect(testMaterial).toEqual([]);
     });
 
+    it('ships no source its build left out', () => {
+        const files: Set<string> = new Set(packed().files);
+
+        // the build compiles what its entry points reach, while `files` ships the directory: a source
+        // nothing reaches goes out without code, declarations or a map leading to it. The one found was
+        // a function whose last caller in the framework had gone, kept alive by a benchmark importing
+        // it, which no name above gives away as test material.
+        const leftOut: string[] = [...files].filter(f => f.startsWith('src/')
+            && !files.has(f.replace(/^src\//, 'dist/cjs/').replace(/\.tsx?$/, '.js')));
+
+        expect(leftOut).toEqual([]);
+    });
+
     it('installs at a size a consumer would accept', () => {
         const megabytes: number = packed().unpackedSize / 1024 / 1024;
 
-        // measured 2026-11-11: `dist` is 11.1MB, of which 4 is the code that runs and the rest its
-        // declarations and the maps of both, and the sources the maps lead into are 6.8MB, 18.05 all
-        // told. The ceiling sits just above that: growing past it is a reason to look at what grew,
-        // which once found test cases, fonts twice over and comments in code that runs, and once the
-        // postgres layer that replaced typeorm. Raised from 18 for 3.1, whose 3,400 lines of framework
-        // code since 2026-11-01 are the 0.24MB `dist` grew by, with nothing else in the tarball. Raised
-        // from 18.5 on 2026-11-13 at 18.92: backups reading only what changed and backups of tenants, about
-        // 100KB of sources shipped as themselves, their code, their declarations and the maps of both, the
-        // largest files of the tarball the framework's own sources. The number this was first written
-        // against is 50MB.
-        expect(megabytes).toBeLessThan(20);
+        // measured 2026-11-17: `dist` is 12.3MB, of which 4.5 is the code that runs and the rest its
+        // declarations and the maps of both, and the sources the maps lead into are 7.6MB, 20.00 all
+        // told. Nothing else is in the tarball, so a kilobyte of source ships as 2.6: itself, its code,
+        // its declarations and the maps of both. The ceiling sits just above the measurement: growing
+        // past it is a reason to look at what grew, which once found test cases, fonts twice over and
+        // comments in code that runs, and once the postgres layer that replaced typeorm. Raised from 18
+        // for 3.1, whose 3,400 lines of framework code since 2026-11-01 are the 0.24MB `dist` grew by,
+        // from 18.5 on 2026-11-13 at 18.92, and from 20 on 2026-11-17: the sources grew by 0.8MB since
+        // 2026-11-10, of which 0.45 is `src/backup` (backups reading only what changed, backups of
+        // tenants, the second repository layout and its garbage collection) and 0.24 the data sources
+        // those read through. What is left to save without giving up the sources or the maps is the
+        // 0.2MB of `__decorate`, `__metadata` and `__param` that tsc writes into each of 321 files, which
+        // `importHelpers` would take from tslib instead. The number this was first written against is
+        // 50MB.
+        expect(megabytes).toBeLessThan(21);
     });
 
     it('ships its comments once in the sources and the declarations, not in the code that runs', () => {

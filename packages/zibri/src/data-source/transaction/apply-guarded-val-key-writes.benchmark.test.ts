@@ -1,9 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import type { Batch, GlideClient } from '@valkey/valkey-glide';
+import type { GlideClient } from '@valkey/valkey-glide';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
 import { applyGuardedValKeyWrites, ValKeyWriteGuards } from './apply-guarded-val-key-writes.function';
-import { queueValKeyWrite } from './queue-val-key-write.function';
 import { ValKeyBufferedWrite } from './val-key-transaction.model';
 import { BenchmarkTiming } from '../../__testing__/benchmark/benchmark-timing.model';
 import { BenchmarkUtilities } from '../../__testing__/benchmark/benchmark.utilities';
@@ -16,16 +15,18 @@ import { Newable } from '../../types/newable.type';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
-import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function';
 
 /**
- * What a valkey transaction costs to commit through the guard script, against committing the same
- * writes as an atomic batch: whether handing every write to the script as one json argument costs a
- * large transaction more than the batch an unguarded one was sent as. It measured half, so every
- * commit goes through the script; this keeps the comparison in view.
+ * What valkey writes cost to commit through the guard script, which every write goes through, those
+ * of a transaction and those outside of one.
  *
- * The same writes both ways, timed on their own rather than through a repository, since a repository
- * write that brings a guard also reads and checks the keys it declares, which would be timed with it.
+ * Once set against an atomic batch of the same writes, to find out whether handing every write to the
+ * script as one json argument costs a large transaction more than the batch. It measured half from a
+ * thousand rows up, and a batch has stopped being a way to commit since: the script is what hands a
+ * backup copying on write each key as it was before. The batch timed nothing of the framework.
+ *
+ * The writes are timed on their own rather than through a repository, since a repository write that
+ * brings a guard also reads and checks the keys it declares, which would be timed with it.
  * Nothing here fails on the numbers - see `BenchmarkUtilities`.
  *
  * `npm run test:benchmark` runs it. Setting `ZIBRI_BENCHMARK_UPDATE_BASELINE=1` makes the run the new
@@ -70,7 +71,7 @@ beforeAll(async () => {
 }, TestTimeouts.valKey.start);
 
 afterAll(async () => {
-    const keys: string[] = SIZES.flatMap(({ rows }) => ['guarded', 'batched'].flatMap(path => resolveWrites(path, rows).map(w => w.key)));
+    const keys: string[] = SIZES.flatMap(({ rows }) => resolveWrites(rows).map(w => w.key));
     for (let i: number = 0; i < keys.length; i += 1000) {
         await client.del(keys.slice(i, i + 1000));
     }
@@ -79,32 +80,19 @@ afterAll(async () => {
 
 /**
  * Resolves the writes of a transaction creating the given number of rows.
- * @param path - Which way they are committed, which keeps the keys of the two apart.
  * @param rows - How many rows.
  * @returns One hash write per row.
  */
-function resolveWrites(path: string, rows: number): ValKeyBufferedWrite[] {
+function resolveWrites(rows: number): ValKeyBufferedWrite[] {
     return Array.from({ length: rows }, (_, row) => ({
         type: 'hashSet',
-        key: `${prefix}:${path}:${rows}:${row}`,
+        key: `${prefix}:${rows}:${row}`,
         values: Object.fromEntries(Array.from({ length: FIELDS_PER_ROW }, (__, field) => [`field${field}`, `value ${field} of row ${row}`]))
     }));
 }
 
-/**
- * Commits writes the way a transaction without a guard does: as one atomic batch.
- * @param writes - The writes.
- */
-async function commitAsBatch(writes: ValKeyBufferedWrite[]): Promise<void> {
-    const batch: Batch = new (valKeyGlide().Batch)(true);
-    for (const write of writes) {
-        queueValKeyWrite(batch, write);
-    }
-    expect(await client.exec(batch, true)).not.toBeNull();
-}
-
 describe('committing a valkey transaction behind a guard', () => {
-    it('measures the guard script against an atomic batch of the same writes', async () => {
+    it('measures a commit through the guard script', async () => {
         // one guarded key, which holds nothing and so passes: what a transaction holding a lock or
         // reading a key declaration sends along
         const guards: ValKeyWriteGuards = { values: new Map([[`${prefix}:guard`, '']]), hashes: new Map() };
@@ -112,17 +100,17 @@ describe('committing a valkey transaction behind a guard', () => {
         // the connection the setup opened, held here so that every measured commit goes through it
         const connection: GlideClient = client;
         for (const { rows, runs } of SIZES) {
-            const guarded: ValKeyBufferedWrite[] = resolveWrites('guarded', rows);
-            const batched: ValKeyBufferedWrite[] = resolveWrites('batched', rows);
+            const writes: ValKeyBufferedWrite[] = resolveWrites(rows);
+            // named as it was beside the batch, which keeps it a row the release is compared with
             timings.push(await BenchmarkUtilities.resolveTiming(`guarded commit of ${rows} rows`, runs, async () => {
-                expect(await applyGuardedValKeyWrites(connection, inject(valKeyDataSourceClass).keyPrefix, guards, guarded)).toBe(true);
+                expect(await applyGuardedValKeyWrites(connection, inject(valKeyDataSourceClass).keyPrefix, guards, writes)).toBe(true);
             }));
-            timings.push(await BenchmarkUtilities.resolveTiming(`batched commit of ${rows} rows`, runs, async () => await commitAsBatch(batched)));
         }
 
-        // both wrote the same rows
+        // the rows are there: a commit that wrote nothing would be a fast one
         const last: number = SIZES.at(-1)?.rows ?? 0;
-        expect(await client.hgetall(`${prefix}:guarded:${last}:${last - 1}`)).toEqual(await client.hgetall(`${prefix}:batched:${last}:${last - 1}`));
+        // eslint-disable-next-line cspell/spellchecker
+        expect(await client.hlen(`${prefix}:${last}:${last - 1}`)).toBe(FIELDS_PER_ROW);
 
         const report: string = await BenchmarkUtilities.resolveReport(
             timings,
@@ -130,12 +118,7 @@ describe('committing a valkey transaction behind a guard', () => {
             baselinePath,
             process.env['ZIBRI_BENCHMARK_UPDATE_BASELINE'] === '1'
         );
-        const ratios: string[] = SIZES.map(({ rows }) => {
-            const guarded: number | undefined = timings.find(t => t.name === `guarded commit of ${rows} rows`)?.medianMs;
-            const batched: number | undefined = timings.find(t => t.name === `batched commit of ${rows} rows`)?.medianMs;
-            return `${rows} rows: guarded takes ${guarded == undefined || batched == undefined ? '-' : (guarded / batched).toFixed(2)}x the batch`;
-        });
-        process.stdout.write(`\n${report}\n\n${ratios.join('\n')}\n\n`);
+        process.stdout.write(`\n${report}\n\n`);
 
         expect(timings.every(t => Number.isFinite(t.medianMs) && Number.isFinite(t.p95Ms))).toBe(true);
     }, 600000);

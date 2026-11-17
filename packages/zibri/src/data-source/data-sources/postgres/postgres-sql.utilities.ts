@@ -20,9 +20,52 @@ export type PostgresStatement = {
 const NAMED_PLACEHOLDER_PATTERN: RegExp = /(?<!:):([A-Z_a-z]\w*)/g;
 
 /**
+ * What a quote may be part of in a statement: a quoted name, a comment, a string whose backslashes escape,
+ * any other string, and a string quoted with dollars. A string runs to the end of a statement that was cut
+ * short inside it.
+ */
+// the names and comments are matched to be skipped: a quote inside one would otherwise start a string, and
+// every string after it would be taken for what lies between two strings
+const QUOTED_PATTERN: RegExp = new RegExp(
+    [
+        /"(?:[^"]|"")*"/,
+        /--[^\n]*/,
+        /\/\*[\S\s]*?\*\//,
+        /\b[Ee]'(?:[^'\\]|''|\\[\S\s])*(?:'|$)/,
+        /'(?:[^']|'')*(?:'|$)/,
+        /\$([A-Z_a-z]\w*|)\$[\S\s]*?(?:\$\1\$|$)/
+    ].map(part => part.source).join('|'),
+    'g'
+);
+
+/**
+ * What a string of a statement is logged as, whatever it holds and however long it is.
+ */
+const LOGGED_STRING: string = '\'*****\'';
+
+/**
+ * How many characters of a statement are logged.
+ */
+const LOGGED_STATEMENT_LENGTH: number = 200;
+
+/**
  * Builds the sql of the statements a postgres data source sends.
  */
 export abstract class PostgresSqlUtilities {
+    /**
+     * A statement as a log names it: every string in it replaced by the same asterisks, so that a value somebody
+     * wrote into one is not logged, and cut short. Numbers stay as they are.
+     * @param sql - The statement, as the server holds it.
+     * @returns What to log of it.
+     */
+    static toLoggedStatement(sql: string): string {
+        return sql
+            .replaceAll(QUOTED_PATTERN, quoted => quoted.startsWith('"') || quoted.startsWith('--') || quoted.startsWith('/*')
+                ? quoted
+                : LOGGED_STRING)
+            .slice(0, LOGGED_STATEMENT_LENGTH);
+    }
+
     /**
      * Quotes a name for a statement.
      * @param name - The name of a table, a column, an alias or a collation.

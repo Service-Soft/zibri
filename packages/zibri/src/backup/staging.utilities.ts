@@ -8,6 +8,8 @@ import { constants, createZstdCompress, createZstdDecompress } from 'node:zlib';
 import { BackupDigest } from './backup-digest.model';
 import { BackupEncryptionUtilities } from './backup-encryption.utilities';
 import { BackupChunkUtilities } from './repository/backup-chunk.utilities';
+import { BackupManifestEntry } from './repository/backup-manifest-entry.model';
+import { BackupManifestUtilities } from './repository/backup-manifest.utilities';
 import { FetchedBackupChunk } from './repository/fetched-backup-chunk.model';
 import { StagedChunksFile } from './staged-chunks-file.model';
 import { StagedFile } from './staged-file.model';
@@ -143,14 +145,15 @@ export abstract class StagingUtilities {
      * such as when it was compressed and is cut short or changed. Of a file of chunks, their data.
      */
     static read(file: StagedFile | StagedChunksFile): Readable {
+        // as bytes rather than as the buffers a generator yields, an object each: what a resource is handed read a
+        // file up to 3.0, and one reading a number of bytes at a time, or decoding them, goes on doing so
         if (file.compression === 'chunks') {
-            // each chunk checked against its id again: a file changed on the disk since is as much a reason to stop
-            return Readable.from(this.validateSize(BackupChunkUtilities.openAll(this.readChunks(file.path), file.key), file));
+            return Readable.from(this.readChunksData(file), { objectMode: false });
         }
         const read: Readable = FsUtilities.createReadStream(file.path);
         const decrypted: Readable = file.encryption == undefined
             ? read
-            : Readable.from(BackupEncryptionUtilities.decryptStaged(read, file.encryption.key, file.encryption.iv));
+            : Readable.from(BackupEncryptionUtilities.decryptStaged(read, file.encryption.key, file.encryption.iv), { objectMode: false });
         return file.compression === 'zstd' ? this.decompress(decrypted) : decrypted;
     }
 
@@ -237,20 +240,33 @@ export abstract class StagingUtilities {
     }
 
     /**
-     * Hands on the data of a staged file of chunks, and fails once it ends at another size than the file holds.
-     * @param data - The data.
+     * Hands on the data of a staged file of chunks, and fails when the file is not what was staged: a chunk that is
+     * not the chunk of its id as it is read, and at the end another size, other chunks or another order.
      * @param file - The file.
-     * @yields Each piece of the data.
-     * @throws When the data ends at another size.
+     * @yields The data of each chunk, in order.
+     * @throws When the file is not what was staged.
      */
-    private static async* validateSize(data: AsyncIterable<Buffer>, file: StagedChunksFile): AsyncGenerator<Buffer> {
+    private static async* readChunksData(file: StagedChunksFile): AsyncGenerator<Buffer> {
+        const stored: AsyncGenerator<FetchedBackupChunk> = this.readChunks(file.path);
+        const entries: BackupManifestEntry[] = [];
+        const noted: () => AsyncGenerator<FetchedBackupChunk> = async function* (): AsyncGenerator<FetchedBackupChunk> {
+            for await (const chunk of stored) {
+                entries.push(chunk.entry);
+                yield chunk;
+            }
+        };
         let size: number = 0;
-        for await (const piece of data) {
+        // each chunk checked against its id again: a file changed on the disk since is as much a reason to stop
+        for await (const piece of BackupChunkUtilities.openAll(noted(), file.key)) {
             size += piece.length;
             yield piece;
         }
         if (size !== file.size) {
             throw new InternalError(`The staged file "${file.path}" holds ${size} bytes of data, where it was staged with ${file.size}.`);
+        }
+        // chunks that changed places are each the chunk of their id still, and of the same size together
+        if (BackupManifestUtilities.resolveChecksum(entries, file.key) !== file.checksum) {
+            throw new InternalError(`The staged file "${file.path}" holds other chunks, or in another order, than it was staged with.`);
         }
     }
 
@@ -263,6 +279,7 @@ export abstract class StagingUtilities {
     private static async* readChunks(p: FsPath): AsyncGenerator<FetchedBackupChunk> {
         const handle: FileHandle = await open(p, 'r');
         try {
+            const { size } = await handle.stat();
             let position: number = 0;
             while (true) {
                 const header: Buffer = Buffer.alloc(CHUNK_RECORD_HEADER_BYTES);
@@ -274,6 +291,11 @@ export abstract class StagingUtilities {
                     throw new InternalError(`The staged file "${p}" ends inside the header of a chunk.`);
                 }
                 const storedLength: number = header.readUInt32BE(CHUNK_ID_BYTES + 4);
+                // before anything is held for it: a length of a file that was changed, or is no file of chunks, is
+                // up to 4 GiB
+                if (position + header.length + storedLength > size) {
+                    throw new InternalError(`The staged file "${p}" ends inside a chunk.`);
+                }
                 const stored: Buffer = Buffer.alloc(storedLength);
                 const body: FileReadResult<Buffer> = await handle.read(stored, 0, storedLength, position + header.length);
                 if (body.bytesRead < storedLength) {

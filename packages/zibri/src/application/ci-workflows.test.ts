@@ -475,6 +475,23 @@ describe('the ci workflows', () => {
         expect(jobs['benchmark']).toMatch(/^ +group: \$\{\{ fromJSON\(needs\.benchmark-groups\.outputs\.groups\) \}\}$/m);
         expect(jobs['benchmark-summary']).toContain('node packages/zibri/scripts/compare-benchmarks.mjs --merge');
     });
+
+    // the branch protection requires the `test` job alone, so a job it does not wait for can fail, a
+    // benchmark that got slower included, and the change is merged all the same
+    it('holds a merge up for every job, through the one the branch protection requires', () => {
+        const jobs: Record<string, string> = jobsOf(workflow('ci.yml'));
+        const gate: string = jobs['test'] ?? '';
+        const needed: string[] = [...gate.matchAll(/^ {12}- ([\w-]+)$/gm)].map(m => m[1] ?? '');
+        needed.sort();
+        const others: string[] = Object.keys(jobs).filter(name => name !== 'test');
+        others.sort();
+
+        expect(needed).toStrictEqual(others);
+        expect(gate).toContain('if: always()');
+        expect(gate).toContain(
+            'contains(needs.*.result, \'failure\') || contains(needs.*.result, \'cancelled\') || contains(needs.*.result, \'skipped\')'
+        );
+    });
 });
 
 describe('the tree a consumer installs', () => {

@@ -37,7 +37,7 @@ type BenchmarkAllowance = {
  * What the comparison answers.
  */
 type BenchmarkComparison = {
-    rows: { name: string, ratio: number | null, limit: number | null, verdict: 'ok' | 'worse' | 'new' }[],
+    rows: { name: string, ratio: number | null, limit: number | null, verdict: 'ok' | 'worse' | 'new' | 'gone' }[],
     staleAllowances: BenchmarkAllowance[],
     failed: boolean
 };
@@ -259,6 +259,32 @@ describe('comparing the benchmarks with the release', () => {
         expect(comparison.rows).toMatchObject([{ name: 'GET one row', verdict: 'ok' }, { name: 'POST one row', verdict: 'new' }]);
         expect(comparison.rows[1]?.ratio).toBeNull();
         expect(comparison.failed).toBe(false);
+    });
+
+    // the rows were those of the checkout alone, so an operation renamed here was gone from the table, and its new
+    // name not measured on the release: a slowdown behind the rename showed nowhere
+    it('reports an operation only the release measures as no longer measured, without failing', () => {
+        const comparison: BenchmarkComparison = compare(
+            [1, 1, 1, 1].map(() => ({ 'GET one row': 1, 'DELETE one row': 2 })),
+            rounds([1, 1, 1, 1]),
+            [],
+            '3.0.0'
+        );
+
+        expect(comparison.rows).toMatchObject([{ name: 'GET one row', verdict: 'ok' }, { name: 'DELETE one row', verdict: 'gone', ratio: null }]);
+        expect(comparison.failed).toBe(false);
+        expect(callScript<string>('resolveTable', [comparison])).toContain('| DELETE one row | 2.000 ms | - | no longer measured here |');
+    });
+
+    // nothing divided by nothing is no number, which was within every limit and printed as one
+    it('counts an operation that takes nothing on either side as unchanged, and one that takes something now as worse', () => {
+        const unchanged: BenchmarkComparison = compare(rounds([0, 0, 0, 0]), rounds([0, 0, 0, 0]), [], '3.0.0');
+        const worse: BenchmarkComparison = compare(rounds([0, 0, 0, 0]), rounds([1, 1, 1, 1]), [], '3.0.0');
+
+        expect(unchanged.rows).toMatchObject([{ name: 'GET one row', verdict: 'ok', ratio: 1 }]);
+        expect(callScript<string>('resolveTable', [unchanged])).toContain('| GET one row | 0.000 ms | 0.000 ms | 1.00x, limit 1.3x |');
+        expect(worse.rows).toMatchObject([{ name: 'GET one row', verdict: 'worse' }]);
+        expect(worse.failed).toBe(true);
     });
 });
 

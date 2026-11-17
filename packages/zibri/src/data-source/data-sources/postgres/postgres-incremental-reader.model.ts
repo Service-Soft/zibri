@@ -810,7 +810,7 @@ export class PostgresIncrementalReader {
         try {
             const waitedFor: Record<string, unknown>[] = await this.withClient(async client => (await client.query(
                 'SELECT pid, application_name AS "application", state,'
-                + ' extract(epoch FROM now() - xact_start)::int AS "seconds", left(query, 200) AS "query"'
+                + ' extract(epoch FROM now() - xact_start)::int AS "seconds", query'
                 + ' FROM pg_catalog.pg_stat_activity WHERE backend_xid IS NOT NULL AND pid <> pg_catalog.pg_backend_pid()'
                 + ' ORDER BY xact_start'
             )).rows);
@@ -819,7 +819,8 @@ export class PostgresIncrementalReader {
                     // an empty name, or none, is said as such
                     const application: unknown = t['application'];
                     const named: string = typeof application === 'string' && application !== '' ? application : 'no application';
-                    return `pid ${String(t['pid'])} (${named}, ${String(t['state'])} for ${String(t['seconds'])} s): ${String(t['query'])}`;
+                    return `pid ${String(t['pid'])} (${named}, ${String(t['state'])} for ${String(t['seconds'])} s): `
+                        + PostgresSqlUtilities.toLoggedStatement(String(t['query']));
                 })
                 .join('; ');
             this.logger.warn(

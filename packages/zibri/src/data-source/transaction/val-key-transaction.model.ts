@@ -671,7 +671,6 @@ export class ValKeyTransaction implements Transaction {
         const release: ValKeyGrantRelease = this.grants.resolveRelease();
         // through the guard script with nothing guarded too, rather than as an atomic batch: one path
         // for every commit, and measured at half the time of the batch from a thousand rows up
-        // (apply-guarded-val-key-writes.benchmark.test.ts)
         // a transaction that never read reads as of no moment, and nothing it writes is stale
         const readView: ValKeyReadView | undefined = this.readView == undefined ? undefined : (await this.readView).view;
         if (!await applyGuardedValKeyWrites(

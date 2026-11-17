@@ -645,6 +645,10 @@ class SftpBackupTransportSession implements BackupTransportSessionInterface {
                     resolve([]);
                     return;
                 }
+                // TODO 4.0: answer no entries for a path that is a file as well, as FsBackupTransport does and as a
+                // listing by prefix of S3 comes out: a key holds no keys. The server answers a failure that names no
+                // reason for it, so telling it from any other takes a STAT of the path. Nothing of the framework
+                // lists a key, so until then only a session an application lists with itself fails there
                 reject(error);
             });
         });

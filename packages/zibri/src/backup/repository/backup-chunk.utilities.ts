@@ -25,6 +25,10 @@ type ZstdCompressOptions = {
  */
 type ZstdDecompressOptions = {
     /**
+     * The size of the pieces the data is handed back in.
+     */
+    chunkSize: number,
+    /**
      * How many bytes the decompressed data may hold at most.
      */
     maxOutputLength: number
@@ -175,7 +179,11 @@ export abstract class BackupChunkUtilities {
             }
             case ChunkCompression.ZSTD: {
                 try {
-                    data = await zstdDecompressAsync(payload, { maxOutputLength: length });
+                    // handed back in one piece, as it is sealed, rather than in pieces of 16 KiB joined afterwards
+                    data = await zstdDecompressAsync(payload, {
+                        chunkSize: Math.max(constants.Z_MIN_CHUNK, length),
+                        maxOutputLength: length
+                    });
                 }
                 catch (error) {
                     throw this.createUnreadableError(id, 'it does not decompress to its length', error);

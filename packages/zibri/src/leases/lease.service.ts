@@ -48,6 +48,11 @@ const ACQUIRE_FALLBACK_INTERVAL_IN_MS: number = Ms.SECOND;
 const RENEWALS_PER_LEASE: number = 3;
 
 /**
+ * The longest a timer of node runs, in milliseconds: one set for longer runs after one millisecond.
+ */
+const LONGEST_TIMER_IN_MS: number = (2 ** 31) - 1;
+
+/**
  * How the work a grant protects ended.
  *
  * Three states rather than two, because "has not ended" is a real answer: the shutdown drain gives
@@ -108,9 +113,19 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
      * replicas to agree on anything - and finding that out at the first contended request rather
      * than at startup is how a deployment discovers it in production.
      * @param app - The application being initialized.
+     * @throws When `ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS` is no interval a wait can report by.
      */
     onAppInit(app: ZibriApplication): void {
         validateEntitiesRegistered(LeaseService.name, app, Lease);
+        // here for every wait that reports by it, of a backup and of a data source reading its data as well. With
+        // none, each warns once a millisecond, and node runs a timer longer than its longest after one millisecond
+        const reportIntervalInMs: number = this.waitReportIntervalInMs;
+        if (!Number.isInteger(reportIntervalInMs) || reportIntervalInMs < 1 || reportIntervalInMs > LONGEST_TIMER_IN_MS) {
+            throw new InternalError(
+                `ZIBRI_DI_TOKENS.WAIT_REPORT_INTERVAL_IN_MS needs to be a whole number from 1 to ${LONGEST_TIMER_IN_MS},`
+                + ` not ${reportIntervalInMs}`
+            );
+        }
         // the name as well, since applications of different names can share the table
         this.holder = `${app.options.name}@${this.instanceId}`;
     }
@@ -294,6 +309,9 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         catch {
             // the unique key refused the insert, so somebody else holds it. That is the expected
             // outcome on every instance but one and is not worth a log line.
+            // TODO 4.0: answer undefined for a UniqueConstraintViolationError alone, and throw everything else. An
+            // insert that fails for another reason, such as on a database that takes no writes, reads as a lease
+            // somebody holds: a 'skip' skips for good and a 'wait' runs out its time, neither saying why
             return undefined;
         }
     }
@@ -359,8 +377,10 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         const limit: string = `It is waited for up to ${Math.round(waitInMs / Ms.SECOND)} s.`;
         try {
             const held: Lease | undefined = await this.leaseRepository.findOne({ where: { key }, required: false });
+            // released since the last try, or never taken by anybody: a try that fails for another reason than the
+            // lease being held, such as on a database that takes no writes, is told from neither until 4.0
             this.logger.warn(held == undefined
-                ? `${waited}, which was just released. ${limit}`
+                ? `${waited}, which nobody holds now. ${limit}`
                 : `${waited}, held by ${held.heldBy} until ${held.expiresAt.toISOString()}. ${limit}`);
         }
         catch (error) {
