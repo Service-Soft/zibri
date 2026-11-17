@@ -1,5 +1,13 @@
 {
-    "postgres": ["src/backup/backup.postgres.benchmark.test.ts"],
-    "val-key-snapshot": ["src/backup/backup.val-key-snapshot.benchmark.test.ts"],
-    "val-key-walk": ["src/backup/backup.val-key-walk.benchmark.test.ts"]
+    "backup-pipeline": { "rounds": 2, "suites": ["src/backup/backup.benchmark.test.ts"] },
+    "backup-s3": { "rounds": 2, "suites": ["src/backup/backup.s3.benchmark.test.ts"] },
+    "backup-sftp": { "rounds": 2, "suites": ["src/backup/backup.sftp.benchmark.test.ts"] },
+    "postgres": { "rounds": 2, "suites": ["src/backup/backup.postgres.benchmark.test.ts"] },
+    "postgres-incremental": { "rounds": 2, "suites": ["src/backup/backup.postgres-incremental.benchmark.test.ts"] },
+    "tenant-rows": { "suites": ["src/backup/tenant-rows.backup-resource.benchmark.test.ts"] },
+    "val-key-snapshot": { "rounds": 2, "suites": ["src/backup/backup.val-key-snapshot.benchmark.test.ts"] },
+    "val-key-snapshot-unchanged": { "rounds": 2, "suites": ["src/backup/backup.val-key-snapshot-unchanged.benchmark.test.ts"] },
+    "val-key-walk": { "rounds": 2, "suites": ["src/backup/backup.val-key-walk.benchmark.test.ts"] },
+    "val-key-walk-direct": { "rounds": 2, "suites": ["src/backup/backup.val-key-walk-direct.benchmark.test.ts"] },
+    "val-key-walk-unchanged": { "rounds": 2, "suites": ["src/backup/backup.val-key-walk-unchanged.benchmark.test.ts"] }
 }

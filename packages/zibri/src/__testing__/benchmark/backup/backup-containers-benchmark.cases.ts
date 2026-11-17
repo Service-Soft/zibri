@@ -63,10 +63,13 @@ export function resolveFsTransport(outputFolder: FsPath): (name: string) => Meas
 /**
  * Every measurement of some series, each at every size.
  * @param series - The series.
- * @returns The scenarios, series by series.
+ * @returns The scenarios, size by size.
  */
 export function resolveSeriesScenarios(series: BackupSeries[]): BackupScenario[] {
-    return series.flatMap(s => sizesInMb.map(sizeInMb => {
+    // every series at one size before any at the next: a measurement and the one of the same size it is compared
+    // with are taken one right after the other, rather than with those of another size between them, minutes of
+    // a machine that speeds up and slows down
+    return sizesInMb.flatMap(sizeInMb => series.map(s => {
         const name: string = `${sizeInMb} MB ${s.name}`;
         return resolveBackupScenario({
             name,

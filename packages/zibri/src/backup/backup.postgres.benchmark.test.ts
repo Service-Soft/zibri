@@ -4,7 +4,8 @@ import { FsUtilities } from '../utilities/fs.utilities';
 
 /**
  * What backups of postgres cost, through the fs transport, so that what is measured beyond the pipeline,
- * which `backup.benchmark.test.ts` measures, is the dump and the restore.
+ * which `backup.benchmark.test.ts` measures, is the dump and the restore. A backup reading only what
+ * changed is measured by `backup.postgres-incremental.benchmark.test.ts`.
  *
  * The measured process starts the postgres container itself, through the test server. A dump is written
  * by the `pg_dump` on PATH.
@@ -15,6 +16,7 @@ import { FsUtilities } from '../utilities/fs.utilities';
 describeBackupCosts({
     name: 'backup-postgres',
     baselinePath: FsUtilities.getPath(__dirname, 'backup-postgres.baseline.json'),
+    // both in one suite, and so on one runner: the first is compared with the second
     resolveScenarios: outputFolder => resolveSeriesScenarios([
         // the dump uncompressed, as a backup cutting it into chunks takes it, against pg_dump compressing it
         {
@@ -26,15 +28,6 @@ describeBackupCosts({
         {
             name: 'of postgres, dump compressed',
             resource: bytes => ({ kind: 'postgres', compressedDump: true, incrementalRead: false, bytes }),
-            transport: resolveFsTransport(outputFolder)
-        },
-        // each backup after the first reads only what changed: designed to produce about what changed. Not
-        // compared with the full reads, since a restore applying the changes after the dump takes longer. A run
-        // whose backups fall either side of midnight before a Monday, in UTC, reads in full at the second
-        // one, as the first backup of a week does
-        {
-            name: 'of postgres, incremental',
-            resource: bytes => ({ kind: 'postgres', compressedDump: false, incrementalRead: true, bytes }),
             transport: resolveFsTransport(outputFolder)
         }
     ])
