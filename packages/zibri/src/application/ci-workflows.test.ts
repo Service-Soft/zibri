@@ -370,6 +370,9 @@ describe('the ci workflows', () => {
         // included, since every release is a pull request into `release`
         expect(workflow('dependency-review.yml')).toContain('pull_request:');
         expect(workflow('dependency-review.yml')).toContain('.github/license-policy.json');
+        expect(workflow('dependency-review.yml')).toContain('.github/advisory-policy.json');
+        // eslint-disable-next-line cspell/spellchecker
+        expect(workflow('dependency-review.yml')).toContain('allow-ghsas: ${{ steps.policy.outputs.advisories }}');
     });
 
     // a major tag moves with every release of the action, so what runs with the repository's
@@ -501,14 +504,14 @@ describe('the tree a consumer installs', () => {
      */
     const lock: Record<string, Record<string, Record<string, unknown>>> = {
         packages: {
-            'packages/zibri': { dependencies: { express: '^5.0.0' }, peerDependencies: { re2: '^1.0.0' }, devDependencies: { jest: '^30.0.0' } },
+            'packages/zibri': { dependencies: { express: '^5.0.0' }, peerDependencies: { ssh2: '^1.0.0' }, devDependencies: { jest: '^30.0.0' } },
             'packages/sandbox': { dependencies: { leftpad: '^1.0.0' } },
             'node_modules/zibri': { resolved: 'packages/zibri', link: true },
             'node_modules/express': { version: '5.0.0', license: 'MIT', dependencies: { qs: '^6.0.0', zibri: '^3.0.0' } },
             'node_modules/express/node_modules/qs': { version: '6.0.0', license: 'BSD-3-Clause' },
             'node_modules/qs': { version: '5.0.0', license: 'GPL-3.0' },
-            'node_modules/re2': { version: '1.27.0', license: 'BSD-3-Clause', dev: true, dependencies: { nan: '^2.0.0' } },
-            'node_modules/nan': { version: '2.0.0', license: 'MIT', dev: true },
+            'node_modules/ssh2': { version: '1.17.0', license: 'MIT', dev: true, dependencies: { asn1: '^0.2.6' } },
+            'node_modules/asn1': { version: '0.2.6', license: 'MIT', dev: true },
             'node_modules/jest': { version: '30.0.0', license: 'MIT', dev: true },
             'node_modules/leftpad': { version: '1.0.0', license: 'WTFPL' }
         }
@@ -521,10 +524,10 @@ describe('the tree a consumer installs', () => {
             console.log(JSON.stringify({ tree: tree.map(p => p.name + '@' + p.version).sort() }));
         `);
 
-        // re2 is a devDependency of the repository, so its own dev flag says a consumer never gets
+        // ssh2 is a devDependency of the repository, so its own dev flag says a consumer never gets
         // it - which is what let `npm audit --omit=dev` skip every optional peer. The copy of qs at the
         // top is not the one express resolves, and the private sandbox's packages are nobody's
-        expect(res.tree).toStrictEqual(['express@5.0.0', 'nan@2.0.0', 'qs@6.0.0', 're2@1.27.0']);
+        expect(res.tree).toStrictEqual(['asn1@0.2.6', 'express@5.0.0', 'qs@6.0.0', 'ssh2@1.17.0']);
     });
 
     it('reads a license expression the way SPDX does', () => {
@@ -606,10 +609,44 @@ describe('the tree a consumer installs', () => {
         };
         const res: { failing: string[] } = inResolverProcess(`
             const { findFailingAdvisories } = await import('${pathToFileURL(consumerTreePath).href}');
-            console.log(JSON.stringify({ failing: findFailingAdvisories(${JsonUtilities.stringify(answered)}) }));
+            console.log(JSON.stringify({ failing: findFailingAdvisories(${JsonUtilities.stringify(answered)}, { allowed: {} }) }));
         `);
 
         expect(res.failing).toStrictEqual(['minimist <0.2.4: critical - Prototype Pollution (https://github.com/advisories/1)']);
+    });
+
+    it('lets an advisory the policy allows through, and names an allowance nothing answered matches', () => {
+        const answered: Record<string, Record<string, string>[]> = {
+            picomatch: [{ severity: 'high', vulnerable_versions: '<=4.0.7', title: 'ReDoS', url: 'https://github.com/advisories/GHSA-aaaa-bbbb-cccc' }],
+            minimist: [{ severity: 'critical', vulnerable_versions: '<0.2.4', title: 'Prototype Pollution', url: 'https://github.com/advisories/GHSA-dddd-eeee-ffff' }]
+        };
+        const policy: Record<string, unknown> = {
+            allowed: { 'GHSA-aaaa-bbbb-cccc': { package: 'picomatch' }, 'GHSA-gggg-hhhh-iiii': { package: 'qs' } }
+        };
+        const res: { failing: string[], unused: string[] } = inResolverProcess(`
+            const { findFailingAdvisories, findUnusedAdvisoryAllowances } = await import('${pathToFileURL(consumerTreePath).href}');
+            const answered = ${JsonUtilities.stringify(answered)};
+            const policy = ${JsonUtilities.stringify(policy)};
+            console.log(JSON.stringify({ failing: findFailingAdvisories(answered, policy), unused: findUnusedAdvisoryAllowances(answered, policy) }));
+        `);
+
+        // allowed by its GHSA id, so the other advisory of the same severity still fails. The allowance for
+        // qs matches nothing: the fix arrived, and left in it would let the advisory back in on a downgrade
+        expect(res.failing).toStrictEqual(['minimist <0.2.4: critical - Prototype Pollution (https://github.com/advisories/GHSA-dddd-eeee-ffff)']);
+        expect(res.unused).toStrictEqual(['GHSA-gggg-hhhh-iiii']);
+    });
+
+    it('names the advisories it allows where a reader looks for them', () => {
+        const policy: { allowed: Record<string, { package: string }> } = JsonUtilities.parse(
+            readFileSync(path.join(repoRoot, '.github', 'advisory-policy.json'), 'utf8')
+        );
+        const deployment: string = readFileSync(path.join(DOCS_DIR, 'operations', 'deployment.md'), 'utf8');
+        const section: string = deployment.slice(deployment.indexOf('## What the application is made of'), deployment.indexOf('## Running more than one instance'));
+
+        // the page promises a release has no known high or critical advisory, so every one let through
+        // is one a reader has to be told about, by its id and the package it is in
+        const allowed: string[] = Object.entries(policy.allowed).map(([id, { package: name }]) => `[${id}](https://github.com/advisories/${id}) in \`${name}\``);
+        expect(allowed.filter(entry => !section.includes(entry))).toStrictEqual([]);
     });
 
     it('holds every license in it to the policy', () => {
@@ -624,6 +661,23 @@ describe('the tree a consumer installs', () => {
         // the audit job asks the same on every push; asked here as well, a dependency added locally is
         // turned down before it is pushed
         expect(res.violations).toStrictEqual([]);
+    });
+
+    it('allows an advisory only in a package it holds', () => {
+        const res: { installed: string[] } = inResolverProcess(`
+            import { readFileSync } from 'node:fs';
+            const { resolveConsumerTree } = await import('${pathToFileURL(consumerTreePath).href}');
+            const tree = resolveConsumerTree(JSON.parse(readFileSync('package-lock.json', 'utf8')));
+            console.log(JSON.stringify({ installed: [...new Set(tree.map(entry => entry.name))] }));
+        `);
+        const policy: { allowed: Record<string, { package: string }> } = JsonUtilities.parse(
+            readFileSync(path.join(repoRoot, '.github', 'advisory-policy.json'), 'utf8')
+        );
+
+        // the reason an advisory is allowed is what the package is used for in the tree, so a package that left
+        // the tree takes the reason with it; the audit job says so too, once the advisory answers nothing
+        expect(Object.values(policy.allowed).map(({ package: name }) => name)
+            .filter(name => !res.installed.includes(name))).toStrictEqual([]);
     });
 
     it('is checked before a release publishes anything', () => {

@@ -101,7 +101,6 @@
         "pdfmake": "^0.2.23",
         "pg": "^8.21.0",
         "pg-query-stream": "^4.10.3",
-        "re2": "^1.27.0",
         "rxjs": "^7.8.2",
         "saxes": "^6.0.0",
         "socket.io": "^4.8.3",
@@ -169,9 +168,6 @@
             "optional": true
         },
         "ssh2": {
-            "optional": true
-        },
-        "re2": {
             "optional": true
         },
         "jose": {
@@ -254,7 +250,6 @@
         "pg": "^8.21.0",
         "pg-query-stream": "^4.10.3",
         "playwright": "^1.61.1",
-        "re2": "^1.27.0",
         "saxes": "^6.0.0",
         "socket.io": "^4.8.3",
         "socket.io-client": "^4.8.3",

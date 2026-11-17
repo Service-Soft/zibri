@@ -90,8 +90,9 @@ A string's `format` is one of:
 | `'email'` | An email address |
 | `'phone'` | A phone number in international format, such as `+4915112345678` |
 
-A `regex` takes time linear to the value it checks, and needs the `re2` package. It cannot use
-lookarounds or backreferences. The same goes for a `regex` on a parameter.
+A `regex` takes time linear to the value it checks, and matches what the same `RegExp` matches. It cannot use
+lookarounds or backreferences, and with the `v` flag no class that matches strings of several characters, such as
+`[\q{abc}]`. The same goes for a `regex` on a parameter.
 
 A `default` fills a property in when a row is created without a value for it. It applies to the
 models the row holds and to a related row a write creates, too. An update writes what it is given and
@@ -308,7 +309,6 @@ export class UserRegistrationDTO extends UserCreateDTO {
 | Package | Used for |
 |---|---|
 | `bignumber.js` | Exact decimals of any size, the `BigNumber` of a `bignumber` property |
-| `re2` | Checking a `regex` in time linear to the value. You install it |
 
 ## See also
 - [Validating requests](../endpoints/validation.md) — what a refused value is answered with, and rules of your own

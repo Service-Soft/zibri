@@ -75,7 +75,6 @@ uses. Install the package of a feature you use:
 | Sending traces to a tracing backend with `otlpTraceExporter` | `@opentelemetry/exporter-trace-otlp-http`, `@opentelemetry/resources` |
 | The sftp backup transport, see [backup](./data/backup.md) | `ssh2` |
 | `BcryptHashStrategy` | `bcryptjs` |
-| A `regex` on a string property or parameter, see [models](./data/models.md) | `re2` |
 | The otp two factor method, which ships as the default | `otpauth` |
 | `JwtAuthStrategy`, which ships as the default [auth strategy](./glossary.md#auth-strategy) | `jose` |
 | Login through a provider, see [login through a provider](./auth/login-through-a-provider.md) | `openid-client` |

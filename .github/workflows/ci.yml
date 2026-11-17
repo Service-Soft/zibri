@@ -396,11 +396,12 @@ jobs:
                 path: benchmark-reports
             - run: node packages/zibri/scripts/compare-benchmarks.mjs --merge benchmark-reports
     # what the framework installs on a consumer's behalf, which is most of what it installs: its
-    # licenses against .github/license-policy.json, and its high and critical advisories. Only that
+    # licenses against .github/license-policy.json, and its high and critical advisories, less those
+    # .github/advisory-policy.json allows because no fixed version exists to move to. Only that
     # tree: a high advisory in a build tool is worth knowing and is not worth failing every branch
     # over, while one in the tree a consumer receives is the framework's own. Walked off the lockfile
     # rather than `npm audit --omit=dev`, which went by the repository's own dev flag and so skipped
-    # every optional peer only the framework's tests install - re2 and ssh2 among them.
+    # every optional peer only the framework's tests install - ssh2 among them.
     audit:
         runs-on: ubuntu-latest
         steps:

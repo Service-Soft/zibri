@@ -24,6 +24,8 @@ import { Param } from '../../routing/decorators/param.decorator';
 import { Post } from '../../routing/decorators/post.decorator';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
 import { JsonUtilities } from '../../utilities/json.utilities';
+import { LinearRegex } from '../../utilities/linear-regex';
+import { RegexUtilities } from '../../utilities/regex.utilities';
 import { testFileFolder, TestTimeouts } from '../constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
@@ -48,6 +50,55 @@ const LISTED_ROWS: number = 100;
  * Fewer than the other runs, since a password is slow to verify by design.
  */
 const PASSWORD_RUNS: number = 20;
+
+/**
+ * A declared regex and a value it validates.
+ */
+type RegexCase = {
+    /**
+     * What the value is, for the name of its timing.
+     */
+    name: string,
+    /**
+     * The regex, as a property or a parameter declares it.
+     */
+    regex: RegExp,
+    /**
+     * The value it is tested against.
+     */
+    value: string,
+    /**
+     * How many tests one run times, so that a test far shorter than the timer's resolution still measures.
+     */
+    testsPerRun: number
+};
+
+/**
+ * What a declared regex is used for, at the lengths a request sends and one far longer.
+ */
+const REGEX_CASES: RegexCase[] = [
+    { name: 'a 23 character slug', regex: /^[\da-z]+(?:-[\da-z]+)*$/, value: 'my-blog-post-title-2026', testsPerRun: 100 },
+    { name: 'a 20 character email address', regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, value: 'jane.doe@example.com', testsPerRun: 100 },
+    { name: 'a 64 character hash, ignoring case', regex: /^[\da-f]{64}$/i, value: 'A3'.repeat(32), testsPerRun: 100 },
+    { name: 'a 10 character name of unicode letters', regex: /^\p{L}+(?: \p{L}+)*$/u, value: 'Zoë Müller', testsPerRun: 100 },
+    { name: 'a 10000 character slug', regex: /^[\da-z]+(?:-[\da-z]+)*$/, value: `${'a1-'.repeat(3333)}a`, testsPerRun: 1 },
+    // what the largest json body a request may send by default takes at most: every character a different one, so
+    // that no step it read before helps
+    {
+        // the two blocks of CJK ideographs that hold a letter at every code point, 82 KB as json
+        name: 'a 27584 character name, each character a different one',
+        regex: /^\p{L}+(?: \p{L}+)*$/u,
+        value: [[0x34_00, 0x4D_BF], [0x4E_00, 0x9F_FF]]
+            .flatMap(([from = 0, to = 0]) => Array.from({ length: to - from + 1 }, (_, i) => String.fromCodePoint(from + i)))
+            .join(''),
+        testsPerRun: 1
+    }
+];
+
+/**
+ * Fewer than the other runs, since each compiles a pattern and reads its first value.
+ */
+const COLD_REGEX_RUNS: number = 50;
 
 const baselinePath: FsPath = FsUtilities.getPath(__dirname, 'framework-overhead.baseline.json');
 
@@ -171,6 +222,35 @@ describe('what the framework costs in time', () => {
             'where filter conversion',
             RUNS,
             async () => await Promise.resolve(converter.convert(filter, BenchmarkItem, 'item'))
+        ));
+
+        // what validating a string against a declared regex costs, which runs in time linear to the value. Each value
+        // as a request's body hands it over, parsed from json into one flat string rather than the parts it was
+        // joined from
+        for (const regexCase of REGEX_CASES) {
+            regexCase.value = JsonUtilities.parse<string>(JsonUtilities.stringify(regexCase.value));
+            const compiled: LinearRegex = RegexUtilities.resolveLinear(regexCase.regex);
+            expect(compiled.test(regexCase.value)).toBe(true);
+            timings.push(await BenchmarkUtilities.resolveTiming(
+                `regex test of ${regexCase.name}, ${regexCase.testsPerRun} times`,
+                RUNS,
+                async () => {
+                    for (let i: number = 0; i < regexCase.testsPerRun; i++) {
+                        compiled.test(regexCase.value);
+                    }
+                    await Promise.resolve();
+                }
+            ));
+        }
+
+        // and what the first value read by a pattern takes, when every character of it is one of a block the pattern
+        // has not read yet: compiled on every run, so that no run finds what one before it worked out
+        const coldCase: RegexCase | undefined = REGEX_CASES.at(-1);
+        expect(coldCase).toBeDefined();
+        timings.push(await BenchmarkUtilities.resolveTiming(
+            `regex compiled and tested once, ${coldCase?.name}`,
+            COLD_REGEX_RUNS,
+            async () => await Promise.resolve(new LinearRegex(coldCase?.regex.source ?? '', coldCase?.regex.flags ?? '').test(coldCase?.value ?? ''))
         ));
 
         // what a login in a test costs beyond the framework: verifying a password at the cost the test

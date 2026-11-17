@@ -17,15 +17,18 @@ jobs:
             # the policy the audit job checks, so the two cannot drift apart: the allowed licenses, the
             # packages whose license was confirmed by hand because their manifest does not say it, and the
             # packages allowed a license of their own. The action can only exempt a package from the
-            # license check as a whole, so for those last ones the audit job is what holds the license
-            - name: read the license policy
+            # license check as a whole, so for those last ones the audit job is what holds the license.
+            # And the advisories allowed because no fixed version exists to move to
+            - name: read the license and advisory policies
               id: policy
               run: |
                 echo "allowed=$(node -p "require('./.github/license-policy.json').allowed.join(', ')")" >> "$GITHUB_OUTPUT"
                 echo "exceptions=$(node -p "const policy = require('./.github/license-policy.json'); [...Object.keys(policy.exceptions), ...Object.keys(policy.allowedFor)].map(key => 'pkg:npm/' + key.replace(/^@/, '%40')).join(', ')")" >> "$GITHUB_OUTPUT"
+                echo "advisories=$(node -p "Object.keys(require('./.github/advisory-policy.json').allowed).join(', ')")" >> "$GITHUB_OUTPUT"
             - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
               with:
                 # the bar the audit job fails at
                 fail-on-severity: high
                 allow-licenses: ${{ steps.policy.outputs.allowed }}
                 allow-dependencies-licenses: ${{ steps.policy.outputs.exceptions }}
+                allow-ghsas: ${{ steps.policy.outputs.advisories }}

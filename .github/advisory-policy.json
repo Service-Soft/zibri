@@ -1,0 +1,8 @@
+{
+    "allowed": {
+        "GHSA-fc5q-39xc-vjpf": {
+            "checked": "2026-11-17: no fixed version released (4.0.7 is the latest). Reaches a consumer only through jest-util of ts-jest, an optional peer of zibri-testing, which matches the globs of the project's own jest configuration while its tests run; the ReDoS needs the attacker to write the pattern",
+            "package": "picomatch"
+        }
+    }
+}

@@ -18,7 +18,7 @@ This page covers what compiles and still breaks: things that fail on the first s
 
 **Install typeorm yourself if your code imports it.** A Postgres data source talks to `pg` itself, and typeorm is not installed with Zibri. A query written by hand runs on Zibri's own builder, see [writing a query by hand](./data/data-source.md#writing-a-query-by-hand). A `Relation<T>` imported from typeorm in an entity is `type Relation<T> = T`, which you can declare yourself.
 
-**Check your `regex` declarations.** A `regex` on a string property or parameter needs `re2`, and one with lookarounds or backreferences is refused while the application starts, see [models](./data/models.md).
+**Check your `regex` declarations.** A `regex` on a string property or parameter with lookarounds or backreferences is refused while the application starts, see [models](./data/models.md).
 
 **Keep bcrypt.** Every password hash written by 2.x is a bcrypt hash, and bcrypt is no longer one of the default hash strategies. The application refuses to start with `There are missing strategies: bcrypt` until you add it back:
 

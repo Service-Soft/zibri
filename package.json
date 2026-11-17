@@ -18,7 +18,6 @@
         }
     },
     "allowScripts": {
-        "re2": true,
         "@parcel/watcher": false,
         "@swc/core": false,
         "cpu-features": false,
