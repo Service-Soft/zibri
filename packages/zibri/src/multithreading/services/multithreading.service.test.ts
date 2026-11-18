@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
 import { MultithreadingServiceInterface } from './multithreading-service.interface';
 import { MultithreadingService, PersistedFunctionJobError } from './multithreading.service';
@@ -15,6 +15,7 @@ import { startAndStopTestServerWithout } from '../../__testing__/test-server/sta
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../../__testing__/wait-until.function';
 import { Repository } from '../../data-source/repository/repository';
+import { Transaction } from '../../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
@@ -80,6 +81,12 @@ type ThreadJobRepository = Repository<AnyThreadJobEntity>;
  * it, because a blocker that finished early would make them pass without having tested anything.
  */
 const blockingAmount: number = 38;
+
+/**
+ * How long the pool may take to come to rest before a case starts: what a case that failed with its job still
+ * running leaves the next one to wait for.
+ */
+const POOL_AT_REST_WITHIN_MS: number = Ms.SECOND * 10;
 
 /**
  * Waits for work on the pool until a deadline, and fails with what the pool and the newest jobs were
@@ -181,6 +188,20 @@ describe('MultithreadingService', () => {
     afterAll(async () => {
         await server?.shutdown();
     }, TestTimeouts.postgres.shutdown);
+
+    // a job tells whoever waits for it that it is over before its worker is handed back and a round looks for more
+    // work, so the case before is over while that round still reads the table. It took what the next case had
+    // only begun to set up: a row queued for a worker that case then ends, and a row another instance was to hold
+    // before the case had written that instance's claim
+    beforeEach(async () => {
+        assert(multithreadingService instanceof MultithreadingService);
+        const pool: MultithreadingService = multithreadingService;
+        await waitUntil(
+            () => pool['eventsInHandling'].size === 0 && pool['selectionRound'] == undefined && pool['claimsHeldHere'].size === 0,
+            POOL_AT_REST_WITHIN_MS,
+            describePool
+        );
+    }, POOL_AT_REST_WITHIN_MS + (Ms.SECOND * 5));
 
     it('can run a ts worker file', async () => {
         const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
@@ -285,11 +306,9 @@ describe('MultithreadingService', () => {
     // The harness has no poll, so here it never did
     it('hands a job that waited while a worker died to the worker replacing it', async () => {
         assert(multithreadingService instanceof MultithreadingService);
-        const pool: MultithreadingService = multithreadingService;
-        // the job of the case before this one completed, which ends in a round looking for work. Still under way,
-        // it found the row queued below and gave it to the worker that is then terminated: a job on a worker that
-        // is killed fails, as it is meant to, and the case with it
-        await waitUntil(() => pool['eventsInHandling'].size === 0 && pool['selectionRound'] == undefined && pool['claimsHeldHere'].size === 0);
+        // the pool is at rest, as before every case: a round of the case before still under way found the row
+        // queued below and gave it to the worker that is then terminated, and a job on a worker that is killed
+        // fails, as it is meant to
         const idleWorkers: ThreadJobWorker[] = multithreadingService['idleWorkers'];
         expect(idleWorkers.length).toBe(1);
         const threadJobRepo: ThreadJobRepository = inject(repositoryTokenFor(ThreadJobEntity));
@@ -501,6 +520,10 @@ describe('MultithreadingService', () => {
         // running this and one that was killed while running it leave exactly the same row, and no
         // amount of reading it can tell them apart
         const workerData: BaseThreadJobWorkerData & { amount: number } = { filePath, amount: 10 };
+        // the row and the claim on it in one transaction: an instance running a job has both, and a row seen
+        // without its claim is the job of an instance that is gone, which this pool is meant to take, and took
+        // between the two writes
+        const setup: Transaction = await threadJobRepo.dataSource.startTransaction();
         const heldByAnother: AnyThreadJobEntity = await threadJobRepo.create({
             queuedAtMs: Date.now() - Ms.MINUTE,
             startedAtMs: Date.now() - Ms.MINUTE,
@@ -512,7 +535,7 @@ describe('MultithreadingService', () => {
             // by that rule this job would be taken over right now
             timeoutInMs: Ms.SECOND,
             workerData
-        });
+        }, { transaction: setup });
 
         // what actually says somebody has it. Written directly, because the instance holding it is
         // supposed to be a different process - one that is alive, and is therefore renewing it
@@ -520,7 +543,8 @@ describe('MultithreadingService', () => {
             key: `thread-job:${heldByAnother.id}`,
             expiresAt: new Date(Date.now() + (Ms.MINUTE * 5)),
             heldBy: 'another-instance'
-        });
+        }, { transaction: setup });
+        await setup.commit();
 
         await multithreadingService.startQueuedJobs();
         await new Promise<void>(resolve => {

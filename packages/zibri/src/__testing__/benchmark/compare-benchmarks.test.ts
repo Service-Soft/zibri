@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from '@jest/globals';
 
 import { JsonUtilities } from '../../utilities/json.utilities';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { testFileFolder } from '../constants';
 
 /**
@@ -576,6 +577,43 @@ describe('comparing the benchmarks in groups, each on a runner of its own', () =
         ]);
 
         expect(merged).toMatchObject({ staleAllowances: [], failed: true });
+    });
+
+    // a group writes its comparison to a file, which holds no infinity: the ratio of a row that measured nothing on
+    // the release was read back as null, and the summary ended on it instead of printing its table, with every
+    // group passed
+    it('sums up a row that measured nothing on the release, read from the file its group wrote', () => {
+        const name: string = 'peak memory of garbage collection of 10 MB';
+        const units: Record<string, string> = { [name]: 'bytes' };
+        const figure: (bytes: number) => BenchmarkRound[] = bytes => [1, 2].map(() => ({ [name]: bytes }));
+        // as its group compared it: within what memory may differ by, whatever the ratio
+        const fromNothing: BenchmarkComparison = compare(figure(0), figure(4096), [], '3.1.0', units);
+        const committed: BenchmarkGroups = JsonUtilities.parse(readFileSync(path.join(packageDir, 'benchmark-groups.json'), 'utf8'));
+        const [first = 'rest', ...others] = [...Object.keys(committed), 'rest'];
+        const folder: string = path.join(testFileFolder, `benchmark-comparisons-${UUIDUtilities.generate()}`);
+        mkdirSync(folder, { recursive: true });
+        const env: NodeJS.ProcessEnv = { ...process.env };
+        // the summary of the job running this test is not this one's to write to
+        delete env['GITHUB_STEP_SUMMARY'];
+
+        try {
+            writeFileSync(
+                path.join(folder, `benchmark-comparison-${first}.json`),
+                JsonUtilities.stringify({ ...groupComparison(first, fromNothing.rows), releaseVersion: '3.1.0', units })
+            );
+            for (const group of others) {
+                writeFileSync(
+                    path.join(folder, `benchmark-comparison-${group}.json`),
+                    JsonUtilities.stringify({ ...groupComparison(group, []), releaseVersion: '3.1.0' })
+                );
+            }
+            const summary: string = execFileSync(process.execPath, [scriptPath, '--merge', folder], { encoding: 'utf8', env });
+
+            expect(summary).toContain(`| ${name} | 0.0 MiB | 0.0 MiB | from nothing, limit 1.3x |`);
+        }
+        finally {
+            rmSync(folder, { recursive: true, force: true });
+        }
     });
 
     it('fails when a group compared nothing', () => {

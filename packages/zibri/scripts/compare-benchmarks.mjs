@@ -91,6 +91,13 @@ export function resolveRound(reports) {
     return { values, units, slacks };
 }
 
+// how many times the release's value the checkout's is. Nothing on both sides is unchanged: divided, it
+// is no number, which is within every limit and reads as one in the table. Nothing on the release and
+// something here is infinitely more, which stays beyond every limit
+export function resolveRatio(releaseMs, currentMs) {
+    return releaseMs === 0 && currentMs === 0 ? 1 : currentMs / releaseMs;
+}
+
 // each round is { [name]: value }, as one run of the suites reported it. Lower is better for every
 // one of them. units is { [name]: unit }, as resolveRound reads it: 'ms' when a name has none. slacks is
 // { [name]: slack }: how much more than on the release a value may be before its ratio counts at all,
@@ -105,9 +112,7 @@ export function resolveComparison(releaseRounds, currentRounds, allowances, rele
             return { name, releaseMs: null, currentMs, ratio: null, limit: null, verdict: 'new' };
         }
         const releaseMs = medianOf(releaseTimes);
-        // nothing on both sides is unchanged: divided, it is no number, which is within every limit and
-        // reads as one in the table. Nothing on the release and something here stays beyond every limit
-        const ratio = releaseMs === 0 && currentMs === 0 ? 1 : currentMs / releaseMs;
+        const ratio = resolveRatio(releaseMs, currentMs);
         const limit = allowances.find(allowance => allowance.name === name && allowance.against === releaseVersion)?.ratio
             ?? SLOWER_FROM_RATIO;
         const slack = slacks[name] ?? (units[name] === 'bytes' ? MEMORY_SLACK_BYTES : 0);
@@ -256,7 +261,14 @@ export function resolveMergedComparison(comparisons, groupNames, allowances) {
         throw new Error(`The groups were compared with different releases: ${releaseVersions.join(', ')}.`);
     }
     const [releaseVersion] = releaseVersions;
-    const rows = comparisons.flatMap(comparison => comparison.rows);
+    // the ratio of each row worked out again from its two values rather than taken from the file its
+    // group wrote: a file holds no infinity, so the ratio of a row that measured nothing on the release
+    // came back as none at all, which the table ended on and an allowance for it read as not needed
+    const rows = comparisons
+        .flatMap(comparison => comparison.rows)
+        .map(row => row.releaseMs == undefined || row.currentMs == undefined
+            ? row
+            : { ...row, ratio: resolveRatio(row.releaseMs, row.currentMs) });
     return {
         releaseVersion,
         rows,
@@ -277,8 +289,10 @@ export function resolveTable(comparison, units = {}, staleAllowances = []) {
     };
     const notCompared = { new: 'not measured on the release', gone: 'no longer measured here' };
     const rows = comparison.rows.map(row => {
+        // something where the release measured nothing is no number of times as much
+        const times = Number.isFinite(row.ratio) ? `${row.ratio.toFixed(2)}x` : 'from nothing';
         const verdict = notCompared[row.verdict]
-            ?? `${row.ratio.toFixed(2)}x, limit ${row.limit}x${row.verdict === 'worse' ? ', **worse**' : ''}`;
+            ?? `${times}, limit ${row.limit}x${row.verdict === 'worse' ? ', **worse**' : ''}`;
         const unit = units[row.name] ?? 'ms';
         return `| ${row.name} | ${format(row.releaseMs, unit)} | ${format(row.currentMs, unit)} | ${verdict} |`;
     });
