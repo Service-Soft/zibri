@@ -169,6 +169,17 @@ const LINEAR_SLACK_RATIO: number = 1.5;
 const SLOWEST_ANSWER_SLACK_IN_MS: number = 50;
 
 /**
+ * How much longer than on the release a backup, a restore or a garbage collection may take, and how much more CPU
+ * time it may spend, before the comparison with the release counts it.
+ */
+// by what is worth failing a build over, as for the slowest answer: a phase of a backup taking 50 ms longer is
+// nothing whoever runs backups notices. Above 170 ms the limit of 1.3x asks for more than that anyway, so this is
+// what the short phases are held to instead: a garbage collection runs once in a measurement and takes 12 ms, of
+// which the limit left 4 ms, and the same code on both sides came out 4 ms apart. What a collection is designed to
+// do, read the manifests and store nothing, is checked by itself
+const PHASE_SLACK_IN_MS: number = 50;
+
+/**
  * What a measured process runs with unless it was started with something else: the thresholds of glibc's
  * allocator set to where they start, as `scripts/compare-benchmarks.mjs` sets them for both sides.
  */
@@ -863,9 +874,19 @@ function toCpuFigures(measurement: BackupMeasurement): BenchmarkFigure[] {
         return [];
     }
     return [
-        { name: `CPU of garbage collection of ${measurement.name}, without V8's threads`, value: collection, unit: 'ms' },
-        { name: `CPU of backup of ${measurement.name}, without V8's threads`, value: medianOf(backups), unit: 'ms' },
-        { name: `CPU of restore of ${measurement.name}, without V8's threads`, value: restore, unit: 'ms' }
+        {
+            name: `CPU of garbage collection of ${measurement.name}, without V8's threads`,
+            value: collection,
+            unit: 'ms',
+            slack: PHASE_SLACK_IN_MS
+        },
+        {
+            name: `CPU of backup of ${measurement.name}, without V8's threads`,
+            value: medianOf(backups),
+            unit: 'ms',
+            slack: PHASE_SLACK_IN_MS
+        },
+        { name: `CPU of restore of ${measurement.name}, without V8's threads`, value: restore, unit: 'ms', slack: PHASE_SLACK_IN_MS }
     ];
 }
 
@@ -1047,10 +1068,16 @@ export function describeBackupCosts(options: BackupBenchmarkOptions): void {
                 {
                     name: `backup of ${m.name}`,
                     medianMs: medianOf(m.backups.map(b => b.durationMs)),
-                    p95Ms: Math.max(...m.backups.map(b => b.durationMs))
+                    p95Ms: Math.max(...m.backups.map(b => b.durationMs)),
+                    slack: PHASE_SLACK_IN_MS
                 },
-                { name: `restore of ${m.name}`, medianMs: m.restore.durationMs, p95Ms: m.restore.durationMs },
-                { name: `garbage collection of ${m.name}`, medianMs: m.garbageCollection.durationMs, p95Ms: m.garbageCollection.durationMs }
+                { name: `restore of ${m.name}`, medianMs: m.restore.durationMs, p95Ms: m.restore.durationMs, slack: PHASE_SLACK_IN_MS },
+                {
+                    name: `garbage collection of ${m.name}`,
+                    medianMs: m.garbageCollection.durationMs,
+                    p95Ms: m.garbageCollection.durationMs,
+                    slack: PHASE_SLACK_IN_MS
+                }
             ]);
             await BenchmarkUtilities.resolveReport(timings, reportPath, options.baselinePath, updateBaseline);
             // compared with the release like the timings: holding more memory or spending more CPU is a

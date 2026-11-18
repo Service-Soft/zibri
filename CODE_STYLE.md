@@ -223,8 +223,9 @@ on the release does not build the release. The same holds for a figure a suite r
 `BenchmarkUtilities.writeFigureReport`, such as the peak memory or CPU time of a backup. The CPU time is that of
 every thread but V8's own: its collector works for the whole process, and whether a collection falls into a
 measured phase is chance. Memory only
-counts once it is also more than 64 MiB above the release's, and a figure that names a `slack` once it is that much
-above it: what the same code differs by from one run to the next. Both sides run with the thresholds of glibc's
+counts once it is also more than 64 MiB above the release's, and a timing or figure that names a `slack` once it is
+that much above it: what the same code differs by from one run to the next, or what is too little to fail a build
+over, such as the 50 ms the phases of a backup are given. Both sides run with the thresholds of glibc's
 allocator set (`MALLOC_MMAP_THRESHOLD_`, `MALLOC_TRIM_THRESHOLD_`), so that what a phase grows the memory by is what
 it needs rather than what the phases before it left behind. Run `git fetch origin release` first. When a slowdown is worth it, add it to
 `packages/zibri/benchmark-allowances.json` as `{ "against": "<release version>", "name": "<operation>",

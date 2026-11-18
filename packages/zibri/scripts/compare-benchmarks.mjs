@@ -69,8 +69,8 @@ export function medianOf(values) {
 }
 
 // one run of the suites, from the content of each of its reports: { values: { [name]: value },
-// units: { [name]: unit }, slacks: { [name]: slack } }. An entry is a timing ({ timing: { name, medianMs } }),
-// which is all a release before 3.1 reports, or a figure ({ figure: { name, value, unit, slack? } })
+// units: { [name]: unit }, slacks: { [name]: slack } }. An entry is a timing ({ timing: { name, medianMs,
+// slack? } }), which is all a release before 3.1 reports, or a figure ({ figure: { name, value, unit, slack? } })
 export function resolveRound(reports) {
     const values = {};
     const units = {};
@@ -78,7 +78,7 @@ export function resolveRound(reports) {
     for (const entry of reports.flat()) {
         const measured = entry.timing == undefined
             ? { name: entry.figure.name, value: entry.figure.value, unit: entry.figure.unit, slack: entry.figure.slack }
-            : { name: entry.timing.name, value: entry.timing.medianMs, unit: 'ms' };
+            : { name: entry.timing.name, value: entry.timing.medianMs, unit: 'ms', slack: entry.timing.slack };
         if (values[measured.name] != undefined) {
             throw new Error(`Two benchmarks are named "${measured.name}", so neither can be compared.`);
         }

@@ -321,6 +321,23 @@ describe('comparing the benchmarks with the release', () => {
         expect(withoutSlack.failed).toBe(true);
     });
 
+    // the garbage collection of a backup runs once in a measurement and takes 12 ms, so the limit left it 4 ms: with
+    // the same code on both sides, three runs of eight took a few ms longer, two of them of the checkout
+    it('reads the slack a timing names, and passes the timing within it whatever its ratio', () => {
+        const name: string = 'garbage collection of 10 MB';
+        const timing: (ms: number[]) => BenchmarkRound[] = ms => ms.map(value => ({ [name]: value }));
+
+        const { slacks, units }: BenchmarkReadRound = readRound([[{ timing: { name, medianMs: 12, p95Ms: 12, slack: 50 } }]]);
+        const within: BenchmarkComparison = compare(timing([12, 12, 17, 12]), timing([12, 11, 23, 20]), [], '3.1.0', units, slacks);
+        const beyond: BenchmarkComparison = compare(timing([12, 12, 17, 12]), timing([70, 65, 70, 65]), [], '3.1.0', units, slacks);
+        const withoutSlack: BenchmarkComparison = compare(timing([12, 12, 17, 12]), timing([12, 11, 23, 20]), [], '3.1.0', units);
+
+        expect(slacks).toStrictEqual({ [name]: 50 });
+        expect(within.failed).toBe(false);
+        expect(beyond.failed).toBe(true);
+        expect(withoutSlack.failed).toBe(true);
+    });
+
     it('refuses two measurements of the same name, since neither could be compared', () => {
         expect(() => readRound([
             [{ timing: { name: 'GET one row', medianMs: 0.8, p95Ms: 1.1 } }],
