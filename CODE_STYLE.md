@@ -220,8 +220,14 @@ builds `origin/release` in a worktree beside your checkout and runs the benchmar
 times each, in turns on the same machine. An operation whose median is more than 1.3× the release's
 fails it. A suite only one side has runs once: it is compared with nothing, and a group with no suite
 on the release does not build the release. The same holds for a figure a suite reports beside its timings with
-`BenchmarkUtilities.writeFigureReport`, such as the peak memory or CPU time of a backup. Memory only
-counts once it is also more than 16 MiB above the release's. Run `git fetch origin release` first. When a slowdown is worth it, add it to
+`BenchmarkUtilities.writeFigureReport`, such as the peak memory or CPU time of a backup. The CPU time is that of
+every thread but V8's own: its collector works for the whole process, and whether a collection falls into a
+measured phase is chance. Memory only
+counts once it is also more than 64 MiB above the release's, and a timing or figure that names a `slack` once it is
+that much above it: what the same code differs by from one run to the next, or what is too little to fail a build
+over, such as the 50 ms the phases of a backup are given. Both sides run with the thresholds of glibc's
+allocator set (`MALLOC_MMAP_THRESHOLD_`, `MALLOC_TRIM_THRESHOLD_`), so that what a phase grows the memory by is what
+it needs rather than what the phases before it left behind. Run `git fetch origin release` first. When a slowdown is worth it, add it to
 `packages/zibri/benchmark-allowances.json` as `{ "against": "<release version>", "name": "<operation>",
 "ratio": 1.6, "reason": "..." }`. It counts until that release is replaced, and the comparison names
 the allowances that no longer apply.
@@ -231,7 +237,11 @@ is compared on a runner of its own, both sides of each of its suites in turns, a
 group names. `npm run test:benchmark:compare -w zibri -- <group>` compares one group. A suite that takes minutes
 gets a group of its own, so a measurement of it that takes long belongs in a suite of its own. A group names its
 suites and, with `rounds`, how often each side runs them when four is too many: a suite that takes minutes and
-takes a median of its own in every run is compared in two. The comparison ends with what each run took. What a backup holds
+takes a median of its own in every run is compared in two. With `narrowed`, it names further rounds and the
+environment variables that have its suites measure less in them, such as `ZIBRI_BACKUP_CONTAINERS_BENCHMARK_SIZES_MB`
+set to `10`: a backup of 10 MB takes seconds and moves the most from one run to the next, so it is measured four
+times where one of 100 MB is measured twice. Each operation is compared by the median of the rounds that measured
+it. The comparison ends with what each run took. What a backup holds
 after a collection is measured in the first round of your checkout alone, and
 `ZIBRI_BENCHMARK_SKIP_HELD_MEMORY=1` leaves it out of a run.
 

@@ -1,4 +1,5 @@
 import { pbkdf2 } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { promisify } from 'node:util';
 
 import { describe, expect, it } from '@jest/globals';
@@ -12,6 +13,29 @@ const pbkdf2Async: (password: string, salt: string, iterations: number, length: 
  */
 const BUSY_MS: number = 300;
 
+/**
+ * How many threads libuv's pool has unless it is told otherwise.
+ */
+const POOL_THREADS: number = 4;
+
+/**
+ * Whether the kernel tells the nanoseconds each thread ran, which one built without the statistics of its scheduler
+ * does not.
+ */
+const readsNanoseconds: boolean = process.platform === 'linux' && existsSync(`/proc/self/task/${process.pid}/schedstat`);
+
+/**
+ * Keeps every thread of libuv's pool busy deriving a key, which is where pbkdf2 runs.
+ *
+ * All of them at once rather than one: whatever else the process does on its main thread meanwhile, a collection
+ * after the suites that ran in it before among it, is counted for the main thread as well. One thread of the pool
+ * working for 270 ms was outweighed by 340 ms of that, and the pool was taken for the idle one.
+ * @param iterations - How many iterations each derivation takes.
+ */
+async function keepPoolBusy(iterations: number): Promise<void> {
+    await Promise.all(Array.from({ length: POOL_THREADS }, async () => await pbkdf2Async('password', 'salt', iterations, 64, 'sha512')));
+}
+
 describe('ThreadCpuUtilities', () => {
     it('reads the name and the CPU time of a thread from its stat, a name holding spaces and parentheses among them', () => {
         // 250 ticks in user mode and 50 in the kernel, of 10 ms each
@@ -19,6 +43,31 @@ describe('ThreadCpuUtilities', () => {
 
         expect(ThreadCpuUtilities.parseStat(line)).toEqual({ name: 'V8 (a) Worker', cpuMs: 3000 });
         expect(ThreadCpuUtilities.parseStat('not a stat line')).toBeUndefined();
+    });
+
+    it('reads the nanoseconds a thread ran from its schedstat', () => {
+        // ran for 16.7 ms, waited 0.08 ms to run, and was run 8 times
+        expect(ThreadCpuUtilities.parseSchedstat('16711586 80001 8\n')).toBeCloseTo(16.711586, 6);
+        expect(ThreadCpuUtilities.parseSchedstat('not a schedstat line')).toBeUndefined();
+        expect(ThreadCpuUtilities.parseSchedstat('')).toBeUndefined();
+    });
+
+    // read in clock ticks, a thread's time came in steps of 10 ms: a phase of 20 ms spent 10 or 20 on a thread,
+    // which is no figure to compare one build with another by
+    (readsNanoseconds ? it : it.skip)('reads what a thread spent finer than a clock tick of 10 ms', () => {
+        const before: ThreadCpu | undefined = ThreadCpuUtilities.findThreadCpu();
+        const busyUntil: number = performance.now() + 25;
+        while (performance.now() < busyUntil) {
+            // the main thread working
+        }
+        const after: ThreadCpu | undefined = ThreadCpuUtilities.findThreadCpu();
+        if (before == undefined || after == undefined) {
+            throw new Error('/proc/self/task could not be read');
+        }
+
+        const { main } = ThreadCpuUtilities.resolveDifference(before, after);
+        expect(main).toBeGreaterThanOrEqual(20);
+        expect(main % 10).not.toBe(0);
     });
 
     // what V8 does beside the main thread, the collector's helpers among it, is the share of the CPU that tells a
@@ -55,7 +104,7 @@ describe('ThreadCpuUtilities', () => {
     // the way a test drills into some work: what it returned, and what each kind of thread spent meanwhile
     (process.platform === 'linux' ? it : it.skip)('measures what a piece of work spends on each kind of thread', async () => {
         const { result, cpu } = await ThreadCpuUtilities.measure(async () => {
-            await pbkdf2Async('password', 'salt', 300_000, 64, 'sha512');
+            await keepPoolBusy(300_000);
             return 'derived';
         });
 
@@ -75,7 +124,7 @@ describe('ThreadCpuUtilities', () => {
         // pbkdf2 runs on libuv's pool, long enough for many ticks
         const poolUntil: number = performance.now() + BUSY_MS;
         while (performance.now() < poolUntil) {
-            await pbkdf2Async('password', 'salt', 100_000, 64, 'sha512');
+            await keepPoolBusy(100_000);
         }
         const afterPool: ThreadCpu | undefined = ThreadCpuUtilities.findThreadCpu();
         if (before == undefined || afterMain == undefined || afterPool == undefined) {

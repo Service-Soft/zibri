@@ -24,7 +24,10 @@ const ROUNDS = 4;
 // how much more memory than on the release a figure may hold before its ratio counts at all: peak
 // memory of a few dozen MiB moves by more than the ratio from one run to the next, with when the
 // collector happens to run
-export const MEMORY_SLACK_BYTES = 16 * 1024 * 1024;
+// 64 MiB, by what the same code on both sides differed by: what a phase grows the memory by came out up
+// to 30 MiB apart as the mean of two rounds, with whether the pages freed before it were kept. A backup
+// that starts holding a resource of 100 MB whole is beyond it still
+export const MEMORY_SLACK_BYTES = 64 * 1024 * 1024;
 
 const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = path.resolve(packageDir, '..', '..');
@@ -35,11 +38,12 @@ export const worktreeParent = path.dirname(repoRoot);
 // a slowdown found to be worth it: { against, name, ratio, reason }, counting for as long as the
 // release `against` is the one compared with
 const allowancesPath = path.join(packageDir, 'benchmark-allowances.json');
-// the suites each runner of the benchmark job compares: { [group]: { suites: [suite, ...], rounds? } },
-// each suite as a path relative to the package, and how often each side runs it when that is not ROUNDS.
-// A group is made of whole suites, and every operation is measured by one suite, so both sides of each
-// are still run on one machine, in turns - which is what the threshold relies on. The job takes as long
-// as its longest group rather than as long as every suite
+// the suites each runner of the benchmark job compares: { [group]: { suites: [suite, ...], rounds?,
+// narrowed?: { rounds, env } } }, each suite as a path relative to the package, how often each side runs
+// it when that is not ROUNDS, and the rounds it runs after those in an environment that has it measure
+// less. A group is made of whole suites, and every operation is measured by one suite, so both sides of
+// each are still run on one machine, in turns - which is what the threshold relies on. The job takes as
+// long as its longest group rather than as long as every suite
 const groupsPath = path.join(packageDir, 'benchmark-groups.json');
 
 // the group of every suite no other group names, so that a suite added, or one only the release has,
@@ -50,6 +54,14 @@ export const REST_GROUP = 'rest';
 // checkout, which its first round makes, and a quarter of a measurement's time in every other one
 const SKIP_HELD_MEMORY_ENV = 'ZIBRI_BENCHMARK_SKIP_HELD_MEMORY';
 
+// what glibc hands back to the system as it is freed, set for the suites of both sides: everything of
+// 128 KiB or more, its starting point. Left alone, it raises that as a process frees larger blocks, and
+// keeps what it freed from then on, so what a phase grows the memory by depends on what the phases
+// before it happened to free: a restore of 100 MB of valkey came out at 69 MiB in one round and at 186
+// in the next, of the same code. Set, a phase grows it by what it needs each time. On the release as
+// well, whose suites do not set it themselves. Other allocators take no notice
+const ALLOCATOR_ENV = { MALLOC_MMAP_THRESHOLD_: '131072', MALLOC_TRIM_THRESHOLD_: '131072' };
+
 export function medianOf(values) {
     const sorted = [...values].sort((a, b) => a - b);
     const middle = Math.floor(sorted.length / 2);
@@ -57,27 +69,41 @@ export function medianOf(values) {
 }
 
 // one run of the suites, from the content of each of its reports: { values: { [name]: value },
-// units: { [name]: unit } }. An entry is a timing ({ timing: { name, medianMs } }), which is all a
-// release before 3.1 reports, or a figure ({ figure: { name, value, unit } })
+// units: { [name]: unit }, slacks: { [name]: slack } }. An entry is a timing ({ timing: { name, medianMs,
+// slack? } }), which is all a release before 3.1 reports, or a figure ({ figure: { name, value, unit, slack? } })
 export function resolveRound(reports) {
     const values = {};
     const units = {};
+    const slacks = {};
     for (const entry of reports.flat()) {
         const measured = entry.timing == undefined
-            ? { name: entry.figure.name, value: entry.figure.value, unit: entry.figure.unit }
-            : { name: entry.timing.name, value: entry.timing.medianMs, unit: 'ms' };
+            ? { name: entry.figure.name, value: entry.figure.value, unit: entry.figure.unit, slack: entry.figure.slack }
+            : { name: entry.timing.name, value: entry.timing.medianMs, unit: 'ms', slack: entry.timing.slack };
         if (values[measured.name] != undefined) {
             throw new Error(`Two benchmarks are named "${measured.name}", so neither can be compared.`);
         }
         values[measured.name] = measured.value;
         units[measured.name] = measured.unit;
+        if (measured.slack != undefined) {
+            slacks[measured.name] = measured.slack;
+        }
     }
-    return { values, units };
+    return { values, units, slacks };
+}
+
+// how many times the release's value the checkout's is. Nothing on both sides is unchanged: divided, it
+// is no number, which is within every limit and reads as one in the table. Nothing on the release and
+// something here is infinitely more, which stays beyond every limit
+export function resolveRatio(releaseMs, currentMs) {
+    return releaseMs === 0 && currentMs === 0 ? 1 : currentMs / releaseMs;
 }
 
 // each round is { [name]: value }, as one run of the suites reported it. Lower is better for every
-// one of them. units is { [name]: unit }, as resolveRound reads it: 'ms' when a name has none
-export function resolveComparison(releaseRounds, currentRounds, allowances, releaseVersion, units = {}) {
+// one of them. units is { [name]: unit }, as resolveRound reads it: 'ms' when a name has none. slacks is
+// { [name]: slack }: how much more than on the release a value may be before its ratio counts at all,
+// for a figure that says so. One that says nothing has MEMORY_SLACK_BYTES when it counts bytes, and none
+// otherwise
+export function resolveComparison(releaseRounds, currentRounds, allowances, releaseVersion, units = {}, slacks = {}) {
     const names = [...new Set(currentRounds.flatMap(round => Object.keys(round)))];
     const rows = names.map(name => {
         const currentMs = medianOf(currentRounds.map(round => round[name]).filter(ms => ms != undefined));
@@ -86,12 +112,11 @@ export function resolveComparison(releaseRounds, currentRounds, allowances, rele
             return { name, releaseMs: null, currentMs, ratio: null, limit: null, verdict: 'new' };
         }
         const releaseMs = medianOf(releaseTimes);
-        // nothing on both sides is unchanged: divided, it is no number, which is within every limit and
-        // reads as one in the table. Nothing on the release and something here stays beyond every limit
-        const ratio = releaseMs === 0 && currentMs === 0 ? 1 : currentMs / releaseMs;
+        const ratio = resolveRatio(releaseMs, currentMs);
         const limit = allowances.find(allowance => allowance.name === name && allowance.against === releaseVersion)?.ratio
             ?? SLOWER_FROM_RATIO;
-        const beyondSlack = units[name] !== 'bytes' || currentMs - releaseMs > MEMORY_SLACK_BYTES;
+        const slack = slacks[name] ?? (units[name] === 'bytes' ? MEMORY_SLACK_BYTES : 0);
+        const beyondSlack = currentMs - releaseMs > slack;
         return { name, releaseMs, currentMs, ratio, limit, verdict: ratio > limit && beyondSlack ? 'worse' : 'ok' };
     });
     // what only the release measures: removed here, or renamed, in which case its new name is a row that
@@ -147,6 +172,33 @@ export function resolveGroupRounds(groups, group) {
     return groups[group]?.rounds ?? ROUNDS;
 }
 
+// what each round of a group adds to the environment of its suites, in the order the rounds run: nothing
+// for those that run the suites as they are, and after them what the group narrows further rounds with,
+// such as the one size of data its suites then measure.
+// What a suite measures in seconds is what moves the most from one run to the next: one collection falling
+// into a restore of 10 MB, or one moment of a slow disk, is half of it, and nothing of a restore of 100 MB
+// that takes minutes. So a group run twice for what takes minutes is run again for what takes seconds,
+// and each operation is compared by the median of the rounds that measured it: of two, the median is the
+// mean, which one such round decided
+export function resolveRoundEnvironments(groups, group) {
+    const narrowed = groups[group]?.narrowed;
+    return [
+        ...Array.from({ length: resolveGroupRounds(groups, group) }, () => ({})),
+        ...Array.from({ length: narrowed?.rounds ?? 0 }, () => ({ ...narrowed.env }))
+    ];
+}
+
+// whether the narrowed rounds of a group say how many they are and what narrows them: an environment that
+// sets nothing would run everything again under another name
+function isNarrowing(narrowed) {
+    return Number.isInteger(narrowed.rounds)
+        && narrowed.rounds >= 1
+        && typeof narrowed.env === 'object'
+        && narrowed.env != undefined
+        && Object.keys(narrowed.env).length > 0
+        && Object.values(narrowed.env).every(value => typeof value === 'string');
+}
+
 // the suites each side runs in a round, of those it has: all of them in the first, and from then on
 // those both have. A suite only one side has is compared with nothing, so that running it again is
 // time spent on a median nobody reads, and its own checks have run by then
@@ -187,7 +239,11 @@ export function validateGroups(groups, suites) {
         ...Object.hasOwn(groups, REST_GROUP) ? [`"${REST_GROUP}" is the group of every suite no other group names`] : [],
         ...Object.entries(groups)
             .filter(([, group]) => group.rounds != undefined && (!Number.isInteger(group.rounds) || group.rounds < 1))
-            .map(([name, group]) => `the rounds of "${name}" need to be a whole number of at least 1, not ${group.rounds}`)
+            .map(([name, group]) => `the rounds of "${name}" need to be a whole number of at least 1, not ${group.rounds}`),
+        ...Object.entries(groups)
+            .filter(([, group]) => group.narrowed != undefined && !isNarrowing(group.narrowed))
+            .map(([name]) => `the narrowed rounds of "${name}" need to be { rounds, env }: a whole number of at least 1, `
+                + 'and at least one environment variable, each a string')
     ];
     if (problems.length > 0) {
         throw new Error(`${path.relative(repoRoot, groupsPath)} needs fixing:\n${problems.join('\n')}`);
@@ -205,7 +261,14 @@ export function resolveMergedComparison(comparisons, groupNames, allowances) {
         throw new Error(`The groups were compared with different releases: ${releaseVersions.join(', ')}.`);
     }
     const [releaseVersion] = releaseVersions;
-    const rows = comparisons.flatMap(comparison => comparison.rows);
+    // the ratio of each row worked out again from its two values rather than taken from the file its
+    // group wrote: a file holds no infinity, so the ratio of a row that measured nothing on the release
+    // came back as none at all, which the table ended on and an allowance for it read as not needed
+    const rows = comparisons
+        .flatMap(comparison => comparison.rows)
+        .map(row => row.releaseMs == undefined || row.currentMs == undefined
+            ? row
+            : { ...row, ratio: resolveRatio(row.releaseMs, row.currentMs) });
     return {
         releaseVersion,
         rows,
@@ -226,8 +289,10 @@ export function resolveTable(comparison, units = {}, staleAllowances = []) {
     };
     const notCompared = { new: 'not measured on the release', gone: 'no longer measured here' };
     const rows = comparison.rows.map(row => {
+        // something where the release measured nothing is no number of times as much
+        const times = Number.isFinite(row.ratio) ? `${row.ratio.toFixed(2)}x` : 'from nothing';
         const verdict = notCompared[row.verdict]
-            ?? `${row.ratio.toFixed(2)}x, limit ${row.limit}x${row.verdict === 'worse' ? ', **worse**' : ''}`;
+            ?? `${times}, limit ${row.limit}x${row.verdict === 'worse' ? ', **worse**' : ''}`;
         const unit = units[row.name] ?? 'ms';
         return `| ${row.name} | ${format(row.releaseMs, unit)} | ${format(row.currentMs, unit)} | ${verdict} |`;
     });
@@ -335,26 +400,33 @@ export function resolveRunsTable(taken) {
     ].join('\n');
 }
 
+// the environment a side's suites are run in, from the one the comparison was started in: without
+// recording a baseline, without the live phases unless they are measured, with the thresholds of the
+// allocator set, and with what a narrowed round of the group narrows it with
+export function resolveRunEnvironment(startedIn, measureHeld, narrowedWith = {}) {
+    const env = { ...startedIn, ...ALLOCATOR_ENV, ...narrowedWith };
+    delete env.ZIBRI_BENCHMARK_UPDATE_BASELINE;
+    if (!measureHeld) {
+        env[SKIP_HELD_MEMORY_ENV] = '1';
+    }
+    return env;
+}
+
 // an empty list runs nothing, for a side without any suite of the group, or none left to run in a round
-function runSuites(root, script, suites, measureHeld, label) {
+function runSuites(root, script, suites, measureHeld, label, narrowedWith = {}) {
     if (suites.length === 0) {
-        return { values: {}, units: {} };
+        return { values: {}, units: {}, slacks: {} };
     }
     const reportsDir = reportsDirOf(root);
     // a report an earlier run left behind would be read as this one's
     for (const name of reportsIn(reportsDir)) {
         rmSync(path.join(reportsDir, name));
     }
-    const env = { ...process.env };
-    delete env.ZIBRI_BENCHMARK_UPDATE_BASELINE;
-    if (!measureHeld) {
-        env[SKIP_HELD_MEMORY_ENV] = '1';
-    }
     // by path rather than by another pattern, which jest would match in addition to the script's own:
     // the paths are all it runs, whatever the script names
     const selection = ['--', '--runTestsByPath', ...suites.map(suite => path.join(root, 'packages', 'zibri', suite))];
     const startedAt = Date.now();
-    run('npm', ['run', script, '-w', 'zibri', ...selection], root, env);
+    run('npm', ['run', script, '-w', 'zibri', ...selection], root, resolveRunEnvironment(process.env, measureHeld, narrowedWith));
     runs.push({ label, suites, seconds: Math.round((Date.now() - startedAt) / 1000) });
 
     return resolveRound(reportsIn(reportsDir).map(name => JSON.parse(readFileSync(path.join(reportsDir, name), 'utf8'))));
@@ -394,12 +466,15 @@ function compareWithRelease(script, group) {
     // every suite was compared, which the summary of the groups does
     const conclude = (releaseRounds, currentRounds) => {
         const units = Object.assign({}, ...currentRounds.map(round => round.units));
+        // of the checkout, as the units are: what a figure is held to is said by the code that is judged
+        const slacks = Object.assign({}, ...currentRounds.map(round => round.slacks));
         const comparison = resolveComparison(
             releaseRounds.map(round => round.values),
             currentRounds.map(round => round.values),
             readAllowances(),
             manifest.version,
-            units
+            units,
+            slacks
         );
         writeComparison(group, comparison, units);
         const staleAllowances = group == undefined ? resolveStaleAllowances(readAllowances(), comparison.rows, manifest.version) : [];
@@ -431,16 +506,17 @@ function compareWithRelease(script, group) {
         const releaseSuites = ofGroup(listSuites(worktree, script));
         const releaseRounds = [];
         const currentRounds = [];
-        for (let round = 0; round < resolveGroupRounds(groups, group); round++) {
+        for (const [round, narrowedWith] of resolveRoundEnvironments(groups, group).entries()) {
             const suites = resolveRoundSuites(currentSuites, releaseSuites, round);
+            const narrowed = Object.keys(narrowedWith).length > 0 ? ', narrowed' : '';
             // the release first every other round, so that a machine slowing down or speeding up over
             // the run weighs on both sides alike
             const sides = [
-                [worktree, suites.release, releaseRounds, false, `round ${round + 1}, release`],
-                [repoRoot, suites.current, currentRounds, round === 0, `round ${round + 1}, this checkout`]
+                [worktree, suites.release, releaseRounds, false, `round ${round + 1}, release${narrowed}`],
+                [repoRoot, suites.current, currentRounds, round === 0, `round ${round + 1}, this checkout${narrowed}`]
             ];
             for (const [root, ofSide, rounds, measureHeld, label] of round % 2 === 0 ? sides : sides.reverse()) {
-                rounds.push(runSuites(root, script, ofSide, measureHeld, label));
+                rounds.push(runSuites(root, script, ofSide, measureHeld, label, narrowedWith));
             }
         }
         conclude(releaseRounds, currentRounds);

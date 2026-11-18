@@ -27,7 +27,6 @@
         }
     },
     "allowScripts": {
-        "re2": true,
         "@parcel/watcher": false
     },
     "dependencies": {
@@ -40,7 +39,6 @@
         "nodemailer": "^10.1.0",
         "otpauth": "^9.5.1",
         "pg-query-stream": "^4.10.3",
-        "re2": "^1.27.0",
         "saxes": "^6.0.0",
         "socket.io": "^4.8.3",
         "socket.io-client": "^4.8.3",

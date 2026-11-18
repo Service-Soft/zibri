@@ -401,3 +401,6 @@ buildid
 logfile
 mkfifo
 blpop
+MMAP
+schedstat
+Schedstat

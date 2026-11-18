@@ -593,32 +593,17 @@ describe('ssh2', () => {
     });
 });
 
-describe('re2', () => {
+describe('a declared regex', () => {
 
-    it('is an optional peer dependency', () => {
-        // only a declared regex runs through it, and most applications declare none
-        expect(optionalPeers()).toContain('re2');
-    });
-
-    it('is not needed to load the framework', () => {
-        const res: { loaded: boolean } = inConsumerProcess(`
-            ${hiding(['re2'])}
-            const { createRequire } = await import('node:module');
-            const require = createRequire(process.cwd() + '/index.cjs');
-            const zibri = require('zibri');
-            console.log(JSON.stringify({ loaded: typeof zibri.ZibriApplication === 'function' }));
-        `);
-
-        expect(res.loaded).toBe(true);
-    });
-
-    it('says so by name when a regex is declared without it', () => {
+    // it ran through the native re2, an optional peer that an install had to build or fetch; the framework
+    // runs it in time linear to the value itself
+    it('needs no package of its own', () => {
         const res: { message: string } = inConsumerProcess(`
             ${hiding(['re2'])}
             const { createRequire } = await import('node:module');
             const require = createRequire(process.cwd() + '/index.cjs');
             const { Property } = require('zibri');
-            let message = 'it did not fail';
+            let message = 'declared';
             try {
                 class Account {}
                 Property.string({ regex: /^\\d+$/ })(Account.prototype, 'code');
@@ -629,9 +614,8 @@ describe('re2', () => {
             console.log(JSON.stringify({ message }));
         `);
 
-        // where the property is declared rather than at the first request that sends one
-        expect(res.message).toContain('re2');
-        expect(res.message).toContain('npm i re2');
+        expect(optionalPeers()).not.toContain('re2');
+        expect(res.message).toBe('declared');
     });
 });
 

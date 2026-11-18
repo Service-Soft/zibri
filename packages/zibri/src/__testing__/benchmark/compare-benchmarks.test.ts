@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from '@jest/globals';
 
 import { JsonUtilities } from '../../utilities/json.utilities';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { testFileFolder } from '../constants';
 
 /**
@@ -17,6 +18,12 @@ import { testFileFolder } from '../constants';
 
 const packageDir: string = path.resolve(__dirname, '..', '..', '..');
 const scriptPath: string = path.join(packageDir, 'scripts', 'compare-benchmarks.mjs');
+const profileScriptPath: string = path.join(packageDir, 'scripts', 'profile-benchmarks.mjs');
+
+/**
+ * How often an operation is measured on each side unless a group says otherwise.
+ */
+const ROUNDS: number = 4;
 
 /**
  * The median time of each operation in one run of the suites, by its name.
@@ -48,7 +55,8 @@ type BenchmarkComparison = {
  */
 type BenchmarkReadRound = {
     values: Record<string, number>,
-    units: Record<string, string>
+    units: Record<string, string>,
+    slacks: Record<string, number>
 };
 
 /**
@@ -62,7 +70,20 @@ type BenchmarkGroup = {
     /**
      * How often each side runs a suite both have, 4 unless given.
      */
-    rounds?: number
+    rounds?: number,
+    /**
+     * The rounds each side runs after those, measuring less in each.
+     */
+    narrowed?: {
+        /**
+         * How many.
+         */
+        rounds: number,
+        /**
+         * The environment variables that narrow what the suites measure.
+         */
+        env: Record<string, string>
+    }
 };
 
 /**
@@ -108,6 +129,7 @@ function callScript<T>(name: string, args: unknown[]): T | { error: string } {
  * @param allowances - The allowances the repository records.
  * @param releaseVersion - The version of the release.
  * @param units - What each value is counted in, by its name.
+ * @param slacks - How much more than on the release a value may be before its ratio counts, by its name.
  * @returns The comparison.
  */
 function compare(
@@ -115,13 +137,15 @@ function compare(
     current: BenchmarkRound[],
     allowances: BenchmarkAllowance[],
     releaseVersion: string,
-    units: Record<string, string> = {}
+    units: Record<string, string> = {},
+    slacks: Record<string, number> = {}
 ): BenchmarkComparison {
+    const args: string = JsonUtilities.stringify([release, current, allowances, releaseVersion, units, slacks]);
     const output: string = execFileSync(process.execPath, [
         '--input-type=module', '--eval', `
         const { resolveComparison, resolveStaleAllowances } = await import('${pathToFileURL(scriptPath).href}');
-        const [release, current, allowances, releaseVersion, units] = ${JsonUtilities.stringify([release, current, allowances, releaseVersion, units])};
-        const comparison = resolveComparison(release, current, allowances, releaseVersion, units);
+        const [release, current, allowances, releaseVersion, units, slacks] = ${args};
+        const comparison = resolveComparison(release, current, allowances, releaseVersion, units, slacks);
         const staleAllowances = resolveStaleAllowances(allowances, comparison.rows, releaseVersion);
         console.log(JSON.stringify({ ...comparison, staleAllowances }));
     `
@@ -228,12 +252,16 @@ describe('comparing the benchmarks with the release', () => {
     it('reads timings and figures from the reports, each with what it is counted in', () => {
         const round: BenchmarkReadRound = readRound([
             [{ timing: { name: 'GET one row', medianMs: 0.8, p95Ms: 1.1 }, baseline: undefined }],
-            [{ figure: { name: 'peak memory of a backup', value: 52_000_000, unit: 'bytes' } }]
+            [
+                { figure: { name: 'peak memory of a backup', value: 52_000_000, unit: 'bytes' } },
+                { figure: { name: 'slowest answer during a backup', value: 9, unit: 'ms', slack: 10 } }
+            ]
         ]);
 
         expect(round).toEqual({
-            values: { 'GET one row': 0.8, 'peak memory of a backup': 52_000_000 },
-            units: { 'GET one row': 'ms', 'peak memory of a backup': 'bytes' }
+            values: { 'GET one row': 0.8, 'peak memory of a backup': 52_000_000, 'slowest answer during a backup': 9 },
+            units: { 'GET one row': 'ms', 'peak memory of a backup': 'bytes', 'slowest answer during a backup': 'ms' },
+            slacks: { 'slowest answer during a backup': 10 }
         });
     });
 
@@ -246,18 +274,69 @@ describe('comparing the benchmarks with the release', () => {
         expect(comparison.failed).toBe(true);
     });
 
-    // peak memory of a few dozen MiB moves by more than the ratio from one run to the next, with when
-    // the collector happens to run
-    it('passes memory within 16 MiB of the release whatever its ratio, and fails it beyond', () => {
+    // what memory grows by over a phase moves by tens of MiB from one run to the next, with when the collector
+    // runs and whether the pages freed before were kept: the same code on both sides came out 30 MiB apart
+    it('passes memory within 64 MiB of the release whatever its ratio, and fails it beyond', () => {
         const mib: number = 1024 * 1024;
         const figure: (bytes: number) => BenchmarkRound[] = bytes => [1, 2, 3, 4].map(() => ({ 'peak memory of a backup': bytes }));
         const units: Record<string, string> = { 'peak memory of a backup': 'bytes' };
 
-        const within: BenchmarkComparison = compare(figure(30 * mib), figure(42 * mib), [], '3.0.0', units);
-        const beyond: BenchmarkComparison = compare(figure(30 * mib), figure(50 * mib), [], '3.0.0', units);
+        const within: BenchmarkComparison = compare(figure(5 * mib), figure(65 * mib), [], '3.0.0', units);
+        const beyond: BenchmarkComparison = compare(figure(5 * mib), figure(75 * mib), [], '3.0.0', units);
 
         expect(within.failed).toBe(false);
         expect(beyond.failed).toBe(true);
+    });
+
+    // what a phase grows the memory by came out in two ways for the same code, 120 MiB apart for a restore of
+    // 100 MB: by all it needs, or by little where the allocator had kept what the phases before it freed. Which
+    // of the two, the allocator decides anew as a process runs, unless its thresholds are set
+    it('runs the suites of both sides with the thresholds of the allocator set, and without recording a baseline', () => {
+        const startedWith: Record<string, string> = { PATH: '/usr/bin', ZIBRI_BENCHMARK_UPDATE_BASELINE: '1' };
+
+        expect(callScript('resolveRunEnvironment', [startedWith, true])).toStrictEqual({
+            PATH: '/usr/bin',
+            MALLOC_MMAP_THRESHOLD_: '131072',
+            MALLOC_TRIM_THRESHOLD_: '131072'
+        });
+        expect(callScript('resolveRunEnvironment', [startedWith, false])).toStrictEqual({
+            PATH: '/usr/bin',
+            MALLOC_MMAP_THRESHOLD_: '131072',
+            MALLOC_TRIM_THRESHOLD_: '131072',
+            ZIBRI_BENCHMARK_SKIP_HELD_MEMORY: '1'
+        });
+    });
+
+    // the slowest of the answers of a server during a run is one answer, which a machine doing something else for
+    // a moment doubles: the same code on both sides came out 6 ms apart, of 7
+    it('passes a figure within the slack it names whatever its ratio, and fails it beyond', () => {
+        const name: string = 'slowest answer during a backup';
+        const figure: (ms: number) => BenchmarkRound[] = ms => [1, 2].map(() => ({ [name]: ms }));
+
+        const within: BenchmarkComparison = compare(figure(7), figure(16), [], '3.0.0', { [name]: 'ms' }, { [name]: 10 });
+        const beyond: BenchmarkComparison = compare(figure(7), figure(18), [], '3.0.0', { [name]: 'ms' }, { [name]: 10 });
+        const withoutSlack: BenchmarkComparison = compare(figure(7), figure(16), [], '3.0.0', { [name]: 'ms' });
+
+        expect(within.failed).toBe(false);
+        expect(beyond.failed).toBe(true);
+        expect(withoutSlack.failed).toBe(true);
+    });
+
+    // the garbage collection of a backup runs once in a measurement and takes 12 ms, so the limit left it 4 ms: with
+    // the same code on both sides, three runs of eight took a few ms longer, two of them of the checkout
+    it('reads the slack a timing names, and passes the timing within it whatever its ratio', () => {
+        const name: string = 'garbage collection of 10 MB';
+        const timing: (ms: number[]) => BenchmarkRound[] = ms => ms.map(value => ({ [name]: value }));
+
+        const { slacks, units }: BenchmarkReadRound = readRound([[{ timing: { name, medianMs: 12, p95Ms: 12, slack: 50 } }]]);
+        const within: BenchmarkComparison = compare(timing([12, 12, 17, 12]), timing([12, 11, 23, 20]), [], '3.1.0', units, slacks);
+        const beyond: BenchmarkComparison = compare(timing([12, 12, 17, 12]), timing([70, 65, 70, 65]), [], '3.1.0', units, slacks);
+        const withoutSlack: BenchmarkComparison = compare(timing([12, 12, 17, 12]), timing([12, 11, 23, 20]), [], '3.1.0', units);
+
+        expect(slacks).toStrictEqual({ [name]: 50 });
+        expect(within.failed).toBe(false);
+        expect(beyond.failed).toBe(true);
+        expect(withoutSlack.failed).toBe(true);
     });
 
     it('refuses two measurements of the same name, since neither could be compared', () => {
@@ -360,6 +439,82 @@ describe('comparing the benchmarks in groups, each on a runner of its own', () =
         expect(callScript('resolveGroupRounds', [groups, 'rest'])).toBe(4);
     });
 
+    // compared in two rounds, the median of a backup of 10 MB was the mean of two samples, which one collection
+    // falling into a restore, or one moment of a slow disk, decided: four groups failed in one run of the same code
+    // on both sides. A backup of 10 MB takes seconds where one of 100 MB takes minutes, so it is measured again
+    it('runs further rounds in the environment a group narrows them with, after those of everything', () => {
+        const narrowing: BenchmarkGroups = {
+            ...groups,
+            postgres: { suites: ['src/postgres.benchmark.test.ts'], rounds: 2, narrowed: { rounds: 2, env: { SIZES_MB: '10' } } }
+        };
+
+        expect(callScript('resolveRoundEnvironments', [narrowing, 'postgres'])).toStrictEqual([{}, {}, { SIZES_MB: '10' }, { SIZES_MB: '10' }]);
+        expect(callScript('resolveRoundEnvironments', [narrowing, 'val-key'])).toStrictEqual([{}, {}, {}, {}]);
+        expect(callScript('resolveRoundEnvironments', [narrowing, 'rest'])).toStrictEqual([{}, {}, {}, {}]);
+        expect(callScript('resolveRunEnvironment', [{ PATH: '/usr/bin' }, true, { SIZES_MB: '10' }])).toStrictEqual({
+            PATH: '/usr/bin',
+            MALLOC_MMAP_THRESHOLD_: '131072',
+            MALLOC_TRIM_THRESHOLD_: '131072',
+            SIZES_MB: '10'
+        });
+    });
+
+    // the restore CPU of 10 MB through s3 as the release and the checkout measured it, of the same code: the first
+    // two rounds are what failed, the further ones what a narrowed round adds
+    it('compares an operation by the rounds that measured it, however many measured another', () => {
+        const small: string = 'CPU of restore of 10 MB';
+        const large: string = 'CPU of restore of 100 MB';
+        const release: BenchmarkRound[] = [{ [small]: 251, [large]: 3136 }, { [small]: 393, [large]: 3140 }];
+        const current: BenchmarkRound[] = [{ [small]: 451, [large]: 3154 }, { [small]: 396, [large]: 3150 }];
+
+        const inTwo: BenchmarkComparison = compare(release, current, [], '3.1.0');
+        const inFour: BenchmarkComparison = compare(
+            [...release, { [small]: 390 }, { [small]: 395 }],
+            [...current, { [small]: 392 }, { [small]: 398 }],
+            [],
+            '3.1.0'
+        );
+
+        expect(inTwo.rows).toMatchObject([{ name: small, verdict: 'worse' }, { name: large, verdict: 'ok' }]);
+        expect(inFour.rows).toMatchObject([{ name: small, verdict: 'ok' }, { name: large, verdict: 'ok' }]);
+        expect(inFour.rows[1]?.ratio).toBeCloseTo(3152 / 3138, 5);
+    });
+
+    it('refuses narrowed rounds that are no whole number, or that narrow nothing', () => {
+        const refused: (narrowed: unknown) => unknown = narrowed => callScript('validateGroups', [
+            { 'val-key': { suites: ['src/val-key.benchmark.test.ts'], narrowed } },
+            ['src/val-key.benchmark.test.ts']
+        ]);
+        const error: { error: unknown } = { error: expect.stringContaining('the narrowed rounds of "val-key" need to be') };
+
+        expect(refused({ rounds: 0, env: { SIZES_MB: '10' } })).toMatchObject(error);
+        expect(refused({ rounds: 2, env: {} })).toMatchObject(error);
+        expect(refused({ rounds: 2, env: { SIZES_MB: 10 } })).toMatchObject(error);
+        expect(refused({ rounds: 2, env: { SIZES_MB: '10' } })).toBeNull();
+    });
+
+    it('measures what is cheap to measure four times in every group, whatever it measures less often', () => {
+        const committed: BenchmarkGroups = JsonUtilities.parse(readFileSync(path.join(packageDir, 'benchmark-groups.json'), 'utf8'));
+
+        const measuredLess: string[] = Object.entries(committed)
+            .filter(([, group]) => (group.rounds ?? ROUNDS) + (group.narrowed?.rounds ?? 0) < ROUNDS)
+            .map(([name]) => name);
+
+        expect(measuredLess).toStrictEqual([]);
+    });
+
+    // a group was a list of suites once, and the script that profiles one read it as such still: it knew no group
+    it('names the suites of a group to the script that profiles them', () => {
+        const output: string = execFileSync(process.execPath, [
+            '--input-type=module', '--eval', `
+            const { resolveSuites } = await import('${pathToFileURL(profileScriptPath).href}');
+            console.log(JSON.stringify(resolveSuites(['postgres'])));
+        `
+        ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+
+        expect(JsonUtilities.parse(output)).toStrictEqual(['src/backup/backup.postgres.benchmark.test.ts']);
+    });
+
     // every round ran every suite of both sides: one the release does not measure four times, to be compared with
     // nothing, which was most of what the job took while the release measured few of them
     it('runs a suite only one side has once, and one both have in every round', () => {
@@ -422,6 +577,43 @@ describe('comparing the benchmarks in groups, each on a runner of its own', () =
         ]);
 
         expect(merged).toMatchObject({ staleAllowances: [], failed: true });
+    });
+
+    // a group writes its comparison to a file, which holds no infinity: the ratio of a row that measured nothing on
+    // the release was read back as null, and the summary ended on it instead of printing its table, with every
+    // group passed
+    it('sums up a row that measured nothing on the release, read from the file its group wrote', () => {
+        const name: string = 'peak memory of garbage collection of 10 MB';
+        const units: Record<string, string> = { [name]: 'bytes' };
+        const figure: (bytes: number) => BenchmarkRound[] = bytes => [1, 2].map(() => ({ [name]: bytes }));
+        // as its group compared it: within what memory may differ by, whatever the ratio
+        const fromNothing: BenchmarkComparison = compare(figure(0), figure(4096), [], '3.1.0', units);
+        const committed: BenchmarkGroups = JsonUtilities.parse(readFileSync(path.join(packageDir, 'benchmark-groups.json'), 'utf8'));
+        const [first = 'rest', ...others] = [...Object.keys(committed), 'rest'];
+        const folder: string = path.join(testFileFolder, `benchmark-comparisons-${UUIDUtilities.generate()}`);
+        mkdirSync(folder, { recursive: true });
+        const env: NodeJS.ProcessEnv = { ...process.env };
+        // the summary of the job running this test is not this one's to write to
+        delete env['GITHUB_STEP_SUMMARY'];
+
+        try {
+            writeFileSync(
+                path.join(folder, `benchmark-comparison-${first}.json`),
+                JsonUtilities.stringify({ ...groupComparison(first, fromNothing.rows), releaseVersion: '3.1.0', units })
+            );
+            for (const group of others) {
+                writeFileSync(
+                    path.join(folder, `benchmark-comparison-${group}.json`),
+                    JsonUtilities.stringify({ ...groupComparison(group, []), releaseVersion: '3.1.0' })
+                );
+            }
+            const summary: string = execFileSync(process.execPath, [scriptPath, '--merge', folder], { encoding: 'utf8', env });
+
+            expect(summary).toContain(`| ${name} | 0.0 MiB | 0.0 MiB | from nothing, limit 1.3x |`);
+        }
+        finally {
+            rmSync(folder, { recursive: true, force: true });
+        }
     });
 
     it('fails when a group compared nothing', () => {

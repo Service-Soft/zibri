@@ -233,6 +233,14 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
      */
     private runningJobs: ThreadJob<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown>[] = [];
     /**
+     * The ids of the jobs a worker was given, of those running.
+     *
+     * A job names its worker from the moment its start is recorded, which is before the worker gets it. What a
+     * worker reports, and above all its exit, belongs to the job it was given: one that ended before that ran
+     * nothing, and its job goes to the worker replacing it rather than failing with it.
+     */
+    private readonly handedOver: Set<string> = new Set();
+    /**
      * The function jobs waiting for a worker.
      *
      * The one thing that cannot be put in the data source: a function can only be stored as source,
@@ -1411,6 +1419,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
             stackTraceLimit: Error.stackTraceLimit
         };
         worker.worker.postMessage(message);
+        this.handedOver.add(job.id);
         worker.timeout = setTimeout(
             () => void this.trackWorkerEvent(this.stopOverdueJob(job, worker), worker.threadId),
             job.timeoutInMs
@@ -1507,6 +1516,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         job: ThreadJob<WorkerData, ResultType>
     ): void {
         job.completedSubject.next(true);
+        this.handedOver.delete(job.id);
         // a function job is deliberately left where it is: it is the only copy of its own result,
         // with no row to read it back from, so it stays until whoever called `run` has taken it
         if (job.type === 'job') {
@@ -1589,7 +1599,8 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     private getJobByThreadId(
         threadId: number
     ): ThreadJob<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown> | undefined {
-        return this.runningJobs.find(j => j.threadId === threadId);
+        // the one it was given, rather than one whose start names it and is still being recorded
+        return this.runningJobs.find(j => j.threadId === threadId && this.handedOver.has(j.id));
     }
 
     private getWorkerByThreadId(threadId: number): ThreadJobWorker | undefined {

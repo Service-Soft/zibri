@@ -33,12 +33,10 @@
             "minimatch": "^11.0.1"
         }
     },
-{{! what npm may run of the install scripts of the dependencies, as it warns about every one it was not told of. re2
-    fetches or builds its native module, which it does not load without. The script of @parcel/watcher, which jest
-    watches files through, builds only when told to build from source, and its prebuilt module is installed. By
-    name, so that an update does not need a new entry }}
+{{! what npm may run of the install scripts of the dependencies, as it warns about every one it was not told of.
+    The script of @parcel/watcher, which jest watches files through, builds only when told to build from source, and
+    its prebuilt module is installed. By name, so that an update does not need a new entry }}
     "allowScripts": {
-        "re2": true,
         "@parcel/watcher": false
     }
 }

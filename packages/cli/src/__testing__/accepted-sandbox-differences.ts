@@ -50,7 +50,6 @@ export const acceptedSandboxDifferences: Record<string, string> = {
         '          }',
         '      },',
         '      "allowScripts": {',
-        '          "re2": true,',
         '          "@parcel/watcher": false',
         '      },',
         '      "dependencies": {',
@@ -63,7 +62,6 @@ export const acceptedSandboxDifferences: Record<string, string> = {
         '          "nodemailer": "^10.1.0",',
         '          "otpauth": "^9.5.1",',
         '          "pg-query-stream": "^4.10.3",',
-        '          "re2": "^1.27.0",',
         '          "saxes": "^6.0.0",',
         // the sandbox serves websockets, so it installs the optional peers that declares. A generated
         // project has `websocketControllers: []` and is right not to.

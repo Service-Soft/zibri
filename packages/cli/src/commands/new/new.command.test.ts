@@ -138,7 +138,7 @@ describe('NewCommand', () => {
             // glob jest asks for and the minimatch of test-exclude have an advisory each, which npm audit reports
             overrides: { 'glob@^13.0.0': '^14.0.2', 'test-exclude': { '.': '^8.0.0', minimatch: '^11.0.1' } },
             // npm warns about every dependency whose install script it was not told about
-            allowScripts: { re2: true, '@parcel/watcher': false }
+            allowScripts: { '@parcel/watcher': false }
         });
     });
 
@@ -167,7 +167,7 @@ describe('NewCommand', () => {
             2,
             `cd "${appDir}" && npm i zibri@${version} pg-query-stream@^4.10.3`
             + ' saxes@^6.0.0 otpauth@^9.5.1 jose@^6.2.12 @opentelemetry/api@^1.9.1'
-            + ' @opentelemetry/sdk-trace-node@^2.11.0 re2@^1.27.0 nodemailer@^10.1.0'
+            + ' @opentelemetry/sdk-trace-node@^2.11.0 nodemailer@^10.1.0'
             + ' @prometheus-io/client@^0.16.1 @fastify/busboy@^3.2.3 systeminformation@^5.33.15 chart.js'
         );
     });

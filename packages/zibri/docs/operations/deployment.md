@@ -226,7 +226,12 @@ is under one of these licenses: MIT, MIT-0, ISC, Apache-2.0, BSD-2-Clause, BSD-3
 BlueOak-1.0.0, CC0-1.0, Unlicense or Zlib. The one exception is `caniuse-lite` (CC-BY-4.0), browser
 support data that `zibri/webpack` reads while it builds. It is not part of the bundle, and a generated
 project's image leaves it out with the other dev dependencies. A release ships with no known high or
-critical advisory among them.
+critical advisory among them, except for one that no fixed version exists for yet and that nothing
+Zibri does with the package can reach:
+
+- [GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf) in `picomatch`, which jest uses
+  through `ts-jest`, the optional peer of `zibri-testing`, to match the globs of your jest configuration while
+  your tests run.
 
 ## Running more than one instance
 

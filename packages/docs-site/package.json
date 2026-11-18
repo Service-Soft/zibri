@@ -24,7 +24,6 @@
         "jose": "^6.2.12",
         "nodemailer": "^10.1.0",
         "otpauth": "^9.5.1",
-        "re2": "^1.27.0",
         "saxes": "^6.0.0",
         "systeminformation": "^5.33.15",
         "zibri": "*",

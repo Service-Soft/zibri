@@ -118,6 +118,10 @@ export class PhaseSampler {
         // the sampler runs on the thread the application runs on, so this is that thread's
         const mainThreadCpu: NodeJS.CpuUsage = process.threadCpuUsage(this.startMainThreadCpu);
         const threadCpu: ThreadCpu | undefined = ThreadCpuUtilities.findThreadCpu();
+        const cpuByThreadMs: ThreadCpu | undefined = this.startThreadCpu == undefined || threadCpu == undefined
+            ? undefined
+            : ThreadCpuUtilities.resolveDifference(this.startThreadCpu, threadCpu);
+        const cpuMainThreadMs: number = (mainThreadCpu.user + mainThreadCpu.system) / 1000;
         const live: LivePhaseMeasurement | undefined = this.live == undefined
             ? undefined
             : {
@@ -133,10 +137,14 @@ export class PhaseSampler {
             peakStagingBytes: this.peakStagingBytes,
             cpuUserMs: cpu.user / 1000,
             cpuSystemMs: cpu.system / 1000,
-            cpuMainThreadMs: (mainThreadCpu.user + mainThreadCpu.system) / 1000,
-            cpuByThreadMs: this.startThreadCpu == undefined || threadCpu == undefined
-                ? undefined
-                : ThreadCpuUtilities.resolveDifference(this.startThreadCpu, threadCpu),
+            cpuMainThreadMs,
+            cpuByThreadMs,
+            // what is compared with the release: V8's threads collect what the whole process holds, and whether a
+            // collection falls into a phase, and how much of the two this sampler forces before one runs on into
+            // it, is no cost of the phase. The same restore of 10 MB spent 50 ms on them one time and 200 the
+            // next, and a garbage collection of 13 ms more on them than on its own thread.
+            // The main thread as node reads it, to the microsecond wherever the kernel tells the others in ticks
+            cpuWithoutV8Ms: cpuByThreadMs == undefined ? undefined : cpuMainThreadMs + cpuByThreadMs.pool + cpuByThreadMs.other,
             live
         };
     }

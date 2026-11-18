@@ -65,10 +65,6 @@ export const SCAFFOLD_DEV_DEPENDENCIES: string[] = [
 // package is *not* installed: spans are kept in memory until an application says where to send them,
 // and saying so is what makes the exporter needed.
 //
-// re2 is installed although nothing generated declares a `regex` yet. Declaring one is ordinary
-// validation on a string property or parameter, and a project should not be stopped by a missing
-// package the first time it does.
-//
 // The pattern under the optional ones: a peer is optional to the *framework* and not to an
 // application that takes the defaults, so the generator installs what its own generated
 // configuration reaches for. Turning one of those defaults off is what makes the matching package
@@ -85,7 +81,6 @@ export const SCAFFOLD_DEPENDENCIES: string[] = [
     'jose@^6.2.12',
     '@opentelemetry/api@^1.9.1',
     '@opentelemetry/sdk-trace-node@^2.11.0',
-    're2@^1.27.0',
     'nodemailer@^10.1.0',
     '@prometheus-io/client@^0.16.1',
     '@fastify/busboy@^3.2.3',
