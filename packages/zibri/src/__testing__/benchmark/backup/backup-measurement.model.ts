@@ -228,6 +228,12 @@ export type PhaseMeasurement = {
      */
     cpuByThreadMs: ThreadCpu | undefined,
     /**
+     * Of the CPU time, what every thread but V8's own spent, in milliseconds: the thread the application runs on,
+     * the pool, and the threads a native library starts. Without the collector's helpers and the compiler, which
+     * work for the whole process rather than for the phase. Undefined on a system other than Linux.
+     */
+    cpuWithoutV8Ms: number | undefined,
+    /**
      * What it held right after a collection, undefined unless it was read so.
      */
     live: LivePhaseMeasurement | undefined

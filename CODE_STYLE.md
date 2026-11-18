@@ -220,7 +220,9 @@ builds `origin/release` in a worktree beside your checkout and runs the benchmar
 times each, in turns on the same machine. An operation whose median is more than 1.3× the release's
 fails it. A suite only one side has runs once: it is compared with nothing, and a group with no suite
 on the release does not build the release. The same holds for a figure a suite reports beside its timings with
-`BenchmarkUtilities.writeFigureReport`, such as the peak memory or CPU time of a backup. Memory only
+`BenchmarkUtilities.writeFigureReport`, such as the peak memory or CPU time of a backup. The CPU time is that of
+every thread but V8's own: its collector works for the whole process, and whether a collection falls into a
+measured phase is chance. Memory only
 counts once it is also more than 64 MiB above the release's, and a figure that names a `slack` once it is that much
 above it: what the same code differs by from one run to the next. Both sides run with the thresholds of glibc's
 allocator set (`MALLOC_MMAP_THRESHOLD_`, `MALLOC_TRIM_THRESHOLD_`), so that what a phase grows the memory by is what

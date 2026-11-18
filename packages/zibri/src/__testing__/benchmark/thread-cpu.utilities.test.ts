@@ -1,4 +1,5 @@
 import { pbkdf2 } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { promisify } from 'node:util';
 
 import { describe, expect, it } from '@jest/globals';
@@ -16,6 +17,12 @@ const BUSY_MS: number = 300;
  * How many threads libuv's pool has unless it is told otherwise.
  */
 const POOL_THREADS: number = 4;
+
+/**
+ * Whether the kernel tells the nanoseconds each thread ran, which one built without the statistics of its scheduler
+ * does not.
+ */
+const readsNanoseconds: boolean = process.platform === 'linux' && existsSync(`/proc/self/task/${process.pid}/schedstat`);
 
 /**
  * Keeps every thread of libuv's pool busy deriving a key, which is where pbkdf2 runs.
@@ -36,6 +43,31 @@ describe('ThreadCpuUtilities', () => {
 
         expect(ThreadCpuUtilities.parseStat(line)).toEqual({ name: 'V8 (a) Worker', cpuMs: 3000 });
         expect(ThreadCpuUtilities.parseStat('not a stat line')).toBeUndefined();
+    });
+
+    it('reads the nanoseconds a thread ran from its schedstat', () => {
+        // ran for 16.7 ms, waited 0.08 ms to run, and was run 8 times
+        expect(ThreadCpuUtilities.parseSchedstat('16711586 80001 8\n')).toBeCloseTo(16.711586, 6);
+        expect(ThreadCpuUtilities.parseSchedstat('not a schedstat line')).toBeUndefined();
+        expect(ThreadCpuUtilities.parseSchedstat('')).toBeUndefined();
+    });
+
+    // read in clock ticks, a thread's time came in steps of 10 ms: a phase of 20 ms spent 10 or 20 on a thread,
+    // which is no figure to compare one build with another by
+    (readsNanoseconds ? it : it.skip)('reads what a thread spent finer than a clock tick of 10 ms', () => {
+        const before: ThreadCpu | undefined = ThreadCpuUtilities.findThreadCpu();
+        const busyUntil: number = performance.now() + 25;
+        while (performance.now() < busyUntil) {
+            // the main thread working
+        }
+        const after: ThreadCpu | undefined = ThreadCpuUtilities.findThreadCpu();
+        if (before == undefined || after == undefined) {
+            throw new Error('/proc/self/task could not be read');
+        }
+
+        const { main } = ThreadCpuUtilities.resolveDifference(before, after);
+        expect(main).toBeGreaterThanOrEqual(20);
+        expect(main % 10).not.toBe(0);
     });
 
     // what V8 does beside the main thread, the collector's helpers among it, is the share of the CPU that tells a

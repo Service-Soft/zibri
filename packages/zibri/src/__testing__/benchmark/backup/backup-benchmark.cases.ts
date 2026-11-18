@@ -830,23 +830,42 @@ function resolveTransportBeside(transport: MeasuredTransportConfig): MeasuredTra
  * @returns Peak memory and CPU time, of its backups, of its restore and of its garbage collection.
  */
 function toFigures(measurement: BackupMeasurement): BenchmarkFigure[] {
-    const cpuOf: (phase: PhaseMeasurement) => number = phase => phase.cpuUserMs + phase.cpuSystemMs;
     return [
         {
             name: `peak memory of garbage collection of ${measurement.name}`,
             value: measurement.garbageCollection.peakRssGrowthBytes,
             unit: 'bytes'
         },
-        { name: `CPU of garbage collection of ${measurement.name}`, value: cpuOf(measurement.garbageCollection), unit: 'ms' },
         {
             name: `peak memory of backup of ${measurement.name}`,
             value: Math.max(...measurement.backups.map(b => b.peakRssGrowthBytes)),
             unit: 'bytes'
         },
         { name: `peak memory of restore of ${measurement.name}`, value: measurement.restore.peakRssGrowthBytes, unit: 'bytes' },
-        { name: `CPU of backup of ${measurement.name}`, value: medianOf(measurement.backups.map(cpuOf)), unit: 'ms' },
-        { name: `CPU of restore of ${measurement.name}`, value: cpuOf(measurement.restore), unit: 'ms' },
+        ...toCpuFigures(measurement),
         ...toServerFigures(measurement)
+    ];
+}
+
+/**
+ * The figures of the CPU time a measurement spent on every thread but V8's own, of its backups, of its restore and
+ * of its garbage collection.
+ * @param measurement - The measurement.
+ * @returns The figures, none on a system that tells no thread's time from another's.
+ */
+function toCpuFigures(measurement: BackupMeasurement): BenchmarkFigure[] {
+    // named for what they leave out: the CPU time of the whole process, V8's threads among it, is what a release
+    // before this reports as `CPU of …`, and the two under one name would be compared as one
+    const backups: number[] = measurement.backups.flatMap(b => b.cpuWithoutV8Ms == undefined ? [] : [b.cpuWithoutV8Ms]);
+    const restore: number | undefined = measurement.restore.cpuWithoutV8Ms;
+    const collection: number | undefined = measurement.garbageCollection.cpuWithoutV8Ms;
+    if (!backups.length || restore == undefined || collection == undefined) {
+        return [];
+    }
+    return [
+        { name: `CPU of garbage collection of ${measurement.name}, without V8's threads`, value: collection, unit: 'ms' },
+        { name: `CPU of backup of ${measurement.name}, without V8's threads`, value: medianOf(backups), unit: 'ms' },
+        { name: `CPU of restore of ${measurement.name}, without V8's threads`, value: restore, unit: 'ms' }
     ];
 }
 
@@ -993,7 +1012,8 @@ function describeLiveMeasurement(config: BackupMeasurementConfig, live: LiveMeas
  *   the data.
  * - **Durations, peak memory and CPU**, against the release: written to the benchmark reports, which
  *   `npm run test:benchmark:compare` fails on as it does every other benchmark. They depend on the
- *   machine, so no design states them.
+ *   machine, so no design states them. The CPU is that of every thread but V8's own, whose collector
+ *   works for the whole process rather than for a phase; the printed table has theirs beside it.
  * @param options - What the suite measures.
  */
 export function describeBackupCosts(options: BackupBenchmarkOptions): void {
