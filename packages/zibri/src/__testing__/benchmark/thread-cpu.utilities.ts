@@ -108,10 +108,27 @@ export abstract class ThreadCpuUtilities {
             const stat: ThreadStat | undefined = this.parseStat(line);
             if (stat != undefined) {
                 // the main thread by its id rather than its name, which follows the title of the process
-                cpu[threadId === String(process.pid) ? 'main' : this.resolveKind(stat.name)] += stat.cpuMs;
+                cpu[threadId === String(process.pid) ? 'main' : this.resolveKind(stat.name)] += this.findRunMs(threadId) ?? stat.cpuMs;
             }
         }
         return cpu;
+    }
+
+    /**
+     * The CPU time a thread of this process spent so far, as the scheduler counts it.
+     * @param threadId - The id of the thread.
+     * @returns The CPU time in milliseconds, or undefined where the kernel does not tell.
+     */
+    private static findRunMs(threadId: string): number | undefined {
+        // to the nanosecond, where the ticks of `stat` count 10 ms each: a phase of 20 ms spent 10 or 20 on a
+        // thread by them. A kernel built without the statistics of its scheduler has no such file, and a thread
+        // that ended since its `stat` was read has none either
+        try {
+            return this.parseSchedstat(readFileSync(`/proc/self/task/${threadId}/schedstat`, 'utf8'));
+        }
+        catch {
+            return undefined;
+        }
     }
 
     /**
@@ -147,6 +164,17 @@ export abstract class ThreadCpuUtilities {
         return Number.isFinite(ticks)
             ? { name: line.slice(open + 1, close), cpuMs: (ticks * 1000) / TICKS_PER_SECOND }
             : undefined;
+    }
+
+    /**
+     * Reads the CPU time off a thread's `schedstat`.
+     * @param line - Its one line: the nanoseconds the thread ran, those it waited to run, and how often it was run.
+     * @returns The time it ran in milliseconds, user and kernel together, or undefined for a line of another shape.
+     */
+    static parseSchedstat(line: string): number | undefined {
+        const [ran = ''] = line.trim().split(' ');
+        const nanoseconds: number = Number(ran);
+        return ran === '' || !Number.isFinite(nanoseconds) ? undefined : nanoseconds / 1_000_000;
     }
 
     /**

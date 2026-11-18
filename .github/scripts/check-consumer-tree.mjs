@@ -34,8 +34,8 @@ function resolveInstalledPath(entries, from, name) {
 
 // What a consumer can end up installing, read off the lockfile: the published packages' dependencies
 // and peers, and everything those pull in. Not the lockfile's own `dev` flag - an optional peer such
-// as re2 is a devDependency here, so the repository's tree calls it dev, while a consumer using a
-// declared regex installs it and everything behind it. And not the private workspaces, which nobody
+// as ssh2 is a devDependency here, so the repository's tree calls it dev, while a consumer backing up
+// over sftp installs it and everything behind it. And not the private workspaces, which nobody
 // installs.
 // this needs to be exported, as its manually string imported into the ci-workflows.test.ts
 export function resolveConsumerTree(lock, publishedDirs = published) {
@@ -147,12 +147,28 @@ export function findLicenseViolations(tree, policy) {
         .map(({ name, version, license }) => `${name}@${version} (${license ?? 'no license declared'})`);
 }
 
-// what the advisory endpoint answered, narrowed to the severities that fail the check
+// the GHSA id, which is the last segment of the url the advisory is published at
+function getAdvisoryId(advisory) {
+    return advisory.url.slice(advisory.url.lastIndexOf('/') + 1);
+}
+
+// what the advisory endpoint answered, narrowed to the severities that fail the check, less the
+// advisories the policy allows
 // this needs to be exported, as its manually string imported into the ci-workflows.test.ts
-export function findFailingAdvisories(advisoriesByName) {
+export function findFailingAdvisories(advisoriesByName, policy) {
     return Object.entries(advisoriesByName).flatMap(([name, advisories]) => advisories
-        .filter(advisory => failingSeverities.has(advisory.severity))
+        .filter(advisory => failingSeverities.has(advisory.severity) && policy.allowed[getAdvisoryId(advisory)] == undefined)
         .map(advisory => `${name} ${advisory.vulnerable_versions}: ${advisory.severity} - ${advisory.title} (${advisory.url})`));
+}
+
+// The allowances no answered advisory matches. An allowance is for an advisory with no fixed version
+// to move to, so once the tree no longer has a version it affects, the fix arrived and the allowance
+// goes - left in, it would let the advisory through again on whatever brings an affected version back.
+// this needs to be exported, as its manually string imported into the ci-workflows.test.ts
+export function findUnusedAdvisoryAllowances(advisoriesByName, policy) {
+    const answered = new Set(Object.values(advisoriesByName).flat()
+        .map(getAdvisoryId));
+    return Object.keys(policy.allowed).filter(id => !answered.has(id));
 }
 
 // the endpoint npm audit itself asks, which answers only the advisories that affect the versions named
@@ -185,7 +201,10 @@ export function readInstalledManifest(packagePath) {
 async function main() {
     const tree = resolveDeclaredLicenses(resolveConsumerTree(readJson('package-lock.json')), readInstalledManifest);
     const licenses = findLicenseViolations(tree, readJson('.github', 'license-policy.json'));
-    const advisories = findFailingAdvisories(await resolveAdvisories(tree));
+    const answered = await resolveAdvisories(tree);
+    const advisoryPolicy = readJson('.github', 'advisory-policy.json');
+    const advisories = findFailingAdvisories(answered, advisoryPolicy);
+    const unusedAllowances = findUnusedAdvisoryAllowances(answered, advisoryPolicy);
     process.stdout.write(`checked the ${tree.length} packages a consumer can install\n`);
     for (const line of licenses) {
         process.stdout.write(`license not allowed: ${line}\n`);
@@ -193,7 +212,10 @@ async function main() {
     for (const line of advisories) {
         process.stdout.write(`advisory: ${line}\n`);
     }
-    if (licenses.length > 0 || advisories.length > 0) {
+    for (const id of unusedAllowances) {
+        process.stdout.write(`advisory allowed in .github/advisory-policy.json affects nothing in the tree anymore, remove it: ${id}\n`);
+    }
+    if (licenses.length > 0 || advisories.length > 0 || unusedAllowances.length > 0) {
         process.exitCode = 1;
     }
 }

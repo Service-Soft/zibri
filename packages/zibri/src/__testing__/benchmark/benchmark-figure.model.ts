@@ -19,5 +19,11 @@ export type BenchmarkFigure = {
     /**
      * What `value` is counted in.
      */
-    unit: BenchmarkUnit
+    unit: BenchmarkUnit,
+    /**
+     * How much more than on the release the value may be, in `unit`, before the comparison with the release
+     * looks at how many times as much it is: what the same code differs by from one run to the next. Without
+     * one, memory is held to the slack of the comparison, and anything else to none.
+     */
+    slack?: number
 };

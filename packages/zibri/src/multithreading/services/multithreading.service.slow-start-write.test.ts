@@ -6,9 +6,11 @@ import { createInMemoryDataSource } from 'zibri-testing';
 import { MultithreadingServiceInterface } from './multithreading-service.interface';
 import { MultithreadingService } from './multithreading.service';
 import { TestTimeouts } from '../../__testing__/constants';
+import { describeThreadJob } from '../../__testing__/describe-thread-job.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
+import { waitUntil } from '../../__testing__/wait-until.function';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -45,6 +47,21 @@ function delayStartWrites(): void {
             await sleep(300);
         }
         return await updateById(id, data, options);
+    });
+}
+
+/**
+ * Holds back the answer to the write that records the start of a job, the way the way back of a round trip
+ * to a database server holds it back: the row says the job started, and the pool does not know yet.
+ */
+function delayStartWriteAnswers(): void {
+    const updateById: ThreadJobRepository['updateById'] = threadJobRepository.updateById.bind(threadJobRepository);
+    jest.spyOn(threadJobRepository, 'updateById').mockImplementation(async (id, data, options) => {
+        const updated: Awaited<ReturnType<ThreadJobRepository['updateById']>> = await updateById(id, data, options);
+        if (data.startedAtMs != undefined) {
+            await sleep(300);
+        }
+        return updated;
     });
 }
 
@@ -114,6 +131,28 @@ describe('MultithreadingService, when recording the start of a job is slow', () 
         expect(res.status).toBe(ThreadJobStatus.FAILED);
         expect(res.error?.name).toBe('TimeoutError');
     }, 15000);
+
+    // the job counted as the worker's from the moment its start began to be recorded, before the worker was given
+    // it: a worker ending meanwhile was taken for one that crashed running the job, which failed, without an error
+    // and for good, where nothing had run it
+    it('runs a job on the worker replacing one that ended while its start was recorded', async () => {
+        delayStartWriteAnswers();
+        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.js');
+        // the class rather than the token, which types it without what the pool holds. One instance either way
+        const pool: MultithreadingService = inject(MultithreadingService);
+        const jobId: string = await multithreadingService.queueThreadJob({ workerData: { filePath, amount: 10 }, timeoutInMs: Ms.SECOND * 10 });
+
+        // taken for the job, whose start is on its way to the row
+        await waitUntil(() => pool['workers'].length === 1 && pool['runningJobs'].some(job => job.threadId === pool['workers'][0]?.threadId));
+        await pool['workers'][0]?.worker.terminate();
+
+        await waitUntil(
+            async () => (await threadJobRepository.findById(jobId)).status === ThreadJobStatus.COMPLETED,
+            Ms.SECOND * 10,
+            async () => await describeThreadJob(threadJobRepository, jobId)
+        );
+        expect((await threadJobRepository.findById(jobId)).result).toEqual(55);
+    }, 20000);
 
     // last in the file: it stops the pool
     it('does not hand a job to a worker once the pool stopped while its start was recorded', async () => {

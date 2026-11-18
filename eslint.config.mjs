@@ -19,6 +19,13 @@ export default [
         }
     },
     {
+        // every key is a GHSA id, whose segments are random letters
+        files: ['.github/advisory-policy.json'],
+        rules: {
+            'cspell/spellchecker': 'off'
+        }
+    },
+    {
         // "__testing__" is where every package keeps what its tests share, beside the code they test.
         // Read as the root of the path below it, so the folders inside are still held to kebab case
         files: ['**/*.ts', '**/*.tsx'],

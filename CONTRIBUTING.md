@@ -42,7 +42,7 @@ Read [CODE_STYLE.md](./CODE_STYLE.md) before your first change. It covers the co
 2. Write what the release changes into that section. For a new major, also write `packages/zibri/docs/upgrading-to-<major>.md` and link it from the section.
 3. Merge into `release`.
 
-The release refuses to publish when the packages declare different versions or name each other at another one, when the registry or a tag already has the version, or when its changelog section is missing or empty. Once all seven packages are published, it tags the commit `v<version>` and creates a GitHub release with that section as its notes.
+The release refuses to publish when the packages declare different versions or name each other at another one, when the registry has the version for all seven packages or a tag already has it, or when its changelog section is missing or empty. When the registry has the version for some of the packages only, the release publishes the others. Once all seven packages are published, it tags the commit `v<version>` and creates a GitHub release with that section as its notes.
 
 What counts as a breaking change, and which majors get fixes, is in [releases.md](./packages/zibri/docs/releases.md).
 

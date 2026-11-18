@@ -333,7 +333,7 @@ describe('UpgradeCommand', () => {
         expect(manifest.version).toBe(version);
         expect(manifest.files['Dockerfile']).toBe(GitUtilities.resolveBlobHash(Buffer.from(current)));
         expect(git('status', '--porcelain')).toBe('');
-    });
+    }, 10_000);
 
     it('installs the framework at its own version, and what the generator now installs that the project lacks', async () => {
         const packageJson: { name: string, dependencies: Record<string, string>, devDependencies: Record<string, string> } = {

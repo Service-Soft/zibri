@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // where every thread of a process spends what a benchmark wants looked into: the benchmarks run under `perf`, which
 // records what a suite asks for, and each recording is summed up by thread, by library and by function. What a cpu
@@ -78,7 +78,7 @@ function validatePerf() {
 }
 
 // the suites named, or those of the group named
-function resolveSuites(args) {
+export function resolveSuites(args) {
     if (args.length && args.every(arg => arg.endsWith('.ts'))) {
         const missing = args.filter(arg => !existsSync(path.resolve(packageDir, arg)));
         if (missing.length) {
@@ -88,7 +88,7 @@ function resolveSuites(args) {
     }
     const group = args[0] ?? 'postgres';
     const groups = JSON.parse(readFileSync(groupsPath, 'utf8'));
-    const suites = groups[group];
+    const suites = groups[group]?.suites;
     if (!Array.isArray(suites)) {
         fail(`There is no benchmark group "${group}", only ${Object.keys(groups).join(', ')}, or name the paths of suites.`);
     }
@@ -272,4 +272,7 @@ function main() {
     }
 }
 
-main();
+// argv[1] is undefined when this module is imported by a `--eval` script rather than run
+if (process.argv[1] != undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+    main();
+}

@@ -159,6 +159,36 @@ const RECORD_SLACK_BYTES: number = MIB;
 const LINEAR_SLACK_RATIO: number = 1.5;
 
 /**
+ * How much slower than on the release the slowest answer of a Valkey server may be before the comparison with
+ * the release counts it.
+ */
+// by what is worth failing a build over rather than by what was seen to differ: the figure is one answer of some
+// 1500 in a run, which the machine doing something else for a moment decides, and 10 ms, set after the same code
+// came out 6 ms apart, were beaten by 10.5 the run after. A server answering 27 ms late where it answered 17 ms
+// late is nothing an application notices. One kept from answering for 50 ms longer than before is
+const SLOWEST_ANSWER_SLACK_IN_MS: number = 50;
+
+/**
+ * How much longer than on the release a backup, a restore or a garbage collection may take, and how much more CPU
+ * time it may spend, before the comparison with the release counts it.
+ */
+// by what is worth failing a build over, as for the slowest answer: a phase of a backup taking 50 ms longer is
+// nothing whoever runs backups notices. Above 170 ms the limit of 1.3x asks for more than that anyway, so this is
+// what the short phases are held to instead: a garbage collection runs once in a measurement and takes 12 ms, of
+// which the limit left 4 ms, and the same code on both sides came out 4 ms apart. What a collection is designed to
+// do, read the manifests and store nothing, is checked by itself
+const PHASE_SLACK_IN_MS: number = 50;
+
+/**
+ * What a measured process runs with unless it was started with something else: the thresholds of glibc's
+ * allocator set to where they start, as `scripts/compare-benchmarks.mjs` sets them for both sides.
+ */
+// left alone, the allocator raises them as a process frees larger blocks and keeps what it freed from then on, so
+// what a phase grows the memory by depended on what the phases before it had freed: by all it needs, or by next
+// to nothing. Set, a run on its own measures what the comparison with the release measures
+const ALLOCATOR_ENV: NodeJS.ProcessEnv = { MALLOC_MMAP_THRESHOLD_: '131072', MALLOC_TRIM_THRESHOLD_: '131072' };
+
+/**
  * How long measuring every scenario of a suite may take.
  */
 const MEASURING_TIMEOUT_IN_MS: number = 60 * 60 * 1000;
@@ -665,7 +695,7 @@ async function runMeasurement(scenarioConfig: BackupMeasurementConfig): Promise<
         execPath,
         execArgv: forkArgs,
         stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
-        env: { ...env, [BACKUP_MEASUREMENT_CONFIG_ENV]: JsonUtilities.stringify(config) }
+        env: { ...ALLOCATOR_ENV, ...env, [BACKUP_MEASUREMENT_CONFIG_ENV]: JsonUtilities.stringify(config) }
     });
     try {
         const result: BackupMeasurementResult = await new Promise<BackupMeasurementResult>((resolve, reject) => {
@@ -811,23 +841,52 @@ function resolveTransportBeside(transport: MeasuredTransportConfig): MeasuredTra
  * @returns Peak memory and CPU time, of its backups, of its restore and of its garbage collection.
  */
 function toFigures(measurement: BackupMeasurement): BenchmarkFigure[] {
-    const cpuOf: (phase: PhaseMeasurement) => number = phase => phase.cpuUserMs + phase.cpuSystemMs;
     return [
         {
             name: `peak memory of garbage collection of ${measurement.name}`,
             value: measurement.garbageCollection.peakRssGrowthBytes,
             unit: 'bytes'
         },
-        { name: `CPU of garbage collection of ${measurement.name}`, value: cpuOf(measurement.garbageCollection), unit: 'ms' },
         {
             name: `peak memory of backup of ${measurement.name}`,
             value: Math.max(...measurement.backups.map(b => b.peakRssGrowthBytes)),
             unit: 'bytes'
         },
         { name: `peak memory of restore of ${measurement.name}`, value: measurement.restore.peakRssGrowthBytes, unit: 'bytes' },
-        { name: `CPU of backup of ${measurement.name}`, value: medianOf(measurement.backups.map(cpuOf)), unit: 'ms' },
-        { name: `CPU of restore of ${measurement.name}`, value: cpuOf(measurement.restore), unit: 'ms' },
+        ...toCpuFigures(measurement),
         ...toServerFigures(measurement)
+    ];
+}
+
+/**
+ * The figures of the CPU time a measurement spent on every thread but V8's own, of its backups, of its restore and
+ * of its garbage collection.
+ * @param measurement - The measurement.
+ * @returns The figures, none on a system that tells no thread's time from another's.
+ */
+function toCpuFigures(measurement: BackupMeasurement): BenchmarkFigure[] {
+    // named for what they leave out: the CPU time of the whole process, V8's threads among it, is what a release
+    // before this reports as `CPU of …`, and the two under one name would be compared as one
+    const backups: number[] = measurement.backups.flatMap(b => b.cpuWithoutV8Ms == undefined ? [] : [b.cpuWithoutV8Ms]);
+    const restore: number | undefined = measurement.restore.cpuWithoutV8Ms;
+    const collection: number | undefined = measurement.garbageCollection.cpuWithoutV8Ms;
+    if (!backups.length || restore == undefined || collection == undefined) {
+        return [];
+    }
+    return [
+        {
+            name: `CPU of garbage collection of ${measurement.name}, without V8's threads`,
+            value: collection,
+            unit: 'ms',
+            slack: PHASE_SLACK_IN_MS
+        },
+        {
+            name: `CPU of backup of ${measurement.name}, without V8's threads`,
+            value: medianOf(backups),
+            unit: 'ms',
+            slack: PHASE_SLACK_IN_MS
+        },
+        { name: `CPU of restore of ${measurement.name}, without V8's threads`, value: restore, unit: 'ms', slack: PHASE_SLACK_IN_MS }
     ];
 }
 
@@ -847,9 +906,15 @@ function toServerFigures(measurement: BackupMeasurement): BenchmarkFigure[] {
         {
             name: `slowest Valkey answer during backup of ${measurement.name}`,
             value: Math.max(...backups.map(s => s.slowestAnswerMs)),
-            unit: 'ms'
+            unit: 'ms',
+            slack: SLOWEST_ANSWER_SLACK_IN_MS
         },
-        { name: `slowest Valkey answer during restore of ${measurement.name}`, value: restore.slowestAnswerMs, unit: 'ms' },
+        {
+            name: `slowest Valkey answer during restore of ${measurement.name}`,
+            value: restore.slowestAnswerMs,
+            unit: 'ms',
+            slack: SLOWEST_ANSWER_SLACK_IN_MS
+        },
         {
             name: `peak Valkey memory of backup of ${measurement.name}`,
             value: Math.max(...backups.map(s => s.peakUsedMemoryGrowthBytes)),
@@ -968,7 +1033,8 @@ function describeLiveMeasurement(config: BackupMeasurementConfig, live: LiveMeas
  *   the data.
  * - **Durations, peak memory and CPU**, against the release: written to the benchmark reports, which
  *   `npm run test:benchmark:compare` fails on as it does every other benchmark. They depend on the
- *   machine, so no design states them.
+ *   machine, so no design states them. The CPU is that of every thread but V8's own, whose collector
+ *   works for the whole process rather than for a phase; the printed table has theirs beside it.
  * @param options - What the suite measures.
  */
 export function describeBackupCosts(options: BackupBenchmarkOptions): void {
@@ -1002,10 +1068,16 @@ export function describeBackupCosts(options: BackupBenchmarkOptions): void {
                 {
                     name: `backup of ${m.name}`,
                     medianMs: medianOf(m.backups.map(b => b.durationMs)),
-                    p95Ms: Math.max(...m.backups.map(b => b.durationMs))
+                    p95Ms: Math.max(...m.backups.map(b => b.durationMs)),
+                    slack: PHASE_SLACK_IN_MS
                 },
-                { name: `restore of ${m.name}`, medianMs: m.restore.durationMs, p95Ms: m.restore.durationMs },
-                { name: `garbage collection of ${m.name}`, medianMs: m.garbageCollection.durationMs, p95Ms: m.garbageCollection.durationMs }
+                { name: `restore of ${m.name}`, medianMs: m.restore.durationMs, p95Ms: m.restore.durationMs, slack: PHASE_SLACK_IN_MS },
+                {
+                    name: `garbage collection of ${m.name}`,
+                    medianMs: m.garbageCollection.durationMs,
+                    p95Ms: m.garbageCollection.durationMs,
+                    slack: PHASE_SLACK_IN_MS
+                }
             ]);
             await BenchmarkUtilities.resolveReport(timings, reportPath, options.baselinePath, updateBaseline);
             // compared with the release like the timings: holding more memory or spending more CPU is a
