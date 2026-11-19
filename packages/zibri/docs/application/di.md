@@ -454,7 +454,7 @@ export class TokenInjectingReportService {
 The same error saying `nothing was recorded about its type` means there is no metadata at all.
 Injection by type needs the `emitDecoratorMetadata` compiler option, which `tsc` and SWC offer. A
 build made with esbuild, Vite or Bun names the token with `@Inject`. See
-[build toolchains](../getting-started.md#build-toolchains).
+[build toolchains](#build-toolchains).
 
 Two classes that inject each other while they are built raise a `CircularDependencyError`:
 
@@ -479,6 +479,23 @@ export class InvoiceService {
     }
 }
 ```
+
+### Build toolchains
+
+Zibri uses TypeScript's legacy decorators, so the compiler must enable `experimentalDecorators`. Constructor type-based injection also depends on `emitDecoratorMetadata`. These are separate compiler options:
+
+| Toolchain | Legacy decorators | Constructor metadata |
+|---|---|---|
+| `tsc` | `experimentalDecorators` | `emitDecoratorMetadata` |
+| SWC | `jsc.transform.legacyDecorator` | `jsc.transform.decoratorMetadata` |
+| esbuild, including Vite | supported | Not emitted; use `@Inject` |
+| Bun | supported | Not emitted; use `@Inject` |
+
+With constructor metadata, Zibri can resolve a parameter from its declared class type. Without metadata, name the token with `@Inject`.
+
+`zi new` writes a `tsconfig.json` extending `zibri/tsconfig.application.json`, which enables both options. A generated project therefore supports both injection styles.
+
+A class without its own constructor inherits its parent's constructor. Metadata is recorded only for a constructor declared by a decorated class. Decorate the class declaring that constructor, or name its tokens with `@Inject`. Without metadata, a subclass whose parent's constructor takes parameters must not declare an empty constructor.
 
 ## One copy per process
 

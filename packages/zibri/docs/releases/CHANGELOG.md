@@ -84,7 +84,7 @@ What changed in each release of `zibri`, `zibri-contract`, `zibri-tsx`, `zibri-t
 - The compiler of the templates compiles a template in about half the time, which shows most on pages written in markdown.
 - The `test` script of a generated project runs jest with `node --experimental-vm-modules`, so jest loads a package that ships as ES modules only as it is, such as the markdown parser of `zibri-mdx`. `zi upgrade` merges it in. The jest configuration of `zibri-testing` then compiles none of them, and `esmPackages` is for a run without the flag. See [testing](https://service-soft.github.io/zibri/testing/).
 - `zi new` generates a project on Tailwind 4: the theme is in the `@theme` of `assets/public/style.css`, and there is no `tailwind.config.js`. See [the generated project](https://service-soft.github.io/zibri/application/project-layout/).
-- `zi upgrade` moves a project on Tailwind 3 to Tailwind 4 first, with Tailwind's own tool `npx @tailwindcss/upgrade`, which also renames the classes of your own templates. The project then merges what the release generates. See [upgrading a project](https://service-soft.github.io/zibri/#upgrading-a-project).
+- `zi upgrade` moves a project on Tailwind 3 to Tailwind 4 first, with Tailwind's own tool `npx @tailwindcss/upgrade`, which also renames the classes of your own templates. The project then merges what the release generates. See [upgrading a project](https://service-soft.github.io/zibri/releases/releases/#upgrading-your-project).
 - The `pages` feature gives every construct of a page written in markdown a component of the pages, mapped in `src/templates/components/markdown-components.ts`, and `Heading` is as large as its `tag`, or as the level `size` names. See [the generated project](https://service-soft.github.io/zibri/application/project-layout/#pages-and-emails).
 - **Documentation pages.** The new feature `docs` serves pages written in markdown at `/docs`, inside the pages of the application: a navigation of every page, the sections of a page beside it with the one being read marked, a link beside each heading that copies the address of its section, and a search that finds a page by its title, its sections and the `keywords` of its frontmatter, despite a typo. `zi add docs` adds it to a project. `DocsUtilities` gives each page its address, leads a link to another page's file to that page and lists what the search finds. See [documentation pages](https://service-soft.github.io/zibri/templates/docs/).
 - **`reset-admin`.** `zi new` writes a command that lets the default admin in again, `npm run reset-admin`: it reactivates them, gives back the admin role, removes their second factors and sets their password to `DEFAULT_ADMIN_PASSWORD`, which they replace at their next login. And `end-every-login`, `npm run end-every-login`, which logs every user out. `zi upgrade` merges both in. See [letting the default admin in again](https://service-soft.github.io/zibri/application/commands/#letting-the-default-admin-in-again).
@@ -157,7 +157,7 @@ What changed in each release of `zibri`, `zibri-contract`, `zibri-tsx`, `zibri-t
 - `deleteKey` and `deleteAllKeys` of the encryption service refuse a data key that stored values or recorded backups still need, with an `EncryptionKeyInUseError`. They deleted it, and what it encrypted could not be read again. `allowInUse: true` deletes it regardless. See [rotating a key](https://service-soft.github.io/zibri/data/encryption-and-hashing/#rotating-a-key).
 - A build started outside the project, such as `webpack -c api/webpack.config.js` in the root of a monorepo, wrote the types of the handlebars templates and the generated entities of the folder it was started in. It writes those of the project its `webpack.config.js` names, as it did the translation source.
 - In an application, the types of zibri built on express, such as `HttpRequest`, on the OpenAPI document, such as `OpenApiSchemaObject`, on pdfmake, such as the document definitions of `PdfUtilities`, and on ws were `any`, as the packages declaring them were not installed with zibri. They are typed, so code that passed something else there is now a type error. The OpenAPI types are zibri's own: an extension, a field starting with `x-`, is `unknown`, and the scopes of an OAuth2 flow are descriptions, strings.
-- An element whose tag a variable holds, such as `const Tag = 'img'; <Tag src={src}/>`, was written without the closing slash the same element written by its name has. It is written the same, `<img src="/logo.png"/>`.
+- An element whose tag a variable holds, such as `const Tag = 'img'; <Tag src={src}/>`, was written without the closing slash the same element written by its name has. It is written the same now.
 - The jest transform `zibri-tsx-compiler/jest` cached a page written in markdown under the same key after `zibri-mdx` was updated, so a test rendered what the `zibri-mdx` before printed. It compiles the page again.
 - An asset service whose `assetsRoute` is not `/assets` served the bundles of the `?client` packages under its own route, while `TsxUtilities.renderPage` linked them under `/assets/vendor/`. A page links them under the route of the asset service.
 - A handler a nested component wraps, such as `onClick={() => onClick?.(value)}`, never ran under the Content Security Policy zibri sends. It runs.
@@ -188,14 +188,14 @@ What changed in each release of `zibri`, `zibri-contract`, `zibri-tsx`, `zibri-t
 
 ## 3.0.0
 
-A major release. An application on 2.x needs changes before it starts on 3.0.0, and its database needs a migration. [Upgrading to 3](https://service-soft.github.io/zibri/documents/upgrading-to-3.html) lists both: what the compiler does not tell you about, and the migration for the tables Zibri ships. Back up your database first.
+A major release. An application on 2.x needs changes before it starts on 3.0.0, and its database needs a migration. [Upgrading to 3](https://service-soft.github.io/zibri/releases/upgrading-to-3/) lists both: what the compiler does not tell you about, and the migration for the tables Zibri ships. Back up your database first.
 
 Zibri 3 needs node 24 or newer.
 
 ### New packages
 - **`zibri-tsx`** compiles the `.tsx` templates of pages and emails at build time, in place of preact. A component can carry code that runs in the browser. See [templating](https://service-soft.github.io/zibri/templates/templating/).
 - **`zibri-testing`** starts your application in a test with the router, auth, lifecycle and error handling production has. Its in-memory data source needs no database, and it starts Postgres and Valkey containers or a cluster of instances when a test asks for them. See [testing](https://service-soft.github.io/zibri/testing/).
-- **`zibri/internal`** is a second entry point of `zibri`, for what only a data source, driver, parser or router of your own needs. See [releases](https://service-soft.github.io/zibri/releases/#what-is-public).
+- **`zibri/internal`** is a second entry point of `zibri`, for what only a data source, driver, parser or router of your own needs. See [releases](https://service-soft.github.io/zibri/releases/releases/#what-is-public).
 
 ### Generating and upgrading a project
 - `zi new` writes a project that builds, tests and runs as it stands, with a Dockerfile, a CI workflow and its configuration read from the environment. Pages, mailing lists, a metrics dashboard and a log email are features you choose.
@@ -205,7 +205,7 @@ Zibri 3 needs node 24 or newer.
 - The build, the jest configuration and the compiler options come from the packages: `zibri/webpack`, the `zibri-testing` preset and `zibri/tsconfig.application.json`. Updating the packages updates them.
 - A deployed image names the source file and line in every stack trace.
 
-See [getting started](https://service-soft.github.io/zibri/) and [the generated project](https://service-soft.github.io/zibri/application/project-layout/).
+See [getting started](https://service-soft.github.io/zibri/getting-started/) and [the generated project](https://service-soft.github.io/zibri/application/project-layout/).
 
 ### Data
 - **Postgres without TypeORM.** The Postgres data source talks to `pg` itself and builds its queries itself. How the schema is managed, TLS and the pooler in front of the database are options you set. See [data sources](https://service-soft.github.io/zibri/data/data-source/).
@@ -235,7 +235,7 @@ See [getting started](https://service-soft.github.io/zibri/) and [the generated 
 - **Recovering failed work.** A failed cron job, event, thread job, mail or backup keeps what it failed with, and can be started again. See [recovering work that stopped](https://service-soft.github.io/zibri/background-work/troubleshooting/).
 
 ### Packages you install
-Zibri installs only what every application needs. The package of each feature, such as `pg`, `nodemailer` or `socket.io`, is installed by the application that uses it, and the application names a missing one while it starts. See [optional packages](https://service-soft.github.io/zibri/#optional-packages).
+Zibri installs only what every application needs. The package of each feature, such as `pg`, `nodemailer` or `socket.io`, is installed by the application that uses it, and the application names a missing one while it starts. See the respective Requirements section of each feature.
 
 ### Documentation
 The documentation is rewritten: one page per topic, each with its exports, the packages and tables it needs, and examples that compile. New pages cover [architecture](https://service-soft.github.io/zibri/architecture/), [deployment](https://service-soft.github.io/zibri/operations/deployment/), [configuration](https://service-soft.github.io/zibri/application/configuration/), [framework tables](https://service-soft.github.io/zibri/data/framework-tables/), a [glossary](https://service-soft.github.io/zibri/glossary/) and a [FAQ](https://service-soft.github.io/zibri/faq/).

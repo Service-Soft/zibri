@@ -22,7 +22,7 @@ zi new
 
 Go into your freshly generated project, run `npm start` and enjoy your new api!
 
-See the [getting started guide](https://service-soft.github.io/zibri/) for more details.
+See the [getting started guide](https://service-soft.github.io/zibri/getting-started/) for more details.
 
 # 📑 Documentation
 The official documentation of Zibri can be found under [https://service-soft.github.io/zibri](https://service-soft.github.io/zibri)
@@ -89,7 +89,7 @@ With Zibri you can rely on a strong foundation of battle tested libraries that h
 - node-cron for cron jobs
 
 ### 🧪 Extensive Test Suite
-We have more than 2500 tests running in our pipeline and strive to be as close to a production environment as possible. This includes:
+We have more than 10000 tests running in our pipeline and strive to be as close to a production environment as possible. This includes:
 - initializing actual zibri servers with real database testcontainers
 - working with real files for everything related to the file system
 - mocking the least amount of things possible

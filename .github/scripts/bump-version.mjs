@@ -75,7 +75,7 @@ function main() {
     }
     const lockfilePath = path.join(repoRoot, 'package-lock.json');
     writeFileSync(lockfilePath, bumpLockfile(readFileSync(lockfilePath, 'utf8'), version, releasedNames));
-    const changelogPath = path.join(repoRoot, 'CHANGELOG.md');
+    const changelogPath = path.join(repoRoot, 'packages', 'zibri', 'docs', 'releases', 'CHANGELOG.md');
     writeFileSync(changelogPath, addChangelogSection(readFileSync(changelogPath, 'utf8'), version));
 }
 

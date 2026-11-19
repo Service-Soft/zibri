@@ -138,6 +138,8 @@ export class LineItem {
 
 The TypeScript type has to match the format. When the type is written as a union, like `sequence?: bigint | null`, the value is checked against the format instead.
 
+When `emitDecoratorMetadata` is enabled, Zibri checks a property's declared TypeScript type against its `format` when the class is declared. Without metadata, this declaration-time check is skipped. Values are still checked against the format when they are stored.
+
 `bigint` and `bignumber` are sent as strings in JSON, and the OpenAPI document says so. A request can still send either as a plain JSON number where it fits.
 
 Arithmetic on a `BigNumber` goes through `NumberUtilities`, which takes any of the three shapes:

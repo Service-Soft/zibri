@@ -470,7 +470,7 @@ default strategy on their next login.
 deprecated. It needs the `bcryptjs` package, which you install. It hashes with 10 rounds, and each
 bcrypt check holds up the requests running beside it. Keep it registered while stored hashes need it,
 with bcrypt marked `DEPRECATED` in the hash strategy table: each of its hashes is replaced with a
-scrypt hash the next time its user logs in. The [upgrade migration](../upgrading-to-3.md#the-migration)
+scrypt hash the next time its user logs in. The [upgrade migration](../releases/upgrading-to-3.md#the-migration)
 does both.
 
 ## Requirements

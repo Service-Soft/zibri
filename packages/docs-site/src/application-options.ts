@@ -1,9 +1,9 @@
 import { SemVerUtilities, ZibriApplicationOptions } from 'zibri';
 
+import { version } from '../package.json';
 import { DocsController } from './controllers/docs.controller';
 import { SearchController } from './controllers/search.controller';
 import { DocsDataSource } from './docs-data-source';
-import { version } from '../package.json';
 import { providers } from './providers';
 
 if (!SemVerUtilities.isSemVerVersion(version)) {

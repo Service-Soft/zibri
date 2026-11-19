@@ -63,18 +63,21 @@ import * as tracing from '../../../zibri/docs/operations/tracing.md';
 import * as invoicingPlugin from '../../../zibri/docs/plugins/invoicing-plugin.md';
 import * as mailingListPlugin from '../../../zibri/docs/plugins/mailing-list-plugin.md';
 import * as paymentPlugin from '../../../zibri/docs/plugins/payment-plugin.md';
-import * as releases from '../../../zibri/docs/releases.md';
+import * as readme from '../../../zibri/docs/README.md';
+import * as changelog from '../../../zibri/docs/releases/CHANGELOG.md';
+import * as releases from '../../../zibri/docs/releases/releases.md';
+import * as upgradingTo3 from '../../../zibri/docs/releases/upgrading-to-3.md';
 import * as docs from '../../../zibri/docs/templates/docs.md';
 import * as document from '../../../zibri/docs/templates/document.md';
 import * as email from '../../../zibri/docs/templates/email.md';
 import * as localization from '../../../zibri/docs/templates/localization.md';
 import * as templating from '../../../zibri/docs/templates/templating.md';
 import * as testing from '../../../zibri/docs/testing.md';
-import * as upgradingTo3 from '../../../zibri/docs/upgrading-to-3.md';
 
 // every page of the documentation, in the order of the sidebar: what a reader starts with, then the folders in the
 // order an application grows, then what a reader looks things up in. A page leads its folder when it introduces it
 export const navigation: DocsNavigationEntry[] = [
+    { file: 'README.md', module: readme },
     { file: 'getting-started.md', module: gettingStarted },
     { file: 'architecture.md', module: architecture },
     {
@@ -181,9 +184,15 @@ export const navigation: DocsNavigationEntry[] = [
             { file: 'operations/incidents.md', module: incidents }
         ]
     },
+    {
+        title: 'Releases & Upgrade Guides',
+        pages: [
+            { file: 'releases/releases.md', module: releases },
+            { file: 'releases/CHANGELOG.md', module: changelog },
+            { file: 'releases/upgrading-to-3.md', module: upgradingTo3 }
+        ]
+    },
     { file: 'testing.md', module: testing },
-    { file: 'releases.md', module: releases },
-    { file: 'upgrading-to-3.md', module: upgradingTo3 },
     { file: 'faq.md', module: faq },
     { file: 'glossary.md', module: glossary }
 ];

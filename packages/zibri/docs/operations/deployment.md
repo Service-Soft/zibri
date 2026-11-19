@@ -142,7 +142,7 @@ check that reads it takes every instance out of rotation at once.
 
 A stop signal starts an orderly shutdown: the application runs its shutdown hooks, releases the
 [leases](../glossary.md#lease) it holds and closes its data sources. Send the signal to the process itself. In a container
-image, use the exec form of `CMD`, so the signal reaches Node and not a shell.
+image, use the exec form of `CMD`, so the signal reaches Node.js and not a shell.
 
 The readiness endpoint answers `503` for the whole of that window, so an orchestrator polling it
 moves traffic away while the instance finishes what it accepted.
@@ -221,17 +221,14 @@ brings, at the versions your application installed:
 npm sbom --sbom-format cyclonedx --omit dev > sbom.cdx.json
 ```
 
-Every package Zibri installs, the [optional ones](../getting-started.md#optional-packages) included,
+Every package Zibri installs, the optional ones included,
 is under one of these licenses: MIT, MIT-0, ISC, Apache-2.0, BSD-2-Clause, BSD-3-Clause, 0BSD,
 BlueOak-1.0.0, CC0-1.0, Unlicense or Zlib. The one exception is `caniuse-lite` (CC-BY-4.0), browser
 support data that `zibri/webpack` reads while it builds. It is not part of the bundle, and a generated
 project's image leaves it out with the other dev dependencies. A release ships with no known high or
 critical advisory among them, except for one that no fixed version exists for yet and that nothing
-Zibri does with the package can reach:
-
-- [GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf) in `picomatch`, which jest uses
-  through `ts-jest`, the optional peer of `zibri-testing`, to match the globs of your jest configuration while
-  your tests run.
+Zibri does with the package can reach.
+Each of those have to be explicitly listed in a [advisory-policy.json](https://github.com/Service-Soft/zibri/blob/dev/.github/advisory-policy.json):
 
 ## Running more than one instance
 
