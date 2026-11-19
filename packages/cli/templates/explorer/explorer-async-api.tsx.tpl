@@ -43,9 +43,10 @@ const ExplorerAsyncOperation: TsxComponent<OperationProps> = ({ operation, conte
                 <span id={`${operation.id}-address`} className="font-mono font-semibold break-all">{operation.address}</span>
                 <span className="flex-1 text-disabled">{operation.summary}</span>
                 <span id={`${operation.id}-permissions`} className="flex gap-2 items-center">
-                    {operation.permissions.map(permission => <span
-                        className="px-2 pb-0.5 rounded-full border border-white bg-dark-gray text-sm"
-                    >{permission}</span>)}
+                    {operation.permissions.map((permission, index) => <>
+                        {index > 0 && operation.anyLevelPermission ? <span className="text-sm">or</span> : ''}
+                        <span className="px-2 pb-0.5 rounded-full border border-white bg-dark-gray text-sm">{permission}</span>
+                    </>)}
                 </span>
                 {operation.securitySchemes.length > 0 && <img
                     id={`${operation.id}-lock`}

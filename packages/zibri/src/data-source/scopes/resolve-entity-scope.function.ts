@@ -57,6 +57,11 @@ export async function resolveEntityScope<T extends BaseEntity>(
             && await authService.hasPermission(context, authService.strategies, permission),
         hasPlatformPermission: async permission => context != undefined
             && await authService.hasPlatformPermission(context, authService.strategies, permission),
+        // the two checks of the interface rather than its optional third, which an auth service of the
+        // application's own may leave out: either of them is what the third answers
+        hasAnyLevelPermission: async permissions => context != undefined
+            && (await authService.hasPermission(context, authService.strategies, permissions.permission)
+                || await authService.hasPlatformPermission(context, authService.strategies, permissions.platformPermission)),
         requestContext: context,
         entityClass
     };

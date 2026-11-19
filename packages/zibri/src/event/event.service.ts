@@ -252,6 +252,9 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         data: ZibriEventMap[K],
         cleanupAfterInMs: number = inject(ZIBRI_DI_TOKENS.EVENT_FINISHED_RETENTION_IN_MS)
     ): Promise<void> {
+        // a deactivated tenant runs nothing, and would run it all once it is reactivated
+        const tenantService: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
+        await tenantService.validateNotDeactivated?.(tenantService.getActiveTenantId());
         const registrations: EventSubscriberRegistration[] = await this.findLiveRegistrations([String(type)]);
         const event: Event<ZibriEventMap[keyof ZibriEventMap]> = await this.eventRepository.create({
             type: String(type),
@@ -852,6 +855,24 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         }
         await this.eventRepository.updateById(event.id, { status: EventStatus.CREATED }, { transaction });
         return false;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async deletePendingEvents(tenantId: string): Promise<number> {
+        return await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(tenantId, async () => {
+            const pending: Pick<Event<unknown>, 'id'>[] = await this.eventRepository.findAll({
+                where: { status: EventStatus.CREATED, tenantId },
+                select: ['id'],
+                limit: 'all'
+            });
+            if (!pending.length) {
+                return 0;
+            }
+            const eventIds: string[] = pending.map(event => event.id);
+            // the runs first, which point at their events
+            await this.eventSubscriberRunRepository.deleteAll({ eventId: { oneOf: eventIds } });
+            return await this.eventRepository.deleteAll({ id: { oneOf: eventIds } });
+        });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

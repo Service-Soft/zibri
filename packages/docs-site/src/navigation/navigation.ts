@@ -17,6 +17,7 @@ import * as authorizationServer from '../../../zibri/docs/auth/authorization-ser
 import * as clientCertificates from '../../../zibri/docs/auth/client-certificates.md';
 import * as dpop from '../../../zibri/docs/auth/dpop.md';
 import * as emailVerification from '../../../zibri/docs/auth/email-verification.md';
+import * as invitations from '../../../zibri/docs/auth/invitations.md';
 import * as loginThroughADirectory from '../../../zibri/docs/auth/login-through-a-directory.md';
 import * as loginThroughAProvider from '../../../zibri/docs/auth/login-through-a-provider.md';
 import * as passkeys from '../../../zibri/docs/auth/passkeys.md';
@@ -136,6 +137,7 @@ export const navigation: DocsNavigationEntry[] = [
             { file: 'auth/two-factor.md', module: twoFactor },
             { file: 'auth/passkeys.md', module: passkeys },
             { file: 'auth/email-verification.md', module: emailVerification },
+            { file: 'auth/invitations.md', module: invitations },
             { file: 'auth/api-keys.md', module: apiKeys },
             { file: 'auth/login-through-a-provider.md', module: loginThroughAProvider },
             { file: 'auth/login-through-a-directory.md', module: loginThroughADirectory },

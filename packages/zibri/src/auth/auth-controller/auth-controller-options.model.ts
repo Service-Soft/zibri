@@ -13,7 +13,8 @@ export type AuthControllerOptions<
     EmailVerification extends boolean = false,
     CurrentUserRoute extends boolean = false,
     ConfirmEmailRoute extends boolean = false,
-    TwoFactorRegistrationsRoute extends boolean = false
+    TwoFactorRegistrationsRoute extends boolean = false,
+    InvitationRoutes extends boolean = false
 > = {
     /**
      * The auth strategies a login can be started with. A request names the one it logs in with by its
@@ -53,5 +54,10 @@ export type AuthControllerOptions<
      */
     // TODO 4.0: there by default with twoFactorMethods. Off in 3.x, where an application can have a route of its
     // own at that path
-    twoFactorRegistrationsRoute?: TwoFactorRegistrationsRoute
+    twoFactorRegistrationsRoute?: TwoFactorRegistrationsRoute,
+    /**
+     * Whether `POST /verify-invitation-token`, `POST /accept-invitation` and `POST /decline-invitation` are there,
+     * which answer the link of an invitation. Needs an invitation repository. Not by default.
+     */
+    invitationRoutes?: InvitationRoutes
 };

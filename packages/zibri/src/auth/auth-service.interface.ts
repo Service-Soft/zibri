@@ -19,6 +19,7 @@ import { ConfirmPasswordResetData } from './authenticators/password/confirm-pass
 import { RequestPasswordResetData } from './authenticators/password/request-password-reset-data.model';
 import { SetPasswordData } from './authenticators/password/set-password-data.model';
 import { type CurrentUser } from './decorators/current-user.decorator';
+import { AnyLevelPermissions } from './models/any-level-permissions.model';
 import { BaseUser } from './models/base-user.model';
 import { CurrentUserMembership } from './models/current-user-membership.model';
 import { LogoutResult } from './models/logout-result.model';
@@ -111,6 +112,20 @@ export interface AuthServiceInterface {
         context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies,
         permission: PlatformPermission
+    ) => Promise<boolean>,
+    // TODO 4.0: required, like the two checks above
+    /**
+     * Checks whether one of the roles the currently logged in user holds in the active tenant carries the tenant
+     * permission, or one of the roles of their own carries the platform permission, the way
+     * `@Auth.hasAnyLevelPermission` checks it. With no tenant active, only the platform permission can pass.
+     *
+     * A permission that is not declared at its level in `ZIBRI_DI_TOKENS.PERMISSIONS` is carried by no role, and is
+     * reported once as a warning.
+     */
+    hasAnyLevelPermission?: (
+        context: HttpRequestContext | WebsocketRequestContext,
+        allowedStrategies: AuthStrategies,
+        permissions: AnyLevelPermissions
     ) => Promise<boolean>,
     /**
      * Resolves the permissions a user's roles carry: of their own, and of their membership in a

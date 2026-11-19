@@ -15,6 +15,9 @@ import { type CurrentUser } from '../decorators/current-user.decorator';
 import { EmailConfirmation } from '../email-verification/email-confirmation.model';
 import { EmailVerificationTokenInput } from '../email-verification/email-verification-token-input.model';
 import { RequestEmailChangeInput } from '../email-verification/request-email-change-input.model';
+import { AcceptInvitationInput } from '../invitation/accept-invitation-input.model';
+import { InvitationTokenInput } from '../invitation/invitation-token-input.model';
+import { InvitationTokenValidity } from '../invitation/invitation-token-validity.model';
 import { BaseUser } from '../models/base-user.model';
 import { CurrentUserProfile } from '../models/current-user-profile.model';
 import { LogoutResult } from '../models/logout-result.model';
@@ -46,6 +49,18 @@ export type AuthControllerLoginRoutes = {
 export type AuthControllerCurrentUserRoutes = {
     // eslint-disable-next-line jsdoc/require-jsdoc
     getCurrentUser: (user: CurrentUser) => Promise<CurrentUserProfile>
+};
+
+/**
+ * The routes of `AuthController` that answer invitations, with `invitationRoutes`.
+ */
+export type AuthControllerInvitationRoutes = {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    verifyInvitationToken: (input: InvitationTokenInput) => Promise<InvitationTokenValidity>,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    acceptInvitation: (user: CurrentUser | undefined, input: AcceptInvitationInput) => Promise<void>,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    declineInvitation: (input: InvitationTokenInput) => Promise<void>
 };
 
 /**

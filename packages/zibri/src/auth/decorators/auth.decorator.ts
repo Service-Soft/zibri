@@ -2,6 +2,7 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { SkipAuthMetadata } from '../models/skip-auth-metadata.model';
 import { type Permission } from '../roles/permission.type';
 import { type PlatformPermission } from '../roles/platform-permission.type';
+import { hasAnyLevelPermissionDecorator, HasAnyLevelPermissionFn } from './has-any-level-permission.decorator';
 import { hasPermissionDecorator, HasPermissionFn } from './has-permission.decorator';
 import { hasPlatformPermissionDecorator } from './has-platform-permission.decorator';
 import { isLoggedInDecorator, IsLoggedInFn } from './is-logged-in.decorator';
@@ -39,6 +40,15 @@ export namespace Auth {
      * @param allowedStrategies - The auth strategies that are allowed to be used to check that.
      */
     export const hasPlatformPermission: HasPermissionFn<PlatformPermission> = hasPlatformPermissionDecorator;
+    /**
+     * Marks an endpoint to be only reachable when one of the roles the logged in user holds in the
+     * tenant the request is for carries the tenant permission, or one of the roles of the user's own
+     * carries the platform permission. A request naming no tenant passes by the platform permission
+     * only.
+     * @param permissions - The tenant and the platform permission, either of which opens this endpoint.
+     * @param allowedStrategies - The auth strategies that are allowed to be used to check that.
+     */
+    export const hasAnyLevelPermission: HasAnyLevelPermissionFn = hasAnyLevelPermissionDecorator;
     /**
      * Marks an endpoint to be only reachable when the logged in user provides a second factor somehow.
      * @param allowedMethods - The allowed two factor methods to use.

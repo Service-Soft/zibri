@@ -722,28 +722,28 @@ export class HttpClient implements HttpClientInterface {
             try {
                 responseBody = await this.parser.parseBody(res as unknown as HttpClientResponse, responseBodyMetadata);
             }
-            catch (failure) {
+            catch (error_) {
                 throw new HttpClientError(
                     'Could not parse response body',
                     {
                         responseData: { body: res.rawBody, status: res.status, statusText: res.statusText, headers: responseHeaders },
                         requestData: { method, url, body: requestBody, headers: options?.headers as Record<string, unknown> ?? {} }
                     },
-                    { cause: failure }
+                    { cause: error_ }
                 );
             }
 
             try {
                 await this.validationService.validateBody(responseBody, responseBodyMetadata);
             }
-            catch (failure) {
+            catch (error_) {
                 throw new HttpClientError(
                     'Could not validate response body',
                     {
                         responseData: { body: res.rawBody, status: res.status, statusText: res.statusText, headers: responseHeaders },
                         requestData: { method, url, body: requestBody, headers: options?.headers as Record<string, unknown> ?? {} }
                     },
-                    { cause: failure }
+                    { cause: error_ }
                 );
             }
         }
@@ -759,28 +759,28 @@ export class HttpClient implements HttpClientInterface {
                         headerMetadata
                     );
                 }
-                catch (failure) {
+                catch (error_) {
                     throw new HttpClientError(
                         `Could not parse response header "${headerMetadata.name}"`,
                         {
                             responseData: { body: res.rawBody, status: res.status, statusText: res.statusText, headers: responseHeaders },
                             requestData: { method, url, body: requestBody, headers: options?.headers as Record<string, unknown> ?? {} }
                         },
-                        { cause: failure }
+                        { cause: error_ }
                     );
                 }
 
                 try {
                     await this.validationService.validateHeaderParam(res.headers[key], headerMetadata);
                 }
-                catch (failure) {
+                catch (error_) {
                     throw new HttpClientError(
                         `Could not validate response header "${headerMetadata.name}"`,
                         {
                             responseData: { body: res.rawBody, status: res.status, statusText: res.statusText, headers: responseHeaders },
                             requestData: { method, url, body: requestBody, headers: options?.headers as Record<string, unknown> ?? {} }
                         },
-                        { cause: failure }
+                        { cause: error_ }
                     );
                 }
             })

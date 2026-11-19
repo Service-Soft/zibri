@@ -64,7 +64,8 @@ export abstract class AsyncApiExplorerUtilities {
                 .map(message => this.resolveMessage(definition, message)),
             replies: (operation.reply?.messages ?? []).map(message => this.resolveMessage(definition, message)),
             securitySchemes: (operation.security ?? []).map(scheme => this.resolveSecuritySchemeName(scheme)),
-            permissions: [operation['x-permission'], operation['x-platform-permission']].filter(permission => permission != undefined)
+            permissions: [operation['x-permission'], operation['x-platform-permission']].filter(permission => permission != undefined),
+            anyLevelPermission: operation['x-any-level-permission'] === true
         };
     }
 

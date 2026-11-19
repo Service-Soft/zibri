@@ -242,6 +242,19 @@ export class UserService implements UserServiceInterface, OnAppInit {
         return found.flat().filter(id => typeof id === 'string');
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteUser(id: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+        // through the repository that holds the user, so that what follows a deleted user, such as their
+        // memberships and credentials, goes with it, and a user entity that soft deletes keeps the row
+        const counts: number[] = await Promise.all(this.userEntityRepositories
+            .map(async repository => await repository.count({ where: { id }, transaction })));
+        const holder: Repository<BaseUser<string>> | undefined = this.userEntityRepositories.find((_, index) => (counts[index] ?? 0) > 0);
+        if (holder == undefined) {
+            throw new NotFoundError($ts`Could not find user with id "${id}".`);
+        }
+        await holder.deleteById(id, { transaction });
+    }
+
     /**
      * Resolves the first answer any user repository gives.
      *

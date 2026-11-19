@@ -73,6 +73,9 @@ describe('corsMiddleware', () => {
         expect(allowedHeaders).toContain(KnownHeader.TRACEPARENT);
         expect(allowedHeaders).toContain(KnownHeader.TRACESTATE);
         expect(allowedHeaders).toContain(KnownHeader.DPOP);
+        // the header the TenantService reads the tenant of a request from, without which a page on another origin
+        // could act in no tenant
+        expect(allowedHeaders).toContain('x-tenant-id');
 
         // being allowed to send a header is not being allowed to read one back. Nothing was exposed
         // at all, so a page could not see the csrf token the framework reissues when a session

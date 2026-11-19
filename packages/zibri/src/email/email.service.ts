@@ -161,12 +161,23 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteQueuedEmails(tenantId: string): Promise<number> {
+        return await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
+            tenantId,
+            async () => await this.emailRepository.deleteAll({ status: EmailStatus.QUEUED, tenantId })
+        );
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async onAppShutdown(): Promise<void> {
         await this.transport.close?.();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async queue(data: QueueEmailData): Promise<void> {
+        // a deactivated tenant sends nothing, and would send it all once it is reactivated
+        const tenantService: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
+        await tenantService.validateNotDeactivated?.(tenantService.getActiveTenantId());
         await this.emailRepository.create({
             status: EmailStatus.QUEUED,
             priority: EmailPriority.NORMAL,

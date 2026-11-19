@@ -708,8 +708,14 @@ export function describeTenantIsolationOverHttp(name: string, dataSourceClass: N
 
             it('holds a unique within each tenant, and not across them', async () => {
                 const projectName: string = `website ${UUIDUtilities.generate()}`;
-                const inA: Response = await call(PROJECTS_PATH, { token: alice.token, tenant: tenantA, method: 'POST', body: { name: projectName } });
-                const inB: Response = await call(PROJECTS_PATH, { token: bob.token, tenant: tenantB, method: 'POST', body: { name: projectName } });
+                const inA: Response = await call(
+                    PROJECTS_PATH,
+                    { token: alice.token, tenant: tenantA, method: 'POST', body: { name: projectName } }
+                );
+                const inB: Response = await call(
+                    PROJECTS_PATH,
+                    { token: bob.token, tenant: tenantB, method: 'POST', body: { name: projectName } }
+                );
                 const againInA: Response = await call(PROJECTS_PATH, {
                     token: alice.token,
                     tenant: tenantA,

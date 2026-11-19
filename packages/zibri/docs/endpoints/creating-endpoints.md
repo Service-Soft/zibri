@@ -687,6 +687,8 @@ export class OperationsController {
 }
 ```
 
+`@Auth.hasAnyLevelPermission()` takes one permission of each level, either of which is enough, see [accepting a permission of either level](../auth/roles-and-permissions.md#accepting-a-permission-of-either-level).
+
 ### Which rows a caller may see
 Which rows belong to the logged in user is declared once, on the entity, and applies to every query of every endpoint. A row the caller may not see is not found, the same as a row that does not exist. See [restricting which rows a caller may see](../data/data-source.md#restricting-which-rows-a-caller-may-see).
 

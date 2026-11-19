@@ -17,5 +17,11 @@ export interface EmailServiceInterface {
      * Deletes the failed emails older than the configured `failedRetentionInMs`.
      * @returns How many emails were deleted.
      */
-    deleteExpiredFailedEmails: () => Promise<number>
+    deleteExpiredFailedEmails: () => Promise<number>,
+    /**
+     * Deletes the emails of a tenant that wait to be sent, such as once it is deactivated.
+     * @returns How many emails were deleted.
+     */
+    // TODO 4.0: required, which a service of your own would have had to add in a minor release
+    deleteQueuedEmails?: (tenantId: string) => Promise<number>
 }

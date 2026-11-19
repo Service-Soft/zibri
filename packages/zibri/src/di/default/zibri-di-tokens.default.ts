@@ -26,6 +26,8 @@ import { EncryptionStrategyInterface } from '../../auth/encryption/strategies/en
 import { HashServiceInterface } from '../../auth/hash/hash-service.interface';
 import { HashStrategyInterface } from '../../auth/hash/strategies/hash-strategy.interface';
 import { ScryptCost } from '../../auth/hash/strategies/scrypt.hash-strategy';
+import { InvitationOptions } from '../../auth/invitation/invitation-options.model';
+import { InvitationServiceInterface } from '../../auth/invitation/invitation-service.interface';
 import { Require2faProviderFactors } from '../../auth/models/require-2fa-provider-factors.model';
 import { Require2faReauth } from '../../auth/models/require-2fa-reauth.model';
 import { RouteAuthConfiguration } from '../../auth/models/route-auth-configuration.model';
@@ -244,6 +246,14 @@ export const ZIBRI_DI_TOKENS = {
     PDF_FONT_OPTIONS: ziToken<PdfFontOptions>('zi.pdf_font_options'),
     TENANT_SERVICE: ziToken<TenantServiceInterface>('zi.tenant_service'),
     MEMBERSHIP_SERVICE: ziToken<MembershipServiceInterface>('zi.membership_service'),
+    /**
+     * Invites people to the application, or to a tenant with roles there.
+     */
+    INVITATION_SERVICE: ziToken<InvitationServiceInterface>('zi.invitation_service'),
+    /**
+     * How invitations are sent. Required once the application lists an invitation repository.
+     */
+    INVITATION_OPTIONS: ziToken<InvitationOptions | undefined>('zi.invitation_options'),
     LEASE_DRAIN_TIMEOUT_IN_MS: ziToken<number>('zi.lease_drain_timeout_in_ms'),
     WAIT_REPORT_INTERVAL_IN_MS: ziToken<number>('zi.wait_report_interval_in_ms'),
     /**

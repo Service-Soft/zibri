@@ -323,6 +323,11 @@ class ItemController {
     @Get('/purge')
     purge(): void { }
 
+    @Auth.hasAnyLevelPermission({ permission: ITEMS_EXPORT, platformPermission: ITEMS_PURGE })
+    @Response.empty()
+    @Get('/either')
+    either(): void { }
+
     @Response.object(Owner, { status: HttpStatus.OK })
     @Get('/:id/owner')
     getOwner(
@@ -531,6 +536,15 @@ describe('OpenApiService', () => {
         const operation: OpenApiOperation = op('/items/purge', 'get');
         expect(operation['x-platform-permission']).toBe('items.purge');
         expect(operation['x-permission']).toBeUndefined();
+        expect(operation['x-any-level-permission']).toBeUndefined();
+        expect(operation.security).toBeDefined();
+    });
+
+    it('names both permissions of a route behind @Auth.hasAnyLevelPermission(), and that either is enough', () => {
+        const operation: OpenApiOperation = op('/items/either', 'get');
+        expect(operation['x-permission']).toBe('items.export');
+        expect(operation['x-platform-permission']).toBe('items.purge');
+        expect(operation['x-any-level-permission']).toBe(true);
         expect(operation.security).toBeDefined();
     });
 
@@ -860,6 +874,8 @@ describe('OpenApiService', () => {
             });
             expect(explorerOperation('/items/export', 'get').permissions).toEqual(['items.export']);
             expect(explorerOperation('/items/purge', 'get').permissions).toEqual(['items.purge']);
+            expect(explorerOperation('/items/purge', 'get').anyLevelPermission).toBe(false);
+            expect(explorerOperation('/items/either', 'get')).toMatchObject({ permissions: ['items.export', 'items.purge'], anyLevelPermission: true });
             expect(explorerOperation('/manual/ping', 'get').responses.map(response => response.status)).toEqual(['200']);
         });
 

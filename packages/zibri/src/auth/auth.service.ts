@@ -48,6 +48,7 @@ import { TwoFactorAtLogin } from './2fa/two-factor-at-login.type';
 import { TwoFactorMethods } from './2fa/two-factor-methods.model';
 import { type TwoFactorServiceInterface } from './2fa/two-factor-service.interface';
 import { AuthControllerUtilities } from './auth-controller/auth-controller.utilities';
+import { isAuthControllerClass } from './auth-controller/is-auth-controller-class.function';
 import { AuthServiceInterface } from './auth-service.interface';
 import { AuthenticatorInterface } from './authenticators/authenticator.interface';
 import { Authenticators } from './authenticators/authenticators.model';
@@ -72,11 +73,13 @@ import { isRefreshResolvingAuthenticator } from './authenticators/refresh-resolv
 import { type CurrentUser } from './decorators/current-user.decorator';
 import { type HashServiceInterface } from './hash/hash-service.interface';
 import { Sha256HashStrategy } from './hash/strategies/sha256.hash-strategy';
+import { AnyLevelPermissions } from './models/any-level-permissions.model';
 import { Authentication } from './models/authentication.model';
 import { BaseUser } from './models/base-user.model';
 import { ClaimedUser } from './models/claimed-user.model';
 import { CurrentUserMembership } from './models/current-user-membership.model';
 import { EndedLogin } from './models/ended-login.model';
+import { HasAnyLevelPermissionMetadata } from './models/has-any-level-permission-metadata.model';
 import { HasPermissionMetadata } from './models/has-permission-metadata.model';
 import { IsLoggedInMetadata } from './models/is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model';
@@ -1392,6 +1395,11 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
         // read rather than resolved: the route's declaration cannot have changed since it was
         // registered, and resolving one warns and refuses along the way
         const { metadata, requiresLogin }: ResolvedRouteAuth = RouteRegistry.get(controllerClass, controllerMethod).auth;
+        // the auth routes act on the account rather than on a tenant, so a user whose tenant was deactivated still
+        // logs in, and finds out which tenants are left to them
+        if (!isAuthControllerClass(controllerClass)) {
+            await this.validateTenantNotDeactivated(context);
+        }
         await this.runChecks(metadata, requiresLogin, context);
     }
 
@@ -1401,7 +1409,24 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
         context: HttpRequestContext | WebsocketRequestContext
     ): Promise<void> {
         const { metadata, requiresLogin }: ResolvedRouteAuth = this.routeAuthService.resolveManualRouteAuth(auth);
+        await this.validateTenantNotDeactivated(context);
         await this.runChecks(metadata, requiresLogin, context);
+    }
+
+    /**
+     * Refuses a request for a tenant that is deactivated, whoever sends it.
+     * @param context - The request.
+     * @throws A TenantDeactivatedError when its tenant is deactivated.
+     */
+    private async validateTenantNotDeactivated(context: HttpRequestContext | WebsocketRequestContext): Promise<void> {
+        const tenantId: string | undefined = this.tenantService.getActiveTenantId();
+        try {
+            await this.tenantService.validateNotDeactivated?.(tenantId);
+        }
+        catch (error) {
+            await this.auditDenied(context, this.strategies, AuditReason.TENANT_DEACTIVATED);
+            throw error;
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1602,6 +1627,25 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             // worded like the refusal above, for the reason given there
             throw new ForbiddenError($ts`You do not have permission to access this route.`);
         }
+
+        // hasAnyLevelPermission
+        const hasAnyLevelPermissionMetadata: HasAnyLevelPermissionMetadata | undefined = metadata.hasAnyLevelPermission;
+        if (
+            hasAnyLevelPermissionMetadata
+            && !await this.hasAnyLevelPermission(
+                context,
+                hasAnyLevelPermissionMetadata.allowedStrategies ?? this.strategies,
+                hasAnyLevelPermissionMetadata
+            )
+        ) {
+            await this.auditDenied(
+                context,
+                hasAnyLevelPermissionMetadata.allowedStrategies ?? this.strategies,
+                AuditReason.MISSING_PERMISSION
+            );
+            // worded like the refusals above, for the reason given there
+            throw new ForbiddenError($ts`You do not have permission to access this route.`);
+        }
     }
 
     /**
@@ -1777,6 +1821,19 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async hasAnyLevelPermission(
+        context: HttpRequestContext | WebsocketRequestContext,
+        allowedStrategies: AuthStrategies,
+        permissions: AnyLevelPermissions
+    ): Promise<boolean> {
+        // the two checks themselves rather than a check of its own, so what passes either alone passes this, the
+        // credential limits and the warning about a permission nobody declared included. Asked one after the other:
+        // the second is only needed when the first says no, and both read the same memoized caller
+        return await this.hasPermission(context, allowedStrategies, permissions.permission)
+            || await this.hasPlatformPermission(context, allowedStrategies, permissions.platformPermission);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveUserPermissions(user: BaseUser<string>, tenantId: string | undefined): Promise<(Permission | PlatformPermission)[]> {
         const memberships: BaseMembership<string>[] = tenantId == undefined
             ? await this.membershipService.findActiveMemberships(user.id)
@@ -1870,8 +1927,12 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             this.membershipService.findActiveMemberships<string, BaseMembership<string>>(account.id),
             this.resolveCredentialLimits(context, allowedStrategies)
         ]);
-        // a credential bound to a tenant acts in no other, so the others are none of its business
-        const usable: BaseMembership<string>[] = memberships.filter(m => limits?.tenantId == undefined || m.tenantId === limits.tenantId);
+        // a credential bound to a tenant acts in no other, so the others are none of its business, and a deactivated
+        // tenant is nobody's to act in
+        const deactivated: boolean[] = await Promise.all(memberships
+            .map(async m => await this.tenantService.resolveIsDeactivated?.(m.tenantId) ?? false));
+        const usable: BaseMembership<string>[] = memberships
+            .filter((m, index) => (limits?.tenantId == undefined || m.tenantId === limits.tenantId) && deactivated[index] !== true);
         return await Promise.all(usable.map(async membership => ({
             tenantId: membership.tenantId,
             permissions: this.narrowToCredential(await this.roleService.resolvePermissionsOf(membership.roles, membership.tenantId), limits)

@@ -675,7 +675,11 @@ describe('every optional peer', () => {
     it('is listed where a reader looks for what to install', () => {
         // the requirements of the page of each feature, which getting-started.md sends a reader to
         const listed: Set<string> = new Set(DocsPagesUtilities.resolvePageNames()
-            .filter(page => readFileSync(path.join(DOCS_DIR, page), 'utf8').split('\n').includes('## Requirements'))
+            .filter(
+                page => readFileSync(path.join(DOCS_DIR, page), 'utf8')
+                    .split('\n')
+                    .includes('## Requirements')
+            )
             .flatMap(page => [...resolveDocsSection(page, '## Requirements').matchAll(/`([^`]+)`/g)].map(match => match[1] ?? '')));
 
         // a package the pages leave out is one an upgrade finds missing at the first boot. The table they

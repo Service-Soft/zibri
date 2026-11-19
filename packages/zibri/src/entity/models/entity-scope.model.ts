@@ -3,6 +3,7 @@
 // request context pulls in ZIBRI_DI_TOKENS and with it most of the framework, which is a cycle that
 // leaves whatever loads inside it holding undefined
 import { type CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { type AnyLevelPermissions } from '../../auth/models/any-level-permissions.model';
 import { type Permission } from '../../auth/roles/permission.type';
 import { type PlatformPermission } from '../../auth/roles/platform-permission.type';
 import { type HttpRequestContext } from '../../context/request/http-request.context';
@@ -57,6 +58,12 @@ export type EntityScopeContext = {
      * `@Auth.hasPlatformPermission` checks it. No outside a request.
      */
     hasPlatformPermission: (permission: PlatformPermission) => Promise<boolean>,
+    /**
+     * Checks whether one of the roles the requesting user holds in the active tenant carries the tenant permission,
+     * or one of their own roles carries the platform permission, the way `@Auth.hasAnyLevelPermission` checks it.
+     * No outside a request.
+     */
+    hasAnyLevelPermission: (permissions: AnyLevelPermissions) => Promise<boolean>,
     /**
      * The request being handled, if there is one.
      */

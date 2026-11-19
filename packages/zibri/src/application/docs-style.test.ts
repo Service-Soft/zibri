@@ -598,6 +598,7 @@ describe('the pages in docs/', () => {
         expect(unnamed).toEqual([]);
     });
 
+    // eslint-disable-next-line sonar/cognitive-complexity
     it('lists every package zibri stands on under Requirements, and only those', () => {
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const manifest: PackageManifest = JSON.parse(readFileSync(path.join(DOCS_DIR, '..', 'package.json'), 'utf8'));

@@ -41,6 +41,7 @@ import { OpenApiExplorerTemplate, OpenApiExplorerVersion } from './explorer/open
 import { OpenApiSchemaUtilities } from './open-api-schema.utilities';
 import { OpenApiServiceInterface } from './open-api-service.interface';
 import { OpenApiDefinition, OpenApiTagObject, OpenApiSecuritySchemeObject, OpenApiPaths, OpenApiResponse, OpenApiOperation, OpenApiSecurityRequirementObject, OpenApiServerObject } from './open-api.model';
+import { resolvePermissionExtensions } from './resolve-permission-extensions.function';
 import { resolveResponseClass } from './resolve-response-class.function';
 
 /**
@@ -346,13 +347,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
 
                 const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(controllerClass, route.controllerMethod);
 
-                const {
-                    hasPermission: hasPermissionMetadata,
-                    hasPlatformPermission: hasPlatformPermissionMetadata
-                }: ResolvedAuthMetadata = RouteRegistry.get(
-                    controllerClass,
-                    route.controllerMethod
-                ).auth.metadata;
+                const authMetadata: ResolvedAuthMetadata = RouteRegistry.get(controllerClass, route.controllerMethod).auth.metadata;
 
                 const operation: OpenApiOperation = {
                     description: this.describeScopes(responses),
@@ -365,8 +360,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                     ],
                     requestBody: OpenApiSchemaUtilities.resolveRequestBody(bodyMetadata),
                     security: await this.resolveOperationSecurity(controllerClass, route.controllerMethod),
-                    ['x-permission']: hasPermissionMetadata?.permission,
-                    ['x-platform-permission']: hasPlatformPermissionMetadata?.permission
+                    ...resolvePermissionExtensions(authMetadata)
                 };
                 res[fullPath][httpMethodKey(route.httpMethod)] = operation;
             }
@@ -397,8 +391,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                 // that it states one - or inherits `defaultAuth` by stating nothing - the spec says
                 // the same thing about it that it says about a controller route
                 security: this.resolveRouteSecurity(route.auth),
-                ['x-permission']: route.auth?.hasPermission?.permission,
-                ['x-platform-permission']: route.auth?.hasPlatformPermission?.permission
+                ...resolvePermissionExtensions(route.auth ?? {})
             };
             res[fullPath][httpMethodKey(route.httpMethod)] = operation;
         }

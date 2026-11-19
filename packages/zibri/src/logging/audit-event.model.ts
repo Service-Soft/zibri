@@ -156,6 +156,45 @@ export enum AuditAction {
      */
     MEMBERSHIP_DELETED = 'auth.membership.deleted',
     /**
+     * Inviting somebody to the application, or to a tenant with roles there. Recorded in the tenant of the
+     * invitation, with the invited email as `subject`.
+     */
+    INVITATION_CREATED = 'auth.invitation.created',
+    /**
+     * Sending an invitation again with a new link, because somebody asked for it or because its link had expired
+     * when it was followed. Recorded like its creation.
+     */
+    INVITATION_RESENT = 'auth.invitation.resent',
+    /**
+     * Accepting an invitation. Recorded like its creation, with the user who accepted it as `userId`.
+     */
+    INVITATION_ACCEPTED = 'auth.invitation.accepted',
+    /**
+     * Declining an invitation. Recorded like its creation.
+     */
+    INVITATION_DECLINED = 'auth.invitation.declined',
+    /**
+     * Withdrawing an invitation. Recorded like its creation.
+     */
+    INVITATION_REVOKED = 'auth.invitation.revoked',
+    /**
+     * Following the link of an invitation that has expired. Recorded like its creation.
+     */
+    INVITATION_EXPIRED = 'auth.invitation.expired',
+    /**
+     * Deactivating a tenant, which refuses every request for it and deletes its queued work. Recorded in that tenant.
+     */
+    TENANT_DEACTIVATED = 'auth.tenant.deactivated',
+    /**
+     * Reactivating a deactivated tenant. Recorded in that tenant.
+     */
+    TENANT_REACTIVATED = 'auth.tenant.reactivated',
+    /**
+     * Deleting a tenant and every row that belongs to it, recorded once the last of them is gone. Recorded in that
+     * tenant, whose audit trail stays.
+     */
+    TENANT_DELETED = 'auth.tenant.deleted',
+    /**
      * Replacing a tenant's rows with those of a backup of the tenant. Recorded in that tenant, with the
      * name of the backup as `subject`.
      */
@@ -292,6 +331,10 @@ export enum AuditReason {
      * credential bound to another tenant.
      */
     NOT_A_MEMBER = 'not-a-member',
+    /**
+     * The request is for a tenant that is deactivated.
+     */
+    TENANT_DEACTIVATED = 'tenant-deactivated',
     /**
      * The caller tried to write a row outside what the entity's scope lets them see.
      *

@@ -12,6 +12,7 @@ import { type LoggerInterface } from '../logging/logger.interface';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { DeclaredChecks } from './models/declared-checks.model';
+import { HasAnyLevelPermissionMetadata } from './models/has-any-level-permission-metadata.model';
 import { HasPermissionMetadata } from './models/has-permission-metadata.model';
 import { IsLoggedInMetadata } from './models/is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model';
@@ -30,6 +31,7 @@ const AUTH_IS_LOGGED_IN_LABEL: string = '@Auth.isLoggedIn';
 const AUTH_IS_NOT_LOGGED_IN_LABEL: string = '@Auth.isNotLoggedIn';
 const AUTH_HAS_PERMISSION_LABEL: string = '@Auth.hasPermission';
 const AUTH_HAS_PLATFORM_PERMISSION_LABEL: string = '@Auth.hasPlatformPermission';
+const AUTH_HAS_ANY_LEVEL_PERMISSION_LABEL: string = '@Auth.hasAnyLevelPermission';
 const AUTH_REQUIRE_2FA_LABEL: string = '@Auth.require2fa';
 const PERMISSIONS_TOKEN: string = 'ZIBRI_DI_TOKENS.PERMISSIONS';
 
@@ -78,8 +80,14 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
             isNotLoggedIn: this.resolveIsNotLoggedInMetadata(controllerClass, controllerMethod),
             hasPermission: this.resolveHasPermissionMetadata(controllerClass, controllerMethod),
             hasPlatformPermission: this.resolveHasPlatformPermissionMetadata(controllerClass, controllerMethod),
+            hasAnyLevelPermission: this.resolveHasAnyLevelPermissionMetadata(controllerClass, controllerMethod),
             require2fa: this.resolveRequire2faMetadata(controllerClass, controllerMethod)
         };
+        this.validateAnyLevelPermissionStandsAlone(metadata, `${controllerClass.name}.${controllerMethod}`, {
+            anyLevel: AUTH_HAS_ANY_LEVEL_PERMISSION_LABEL,
+            tenant: AUTH_HAS_PERMISSION_LABEL,
+            platform: AUTH_HAS_PLATFORM_PERMISSION_LABEL
+        });
         const routeSkip: SkipAuthMetadata | undefined = MetadataUtilities.getRouteSkipAuth(controllerClass, controllerMethod);
         const controllerSkip: SkipAuthMetadata | undefined = MetadataUtilities.getControllerSkipAuth(controllerClass);
 
@@ -102,6 +110,7 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
             isNotLoggedIn: auth?.isNotLoggedIn,
             hasPermission: auth?.hasPermission,
             hasPlatformPermission: auth?.hasPlatformPermission,
+            hasAnyLevelPermission: auth?.hasAnyLevelPermission,
             require2fa: auth?.require2fa
         };
         return { metadata, requiresLogin: this.requiresLoginGiven(metadata, this.defaultAuth === 'isLoggedIn' && auth?.skip !== true) };
@@ -121,7 +130,41 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
     validateRouteAuth(auth: RouteAuthConfiguration | undefined, route: string): void {
         this.validateRoutePermissionIsDeclared('tenant', auth?.hasPermission, route, 'auth.hasPermission');
         this.validateRoutePermissionIsDeclared('platform', auth?.hasPlatformPermission, route, 'auth.hasPlatformPermission');
-        this.validateLoginPossible(this.resolveManualRouteAuth(auth).requiresLogin, route);
+        this.validateAnyLevelPermissionIsDeclared(auth?.hasAnyLevelPermission, route, 'auth.hasAnyLevelPermission');
+        const resolved: ResolvedRouteAuth = this.resolveManualRouteAuth(auth);
+        this.validateAnyLevelPermissionStandsAlone(resolved.metadata, route, {
+            anyLevel: 'auth.hasAnyLevelPermission',
+            tenant: 'auth.hasPermission',
+            platform: 'auth.hasPlatformPermission'
+        });
+        this.validateLoginPossible(resolved.requiresLogin, route);
+    }
+
+    /**
+     * Refuses a route asking for any level's permission beside a permission of one level: either is enough for the
+     * one, both are needed for the other, so the two say different things about one permission, and the
+     * documents describing the route could only name one of them.
+     * @param metadata - What the route resolved to.
+     * @param route - How to name the route in the error.
+     * @param labels - How to name the three declarations in the error.
+     * @throws When the route resolves both.
+     */
+    private validateAnyLevelPermissionStandsAlone(
+        metadata: ResolvedAuthMetadata,
+        route: string,
+        labels: Record<'anyLevel' | RoleLevel, string>
+    ): void {
+        if (metadata.hasAnyLevelPermission == undefined) {
+            return;
+        }
+        const alongside: string[] = [
+            ...metadata.hasPermission == undefined ? [] : [labels.tenant],
+            ...metadata.hasPlatformPermission == undefined ? [] : [labels.platform]
+        ];
+        if (alongside.length) {
+            // the other one is usually declared on the controller, and the route skips it with its `skip`
+            throw new InvalidDecoratorCombinationError(route, [labels.anyLevel, ...alongside]);
+        }
     }
 
     /**
@@ -241,6 +284,31 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    resolveHasAnyLevelPermissionMetadata(
+        controllerClass: Newable<unknown>,
+        controllerMethod: string
+    ): HasAnyLevelPermissionMetadata | undefined {
+        const metadata: HasAnyLevelPermissionMetadata | undefined = this.resolveCheckMetadata(
+            controllerClass,
+            controllerMethod,
+            AUTH_HAS_ANY_LEVEL_PERMISSION_LABEL,
+            {
+                controller: MetadataUtilities.getControllerHasAnyLevelPermission(controllerClass),
+                route: MetadataUtilities.getRouteHasAnyLevelPermission(controllerClass, controllerMethod),
+                controllerSkip: MetadataUtilities.getControllerSkipHasAnyLevelPermission(controllerClass),
+                routeSkip: MetadataUtilities.getRouteSkipHasAnyLevelPermission(controllerClass, controllerMethod)
+            },
+            true
+        );
+        this.validateAnyLevelPermissionIsDeclared(
+            metadata,
+            `${controllerClass.name}.${controllerMethod}`,
+            AUTH_HAS_ANY_LEVEL_PERMISSION_LABEL
+        );
+        return metadata;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     resolveRequire2faMetadata(controllerClass: Newable<unknown>, controllerMethod: string): Require2faMetadata | undefined {
         return this.resolveCheckMetadata(
             controllerClass,
@@ -339,6 +407,24 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
     }
 
     /**
+     * Refuses a route asking for any level's permission when either of the two is not declared at its level.
+     * @param metadata - What the route resolved to, if it asks for one.
+     * @param route - How to name the route in the error.
+     * @param label - How to name the declaration in the error.
+     * @throws When one of them is not declared at its level.
+     */
+    private validateAnyLevelPermissionIsDeclared(
+        metadata: HasAnyLevelPermissionMetadata | undefined,
+        route: string,
+        label: string
+    ): void {
+        if (metadata != undefined) {
+            this.validatePermissionIsDeclared('tenant', metadata.permission, `${route} in ${label}`);
+            this.validatePermissionIsDeclared('platform', metadata.platformPermission, `${route} in ${label}`);
+        }
+    }
+
+    /**
      * Refuses a controller that both declares a check and skips everything.
      *
      * The route level pair - `@Auth.isLoggedIn()` beside `@Auth.skip()` on the same method - has
@@ -385,6 +471,7 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
             || MetadataUtilities.getControllerIsNotLoggedIn(controllerClass)
             || MetadataUtilities.getControllerHasPermission(controllerClass)
             || MetadataUtilities.getControllerHasPlatformPermission(controllerClass)
+            || MetadataUtilities.getControllerHasAnyLevelPermission(controllerClass)
             || MetadataUtilities.getControllerRequire2fa(controllerClass)
         ) {
             return;
@@ -439,6 +526,7 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
         return metadata.isLoggedIn != undefined
             || metadata.hasPermission != undefined
             || metadata.hasPlatformPermission != undefined
+            || metadata.hasAnyLevelPermission != undefined
             || metadata.require2fa != undefined
             // the default, unless it says the opposite, and says it itself - a route only reachable
             // while logged out is not one the default requirement applies to

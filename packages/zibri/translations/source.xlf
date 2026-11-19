@@ -4,7 +4,7 @@
     <body>
       <trans-unit id="&#x22;{$1}&#x22; header not found" xml:space="preserve">
         <source>"<x id="$1" equiv-text="{$1}"/>" header not found</source>
-        <note>src/auth/auth-controller/auth-controller.model.ts:1027, src/auth/2fa/methods/recovery-code/recovery-code.two-factor-method.ts:180, src/auth/2fa/methods/passkey/passkey.two-factor-method.ts:107, src/auth/2fa/methods/otp/otp.two-factor-method.ts:269, src/auth/2fa/methods/code/code.two-factor-method.ts:252</note>
+        <note>src/auth/auth-controller/auth-controller.model.ts:1086, src/auth/2fa/methods/recovery-code/recovery-code.two-factor-method.ts:180, src/auth/2fa/methods/passkey/passkey.two-factor-method.ts:107, src/auth/2fa/methods/otp/otp.two-factor-method.ts:269, src/auth/2fa/methods/code/code.two-factor-method.ts:252</note>
       </trans-unit>
       <trans-unit id="&#x22;{$1}&#x22; is none of {$2}." xml:space="preserve">
         <source>"<x id="$1" equiv-text="{$1}"/>" is none of <x id="$2" equiv-text="{$2}"/>.</source>
@@ -78,6 +78,10 @@
         <source>A member of the group is no provisioned user or group.</source>
         <note>src/auth/scim/scim.service.ts:903</note>
       </trans-unit>
+      <trans-unit id="A password is required for the account the invitation creates." xml:space="preserve">
+        <source>A password is required for the account the invitation creates.</source>
+        <note>src/auth/invitation/invitation.service.ts:366</note>
+      </trans-unit>
       <trans-unit id="A password needs to be at least {$1} characters long." xml:space="preserve">
         <source>A password needs to be at least <x id="$1" equiv-text="{$1}"/> characters long.</source>
         <note>src/auth/password-policy/password-policy.utilities.ts:49</note>
@@ -132,7 +136,7 @@
       </trans-unit>
       <trans-unit id="A socket.io server. A client names the version in the handshake, in the version header or query parameter, and logs in with the credentials of the handshake or of each message." xml:space="preserve">
         <source>A socket.io server. A client names the version in the handshake, in the version header or query parameter, and logs in with the credentials of the handshake or of each message.</source>
-        <note>src/async-api/async-api.service.ts:166</note>
+        <note>src/async-api/async-api.service.ts:168</note>
       </trans-unit>
       <trans-unit id="A tenant has a role of its own named '{$1}', so no role every tenant shares can be named so." xml:space="preserve">
         <source>A tenant has a role of its own named '<x id="$1" equiv-text="{$1}"/>', so no role every tenant shares can be named so.</source>
@@ -264,7 +268,7 @@
       </trans-unit>
       <trans-unit id="Could not find connection with id &#x22;{$1}&#x22;." xml:space="preserve">
         <source>Could not find connection with id "<x id="$1" equiv-text="{$1}"/>".</source>
-        <note>src/websocket/services/websocket.service.ts:1304</note>
+        <note>src/websocket/services/websocket.service.ts:1360</note>
       </trans-unit>
       <trans-unit id="Could not find cron job with name &#x22;{$1}&#x22;" xml:space="preserve">
         <source>Could not find cron job with name "<x id="$1" equiv-text="{$1}"/>"</source>
@@ -272,7 +276,11 @@
       </trans-unit>
       <trans-unit id="Could not find handler for websocket event for version &#x22;{$1}&#x22;" xml:space="preserve">
         <source>Could not find handler for websocket event for version "<x id="$1" equiv-text="{$1}"/>"</source>
-        <note>src/websocket/services/websocket.service.ts:1335</note>
+        <note>src/websocket/services/websocket.service.ts:1391</note>
+      </trans-unit>
+      <trans-unit id="Could not find invitation with id &#x22;{$1}&#x22;." xml:space="preserve">
+        <source>Could not find invitation with id "<x id="$1" equiv-text="{$1}"/>".</source>
+        <note>src/auth/invitation/invitation.service.ts:647</note>
       </trans-unit>
       <trans-unit id="Could not find route &#x22;{$1}&#x22; for version &#x22;{$2}&#x22;" xml:space="preserve">
         <source>Could not find route "<x id="$1" equiv-text="{$1}"/>" for version "<x id="$2" equiv-text="{$2}"/>"</source>
@@ -282,17 +290,21 @@
         <source>Could not find strategy for key with id <x id="$1" equiv-text="{$1}"/></source>
         <note>src/auth/encryption/encryption.service.ts:982</note>
       </trans-unit>
+      <trans-unit id="Could not find tenant with id &#x22;{$1}&#x22;." xml:space="preserve">
+        <source>Could not find tenant with id "<x id="$1" equiv-text="{$1}"/>".</source>
+        <note>src/tenancy/tenant.service.ts:455</note>
+      </trans-unit>
       <trans-unit id="Could not find user with email &#x22;{$1}&#x22;." xml:space="preserve">
         <source>Could not find user with email "<x id="$1" equiv-text="{$1}"/>".</source>
         <note>src/auth/user/user.service.ts:143</note>
       </trans-unit>
       <trans-unit id="Could not find user with id &#x22;{$1}&#x22;." xml:space="preserve">
         <source>Could not find user with id "<x id="$1" equiv-text="{$1}"/>".</source>
-        <note>src/auth/user/user.service.ts:126, src/auth/user/user.service.ts:158, src/auth/user/user.service.ts:172, src/auth/user/user.service.ts:191</note>
+        <note>src/auth/user/user.service.ts:126, src/auth/user/user.service.ts:158, src/auth/user/user.service.ts:172, src/auth/user/user.service.ts:191, src/auth/user/user.service.ts:253</note>
       </trans-unit>
       <trans-unit id="Could not find websocket event &#x22;{$1}&#x22;" xml:space="preserve">
         <source>Could not find websocket event "<x id="$1" equiv-text="{$1}"/>"</source>
-        <note>src/websocket/services/websocket.service.ts:656</note>
+        <note>src/websocket/services/websocket.service.ts:665</note>
       </trans-unit>
       <trans-unit id="Could not reset the changes from the change set: The changeSet doesn't belong to the entity with the given id." xml:space="preserve">
         <source>Could not reset the changes from the change set: The changeSet doesn't belong to the entity with the given id.</source>
@@ -300,7 +312,7 @@
       </trans-unit>
       <trans-unit id="Could not resolve the currently logged in user." xml:space="preserve">
         <source>Could not resolve the currently logged in user.</source>
-        <note>src/auth/auth.service.ts:875, src/auth/auth.service.ts:889, src/auth/auth.service.ts:1202, src/auth/auth.service.ts:1531</note>
+        <note>src/auth/auth.service.ts:878, src/auth/auth.service.ts:892, src/auth/auth.service.ts:1205, src/auth/auth.service.ts:1556</note>
       </trans-unit>
       <trans-unit id="Could not resolve version" xml:space="preserve">
         <source>Could not resolve version</source>
@@ -316,7 +328,7 @@
       </trans-unit>
       <trans-unit id="Enroll a second factor to finish logging in." xml:space="preserve">
         <source>Enroll a second factor to finish logging in.</source>
-        <note>src/auth/auth.service.ts:515</note>
+        <note>src/auth/auth.service.ts:518</note>
       </trans-unit>
       <trans-unit id="Error generating token" xml:space="preserve">
         <source>Error generating token</source>
@@ -328,7 +340,7 @@
       </trans-unit>
       <trans-unit id="Exactly one message needs to be sent." xml:space="preserve">
         <source>Exactly one message needs to be sent.</source>
-        <note>src/websocket/services/websocket.service.ts:674</note>
+        <note>src/websocket/services/websocket.service.ts:683</note>
       </trans-unit>
       <trans-unit id="failOnErrors needs to be a whole number above 0." xml:space="preserve">
         <source>failOnErrors needs to be a whole number above 0.</source>
@@ -382,6 +394,10 @@
         <source>invalid XML in body</source>
         <note>src/parsing/xml/xml.body-parser.ts:73</note>
       </trans-unit>
+      <trans-unit id="Invitation" xml:space="preserve">
+        <source>Invitation</source>
+        <note>src/auth/invitation/invitation.service.ts:629</note>
+      </trans-unit>
       <trans-unit id="is required" xml:space="preserve">
         <source>is required</source>
         <note>src/validation/validation-problem.model.ts:41</note>
@@ -400,15 +416,23 @@
       </trans-unit>
       <trans-unit id="Link expired" xml:space="preserve">
         <source>Link expired</source>
-        <note>src/plugin/mailing-list/services/mailing-list.service.ts:289, src/auth/email-verification/email-verification.service.ts:385, src/auth/authenticators/password/password.authenticator.ts:300</note>
+        <note>src/plugin/mailing-list/services/mailing-list.service.ts:289, src/auth/invitation/invitation.service.ts:487, src/auth/email-verification/email-verification.service.ts:385, src/auth/authenticators/password/password.authenticator.ts:300</note>
+      </trans-unit>
+      <trans-unit id="Link expired. A new link was sent to the invited email." xml:space="preserve">
+        <source>Link expired. A new link was sent to the invited email.</source>
+        <note>src/auth/invitation/invitation.service.ts:484</note>
       </trans-unit>
       <trans-unit id="Link invalid" xml:space="preserve">
         <source>Link invalid</source>
-        <note>src/plugin/mailing-list/services/mailing-list.service.ts:145, src/plugin/mailing-list/services/mailing-list.service.ts:286, src/plugin/mailing-list/services/mailing-list.service.ts:302, src/plugin/mailing-list/services/mailing-list.service.ts:337, src/auth/email-verification/email-verification.service.ts:131, src/auth/email-verification/email-verification.service.ts:381, src/auth/authenticators/password/password.authenticator.ts:296</note>
+        <note>src/plugin/mailing-list/services/mailing-list.service.ts:145, src/plugin/mailing-list/services/mailing-list.service.ts:286, src/plugin/mailing-list/services/mailing-list.service.ts:302, src/plugin/mailing-list/services/mailing-list.service.ts:337, src/auth/invitation/invitation.service.ts:480, src/auth/invitation/invitation.service.ts:559, src/auth/email-verification/email-verification.service.ts:131, src/auth/email-verification/email-verification.service.ts:381, src/auth/authenticators/password/password.authenticator.ts:296</note>
       </trans-unit>
       <trans-unit id="Log in again to access this route." xml:space="preserve">
         <source>Log in again to access this route.</source>
         <note>src/auth/2fa/reauthentication-required.error.ts:12</note>
+      </trans-unit>
+      <trans-unit id="Log in as the account of the invited email to accept the invitation." xml:space="preserve">
+        <source>Log in as the account of the invited email to accept the invitation.</source>
+        <note>src/auth/invitation/invitation.service.ts:355</note>
       </trans-unit>
       <trans-unit id="March" xml:space="preserve">
         <source>March</source>
@@ -532,7 +556,7 @@
       </trans-unit>
       <trans-unit id="No valid session" xml:space="preserve">
         <source>No valid session</source>
-        <note>src/auth/auth-controller/auth-controller.model.ts:482</note>
+        <note>src/auth/auth-controller/auth-controller.model.ts:489</note>
       </trans-unit>
       <trans-unit id="No version active at date, {$1}" xml:space="preserve">
         <source>No version active at date, <x id="$1" equiv-text="{$1}"/></source>
@@ -544,7 +568,7 @@
       </trans-unit>
       <trans-unit id="Not allowed to connect" xml:space="preserve">
         <source>Not allowed to connect</source>
-        <note>src/websocket/services/websocket.service.ts:511, src/websocket/services/websocket.service.ts:512</note>
+        <note>src/websocket/services/websocket.service.ts:514, src/websocket/services/websocket.service.ts:515</note>
       </trans-unit>
       <trans-unit id="Not Found" xml:space="preserve">
         <source>Not Found</source>
@@ -654,6 +678,10 @@
         <source>The <x id="$1" equiv-text="{$1}"/> with id "<x id="$2" equiv-text="{$2}"/>" is deleted.</source>
         <note>src/data-source/change-sets/soft-delete-repository.ts:400</note>
       </trans-unit>
+      <trans-unit id="The account has a password already, so accepting takes none." xml:space="preserve">
+        <source>The account has a password already, so accepting takes none.</source>
+        <note>src/auth/invitation/invitation.service.ts:361</note>
+      </trans-unit>
       <trans-unit id="The addressing style of a bucket needs to be virtual-hosted or path." xml:space="preserve">
         <source>The addressing style of a bucket needs to be virtual-hosted or path.</source>
         <note>src/backup/tenant/s3.tenant-backup-transport-kind.ts:40</note>
@@ -746,6 +774,10 @@
         <source>The DPoP proof was presented before.</source>
         <note>src/auth/dpop/dpop.service.ts:141</note>
       </trans-unit>
+      <trans-unit id="The email has an open invitation there already." xml:space="preserve">
+        <source>The email has an open invitation there already.</source>
+        <note>src/auth/invitation/invitation.service.ts:201</note>
+      </trans-unit>
       <trans-unit id="The endpoint of a bucket needs to be https." xml:space="preserve">
         <source>The endpoint of a bucket needs to be https.</source>
         <note>src/backup/tenant/s3.tenant-backup-transport-kind.ts:37</note>
@@ -793,6 +825,14 @@
       <trans-unit id="The id of a resource cannot change." xml:space="preserve">
         <source>The id of a resource cannot change.</source>
         <note>src/auth/scim/scim-patch.utilities.ts:173</note>
+      </trans-unit>
+      <trans-unit id="The invitation cannot be declined." xml:space="preserve">
+        <source>The invitation cannot be declined.</source>
+        <note>src/auth/invitation/invitation.service.ts:421</note>
+      </trans-unit>
+      <trans-unit id="The invitation is for another account." xml:space="preserve">
+        <source>The invitation is for another account.</source>
+        <note>src/auth/invitation/invitation.service.ts:358</note>
       </trans-unit>
       <trans-unit id="The JSON Web Key Set of an api key needs to be at an https url." xml:space="preserve">
         <source>The JSON Web Key Set of an api key needs to be at an https url.</source>
@@ -844,7 +884,7 @@
       </trans-unit>
       <trans-unit id="The offset needs to be a whole number of at least 0." xml:space="preserve">
         <source>The offset needs to be a whole number of at least 0.</source>
-        <note>src/websocket/services/websocket.service.ts:489</note>
+        <note>src/websocket/services/websocket.service.ts:492</note>
       </trans-unit>
       <trans-unit id="The operation refers in a circle to resources the request creates." xml:space="preserve">
         <source>The operation refers in a circle to resources the request creates.</source>
@@ -872,7 +912,7 @@
       </trans-unit>
       <trans-unit id="The permission '{$1}' is not declared." xml:space="preserve">
         <source>The permission '<x id="$1" equiv-text="{$1}"/>' is not declared.</source>
-        <note>src/auth/auth.service.ts:1412</note>
+        <note>src/auth/auth.service.ts:1437</note>
       </trans-unit>
       <trans-unit id="The provided two factor code is invalid." xml:space="preserve">
         <source>The provided two factor code is invalid.</source>
@@ -936,7 +976,7 @@
       </trans-unit>
       <trans-unit id="The request names the tenant &#x22;{$1}&#x22; in its header and &#x22;{$2}&#x22; in its query." xml:space="preserve">
         <source>The request names the tenant "<x id="$1" equiv-text="{$1}"/>" in its header and "<x id="$2" equiv-text="{$2}"/>" in its query.</source>
-        <note>src/tenancy/tenant.service.ts:45</note>
+        <note>src/tenancy/tenant.service.ts:223</note>
       </trans-unit>
       <trans-unit id="The resource changed since the version the request names." xml:space="preserve">
         <source>The resource changed since the version the request names.</source>
@@ -1002,6 +1042,14 @@
         <source>The sortOrder needs to be ascending or descending.</source>
         <note>src/auth/scim/scim-where.utilities.ts:702</note>
       </trans-unit>
+      <trans-unit id="The tenant &#x22;{$1}&#x22; is deactivated." xml:space="preserve">
+        <source>The tenant "<x id="$1" equiv-text="{$1}"/>" is deactivated.</source>
+        <note>src/error-handling/errors/tenant-deactivated.error.ts:12</note>
+      </trans-unit>
+      <trans-unit id="The tenant &#x22;{$1}&#x22; needs to be deactivated before it is deleted." xml:space="preserve">
+        <source>The tenant "<x id="$1" equiv-text="{$1}"/>" needs to be deactivated before it is deleted.</source>
+        <note>src/tenancy/tenant.service.ts:342</note>
+      </trans-unit>
       <trans-unit id="The tenant &#x22;{$1}&#x22; this request names is not a uuid." xml:space="preserve">
         <source>The tenant "<x id="$1" equiv-text="{$1}"/>" this request names is not a uuid.</source>
         <note>src/tenancy/validate-request-tenant.function.ts:15</note>
@@ -1044,11 +1092,15 @@
       </trans-unit>
       <trans-unit id="The user has no such identity." xml:space="preserve">
         <source>The user has no such identity.</source>
-        <note>src/auth/auth.service.ts:1444</note>
+        <note>src/auth/auth.service.ts:1469</note>
+      </trans-unit>
+      <trans-unit id="The user is a member of the tenant already." xml:space="preserve">
+        <source>The user is a member of the tenant already.</source>
+        <note>src/auth/invitation/invitation.service.ts:198</note>
       </trans-unit>
       <trans-unit id="The user is no member of the tenant &#x22;{$1}&#x22;." xml:space="preserve">
         <source>The user is no member of the tenant "<x id="$1" equiv-text="{$1}"/>".</source>
-        <note>src/auth/strategies/api-key/api-key.service.ts:292, src/auth/roles/role.service.ts:592</note>
+        <note>src/auth/strategies/api-key/api-key.service.ts:292, src/auth/roles/role.service.ts:590</note>
       </trans-unit>
       <trans-unit id="The userName {$1} is taken." xml:space="preserve">
         <source>The userName <x id="$1" equiv-text="{$1}"/> is taken.</source>
@@ -1072,7 +1124,7 @@
       </trans-unit>
       <trans-unit id="There is no role named '{$1}'." xml:space="preserve">
         <source>There is no role named '<x id="$1" equiv-text="{$1}"/>'.</source>
-        <note>src/auth/roles/role.service.ts:825</note>
+        <note>src/auth/roles/role.service.ts:885</note>
       </trans-unit>
       <trans-unit id="There is no schema {$1}." xml:space="preserve">
         <source>There is no schema <x id="$1" equiv-text="{$1}"/>.</source>
@@ -1080,7 +1132,7 @@
       </trans-unit>
       <trans-unit id="There is no such login." xml:space="preserve">
         <source>There is no such login.</source>
-        <note>src/auth/auth.service.ts:2256</note>
+        <note>src/auth/auth.service.ts:2317</note>
       </trans-unit>
       <trans-unit id="There is no user {$1}." xml:space="preserve">
         <source>There is no user <x id="$1" equiv-text="{$1}"/>.</source>
@@ -1088,7 +1140,7 @@
       </trans-unit>
       <trans-unit id="This account has a second factor. Present it to log in." xml:space="preserve">
         <source>This account has a second factor. Present it to log in.</source>
-        <note>src/auth/auth.service.ts:762</note>
+        <note>src/auth/auth.service.ts:765</note>
       </trans-unit>
       <trans-unit id="This account has no second factor of this kind." xml:space="preserve">
         <source>This account has no second factor of this kind.</source>
@@ -1104,7 +1156,7 @@
       </trans-unit>
       <trans-unit id="This application. A request names the version in the version header, and logs in with the credentials of a security scheme." xml:space="preserve">
         <source>This application. A request names the version in the version header, and logs in with the credentials of a security scheme.</source>
-        <note>src/open-api/open-api.service.ts:289</note>
+        <note>src/open-api/open-api.service.ts:290</note>
       </trans-unit>
       <trans-unit id="This is the address of the account already." xml:space="preserve">
         <source>This is the address of the account already.</source>
@@ -1116,7 +1168,7 @@
       </trans-unit>
       <trans-unit id="This login ticket is unknown, spent or expired. Log in again." xml:space="preserve">
         <source>This login ticket is unknown, spent or expired. Log in again.</source>
-        <note>src/auth/auth.service.ts:722, src/auth/auth.service.ts:738</note>
+        <note>src/auth/auth.service.ts:725, src/auth/auth.service.ts:741</note>
       </trans-unit>
       <trans-unit id="This phone number was sent too many codes today." xml:space="preserve">
         <source>This phone number was sent too many codes today.</source>
@@ -1128,7 +1180,7 @@
       </trans-unit>
       <trans-unit id="This request carries more than one credential ({$1}). Send exactly one." xml:space="preserve">
         <source>This request carries more than one credential (<x id="$1" equiv-text="{$1}"/>). Send exactly one.</source>
-        <note>src/auth/auth.service.ts:2158</note>
+        <note>src/auth/auth.service.ts:2219</note>
       </trans-unit>
       <trans-unit id="This request names no tenant." xml:space="preserve">
         <source>This request names no tenant.</source>
@@ -1236,7 +1288,7 @@
       </trans-unit>
       <trans-unit id="Version &#x22;{$1}&#x22; not found" xml:space="preserve">
         <source>Version "<x id="$1" equiv-text="{$1}"/>" not found</source>
-        <note>src/versioning/versioning.service.ts:502, src/open-api/open-api.service.ts:131, src/open-api/open-api.service.ts:147, src/open-api/open-api.service.ts:212</note>
+        <note>src/versioning/versioning.service.ts:502, src/open-api/open-api.service.ts:132, src/open-api/open-api.service.ts:148, src/open-api/open-api.service.ts:213</note>
       </trans-unit>
       <trans-unit id="Wednesday" xml:space="preserve">
         <source>Wednesday</source>
@@ -1248,11 +1300,11 @@
       </trans-unit>
       <trans-unit id="Without a codeChallenge the user is logged in on the redirect back from the provider, which only a strategy whose login goes out with the response can do, such as cookies. Send a codeChallenge to have the login handed over by code." xml:space="preserve">
         <source>Without a codeChallenge the user is logged in on the redirect back from the provider, which only a strategy whose login goes out with the response can do, such as cookies. Send a codeChallenge to have the login handed over by code.</source>
-        <note>src/auth/auth-controller/auth-controller.model.ts:1159</note>
+        <note>src/auth/auth-controller/auth-controller.model.ts:1221</note>
       </trans-unit>
       <trans-unit id="You cannot be logged in when accessing this route." xml:space="preserve">
         <source>You cannot be logged in when accessing this route.</source>
-        <note>src/auth/auth.service.ts:1512</note>
+        <note>src/auth/auth.service.ts:1537</note>
       </trans-unit>
       <trans-unit id="You cannot write a {$1} outside what you are allowed to see." xml:space="preserve">
         <source>You cannot write a <x id="$1" equiv-text="{$1}"/> outside what you are allowed to see.</source>
@@ -1260,11 +1312,11 @@
       </trans-unit>
       <trans-unit id="You do not have permission to access this route." xml:space="preserve">
         <source>You do not have permission to access this route.</source>
-        <note>src/auth/auth.service.ts:1520, src/auth/auth.service.ts:1585, src/auth/auth.service.ts:1603, src/auth/auth.service.ts:1848</note>
+        <note>src/auth/auth.service.ts:1545, src/auth/auth.service.ts:1610, src/auth/auth.service.ts:1628, src/auth/auth.service.ts:1647, src/auth/auth.service.ts:1905</note>
       </trans-unit>
       <trans-unit id="You do not have permission to manage this role." xml:space="preserve">
         <source>You do not have permission to manage this role.</source>
-        <note>src/auth/roles/role.service.ts:679</note>
+        <note>src/auth/roles/role.service.ts:619, src/auth/roles/role.service.ts:739</note>
       </trans-unit>
       <trans-unit id="You have no passkey to present." xml:space="preserve">
         <source>You have no passkey to present.</source>
@@ -1272,7 +1324,7 @@
       </trans-unit>
       <trans-unit id="You need to be logged in to access this route." xml:space="preserve">
         <source>You need to be logged in to access this route.</source>
-        <note>src/auth/auth.service.ts:1504</note>
+        <note>src/auth/auth.service.ts:1529</note>
       </trans-unit>
       <trans-unit id="You need to provide a second factor to access this route." xml:space="preserve">
         <source>You need to provide a second factor to access this route.</source>

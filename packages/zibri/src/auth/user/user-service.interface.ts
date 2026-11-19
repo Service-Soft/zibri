@@ -91,7 +91,14 @@ export interface UserServiceInterface {
      * Reads the users of every user repository built on the data layer.
      */
     // TODO 4.0: required
-    findStoredUserIds?: (userIds: string[]) => Promise<string[]>
+    findStoredUserIds?: (userIds: string[]) => Promise<string[]>,
+    /**
+     * Deletes a user through the repository holding them, with what follows a deleted user, such as their
+     * memberships. A user entity that soft deletes keeps the row.
+     * @throws A NotFoundError when no repository holds the user.
+     */
+    // TODO 4.0: required
+    deleteUser?: (id: string, transaction: RepositoryTransaction | undefined) => Promise<void>
 }
 
 /**

@@ -35,13 +35,24 @@ export const ROLE_ENTITY: unique symbol = Symbol('zibri.role-entity');
 export const ROLE_REPOSITORY: unique symbol = Symbol('zibri.role-repository');
 
 /**
+ * Marks an entity whose rows are the open invitations of the application, as a static member of its class.
+ * `BaseInvitationEntity()` sets it.
+ */
+export const INVITATION_ENTITY: unique symbol = Symbol('zibri.invitation-entity');
+
+/**
+ * Marks the repository invitations are read from and written to. `BaseInvitationRepository()` sets it.
+ */
+export const INVITATION_REPOSITORY: unique symbol = Symbol('zibri.invitation-repository');
+
+/**
  * What the rows of an entity are to the framework besides rows, with the marks that say so.
  */
 export type RepositoryKind = {
     /**
      * What the rows are, for the messages.
      */
-    name: 'user' | 'membership' | 'role',
+    name: 'user' | 'membership' | 'role' | 'invitation',
     /**
      * The mark on the class of the entity, a static member so that it is no part of its rows.
      */
@@ -68,7 +79,7 @@ export type RepositoryKind = {
 // them while it registers repositories, before anything runs that could register them, and it
 // imports nothing built on it
 /**
- * Every kind of rows the framework knows besides plain rows: users, memberships and roles.
+ * Every kind of rows the framework knows besides plain rows: users, memberships, roles and invitations.
  */
 export const REPOSITORY_KINDS: RepositoryKind[] = [
     {
@@ -94,5 +105,13 @@ export const REPOSITORY_KINDS: RepositoryKind[] = [
         base: 'BaseRoleRepository',
         entityBase: 'BaseRoleEntity',
         variant: DiVariants.ROLE_REPO
+    },
+    {
+        name: 'invitation',
+        entityMark: INVITATION_ENTITY,
+        repositoryMark: INVITATION_REPOSITORY,
+        base: 'BaseInvitationRepository',
+        entityBase: 'BaseInvitationEntity()',
+        variant: DiVariants.INVITATION_REPO
     }
 ];

@@ -1763,6 +1763,7 @@ The function is handed an `EntityScopeContext`:
 | `currentMembership` | the membership the user acts through in that tenant, without its roles |
 | `hasPermission(permission)` | whether a role of that membership carries the [permission](../auth/roles-and-permissions.md), answered as `@Auth.hasPermission` answers it; no outside a request |
 | `hasPlatformPermission(permission)` | whether a role of the user's own carries the permission, answered as `@Auth.hasPlatformPermission` answers it; no outside a request |
+| `hasAnyLevelPermission({ permission, platformPermission })` | whether either of the two above is true, answered as `@Auth.hasAnyLevelPermission` answers it; no outside a request |
 | `requestContext` | the request being handled, if there is one |
 | `entityClass` | the entity being read or written, so one scope can serve several |
 

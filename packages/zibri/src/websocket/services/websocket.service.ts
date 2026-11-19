@@ -55,6 +55,7 @@ import { RouteParamUtilities } from '../../routing/route-param.utilities';
 import { BaseMembership } from '../../tenancy/membership/base-membership.model';
 import { ChangedMembership } from '../../tenancy/membership/changed-membership.model';
 import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
+import { type BaseTenantDefinition } from '../../tenancy/tenant-definition/base-tenant-definition.model';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { validateRequestTenant } from '../../tenancy/validate-request-tenant.function';
 import { TraceSpanKind } from '../../tracing/trace-span-kind.enum';
@@ -87,10 +88,12 @@ import { WebsocketMessage, CreateWebsocketMessageData, WebsocketRecipientType } 
 import { type WebsocketOptions, type WebsocketOptionsInput } from '../models/websocket-options.model';
 import { WebsocketRequest, WebsocketRequestWithConnection } from '../models/websocket-request.model';
 import { WebsocketResponseHandler } from '../models/websocket-response.model';
+import { WebsocketTenantDeactivated } from '../models/websocket-tenant-deactivated.model';
 import { WebsocketMessageCleanupCronJob } from '../websocket-message-cleanup.cron-job';
 import { WebsocketReplayUtilities } from '../websocket-replay.utilities';
 import { DeactivatedUserWriteObserver } from '../write-observers/deactivated-user.write-observer';
 import { EndedLoginWriteObserver } from '../write-observers/ended-login.write-observer';
+import { TenantDeactivationWriteObserver } from '../write-observers/tenant-deactivation.write-observer';
 import { TenantRoomWriteObserver } from '../write-observers/tenant-room.write-observer';
 import { WebsocketSendData, WebsocketSendToAllData, WebsocketSendToChannelData, WebsocketServiceInterface } from './websocket-service.interface';
 
@@ -600,6 +603,12 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 new TenantRoomWriteObserver(membershipEntityClass, async memberships => await this.updateTenantRooms(memberships))
             );
         }
+        const tenantEntityClass: Newable<BaseTenantDefinition> | undefined = this.tenantService.findTenantEntityClass?.();
+        if (tenantEntityClass != undefined) {
+            registry.register(tenantEntityClass, new TenantDeactivationWriteObserver(async (tenantId, deactivated) => await (deactivated
+                ? this.handleTenantDeactivated(tenantId)
+                : this.handleTenantReactivated(tenantId))));
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -742,13 +751,27 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         await connection.join(channels.map(channelRoomOf));
     }
 
+    /**
+     * Resolves the tenants a user's connections receive the messages of: those of their active memberships, but
+     * the deactivated tenants.
+     * @param userId - The user.
+     * @returns The ids of the tenants.
+     */
+    private async resolveReachableTenantIds(userId: string): Promise<string[]> {
+        const tenantIds: string[] = (await this.membershipService.findActiveMemberships(userId)).map(m => m.tenantId);
+        const deactivated: boolean[] = await Promise.all(
+            tenantIds.map(async tenantId => await this.tenantService.resolveIsDeactivated?.(tenantId) ?? false)
+        );
+        return tenantIds.filter((_, index) => deactivated[index] !== true);
+    }
+
     private async recoverConnection(connection: SocketIOWebsocketConnection, currentUser: CurrentUser | undefined): Promise<void> {
         // the tenants whose messages this connection receives: those of no tenant, and those of each
         // tenant its user is a member of. A connection names no tenant of its own, and its messages
         // each name theirs, so this is the one thing that limits what reaches it
         const tenantIds: string[] = currentUser == undefined
             ? []
-            : (await this.membershipService.findActiveMemberships<string, BaseMembership<string>>(currentUser.id)).map(m => m.tenantId);
+            : await this.resolveReachableTenantIds(currentUser.id);
         const reachable: WhereFilter<WebsocketMessage>['tenantId'] = { oneOf: [...tenantIds, null] };
 
         let channelsOfUser: WebsocketChannel[] = [];
@@ -1208,6 +1231,39 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             const ofTenant: WebsocketChannel[] = await this.channelRepository.findAll({ where: { tenantId }, acrossTenants: true });
             connections.socketsLeave([tenantRoomOf(tenantId), ...ofTenant.map(channelRoomOf)]);
         }));
+    }
+
+    /**
+     * Tells the connections in a tenant that it was deactivated with `ws:tenant-deactivated`, and has them leave it
+     * and its channels, on every instance.
+     * @param tenantId - The tenant.
+     */
+    private async handleTenantDeactivated(tenantId: string): Promise<void> {
+        const server: Server | undefined = this.socketServer;
+        if (server == undefined) {
+            return;
+        }
+        const room: string = tenantRoomOf(tenantId);
+        const data: WebsocketTenantDeactivated = { tenantId };
+        // told while they are still in it, and nothing to replay, since nothing of the tenant reaches them afterwards
+        server.to(room).emit(WebsocketEvent.TENANT_DEACTIVATED, { ok: true, data, senderUserId: undefined, senderConnectionId: undefined });
+        // the connections stay, as they serve the other tenants of their users. Through the room, which reaches
+        // them on every instance
+        const ofTenant: WebsocketChannel[] = await this.channelRepository.findAll({ where: { tenantId }, acrossTenants: true });
+        server.in(room).socketsLeave([room, ...ofTenant.map(channelRoomOf)]);
+    }
+
+    /**
+     * Has the connections of the active members of a tenant that was reactivated join it and their channels in it
+     * again, on every instance.
+     * @param tenantId - The tenant.
+     */
+    private async handleTenantReactivated(tenantId: string): Promise<void> {
+        if (this.socketServer == undefined) {
+            return;
+        }
+        const userIds: string[] = await this.membershipService.findActiveMemberIds?.(tenantId) ?? [];
+        await this.updateTenantRooms(userIds.map(userId => ({ userId, tenantId })));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

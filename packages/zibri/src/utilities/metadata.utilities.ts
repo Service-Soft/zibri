@@ -2,6 +2,7 @@
 // every import of a subsystem built on utilities is marked `type`: this file only names their
 // metadata shapes, and a value import would put utilities in a runtime cycle with each of them
 import { type CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
+import { type HasAnyLevelPermissionMetadata } from '../auth/models/has-any-level-permission-metadata.model';
 import { type HasPermissionMetadata, type SkipHasPermissionMetadata } from '../auth/models/has-permission-metadata.model';
 import { type IsLoggedInMetadata, type SkipIsLoggedInMetadata } from '../auth/models/is-logged-in-metadata.model';
 import { type IsNotLoggedInMetadata, type SkipIsNotLoggedInMetadata } from '../auth/models/is-not-logged-in-metadata.model';
@@ -551,6 +552,58 @@ export abstract class MetadataUtilities {
 
     static getControllerSkipHasPlatformPermission(controller: Function): SkipHasPermissionMetadata | undefined {
         return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_PLATFORM_PERMISSION, controller);
+    }
+
+    // ---------- any level permission metadata (method-level for routes) ----------
+    static setRouteHasAnyLevelPermission(controller: Function, data: HasAnyLevelPermissionMetadata, controllerMethod: string): void {
+        MetadataUtilities.validateNoPermissionYet(
+            MetadataInjectionKeys.ROUTE_HAS_ANY_LEVEL_PERMISSION,
+            '@Auth.hasAnyLevelPermission',
+            controller,
+            controllerMethod
+        );
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_HAS_ANY_LEVEL_PERMISSION, data, controller, controllerMethod);
+    }
+
+    static getRouteHasAnyLevelPermission(controller: Function, controllerMethod: string): HasAnyLevelPermissionMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<HasAnyLevelPermissionMetadata>(
+            MetadataInjectionKeys.ROUTE_HAS_ANY_LEVEL_PERMISSION,
+            controller,
+            controllerMethod
+        );
+    }
+
+    static setRouteSkipHasAnyLevelPermission(controller: Function, data: SkipHasPermissionMetadata, controllerMethod: string): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SKIP_HAS_ANY_LEVEL_PERMISSION, data, controller, controllerMethod);
+    }
+
+    static getRouteSkipHasAnyLevelPermission(controller: Function, controllerMethod: string): SkipHasPermissionMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<SkipHasPermissionMetadata>(
+            MetadataInjectionKeys.ROUTE_SKIP_HAS_ANY_LEVEL_PERMISSION,
+            controller,
+            controllerMethod
+        );
+    }
+
+    static setControllerHasAnyLevelPermission(controller: Function, data: HasAnyLevelPermissionMetadata): void {
+        MetadataUtilities.validateNoPermissionYet(
+            MetadataInjectionKeys.CONTROLLER_HAS_ANY_LEVEL_PERMISSION,
+            '@Auth.hasAnyLevelPermission',
+            controller
+        );
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_HAS_ANY_LEVEL_PERMISSION, data, controller);
+    }
+
+    static getControllerHasAnyLevelPermission(controller: Function): HasAnyLevelPermissionMetadata | undefined {
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_HAS_ANY_LEVEL_PERMISSION, controller);
+    }
+
+    static setControllerSkipHasAnyLevelPermission(controller: Function, data: SkipHasPermissionMetadata): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_ANY_LEVEL_PERMISSION, data, controller);
+    }
+
+    static getControllerSkipHasAnyLevelPermission(controller: Function): SkipHasPermissionMetadata | undefined {
+        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_ANY_LEVEL_PERMISSION, controller);
     }
 
     // ---------- require2fa (method-level, inherit) ----------

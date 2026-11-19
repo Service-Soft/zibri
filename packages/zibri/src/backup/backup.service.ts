@@ -628,8 +628,8 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
             try {
                 await this.wakeUpService.wake(this.backupRepository.dataSource, WAKE_UP_TOPICS.BACKUPS);
             }
-            catch (failure) {
-                this.logger.warn(`Could not tell the other instances that backups were handed back: ${String(failure)}`);
+            catch (error_) {
+                this.logger.warn(`Could not tell the other instances that backups were handed back: ${String(error_)}`);
             }
         }
     }

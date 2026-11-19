@@ -174,7 +174,10 @@ export abstract class AuthControllerUtilities {
         if (controller == undefined) {
             return;
         }
-        const { strategies, authenticators, twoFactorMethods, emailVerification, confirmEmailRoute } = controller.authControllerOptions;
+        const {
+            strategies,
+            authenticators, twoFactorMethods, emailVerification, confirmEmailRoute, invitationRoutes
+        } = controller.authControllerOptions;
         const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         this.validateSameClasses(
             controller,
@@ -194,6 +197,13 @@ export abstract class AuthControllerUtilities {
                 `${controller.name} defines the routes verifying email addresses,`
                 + ' and ZIBRI_DI_TOKENS.EMAIL_VERIFICATION_OPTIONS is not provided.',
                 'Provide it, or leave emailVerification out of the options of AuthController.'
+            ]);
+        }
+        if (invitationRoutes === true && !inject(ZIBRI_DI_TOKENS.INVITATION_SERVICE).isEnabled) {
+            throw new InternalError([
+                `${controller.name} defines the routes answering invitations, and no invitation repository is listed.`,
+                // eslint-disable-next-line stylistic/max-len
+                'Declare one extending BaseInvitationRepository<Invitation>(), or leave invitationRoutes out of the options of AuthController.'
             ]);
         }
         // optional on the interface, as a service written against 3.0 has none: the route would answer every call

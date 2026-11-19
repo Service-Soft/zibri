@@ -1,4 +1,5 @@
 import { Newable } from '../types/newable.type';
+import { HasAnyLevelPermissionMetadata } from './models/has-any-level-permission-metadata.model';
 import { HasPermissionMetadata } from './models/has-permission-metadata.model';
 import { IsLoggedInMetadata } from './models/is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model';
@@ -81,6 +82,15 @@ export interface RouteAuthServiceInterface {
         controllerClass: Newable<unknown>,
         controllerMethod: string
     ) => HasPermissionMetadata<PlatformPermission> | undefined,
+    // TODO 4.0: required, like the resolvers above
+    /**
+     * Resolves the has any level permission metadata for the provided controller method.
+     * @throws When a permission it names is not declared at its level.
+     */
+    resolveHasAnyLevelPermissionMetadata?: (
+        controllerClass: Newable<unknown>,
+        controllerMethod: string
+    ) => HasAnyLevelPermissionMetadata | undefined,
     /**
      * Resolves the require 2fa metadata for the provided controller method.
      */

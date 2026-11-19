@@ -582,9 +582,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
         if (tenantId == undefined) {
             throw new BadRequestError($ts`A tenant role is given and taken in the tenant a request acts in, and this one acts in none.`);
         }
-        // a tenant permission, of the caller's membership in that tenant: whoever manages the roles of
-        // a tenant does it there, those of its own as well as those every tenant shares
-        this.validateMayUse(caller.permissions, this.findGuard(operation, 'tenant'), role.permissions, caller.permissions);
+        this.validateMayUseTenantRole(caller, operation, role);
         await this.withHeldRoles(`roles:${tenantId}:${userId}`, transaction, async () => {
             const membership: BaseMembership<string> | undefined = await this.membershipService
                 .findActiveMembership(userId, tenantId, transaction);
@@ -593,6 +591,68 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
             }
             await this.membershipService.updateRoles(userId, tenantId, change(membership.roles), transaction);
         });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async validateMayAssign(
+        caller: CurrentUser,
+        roles: string[],
+        tenantId: string | undefined,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<void> {
+        if (tenantId == undefined) {
+            await this.validatePlatformRoles(roles, transaction);
+            for (const name of roles) {
+                const role: BaseRole = await this.resolveRole(name, transaction);
+                this.validateMayUse(
+                    caller.platformPermissions,
+                    this.findGuard('assign', 'platform'),
+                    role.permissions,
+                    caller.platformPermissions
+                );
+            }
+            return;
+        }
+        // the permissions of the caller's membership are those of the tenant the request acts in, so they hand out
+        // roles there only. One of their own reaches every tenant
+        if (!this.mayUseInAnyTenant(caller, 'assign') && tenantId !== this.tenantService.getActiveTenantId()) {
+            throw new ForbiddenError($ts`You do not have permission to manage this role.`);
+        }
+        // in that tenant, which sees its own roles beside those every tenant shares
+        await this.tenantService.runAs(tenantId, async () => {
+            await this.validateRoles(roles, tenantId, transaction);
+            for (const name of roles) {
+                this.validateMayUseTenantRole(caller, 'assign', await this.resolveRole(name, transaction));
+            }
+        });
+    }
+
+    /**
+     * Refuses a caller handing out or taking a tenant role they may not: in any tenant with a platform permission,
+     * or with a tenant permission of their membership in the tenant the request acts in, whose own roles they
+     * manage as well as those every tenant shares.
+     * @param caller - Who asks.
+     * @param operation - Whether the role is given or taken.
+     * @param role - The role.
+     * @throws A ForbiddenError when the caller may not.
+     */
+    private validateMayUseTenantRole(caller: CurrentUser, operation: 'assign' | 'unassign', role: BaseRole): void {
+        if (this.mayUseInAnyTenant(caller, operation)) {
+            return;
+        }
+        this.validateMayUse(caller.permissions, this.findGuard(operation, 'tenant'), role.permissions, caller.permissions);
+    }
+
+    /**
+     * Whether a caller hands out or takes tenant roles in every tenant, by a permission of their own.
+     * @param caller - Who asks.
+     * @param operation - Whether a role is given or taken.
+     * @returns True when one of their own roles carries the permission for it.
+     */
+    private mayUseInAnyTenant(caller: CurrentUser, operation: 'assign' | 'unassign'): boolean {
+        return caller.platformPermissions.includes(operation === 'assign'
+            ? ZibriPlatformPermissions.AUTH_ASSIGN_ROLE_IN_ANY_TENANT_WITH_ANY_PERMISSION
+            : ZibriPlatformPermissions.AUTH_UNASSIGN_ROLE_IN_ANY_TENANT_WITH_ANY_PERMISSION);
     }
 
     /**

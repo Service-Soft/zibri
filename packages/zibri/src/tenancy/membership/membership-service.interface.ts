@@ -20,6 +20,26 @@ export interface MembershipServiceInterface {
      * in. Deactivated memberships are left out.
      */
     findActiveMemberships: <Role extends string, T extends BaseMembership<Role>>(userId: string) => Promise<T[]>,
+    // TODO 4.0: required, like the methods around it
+    /**
+     * Finds the membership of a user in a tenant, deactivated or not, inside the transaction when one is given.
+     */
+    findMembership?: <Role extends string, T extends BaseMembership<Role>>(
+        userId: string,
+        tenantId: string,
+        transaction: RepositoryTransaction | undefined
+    ) => Promise<T | undefined>,
+    // TODO 4.0: required, like the methods around it
+    /**
+     * Finds the memberships of a user in every tenant, deactivated or not.
+     */
+    findMemberships?: <Role extends string, T extends BaseMembership<Role>>(userId: string) => Promise<T[]>,
+    // TODO 4.0: required, like the methods around it
+    /**
+     * Finds the ids of the users with an active membership in a tenant, such as to let them back in once the tenant
+     * is reactivated.
+     */
+    findActiveMemberIds?: (tenantId: string) => Promise<string[]>,
     /**
      * Answers the membership of a user in a tenant, deactivated or not, and creates one without roles
      * when they have none.

@@ -52,6 +52,9 @@ import { EmailConfirmation } from '../email-verification/email-confirmation.mode
 import { type EmailVerificationServiceInterface } from '../email-verification/email-verification-service.interface';
 import { EmailVerificationTokenInput } from '../email-verification/email-verification-token-input.model';
 import { RequestEmailChangeInput } from '../email-verification/request-email-change-input.model';
+import { AcceptInvitationInput } from '../invitation/accept-invitation-input.model';
+import { InvitationTokenInput } from '../invitation/invitation-token-input.model';
+import { InvitationTokenValidity } from '../invitation/invitation-token-validity.model';
 import { type BaseUser } from '../models/base-user.model';
 import { CurrentUserProfile } from '../models/current-user-profile.model';
 import { LogoutResult } from '../models/logout-result.model';
@@ -158,7 +161,8 @@ export function AuthController<
     EmailVerification extends boolean = false,
     CurrentUserRoute extends boolean = false,
     ConfirmEmailRoute extends boolean = false,
-    TwoFactorRegistrationsRoute extends boolean = false
+    TwoFactorRegistrationsRoute extends boolean = false,
+    InvitationRoutes extends boolean = false
 >(
     options: AuthControllerOptions<
         Strategies,
@@ -167,7 +171,8 @@ export function AuthController<
         EmailVerification,
         CurrentUserRoute,
         ConfirmEmailRoute,
-        TwoFactorRegistrationsRoute
+        TwoFactorRegistrationsRoute,
+        InvitationRoutes
     >
 ): AuthControllerClass<
     Strategies,
@@ -176,7 +181,8 @@ export function AuthController<
     EmailVerification,
     CurrentUserRoute,
     ConfirmEmailRoute,
-    TwoFactorRegistrationsRoute
+    TwoFactorRegistrationsRoute,
+    InvitationRoutes
 > {
     const strategies: AuthControllerStrategyClass[] = options.strategies;
     const authenticators: AuthControllerAuthenticatorClass[] = options.authenticators;
@@ -211,7 +217,8 @@ export function AuthController<
             EmailVerification,
             CurrentUserRoute,
             ConfirmEmailRoute,
-            TwoFactorRegistrationsRoute
+            TwoFactorRegistrationsRoute,
+            InvitationRoutes
         > = options;
 
         private get authService(): AuthServiceInterface {
@@ -522,6 +529,58 @@ export function AuthController<
         ): Promise<void> {
             await AuthControllerUtilities.runInTransaction(
                 async transaction => await this.authService.confirmPasswordReset({ ...data, transaction }),
+                { isolationLevel: IsolationLevel.READ_COMMITTED }
+            );
+        }
+
+        // the routes of an invitation's link share the budget of the password reset, whose link it is like: a
+        // token is guessed at as a password is
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.skip({ allowRedundant: true })
+        @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
+        @Response.object(InvitationTokenValidity)
+        @Post('/verify-invitation-token')
+        async verifyInvitationToken(
+            @Body(InvitationTokenInput)
+            input: InvitationTokenInput
+        ): Promise<InvitationTokenValidity> {
+            return await inject(ZIBRI_DI_TOKENS.INVITATION_SERVICE).resolveTokenValidity(input.token);
+        }
+
+        // anyone with the link may accept, and an email with an account of its own is accepted by that account:
+        // the login is read when there is one, never required
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.skip({ allowRedundant: true })
+        @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
+        @Response.empty()
+        @Post('/accept-invitation')
+        async acceptInvitation(
+            @CurrentUser({ required: false })
+            user: CurrentUser | undefined,
+            @Body(AcceptInvitationInput)
+            input: AcceptInvitationInput
+        ): Promise<void> {
+            await AuthControllerUtilities.runInTransaction(
+                async transaction => await inject(ZIBRI_DI_TOKENS.INVITATION_SERVICE).accept(
+                    input.token,
+                    { password: input.password, loggedInUserId: user?.id },
+                    transaction
+                ),
+                { isolationLevel: IsolationLevel.READ_COMMITTED }
+            );
+        }
+
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.skip({ allowRedundant: true })
+        @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
+        @Response.empty()
+        @Post('/decline-invitation')
+        async declineInvitation(
+            @Body(InvitationTokenInput)
+            input: InvitationTokenInput
+        ): Promise<void> {
+            await AuthControllerUtilities.runInTransaction(
+                async transaction => await inject(ZIBRI_DI_TOKENS.INVITATION_SERVICE).decline(input.token, transaction),
                 { isolationLevel: IsolationLevel.READ_COMMITTED }
             );
         }
@@ -1042,6 +1101,8 @@ export function AuthController<
         { routes: ['confirmEmail'], present: options.emailVerification === true && options.confirmEmailRoute === true },
         // asked for: a GET /me of the application's own beside it refused to start
         { routes: ['getCurrentUser'], present: options.currentUserRoute === true },
+        // asked for, as GET /me is: an application of 3.1 can have routes of its own at these paths
+        { routes: ['verifyInvitationToken', 'acceptInvitation', 'declineInvitation'], present: options.invitationRoutes === true },
         { routes: ['findLogins', 'endLogin'], present: listing.length > 0 },
         { routes: ['loginOptions'], present: challenging.length > 0 },
         { routes: ['requestRegistration', 'confirmRegistration'], present: registering.length > 0 },
@@ -1094,7 +1155,8 @@ export function AuthController<
         EmailVerification,
         CurrentUserRoute,
         ConfirmEmailRoute,
-        TwoFactorRegistrationsRoute
+        TwoFactorRegistrationsRoute,
+        InvitationRoutes
     >;
 }
 

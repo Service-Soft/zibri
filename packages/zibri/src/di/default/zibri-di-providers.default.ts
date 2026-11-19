@@ -18,6 +18,7 @@ import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-g
 import { HashService } from '../../auth/hash/hash.service';
 import { defaultScryptCost, ScryptHashStrategy } from '../../auth/hash/strategies/scrypt.hash-strategy';
 import { Sha256HashStrategy } from '../../auth/hash/strategies/sha256.hash-strategy';
+import { InvitationService } from '../../auth/invitation/invitation.service';
 import { RouteAuthConfiguration } from '../../auth/models/route-auth-configuration.model';
 import { RoleService } from '../../auth/roles/role.service';
 import { RouteAuthService } from '../../auth/route-auth.service';
@@ -211,6 +212,10 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     PDF_FONT_OPTIONS: { useFactory: (): PdfFontOptions => ({ families: {}, fallbacks: [] }) },
     TENANT_SERVICE: { useClass: TenantService },
     MEMBERSHIP_SERVICE: { useClass: MembershipService },
+    INVITATION_SERVICE: { useClass: InvitationService },
+    // none: how long a link works and what an expired one does are the application's to say, once it lists an
+    // invitation repository
+    INVITATION_OPTIONS: { useFactory: () => undefined },
     // how long a shutting down instance waits for work it holds a lease on before taking the lease
     // away. Comfortably inside the shutdown timeout, or the hook is cut off before it can release.
     LEASE_DRAIN_TIMEOUT_IN_MS: { useFactory: () => Ms.SECOND * 10 },

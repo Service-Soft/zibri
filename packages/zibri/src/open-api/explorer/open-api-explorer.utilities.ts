@@ -274,7 +274,8 @@ export abstract class OpenApiExplorerUtilities {
             permissions: [
                 operation['x-permission'],
                 operation['x-platform-permission']
-            ].filter(permission => typeof permission === 'string')
+            ].filter(permission => typeof permission === 'string'),
+            anyLevelPermission: operation['x-any-level-permission'] === true
         };
     }
 

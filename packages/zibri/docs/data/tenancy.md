@@ -28,6 +28,12 @@ tenant's rows stay out of every other tenant's reach.
 | `ChangedMembership` | type | A user and a tenant whose membership was written |
 | `MembershipService` | class | Default implementation, reading the membership repository |
 | `ZIBRI_DI_TOKENS.MEMBERSHIP_SERVICE` | DI token | Override to replace the implementation |
+| `BaseTenantDefinitionEntity`, `BaseTenantDefinition`, `DeactivatableTenantDefinition` | function, type | The base of the entity whose rows are the tenants: a `name`, and `deactivatedAt` with `deactivatable: true`, see [declaring the tenants](#declaring-the-tenants) |
+| `BaseTenantDefinitionOptions` | type | What `BaseTenantDefinitionEntity` takes |
+| `TENANT_ENTITY` | constant | Marks an entity as the one of the tenants. `BaseTenantDefinitionEntity` sets it |
+| `TenantDeactivatedError` | error | A 403 for work started for a deactivated tenant, such as an email queued in it |
+| `TenantDeletion`, `TenantDeletionCreateData` | entity, type | The deletion of a tenant, with how far it got, see [deleting a tenant](#deleting-a-tenant) |
+| `TenantDeletionCronJob` | cron job | Goes on with a deletion that stopped, every minute. Registered for you once `TenantDeletion` is declared |
 
 ## Declaring the tenant of an entity
 Every entity holds the tenant of each row in its uuid property `tenantId`. `BaseTenantEntity()`
@@ -74,17 +80,15 @@ export class Country extends BaseEntity {
 ```
 
 The tenants themselves are rows of a shared entity of your own, such as the `Tenant` of the project
-`zi new` generates. Its id is the tenant id of every row the tenant holds:
+`zi new` generates, see [declaring the tenants](#declaring-the-tenants). Its id is the tenant id of every row the
+tenant holds:
 
 ```ts
 // src/models/tenant.model.ts
-import { BaseEntity, Entity, Property } from 'zibri';
+import { BaseTenantDefinitionEntity, Entity, Property } from 'zibri';
 
-@Entity({ tenant: 'shared' })
-export class Tenant extends BaseEntity {
-    @Property.string({ unique: true })
-    name!: string;
-
+@Entity({ tenant: 'shared', uniques: [['name']] })
+export class Tenant extends BaseTenantDefinitionEntity({ deactivatable: true }) {
     @Property.string({ unique: true })
     subdomain!: string;
 }
@@ -263,13 +267,18 @@ Deactivating, reactivating and deleting a membership through `updateDeactivatedA
 `deleteMembership` of the `MembershipService` is recorded in the tenant of the membership, as
 `auth.membership.deactivated`, `auth.membership.reactivated` and `auth.membership.deleted` with the
 member as `userId`. Writing memberships through the repository yourself records nothing.
+`findMembership` and `findMemberships` of the `MembershipService` answer deactivated memberships as well.
 
-A route asks for a [permission](../auth/roles-and-permissions.md) in one of two ways:
+An [invitation](../auth/invitations.md) adds somebody to a tenant once they accept it, with the
+roles it names.
+
+A route asks for a [permission](../auth/roles-and-permissions.md) in one of three ways:
 
 | Decorator | Checks |
 |---|---|
 | `@Auth.hasPermission(permission)` | the roles of the user's membership in the tenant the request is for |
 | `@Auth.hasPlatformPermission(permission)` | the roles of the user's own, independent of the tenant, such as for operating the whole application |
+| `@Auth.hasAnyLevelPermission({ permission, platformPermission })` | either of the two above, such as for a route the administrators of a tenant and the operators of the application share, see [accepting a permission of either level](../auth/roles-and-permissions.md#accepting-a-permission-of-either-level) |
 
 Every role is a row of one level, carrying permissions of that level, see [roles and permissions](../auth/roles-and-permissions.md). A tenant role is one every tenant shares or one of a [tenant's own](../auth/roles-and-permissions.md#a-tenants-own-roles), which its administrators define. Give a user a tenant role in the tenant a request acts in with `assignRole` of the [`RoleService`](../auth/roles-and-permissions.md#managing-roles).
 
@@ -433,10 +442,96 @@ event, the callbacks of a thread job and the transport sending a mail.
 A [cron job](../background-work/cron.md) runs outside every tenant. To do work for a tenant in it, use `runAs`, and
 use `acrossTenants` to do work for all of them.
 
+## Declaring the tenants
+A tenant is known by its id alone, until you declare the entity whose rows are the tenants. It extends
+`BaseTenantDefinitionEntity`, which gives the row a `name`, like the [`Tenant` above](#declaring-the-tenant-of-an-entity).
+Pass `deactivatable: true` for tenants that can be deactivated and deleted.
+
+The id of a row is the tenant id of everything the tenant holds. The entity is shared, and an application has one.
+`deactivatable: true` adds `deactivatedAt`, which a data source adds to a table that lacks it when it starts, with
+`schemaManagement: 'migrations'` too. An entity named like the tenants that extends `BaseTenantEntity` instead is
+warned about at start, since its rows would each belong to a tenant. `findTenant` of the `TenantService` reads a
+tenant, such as for its name.
+
+## Deactivating a tenant
+`deactivateTenant` of the `TenantService` deactivates a tenant, and `reactivateTenant` reactivates it:
+
+```ts
+// src/services/suspend-tenant.function.ts
+import { inject, ZIBRI_DI_TOKENS } from 'zibri';
+
+export async function suspendTenant(tenantId: string): Promise<void> {
+    await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).deactivateTenant?.(tenantId);
+}
+```
+
+While a tenant is deactivated:
+
+- every request and websocket message for it is answered `403`, recorded as `tenant-deactivated`. The routes of
+  [`AuthController`](../auth/auth-routes.md) act on the account and stay open, so its users still log in, and
+  `GET /me` leaves the tenant out of their memberships
+- its websocket connections are sent `ws:tenant-deactivated` and leave the tenant and its channels, see
+  [tenants](../endpoints/websocket.md#tenants). A connection stays open for the other tenants of its user
+- queuing an email, emitting an event or queuing a thread job in it throws a `TenantDeactivatedError`
+- `runAs` works in it, which backing it up, restoring it and deleting it need
+
+Deactivating it deletes the emails it has queued and the events its subscribers still owe a run, and cancels its
+thread jobs that have not started, so that nothing of them runs once it is reactivated. Reactivating it lets its
+members' connections back in. Both are recorded in the tenant, as `auth.tenant.deactivated` and
+`auth.tenant.reactivated`.
+
+Whether a tenant is deactivated is read from memory. A write of the tenant, through the `TenantService` or the
+repository, is seen at once on the instance writing it, and within a few seconds on every other instance, through
+`CacheInvalidation`. Writing `deactivatedAt` through the repository yourself refuses the requests of the tenant and
+has its connections leave it as well, and leaves its queued work where it is.
+
+## Deleting a tenant
+> [!WARNING]
+> Deleting a tenant deletes its rows for good. [Back the tenant up](./backup.md#backing-up-a-tenant) first.
+
+`deleteTenant` of the `TenantService` deletes a deactivated tenant and every row that belongs to it, and answers a
+`TenantDeletion` at once. The deletion goes on in the background, a batch at a time, and after a crash too:
+`TenantDeletionCronJob` takes it up where it stopped. `findTenantDeletion` answers how far it got:
+
+```ts
+// src/services/delete-tenant.function.ts
+import { inject, TenantDeletion, ZIBRI_DI_TOKENS } from 'zibri';
+
+export async function deleteTenant(tenantId: string): Promise<TenantDeletion | undefined> {
+    return await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).deleteTenant?.(tenantId);
+}
+```
+
+| Field | What it is |
+|---|---|
+| `startedAt` | When the deletion started |
+| `deletingEntity` | The entity whose rows are being deleted, or `null` |
+| `deletedRows` | How many rows were deleted so far |
+| `finishedAt` | When the tenant itself was deleted, or `null` while the deletion goes on |
+
+A tenant that is active is answered `400`. The deletion goes through the repository of each entity, so what follows
+a deleted row applies. Rows that point at others go first. It deletes:
+
+- the rows of every entity of a tenant, and the rows naming it of entities whose tenant is optional, such as its logs
+  and emails
+- its memberships, its invitations and its own roles
+- the shared rows naming it in their `tenantId`, such as the api keys bound to it and the records of its backups
+- the tenant itself, last, recorded as `auth.tenant.deleted`
+
+Its audit trail and the rows of other append only tables stay, and so do its users, who are shared.
+
+## Requirements
+Your data source declares these entities:
+
+| Entity | Needed when |
+|---|---|
+| `TenantDeletion` | You delete tenants |
+
 ## See also
 - [Roles and permissions](../auth/roles-and-permissions.md) — the roles a member holds in a tenant
 - [Data sources](./data-source.md) — repositories, and the rows a scope lets a caller see
 - [Authentication & authorization](../auth/auth.md) — users, and the logins their requests carry
 - [API keys](../auth/api-keys.md) — keys bound to one tenant
+- [Inviting people](../auth/invitations.md) — adding somebody to a tenant by email
 - [FAQ](../faq.md#why-does-every-entity-have-a-tenant) — why every entity has a tenant
 - [Glossary](../glossary.md) — what tenant, membership and scope mean

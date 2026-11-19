@@ -13,6 +13,7 @@ import { MimeType } from '../http/mime-type.enum';
 import { $ts } from '../localization/translate.function';
 import { OpenApiSchemaUtilities } from '../open-api/open-api-schema.utilities';
 import { isOpenApiReferenceObject, OpenApiContentObject, OpenApiOAuthFlowObject, OpenApiReferenceObject, OpenApiResponse, OpenApiResponseObject, OpenApiSchemaObject, OpenApiSecuritySchemeObject } from '../open-api/open-api.model';
+import { resolvePermissionExtensions } from '../open-api/resolve-permission-extensions.function';
 import { BodyMetadata } from '../routing/decorators/body-metadata.model';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
@@ -147,6 +148,7 @@ export class AsyncApiService implements AsyncApiServiceInterface, OnAppStart {
             return definition;
         }
         this.addReplayIncomplete(channels, operations);
+        this.addTenantDeactivated(channels, operations);
         return { ...definition, servers: this.servers ?? { [SERVER_KEY]: this.resolveServer(app, security) } };
     }
 
@@ -200,6 +202,38 @@ export class AsyncApiService implements AsyncApiServiceInterface, OnAppStart {
     }
 
     /**
+     * Adds the event the connections in a tenant are sent once it is deactivated.
+     * @param channels - The channels of the document.
+     * @param operations - The operations of the document.
+     */
+    private addTenantDeactivated(channels: Record<string, AsyncApiChannel>, operations: Record<string, AsyncApiOperation>): void {
+        const key: string = this.resolveUniqueKey(channels, WebsocketEvent.TENANT_DEACTIVATED);
+        channels[key] = {
+            address: WebsocketEvent.TENANT_DEACTIVATED,
+            // eslint-disable-next-line stylistic/max-len
+            description: 'Sent to the connections in a tenant once it is deactivated. They receive nothing of it afterwards, and messages naming it are refused.',
+            messages: {
+                [REQUEST_MESSAGE_KEY]: {
+                    name: WebsocketEvent.TENANT_DEACTIVATED,
+                    contentType: MimeType.JSON,
+                    payload: this.buildEnvelope({
+                        type: 'object',
+                        description: 'The tenant that was deactivated.',
+                        properties: { tenantId: { type: 'string', format: 'uuid' } },
+                        required: ['tenantId']
+                    })
+                }
+            }
+        };
+        operations[this.resolveUniqueKey(operations, 'tenantDeactivated')] = {
+            action: 'send',
+            channel: { $ref: `#/channels/${key}` },
+            messages: [{ $ref: `#/channels/${key}/messages/${REQUEST_MESSAGE_KEY}` }],
+            tags: [{ name: 'Tenants' }]
+        };
+    }
+
+    /**
      * The security an operation takes, and the permissions it requires.
      * @param controllerClass - The websocket controller.
      * @param route - The route.
@@ -210,18 +244,14 @@ export class AsyncApiService implements AsyncApiServiceInterface, OnAppStart {
         controllerClass: Newable<unknown>,
         route: WebsocketControllerRouteConfiguration,
         security: AsyncApiReference[]
-    ): Promise<Pick<AsyncApiOperation, 'security' | 'x-permission' | 'x-platform-permission'>> {
-        const { hasPermission, hasPlatformPermission }: ResolvedAuthMetadata = RouteRegistry.get(
-            controllerClass,
-            route.controllerMethod
-        ).auth.metadata;
+    ): Promise<Pick<AsyncApiOperation, 'security' | 'x-permission' | 'x-platform-permission' | 'x-any-level-permission'>> {
+        const metadata: ResolvedAuthMetadata = RouteRegistry.get(controllerClass, route.controllerMethod).auth.metadata;
         return {
             // a route following `defaultAuth` requires a login without a decorator saying so, see the open api service
             security: await this.routeAuthService.requiresAuthentication(controllerClass, route.controllerMethod) && security.length
                 ? security
                 : undefined,
-            'x-permission': hasPermission?.permission,
-            'x-platform-permission': hasPlatformPermission?.permission
+            ...resolvePermissionExtensions(metadata)
         };
     }
 

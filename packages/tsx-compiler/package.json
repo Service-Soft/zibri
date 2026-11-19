@@ -3,7 +3,7 @@
     "publishConfig": {
         "access": "public"
     },
-    "version": "3.1.0",
+    "version": "3.2.0",
     "license": "MIT",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -66,7 +66,7 @@
     },
     "peerDependencies": {
         "typescript": "^5.9.2 || ^6.0.0",
-        "zibri-tsx": "^3.1.0"
+        "zibri-tsx": "^3.2.0"
     },
     "devDependencies": {
         "@jest/globals": "^30.4.1",
@@ -79,6 +79,6 @@
         "typescript": "^5.9.2",
         "typescript-6": "npm:typescript@^6.0.2",
         "webpack": "^5.105.3",
-        "zibri-mdx": "^3.1.0"
+        "zibri-mdx": "^3.2.0"
     }
 }

@@ -106,6 +106,13 @@ export interface EventServiceInterface {
      */
     replayFailed: (options: EventReplayOptions) => Promise<number>,
     /**
+     * Deletes the events of a tenant that subscribers still owe a run, with their runs, such as once it is
+     * deactivated.
+     * @returns How many events were deleted.
+     */
+    // TODO 4.0: required, which a service of your own would have had to add in a minor release
+    deletePendingEvents?: (tenantId: string) => Promise<number>,
+    /**
      * Emits an event of the given type and data. Once finished it is kept for `cleanupAfterInMs`,
      * `ZIBRI_DI_TOKENS.EVENT_FINISHED_RETENTION_IN_MS` when that is not given.
      */
