@@ -1,9 +1,5 @@
 import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
-import { type EmailServiceInterface } from './email-service.interface';
-import { EmailConfig } from './models/email-config.model';
-import { Email } from './models/email.model';
-import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
 import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -12,6 +8,10 @@ import { defineProvider } from '../di/models/di-provider.model';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Post } from '../routing/decorators/post.decorator';
 import { Ms } from '../utilities/ms';
+import { type EmailServiceInterface } from './email-service.interface';
+import { EmailConfig } from './models/email-config.model';
+import { Email } from './models/email.model';
+import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
 
 /**
  * What every instance of the mail cluster boots with.

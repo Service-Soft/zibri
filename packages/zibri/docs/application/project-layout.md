@@ -127,6 +127,7 @@ Most changes start in four places:
 | File | What it is for |
 |---|---|
 | `jest.config.mjs` | Names the `zibri-testing` preset, see [configuring jest](../testing.md#configuring-jest) |
+| `scripts/test.mjs` | What `npm test` runs: jest, wherever npm installed it, such as in the root of an npm workspace, with the arguments you pass on, such as `npm test -- --watch` |
 | `src/__testing__/test-application-options.ts` | The application on an in-memory data source, with the test providers on top, see [starting your application in a test](../testing.md#starting-your-application-in-a-test) |
 | `src/__testing__/health.test.ts` | A first test, which asks whether the application is ready |
 | `src/__testing__/home-page.test.ts` | A test that asks for the home page |

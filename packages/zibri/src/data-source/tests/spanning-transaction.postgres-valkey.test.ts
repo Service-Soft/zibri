@@ -1,6 +1,5 @@
 import { afterAll, beforeAll } from '@jest/globals';
 
-import { describeSpanningTransaction, SpanCard, SpanEntry, SpanLabel, SpanningTransactionRepositories } from './spanning-transaction.cases';
 import { TestTimeouts } from '../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
@@ -10,6 +9,7 @@ import { Newable } from '../../types/newable.type';
 import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
 import { MigrationEntity } from '../migration/migration-entity.model';
+import { describeSpanningTransaction, SpanCard, SpanEntry, SpanLabel, SpanningTransactionRepositories } from './spanning-transaction.cases';
 
 // every entity in both, so that each one holds the cards in one of the pairs, and is the one restored
 // when the other fails

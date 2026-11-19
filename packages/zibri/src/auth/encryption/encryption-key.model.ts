@@ -1,5 +1,3 @@
-import { type EncryptionString } from './encryption.utilities';
-import { EncryptionStrategyEntity } from './strategies/encryption-strategy-entity.model';
 import { whereFor } from '../../data-source/models/where/where-for.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
@@ -7,6 +5,8 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { OmitStrict } from '../../types/omit-strict.type';
+import { type EncryptionString } from './encryption.utilities';
+import { EncryptionStrategyEntity } from './strategies/encryption-strategy-entity.model';
 
 /**
  * The status that an encryption key can have.

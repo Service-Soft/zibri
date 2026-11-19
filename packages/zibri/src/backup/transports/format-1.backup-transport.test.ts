@@ -5,7 +5,6 @@ import { text } from 'node:stream/consumers';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Format1BackupTransport } from './format-1.backup-transport';
 import { InMemoryBackupTransport } from '../../__testing__/backup/in-memory.backup-transport';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -16,6 +15,7 @@ import { LoggerInterface } from '../../logging/logger.interface';
 import { BackupEntity } from '../backup-entity.model';
 import { BACKUP_REPOSITORY_FOLDER } from '../backup-format';
 import { BackupResourceEntity } from '../backup-resource-entity.model';
+import { Format1BackupTransport } from './format-1.backup-transport';
 
 /**
  * A backup and one resource of it, as the transport is called with them.

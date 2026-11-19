@@ -1,12 +1,12 @@
 
-import { getEntityFileName } from './get-entity-file-name.function';
-import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
 import type { OpenApiReferenceObject, OpenApiSchemaObject, OpenApiSchemas } from '../../open-api/open-api.model';
 import { addImportStatement } from '../../utilities/add-import-statement.function';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { toPascalCase } from '../../utilities/to-pascal-case.function';
 import { EntityTenant } from '../models/entity-tenant.model';
+import { getEntityFileName } from './get-entity-file-name.function';
+import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
 
 /**
  * The result for generating a single entity.
@@ -84,13 +84,13 @@ export function generateEntityFile(
             lines.push('', `    @Property.string(${uuidOptions})`, `    '${propName}'${optional}: string;`);
             continue;
         }
-        const { type, isRef, schema } = mapSchemaToTsType(propSchema, propName);
-        if (isRef && schema && !('$ref' in schema)) {
+        const { type, isRef, schema: referencedSchema } = mapSchemaToTsType(propSchema, propName);
+        if (isRef && referencedSchema && !('$ref' in referencedSchema)) {
             // type could be "X" or "X[]"; normalize to base name
             const baseType: string = type.endsWith('[]') ? type.slice(0, -2) : type;
             // only add if not already present (will get processed by outer loop)
             if (!(baseType in foundSchemas)) {
-                foundSchemas[baseType] = schema;
+                foundSchemas[baseType] = referencedSchema;
             }
         }
         const decoratorLines: string[] = mapSchemaToDecoratorLines(propSchema, propName, provider.prefix, isRequired, type);

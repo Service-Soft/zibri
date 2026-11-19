@@ -1,4 +1,3 @@
-import { RelatedRowsReader } from './related-rows-reader.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator';
 import { RelationTree } from '../../entity/models/entity-relations.model';
@@ -12,6 +11,7 @@ import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { RelatedNarrowingUtilities } from '../scopes/related-narrowing.utilities';
 import { ScopedWhere } from '../scopes/scope-where.utilities';
 import { Transaction } from '../transaction/transaction.model';
+import { RelatedRowsReader } from './related-rows-reader.interface';
 
 /**
  * Resolves the relations of rows a driver read, for every store that reads related rows as rows of
@@ -190,7 +190,11 @@ export abstract class RelationResolutionUtilities {
     ): Promise<Map<string, BaseEntity[]>> {
         const target: Newable<BaseEntity> = metadata.target();
         const inverse: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(target)[metadata.inverseSide];
-        const foreignKeyColumn: string | undefined = this.joinColumnOf(inverse);
+        // an inverse side that is a plain column, as the id a change set carries of its entity, holds
+        // the key itself, the way the sql schema reads it
+        const foreignKeyColumn: string | undefined = inverse != undefined && !isRelationMetadata(inverse)
+            ? metadata.inverseSide
+            : this.joinColumnOf(inverse);
         if (foreignKeyColumn == undefined) {
             throw new InternalError(
                 `Could not find the inverse relation "${metadata.inverseSide}" with a join column on ${target.name}`

@@ -2,10 +2,10 @@ import { describe, expect, it } from '@jest/globals';
 import type { MetricObjectWithValues, MetricValue, Registry } from '@prometheus-io/client';
 import { createInMemoryDataSource, StartedTestServer, startTestServer } from 'zibri-testing';
 
-import { PrometheusMetricsService } from './metrics.service';
 import { TestTimeouts } from '../__testing__/constants';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { PrometheusMetricsService } from './metrics.service';
 
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource();
 

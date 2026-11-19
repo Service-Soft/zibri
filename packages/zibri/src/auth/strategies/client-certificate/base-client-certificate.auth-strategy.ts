@@ -3,10 +3,6 @@ import { BlockList, isIP } from 'node:net';
 
 import type { ExtendedKeyUsageExtension, KeyUsagesExtension, X509Certificate as ParsedCertificate } from '@peculiar/x509';
 
-import { ClientCertificateHeaderFormat } from './client-certificate-header-format.type';
-import { ClientCertificateHeaderUtilities } from './client-certificate-header.utilities';
-import { ClientCertificateUtilities } from './client-certificate.utilities';
-import { PeculiarX509 } from './peculiar-x509.type';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
 import { InternalError } from '../../../error-handling/internal-error.model';
@@ -16,6 +12,10 @@ import { BaseUser } from '../../models/base-user.model';
 import { AuthorizationHeaderUtilities } from '../authorization-header.utilities';
 import { ClientCertificateAuthStrategyInterface } from '../client-certificate-auth-strategy.interface';
 import { CredentialEntity } from '../credential-entity.model';
+import { ClientCertificateHeaderFormat } from './client-certificate-header-format.type';
+import { ClientCertificateHeaderUtilities } from './client-certificate-header.utilities';
+import { ClientCertificateUtilities } from './client-certificate.utilities';
+import { PeculiarX509 } from './peculiar-x509.type';
 
 /**
  * The extended key usage of TLS client authentication.

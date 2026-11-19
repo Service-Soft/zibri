@@ -1,5 +1,3 @@
-import { CompanyInfoServiceInterface } from './company-info-service.interface';
-import { InvoiceNumberServiceInterface } from './invoice-number-service.interface';
 import { Repository } from '../../../data-source/repository/repository';
 import { NoActiveTenantError } from '../../../data-source/tenancy/no-active-tenant.error';
 import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
@@ -21,6 +19,8 @@ import { InvoiceRecipientAbbreviation } from '../models/invoice-recipient-abbrev
 import { Invoice } from '../models/invoice.model';
 import { type InvoicingOptions } from '../models/invoicing-options.model';
 import { NumberInvoices } from '../models/number-invoices.model';
+import { CompanyInfoServiceInterface } from './company-info-service.interface';
+import { InvoiceNumberServiceInterface } from './invoice-number-service.interface';
 
 /**
  * Default implementation of the invoice number service.

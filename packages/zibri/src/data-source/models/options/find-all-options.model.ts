@@ -1,9 +1,9 @@
-import { BaseRepositoryOptions } from './base-repository-options.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { EntityOrder } from '../../../entity/models/entity-order.model';
 import { EntityRelations, RelationKeysOf } from '../../../entity/models/entity-relations.model';
 import { EntitySelection } from '../../../entity/models/entity-selection.model';
 import { Where } from '../where/where-filter.model';
+import { BaseRepositoryOptions } from './base-repository-options.model';
 
 /**
  * Options for finding multiple entities.

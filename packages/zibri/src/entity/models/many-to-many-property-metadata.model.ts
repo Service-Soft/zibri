@@ -1,7 +1,7 @@
-import { BaseRelationMetadata } from './base-relation-metadata.model';
-import { Relation } from './relation.enum';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { type BaseEntity } from '../base-entity.model';
+import { BaseRelationMetadata } from './base-relation-metadata.model';
+import { Relation } from './relation.enum';
 
 /**
  * Metadata for many to many properties.

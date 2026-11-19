@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { OpenApiDefinition, OpenApiSchemaObject } from '../open-api.model';
 import { OpenApiExplorerTag } from './open-api-explorer-operation.model';
 import { OpenApiExplorerUtilities } from './open-api-explorer.utilities';
-import { OpenApiDefinition, OpenApiSchemaObject } from '../open-api.model';
 
 // a document written by hand, as an application overriding createOpenApiDefinition hands one over: with references,
 // which the documents zibri builds never hold

@@ -1,9 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createRequire } from 'node:module';
 
+import { InternalError } from '../error-handling/internal-error.model';
 import { FsUtilities } from './fs.utilities';
 import { resolveAppRoot } from './resolve-app-root.function';
-import { InternalError } from '../error-handling/internal-error.model';
 
 /**
  * The peers already loaded, so asking again costs nothing.

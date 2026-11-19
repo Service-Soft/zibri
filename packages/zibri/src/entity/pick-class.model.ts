@@ -1,8 +1,8 @@
-import { OmitClass } from './omit-class.model';
 import { Newable } from '../types/newable.type';
-import { ClassPropertyUtilities } from './utilities/class-property.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
+import { OmitClass } from './omit-class.model';
+import { ClassPropertyUtilities } from './utilities/class-property.utilities';
 
 // eslint-disable-next-line jsdoc/require-returns
 /**

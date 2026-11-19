@@ -1,9 +1,9 @@
+import { InternalError } from '../error-handling/internal-error.model';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { AstBlockStatement, AstExpression, AstProgram } from './ast.model';
 import { resolveKeyForPathExpression } from './resolve-key-for-path-expression.function';
 import { resolveKeysForExpression } from './resolve-keys-for-partial-statement.function';
 import { resolveAllKeys } from './resolve-tree.function';
-import { InternalError } from '../error-handling/internal-error.model';
-import { JsonUtilities } from '../utilities/json.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export function resolveKeysForBlockStatement(element: AstBlockStatement, parentKey: string | undefined): string[] {

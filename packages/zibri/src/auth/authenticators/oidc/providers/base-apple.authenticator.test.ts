@@ -3,7 +3,6 @@ import { generateKeyPairSync, KeyObject, KeyPairKeyObjectResult, verify } from '
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, FakeOAuthProvider, InMemoryDataSource, startFakeOAuthProvider, TestBrowser } from 'zibri-testing';
 
-import { BaseAppleAuthenticator } from './base-apple.authenticator';
 import { TestTimeouts } from '../../../../__testing__/constants';
 import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../../__testing__/mocks/entities/roles.enum';
@@ -36,6 +35,7 @@ import { FederatedLoginAttempt } from '../../federated/federated-login-attempt.m
 import { FederatedRegistrationTicket } from '../../federated/federated-registration-ticket.model';
 import { FederatedRegistration } from '../../federated/federated-registration.model';
 import { OidcDiscoveryAtBoot } from '../oidc-discovery-at-boot.type';
+import { BaseAppleAuthenticator } from './base-apple.authenticator';
 
 const PUBLIC_URL: string = 'http://zibri.test';
 const SERVICES_ID: string = 'com.example.app.login';

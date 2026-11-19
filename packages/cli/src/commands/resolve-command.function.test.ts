@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
 
+import { mockExitGracefully, ProcessExitError } from '../__testing__/mock-exit-gracefully.function';
 import { Command } from './command.enum';
 import { resolveCommand } from './resolve-command.function';
-import { mockExitGracefully, ProcessExitError } from '../__testing__/mock-exit-gracefully.function';
 
 describe('resolveCommand', () => {
     afterEach(() => {

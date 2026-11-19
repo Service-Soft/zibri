@@ -6,24 +6,6 @@ import { pipeline, Readable, Transform } from 'node:stream';
 
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { BackupMeasurement,
-    BackupMeasurementConfig,
-    BackupMeasurementResult,
-    BackupRunMeasurement,
-    GarbageCollectionMeasurement,
-    HarnessMeasurement,
-    LiveMeasurement,
-    LivePhaseMeasurement,
-    MeasuredResourceConfig,
-    PhaseMeasurement,
-    ValKeyServerMeasurement } from './backup-measurement.model';
-import { MeasuredRowStore } from './measured-row-store.model';
-import { MeasuredRow } from './measured-row.model';
-import { MeasuredBackupTransport } from './measured.backup-transport';
-import { MIN_LIVE_INTERVAL_IN_MS, PhaseSampler } from './phase-sampler.model';
-import { resolveBackupMeasurementConfig } from './resolve-backup-measurement-config.function';
-import { SeededChanges, SeededFingerprint, SeededTable } from './seeded-table.model';
-import { ValKeyServerProbe } from './val-key-server-probe.model';
 import { KeysInUse } from '../../../auth/encryption/keys-in-use.model';
 import { BackupChunkEntity } from '../../../backup/backup-chunk-entity.model';
 import { BackupDataOptions } from '../../../backup/backup-data-options.model';
@@ -60,6 +42,24 @@ import { defaultTestServerProviders } from '../../test-server/providers';
 import { StartedTestServer, startTestServer } from '../../test-server/start-test-server.function';
 import { PerfControl } from '../perf-control.model';
 import { PerfRecordingUtilities } from '../perf-recording.utilities';
+import { BackupMeasurement,
+    BackupMeasurementConfig,
+    BackupMeasurementResult,
+    BackupRunMeasurement,
+    GarbageCollectionMeasurement,
+    HarnessMeasurement,
+    LiveMeasurement,
+    LivePhaseMeasurement,
+    MeasuredResourceConfig,
+    PhaseMeasurement,
+    ValKeyServerMeasurement } from './backup-measurement.model';
+import { MeasuredRowStore } from './measured-row-store.model';
+import { MeasuredRow } from './measured-row.model';
+import { MeasuredBackupTransport } from './measured.backup-transport';
+import { MIN_LIVE_INTERVAL_IN_MS, PhaseSampler } from './phase-sampler.model';
+import { resolveBackupMeasurementConfig } from './resolve-backup-measurement-config.function';
+import { SeededChanges, SeededFingerprint, SeededTable } from './seeded-table.model';
+import { ValKeyServerProbe } from './val-key-server-probe.model';
 
 /**
  * What a resource produced in its last backup, and what its last restore was handed.
@@ -642,8 +642,8 @@ async function startProbes(): Promise<ValKeyServerProbe[]> {
  * @param probes - The probes.
  */
 function stopProbes(probes: ValKeyServerProbe[]): void {
-    for (const probe of probes) {
-        probe.stop();
+    for (const serverProbe of probes) {
+        serverProbe.stop();
     }
 }
 

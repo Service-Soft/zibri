@@ -5,11 +5,11 @@ import { mkdir, readdir, rm } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { resolveTypeScriptForkOptions } from 'zibri-testing';
 
-import { PerfControl } from './perf-control.model';
-import { PERF_CONTROL_ENV, PerfFork, PerfRecordingUtilities } from './perf-recording.utilities';
 import { FsUtilities } from '../../utilities/fs.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { testFileFolder } from '../constants';
+import { PerfControl } from './perf-control.model';
+import { PERF_CONTROL_ENV, PerfFork, PerfRecordingUtilities } from './perf-recording.utilities';
 
 /**
  * Whether perf can be started here.

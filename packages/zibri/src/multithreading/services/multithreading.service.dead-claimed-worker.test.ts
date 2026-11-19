@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { MultithreadingService } from './multithreading.service';
-import { ThreadJobWorker } from './thread-job-worker';
 import { TestTimeouts } from '../../__testing__/constants';
 import { describeThreadJob } from '../../__testing__/describe-thread-job.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -21,6 +19,8 @@ import { Ms } from '../../utilities/ms';
 import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
 import { ThreadJobEntity } from '../models/thread-job-entity.model';
 import { ThreadJobStatus } from '../models/thread-job-status.enum';
+import { MultithreadingService } from './multithreading.service';
+import { ThreadJobWorker } from './thread-job-worker';
 
 /**
  * A thread job row as the repository hands it back.

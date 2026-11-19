@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource, zibriFrameworkEntities } from 'zibri-testing';
 
-import { Migration } from './migration.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
@@ -20,6 +19,7 @@ import { DataSource } from '../decorators/data-source.decorator';
 import { Repository } from '../repository/repository';
 import { RepositoryClass } from '../repository/repository-class.type';
 import { Transaction } from '../transaction/transaction.model';
+import { Migration } from './migration.model';
 
 /**
  * Something a migration writes that has to be stored encrypted.

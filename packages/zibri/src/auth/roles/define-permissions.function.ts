@@ -1,6 +1,6 @@
+import { InternalError } from '../../error-handling/internal-error.model';
 import { type Permission } from './permission.type';
 import { type PlatformPermission } from './platform-permission.type';
-import { InternalError } from '../../error-handling/internal-error.model';
 
 /**
  * Replaces every occurrence of a string in another.

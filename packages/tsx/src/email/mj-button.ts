@@ -1,7 +1,7 @@
+import { isScriptUrl } from '../runtime/server-runtime';
 import { defineEmailComponent, TsxComponent } from './define-email-component';
 import { EmailLayout, EmailLayoutContext } from './email-layout.context';
 import { withDefaults } from './with-defaults';
-import { isScriptUrl } from '../runtime/server-runtime';
 
 /**
  * Props for {@link MjButton}.

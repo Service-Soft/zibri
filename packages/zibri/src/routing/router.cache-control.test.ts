@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Controller } from './decorators/controller.decorator';
-import { Get } from './decorators/get.decorator';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { JwtTestAuthController } from '../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
@@ -23,6 +21,8 @@ import { Response } from '../open-api/decorators/response.decorator';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
+import { Controller } from './decorators/controller.decorator';
+import { Get } from './decorators/get.decorator';
 
 const PASSWORD: string = 'correct horse battery staple';
 

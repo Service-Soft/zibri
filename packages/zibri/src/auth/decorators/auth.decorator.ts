@@ -1,12 +1,12 @@
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { SkipAuthMetadata } from '../models/skip-auth-metadata.model';
+import { type Permission } from '../roles/permission.type';
+import { type PlatformPermission } from '../roles/platform-permission.type';
 import { hasPermissionDecorator, HasPermissionFn } from './has-permission.decorator';
 import { hasPlatformPermissionDecorator } from './has-platform-permission.decorator';
 import { isLoggedInDecorator, IsLoggedInFn } from './is-logged-in.decorator';
 import { isNotLoggedInDecorator, IsNotLoggedInFn } from './is-not-logged-in.decorator';
 import { require2faDecorator, Require2faFn } from './require-2fa.decorator';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { SkipAuthMetadata } from '../models/skip-auth-metadata.model';
-import { type Permission } from '../roles/permission.type';
-import { type PlatformPermission } from '../roles/platform-permission.type';
 
 /**
  * Bundles decorators for marking controller endpoints for authentication and authorization.

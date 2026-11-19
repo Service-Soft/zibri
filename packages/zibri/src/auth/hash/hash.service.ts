@@ -1,7 +1,3 @@
-import { HashOptions, HashServiceInterface } from './hash-service.interface';
-import { HashContent, HashString, HashUtilities } from './hash.utilities';
-import { HashStrategyEntity, HashStrategyEntityCreateData, HashStrategyStatus } from './strategies/hash-strategy-entity.model';
-import { HashStrategyInterface } from './strategies/hash-strategy.interface';
 import { ZibriApplication } from '../../application/application';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -21,6 +17,10 @@ import { ObjectUtilities } from '../../utilities/object.utilities';
 import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
 import { PasswordPolicy } from '../password-policy/password-policy.model';
 import { PasswordPolicyUtilities } from '../password-policy/password-policy.utilities';
+import { HashOptions, HashServiceInterface } from './hash-service.interface';
+import { HashContent, HashString, HashUtilities } from './hash.utilities';
+import { HashStrategyEntity, HashStrategyEntityCreateData, HashStrategyStatus } from './strategies/hash-strategy-entity.model';
+import { HashStrategyInterface } from './strategies/hash-strategy.interface';
 
 /**
  * A property a unique declaration names, hashed by a strategy known before any row is written.

@@ -2,7 +2,6 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { GenerateCommand } from './generate.command';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
 import { EVERY_FEATURE } from '../../__testing__/generated-file-paths';
 import { mockExitGracefully, ProcessExitError } from '../../__testing__/mock-exit-gracefully.function';
@@ -11,6 +10,7 @@ import { CPUtilities, FsUtilities } from '../../encapsulation';
 import { ScaffoldUtilities } from '../../scaffold';
 import { Path } from '../../utilities';
 import { NewCommand } from '../new/new.command';
+import { GenerateCommand } from './generate.command';
 
 describe('GenerateCommand', () => {
     let workDir: Path;

@@ -1,7 +1,7 @@
-import { CacheStoreConfig, CacheStoreInterface } from './cache-store.interface';
-import { CachedValue } from './cached-value.model';
 import { cacheKeyOf } from '../cache-key.function';
 import { CacheRestoreTagUtilities } from '../cache-restore-tag.utilities';
+import { CacheStoreConfig, CacheStoreInterface } from './cache-store.interface';
+import { CachedValue } from './cached-value.model';
 
 /**
  * A fill of a cache in progress: the value the source answers is cached only while nothing written

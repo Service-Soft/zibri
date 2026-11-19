@@ -7,11 +7,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 import express from 'express';
 import { createFakeKeyPair, FakeKeyPair } from 'zibri-testing';
 
-import { CircuitOpenError } from './circuit-open.error';
-import { HttpClientOptionsInput } from './http-client-options.model';
-import { HttpClientResponse } from './http-client-response.model';
-import { HttpClientError } from './http-client.error';
-import { HttpClientInterface } from './http-client.interface';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { DiContainer } from '../di/di-container';
 import { initDiContainer } from '../di/init-di-container.function';
@@ -22,6 +17,11 @@ import { GlobalRegistry } from '../global/global-registry';
 import { HttpStatus } from '../http/http-status.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { Ms } from '../utilities/ms';
+import { CircuitOpenError } from './circuit-open.error';
+import { HttpClientOptionsInput } from './http-client-options.model';
+import { HttpClientResponse } from './http-client-response.model';
+import { HttpClientError } from './http-client.error';
+import { HttpClientInterface } from './http-client.interface';
 
 /**
  * What the echo route was sent.

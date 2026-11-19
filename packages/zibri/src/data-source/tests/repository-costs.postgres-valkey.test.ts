@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { RoundTripCounter } from 'zibri-testing';
 
-import { CostGroup, CostItem, describeRepositoryCosts } from './repository-costs.cases';
 import { TestTimeouts } from '../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
@@ -18,6 +17,7 @@ import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.mo
 import { DataSource } from '../decorators/data-source.decorator';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { Repository } from '../repository/repository';
+import { CostGroup, CostItem, describeRepositoryCosts } from './repository-costs.cases';
 
 /**
  * A row there are more of than a read on ValKey reads along with their ids, kept apart from the

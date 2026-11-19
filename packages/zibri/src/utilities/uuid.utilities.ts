@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-import { MetadataUtilities } from './metadata.utilities';
 import { BaseEntity } from '../entity/base-entity.model';
 import { PropertyMetadata, RelationMetadata } from '../entity/decorators/property.decorator';
 import { Relation } from '../entity/models/relation.enum';
 import { Newable } from '../types/newable.type';
+import { MetadataUtilities } from './metadata.utilities';
 
 /**
  * Any string a store that types its columns as uuid is able to hold.

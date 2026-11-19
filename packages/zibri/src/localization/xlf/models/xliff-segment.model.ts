@@ -1,7 +1,7 @@
-import { XliffPlaceholder } from './xliff-placeholder.model';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { OneOf } from '../../../entity/models/one-of.model';
 import { XmlMixed } from '../../../parsing/xml/xml-mixed.decorator';
+import { XliffPlaceholder } from './xliff-placeholder.model';
 
 /**
  * What a part of a translation string can be.

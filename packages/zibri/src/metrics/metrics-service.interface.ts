@@ -1,11 +1,11 @@
+import { HttpRequest } from '../http/http-request.model';
+import { HttpResponse } from '../http/http-response.model';
 import { CounterInterface } from './counter.interface';
 import { GaugeInterface } from './gauge.interface';
 import { HistogramInterface } from './histogram.interface';
 import { MetricsCollector } from './metrics-collector.model';
 import { MetricsExposition } from './metrics-exposition.model';
 import { MetricsSnapshot } from './metrics-snapshot.model';
-import { HttpRequest } from '../http/http-request.model';
-import { HttpResponse } from '../http/http-response.model';
 
 /**
  * Name of a counter metric.

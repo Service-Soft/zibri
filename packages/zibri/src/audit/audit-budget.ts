@@ -1,7 +1,7 @@
-import { AuditCollapse } from './audit-collapse.enum';
-import { RecordedAuditEntry } from './base-audit-entry.model';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { WriteBudget } from '../utilities/write-budget';
+import { AuditCollapse } from './audit-collapse.enum';
+import { RecordedAuditEntry } from './base-audit-entry.model';
 
 /**
  * Bounds how many refusals a minute are stored as entries of their own.

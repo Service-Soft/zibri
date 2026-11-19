@@ -1,3 +1,6 @@
+import { HttpRequestContext } from '../context/request/http-request.context';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context';
+import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 import { BaseEntity } from '../entity/base-entity.model';
 import { BaseMembership } from '../tenancy/membership/base-membership.model';
 import { type CurrentMembership } from '../tenancy/membership/current-membership.model';
@@ -23,7 +26,6 @@ import { RouteAuthConfiguration } from './models/route-auth-configuration.model'
 import { UserLogin } from './models/user-login.model';
 import { type Permission } from './roles/permission.type';
 import { type PlatformPermission } from './roles/platform-permission.type';
-import { HttpRequestContext } from '../context/request/http-request.context';
 import { ApiKeyClientAuthentication } from './strategies/api-key/api-key-client-authentication.model';
 import { ApiKeyCreateData } from './strategies/api-key/api-key-create-data.model';
 import { ApiKey } from './strategies/api-key/api-key.model';
@@ -31,8 +33,6 @@ import { CreatedApiKey } from './strategies/api-key/created-api-key.model';
 import { AuthStrategies } from './strategies/auth-strategies.model';
 import { AuthStrategyInterface } from './strategies/auth-strategy.interface';
 import { LoginAuthStrategyInterface } from './strategies/login-auth-strategy.interface';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 
 /**
  * Interface for an auth service.

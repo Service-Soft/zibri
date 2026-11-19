@@ -1,11 +1,11 @@
 import { OpenApiDefinition, OpenApiExplorerSecurityScheme, OpenApiExplorerTag, OpenApiExplorerUtilities, onClient, provideContext, State, TsxComponent, useEffect, useState, useWritableInput } from 'zibri';
 
+import { Heading } from '../components/heading';
+import { Link } from '../components/link';
 import { ExplorerAuthorize, ExplorerAuthorizeScheme } from './explorer-authorize';
 import { ExplorerBar } from './explorer-bar';
 import { ExplorerCredentials, ExplorerDefinition, ExplorerServer } from './explorer-context';
 import { ExplorerOperation } from './explorer-operation';
-import { Heading } from '../components/heading';
-import { Link } from '../components/link';
 
 /**
  * A server the document names, as a request is sent to it.

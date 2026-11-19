@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource, zibriFrameworkEntities } from 'zibri-testing';
 
-import { Repository } from './repository';
-import { RepositoryClass } from './repository-class.type';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -14,6 +12,8 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
 import { DataSource } from '../decorators/data-source.decorator';
 import { UnboundedReturnError } from '../unbounded-return.error';
+import { Repository } from './repository';
+import { RepositoryClass } from './repository-class.type';
 
 // the most rows a call without a limit hands back was
 // 10,000 on every data source

@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { CronServiceInterface } from './cron-service.interface';
-import { CronService } from './cron.service';
-import { ExpiredRowsCleanupCronJob } from './expired-rows-cleanup.cron-job';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -36,6 +33,9 @@ import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { Ms } from '../utilities/ms';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { CronServiceInterface } from './cron-service.interface';
+import { CronService } from './cron.service';
+import { ExpiredRowsCleanupCronJob } from './expired-rows-cleanup.cron-job';
 
 /**
  * An invitation of the application's own, which a team sends and which lapses after a week.

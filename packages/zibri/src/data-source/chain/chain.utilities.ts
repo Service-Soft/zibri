@@ -1,6 +1,5 @@
 import { createHmac } from 'node:crypto';
 
-import { type BaseChainedEntity } from './base-chained-entity.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { type PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { isRelationMetadata } from '../../entity/models/is-relation-metadata.function';
@@ -8,6 +7,7 @@ import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { type BaseChainedEntity } from './base-chained-entity.model';
 
 /**
  * Hashes the rows of chained entities, and single rows that carry a keyed hash of their own.

@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { WriteAroundReadAsideCache } from './write-around-read-aside.cache';
 import { flushMicrotasks, TestTimeouts } from '../../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Inject } from '../../../di/decorators/inject.decorator';
@@ -12,6 +11,7 @@ import { type CacheServiceInterface } from '../../cache-service.interface';
 import { Cache } from '../../decorators/cache.decorator';
 import { CachedValue } from '../../store/cached-value.model';
 import { InMemoryCacheStore } from '../../store/in-memory.cache-store';
+import { WriteAroundReadAsideCache } from './write-around-read-aside.cache';
 
 @Cache()
 class ReadAsideTestCache extends WriteAroundReadAsideCache<string, number, 'Read Aside Test Cache'> {

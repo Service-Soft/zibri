@@ -2,11 +2,11 @@ import { readdir, readFile } from 'node:fs/promises';
 
 import { afterAll, describe, expect, it } from '@jest/globals';
 
+import { testFileFolder } from '../__testing__/constants';
 import { FsPath, FsUtilities } from './fs.utilities';
 import { StagedSortLimits } from './staged-sort-limits.model';
 import { StagedSortUtilities } from './staged-sort.utilities';
 import { UUIDUtilities } from './uuid.utilities';
-import { testFileFolder } from '../__testing__/constants';
 
 const folder: FsPath = FsUtilities.getPath(testFileFolder, `staged-sort-${UUIDUtilities.generate()}`);
 

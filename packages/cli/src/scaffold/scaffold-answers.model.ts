@@ -1,5 +1,5 @@
-import { ScaffoldFeature } from './scaffold-feature.model';
 import { QuestionsFor } from '../encapsulation';
+import { ScaffoldFeature } from './scaffold-feature.model';
 
 /**
  * Where a new app's pull requests are built and tested, or `none` for nowhere yet.

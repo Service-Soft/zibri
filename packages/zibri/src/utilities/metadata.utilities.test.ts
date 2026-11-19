@@ -1,6 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { MetadataUtilities } from './metadata.utilities';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { Property, PropertyMetadata } from '../entity/decorators/property.decorator';
@@ -10,6 +9,7 @@ import { BodyMetadata } from '../routing/decorators/body-metadata.model';
 import { Get } from '../routing/decorators/get.decorator';
 import { Newable } from '../types/newable.type';
 import { WebsocketRoute } from '../websocket/decorators/websocket-route.decorator';
+import { MetadataUtilities } from './metadata.utilities';
 
 /**
  * A project's own decorator, built on one of the framework's.

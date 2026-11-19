@@ -2,8 +2,6 @@ import { Readable } from 'node:stream';
 
 import { NextFunction } from 'express';
 
-import { DeclaredResponseUtilities } from './declared-response.utilities';
-import { UndeclaredResultError } from './undeclared-result.error';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
 import { type WebsocketRequestContext } from '../context/request/websocket-request.context';
@@ -29,6 +27,8 @@ import { HtmlResponse, isHtmlResponse } from '../parsing/html/html-response.mode
 import { Newable } from '../types/newable.type';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
+import { DeclaredResponseUtilities } from './declared-response.utilities';
+import { UndeclaredResultError } from './undeclared-result.error';
 
 /**
  * The format a result is written in.

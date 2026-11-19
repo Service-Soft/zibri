@@ -6,8 +6,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { TestContainers } from 'testcontainers';
 import { createFakeKeyPair, createInMemoryDataSource, FakeKeyPair, InMemoryDataSource } from 'zibri-testing';
 
-import { BaseClientCertificateAuthStrategy } from './base-client-certificate.auth-strategy';
-import { ClientCertificateHeaderFormat } from './client-certificate-header-format.type';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
 import { TestPlatformPermissions } from '../../../__testing__/mocks/entities/test-permissions.model';
@@ -23,6 +21,8 @@ import { Newable } from '../../../types/newable.type';
 import { Auth } from '../../decorators/auth.decorator';
 import { CurrentUser } from '../../decorators/current-user.decorator';
 import { JwtAuthStrategy } from '../jwt/jwt.auth-strategy';
+import { BaseClientCertificateAuthStrategy } from './base-client-certificate.auth-strategy';
+import { ClientCertificateHeaderFormat } from './client-certificate-header-format.type';
 
 /**
  * What a proxy in front of the application is started with.

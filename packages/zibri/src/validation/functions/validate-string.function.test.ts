@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { validateString } from './validate-string.function';
 import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { StringPropertyMetadata } from '../../entity/models/string-property-metadata.model';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
+import { validateString } from './validate-string.function';
 
 enum Role {
     ADMIN = 'admin',

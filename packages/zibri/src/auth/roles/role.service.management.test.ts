@@ -1,12 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource, inMemoryStoreFor, RoundTripCounter } from 'zibri-testing';
 
-import { definePermissions, definePlatformPermissions } from './define-permissions.function';
-import type { Permission } from './permission.type';
-import type { PlatformPermission } from './platform-permission.type';
-import type { RoleLevel } from './role-level.type';
-import { type RoleServiceInterface } from './role-service.interface';
-import { ZIBRI_PERMISSIONS, ZIBRI_PLATFORM_PERMISSIONS } from './zibri-permissions.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { TestMembership } from '../../__testing__/mocks/entities/test-membership.entity';
@@ -43,6 +37,12 @@ import { ApiKeyAuthStrategy } from '../strategies/api-key/api-key.auth-strategy'
 import { ApiKey } from '../strategies/api-key/api-key.model';
 import { CreatedApiKey } from '../strategies/api-key/created-api-key.model';
 import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy';
+import { definePermissions, definePlatformPermissions } from './define-permissions.function';
+import type { Permission } from './permission.type';
+import type { PlatformPermission } from './platform-permission.type';
+import type { RoleLevel } from './role-level.type';
+import { type RoleServiceInterface } from './role-service.interface';
+import { ZIBRI_PERMISSIONS, ZIBRI_PLATFORM_PERMISSIONS } from './zibri-permissions.model';
 
 // roles are rows the application seeds and its administrators change at runtime, so a role between
 // two existing ones needs no deployment; permissions stay in code, since the code checks them
@@ -168,9 +168,9 @@ class RoleController {
         @CurrentUser()
         user: CurrentUser<JwtUser>,
         @Body(RoleRequest)
-        request: RoleRequest
+        roleRequest: RoleRequest
     ): Promise<TestRole> {
-        return await roleService().createRole<TestRole>(user, { ...request, description: undefined }, undefined);
+        return await roleService().createRole<TestRole>(user, { ...roleRequest, description: undefined }, undefined);
     }
 
     @Auth.isLoggedIn()
@@ -181,9 +181,9 @@ class RoleController {
         @Param.path('name')
         name: string,
         @Body(RolePermissionsRequest)
-        request: RolePermissionsRequest
+        rolePermissionsRequest: RolePermissionsRequest
     ): Promise<TestRole> {
-        return await roleService().updateRole<TestRole>(user, name, { permissions: request.permissions }, undefined);
+        return await roleService().updateRole<TestRole>(user, name, { permissions: rolePermissionsRequest.permissions }, undefined);
     }
 
     @Response.empty()

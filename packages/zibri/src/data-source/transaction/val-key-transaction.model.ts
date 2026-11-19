@@ -1,13 +1,13 @@
 import type { GlideClient } from '@valkey/valkey-glide';
 
+import { InternalError } from '../../error-handling/internal-error.model';
+import { LoggerInterface } from '../../logging/logger.interface';
+import { type ValKeyReadView } from '../data-sources/val-key/val-key-copy-on-write.utilities';
 import { applyGuardedValKeyWrites } from './apply-guarded-val-key-writes.function';
 import { KeyDeclarationsChangedError } from './key-declarations-changed.error';
 import { TransactionAlreadyFinishedError } from './transaction-already-finished.error';
 import { TransactionDeadlockError } from './transaction-deadlock.error';
 import { Transaction } from './transaction.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { LoggerInterface } from '../../logging/logger.interface';
-import { type ValKeyReadView } from '../data-sources/val-key/val-key-copy-on-write.utilities';
 
 /**
  * A write that has been buffered inside a valkey transaction.

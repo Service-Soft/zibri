@@ -360,8 +360,8 @@ describe('the OpenAPI explorer, in a browser', () => {
  * An AsyncAPI document describing no event, as a service of an application's own may answer.
  */
 class NoEventsAsyncApiService extends AsyncApiService {
-    override async createAsyncApiDefinition(app: ZibriApplication, version: Version): Promise<AsyncApiDefinition> {
-        const definition: AsyncApiDefinition = await super.createAsyncApiDefinition(app, version);
+    override async createAsyncApiDefinition(app: ZibriApplication, apiVersion: Version): Promise<AsyncApiDefinition> {
+        const definition: AsyncApiDefinition = await super.createAsyncApiDefinition(app, apiVersion);
         return { ...definition, channels: {}, operations: {} };
     }
 }

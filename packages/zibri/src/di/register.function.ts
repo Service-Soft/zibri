@@ -1,6 +1,6 @@
-import { DiContainer } from './di-container';
 import { InternalError } from '../error-handling/internal-error.model';
 import { GlobalRegistry } from '../global/global-registry';
+import { DiContainer } from './di-container';
 import { DiProvider } from './models/di-provider.model';
 
 /**

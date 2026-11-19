@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource, inMemoryStoreFor } from 'zibri-testing';
 
-import { definePermissions, definePlatformPermissions } from './define-permissions.function';
-import { PermissionDeclaration } from './permission-declaration.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { MemberRoles } from '../../__testing__/mocks/entities/member-roles.enum';
@@ -29,6 +27,8 @@ import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { definePermissions, definePlatformPermissions } from './define-permissions.function';
+import { PermissionDeclaration } from './permission-declaration.model';
 
 // a file of its own for the test server's roles: role.service.test.ts starts applications that must
 // not see their repositories

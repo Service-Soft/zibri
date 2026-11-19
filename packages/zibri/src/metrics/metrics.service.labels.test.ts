@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Metric } from './metric.model';
-import { MetricsSnapshot } from './metrics-snapshot.model';
-import { PrometheusMetricsService } from './metrics.service';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { inject } from '../di/inject.function';
+import { Metric } from './metric.model';
+import { MetricsSnapshot } from './metrics-snapshot.model';
+import { PrometheusMetricsService } from './metrics.service';
 
 let server: StartedTestServer | undefined;
 

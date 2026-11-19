@@ -1,6 +1,6 @@
+import { XmlUtilities } from '../../document/xml.utilities';
 import { XliffDocument } from './models/xliff-document.model';
 import { XliffSegment } from './models/xliff-segment.model';
-import { XmlUtilities } from '../../document/xml.utilities';
 
 /**
  * Parses a translated xlf file into a map of source → translated string.

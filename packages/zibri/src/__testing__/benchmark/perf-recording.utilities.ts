@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs';
 import { FileHandle, open } from 'node:fs/promises';
 import path from 'node:path';
 
-import { PerfControl } from './perf-control.model';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { PromiseUtilities } from '../../utilities/promise.utilities';
+import { PerfControl } from './perf-control.model';
 
 /**
  * How to fork a node process, under `perf` or as it is.

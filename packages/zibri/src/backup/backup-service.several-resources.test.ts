@@ -7,15 +7,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { InMemoryDataSource, testMasterKey } from 'zibri-testing';
 
-import { BackupEntity } from './backup-entity.model';
-import { BackupResourceEntity } from './backup-resource-entity.model';
-import { BackupResourceInterface } from './backup-resource.interface';
-import { BackupServiceInterface } from './backup-service.interface';
-import { BackupStatus } from './backup-status.enum';
-import { Backup } from './decorators/backup-resource.decorator';
-import { BackupTransport } from './decorators/backup-transport.decorator';
-import { RestoreJournalUtilities } from './restore-journal.utilities';
-import { FsBackupTransport } from './transports/fs.backup-transport';
 import { BackupLayoutTestUtilities } from '../__testing__/backup/backup-layout-test.utilities';
 import { BackupTransportSessionTestUtilities } from '../__testing__/backup/backup-transport-session-test.utilities';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
@@ -37,6 +28,15 @@ import { Property } from '../entity/decorators/property.decorator';
 import { ConflictError } from '../error-handling/errors/conflict.error';
 import { Newable } from '../types/newable.type';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { BackupEntity } from './backup-entity.model';
+import { BackupResourceEntity } from './backup-resource-entity.model';
+import { BackupResourceInterface } from './backup-resource.interface';
+import { BackupServiceInterface } from './backup-service.interface';
+import { BackupStatus } from './backup-status.enum';
+import { Backup } from './decorators/backup-resource.decorator';
+import { BackupTransport } from './decorators/backup-transport.decorator';
+import { RestoreJournalUtilities } from './restore-journal.utilities';
+import { FsBackupTransport } from './transports/fs.backup-transport';
 
 const backupFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups-several-resources');
 

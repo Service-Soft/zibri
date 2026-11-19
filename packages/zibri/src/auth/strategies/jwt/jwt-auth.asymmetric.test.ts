@@ -5,10 +5,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { decodeJwt, decodeProtectedHeader, JWTPayload, jwtVerify, ProtectedHeaderParameters, SignJWT } from 'jose';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { JwksController } from './jwks.controller';
-import { JwtAsymmetricKey } from './jwt-asymmetric-key.model';
-import { JwtAuthOptionsInput } from './jwt-auth-options.model';
-import { JwtAuthStrategy } from './jwt.auth-strategy';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
@@ -28,6 +24,10 @@ import { Newable } from '../../../types/newable.type';
 import { JsonUtilities } from '../../../utilities/json.utilities';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../authenticators/password/password-credentials.model';
 import { Auth } from '../../decorators/auth.decorator';
+import { JwksController } from './jwks.controller';
+import { JwtAsymmetricKey } from './jwt-asymmetric-key.model';
+import { JwtAuthOptionsInput } from './jwt-auth-options.model';
+import { JwtAuthStrategy } from './jwt.auth-strategy';
 
 /**
  * Something to present an access token to. Allowed to go undeclared, because the applications that

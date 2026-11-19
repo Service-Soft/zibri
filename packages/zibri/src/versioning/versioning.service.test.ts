@@ -3,8 +3,6 @@ import { Dirent } from 'node:fs';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { StoredRoute } from './stored-route.model';
-import { Version, VersionFile } from './version.model';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { explorerTestProviders } from '../__testing__/explorer-test-providers';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -20,6 +18,8 @@ import { Newable } from '../types/newable.type';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { SemVerVersion } from '../utilities/sem-ver.utilities';
+import { StoredRoute } from './stored-route.model';
+import { Version, VersionFile } from './version.model';
 
 const testVersionsDir: FsPath = FsUtilities.getPath(testFileFolder, 'versions');
 

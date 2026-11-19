@@ -2,7 +2,6 @@ import assert from 'node:assert';
 
 import type { Namespace, Server, ServerOptions, Socket } from 'socket.io';
 
-import { WebsocketSendData, WebsocketSendToAllData, WebsocketSendToChannelData, WebsocketServiceInterface } from './websocket-service.interface';
 import { ZibriApplication } from '../../application/application';
 import { type AuthServiceInterface } from '../../auth/auth-service.interface';
 import { type CurrentUser } from '../../auth/decorators/current-user.decorator';
@@ -93,6 +92,7 @@ import { WebsocketReplayUtilities } from '../websocket-replay.utilities';
 import { DeactivatedUserWriteObserver } from '../write-observers/deactivated-user.write-observer';
 import { EndedLoginWriteObserver } from '../write-observers/ended-login.write-observer';
 import { TenantRoomWriteObserver } from '../write-observers/tenant-room.write-observer';
+import { WebsocketSendData, WebsocketSendToAllData, WebsocketSendToChannelData, WebsocketServiceInterface } from './websocket-service.interface';
 
 /**
  * Names the room a channel's messages are delivered through.

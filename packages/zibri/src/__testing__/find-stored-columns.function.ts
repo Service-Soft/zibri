@@ -1,5 +1,5 @@
-import { queryPostgres } from './query-postgres.function';
 import { PostgresDataSource } from '../data-source/data-sources/postgres/postgres-data-source.model';
+import { queryPostgres } from './query-postgres.function';
 
 /**
  * A column as postgres stores it.

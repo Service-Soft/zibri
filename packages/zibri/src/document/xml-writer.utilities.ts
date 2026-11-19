@@ -1,5 +1,3 @@
-import { XmlElementNode } from './xml-element-node.model';
-import { XmlGenerateOptions } from './xml-generate-options.model';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
@@ -17,6 +15,8 @@ import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { BigNumber } from '../utilities/number.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
+import { XmlElementNode } from './xml-element-node.model';
+import { XmlGenerateOptions } from './xml-generate-options.model';
 
 // what text cannot hold as it is: the markup characters, and a carriage return, which a reader
 // would turn into a line feed

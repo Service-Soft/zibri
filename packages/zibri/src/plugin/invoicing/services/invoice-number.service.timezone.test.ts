@@ -2,7 +2,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { InvoiceNumberServiceInterface } from './invoice-number-service.interface';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { companyInfoProvider } from '../../../__testing__/mocks/company-info-provider.function';
 import { runApplicationClockAhead } from '../../../__testing__/run-application-clock-ahead.function';
@@ -26,6 +25,7 @@ import { InvoiceAddress } from '../models/invoice-address.model';
 import { InvoiceRecipientAbbreviation } from '../models/invoice-recipient-abbreviation.model';
 import { Invoice } from '../models/invoice.model';
 import { NumberInvoices } from '../models/number-invoices.model';
+import { InvoiceNumberServiceInterface } from './invoice-number-service.interface';
 
 /**
  * A team whose company sits in Berlin.

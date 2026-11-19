@@ -1,12 +1,12 @@
 import { afterAll, beforeAll } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource, InMemoryStore, inMemoryStoreFor, StoredRow } from 'zibri-testing';
 
-import { describeMistypedColumnValues, describeMistypedValues, Gauge, MistypedValueFixture } from './mistyped-values.cases';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
+import { describeMistypedColumnValues, describeMistypedValues, Gauge, MistypedValueFixture } from './mistyped-values.cases';
 
 const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
     entities: [...defaultTestServerEntities, Gauge],

@@ -1,6 +1,3 @@
-import { ForwardingRepositoryDriver } from './forwarding.repository-driver';
-import { RemovalReach } from './removal-reach.model';
-import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
@@ -18,6 +15,9 @@ import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
 import { Transaction } from '../transaction/transaction.model';
+import { ForwardingRepositoryDriver } from './forwarding.repository-driver';
+import { RemovalReach } from './removal-reach.model';
+import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
 
 /**
  * How many rows the store answered with, which every operation that answers with rows records.

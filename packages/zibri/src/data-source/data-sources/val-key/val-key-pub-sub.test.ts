@@ -3,8 +3,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import type { GlideClient } from '@valkey/valkey-glide';
 
-import { ValKeyDataSource } from './val-key-data-source.model';
-import { valKeyGlide } from './val-key-glide.function';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { createTestDataSource } from '../../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../../__testing__/test-server/create-test-val-key-data-source.function';
@@ -14,6 +12,8 @@ import { Newable } from '../../../types/newable.type';
 import { MigrationEntity } from '../../migration/migration-entity.model';
 import { PostgresDataSource } from '../postgres/postgres-data-source.model';
 import { DataSourceSubscription } from '../pub-sub-data-source.interface';
+import { ValKeyDataSource } from './val-key-data-source.model';
+import { valKeyGlide } from './val-key-glide.function';
 
 /**
  * A subscription whose client failed once delivered nothing for the rest of the process.

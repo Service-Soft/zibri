@@ -1,8 +1,6 @@
 import { Readable } from 'node:stream';
 import { ReadableStream as NodeReadableStream } from 'node:stream/web';
 
-import { HttpClientError, HttpClientErrorOptions } from './http-client.error';
-import { HttpClientHeaderValue } from './http-client.interface';
 import { ContentTooLargeError } from '../error-handling/errors/content-too-large.error';
 import { InternalError } from '../error-handling/internal-error.model';
 import { HttpMethod } from '../http/http-method.enum';
@@ -11,6 +9,8 @@ import { MimeType } from '../http/mime-type.enum';
 import { BodyMetadata } from '../routing/decorators/body-metadata.model';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { BigNumber, NumberUtilities } from '../utilities/number.utilities';
+import { HttpClientError, HttpClientErrorOptions } from './http-client.error';
+import { HttpClientHeaderValue } from './http-client.interface';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type ResponseType = 'json' | 'xml' | 'text' | 'stream';

@@ -1,3 +1,5 @@
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
+import { type CurrentUser } from '../decorators/current-user.decorator';
 import { BaseRole } from './base-role.model';
 import { type Permission } from './permission.type';
 import { type PlatformPermission } from './platform-permission.type';
@@ -5,8 +7,6 @@ import { RoleCreateData } from './role-create-data.model';
 import { RoleIdentity } from './role-identity.model';
 import { RoleUpdateData } from './role-update-data.model';
 import { WrittenRole } from './written-role.model';
-import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
-import { type CurrentUser } from '../decorators/current-user.decorator';
 
 /**
  * Interface for the service keeping the roles of an application: the permissions it declares in code,

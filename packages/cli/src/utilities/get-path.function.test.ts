@@ -2,8 +2,8 @@ import path from 'path';
 
 import { afterEach, describe, expect, it } from '@jest/globals';
 
-import { getPath } from './get-path.function';
 import { CPUtilities } from '../encapsulation';
+import { getPath } from './get-path.function';
 
 /**
  * A path written with slashes, as the platform writes it: with backslashes on windows.

@@ -1,6 +1,5 @@
 import { randomBytes, timingSafeEqual } from 'crypto';
 
-import { MailingListSubscriberCreateData, MailingListQueueEmailData, MailingListServiceInterface } from './mailing-list-service.interface';
 import { ZibriApplication } from '../../../application/application';
 import { type AssetServiceInterface } from '../../../assets/asset-service.interface';
 import { type HashServiceInterface } from '../../../auth/hash/hash-service.interface';
@@ -33,6 +32,7 @@ import { type MailingListSubscribeConfirmationEmailTemplate } from '../models/ma
 import { MailingListSubscriber } from '../models/mailing-list-subscriber.model';
 import { MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from '../models/mailing-list-subscription-confirmation-token.model';
 import { MailingList } from '../models/mailing-list.model';
+import { MailingListSubscriberCreateData, MailingListQueueEmailData, MailingListServiceInterface } from './mailing-list-service.interface';
 
 /**
  * Default mailing list service implementation of Zibri.

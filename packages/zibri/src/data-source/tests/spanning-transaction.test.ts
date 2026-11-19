@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource, RoundTripCounter } from 'zibri-testing';
 
-import { describeSpanningTransaction, SpanCard, SpanEntry, SpanLabel, SpanningTransactionRepositories } from './spanning-transaction.cases';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -15,6 +14,7 @@ import { Repository } from '../repository/repository';
 import { RepositoryClass } from '../repository/repository-class.type';
 import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
 import { SpanningTransaction } from '../transaction/spanning-transaction.model';
+import { describeSpanningTransaction, SpanCard, SpanEntry, SpanLabel, SpanningTransactionRepositories } from './spanning-transaction.cases';
 
 /**
  * The data source a spanning transaction reaches first, holding the framework's entities as well.

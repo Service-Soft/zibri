@@ -1,7 +1,5 @@
 import assert from 'assert';
 
-import { AnyBodyParser, BodyParserInterface, BodyParserMetadata, isBodyParser } from './body-parser.interface';
-import { ParserInterface } from './parser.interface';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { getAllInstantiatedValues } from '../di/get-all-instantiated-values.function';
@@ -20,6 +18,11 @@ import { MimeType } from '../http/mime-type.enum';
 import { MimeTypeUtilities } from '../http/mime-type.utilities';
 import { HttpClientResponse, isHttpClientResponse } from '../http-client/http-client-response.model';
 import { LoggerInterface } from '../logging/logger.interface';
+import { BodyMetadata } from '../routing/decorators/body-metadata.model';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
+import { JsonUtilities } from '../utilities/json.utilities';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { AnyBodyParser, BodyParserInterface, BodyParserMetadata, isBodyParser } from './body-parser.interface';
 import { parseArray } from './functions/parse-array.function';
 import { parseBoolean } from './functions/parse-boolean.function';
 import { parseDate } from './functions/parse-date.function';
@@ -27,10 +30,7 @@ import { parseNumber } from './functions/parse-number.function';
 import { parseObject } from './functions/parse-object.function';
 import { parseAnyOf } from './functions/parse-one-of.function';
 import { parseString } from './functions/parse-string.function';
-import { BodyMetadata } from '../routing/decorators/body-metadata.model';
-import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { ParserInterface } from './parser.interface';
 
 /**
  * Function for parsing path parameters.

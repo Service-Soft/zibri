@@ -1,11 +1,11 @@
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { describeKeyReconciliation, PlainWidget } from './key-reconciliation.cases';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
 import { DataSource } from '../decorators/data-source.decorator';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { RepositoryClass } from '../repository/repository-class.type';
+import { describeKeyReconciliation, PlainWidget } from './key-reconciliation.cases';
 
 /**
  * The entities of the data source, the widget last - which the cases swap for another release of it.

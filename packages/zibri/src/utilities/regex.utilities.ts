@@ -1,5 +1,5 @@
-import { LinearRegex } from './linear-regex';
 import { InternalError } from '../error-handling/internal-error.model';
+import { LinearRegex } from './linear-regex';
 
 /**
  * Every declared pattern compiled so far, by the pattern as it was declared.

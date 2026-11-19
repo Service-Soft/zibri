@@ -1,8 +1,8 @@
-import { type InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { type LocalizeServiceInterface } from '../../../localization/localize-service.interface';
 import { BigNumber } from '../../../utilities/number.utilities';
 import { Invoice } from '../models/invoice.model';
+import { type InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
 
 /**
  * Validates that the given invoice totals at least 0 before tax. One that totals less is a credit

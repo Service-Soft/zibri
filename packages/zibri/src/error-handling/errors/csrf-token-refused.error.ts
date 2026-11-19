@@ -1,5 +1,5 @@
-import { ForbiddenError } from './forbidden.error';
 import { TranslatedString } from '../../localization/models/translated-string.model';
+import { ForbiddenError } from './forbidden.error';
 
 /**
  * An error to throw when a request changing something carries a valid cookie session, and not the

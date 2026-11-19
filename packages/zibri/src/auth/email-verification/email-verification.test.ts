@@ -1,11 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { EmailChangedEmailTemplate } from './email-changed-email-template.model';
-import { EmailVerificationEmailTemplate } from './email-verification-email-template.model';
-import { type EmailVerificationOptions } from './email-verification-options.model';
-import { type EmailVerificationServiceInterface } from './email-verification-service.interface';
-import { EmailVerificationToken } from './email-verification-token.model';
 import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function';
 import { TestTimeouts } from '../../__testing__/constants';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
@@ -37,6 +32,11 @@ import { PasswordCredentials, PasswordCredentialsCreateData } from '../authentic
 import { PasswordAuthenticator } from '../authenticators/password/password.authenticator';
 import { PasswordResetToken } from '../models/password-reset-token.model';
 import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy';
+import { EmailChangedEmailTemplate } from './email-changed-email-template.model';
+import { EmailVerificationEmailTemplate } from './email-verification-email-template.model';
+import { type EmailVerificationOptions } from './email-verification-options.model';
+import { type EmailVerificationServiceInterface } from './email-verification-service.interface';
+import { EmailVerificationToken } from './email-verification-token.model';
 
 const PASSWORD: string = 'correct horse battery staple';
 

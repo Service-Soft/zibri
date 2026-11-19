@@ -2,6 +2,15 @@
 
 What changed in each release of `zibri`, `zibri-contract`, `zibri-tsx`, `zibri-tsx-compiler`, `zibri-mdx`, `zibri-testing` and `zibri-cli`. They are released together, at one version.
 
+## 3.1.1
+
+### Fixed
+- The `changeSets` relation of a `ChangeSetEntity` is read by `relations`, such as `findById(id, { relations: { changeSets: { changes: true } } })`, on an in-memory and a Valkey data source too.
+- A `CrudController` built into another class with `OmitClass`, `PickClass` or `IntersectionClass` serves the routes it keeps, which answered with a 500. The start refuses a controller built that way from a class that takes constructor parameters or sets a property in its constructor, which the class built from it never runs. See [extending a controller](https://service-soft.github.io/zibri/endpoints/creating-endpoints/#extending-a-controller).
+- A fixed segment of a path is matched before a path parameter in the same place, whichever route is declared first, such as `GET /tasks/dashboard` beside `GET /tasks/:id`.
+- `npm test` of a project `zi new` generated runs inside an npm workspace, which installs jest into the root of the workspace: it runs `scripts/test.mjs`, which finds jest wherever npm installed it. `zi upgrade` writes the file, and points the `test` script of `package.json` at it while the script is the one `zi new` wrote.
+- `zibri-contract`, `zibri-tsx`, `zibri-tsx-compiler`, `zibri-mdx`, `zibri-testing` and `zibri-cli` ship the sources their source maps name, as `zibri` does. A build reading the maps, such as webpack's source map loader, warned of a missing file for each of them, and going to a definition ended in a `.d.ts`.
+
 ## 3.1.0
 
 ### Upgrading from 3.0

@@ -1,10 +1,10 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
-import { logToConsole } from './log-to-console.function';
-import { BaseLoggerTransportConfig } from './logger-transport.model';
 import { errorToLoggedError } from '../error-to-logged-error.function';
 import { LogLevel } from '../log-level.enum';
 import { Log } from '../log.model';
+import { logToConsole } from './log-to-console.function';
+import { BaseLoggerTransportConfig } from './logger-transport.model';
 
 function createLog(level: LogLevel, overrides: Partial<Log> = {}): Log {
     return {

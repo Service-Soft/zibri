@@ -1,4 +1,3 @@
-import { ChangeProfile } from './seeded-table.model';
 import { S3BackupTransportOptions } from '../../../backup/transports/s3/s3-backup-transport-options.model';
 import { S3Credentials } from '../../../backup/transports/s3/s3-credentials.model';
 import { SftpBackupTransportOptions } from '../../../backup/transports/sftp/sftp-backup-transport-options.model';
@@ -7,6 +6,7 @@ import { ValKeyRestoreMode } from '../../../data-source/data-sources/val-key/val
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { PerfControl } from '../perf-control.model';
 import { ThreadCpu } from '../thread-cpu.utilities';
+import { ChangeProfile } from './seeded-table.model';
 
 /**
  * The environment variable the measured process reads its {@link BackupMeasurementConfig} from.

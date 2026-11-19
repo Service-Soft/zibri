@@ -6,6 +6,8 @@ import { deflateRawSync, inflateRawSync } from 'node:zlib';
 import type { SignedXml } from 'xml-crypto';
 import { KnownHeader, MimeType, optionalPeer } from 'zibri';
 
+import { createFakeKeyPair } from '../create-fake-key-pair.function';
+import { FakeKeyPair } from '../fake-key-pair.model';
 import { FakeSamlAnswerChanges } from './fake-saml-answer-changes.model';
 import { FakeSamlAnswer } from './fake-saml-answer.model';
 import { FakeSamlBackChannelAnswer } from './fake-saml-back-channel-answer.model';
@@ -16,8 +18,6 @@ import { FakeSamlLogoutRequest } from './fake-saml-logout-request.model';
 import { FakeSamlLogoutResponse } from './fake-saml-logout-response.model';
 import { FakeSamlProviderOptions } from './fake-saml-provider-options.model';
 import { FakeSamlRequest } from './fake-saml-request.model';
-import { createFakeKeyPair } from '../create-fake-key-pair.function';
-import { FakeKeyPair } from '../fake-key-pair.model';
 
 /**
  * The algorithms the answers are signed with: exclusive canonicalization, and RSA with SHA-256.

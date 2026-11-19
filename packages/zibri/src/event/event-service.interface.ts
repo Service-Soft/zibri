@@ -1,8 +1,8 @@
-import { type EventReplayOptions } from './event-replay-options.model';
-import { Event } from './event.model';
 import { type QueueDelivery } from '../queue/queue-delivery.type';
 import { type QueuedWorkRun } from '../queue/queued-work-run.model';
 import { type RunsOn } from '../types/runs-on.type';
+import { type EventReplayOptions } from './event-replay-options.model';
+import { Event } from './event.model';
 
 /**
  * Options for subscribing to events.

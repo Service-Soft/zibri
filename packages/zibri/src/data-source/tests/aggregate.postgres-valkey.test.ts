@@ -1,6 +1,5 @@
 import { afterAll, beforeAll } from '@jest/globals';
 
-import { describeAggregates, Sale } from './aggregate.cases';
 import { TestTimeouts } from '../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
@@ -11,6 +10,7 @@ import { PostgresDataSource } from '../data-sources/postgres/postgres-data-sourc
 import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { Repository } from '../repository/repository';
+import { describeAggregates, Sale } from './aggregate.cases';
 
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
     entities: [...defaultTestServerEntities, Sale],

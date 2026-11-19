@@ -1,7 +1,3 @@
-import { TenantBackupTransportKindInterface } from './tenant-backup-transport-kind.interface';
-import { TenantS3TransportSecret } from './tenant-s3-transport-secret.model';
-import { TenantS3TransportSettings } from './tenant-s3-transport-settings.model';
-import { TenantTransportNetwork } from './tenant-transport-network.model';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { $ts } from '../../localization/translate.function';
@@ -9,6 +5,10 @@ import { Newable } from '../../types/newable.type';
 import { BackupTransportSupporting } from '../transports/backup-transport.interface';
 import { validateS3BucketName } from '../transports/s3/validate-s3-bucket-name.function';
 import { S3BackupTransport } from '../transports/s3.backup-transport';
+import { TenantBackupTransportKindInterface } from './tenant-backup-transport-kind.interface';
+import { TenantS3TransportSecret } from './tenant-s3-transport-secret.model';
+import { TenantS3TransportSettings } from './tenant-s3-transport-settings.model';
+import { TenantTransportNetwork } from './tenant-transport-network.model';
 
 /**
  * A bucket of an S3 compatible storage a tenant keeps its backups in, over https.

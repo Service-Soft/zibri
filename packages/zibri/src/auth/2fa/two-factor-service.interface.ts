@@ -1,10 +1,10 @@
-import { TwoFactorMethod } from './methods/two-factor-method.interface';
-import { TwoFactorLock } from './two-factor-failure-limit.model';
-import { TwoFactorMethods } from './two-factor-methods.model';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { UserAccount } from '../models/user-account.model';
+import { TwoFactorMethod } from './methods/two-factor-method.interface';
+import { TwoFactorLock } from './two-factor-failure-limit.model';
+import { TwoFactorMethods } from './two-factor-methods.model';
 
 /**
  * Interface for a two factor service.

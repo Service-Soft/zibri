@@ -21,6 +21,9 @@
         "directory": "packages/contract"
     },
     "files": [
+        "./src",
+        "!src/**/__testing__/**",
+        "!src/**/*.test.ts",
         "./dist",
         "./README.md",
         "./LICENSE"
@@ -43,7 +46,7 @@
         "prepublishOnly": "npm run build"
     },
     "devDependencies": {
-        "@service-soft/eslint-config": "^2.1.7",
+        "@service-soft/eslint-config": "^2.2.0",
         "eslint": "^9.36.0",
         "typescript": "^5.9.2"
     }

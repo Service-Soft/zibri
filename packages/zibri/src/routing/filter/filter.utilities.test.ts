@@ -1,11 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 import { FilterConfig, OrderConfig } from 'zibri-contract';
 
-import { FilterUtilities } from './filter.utilities';
 import { Where } from '../../data-source/models/where/where-filter.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Property } from '../../entity/decorators/property.decorator';
 import { CrudControllerOrderUtilities } from '../models/crud-controller-order.utilities';
+import { FilterUtilities } from './filter.utilities';
 
 class Address {
     @Property.string()

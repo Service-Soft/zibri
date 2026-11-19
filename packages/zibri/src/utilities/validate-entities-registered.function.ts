@@ -1,7 +1,7 @@
-import { RequiredEntities } from './required-entities.model';
 import type { ZibriApplication } from '../application/application';
 import type { BaseEntity } from '../entity/base-entity.model';
 import { Newable } from '../types/newable.type';
+import { RequiredEntities } from './required-entities.model';
 
 /**
  * Validates that the given entities are registered in a data source somewhere.

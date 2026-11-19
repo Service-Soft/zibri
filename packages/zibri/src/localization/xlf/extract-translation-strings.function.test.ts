@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { extractTranslationStrings } from './extract-translation-strings.function';
-import { ExtractedTranslationString } from './models/extracted-translation-string.model';
 import { testFileFolder } from '../../__testing__/constants';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
+import { extractTranslationStrings } from './extract-translation-strings.function';
+import { ExtractedTranslationString } from './models/extracted-translation-string.model';
 
 const fixtureDir: FsPath = FsUtilities.getPath(testFileFolder, 'xlf-extraction-fixtures');
 

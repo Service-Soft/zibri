@@ -1,10 +1,10 @@
-import { BaseRateLimiter } from './base-rate-limiter.model';
 import { RateLimitResult } from '../rate-limit-result.model';
 import { RateLimitWrapOptions, RateLimitWrapResult } from '../rate-limit-wrap-options.model';
-import { RateLimiterConfig } from './rate-limiter-config.model';
 import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
 import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
 import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
+import { BaseRateLimiter } from './base-rate-limiter.model';
+import { RateLimiterConfig } from './rate-limiter-config.model';
 
 /**
  * Definition for a rate limiter.

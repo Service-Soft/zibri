@@ -1,10 +1,10 @@
-/* eslint-disable typescript/no-var-requires */
+
 /* eslint-disable typescript/no-require-imports */
 import { describe, expect, it } from '@jest/globals';
 import { clusterModulePaths } from 'zibri-testing';
 
-import { ZibriApplication } from './application';
 import { initDiContainer } from '../di/init-di-container.function';
+import { ZibriApplication } from './application';
 
 /**
  * Which copy of the framework a cluster instance gets.

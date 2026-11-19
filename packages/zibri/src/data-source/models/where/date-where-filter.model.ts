@@ -1,6 +1,6 @@
+import { DataSourceTime } from '../data-source-time.model';
 import { BaseWhereFilter, BaseWhereFilterObject } from './base-where-filter.model';
 import { PropertiesHolding, PropertyReference } from './property-reference.model';
-import { DataSourceTime } from '../data-source-time.model';
 
 /**
  * What a date is compared with: a date, another date property of the entity `Of`, or the time of the

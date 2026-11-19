@@ -1,10 +1,10 @@
-import { OpenApiExplorerHeader, OpenApiExplorerMethod, OpenApiExplorerOperation, OpenApiExplorerResponse, OpenApiExplorerTag } from './open-api-explorer-operation.model';
-import { OpenApiExplorerSecurityScheme } from './open-api-explorer-security-scheme.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { HtmlUtilities } from '../../parsing/html/html.utilities';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { isOpenApiReferenceObject, OpenApiDefinition, OpenApiHeaderObject, OpenApiMediaTypeObject, OpenApiOperation, OpenApiParameterObject, OpenApiReferenceObject, OpenApiRequestBodyObject, OpenApiResponseObject, OpenApiSchemaObject, OpenApiSchemaObjectType, OpenApiSecuritySchemeObject } from '../open-api.model';
+import { OpenApiExplorerHeader, OpenApiExplorerMethod, OpenApiExplorerOperation, OpenApiExplorerResponse, OpenApiExplorerTag } from './open-api-explorer-operation.model';
+import { OpenApiExplorerSecurityScheme } from './open-api-explorer-security-scheme.model';
 
 /**
  * A document whose schemas the explorer reads: an OpenAPI or an AsyncAPI document, whose references to schemas point

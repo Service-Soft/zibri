@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { Transaction } from './transaction.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { createTestDataSource } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
@@ -15,6 +14,7 @@ import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { Repository } from '../repository/repository';
+import { Transaction } from './transaction.model';
 
 /**
  * What a valkey transaction that is started and then never finished keeps hold of.

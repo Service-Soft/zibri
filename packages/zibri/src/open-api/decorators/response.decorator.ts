@@ -1,5 +1,4 @@
 
-import { ResponseDecorator } from './response-decorator.type';
 import { type KeysetPage, KeysetPageClass, type PaginationResult, PaginationResultClass } from '../../data-source/models/pagination-result.model';
 import { HttpStatus } from '../../http/http-status.enum';
 import { type RedirectResponse } from '../../http/redirect-response.model';
@@ -10,6 +9,7 @@ import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { JsonOpenApiResponse, EmptyOpenApiResponse, ErrorOpenApiResponse, FileOpenApiResponse, OpenApiResponse, HtmlOpenApiResponse, RedirectOpenApiResponse } from '../open-api.model';
+import { ResponseDecorator } from './response-decorator.type';
 /**
  * Bundles decorators for http responses.
  */

@@ -1,7 +1,7 @@
-import { BaseRepositoryOptions } from './base-repository-options.model';
-import { WriteRelationsOptions } from './write-relations-options.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Where } from '../where/where-filter.model';
+import { BaseRepositoryOptions } from './base-repository-options.model';
+import { WriteRelationsOptions } from './write-relations-options.model';
 
 /**
  * Options for deleting an entity by its id.

@@ -1,10 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource, StartedTestServer, startTestServer } from 'zibri-testing';
 
-import { Repository } from './repository';
-import { RepositoryClass } from './repository-class.type';
-import { RepositoryFor } from './repository-for.decorator';
-import { USER_REPOSITORY } from './repository-kind.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { BaseUserEntity } from '../../auth/models/base-user.model';
 import { BaseRoleRepository } from '../../auth/roles/base-role-repository.model';
@@ -24,11 +20,16 @@ import { BaseMembershipEntity } from '../../tenancy/membership/base-membership.m
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { type Newable } from '../../types/newable.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { ChangeSetType } from '../change-sets/models/change-set-type.enum';
 import { SoftDeleteEntity } from '../change-sets/models/soft-delete-entity.model';
 import { SoftDeleteRepository } from '../change-sets/soft-delete-repository';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { DataSource } from '../decorators/data-source.decorator';
 import { Transaction } from '../transaction/transaction.model';
+import { Repository } from './repository';
+import { RepositoryClass } from './repository-class.type';
+import { RepositoryFor } from './repository-for.decorator';
+import { USER_REPOSITORY } from './repository-kind.model';
 
 // a file of its own, because a class declared with @RepositoryFor is checked by every application
 // the file starts once it is imported
@@ -169,6 +170,17 @@ describe('@RepositoryFor', () => {
 
         expect(archivedUsers).toBeInstanceOf(SoftDeleteRepository);
         expect((await userService.findByEmail('grace@example.com')).id).toBe(user.id);
+    });
+
+    it('reads the change sets of a user built over a repository keeping them', async () => {
+        const archivedUsers: ArchivedUserRepository = inject(ArchivedUserRepository);
+        const user: ArchivedUser = await archivedUsers.create({ email: 'edsger@example.com', roles: [] });
+        await archivedUsers.updateById(user.id, { email: 'edsger.d@example.com' });
+
+        const read: ArchivedUser = await archivedUsers.findById(user.id, { relations: { changeSets: { changes: true } } });
+
+        expect(read.changeSets.map(c => c.type)).toEqual([ChangeSetType.CREATE, ChangeSetType.UPDATE]);
+        expect(read.changeSets[1]?.changes.map(c => c.key)).toEqual(['email']);
     });
 
     it('lets someone register again with the address of a user it soft deleted', async () => {
@@ -370,14 +382,14 @@ describe('@RepositoryFor - starting', () => {
     }, TestTimeouts.inMemory.start);
 
     it('refuses one class listed by two data sources', async () => {
-        const start: Promise<StartedTestServer> = startTestServer({
+        const serverStart: Promise<StartedTestServer> = startTestServer({
             dataSources: [
                 createInMemoryDataSource({ entities: [Book], repositories: [BookRepository], allowOrphan: true }),
                 SecondBookDataSource
             ]
         });
 
-        await expect(start).rejects.toThrow(/BookRepository is listed in the repositories of [\S\s]* and SecondBookDataSource/);
+        await expect(serverStart).rejects.toThrow(/BookRepository is listed in the repositories of [\S\s]* and SecondBookDataSource/);
     }, TestTimeouts.inMemory.start);
 
     it('refuses a class declaring a constructor of its own', async () => {

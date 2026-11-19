@@ -4,16 +4,6 @@ import { text } from 'node:stream/consumers';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { BackupEntity } from './backup-entity.model';
-import { BACKUP_REPOSITORY_FOLDER } from './backup-format';
-import { BackupResourceEntity } from './backup-resource-entity.model';
-import { BackupResourceInterface } from './backup-resource.interface';
-import { BackupServiceInterface } from './backup-service.interface';
-import { Backup } from './decorators/backup-resource.decorator';
-import { BackupTransport } from './decorators/backup-transport.decorator';
-import { BackupTransportSessionInterface } from './transports/backup-transport-session.interface';
-import { BackupTransportInterface } from './transports/backup-transport.interface';
-import { FsBackupTransport } from './transports/fs.backup-transport';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -27,6 +17,16 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { Newable } from '../types/newable.type';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { BackupEntity } from './backup-entity.model';
+import { BACKUP_REPOSITORY_FOLDER } from './backup-format';
+import { BackupResourceEntity } from './backup-resource-entity.model';
+import { BackupResourceInterface } from './backup-resource.interface';
+import { BackupServiceInterface } from './backup-service.interface';
+import { Backup } from './decorators/backup-resource.decorator';
+import { BackupTransport } from './decorators/backup-transport.decorator';
+import { BackupTransportSessionInterface } from './transports/backup-transport-session.interface';
+import { BackupTransportInterface } from './transports/backup-transport.interface';
+import { FsBackupTransport } from './transports/fs.backup-transport';
 
 /**
  * Which transport a restore takes a resource from: the next one, when the copy of one turns out broken.

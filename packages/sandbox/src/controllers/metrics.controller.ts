@@ -2,8 +2,8 @@ import { Readable } from 'node:stream';
 
 import { Controller, Inject, ZIBRI_DI_TOKENS, Get, Response, MetricsSnapshot, MetricsServiceInterface, HtmlResponse, TsxUtilities, GlobalRegistry, CacheServiceInterface, Cached, RateLimitingServiceInterface, FileResponse, MetricsExposition } from 'zibri';
 
-import { StaticPagesCache } from './page.controller';
 import { MetricsPage } from '../templates/pages/metrics/metrics';
+import { StaticPagesCache } from './page.controller';
 
 @Controller('/metrics', { versions: 'all' })
 export class MetricsController {
@@ -36,7 +36,6 @@ export class MetricsController {
     @Cached(StaticPagesCache, () => StaticPagesCache.getPageKey('dashboard'))
     @Response.html()
     @Get('/dashboard')
-    // eslint-disable-next-line typescript/require-await
     async dashboard(): Promise<HtmlResponse> {
         const version: string = GlobalRegistry.getAppData('version') ?? '-';
         const cacheNames: string[] = this.cacheService.caches.map(c => c.name);
@@ -46,6 +45,7 @@ export class MetricsController {
             MetricsPage,
             { version, cacheNames, rateLimiterNames, primary: '#0e456f', secondary: '#00b4d8' }
         );
-        return HtmlResponse.fromString(html);
+        // a promise, which is what @Cached takes a method to return, of a page rendered at once
+        return Promise.resolve(HtmlResponse.fromString(html));
     }
 }

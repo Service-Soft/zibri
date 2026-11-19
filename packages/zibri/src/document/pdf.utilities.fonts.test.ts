@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { createFakeFont } from '../__testing__/fake-font.function';
 import { PdfFontOptions } from './pdf-font-options.model';
 import { PdfDocument, PdfDocumentDefinition, PdfUtilities } from './pdf.utilities';
-import { createFakeFont } from '../__testing__/fake-font.function';
 
 /**
  * A font for Japanese names, with the characters of one and nothing else.

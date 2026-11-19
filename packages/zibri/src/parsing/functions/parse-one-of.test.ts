@@ -1,13 +1,13 @@
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
-import { parseObject } from './parse-object.function';
-import { parseShape } from './parse-one-of.function';
 import { initDiContainer } from '../../di/init-di-container.function';
 import { Property } from '../../entity/decorators/property.decorator';
 import { type OneOf } from '../../entity/models/one-of.model';
 import { GlobalRegistry } from '../../global/global-registry';
 import { BodyShapeMetadata, JsonBodyShapeMetadataInput } from '../../routing/decorators/body-metadata.model';
 import { resolveStructuredBodyMetadata } from '../../routing/resolve-body-metadata.function';
+import { parseObject } from './parse-object.function';
+import { parseShape } from './parse-one-of.function';
 
 class EmailChannel {
     @Property.string({ regex: /^[^\s@]+@[^\s@]+$/ })

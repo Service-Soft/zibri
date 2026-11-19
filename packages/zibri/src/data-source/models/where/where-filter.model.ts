@@ -1,3 +1,4 @@
+import { BigNumber } from '../../../utilities/number.utilities';
 import { ArrayWhereFilter, ObjectArrayWhereFilter } from './array-where-filter.model';
 import { BooleanWhereFilter } from './boolean-where-filter.model';
 import { DateWhereFilter } from './date-where-filter.model';
@@ -5,7 +6,6 @@ import { AnyNumber, NumberWhereFilter } from './number-where-filter.model';
 import { ObjectWhereFilter } from './object-where-filter.model';
 import { IsOneOf, NamedShapeValue, OneOfWhereFilter } from './one-of-where-filter.model';
 import { StringWhereFilter } from './string-where-filter.model';
-import { BigNumber } from '../../../utilities/number.utilities';
 
 /**
  * The type for a where property. Can either be a single where filter or an array of where filters.

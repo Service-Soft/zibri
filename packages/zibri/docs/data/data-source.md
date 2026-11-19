@@ -2528,6 +2528,9 @@ A change set is found by the id of its row, and the change sets of all entities 
 you give a row through `allowId` is one that no row of another change set entity has, or the two
 share a history. Resetting a change set or rolling back to one refuses a change set of another row.
 
+The change sets of a row are its `changeSets` relation, oldest first: `findById(id, { relations: { changeSets: { changes: true } } })`
+reads them with their changes.
+
 A change of an object property records the whole object, before and after. Resetting it writes the
 object back as it was, with `null` for a property added to it since.
 

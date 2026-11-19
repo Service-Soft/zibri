@@ -3,12 +3,6 @@ import { connect, type ConnectionOptions, type TLSSocket } from 'node:tls';
 
 import type { Client, ClientOptions, Entry, Filter } from 'ldapts';
 
-import { DisabledLdapEntriesCronJob } from './disabled-ldap-entries.cron-job';
-import { LdapCredentials } from './ldap-credentials.model';
-import { LdapEntry } from './ldap-entry.model';
-import { LdapIdentity, LdapIdentityCreateData } from './ldap-identity.model';
-import { LdapServiceAccount } from './ldap-service-account.model';
-import { Ldapts } from './ldapts.type';
 import { ZibriApplication } from '../../../application/application';
 import { KeysetPage } from '../../../data-source/models/pagination-result.model';
 import { Repository } from '../../../data-source/repository/repository';
@@ -33,6 +27,12 @@ import { BaseUser } from '../../models/base-user.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthControllerAuthenticatorInterface } from '../auth-controller-authenticator.interface';
 import { RefreshResolvingAuthenticatorInterface } from '../refresh-resolving-authenticator.interface';
+import { DisabledLdapEntriesCronJob } from './disabled-ldap-entries.cron-job';
+import { LdapCredentials } from './ldap-credentials.model';
+import { LdapEntry } from './ldap-entry.model';
+import { LdapIdentity, LdapIdentityCreateData } from './ldap-identity.model';
+import { LdapServiceAccount } from './ldap-service-account.model';
+import { Ldapts } from './ldapts.type';
 
 /**
  * How long a first login may take to link an entry, before another login as the same entry stops

@@ -1,8 +1,8 @@
-import { AuditCollapse } from './audit-collapse.enum';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Property } from '../entity/decorators/property.decorator';
 import { AuditAction, AuditOutcome, AuditReason } from '../logging/audit-event.model';
 import { OmitStrict } from '../types/omit-strict.type';
+import { AuditCollapse } from './audit-collapse.enum';
 
 /**
  * What every entry of the audit trail holds, whichever way the trail tells a changed entry.

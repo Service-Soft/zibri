@@ -1,6 +1,6 @@
-import { AsyncApiDefinition } from './async-api.model';
 import { ZibriApplication } from '../application/application';
 import { Version } from '../versioning/version.model';
+import { AsyncApiDefinition } from './async-api.model';
 
 /**
  * Builds the AsyncAPI document of each version: the websocket events of the application.

@@ -2,14 +2,14 @@ import type * as ZibriMdx from 'zibri-mdx';
 import { MdxComponents, MdxComponentsContext, MdxPage, MdxPageProps } from 'zibri-tsx';
 import { defineServerComponent } from 'zibri-tsx/internal';
 
-import { type MarkdownOptions } from './markdown-options.model';
-import { MarkdownServiceInterface } from './markdown-service.interface';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { InternalError } from '../error-handling/internal-error.model';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { resolveApplicationPackage } from '../utilities/optional-peer.function';
+import { type MarkdownOptions } from './markdown-options.model';
+import { MarkdownServiceInterface } from './markdown-service.interface';
 
 /**
  * What renders the markdown, which the error names when the package is missing.

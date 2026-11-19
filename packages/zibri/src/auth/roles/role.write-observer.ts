@@ -1,8 +1,8 @@
+import { EntityWrite, EntityWriteObserver, ObservedWrite, WrittenRows } from '../../data-source/write-observers/entity-write-observer.model';
 import { RoleIdentity } from './role-identity.model';
 import { type RoleServiceInterface } from './role-service.interface';
 import { RoleUtilities } from './role.utilities';
 import { WrittenRole } from './written-role.model';
-import { EntityWrite, EntityWriteObserver, ObservedWrite, WrittenRows } from '../../data-source/write-observers/entity-write-observer.model';
 
 /**
  * Checks every write to the roles of an application, and has the role service read them again once it

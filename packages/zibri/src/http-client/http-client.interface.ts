@@ -1,9 +1,3 @@
-import { FetchForLibraryOptions } from './fetch-for-library-options.model';
-import { HttpClientIdempotencyKey } from './http-client-idempotency-key.model';
-import { HttpClientDispatcher } from './http-client-options.model';
-import { HttpClientRedirect } from './http-client-redirect.model';
-import { HttpClientResponse, HttpClientResponseBodyInput } from './http-client-response.model';
-import { type HttpClientResult } from './http-client-result.type';
 import { XmlString } from '../document/xml-string.type';
 import { HttpMethod } from '../http/http-method.enum';
 import { KnownHeader } from '../http/known-header.enum';
@@ -12,6 +6,12 @@ import { HeaderParamMetadataInput } from '../routing/decorators/param.decorator'
 import { HeaderMetaObjectToParamsObject, HeaderMetaInputObjectToMetaObject } from '../routing/route-configuration.model';
 import { Newable } from '../types/newable.type';
 import { OmitStrict } from '../types/omit-strict.type';
+import { FetchForLibraryOptions } from './fetch-for-library-options.model';
+import { HttpClientIdempotencyKey } from './http-client-idempotency-key.model';
+import { HttpClientDispatcher } from './http-client-options.model';
+import { HttpClientRedirect } from './http-client-redirect.model';
+import { HttpClientResponse, HttpClientResponseBodyInput } from './http-client-response.model';
+import { type HttpClientResult } from './http-client-result.type';
 
 /**
  * Possible values to send as headers when using the http client.

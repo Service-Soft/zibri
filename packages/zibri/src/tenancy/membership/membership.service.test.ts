@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { MembershipServiceInterface } from './membership-service.interface';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { MemberRoles } from '../../__testing__/mocks/entities/member-roles.enum';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
@@ -18,6 +17,7 @@ import { inject } from '../../di/inject.function';
 import { AuditAction, AuditOutcome } from '../../logging/audit-event.model';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { TenantServiceInterface } from '../tenant-service.interface';
+import { MembershipServiceInterface } from './membership-service.interface';
 
 let server: StartedTestServer | undefined;
 

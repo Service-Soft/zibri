@@ -1,9 +1,9 @@
-import { type CronExpressionString } from './cron-expression.utilities';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { type Timezone, timezoneEnum } from '../localization/models/timezone.model';
 import { OmitStrict } from '../types/omit-strict.type';
+import { type CronExpressionString } from './cron-expression.utilities';
 
 /**
  * Whether a cron job is on the schedule, and when it is not, why not.

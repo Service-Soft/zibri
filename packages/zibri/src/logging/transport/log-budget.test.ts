@@ -1,7 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { LoggerTransport } from './logger-transport.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -17,6 +16,7 @@ import { AuditAction, AuditEvent, AuditOutcome, AuditReason } from '../audit-eve
 import { LogLevel } from '../log-level.enum';
 import { Log } from '../log.model';
 import { Logger } from '../logger';
+import { LoggerTransport } from './logger-transport.model';
 
 let server: StartedTestServer;
 let tenants: TenantServiceInterface;

@@ -1,8 +1,8 @@
-import { PasswordPolicy } from './password-policy.model';
 import { PasswordRefusedError } from '../../error-handling/errors/password-refused.error';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { $ts } from '../../localization/translate.function';
 import { PASSWORD_MAX_LENGTH } from '../hash/hash.utilities';
+import { PasswordPolicy } from './password-policy.model';
 
 /**
  * The most characters a password has when the password policy names no `maxLength`.

@@ -1,7 +1,7 @@
-import { EntityMigrationInput } from './entity-migration-input.model';
-import { MigrationTableReference } from './migration-table-reference.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
+import { EntityMigrationInput } from './entity-migration-input.model';
+import { MigrationTableReference } from './migration-table-reference.model';
 
 /**
  * What a migration says when it removes a relation of an entity.

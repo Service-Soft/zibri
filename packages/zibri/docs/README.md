@@ -2,7 +2,7 @@
 
 Zibri is an opinionated typescript backend framework based on express. It's heavily inspired by frameworks like [LoopBack](https://loopback.io/doc/en/lb4/index.html) and [Nest](https://docs.nestjs.com/).
 
-What differentiates it from such frameworks can be found in our [goals section](#goals).
+What differentiates it from such frameworks can be found in our [goals section](#-goals).
 
 # 🚀 Quick start
 Requires Node.js >= 24.

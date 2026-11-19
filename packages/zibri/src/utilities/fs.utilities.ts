@@ -38,26 +38,26 @@ export abstract class FsUtilities {
 
     /**
      * Creates a new read stream on the file at the given path.
-     * @param path - The path to read from.
+     * @param filePath - The path to read from.
      * @param options - Additional streaming options.
      * @returns The newly created read stream, handing out the file's bytes unless the options name an
      * encoding.
      */
-    static createReadStream(path: FsPath, options?: Exclude<Parameters<typeof createReadStream>[1], BufferEncoding>): ReadStream {
+    static createReadStream(filePath: FsPath, options?: Exclude<Parameters<typeof createReadStream>[1], BufferEncoding>): ReadStream {
         // no encoding by default: this used to decode as utf8, which changes any file that is not
         // text - a served image, an encrypted backup - and a text file too wherever a character
         // spans the end of one ranged read and the start of the next
-        return createReadStream(path, options);
+        return createReadStream(filePath, options);
     }
 
     /**
      * Creates a new write stream on the file at the given path.
-     * @param path - The path to write to.
+     * @param filePath - The path to write to.
      * @param options - Additional streaming options.
      * @returns The newly created write stream.
      */
-    static createWriteStream(path: FsPath, options?: Exclude<Parameters<typeof createWriteStream>[1], BufferEncoding>): WriteStream {
-        return createWriteStream(path, { encoding: 'utf8', ...options });
+    static createWriteStream(filePath: FsPath, options?: Exclude<Parameters<typeof createWriteStream>[1], BufferEncoding>): WriteStream {
+        return createWriteStream(filePath, { encoding: 'utf8', ...options });
     }
 
     /**
@@ -126,8 +126,8 @@ export abstract class FsUtilities {
             ? []
             : pattern.exclude ?? [];
 
-        for await (const path of glob(include, { exclude: Array.isArray(exclude) ? exclude : [exclude] })) {
-            res.push(path as FsPath);
+        for await (const matchedPath of glob(include, { exclude: Array.isArray(exclude) ? exclude : [exclude] })) {
+            res.push(matchedPath as FsPath);
         }
         return res;
     }
@@ -150,11 +150,11 @@ export abstract class FsUtilities {
 
     /**
      * Gives information about the file or directory at the provided path.
-     * @param path - The path to get info on.
+     * @param entryPath - The path to get info on.
      * @returns Information like file size etc.
      */
-    static async stat(path: FsPath): Promise<Stats> {
-        return await stat(path);
+    static async stat(entryPath: FsPath): Promise<Stats> {
+        return await stat(entryPath);
     }
 
     /**
@@ -175,12 +175,12 @@ export abstract class FsUtilities {
 
     /**
      * Checks if a file at the given path exists.
-     * @param path - The path to check.
+     * @param filePath - The path to check.
      * @returns True when a file could be accessed and false otherwise.
      */
-    static async exists(path: FsPath): Promise<boolean> {
+    static async exists(filePath: FsPath): Promise<boolean> {
         try {
-            await access(path);
+            await access(filePath);
             return true;
         }
         catch {
@@ -192,11 +192,11 @@ export abstract class FsUtilities {
      * Checks if a file at the given path exists.
      *
      * PLEASE ALWAYS PREFER {@link FsUtilities.exists} DUE TO PERFORMANCE REASONS.
-     * @param path - The path to check.
+     * @param filePath - The path to check.
      * @returns True if the path exists, false otherwise.
      */
-    static existsSync(path: FsPath): boolean {
-        return existsSync(path);
+    static existsSync(filePath: FsPath): boolean {
+        return existsSync(filePath);
     }
 
     /**
@@ -349,33 +349,33 @@ export abstract class FsUtilities {
     /**
      * Updates the file at the given path with the given data.
      * Can either replace, prepend or append.
-     * @param path - The path of the new file to create.
+     * @param filePath - The path of the new file to create.
      * @param data - The data to write into the file. Can be a raw data string or an array of lines, which are joined by \n.
      * @param action - Whether the data should replace the current content or be pre-/appended.
      */
     static async updateFile(
-        path: FsPath,
+        filePath: FsPath,
         data: string | string[],
         action: 'replace' | 'prepend' | 'append'
     ): Promise<void> {
-        if (!await this.exists(path)) {
-            throw new InternalError(`File at ${path} does not exist. Did you mean to call "createFile"?`);
+        if (!await this.exists(filePath)) {
+            throw new InternalError(`File at ${filePath} does not exist. Did you mean to call "createFile"?`);
         }
 
         data = this.normalizeData(data);
         switch (action) {
             case 'replace': {
-                await writeFile(path, data);
+                await writeFile(filePath, data);
                 break;
             }
             case 'append': {
-                const currentContent: string[] = await this.readFileLines(path);
-                await writeFile(path, this.normalizeData(this.isEmpty(currentContent) ? [data] : [...currentContent, data]));
+                const currentContent: string[] = await this.readFileLines(filePath);
+                await writeFile(filePath, this.normalizeData(this.isEmpty(currentContent) ? [data] : [...currentContent, data]));
                 break;
             }
             case 'prepend': {
-                const currentContent: string[] = await this.readFileLines(path);
-                await writeFile(path, this.normalizeData(this.isEmpty(currentContent) ? [data] : [data, ...currentContent]));
+                const currentContent: string[] = await this.readFileLines(filePath);
+                await writeFile(filePath, this.normalizeData(this.isEmpty(currentContent) ? [data] : [data, ...currentContent]));
                 break;
             }
         }
@@ -383,26 +383,26 @@ export abstract class FsUtilities {
 
     /**
      * Either creates or overrides the file at the given path with the given data.
-     * @param path - The path of the file to create/override.
+     * @param filePath - The path of the file to create/override.
      * @param data - The data to write into the file. Can be a raw data string or an array of lines, which are joined by \n.
      */
-    static async upsertFile(path: FsPath, data: string | string[]): Promise<void> {
-        if (!await this.exists(path)) {
-            await this.createFile(path, data);
+    static async upsertFile(filePath: FsPath, data: string | string[]): Promise<void> {
+        if (!await this.exists(filePath)) {
+            await this.createFile(filePath, data);
             return;
         }
 
-        await this.updateFile(path, data, 'replace');
+        await this.updateFile(filePath, data, 'replace');
     }
 
     /**
      * Reads the file content at the given path.
      * Expects utf-8.
-     * @param path - The path of the file to read.
+     * @param filePath - The path of the file to read.
      * @returns The content as a single string.
      */
-    static async readFile(path: FsPath): Promise<string> {
-        return readFile(path, { encoding: 'utf8' });
+    static async readFile(filePath: FsPath): Promise<string> {
+        return readFile(filePath, { encoding: 'utf8' });
     }
 
     /**
@@ -410,44 +410,44 @@ export abstract class FsUtilities {
      * Expects utf-8.
      *
      * PLEASE ALWAYS PREFER {@link FsUtilities.readFile} DUE TO PERFORMANCE REASONS.
-     * @param path - The path of the file to read.
+     * @param filePath - The path of the file to read.
      * @returns The content as a single string.
      */
-    static readFileSync(path: FsPath): string {
-        return readFileSync(path, { encoding: 'utf8' });
+    static readFileSync(filePath: FsPath): string {
+        return readFileSync(filePath, { encoding: 'utf8' });
     }
 
     /**
      * Same as readFile, but returns the content as an array of lines instead.
-     * @param path - The path of the file to read the lines from.
+     * @param filePath - The path of the file to read the lines from.
      * @returns The content as an array of line strings.
      */
-    static async readFileLines(path: FsPath): Promise<string[]> {
-        const content: string = await this.readFile(path);
+    static async readFileLines(filePath: FsPath): Promise<string[]> {
+        const content: string = await this.readFile(filePath);
         return content.split('\n');
     }
 
     /**
      * Removes either a file or directory.
-     * @param path - The path to remove.
+     * @param entryPath - The path to remove.
      * @param recursive - Whether or not subdirectories should be deleted as well. Defaults to true.
      */
-    static async rm(path: FsPath, recursive: boolean = true): Promise<void> {
-        if (!await this.exists(path)) {
+    static async rm(entryPath: FsPath, recursive: boolean = true): Promise<void> {
+        if (!await this.exists(entryPath)) {
             return;
         }
-        await rm(path, { recursive, force: true });
+        await rm(entryPath, { recursive, force: true });
     }
 
     /**
      * Removes a directory if it is empty. Nothing happens when it holds anything or does not exist.
-     * @param path - The path of the directory to remove.
+     * @param directoryPath - The path of the directory to remove.
      */
-    static async rmIfEmpty(path: FsPath): Promise<void> {
+    static async rmIfEmpty(directoryPath: FsPath): Promise<void> {
         try {
             // one call rather than a check followed by a removal, so that something added or removed in
             // between cannot make the answer wrong
-            await rmdir(path);
+            await rmdir(directoryPath);
         }
         catch (error) {
             if (this.hasErrorCode(error, 'ENOTEMPTY', 'ENOENT')) {
@@ -459,22 +459,22 @@ export abstract class FsUtilities {
 
     /**
      * Creates a directory at the given path.
-     * @param path - The path of the directory to create.
+     * @param directoryPath - The path of the directory to create.
      * @param recursive - Whether or not missing directories in the path should be created as well. Defaults to true.
      * @returns The first directory it created, the one closest to the root, or undefined when it created none.
      */
-    static async mkdir(path: FsPath, recursive: boolean = true): Promise<FsPath | undefined> {
-        const created: string | undefined = await mkdir(path, { recursive });
+    static async mkdir(directoryPath: FsPath, recursive: boolean = true): Promise<FsPath | undefined> {
+        const created: string | undefined = await mkdir(directoryPath, { recursive });
         // without recursive, the directory is created or the call throws
-        return recursive ? created == undefined ? undefined : this.getPath(created) : path;
+        return recursive ? created == undefined ? undefined : this.getPath(created) : directoryPath;
     }
 
     /**
      * Gets the root level subdirectories and files of the directory at the provided path.
-     * @param path - The path of the directory to get the contents of.
+     * @param directoryPath - The path of the directory to get the contents of.
      * @returns An array of the directory contents.
      */
-    static async readdir(path: FsPath): Promise<Dirent[]> {
-        return readdir(path, { withFileTypes: true });
+    static async readdir(directoryPath: FsPath): Promise<Dirent[]> {
+        return readdir(directoryPath, { withFileTypes: true });
     }
 }

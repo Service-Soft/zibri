@@ -1,4 +1,3 @@
-import { TenantServiceInterface } from './tenant-service.interface';
 import { AlsUtilities } from '../context/als.utilities';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { BadRequestError } from '../error-handling/errors/bad-request.error';
@@ -7,6 +6,7 @@ import { HttpRequest } from '../http/http-request.model';
 import { $ts } from '../localization/translate.function';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
 import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { TenantServiceInterface } from './tenant-service.interface';
 
 // named like the header in the query too, so that it cannot be taken for a `tenantId` parameter a
 // route of the application reads for a purpose of its own

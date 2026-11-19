@@ -1,9 +1,9 @@
+import { ExcludeStrict } from '../../types/exclude-strict.type';
+import { OmitStrict } from '../../types/omit-strict.type';
 import { type ArrayPropertyItemMetadata, type ArrayPropertyItemMetadataInput } from './array-property-metadata.model';
 import { BasePropertyMetadata } from './base-property-metadata.model';
 import { type FilePropertyMetadata } from './file-property-metadata.model';
 import { type StringPropertyMetadataInput } from './string-property-metadata.model';
-import { ExcludeStrict } from '../../types/exclude-strict.type';
-import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
  * Metadata for a property that holds one of several named shapes.

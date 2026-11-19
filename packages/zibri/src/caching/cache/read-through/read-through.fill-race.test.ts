@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { WriteInvalidateReadThroughArgsOnlyCache } from './write-invalidate-read-through-args-only.cache';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
@@ -13,6 +12,7 @@ import { type MetricsServiceInterface } from '../../../metrics/metrics-service.i
 import { type CacheServiceInterface } from '../../cache-service.interface';
 import { Cache } from '../../decorators/cache.decorator';
 import { InMemoryCacheStore } from '../../store/in-memory.cache-store';
+import { WriteInvalidateReadThroughArgsOnlyCache } from './write-invalidate-read-through-args-only.cache';
 
 @Cache()
 class RowCache extends WriteInvalidateReadThroughArgsOnlyCache<string, string, 'Row Cache'> {

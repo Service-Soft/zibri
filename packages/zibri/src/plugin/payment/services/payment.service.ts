@@ -1,5 +1,3 @@
-import { PaymentServiceInterface } from './payment-service.interface';
-import { PaymentDataForMethod, ValidatedPaymentDataForMethod, PaymentForMethod, AllowedReservationMethods, PaymentReservationForMethod, AllowedCancellationMethods, AllowedRefundMethods } from './payment-service.types';
 import { Repository } from '../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
@@ -21,6 +19,8 @@ import { PaymentStatus } from '../models/payment-status.enum';
 import { Payment } from '../models/payment.model';
 import { ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from '../payment.tokens';
 import { AnyPaymentProviderInterface } from '../providers/payment-provider.interface';
+import { PaymentServiceInterface } from './payment-service.interface';
+import { PaymentDataForMethod, ValidatedPaymentDataForMethod, PaymentForMethod, AllowedReservationMethods, PaymentReservationForMethod, AllowedCancellationMethods, AllowedRefundMethods } from './payment-service.types';
 
 /**
  * How many abandoned payments of a provider one pass of the reconciliation asks about at most.

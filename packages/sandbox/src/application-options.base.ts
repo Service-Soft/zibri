@@ -1,10 +1,10 @@
 import { OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOptions, ZibriInvoicingPlugin, ZibriMailingListPlugin } from 'zibri';
 
+import { version } from '../package.json';
 import { endEveryLoginCommand, resetAdminCommand } from './commands';
 import { AppAuthController, AppMailingListController, CronController, DocsController, FileController, HealthController, MetricsController, PageController, TemplateController, TestController, TestCrudController, TestWebsocketController } from './controllers';
 import { StatusCronJob } from './cron';
 import { requireOneOfEnv, requireUrlEnv } from './env';
-import { version } from '../package.json';
 import { providers } from './providers';
 
 if (!SemVerUtilities.isSemVerVersion(version)) {

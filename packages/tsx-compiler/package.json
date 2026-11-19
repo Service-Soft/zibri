@@ -37,6 +37,9 @@
         "directory": "packages/tsx-compiler"
     },
     "files": [
+        "./src",
+        "!src/**/__testing__/**",
+        "!src/**/*.test.ts",
         "./dist",
         "./README.md",
         "./LICENSE"
@@ -67,7 +70,7 @@
     },
     "devDependencies": {
         "@jest/globals": "^30.4.1",
-        "@service-soft/eslint-config": "^2.1.7",
+        "@service-soft/eslint-config": "^2.2.0",
         "@types/node": "^24.0.0",
         "eslint": "^9.36.0",
         "jest": "^30.4.2",

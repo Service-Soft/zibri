@@ -1,7 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { PgSessionClient } from './postgres-client.model';
-import { PostgresDataSource } from './postgres-data-source.model';
 import { connectAsAnotherInstance } from '../../../__testing__/connect-as-another-instance.function';
 import { TestServerTimeouts, TestTimeouts } from '../../../__testing__/constants';
 import { holdUntilLetGo } from '../../../__testing__/hold-until-let-go.function';
@@ -12,6 +10,8 @@ import { inject } from '../../../di/inject.function';
 import { Newable } from '../../../types/newable.type';
 import { PromiseUtilities } from '../../../utilities/promise.utilities';
 import { SCHEMA_LOCK_KEY } from '../data-source.interface';
+import { PgSessionClient } from './postgres-client.model';
+import { PostgresDataSource } from './postgres-data-source.model';
 
 /**
  * How long the index built beside the waiting instance may take, which an empty table needs a

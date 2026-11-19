@@ -3,13 +3,6 @@ import { ChildProcessByStdio, spawn } from 'node:child_process';
 import { createHash, Hash } from 'node:crypto';
 import { PassThrough, Readable, Writable } from 'node:stream';
 
-import { PostgresBackupScope } from './postgres-backup-scope.model';
-import { PostgresChangeSqlUtilities } from './postgres-change-sql.utilities';
-import { PostgresClientToolUtilities } from './postgres-client-tool.utilities';
-import { type PostgresDataSource, type PostgresOptions } from './postgres-data-source.model';
-import { PostgresRestoreSqlUtilities } from './postgres-restore-sql.utilities';
-import { PostgresSchema } from './postgres-schema.model';
-import { PostgresSqlUtilities } from './postgres-sql.utilities';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { EntityMetadata } from '../../../entity/decorators/entity.decorator';
 import { isRelationMetadata } from '../../../entity/models/is-relation-metadata.function';
@@ -20,6 +13,13 @@ import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { SemVerUtilities } from '../../../utilities/sem-ver.utilities';
 import { MigrationEntity } from '../../migration/migration-entity.model';
 import { RecordedMigration } from '../../migration/recorded-migration.model';
+import { PostgresBackupScope } from './postgres-backup-scope.model';
+import { PostgresChangeSqlUtilities } from './postgres-change-sql.utilities';
+import { PostgresClientToolUtilities } from './postgres-client-tool.utilities';
+import { type PostgresDataSource, type PostgresOptions } from './postgres-data-source.model';
+import { PostgresRestoreSqlUtilities } from './postgres-restore-sql.utilities';
+import { PostgresSchema } from './postgres-schema.model';
+import { PostgresSqlUtilities } from './postgres-sql.utilities';
 
 const DUMP_COMMAND: string = 'pg_dump';
 /**

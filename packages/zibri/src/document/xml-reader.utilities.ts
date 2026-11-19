@@ -1,6 +1,5 @@
 import type { SaxesParser, SaxesTagNS } from 'saxes';
 
-import { XmlContent, XmlElementNode } from './xml-element-node.model';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { Relation } from '../entity/models/relation.enum';
 import { XmlMixedProperty, XmlMixedShapes, XmlModelUtilities } from '../parsing/xml/xml-model.utilities';
@@ -10,6 +9,7 @@ import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 import { optionalPeer } from '../utilities/optional-peer.function';
+import { XmlContent, XmlElementNode } from './xml-element-node.model';
 
 // namespaces tracked, so an element and an attribute are read by their local name whatever prefix
 // the document gave them

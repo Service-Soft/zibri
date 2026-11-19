@@ -1,5 +1,4 @@
 /* eslint-disable no-console */
-import { BaseCommand } from './base-command.model';
 import { version } from '../../package.json';
 import { ChalkUtilities, CPUtilities, FsUtilities, GitUtilities, MergeLabels, MergeResult } from '../encapsulation';
 import { SCAFFOLD_FRAMEWORK_DEV_DEPENDENCIES,
@@ -9,6 +8,7 @@ import { SCAFFOLD_FRAMEWORK_DEV_DEPENDENCIES,
     ScaffoldManifest,
     ScaffoldUtilities } from '../scaffold';
 import { exitWithError, getPath, Path } from '../utilities';
+import { BaseCommand } from './base-command.model';
 import { NewCommand } from './new/new.command';
 
 /**
@@ -85,7 +85,7 @@ export abstract class RegeneratingCommand<Input extends object> extends BaseComm
         const { installed } = await ScaffoldUtilities.resolvePackageJson(projectPath);
         const { dependencies, devDependencies, frameworkDevDependencies }: ScaffoldDependencies = packages;
         // what the project has stays at the version it has: a range it chose is the project's to change
-        const lacking: (packages: string[]) => string[] = packages => packages.filter(
+        const lacking: (specs: string[]) => string[] = specs => specs.filter(
             spec => !installed.has(this.resolvePackageName(spec))
         );
         const runtime: string[] = [

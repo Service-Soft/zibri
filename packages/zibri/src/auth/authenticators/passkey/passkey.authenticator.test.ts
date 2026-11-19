@@ -7,16 +7,6 @@ import { createInMemoryDataSource,
     startFakeFidoMetadataService,
     TestBrowser } from 'zibri-testing';
 
-import { PasskeyAdditionRequest } from './passkey-addition-request.model';
-import { PasskeyChallenge } from './passkey-challenge.model';
-import { PasskeyCreationOptions } from './passkey-creation-options.model';
-import { PasskeyTicketCredentials } from './passkey-credentials.model';
-import { PasskeyOptions } from './passkey-options.model';
-import { PasskeyRegistrationTicket } from './passkey-registration-ticket.model';
-import { PasskeyRegistration } from './passkey-registration.model';
-import { PasskeyRequestOptions } from './passkey-request-options.model';
-import { PasskeyAuthenticator } from './passkey.authenticator';
-import { Passkey } from './passkey.model';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
@@ -55,6 +45,16 @@ import { JwtAuthStrategy } from '../../strategies/jwt/jwt.auth-strategy';
 import { LinkedIdentity } from '../linked-identity.model';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../password/password-credentials.model';
 import { PasswordAuthenticator } from '../password/password.authenticator';
+import { PasskeyAdditionRequest } from './passkey-addition-request.model';
+import { PasskeyChallenge } from './passkey-challenge.model';
+import { PasskeyCreationOptions } from './passkey-creation-options.model';
+import { PasskeyTicketCredentials } from './passkey-credentials.model';
+import { PasskeyOptions } from './passkey-options.model';
+import { PasskeyRegistrationTicket } from './passkey-registration-ticket.model';
+import { PasskeyRegistration } from './passkey-registration.model';
+import { PasskeyRequestOptions } from './passkey-request-options.model';
+import { PasskeyAuthenticator } from './passkey.authenticator';
+import { Passkey } from './passkey.model';
 
 const ORIGIN: string = 'https://app.example.com';
 

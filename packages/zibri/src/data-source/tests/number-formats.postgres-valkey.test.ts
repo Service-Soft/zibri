@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { describeNumberFormats, Measurement } from './number-formats.cases';
 import { TestTimeouts } from '../../__testing__/constants';
 import { findStoredColumns, StoredColumn } from '../../__testing__/find-stored-columns.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -12,6 +11,7 @@ import { PostgresDataSource } from '../data-sources/postgres/postgres-data-sourc
 import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { Repository } from '../repository/repository';
+import { describeNumberFormats, Measurement } from './number-formats.cases';
 
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
     entities: [...defaultTestServerEntities, Measurement],

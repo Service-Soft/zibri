@@ -1,11 +1,11 @@
 import { Readable } from 'node:stream';
 import { StringDecoder } from 'node:string_decoder';
 
-import { PostgresChangeLine, PostgresChangeRow } from './postgres-change-line.model';
-import { PostgresSqlUtilities } from './postgres-sql.utilities';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { JsonUtilities } from '../../../utilities/json.utilities';
 import { literalToSql } from '../../literal-to-sql.function';
+import { PostgresChangeLine, PostgresChangeRow } from './postgres-change-line.model';
+import { PostgresSqlUtilities } from './postgres-sql.utilities';
 
 /**
  * The shape of the lines {@link PostgresChangeSqlUtilities} reads.

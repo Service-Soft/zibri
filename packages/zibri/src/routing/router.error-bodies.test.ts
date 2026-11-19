@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Body } from './decorators/body.decorator';
-import { Controller } from './decorators/controller.decorator';
-import { Post } from './decorators/post.decorator';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -11,6 +8,9 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { MimeType } from '../http/mime-type.enum';
+import { Body } from './decorators/body.decorator';
+import { Controller } from './decorators/controller.decorator';
+import { Post } from './decorators/post.decorator';
 
 @Entity({ tenant: 'shared', allowOrphan: true })
 class ErrorBodyProject extends BaseEntity {

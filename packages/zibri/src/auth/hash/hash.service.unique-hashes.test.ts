@@ -1,13 +1,13 @@
 import { describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { ScryptHashStrategy } from './strategies/scrypt.hash-strategy';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
+import { ScryptHashStrategy } from './strategies/scrypt.hash-strategy';
 
 /**
  * Which hashed properties a unique declaration can be about.

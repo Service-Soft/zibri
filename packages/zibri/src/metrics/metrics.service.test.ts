@@ -1,10 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import si from 'systeminformation';
 
-import { MetricType } from './metric-type.enum';
-import { Metric } from './metric.model';
-import { MetricsSnapshot } from './metrics-snapshot.model';
-import { PrometheusMetricsService } from './metrics.service';
 import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { inject } from '../di/inject.function';
@@ -15,6 +11,10 @@ import { $ts } from '../localization/translate.function';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
 import { Param } from '../routing/decorators/param.decorator';
+import { MetricType } from './metric-type.enum';
+import { Metric } from './metric.model';
+import { MetricsSnapshot } from './metrics-snapshot.model';
+import { PrometheusMetricsService } from './metrics.service';
 
 @Controller('/metrics-integration-test')
 class MetricsIntegrationController {

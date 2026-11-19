@@ -1,8 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { MultithreadingServiceInterface } from './multithreading-service.interface';
-import { MultithreadingService } from './multithreading.service';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
@@ -19,6 +17,8 @@ import { Ms } from '../../utilities/ms';
 import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
 import { ThreadJobEntity } from '../models/thread-job-entity.model';
 import { ThreadJobStatus } from '../models/thread-job-status.enum';
+import { MultithreadingServiceInterface } from './multithreading-service.interface';
+import { MultithreadingService } from './multithreading.service';
 
 /**
  * Lets the test hold a round of handing out work at the one point it can be held from outside.

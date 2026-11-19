@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { io, Socket } from 'socket.io-client';
 
-import { VersionFile } from './version.model';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -18,6 +17,7 @@ import { WebsocketController } from '../websocket/decorators/websocket-controlle
 import { WebsocketRoute } from '../websocket/decorators/websocket-route.decorator';
 import { WebsocketEvent } from '../websocket/models/websocket-event.enum';
 import { WebsocketMessage } from '../websocket/models/websocket-message.model';
+import { VersionFile } from './version.model';
 
 const testVersionsDir: FsPath = FsUtilities.getPath(testFileFolder, 'versions-ws');
 

@@ -1,12 +1,12 @@
 import { beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { OpenTelemetryApi, OpenTelemetryApiTracer, OpenTelemetryNodeSdk, OpenTelemetrySpan } from './open-telemetry-api.model';
-import { TraceBufferSpanProcessor } from './trace-buffer.span-processor';
 import { optionalPeer } from '../../utilities/optional-peer.function';
 import { InMemoryTraceBuffer } from '../in-memory.trace-buffer';
 import { TraceSpanKind } from '../trace-span-kind.enum';
 import { TraceSpanRecord } from '../trace-span-record.model';
 import { TraceSpanStatus } from '../trace-span-status.enum';
+import { OpenTelemetryApi, OpenTelemetryApiTracer, OpenTelemetryNodeSdk, OpenTelemetrySpan } from './open-telemetry-api.model';
+import { TraceBufferSpanProcessor } from './trace-buffer.span-processor';
 
 /**
  * The real sdk recording into the real buffer, which is the only way to know that the two agree.

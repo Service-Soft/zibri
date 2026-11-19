@@ -1,8 +1,8 @@
-import { BaseRelationMetadata } from './base-relation-metadata.model';
-import { Relation } from './relation.enum';
 import { type DeletedRelatedRows } from '../../data-source/models/deleted-related-rows.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { type BaseEntity } from '../base-entity.model';
+import { BaseRelationMetadata } from './base-relation-metadata.model';
+import { Relation } from './relation.enum';
 
 /**
  * Metadata for one to many properties.

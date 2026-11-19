@@ -1,5 +1,3 @@
-import { OpenApiResponse, OpenApiResponsesObject, OpenApiResponseObject, OpenApiContentObject, OpenApiSchemaObject, OpenApiSchemaObjectType, OpenApiRequestBodyObject, OpenApiParameterLocation, OpenApiParameter, OpenApiReferenceObject, isOpenApiReferenceObject, JsonOpenApiResponse, OpenApiXmlObject } from './open-api.model';
-import { resolveResponseClass } from './resolve-response-class.function';
 import { BaseEntity } from '../entity/base-entity.model';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { ArrayPropertyItemMetadata } from '../entity/models/array-property-metadata.model';
@@ -28,6 +26,8 @@ import { ArrayParamItemMetadata } from '../routing/models/array-param-metadata.m
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
+import { OpenApiResponse, OpenApiResponsesObject, OpenApiResponseObject, OpenApiContentObject, OpenApiSchemaObject, OpenApiSchemaObjectType, OpenApiRequestBodyObject, OpenApiParameterLocation, OpenApiParameter, OpenApiReferenceObject, isOpenApiReferenceObject, JsonOpenApiResponse, OpenApiXmlObject } from './open-api.model';
+import { resolveResponseClass } from './resolve-response-class.function';
 
 const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = {
     default: 'Response',

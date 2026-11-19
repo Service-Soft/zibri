@@ -1,7 +1,6 @@
 import { afterAll, beforeAll } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource, StartedTestServer } from 'zibri-testing';
 
-import { Contact, describeFuzzySearch } from './fuzzy-search.cases';
 import { TestTimeouts } from '../../__testing__/constants';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { TestMembership } from '../../__testing__/mocks/entities/test-membership.entity';
@@ -11,6 +10,7 @@ import { startTestServer } from '../../__testing__/test-server/start-test-server
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
 import { Repository } from '../repository/repository';
+import { Contact, describeFuzzySearch } from './fuzzy-search.cases';
 
 const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({ entities: [Contact, JwtUser, TestMembership, TestRole], repositories: defaultTestServerRepositories });
 

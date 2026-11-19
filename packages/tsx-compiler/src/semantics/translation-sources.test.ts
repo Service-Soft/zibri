@@ -3,8 +3,8 @@ import assert from 'node:assert';
 import { describe, expect, it } from '@jest/globals';
 import { ComponentClientMeta, TranslationSources } from 'zibri-tsx/internal';
 
-import { collectTranslationSources } from './translation-sources';
 import { compileComponent } from '../__testing__/server-render.helper';
+import { collectTranslationSources } from './translation-sources';
 
 /**
  * Compiles a component and returns what its client code looks up.

@@ -1,7 +1,7 @@
-import { BaseRepositoryOptions } from './base-repository-options.model';
-import { FindAllOptions } from './find-all-options.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { EntitySelection } from '../../../entity/models/entity-selection.model';
+import { BaseRepositoryOptions } from './base-repository-options.model';
+import { FindAllOptions } from './find-all-options.model';
 
 /**
  * Options for finding a single entity.

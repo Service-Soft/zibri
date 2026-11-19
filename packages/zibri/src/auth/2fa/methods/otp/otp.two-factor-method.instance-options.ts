@@ -1,8 +1,6 @@
 import { TOTP } from 'otpauth';
 import { createPostgresTestDataSource, defaultClusterProviders, defaultClusterTestEntities, StartTestServerOptions } from 'zibri-testing';
 
-import { OtpRegistration, OtpTwoFactorMethod } from './otp.two-factor-method';
-import { OTP_PERIOD_IN_SECONDS } from './otp.utilities';
 import { JwtTestAuthController } from '../../../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../../__testing__/mocks/entities/roles.enum';
@@ -25,6 +23,8 @@ import { Ms } from '../../../../utilities/ms';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../../authenticators/password/password-credentials.model';
 import { Auth } from '../../../decorators/auth.decorator';
 import { type TwoFactorServiceInterface } from '../../two-factor-service.interface';
+import { OtpRegistration, OtpTwoFactorMethod } from './otp.two-factor-method';
+import { OTP_PERIOD_IN_SECONDS } from './otp.utilities';
 
 /**
  * The data sources every instance of this scenario boots on.

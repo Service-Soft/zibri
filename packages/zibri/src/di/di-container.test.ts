@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from '@jest/globals';
 
+import { AlsUtilities } from '../context/als.utilities';
+import { HttpRequestContext } from '../context/request/http-request.context';
+import { HttpRequest } from '../http/http-request.model';
+import { HttpResponse } from '../http/http-response.model';
 import { Inject } from './decorators/inject.decorator';
 import { Injectable } from './decorators/injectable.decorator';
 import { DiContainer } from './di-container';
@@ -15,10 +19,6 @@ import { inject } from './inject.function';
 import { defineProvider } from './models/di-provider.model';
 import { DiToken } from './models/di-token.model';
 import { InjectionToken } from './models/injection-token.model';
-import { AlsUtilities } from '../context/als.utilities';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { HttpRequest } from '../http/http-request.model';
-import { HttpResponse } from '../http/http-response.model';
 
 /**
  * The container reads the request scope off the request context, and the request context reaches
@@ -408,7 +408,7 @@ describe('DiContainer', () => {
             DiContainer.getInstance().register(defineProvider({
                 token,
                 deps: [Pool],
-                useAsyncFactory: async (pool: Pool) => Promise.resolve(pool.secrets.secret)
+                useAsyncFactory: async (builtPool: Pool) => Promise.resolve(builtPool.secrets.secret)
             }));
             provideVault();
 
@@ -432,9 +432,9 @@ describe('DiContainer', () => {
             }
             provideVault();
 
-            const built: ReadsBoth = await DiContainer.getInstance().injectAsync(ReadsBoth);
+            const readsBoth: ReadsBoth = await DiContainer.getInstance().injectAsync(ReadsBoth);
 
-            expect(built.secrets.secret).toBe('hunter2');
+            expect(readsBoth.secrets.secret).toBe('hunter2');
             expect(clocksBuilt).toBe(1);
         });
 

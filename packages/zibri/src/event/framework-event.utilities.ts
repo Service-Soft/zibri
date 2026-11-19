@@ -1,8 +1,8 @@
-import { type EventServiceInterface, ZibriEventMap } from './event-service.interface';
-import { type EventTypeFor } from './event-type-for.type';
 import { AlsUtilities } from '../context/als.utilities';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { type EventServiceInterface, ZibriEventMap } from './event-service.interface';
+import { type EventTypeFor } from './event-type-for.type';
 
 /**
  * Emits the writes of the framework's own as the events an application named for them.

@@ -1,6 +1,6 @@
-import { StoredRoute } from './stored-route.model';
 import { Property } from '../entity/decorators/property.decorator';
 import { type SemVerVersion } from '../utilities/sem-ver.utilities';
+import { StoredRoute } from './stored-route.model';
 
 /**
  * A version, consisting of the actual version value and a starts end end date.

@@ -3,13 +3,13 @@ import assert from 'node:assert';
 import { describe, expect, it } from '@jest/globals';
 import { CLIENT_HOOK_SOURCES } from 'zibri-tsx/internal';
 
-import { ClientScript, compileClientScript } from './client-codegen';
-import { collectHandlerSites } from './handlers';
 import { parseTemplateOk } from '../../__testing__/parse.helper';
 import { renderComponentResult, renderWithComponents } from '../../__testing__/server-render.helper';
 import { collectClientGlobalAliasesFromSource } from '../../semantics/client-packages';
 import { ComponentFunction, ComponentInfo, findComponents } from '../../semantics/component';
 import { eraseTypes } from '../erase-types';
+import { ClientScript, compileClientScript } from './client-codegen';
+import { collectHandlerSites } from './handlers';
 
 function componentOf(source: string): ComponentFunction {
     return infoOf(source).fn;

@@ -1,11 +1,11 @@
 import ts from 'typescript';
 
-import { isComponentName, isEventHandlerName } from './handlers';
-import { regionExpressions } from './regions';
 import { isBindingIdentifier } from '../../semantics/binding';
 import { ComponentFunction } from '../../semantics/component';
 import { symbolOf } from '../../semantics/symbols';
 import { isHookCall, walk } from '../../semantics/walk';
+import { isComponentName, isEventHandlerName } from './handlers';
+import { regionExpressions } from './regions';
 
 /**
  * What a component does with the props it can be handed a value following a state in.

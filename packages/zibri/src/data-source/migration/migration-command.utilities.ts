@@ -1,9 +1,3 @@
-import { EntitySnapshotUtilities } from './entity-snapshot.utilities';
-import { MigrationEntity } from './migration-entity.model';
-import { MigrationGenerationRequest, MigrationGenerationResponse } from './migration-generation.model';
-import { GeneratedMigration, MigrationGeneratorUtilities } from './migration-generator.utilities';
-import { MigrationRevertTarget } from './migration-revert-target.model';
-import { resolveMigrationRepository } from './run-migrations.function';
 import { DiContainer } from '../../di/di-container';
 import { inject } from '../../di/inject.function';
 import { InternalError } from '../../error-handling/internal-error.model';
@@ -14,6 +8,12 @@ import { FsUtilities } from '../../utilities/fs.utilities';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { SemVerUtilities, SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
+import { EntitySnapshotUtilities } from './entity-snapshot.utilities';
+import { MigrationEntity } from './migration-entity.model';
+import { MigrationGenerationRequest, MigrationGenerationResponse } from './migration-generation.model';
+import { GeneratedMigration, MigrationGeneratorUtilities } from './migration-generator.utilities';
+import { MigrationRevertTarget } from './migration-revert-target.model';
+import { resolveMigrationRepository } from './run-migrations.function';
 
 /**
  * A command of the application about its migrations.

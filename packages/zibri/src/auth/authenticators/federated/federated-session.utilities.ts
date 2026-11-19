@@ -1,7 +1,7 @@
+import { InternalError } from '../../../error-handling/internal-error.model';
 import { FederatedSessionColumns } from './federated-session-columns.model';
 import { FederatedSessionMatch } from './federated-session-match.model';
 import { FederatedSession } from './federated-session.model';
-import { InternalError } from '../../../error-handling/internal-error.model';
 
 /**
  * What a strategy needs to keep the session at a provider with a login, and to find the login by it.

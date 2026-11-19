@@ -1,8 +1,3 @@
-import { BaseChainedEntity } from './base-chained-entity.model';
-import { ChainAnchor, ChainAnchorCreateData } from './chain-anchor.model';
-import { ChainLink, ChainServiceInterface } from './chain-service.interface';
-import { ChainVerification } from './chain-verification.model';
-import { ChainUtilities } from './chain.utilities';
 import { type ZibriApplication } from '../../application/application';
 import { type EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -20,6 +15,11 @@ import { Where, WhereFilter } from '../models/where/where-filter.model';
 import { AppendOnlyUtilities } from '../repository/append-only.utilities';
 import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';
+import { BaseChainedEntity } from './base-chained-entity.model';
+import { ChainAnchor, ChainAnchorCreateData } from './chain-anchor.model';
+import { ChainLink, ChainServiceInterface } from './chain-service.interface';
+import { ChainVerification } from './chain-verification.model';
+import { ChainUtilities } from './chain.utilities';
 
 /**
  * The name of the signing key every chain is hashed with.

@@ -4,8 +4,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { StartedTestContainer } from 'testcontainers';
 import { createPostgresTestContainer } from 'zibri-testing';
 
-import { MigrationEntity } from './migration-entity.model';
-import { Migration } from './migration.model';
 import { queryPostgres } from '../../__testing__/query-postgres.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
@@ -29,6 +27,8 @@ import { DataSource } from '../decorators/data-source.decorator';
 import { SchemaManagement } from '../models/schema-management.model';
 import { RepositoryClass } from '../repository/repository-class.type';
 import { Transaction } from '../transaction/transaction.model';
+import { MigrationEntity } from './migration-entity.model';
+import { Migration } from './migration.model';
 
 @Entity({ tenant: 'shared', tableName: 'workshop' })
 class Workshop extends BaseEntity {

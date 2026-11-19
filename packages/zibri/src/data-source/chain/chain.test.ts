@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { BaseChainedEntity } from './base-chained-entity.model';
-import { ChainedNote, describeChain, SecondChainedNote } from './chain.cases';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -13,6 +11,8 @@ import { Newable } from '../../types/newable.type';
 import { DataSource } from '../decorators/data-source.decorator';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { RepositoryClass } from '../repository/repository-class.type';
+import { BaseChainedEntity } from './base-chained-entity.model';
+import { ChainedNote, describeChain, SecondChainedNote } from './chain.cases';
 
 const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
     entities: [...defaultTestServerEntities, ChainedNote],

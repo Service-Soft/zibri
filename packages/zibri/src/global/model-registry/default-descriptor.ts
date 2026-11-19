@@ -1,10 +1,10 @@
-import { ModelDescriptor } from './model-descriptor';
-import { ModelRegistry } from './model.registry';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { DefaultPropertyValue } from '../../entity/models/base-property-metadata.model';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
+import { ModelDescriptor } from './model-descriptor';
+import { ModelRegistry } from './model.registry';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type DefaultValue = DefaultPropertyValue<string | number | boolean | Date>;

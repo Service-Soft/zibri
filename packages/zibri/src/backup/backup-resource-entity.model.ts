@@ -1,10 +1,10 @@
-import { BackupEntity } from './backup-entity.model';
 import { type EncryptionString } from '../auth/encryption/encryption.utilities';
 import { FrameworkColumnRegistry } from '../data-source/migration/framework-column.registry';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { QueuedWorkEntity } from '../queue/queued-work-entity.model';
 import { OmitStrict } from '../types/omit-strict.type';
+import { BackupEntity } from './backup-entity.model';
 
 /**
  * A single resource entity: one resource of a backup, stored by whichever instance claims it. Its

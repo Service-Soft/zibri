@@ -1,8 +1,8 @@
-import { DataSourceTime } from './models/data-source-time.model';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { InternalError } from '../error-handling/internal-error.model';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { DataSourceTime } from './models/data-source-time.model';
 
 /**
  * The times of the data source a write gives, by property.

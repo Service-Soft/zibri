@@ -1,9 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
 import { MdxPage } from 'zibri-tsx';
 
+import { compileMarkdownModule } from '../../__testing__/compile-tsx-template.function';
 import { DocsPage, DocsSite } from './docs-site.model';
 import { DocsUtilities } from './docs.utilities';
-import { compileMarkdownModule } from '../../__testing__/compile-tsx-template.function';
 
 const gettingStarted: DocsPage = {
     file: 'getting-started.md',

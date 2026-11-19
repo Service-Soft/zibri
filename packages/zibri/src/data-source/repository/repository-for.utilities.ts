@@ -1,6 +1,3 @@
-import { Repository } from './repository';
-import { RepositoryClass } from './repository-class.type';
-import { REPOSITORY_KINDS } from './repository-kind.model';
 import { type AuthServiceInterface } from '../../auth/auth-service.interface';
 import { inject } from '../../di/inject.function';
 import { DiVariant } from '../../di/models/di-variant.model';
@@ -20,6 +17,9 @@ import { SoftDeleteRepository } from '../change-sets/soft-delete-repository';
 import { DataSourceInterface, RepositoryTypeForEntity } from '../data-sources/data-source.interface';
 import { RepositoryDriverInterface } from '../driver/repository-driver.interface';
 import { RegisteredDataSource } from '../entity-ownership.function';
+import { Repository } from './repository';
+import { RepositoryClass } from './repository-class.type';
+import { REPOSITORY_KINDS } from './repository-kind.model';
 
 /**
  * Utilities for the repository classes a data source lists, each declared with `@RepositoryFor`.

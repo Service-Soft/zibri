@@ -19,6 +19,9 @@
         "directory": "packages/mdx"
     },
     "files": [
+        "./src",
+        "!src/**/__testing__/**",
+        "!src/**/*.test.ts",
         "./dist",
         "./README.md",
         "./LICENSE"
@@ -56,7 +59,7 @@
         "zibri-tsx": "^3.1.0"
     },
     "devDependencies": {
-        "@service-soft/eslint-config": "^2.1.7",
+        "@service-soft/eslint-config": "^2.2.0",
         "@types/mdast": "^4.0.4",
         "@types/node": "^24.0.0",
         "eslint": "^9.36.0",

@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, FakeDpopKey, InMemoryDataSource } from 'zibri-testing';
 
-import { JwtAuthOptionsInput } from './jwt-auth-options.model';
-import { JwtAuthStrategy } from './jwt.auth-strategy';
-import { JwtUtilities } from './jwt.utilities';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
@@ -23,6 +20,9 @@ import { Newable } from '../../../types/newable.type';
 import { JsonUtilities } from '../../../utilities/json.utilities';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../authenticators/password/password-credentials.model';
 import { Auth } from '../../decorators/auth.decorator';
+import { JwtAuthOptionsInput } from './jwt-auth-options.model';
+import { JwtAuthStrategy } from './jwt.auth-strategy';
+import { JwtUtilities } from './jwt.utilities';
 
 /**
  * Something to present an access token to.

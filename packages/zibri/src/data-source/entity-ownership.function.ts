@@ -1,7 +1,3 @@
-import { DataSourceInterface } from './data-sources/data-source.interface';
-import { Repository } from './repository/repository';
-import { RepositoryClass } from './repository/repository-class.type';
-import { RepositoryForUtilities } from './repository/repository-for.utilities';
 import { getAmbiguousRepositoryDataSources, repositoryTokenFor, setAmbiguousRepositoryTokens } from '../di/decorators/inject-repository.decorator';
 import { inject } from '../di/inject.function';
 import { DiToken } from '../di/models/di-token.model';
@@ -12,6 +8,10 @@ import { EntityMetadataMissingError } from '../entity/entity-metadata-missing.er
 import { InternalError } from '../error-handling/internal-error.model';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { DataSourceInterface } from './data-sources/data-source.interface';
+import { Repository } from './repository/repository';
+import { RepositoryClass } from './repository/repository-class.type';
+import { RepositoryForUtilities } from './repository/repository-for.utilities';
 
 /**
  * A data source together with the class it was registered with.

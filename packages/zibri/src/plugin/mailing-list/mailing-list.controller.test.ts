@@ -1,17 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { MailingListController } from './mailing-list.controller';
-import { ZibriMailingListPlugin } from './mailing-list.plugin';
-import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from './mailing-list.tokens';
-import { MailingListBaseEmailTemplate } from './models/mailing-list-base-email-template.model';
-import { MailingListPreferencesPageTemplate } from './models/mailing-list-preferences-page-template.model';
-import { MailingListSubscribeConfirmationEmailTemplate } from './models/mailing-list-subscribe-confirmation-email-template.model';
-import { MailingListSubscribeSuccessPageTemplate } from './models/mailing-list-subscribe-success-page-template.model';
-import { MailingListSubscriber } from './models/mailing-list-subscriber.model';
-import { MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from './models/mailing-list-subscription-confirmation-token.model';
-import { MailingListUnsubscribeConfirmationPageTemplate } from './models/mailing-list-unsubscribe-confirmation-page-template.model';
-import { MailingList } from './models/mailing-list.model';
-import { MailingListServiceInterface } from './services/mailing-list-service.interface';
 import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function';
 import { TestTimeouts } from '../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -31,6 +19,18 @@ import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { Ms } from '../../utilities/ms';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { MailingListController } from './mailing-list.controller';
+import { ZibriMailingListPlugin } from './mailing-list.plugin';
+import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from './mailing-list.tokens';
+import { MailingListBaseEmailTemplate } from './models/mailing-list-base-email-template.model';
+import { MailingListPreferencesPageTemplate } from './models/mailing-list-preferences-page-template.model';
+import { MailingListSubscribeConfirmationEmailTemplate } from './models/mailing-list-subscribe-confirmation-email-template.model';
+import { MailingListSubscribeSuccessPageTemplate } from './models/mailing-list-subscribe-success-page-template.model';
+import { MailingListSubscriber } from './models/mailing-list-subscriber.model';
+import { MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from './models/mailing-list-subscription-confirmation-token.model';
+import { MailingListUnsubscribeConfirmationPageTemplate } from './models/mailing-list-unsubscribe-confirmation-page-template.model';
+import { MailingList } from './models/mailing-list.model';
+import { MailingListServiceInterface } from './services/mailing-list-service.interface';
 
 const baseEmailTemplate: MailingListBaseEmailTemplate = compileTsxTemplate<MailingListBaseEmailTemplate>(
     'export const Email = ({ title }) => <div>{title}</div>;'

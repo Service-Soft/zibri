@@ -1,7 +1,7 @@
-import { BackupDigest } from './backup-digest.model';
-import { StagedFileCompression } from './staged-file-compression.type';
 import { type EncryptionString } from '../auth/encryption/encryption.utilities';
 import { FsPath } from '../utilities/fs.utilities';
+import { BackupDigest } from './backup-digest.model';
+import { StagedFileCompression } from './staged-file-compression.type';
 
 /**
  * A resource a restore started applying, and where what it held before is kept.

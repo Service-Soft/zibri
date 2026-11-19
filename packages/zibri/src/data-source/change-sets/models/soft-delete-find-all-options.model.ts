@@ -1,9 +1,9 @@
-import { SoftDeleteEntity } from './soft-delete-entity.model';
-import { SoftDeleteWhere } from './soft-delete-where.model';
-import { SoftDeletedRows } from './soft-deleted-rows.type';
 import { EntitySelection } from '../../../entity/models/entity-selection.model';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { FindAllOptions } from '../../models/options/find-all-options.model';
+import { SoftDeleteEntity } from './soft-delete-entity.model';
+import { SoftDeleteWhere } from './soft-delete-where.model';
+import { SoftDeletedRows } from './soft-deleted-rows.type';
 
 /**
  * Options for finding multiple soft delete entities.

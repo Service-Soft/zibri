@@ -1,9 +1,9 @@
 import { Input, OpenApiReferenceObject, OpenApiSchemaObject, OpenApiSecuritySchemeType, Refs, State, TsxComponent, useContext, useInput, useRefs, useState } from 'zibri';
 
-import { ExplorerCredentials, ExplorerServer } from './explorer-context';
-import { ExplorerSchema } from './explorer-schema';
 import { Button } from '../components/button';
 import { Heading } from '../components/heading';
+import { ExplorerCredentials, ExplorerServer } from './explorer-context';
+import { ExplorerSchema } from './explorer-schema';
 
 /**
  * A parameter of an operation, as the form asks for it.

@@ -1,11 +1,11 @@
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
-import { WhereFilterEvaluator } from './where-filter.evaluator';
 import { initDiContainer } from '../../../di/init-di-container.function';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { Where } from '../../models/where/where-filter.model';
+import { WhereFilterEvaluator } from './where-filter.evaluator';
 
 @Entity({ tenant: 'shared', allowOrphan: true })
 class EvaluatorCategory extends BaseEntity {

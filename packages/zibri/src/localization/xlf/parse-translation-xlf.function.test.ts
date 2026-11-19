@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
-import { parseTranslationXlf } from './parse-translation-xlf.function';
 import { initDiContainer } from '../../di/init-di-container.function';
 import { GlobalRegistry } from '../../global/global-registry';
+import { parseTranslationXlf } from './parse-translation-xlf.function';
 
 function xliffWithUnits(units: string): string {
     return `<?xml version="1.0" encoding="utf-8"?>

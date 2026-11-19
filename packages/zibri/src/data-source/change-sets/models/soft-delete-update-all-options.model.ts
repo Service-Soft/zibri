@@ -1,6 +1,6 @@
+import { UpdateAllOptions } from '../../models/options/update-all-options.model';
 import { SoftDeleteEntity } from './soft-delete-entity.model';
 import { SoftDeletedRows } from './soft-deleted-rows.type';
-import { UpdateAllOptions } from '../../models/options/update-all-options.model';
 
 /**
  * Options for updating multiple soft delete entities at once.

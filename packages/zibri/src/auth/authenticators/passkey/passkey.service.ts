@@ -2,22 +2,6 @@ import { randomBytes } from 'node:crypto';
 
 import type { MetadataBLOBPayloadEntry, VerifiedAuthenticationResponse, VerifiedRegistrationResponse } from '@simplewebauthn/server';
 
-import { FIDO_METADATA_SERVICE_ROOT_CERTIFICATES, FIDO_METADATA_SERVICE_URL } from './fido-metadata.service';
-import { PasskeyAttestationOptions } from './passkey-attestation-options.model';
-import { PasskeyAuthenticationResponse } from './passkey-authentication-response.model';
-import { PasskeyCeremony } from './passkey-ceremony.enum';
-import { PasskeyChallenge, PasskeyChallengeCreateData } from './passkey-challenge.model';
-import { PasskeyCleanupCronJob } from './passkey-cleanup.cron-job';
-import { PasskeyCreationOptions } from './passkey-creation-options.model';
-import { PasskeyOptions } from './passkey-options.model';
-import { PasskeyRegistrationResponse } from './passkey-registration-response.model';
-import { PasskeyRegistrationTicket, PasskeyRegistrationTicketCreateData } from './passkey-registration-ticket.model';
-import { PasskeyRequestOptions } from './passkey-request-options.model';
-import { PasskeyServiceInterface } from './passkey-service.interface';
-import { PasskeyAuthenticator } from './passkey.authenticator';
-import { Passkey, PasskeyCreateData } from './passkey.model';
-import { SimpleWebAuthnHelpers } from './simple-web-authn-helpers.type';
-import { SimpleWebAuthn } from './simple-web-authn.type';
 import { ZibriApplication } from '../../../application/application';
 import { Repository } from '../../../data-source/repository/repository';
 import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
@@ -41,6 +25,22 @@ import { validateEntitiesRegistered } from '../../../utilities/validate-entities
 import { PasskeyTwoFactorMethod } from '../../2fa/methods/passkey/passkey.two-factor-method';
 import { type HashServiceInterface } from '../../hash/hash-service.interface';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
+import { FIDO_METADATA_SERVICE_ROOT_CERTIFICATES, FIDO_METADATA_SERVICE_URL } from './fido-metadata.service';
+import { PasskeyAttestationOptions } from './passkey-attestation-options.model';
+import { PasskeyAuthenticationResponse } from './passkey-authentication-response.model';
+import { PasskeyCeremony } from './passkey-ceremony.enum';
+import { PasskeyChallenge, PasskeyChallengeCreateData } from './passkey-challenge.model';
+import { PasskeyCleanupCronJob } from './passkey-cleanup.cron-job';
+import { PasskeyCreationOptions } from './passkey-creation-options.model';
+import { PasskeyOptions } from './passkey-options.model';
+import { PasskeyRegistrationResponse } from './passkey-registration-response.model';
+import { PasskeyRegistrationTicket, PasskeyRegistrationTicketCreateData } from './passkey-registration-ticket.model';
+import { PasskeyRequestOptions } from './passkey-request-options.model';
+import { PasskeyServiceInterface } from './passkey-service.interface';
+import { PasskeyAuthenticator } from './passkey.authenticator';
+import { Passkey, PasskeyCreateData } from './passkey.model';
+import { SimpleWebAuthnHelpers } from './simple-web-authn-helpers.type';
+import { SimpleWebAuthn } from './simple-web-authn.type';
 
 /**
  * The passkey options, with every default filled in.

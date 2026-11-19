@@ -5,8 +5,8 @@ import path from 'node:path';
 import { describe, expect, it } from '@jest/globals';
 import webpack, { Compiler, Stats, Watching } from 'webpack';
 
-import { ZibriTsxTypeCheckPlugin } from './type-check';
 import { testFileFolder } from '../__testing__/constants';
+import { ZibriTsxTypeCheckPlugin } from './type-check';
 
 const TIMEOUT: number = 60000;
 

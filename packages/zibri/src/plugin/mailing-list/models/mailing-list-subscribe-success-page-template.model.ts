@@ -1,6 +1,6 @@
+import { TsxComponent } from '../../../tsx/tsx-component.model';
 import { MailingListSubscriber } from './mailing-list-subscriber.model';
 import { MailingList } from './mailing-list.model';
-import { TsxComponent } from '../../../tsx/tsx-component.model';
 
 /**
  * Properties of a mailing list subscribe success page.

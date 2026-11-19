@@ -1,10 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from '@jest/globals';
 
-import { HashService } from './hash.service';
-import { HashString } from './hash.utilities';
-import { HashStrategyEntity, HashStrategyStatus } from './strategies/hash-strategy-entity.model';
-import { ScryptHashStrategy } from './strategies/scrypt.hash-strategy';
-import { Sha256HashStrategy } from './strategies/sha256.hash-strategy';
 import { TestTimeouts } from '../../__testing__/constants';
 import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
@@ -15,6 +10,11 @@ import { repositoryTokenFor } from '../../di/decorators/inject-repository.decora
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
+import { HashService } from './hash.service';
+import { HashString } from './hash.utilities';
+import { HashStrategyEntity, HashStrategyStatus } from './strategies/hash-strategy-entity.model';
+import { ScryptHashStrategy } from './strategies/scrypt.hash-strategy';
+import { Sha256HashStrategy } from './strategies/sha256.hash-strategy';
 
 // first, for the reason on startAndStopTestServerWithout
 describe('HashService — starting', () => {

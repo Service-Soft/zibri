@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { MultithreadingServiceInterface } from './multithreading-service.interface';
-import { MultithreadingService } from './multithreading.service';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
@@ -16,6 +14,8 @@ import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
 import { Ms } from '../../utilities/ms';
 import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
 import { ThreadJobEntity } from '../models/thread-job-entity.model';
+import { MultithreadingServiceInterface } from './multithreading-service.interface';
+import { MultithreadingService } from './multithreading.service';
 
 const computingWorker: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
 

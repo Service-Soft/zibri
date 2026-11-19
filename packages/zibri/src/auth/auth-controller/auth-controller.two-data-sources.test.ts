@@ -1,7 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { AuthController } from './auth-controller.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
@@ -30,6 +29,7 @@ import { PasswordPolicy } from '../password-policy/password-policy.model';
 import { JwtAuthData } from '../strategies/jwt/jwt-auth-data.model';
 import { JwtRefreshToken } from '../strategies/jwt/jwt-refresh-token.model';
 import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy';
+import { AuthController } from './auth-controller.model';
 
 /**
  * The data source of the users and their passwords.

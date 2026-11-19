@@ -1,8 +1,8 @@
-import { AuthenticatorInterface, isAuthenticator } from './authenticator.interface';
-import type { IdentityLinkingAuthenticators } from './identity-linking-authenticators.model';
 import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { BaseUser } from '../models/base-user.model';
+import { AuthenticatorInterface, isAuthenticator } from './authenticator.interface';
+import type { IdentityLinkingAuthenticators } from './identity-linking-authenticators.model';
 
 /**
  * Interface for an authenticator that logs users in with an identity they have somewhere else, such

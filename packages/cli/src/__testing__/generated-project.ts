@@ -2,11 +2,11 @@ import assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
-import { quietly } from './quietly.function';
 import { NewCommand } from '../commands/new/new.command';
 import { CPUtilities, FsUtilities } from '../encapsulation';
 import { SCAFFOLD_MANIFEST_FILE, ScaffoldManifest, ScaffoldUtilities } from '../scaffold';
 import { Path } from '../utilities';
+import { quietly } from './quietly.function';
 
 /**
  * A project `zi new` generated and committed, which a suite changes the way a developer would.

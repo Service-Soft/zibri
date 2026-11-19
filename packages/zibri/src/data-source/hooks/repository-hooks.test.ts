@@ -1,8 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { SaveOperation } from './before-save';
-import { RepositoryHooks } from './repository-hooks.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
@@ -19,6 +17,8 @@ import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
 import { Repository } from '../repository/repository';
 import { RepositoryFor } from '../repository/repository-for.decorator';
+import { SaveOperation } from './before-save';
+import { RepositoryHooks } from './repository-hooks.model';
 
 /**
  * The hooks every row passes through before it is written, removed and handed back, declared by the

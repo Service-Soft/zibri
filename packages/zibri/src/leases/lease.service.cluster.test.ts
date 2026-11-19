@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { ClusterInstance, ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { lockHoldInMs } from './lease.service.instance-options';
 import { TestTimeouts } from '../__testing__/constants';
 import { FsUtilities } from '../utilities/fs.utilities';
+import { lockHoldInMs } from './lease.service.instance-options';
 
 /**
  * A lease taken with `withLease` on valkey, contended by several replicas.

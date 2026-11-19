@@ -109,7 +109,7 @@ function requireWorkerFile(filePath: string): RequireOutcome {
     try {
         // eslint-disable-next-line typescript/no-dynamic-delete
         delete require.cache[filePath];
-        // eslint-disable-next-line typescript/no-require-imports, typescript/no-var-requires
+        // eslint-disable-next-line typescript/no-require-imports
         const loaded: unknown = require(filePath);
         return isModuleNamespace(loaded) ? 'ran an es module' : 'ran a commonjs module';
     }

@@ -3,9 +3,6 @@ import { createHash, randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, FakeOAuthProvider, startFakeOAuthProvider, TestBrowser } from 'zibri-testing';
 
-import { BaseOidcAuthenticator } from './base-oidc.authenticator';
-import { OidcAuthenticationTime } from './oidc-authentication-time.type';
-import { OidcDiscoveryAtBoot } from './oidc-discovery-at-boot.type';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
@@ -48,6 +45,9 @@ import { FederatedLoginAttempt } from '../federated/federated-login-attempt.mode
 import { FederatedRegistrationTicket } from '../federated/federated-registration-ticket.model';
 import { FederatedRegistration } from '../federated/federated-registration.model';
 import { OAuthClientAuthentication } from '../oauth/oauth-client-authentication.model';
+import { BaseOidcAuthenticator } from './base-oidc.authenticator';
+import { OidcAuthenticationTime } from './oidc-authentication-time.type';
+import { OidcDiscoveryAtBoot } from './oidc-discovery-at-boot.type';
 
 const PUBLIC_URL: string = 'http://zibri.test';
 const CLIENT_ID: string = 'zibri-test-client';

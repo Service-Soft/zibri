@@ -1,10 +1,10 @@
-import { LogContext } from './log-context.model';
-import { LogLevel } from './log-level.enum';
 import { FrameworkColumnRegistry } from '../data-source/migration/framework-column.registry';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { GlobalRegistry } from '../global/global-registry';
+import { LogContext } from './log-context.model';
+import { LogLevel } from './log-level.enum';
 
 /**
  * The data saved for a log entry.

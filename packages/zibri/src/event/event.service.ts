@@ -1,13 +1,5 @@
 import { filter, Subject, Subscription } from 'rxjs';
 
-import { EventCleanupCronJob } from './event-cleanup.cron-job';
-import { EventDispatchCronJob } from './event-dispatch.cron-job';
-import { EventProcessingError } from './event-processing.error';
-import { type EventReplayOptions } from './event-replay-options.model';
-import { EventHook, EventServiceInterface, EventSubscribeOptions, EventSubscriptionInterface, ZibriEventMap } from './event-service.interface';
-import { ALL_EVENTS_TYPE, EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model';
-import { EventSubscriberRun, EventSubscriberRunCreateData, EventSubscriberRunStatus } from './event-subscriber-run.model';
-import { Event, EventCreateData, EventStatus } from './event.model';
 import { ZibriApplication } from '../application/application';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { DataSourceSubscription, isPubSubDataSource } from '../data-source/data-sources/pub-sub-data-source.interface';
@@ -37,6 +29,14 @@ import { Ms } from '../utilities/ms';
 import { PromiseUtilities } from '../utilities/promise.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
+import { EventCleanupCronJob } from './event-cleanup.cron-job';
+import { EventDispatchCronJob } from './event-dispatch.cron-job';
+import { EventProcessingError } from './event-processing.error';
+import { type EventReplayOptions } from './event-replay-options.model';
+import { EventHook, EventServiceInterface, EventSubscribeOptions, EventSubscriptionInterface, ZibriEventMap } from './event-service.interface';
+import { ALL_EVENTS_TYPE, EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model';
+import { EventSubscriberRun, EventSubscriberRunCreateData, EventSubscriberRunStatus } from './event-subscriber-run.model';
+import { Event, EventCreateData, EventStatus } from './event.model';
 
 /**
  * The channel an emitted event is announced on to the subscribers on every instance.

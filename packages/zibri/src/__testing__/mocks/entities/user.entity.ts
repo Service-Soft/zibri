@@ -1,12 +1,12 @@
 import { faker } from '@faker-js/faker';
 
+import { Entity } from '../../../entity/decorators/entity.decorator';
+import { Property } from '../../../entity/decorators/property.decorator';
+import { OmitStrict } from '../../../types/omit-strict.type';
 import { Address, mockAddress } from './address.model';
 import { Company } from './company.entity';
 import { Profile } from './profile.entity';
 import { Role } from './role.entity';
-import { Entity } from '../../../entity/decorators/entity.decorator';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { OmitStrict } from '../../../types/omit-strict.type';
 
 @Entity({ tenant: 'shared', allowOrphan: true })
 export class User {

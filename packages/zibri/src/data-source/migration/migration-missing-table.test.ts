@@ -1,7 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { MigrationEntity } from './migration-entity.model';
-import { Migration } from './migration.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -13,6 +11,8 @@ import { Newable } from '../../types/newable.type';
 import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { Transaction } from '../transaction/transaction.model';
+import { MigrationEntity } from './migration-entity.model';
+import { Migration } from './migration.model';
 
 @Entity({ tenant: 'shared' })
 class CreatedShelf extends BaseEntity {

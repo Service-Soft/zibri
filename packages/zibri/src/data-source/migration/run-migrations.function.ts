@@ -1,7 +1,3 @@
-import { MigrationEntity } from './migration-entity.model';
-import { MigrationRevertTarget } from './migration-revert-target.model';
-import { Migration } from './migration.model';
-import { RecordedMigration } from './recorded-migration.model';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
 import { InternalError } from '../../error-handling/internal-error.model';
@@ -11,6 +7,10 @@ import { Newable } from '../../types/newable.type';
 import { SemVerUtilities, SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { Repository } from '../repository/repository';
+import { MigrationEntity } from './migration-entity.model';
+import { MigrationRevertTarget } from './migration-revert-target.model';
+import { Migration } from './migration.model';
+import { RecordedMigration } from './recorded-migration.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export type MigrationWithName = { migration: Migration, name: string };

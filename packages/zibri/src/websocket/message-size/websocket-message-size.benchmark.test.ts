@@ -4,8 +4,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { WebsocketFrameScanner } from './websocket-frame.scanner';
-import { WebsocketMessageSizeScanner } from './websocket-message-size.scanner';
 import { BenchmarkTiming } from '../../__testing__/benchmark/benchmark-timing.model';
 import { BenchmarkUtilities } from '../../__testing__/benchmark/benchmark.utilities';
 import { testFileFolder, TestTimeouts } from '../../__testing__/constants';
@@ -22,6 +20,8 @@ import { WebsocketController } from '../decorators/websocket-controller.decorato
 import { WebsocketRoute } from '../decorators/websocket-route.decorator';
 import { WebsocketMessage } from '../models/websocket-message.model';
 import { WebsocketOptionsInput } from '../models/websocket-options.model';
+import { WebsocketFrameScanner } from './websocket-frame.scanner';
+import { WebsocketMessageSizeScanner } from './websocket-message-size.scanner';
 
 /**
  * What measuring every websocket message against its event's size costs: the frame scanner on its

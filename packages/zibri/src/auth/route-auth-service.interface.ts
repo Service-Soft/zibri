@@ -1,3 +1,4 @@
+import { Newable } from '../types/newable.type';
 import { HasPermissionMetadata } from './models/has-permission-metadata.model';
 import { IsLoggedInMetadata } from './models/is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model';
@@ -7,7 +8,6 @@ import { RouteAuthConfiguration } from './models/route-auth-configuration.model'
 import { type Permission } from './roles/permission.type';
 import { type PlatformPermission } from './roles/platform-permission.type';
 import { RoleLevel } from './roles/role-level.type';
-import { Newable } from '../types/newable.type';
 
 /**
  * Interface for the service resolving what routes declare about who may reach them.

@@ -1,6 +1,6 @@
-import { type DataSourceInterface } from './data-sources/data-source.interface';
 import { AfterAppShutdown } from '../global/after-app-shutdown.interface';
 import { BeforeAppInit } from '../global/before-app-init.interface';
+import { type DataSourceInterface } from './data-sources/data-source.interface';
 
 /**
  * Interface for a data source service.

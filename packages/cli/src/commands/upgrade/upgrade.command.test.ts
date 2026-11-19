@@ -5,7 +5,6 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { UpgradeCommand } from './upgrade.command';
 import { version } from '../../../package.json';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
 import { EVERY_FEATURE } from '../../__testing__/generated-file-paths';
@@ -15,6 +14,7 @@ import { CPUtilities, FsUtilities, GitUtilities, InquirerUtilities, ProcessResul
 import { SCAFFOLD_FEATURES, SCAFFOLD_MANIFEST_FILE, ScaffoldManifest, ScaffoldUtilities } from '../../scaffold';
 import { Path } from '../../utilities';
 import { NewCommand } from '../new/new.command';
+import { UpgradeCommand } from './upgrade.command';
 
 /**
  * How a project gets from one release of the generator to the next.
@@ -304,6 +304,28 @@ describe('UpgradeCommand', () => {
         await upgrade();
 
         expect(await read('src/tsx.d.ts')).toBe(current);
+    });
+
+    // package.json is the project's own once written, so only a script still as an earlier release wrote it is replaced
+    it('runs the tests through the script that finds jest inside an npm workspace, unless the project changed the script', async () => {
+        const current: string = await read('package.json');
+        const asGenerated: string = '"test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"';
+        await write('package.json', current.replace('"test": "node scripts/test.mjs"', asGenerated));
+        await writeAsGenerated('scripts/test.mjs', undefined);
+        commitAll('zi new, an older one');
+
+        await upgrade();
+
+        expect(await read('package.json')).toBe(current);
+        expect(await FsUtilities.exists(path.join(appDir, 'scripts', 'test.mjs') as Path)).toBe(true);
+
+        const changed: string = current.replace('"test": "node scripts/test.mjs"', '"test": "jest --runInBand"');
+        await write('package.json', changed);
+        commitAll('a test script of its own');
+
+        await upgrade();
+
+        expect(await read('package.json')).toBe(changed);
     });
 
     it('removes a file the generator no longer writes, unless the project changed it', async () => {

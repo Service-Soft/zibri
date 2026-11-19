@@ -1,12 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { ApiKeyCleanupCronJob } from './api-key-cleanup.cron-job';
-import { type ApiKeyCreateData } from './api-key-create-data.model';
-import { ApiKeyOptions } from './api-key-options.model';
-import { ApiKeyAuthStrategy } from './api-key.auth-strategy';
-import { ApiKey, ApiKeyCreateDto } from './api-key.model';
-import { CreatedApiKey } from './created-api-key.model';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { missingEntityPattern } from '../../../__testing__/missing-entity-pattern.function';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
@@ -45,6 +39,12 @@ import { type Permission } from '../../roles/permission.type';
 import { type PlatformPermission } from '../../roles/platform-permission.type';
 import { AuthStrategies } from '../auth-strategies.model';
 import { JwtAuthStrategy } from '../jwt/jwt.auth-strategy';
+import { ApiKeyCleanupCronJob } from './api-key-cleanup.cron-job';
+import { type ApiKeyCreateData } from './api-key-create-data.model';
+import { ApiKeyOptions } from './api-key-options.model';
+import { ApiKeyAuthStrategy } from './api-key.auth-strategy';
+import { ApiKey, ApiKeyCreateDto } from './api-key.model';
+import { CreatedApiKey } from './created-api-key.model';
 
 /**
  * What the route answering with the current user answers.

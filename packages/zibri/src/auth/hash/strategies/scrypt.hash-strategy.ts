@@ -1,10 +1,10 @@
 import { randomBytes, scrypt, ScryptOptions, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 
-import { HashStrategyInterface } from './hash-strategy.interface';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { HashContent, HashString, HashUtilities } from '../hash.utilities';
+import { HashStrategyInterface } from './hash-strategy.interface';
 
 /**
  * The cost of one scrypt derivation.

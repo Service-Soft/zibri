@@ -5,8 +5,6 @@ import { createInMemoryDataSource,
     StartedTestServer,
     startTestServer } from 'zibri-testing';
 
-import { AppCommand } from './app-command.model';
-import { ZibriApplicationOptions } from './application-options.model';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { Authenticators } from '../auth/authenticators/authenticators.model';
 import { AuthStrategies } from '../auth/strategies/auth-strategies.model';
@@ -16,6 +14,8 @@ import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
 import { Newable } from '../types/newable.type';
 import { FsUtilities } from '../utilities/fs.utilities';
+import { AppCommand } from './app-command.model';
+import { ZibriApplicationOptions } from './application-options.model';
 
 /**
  * Testing an application by building it from the options it ships with.

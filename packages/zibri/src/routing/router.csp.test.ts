@@ -3,8 +3,6 @@ import { Readable } from 'node:stream';
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Controller } from './decorators/controller.decorator';
-import { Get } from './decorators/get.decorator';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -28,6 +26,8 @@ import { Response } from '../open-api/decorators/response.decorator';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { CspOptionsInput } from '../parsing/html/csp-options.model';
 import { HtmlResponse } from '../parsing/html/html-response.model';
+import { Controller } from './decorators/controller.decorator';
+import { Get } from './decorators/get.decorator';
 
 /**
  * Holds rendered pages the way the caching documentation does it: in process, handing back the very

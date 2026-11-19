@@ -1,8 +1,8 @@
+import { BaseUser } from '../models/base-user.model';
 import { AuthStrategyInterface } from './auth-strategy.interface';
 import { ClientAccessTokenGrant } from './client-access-token-grant.model';
 import { IssuedClientAccessToken } from './issued-client-access-token.model';
 import { isTokenIntrospectingAuthStrategy, TokenIntrospectingAuthStrategyInterface } from './token-introspecting-auth-strategy.interface';
-import { BaseUser } from '../models/base-user.model';
 
 /**
  * Interface for an auth strategy that issues the access tokens the authorization server hands to

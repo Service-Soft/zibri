@@ -4,9 +4,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { PostgresBackupScope } from './postgres-backup-scope.model';
-import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
-import { PostgresPooler } from './postgres-pooler.model';
 import { BackupDataOptionsTestUtilities } from '../../../__testing__/backup/backup-data-options-test.utilities';
 import { testFileFolder, TestTimeouts } from '../../../__testing__/constants';
 import { queryPostgres } from '../../../__testing__/query-postgres.function';
@@ -29,6 +26,9 @@ import { DataSource } from '../../decorators/data-source.decorator';
 import { SchemaManagement } from '../../models/schema-management.model';
 import { RepositoryClass } from '../../repository/repository-class.type';
 import { Transaction } from '../../transaction/transaction.model';
+import { PostgresBackupScope } from './postgres-backup-scope.model';
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
+import { PostgresPooler } from './postgres-pooler.model';
 
 /**
  * Backups of postgres reading only what changed, through logical decoding, restored to exactly what the

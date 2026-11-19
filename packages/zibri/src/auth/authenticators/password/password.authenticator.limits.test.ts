@@ -3,8 +3,6 @@ import { setTimeout as wait } from 'node:timers/promises';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { PasswordCredentials, PasswordCredentialsCreateData } from './password-credentials.model';
-import { PasswordFailureStreak } from './password-failure-streak.model';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
@@ -25,6 +23,8 @@ import { JsonUtilities } from '../../../utilities/json.utilities';
 import { Ms } from '../../../utilities/ms';
 import { PasswordResetToken, PasswordResetTokenCreateData } from '../../models/password-reset-token.model';
 import { JwtAuthStrategy } from '../../strategies/jwt/jwt.auth-strategy';
+import { PasswordCredentials, PasswordCredentialsCreateData } from './password-credentials.model';
+import { PasswordFailureStreak } from './password-failure-streak.model';
 
 const PASSWORD: string = 'correct horse battery staple';
 const WRONG_PASSWORD: string = 'incorrect horse battery staple';

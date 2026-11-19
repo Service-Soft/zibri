@@ -2,9 +2,6 @@ import assert from 'node:assert';
 
 import { beforeEach, describe, expect, it } from '@jest/globals';
 
-import { BackupEntity } from './backup-entity.model';
-import { BackupServiceInterface } from './backup-service.interface';
-import { RestoreJournalUtilities } from './restore-journal.utilities';
 import { StartedTestServer } from '../__testing__/test-server/start-test-server.function';
 import { EncryptionKey, EncryptionKeyStatus } from '../auth/encryption/encryption-key.model';
 import { type EncryptionServiceInterface } from '../auth/encryption/encryption-service.interface';
@@ -20,6 +17,9 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { BackupEntity } from './backup-entity.model';
+import { BackupServiceInterface } from './backup-service.interface';
+import { RestoreJournalUtilities } from './restore-journal.utilities';
 
 const SERVER_NOT_STARTED: string = 'the server did not start';
 const WRITTEN_AFTER_RESTORE_TEXT: string = 'written after the restore';

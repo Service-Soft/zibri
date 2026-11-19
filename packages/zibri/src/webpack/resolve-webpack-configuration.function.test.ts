@@ -8,10 +8,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/glob
 import { Configuration, validate } from 'webpack';
 import { ZibriTsxTypeCheckPlugin } from 'zibri-tsx-compiler/webpack';
 
-import { resolveWebpackConfiguration } from './resolve-webpack-configuration.function';
-import { RestartServerOnBuildPlugin, WebpackStats } from './restart-server-on-build.plugin';
 import { testFileFolder } from '../__testing__/constants';
 import { waitUntil } from '../__testing__/wait-until.function';
+import { resolveWebpackConfiguration } from './resolve-webpack-configuration.function';
+import { RestartServerOnBuildPlugin, WebpackStats } from './restart-server-on-build.plugin';
 
 /**
  * The build a generated project runs.

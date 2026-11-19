@@ -3,9 +3,9 @@ import { Locator, Page } from 'playwright';
 import { Controller, Get, HtmlResponse, Response, TsxUtilities } from 'zibri';
 import { PageBrowser, startPageBrowser, StartedTestServer, startTestServer } from 'zibri-testing';
 
-import { ReleaseNotesPage } from './release-notes-page';
 import { buildStylesheet } from '../../__testing__/build-stylesheet.function';
 import { testApplicationOptions } from '../../__testing__/test-application-options';
+import { ReleaseNotesPage } from './release-notes-page';
 
 const TIMEOUT: number = 30000;
 

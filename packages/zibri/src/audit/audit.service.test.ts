@@ -1,10 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { AuditCheckpoint } from './audit-checkpoint.model';
-import { AuditCollapse } from './audit-collapse.enum';
-import { AuditEntry } from './audit-entry.model';
-import { type AuditServiceInterface } from './audit-service.interface';
 import { TestTimeouts } from '../__testing__/constants';
 import { missingEntityPattern } from '../__testing__/missing-entity-pattern.function';
 import { JwtTestAuthController } from '../__testing__/mocks/controllers/jwt-test-auth.controller';
@@ -30,6 +26,10 @@ import { TenantServiceInterface } from '../tenancy/tenant-service.interface';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { Ms } from '../utilities/ms';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { AuditCheckpoint } from './audit-checkpoint.model';
+import { AuditCollapse } from './audit-collapse.enum';
+import { AuditEntry } from './audit-entry.model';
+import { type AuditServiceInterface } from './audit-service.interface';
 
 const PASSWORD: string = 'correct horse battery staple';
 const MAX_REFUSALS_PER_MINUTE: number = 3;

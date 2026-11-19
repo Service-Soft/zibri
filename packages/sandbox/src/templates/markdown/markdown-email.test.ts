@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { defineProvider, TsxUtilities, ZIBRI_DI_TOKENS } from 'zibri';
 import { StartedTestServer, startTestServer } from 'zibri-testing';
 
+import { testApplicationOptions } from '../../__testing__/test-application-options';
 import { InlineEmailLink } from './inline-email-link';
 import { WelcomeEmail } from './welcome-email';
-import { testApplicationOptions } from '../../__testing__/test-application-options';
 
 describe('a page written in markdown in an email', () => {
     let server: StartedTestServer;

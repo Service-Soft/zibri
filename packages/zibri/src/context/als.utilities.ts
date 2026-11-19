@@ -1,12 +1,12 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
+import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
+import { type TraceSpanContext } from '../tracing/trace-span-context.model';
+import { type TraceSpanInterface } from '../tracing/trace-span.interface';
 import { CacheContext } from './cache/cache.context';
 import { OperationLimit } from './operation-limit.model';
 import { HttpRequestContext } from './request/http-request.context';
 import { WebsocketRequestContext } from './request/websocket-request.context';
-import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
-import { type TraceSpanContext } from '../tracing/trace-span-context.model';
-import { type TraceSpanInterface } from '../tracing/trace-span.interface';
 
 /**
  * What a held section returned, together with the transactions it wrote to while it ran.

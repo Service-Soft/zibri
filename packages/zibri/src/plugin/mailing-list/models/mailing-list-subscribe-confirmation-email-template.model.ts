@@ -1,6 +1,6 @@
-import { MailingList } from './mailing-list.model';
 import { TsxEmailComponent } from '../../../tsx/tsx-email-component.model';
 import { MailingListSubscriberCreateData } from '../services/mailing-list-service.interface';
+import { MailingList } from './mailing-list.model';
 
 /**
  * Properties of a mailing list subscribe confirmation email.

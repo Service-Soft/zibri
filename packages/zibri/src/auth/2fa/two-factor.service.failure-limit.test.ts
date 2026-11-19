@@ -5,13 +5,6 @@ import { TOTP } from 'otpauth';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
 import { TestTimeouts } from '../../__testing__/constants';
-import { OtpCredentials } from './methods/otp/otp-credentials.model';
-import { OtpTwoFactorMethod } from './methods/otp/otp.two-factor-method';
-import { RecoveryCodeRegistration, RecoveryCodeTwoFactorMethod } from './methods/recovery-code/recovery-code.two-factor-method';
-import { TwoFactorRecoveryCode } from './methods/recovery-code/two-factor-recovery-code.model';
-import { TwoFactorFailureLimit, TwoFactorLock } from './two-factor-failure-limit.model';
-import { TwoFactorFailureStreak } from './two-factor-failure-streak.model';
-import { TwoFactorServiceInterface } from './two-factor-service.interface';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -33,6 +26,13 @@ import { PasswordCredentials, PasswordCredentialsCreateData } from '../authentic
 import { PasswordAuthenticator } from '../authenticators/password/password.authenticator';
 import { Auth } from '../decorators/auth.decorator';
 import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy';
+import { OtpCredentials } from './methods/otp/otp-credentials.model';
+import { OtpTwoFactorMethod } from './methods/otp/otp.two-factor-method';
+import { RecoveryCodeRegistration, RecoveryCodeTwoFactorMethod } from './methods/recovery-code/recovery-code.two-factor-method';
+import { TwoFactorRecoveryCode } from './methods/recovery-code/two-factor-recovery-code.model';
+import { TwoFactorFailureLimit, TwoFactorLock } from './two-factor-failure-limit.model';
+import { TwoFactorFailureStreak } from './two-factor-failure-streak.model';
+import { TwoFactorServiceInterface } from './two-factor-service.interface';
 
 type LoginTokens = {
     accessToken: { value: string },

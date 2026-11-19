@@ -1,5 +1,5 @@
-import { resolveApplicationPackage } from './optional-peer.function';
 import { InternalError } from '../error-handling/internal-error.model';
+import { resolveApplicationPackage } from './optional-peer.function';
 
 /**
  * What installs the compiler of TypeScript files loaded at runtime: as dependencies, since a deployment that runs

@@ -5,9 +5,6 @@ import { text } from 'node:stream/consumers';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { PostgresBackupScope } from './postgres-backup-scope.model';
-import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
-import { PostgresPooler } from './postgres-pooler.model';
 import { testFileFolder } from '../../../__testing__/constants';
 import { queryPostgres } from '../../../__testing__/query-postgres.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -29,6 +26,9 @@ import { DataSource } from '../../decorators/data-source.decorator';
 import { SchemaManagement } from '../../models/schema-management.model';
 import { Repository } from '../../repository/repository';
 import { RepositoryClass } from '../../repository/repository-class.type';
+import { PostgresBackupScope } from './postgres-backup-scope.model';
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
+import { PostgresPooler } from './postgres-pooler.model';
 
 // a backup of the schema takes along whatever else
 // lives there - another application's tables, a reporting table - and a restore rolls it back

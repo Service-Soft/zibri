@@ -2,11 +2,6 @@ import assert from 'node:assert';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { type EventServiceInterface, EventSubscriptionInterface } from './event-service.interface';
-import { EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model';
-import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model';
-import { Event, EventStatus } from './event.model';
-import { EventSubscription } from './event.service';
 import { TestTimeouts } from '../__testing__/constants';
 import { missingEntityPattern } from '../__testing__/missing-entity-pattern.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -20,6 +15,11 @@ import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { LoggerInterface } from '../logging/logger.interface';
 import { Ms } from '../utilities/ms';
+import { type EventServiceInterface, EventSubscriptionInterface } from './event-service.interface';
+import { EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model';
+import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model';
+import { Event, EventStatus } from './event.model';
+import { EventSubscription } from './event.service';
 
 /**
  * The payload of an event whose scenario is about delivery rather than about content.

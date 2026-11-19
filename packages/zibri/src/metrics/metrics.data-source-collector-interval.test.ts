@@ -1,7 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { type MetricsServiceInterface } from './metrics-service.interface';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -10,6 +9,7 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { Ms } from '../utilities/ms';
+import { type MetricsServiceInterface } from './metrics-service.interface';
 
 const INTERVAL_IN_MS: number = Ms.MINUTE * 5;
 

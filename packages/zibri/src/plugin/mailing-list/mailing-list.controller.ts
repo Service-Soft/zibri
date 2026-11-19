@@ -1,11 +1,3 @@
-import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from './mailing-list.tokens';
-import { type MailingListPreferencesPageTemplate } from './models/mailing-list-preferences-page-template.model';
-import { type MailingListSubscribeSuccessPageTemplate } from './models/mailing-list-subscribe-success-page-template.model';
-import { MailingListSubscriber } from './models/mailing-list-subscriber.model';
-import { type MailingListUnsubscribeConfirmationPageTemplate } from './models/mailing-list-unsubscribe-confirmation-page-template.model';
-import { MailingList } from './models/mailing-list.model';
-import { UpdateMailingListPreferences } from './models/update-mailing-list-preferences.model';
-import { type MailingListServiceInterface } from './services/mailing-list-service.interface';
 import { Auth } from '../../auth/decorators/auth.decorator';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -21,6 +13,14 @@ import { Param } from '../../routing/decorators/param.decorator';
 import { Patch } from '../../routing/decorators/patch.decorator';
 import { Post } from '../../routing/decorators/post.decorator';
 import { TsxUtilities } from '../../tsx/tsx.utilities';
+import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from './mailing-list.tokens';
+import { type MailingListPreferencesPageTemplate } from './models/mailing-list-preferences-page-template.model';
+import { type MailingListSubscribeSuccessPageTemplate } from './models/mailing-list-subscribe-success-page-template.model';
+import { MailingListSubscriber } from './models/mailing-list-subscriber.model';
+import { type MailingListUnsubscribeConfirmationPageTemplate } from './models/mailing-list-unsubscribe-confirmation-page-template.model';
+import { MailingList } from './models/mailing-list.model';
+import { UpdateMailingListPreferences } from './models/update-mailing-list-preferences.model';
+import { type MailingListServiceInterface } from './services/mailing-list-service.interface';
 
 /**
  * The routes of the mailing lists, below the path of the controller that extends it: confirming a

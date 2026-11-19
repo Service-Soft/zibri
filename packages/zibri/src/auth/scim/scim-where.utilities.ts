@@ -1,14 +1,3 @@
-import { ScimErrorType } from './scim-error-type.enum';
-import { ScimFilterMatch } from './scim-filter-match.model';
-import { ScimAttributePath, ScimComparisonOperator, ScimFilter, ScimFilterValue } from './scim-filter.model';
-import { ScimFilterUtilities } from './scim-filter.utilities';
-import { ScimGroup } from './scim-group.model';
-import { ScimIndexedFilter } from './scim-indexed-filter.model';
-import { ScimSchema } from './scim-schema.enum';
-import { ScimUserValue } from './scim-user-value.model';
-import { ScimUser } from './scim-user.model';
-import { ScimValueSort } from './scim-value-sort.model';
-import { ScimError } from './scim.error';
 import { BooleanWhereFilter } from '../../data-source/models/where/boolean-where-filter.model';
 import { DateWhereFilter } from '../../data-source/models/where/date-where-filter.model';
 import { StringWhereFilter } from '../../data-source/models/where/string-where-filter.model';
@@ -21,6 +10,17 @@ import { $ts } from '../../localization/translate.function';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { ScimErrorType } from './scim-error-type.enum';
+import { ScimFilterMatch } from './scim-filter-match.model';
+import { ScimAttributePath, ScimComparisonOperator, ScimFilter, ScimFilterValue } from './scim-filter.model';
+import { ScimFilterUtilities } from './scim-filter.utilities';
+import { ScimGroup } from './scim-group.model';
+import { ScimIndexedFilter } from './scim-indexed-filter.model';
+import { ScimSchema } from './scim-schema.enum';
+import { ScimUserValue } from './scim-user-value.model';
+import { ScimUser } from './scim-user.model';
+import { ScimValueSort } from './scim-value-sort.model';
+import { ScimError } from './scim.error';
 
 /**
  * The most alternatives a filter may stand for once its `or`s are multiplied out.

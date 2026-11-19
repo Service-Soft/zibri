@@ -1,6 +1,3 @@
-import { AppState } from './app-state.enum';
-import { registerFrameworkCopy } from './framework-copies';
-import { LifecyclePhase } from './lifecycle-phase.enum';
 import { ZibriApplicationOptions } from '../application/application-options.model';
 import { ZibriEnvironment } from '../application/zibri-environment.type';
 import { DiProvider } from '../di/models/di-provider.model';
@@ -8,6 +5,9 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { InternalError } from '../error-handling/internal-error.model';
 import { Newable } from '../types/newable.type';
 import { SemVerVersion } from '../utilities/sem-ver.utilities';
+import { AppState } from './app-state.enum';
+import { registerFrameworkCopy } from './framework-copies';
+import { LifecyclePhase } from './lifecycle-phase.enum';
 
 // counted from here because everything that uses the framework at all loads this module, and a
 // second evaluation of it is precisely what a second copy of the framework is

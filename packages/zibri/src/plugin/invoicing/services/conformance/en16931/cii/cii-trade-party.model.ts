@@ -1,12 +1,12 @@
+import { Property } from '../../../../../../entity/decorators/property.decorator';
+import { XmlElement } from '../../../../../../parsing/xml/xml-element.decorator';
+import { XmlNamespace } from '../../../../../../parsing/xml/xml-namespace.decorator';
 import { CiiId } from './cii-id.model';
 import { CiiNamespace } from './cii-namespace.enum';
 import { CiiTaxRegistration } from './cii-tax-registration.model';
 import { CiiTradeAddress } from './cii-trade-address.model';
 import { CiiTradeContact } from './cii-trade-contact.model';
 import { CiiUniversalCommunication } from './cii-universal-communication.model';
-import { Property } from '../../../../../../entity/decorators/property.decorator';
-import { XmlElement } from '../../../../../../parsing/xml/xml-element.decorator';
-import { XmlNamespace } from '../../../../../../parsing/xml/xml-namespace.decorator';
 
 /**
  * The seller or the buyer.

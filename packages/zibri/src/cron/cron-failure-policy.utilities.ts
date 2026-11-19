@@ -1,11 +1,11 @@
 import { setTimeout as wait } from 'node:timers/promises';
 
+import { ErrorUtilities } from '../error-handling/error.utilities';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { CronBackOffOptions } from './cron-back-off-options.model';
 import { CronFailurePolicy } from './cron-failure-policy.model';
 import { CronJobEntity, CronJobState } from './cron-job-entity.model';
 import { CronRetryOptions } from './cron-retry-options.model';
-import { ErrorUtilities } from '../error-handling/error.utilities';
-import { type LoggerInterface } from '../logging/logger.interface';
 
 /**
  * Decides what a cron job does when its ticks throw, as its `onFailure` asks: retry the slot, back

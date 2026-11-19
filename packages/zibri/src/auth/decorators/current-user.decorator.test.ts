@@ -1,7 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { Auth } from './auth.decorator';
-import { CurrentUser } from './current-user.decorator';
 import { TestTimeouts } from '../../__testing__/constants';
 import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
@@ -15,6 +13,8 @@ import { Get } from '../../routing/decorators/get.decorator';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../authenticators/password/password-credentials.model';
 import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy';
+import { Auth } from './auth.decorator';
+import { CurrentUser } from './current-user.decorator';
 
 type CurrentUserBody = { id: string, email: string };
 

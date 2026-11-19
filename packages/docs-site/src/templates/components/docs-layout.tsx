@@ -1,11 +1,11 @@
 import { MdxHeading, TsxChildren, TsxComponent } from 'zibri';
 
+import { BASE_PATH } from '../../base-path';
+import { SEARCH_INDEX_ADDRESS } from '../../search/search-index.utilities';
 import { OnThisPage } from './on-this-page';
 import { OnThisPageButton } from './on-this-page-button';
 import { SearchBox } from './search-box';
 import { Sidebar } from './sidebar';
-import { BASE_PATH } from '../../base-path';
-import { SEARCH_INDEX_ADDRESS } from '../../search/search-index.utilities';
 
 type DocsLayoutProps = {
     title: string,

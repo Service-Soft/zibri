@@ -1,7 +1,7 @@
-import { type Where } from './where/where-filter.model';
 import { type BaseEntity } from '../../entity/base-entity.model';
 import { type DenyAll } from '../../entity/models/entity-scope.model';
 import { type Newable } from '../../types/newable.type';
+import { type Where } from './where/where-filter.model';
 
 /**
  * What the rows of each entity a call reaches through a relation are narrowed to: the rows the

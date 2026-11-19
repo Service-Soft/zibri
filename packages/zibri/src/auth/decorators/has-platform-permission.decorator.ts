@@ -1,8 +1,8 @@
-import { HasPermissionFn } from './has-permission.decorator';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { HasPermissionMetadata } from '../models/has-permission-metadata.model';
 import { type PlatformPermission } from '../roles/platform-permission.type';
 import { AuthStrategies } from '../strategies/auth-strategies.model';
+import { HasPermissionFn } from './has-permission.decorator';
 
 /**
  * Marks an endpoint to be only reachable when one of the roles of the logged in user's own carries

@@ -366,6 +366,10 @@ export declare const clientKey: string;
 @Injectable()
 export class PdfService {}
 
+export declare class DashboardService {
+    resolveDashboard(): Promise<unknown>;
+}
+
 export type ReportStorage = {
     save: (name: string, content: Buffer) => Promise<void>
 };

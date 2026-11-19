@@ -1,7 +1,7 @@
-import { HttpError } from './http.error';
 import { HttpStatus } from '../../http/http-status.enum';
 import { TranslatedString } from '../../localization/models/translated-string.model';
 import { $ts } from '../../localization/translate.function';
+import { HttpError } from './http.error';
 
 /**
  * An error to throw when something unexpected happened inside the server.

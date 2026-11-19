@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { WriteAroundReadThroughCache } from './write-around-read-through.cache';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Inject } from '../../../di/decorators/inject.decorator';
@@ -14,6 +13,7 @@ import { Cache } from '../../decorators/cache.decorator';
 import { CachedValue } from '../../store/cached-value.model';
 import { InMemoryCacheStore } from '../../store/in-memory.cache-store';
 import { CacheInterface } from '../cache.interface';
+import { WriteAroundReadThroughCache } from './write-around-read-through.cache';
 
 @Cache()
 class MainCache extends WriteAroundReadThroughCache<string, string, 'Write Around Read Through Main Cache'> {

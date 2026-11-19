@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { ChangeSetEntity } from './models/change-set-entity.model';
-import { ChangeSetType } from './models/change-set-type.enum';
-import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -16,6 +13,9 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { Repository } from '../repository/repository';
+import { ChangeSetEntity } from './models/change-set-entity.model';
+import { ChangeSetType } from './models/change-set-type.enum';
+import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
 
 @Entity({ allowOrphan: true })
 class TenantGadget extends BaseEntity implements ChangeSetEntity {

@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { JwtAuthStrategy } from './jwt.auth-strategy';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -18,6 +17,7 @@ import { JsonUtilities } from '../../../utilities/json.utilities';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../authenticators/password/password-credentials.model';
 import { BaseUserEntity } from '../../models/base-user.model';
 import { BaseUserRepository } from '../../user/base-user-repository.model';
+import { JwtAuthStrategy } from './jwt.auth-strategy';
 
 const PASSWORD: string = 'correct horse battery staple';
 

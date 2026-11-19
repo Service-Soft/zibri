@@ -1,11 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { keyWhereToSql } from './key-where-to-sql.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { whereFor } from '../models/where/where-for.function';
+import { keyWhereToSql } from './key-where-to-sql.function';
 
 /**
  * The predicate a partial key or a check is created with.

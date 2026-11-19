@@ -1,8 +1,4 @@
 /* eslint-disable jsdoc/require-jsdoc */
-import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
-import { ReflectUtilities } from './reflect.utilities';
-import { resolveCallSites } from './resolve-call-sites.function';
-import { resolveOriginalFile } from './resolve-original-file.function';
 // every import of a subsystem built on utilities is marked `type`: this file only names their
 // metadata shapes, and a value import would put utilities in a runtime cycle with each of them
 import { type CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
@@ -36,6 +32,10 @@ import { type CustomValidationRule } from '../validation/custom-validation.model
 import { type CurrentWebsocketConnectionMetadata } from '../websocket/decorators/current-websocket-connection.decorator';
 import { type WebsocketControllerData } from '../websocket/decorators/websocket-controller.decorator';
 import { type WebsocketControllerRouteConfiguration } from '../websocket/models/websocket-controller-route-configuration.model';
+import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
+import { ReflectUtilities } from './reflect.utilities';
+import { resolveCallSites } from './resolve-call-sites.function';
+import { resolveOriginalFile } from './resolve-original-file.function';
 
 const modelPropertiesStore: WeakMap<Function, Record<string, PropertyMetadata>> = new WeakMap();
 const xmlPropertiesStore: WeakMap<Function, Record<string, XmlPropertyMetadata>> = new WeakMap();
@@ -312,6 +312,15 @@ export abstract class MetadataUtilities {
             controller,
             controllerMethod
         ) ?? [];
+    }
+
+    // ---------- classes copied by OmitClass, PickClass and IntersectionClass ----------
+    static addCopiedFrom(target: Function, source: Newable<unknown>): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.COPIED_FROM, [...MetadataUtilities.getOwnCopiedFrom(target), source], target);
+    }
+
+    static getOwnCopiedFrom(target: Function): Newable<unknown>[] {
+        return ReflectUtilities.getOwnMetadata<Newable<unknown>[]>(MetadataInjectionKeys.COPIED_FROM, target) ?? [];
     }
 
     // ---------- controller base route ----------

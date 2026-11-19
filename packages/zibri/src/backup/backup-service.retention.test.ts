@@ -5,13 +5,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { first, firstValueFrom } from 'rxjs';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { BackupEntity } from './backup-entity.model';
-import { BackupResourceEntity } from './backup-resource-entity.model';
-import { BackupResourceInterface } from './backup-resource.interface';
-import { BackupServiceInterface } from './backup-service.interface';
-import { Backup } from './decorators/backup-resource.decorator';
-import { BackupTransport } from './decorators/backup-transport.decorator';
-import { FsBackupTransport } from './transports/fs.backup-transport';
 import { BackupLayoutTestUtilities } from '../__testing__/backup/backup-layout-test.utilities';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
@@ -26,6 +19,13 @@ import { defineProvider } from '../di/models/di-provider.model';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Newable } from '../types/newable.type';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { BackupEntity } from './backup-entity.model';
+import { BackupResourceEntity } from './backup-resource-entity.model';
+import { BackupResourceInterface } from './backup-resource.interface';
+import { BackupServiceInterface } from './backup-service.interface';
+import { Backup } from './decorators/backup-resource.decorator';
+import { BackupTransport } from './decorators/backup-transport.decorator';
+import { FsBackupTransport } from './transports/fs.backup-transport';
 
 const backupFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups-retention');
 
@@ -90,13 +90,13 @@ async function takeBackup(name: string): Promise<BackupEntity> {
 // every backup was kept until the application deleted it
 describe('BackupService - a retention', () => {
     it('deletes the backups it keeps no longer once a backup completes, from the transports and the database', async () => {
-        const first: BackupEntity = await takeBackup('first');
+        const firstBackup: BackupEntity = await takeBackup('first');
         const second: BackupEntity = await takeBackup('second');
         await takeBackup('third');
 
         const names: string[] = (await inject(repositoryTokenFor(BackupEntity)).findAll({ limit: 'all' })).map(b => b.name);
         expect(names.sort()).toStrictEqual(['second', 'third']);
-        expect(await FsUtilities.exists(BackupLayoutTestUtilities.resolveBackupFolder(backupFolder, first))).toBe(false);
+        expect(await FsUtilities.exists(BackupLayoutTestUtilities.resolveBackupFolder(backupFolder, firstBackup))).toBe(false);
         const resource: BackupResourceEntity | undefined = second.resources.find(r => r.name === ProjectsStore.name);
         assert(resource, 'the backup holds no resource');
         expect(await FsUtilities.exists(BackupLayoutTestUtilities.resolveResourcePath(backupFolder, second, resource))).toBe(true);

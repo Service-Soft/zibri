@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { WriteBehindReadThroughCache } from './write-behind-read-through.cache';
 import { flushMicrotasks, TestTimeouts } from '../../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Inject } from '../../../di/decorators/inject.decorator';
@@ -12,6 +11,7 @@ import { type CacheServiceInterface } from '../../cache-service.interface';
 import { CacheService } from '../../cache.service';
 import { Cache } from '../../decorators/cache.decorator';
 import { InMemoryCacheStore } from '../../store/in-memory.cache-store';
+import { WriteBehindReadThroughCache } from './write-behind-read-through.cache';
 
 @Cache()
 class MainCache extends WriteBehindReadThroughCache<string, { id: string }, 'Write Behind Read Through Main Cache'> {

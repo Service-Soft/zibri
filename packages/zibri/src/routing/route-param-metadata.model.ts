@@ -1,11 +1,11 @@
-import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from './decorators/param.decorator';
 import { CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
 import { InternalError } from '../error-handling/internal-error.model';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
-import { BodyMetadata } from './decorators/body-metadata.model';
 import { CurrentWebsocketConnectionMetadata } from '../websocket/decorators/current-websocket-connection.decorator';
+import { BodyMetadata } from './decorators/body-metadata.model';
+import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from './decorators/param.decorator';
 
 /**
  * One decorated parameter of a route handler, with the position it fills already read off the key it

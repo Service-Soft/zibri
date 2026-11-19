@@ -1,11 +1,11 @@
 import { JsonUtilities, OpenApiExplorerOperation, OpenApiExplorerSchemaSource, OpenApiExplorerSecurityScheme, OpenApiExplorerUtilities, OpenApiMediaTypeObject, OpenApiParameterObject, OpenApiRequestBodyObject, OpenApiSchemaObject, TsxComponent, useContext } from 'zibri';
 
+import { Heading } from '../components/heading';
 import { ExplorerContent } from './explorer-content';
 import { ExplorerDefinition } from './explorer-context';
 import { ExplorerLock } from './explorer-lock';
 import { ExplorerMethodClasses, resolveMethodClasses } from './explorer-methods';
 import { ExplorerCredentialScheme, ExplorerFormField, ExplorerRequestBody, ExplorerRequestParameter, ExplorerTryItOut } from './explorer-try-it-out';
-import { Heading } from '../components/heading';
 
 type Props = {
     operation: OpenApiExplorerOperation,

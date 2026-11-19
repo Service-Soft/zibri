@@ -1,5 +1,3 @@
-import { AsyncApiServiceInterface } from './async-api-service.interface';
-import { AsyncApiChannel, AsyncApiDefinition, AsyncApiOAuthFlow, AsyncApiOperation, AsyncApiReference, AsyncApiSecurityScheme, AsyncApiServer } from './async-api.model';
 import { ZibriApplication } from '../application/application';
 import { type AuthServiceInterface } from '../auth/auth-service.interface';
 import { ResolvedAuthMetadata } from '../auth/models/resolved-auth-metadata.model';
@@ -24,6 +22,8 @@ import { type VersioningServiceInterface } from '../versioning/versioning-servic
 import { WebsocketControllerData } from '../websocket/decorators/websocket-controller.decorator';
 import { WebsocketControllerRouteConfiguration } from '../websocket/models/websocket-controller-route-configuration.model';
 import { WebsocketEvent } from '../websocket/models/websocket-event.enum';
+import { AsyncApiServiceInterface } from './async-api-service.interface';
+import { AsyncApiChannel, AsyncApiDefinition, AsyncApiOAuthFlow, AsyncApiOperation, AsyncApiReference, AsyncApiSecurityScheme, AsyncApiServer } from './async-api.model';
 /**
  * The flows of an `oauth2` scheme, which OpenAPI and AsyncAPI name alike.
  */

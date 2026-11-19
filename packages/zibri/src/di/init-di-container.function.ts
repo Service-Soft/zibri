@@ -1,11 +1,11 @@
 import { validateSingleFrameworkCopy } from '../global/framework-copies';
 import { GlobalRegistry } from '../global/global-registry';
+import { ObjectUtilities } from '../utilities/object.utilities';
 import { ZIBRI_DI_PROVIDERS } from './default/zibri-di-providers.default';
 import { ZIBRI_DI_TOKENS } from './default/zibri-di-tokens.default';
 import { DiProvider } from './models/di-provider.model';
 import { DiToken } from './models/di-token.model';
 import { register } from './register.function';
-import { ObjectUtilities } from '../utilities/object.utilities';
 
 /**
  * Initializes the di container with the registered injectables.

@@ -1,5 +1,5 @@
-import { BACKUP_MEASUREMENT_CONFIG_ENV, BackupMeasurementConfig } from './backup-measurement.model';
 import { JsonUtilities } from '../../../utilities/json.utilities';
+import { BACKUP_MEASUREMENT_CONFIG_ENV, BackupMeasurementConfig } from './backup-measurement.model';
 
 /**
  * Reads the config a measured process was forked with.

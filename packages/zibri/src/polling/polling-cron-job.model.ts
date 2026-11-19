@@ -1,6 +1,3 @@
-import { PollPacing } from './poll-pacing.model';
-import { WakeUpListener } from './wake-up-listener.model';
-import { WakeUpServiceInterface } from './wake-up-service.interface';
 import { CreateCronJobEntityData, CronJobEntity } from '../cron/cron-job-entity.model';
 import { CronJob } from '../cron/cron-job.model';
 import { RunExecution } from '../cron/run-execution.type';
@@ -12,6 +9,9 @@ import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { Newable } from '../types/newable.type';
+import { PollPacing } from './poll-pacing.model';
+import { WakeUpListener } from './wake-up-listener.model';
+import { WakeUpServiceInterface } from './wake-up-service.interface';
 
 /**
  * A cron job that looks for work kept in a data source, as often as there is any.

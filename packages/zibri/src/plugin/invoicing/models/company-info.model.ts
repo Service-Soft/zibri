@@ -1,5 +1,5 @@
-import { type ElectronicAddress } from './electronic-address.model';
 import { type Timezone } from '../../../localization/models/timezone.model';
+import { type ElectronicAddress } from './electronic-address.model';
 
 /**
  * Contains base information about the company that issues an invoice.

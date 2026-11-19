@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { ClusterInstance, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { restoreCachesBackupFolder } from './backup-service.restore-caches.instance-options';
 import { TestTimeouts } from '../__testing__/constants';
 import { FsUtilities } from '../utilities/fs.utilities';
+import { restoreCachesBackupFolder } from './backup-service.restore-caches.instance-options';
 
 /**
  * A restore of the application replaces the rows past every write that would invalidate a tag, while the

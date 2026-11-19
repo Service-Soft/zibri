@@ -1,13 +1,13 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { createTestDataSource } from './create-test-data-source.function';
-import { StartedTestServer, startTestServer } from './start-test-server.function';
 import { Pg, PgSessionClient } from '../../data-source/data-sources/postgres/postgres-client.model';
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-data-source.model';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
 import { optionalPeer } from '../../utilities/optional-peer.function';
 import { TestTimeouts } from '../constants';
+import { createTestDataSource } from './create-test-data-source.function';
+import { StartedTestServer, startTestServer } from './start-test-server.function';
 
 const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource();
 

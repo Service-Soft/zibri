@@ -1,16 +1,16 @@
 import { describe, expect, it } from '@jest/globals';
 import ts from 'typescript';
 
-import { EntitySnapshot } from './entity-snapshot.model';
-import { EntitySnapshotUtilities } from './entity-snapshot.utilities';
-import { GeneratedMigration, MigrationGenerationInput, MigrationGeneratorUtilities } from './migration-generator.utilities';
-import { Migration } from './migration.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import * as zibri from '../../index';
 import { Newable } from '../../types/newable.type';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
+import { EntitySnapshot } from './entity-snapshot.model';
+import { EntitySnapshotUtilities } from './entity-snapshot.utilities';
+import { GeneratedMigration, MigrationGenerationInput, MigrationGeneratorUtilities } from './migration-generator.utilities';
+import { Migration } from './migration.model';
 
 /**
  * Where a generated migration imports the data source from, which loading it hands the class under.

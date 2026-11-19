@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { Transaction } from './transaction.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { queryPostgres } from '../../__testing__/query-postgres.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -12,6 +11,7 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
 import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { Repository } from '../repository/repository';
+import { Transaction } from './transaction.model';
 
 @Entity({ tenant: 'shared' })
 class Item {

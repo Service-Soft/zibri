@@ -2,8 +2,6 @@ import assert from 'node:assert';
 
 import { exhaustMap, filter, firstValueFrom, from, interval, Observable, take, throwError, timeout } from 'rxjs';
 
-import { RateLimiterConfig, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
-import { RateLimiterInterface } from './rate-limiter.interface';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { TooManyRequestsError } from '../../error-handling/errors/too-many-requests.error';
@@ -26,6 +24,8 @@ import { RateLimitReservationError } from '../reservation/rate-limit-reservation
 import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
 import { RateLimitStoreUnavailableError } from '../stores/rate-limit-store-unavailable.error';
 import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
+import { RateLimiterConfig, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
+import { RateLimiterInterface } from './rate-limiter.interface';
 
 const defaultKey: string = 'global';
 

@@ -1,9 +1,9 @@
+import { type Permission } from '../roles/permission.type';
+import { type PlatformPermission } from '../roles/platform-permission.type';
 import { HasPermissionMetadata } from './has-permission-metadata.model';
 import { IsLoggedInMetadata } from './is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata } from './is-not-logged-in-metadata.model';
 import { Require2faMetadata } from './require-2fa-metadata.model';
-import { type Permission } from '../roles/permission.type';
-import { type PlatformPermission } from '../roles/platform-permission.type';
 
 // Resolving them costs nothing but is not free of side effects - the resolvers are where the
 // "Useless @Auth.x.skip" warnings come from - so whoever asks for them passes them on rather than

@@ -1,8 +1,8 @@
 import type { JSONOutput } from 'typedoc' with { 'resolution-mode': 'import' };
 import { Markdown, TsxComponent } from 'zibri';
 
-import { ApiParameters } from './api-parameters';
 import { ApiCommentUtilities } from '../../api/api-comment.utilities';
+import { ApiParameters } from './api-parameters';
 
 type ApiCommentProps = {
     comment: JSONOutput.Comment | undefined,

@@ -1,7 +1,7 @@
+import { InternalError } from '../error-handling/internal-error.model';
 import { BackupDigest } from './backup-digest.model';
 import { BackupEntity } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
-import { InternalError } from '../error-handling/internal-error.model';
 
 /**
  * An error for stored backup data that is not what the backup recorded writing.

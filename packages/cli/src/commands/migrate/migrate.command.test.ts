@@ -2,13 +2,13 @@ import { readFile, writeFile } from 'node:fs/promises';
 
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { MigrateCommand } from './migrate.command';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
 import { GeneratedProject } from '../../__testing__/generated-project';
 import { mockExitGracefully, ProcessExitError } from '../../__testing__/mock-exit-gracefully.function';
 import { quietly } from '../../__testing__/quietly.function';
 import { CPUtilities, FsUtilities } from '../../encapsulation';
 import { Path } from '../../utilities';
+import { MigrateCommand } from './migrate.command';
 
 const MIGRATIONS_DIR: string = 'src/data-sources/db/migrations';
 

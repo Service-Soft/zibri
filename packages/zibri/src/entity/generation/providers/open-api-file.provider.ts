@@ -1,11 +1,11 @@
-import { BaseEntityGenerationProviderOptions } from './base-entity-generation-provider-options.model';
-import { EntityGenerationProvider } from './entity-generation-provider.interface';
-import { OpenApiConvertUtilities } from './open-api-convert.utilities';
 import type { OpenApiDefinition } from '../../../open-api/open-api.model';
 import { FsUtilities, FsPath } from '../../../utilities/fs.utilities';
 import { JsonUtilities } from '../../../utilities/json.utilities';
 import { optionalPeer } from '../../../utilities/optional-peer.function';
 import { EntityTenant } from '../../models/entity-tenant.model';
+import { BaseEntityGenerationProviderOptions } from './base-entity-generation-provider-options.model';
+import { EntityGenerationProvider } from './entity-generation-provider.interface';
+import { OpenApiConvertUtilities } from './open-api-convert.utilities';
 
 /**
  * Options for an open api file provider.

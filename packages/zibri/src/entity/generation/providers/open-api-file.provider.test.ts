@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { OpenApiFileProvider } from './open-api-file.provider';
 import { testFileFolder } from '../../../__testing__/constants';
 import type { OpenApiDefinition } from '../../../open-api/open-api.model';
 import { FsPath, FsUtilities } from '../../../utilities/fs.utilities';
 import { JsonUtilities } from '../../../utilities/json.utilities';
+import { OpenApiFileProvider } from './open-api-file.provider';
 
 const workDir: FsPath = FsUtilities.getPath(testFileFolder, 'open-api-file-provider');
 

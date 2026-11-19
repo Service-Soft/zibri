@@ -2,10 +2,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/glob
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { AsyncApiDefinition, AsyncApiMessage, AsyncApiServer } from './async-api.model';
-import { $ts } from '../localization/translate.function';
-import { AsyncApiExplorerOperation, AsyncApiExplorerTag } from './explorer/async-api-explorer-operation.model';
-import { AsyncApiExplorerUtilities } from './explorer/async-api-explorer.utilities';
 import { TestTimeouts } from '../__testing__/constants';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
@@ -19,6 +15,7 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { defineProvider, DiProvider } from '../di/models/di-provider.model';
 import { Property } from '../entity/decorators/property.decorator';
 import { MimeType } from '../http/mime-type.enum';
+import { $ts } from '../localization/translate.function';
 import { Response } from '../open-api/decorators/response.decorator';
 import { OpenApiExplorerUtilities } from '../open-api/explorer/open-api-explorer.utilities';
 import { OpenApiSecuritySchemeObject } from '../open-api/open-api.model';
@@ -29,6 +26,9 @@ import { WebsocketController } from '../websocket/decorators/websocket-controlle
 import { WebsocketRoute } from '../websocket/decorators/websocket-route.decorator';
 import { WebsocketMessage } from '../websocket/models/websocket-message.model';
 import { WebsocketOptionsInput } from '../websocket/models/websocket-options.model';
+import { AsyncApiDefinition, AsyncApiMessage, AsyncApiServer } from './async-api.model';
+import { AsyncApiExplorerOperation, AsyncApiExplorerTag } from './explorer/async-api-explorer-operation.model';
+import { AsyncApiExplorerUtilities } from './explorer/async-api-explorer.utilities';
 
 class ChatMessage {
     @Property.string()

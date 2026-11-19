@@ -1,7 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { Entity, EntityMetadata } from './entity.decorator';
-import { Property } from './property.decorator';
 import { propertyOf } from '../../data-source/models/where/property-of.function';
 import { whereFor } from '../../data-source/models/where/where-for.function';
 import { keyWhereToSql } from '../../data-source/where/key-where-to-sql.function';
@@ -9,6 +7,8 @@ import { KeyGroups, keyGroupsOf } from '../../global/model-registry/key-descript
 import { $t } from '../../localization/translate.function';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { BaseEntity } from '../base-entity.model';
+import { Entity, EntityMetadata } from './entity.decorator';
+import { Property } from './property.decorator';
 
 /**
  * The property names written on the decorator are checked against the class while compiling: every

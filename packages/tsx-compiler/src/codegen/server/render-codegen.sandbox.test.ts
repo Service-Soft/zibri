@@ -3,11 +3,11 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from '@jest/globals';
 
-import { compileServerRender } from './render-codegen';
 import { parseTemplateOk } from '../../__testing__/parse.helper';
 import { collectTsxFiles, resolveTemplateName } from '../../__testing__/sandbox.helper';
 import { ComponentInfo, findComponents } from '../../semantics/component';
 import { eraseTypes } from '../erase-types';
+import { compileServerRender } from './render-codegen';
 
 const templatesDir: string = join(__dirname, '..', '..', '..', '..', 'sandbox', 'src', 'templates');
 

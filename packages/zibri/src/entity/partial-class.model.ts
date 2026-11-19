@@ -13,7 +13,9 @@ export function PartialClass<T>(
     Base: Newable<T>
 ): Newable<Partial<T>> {
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
-    class PartialClass extends (Base as any) {}
+    class Partialized extends (Base as any) {}
+    // the name an xml body or document of the class is read and written under, unless a class extending it names one
+    Object.defineProperty(Partialized, 'name', { value: 'PartialClass' });
 
     const original: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(Base);
     const partialMeta: Record<string, PropertyMetadata> = {};
@@ -22,8 +24,8 @@ export function PartialClass<T>(
         // base requires one is a value the row the base describes cannot hold
         partialMeta[prop] = { ...meta, required: meta.required === false ? false : resolveRequiredWhenGiven(prop) };
     }
-    MetadataUtilities.setModelProperties(PartialClass, partialMeta);
-    MetadataUtilities.stopInheritingCustomValidations(PartialClass);
+    MetadataUtilities.setModelProperties(Partialized, partialMeta);
+    MetadataUtilities.stopInheritingCustomValidations(Partialized);
 
-    return PartialClass as Newable<Partial<T>>;
+    return Partialized as Newable<Partial<T>>;
 }

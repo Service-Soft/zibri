@@ -4,8 +4,6 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource, TestCommandRun } from 'zibri-testing';
 
-import { MigrationGenerationResponse } from './migration-generation.model';
-import { Migration } from './migration.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -15,6 +13,8 @@ import { Newable } from '../../types/newable.type';
 import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { DataSource } from '../decorators/data-source.decorator';
 import { RepositoryClass } from '../repository/repository-class.type';
+import { MigrationGenerationResponse } from './migration-generation.model';
+import { Migration } from './migration.model';
 
 /**
  * What each migration did, in the order it happened.

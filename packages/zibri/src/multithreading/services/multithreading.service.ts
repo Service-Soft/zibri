@@ -3,11 +3,6 @@ import { type ResourceLimits, Worker } from 'node:worker_threads';
 
 import { filter, firstValueFrom } from 'rxjs';
 
-import { MultithreadingServiceInterface } from './multithreading-service.interface';
-import { ThreadJob } from './thread-job';
-import { ThreadJobWorker } from './thread-job-worker';
-import { ThreadJobWorkerEventUtilities } from './thread-job-worker-event.utilities';
-import { ThreadJobWorkerEvents } from './thread-job-worker-events.model';
 import { ZibriApplication } from '../../application/application';
 import { AlsUtilities } from '../../context/als.utilities';
 import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
@@ -57,6 +52,11 @@ import { ThreadJobStartMessage } from '../models/thread-job-start-message.model'
 import { ThreadJobStatus } from '../models/thread-job-status.enum';
 import { RunQueuedThreadJobsCronJob } from '../run-queued-thread-jobs.cron-job';
 import { ThreadJobCleanupCronJob } from '../thread-job-cleanup.cron-job';
+import { MultithreadingServiceInterface } from './multithreading-service.interface';
+import { ThreadJob } from './thread-job';
+import { ThreadJobWorker } from './thread-job-worker';
+import { ThreadJobWorkerEventUtilities } from './thread-job-worker-event.utilities';
+import { ThreadJobWorkerEvents } from './thread-job-worker-events.model';
 
 /**
  * An error to throw during multithreading service initialization.

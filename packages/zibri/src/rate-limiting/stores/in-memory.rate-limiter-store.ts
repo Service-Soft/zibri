@@ -1,7 +1,7 @@
-import { BaseRateLimitState, RateLimiterStoreInterface, RateLimiterStoreUpdateResult } from './rate-limiter-store.interface';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { InternalError } from '../../error-handling/internal-error.model';
+import { BaseRateLimitState, RateLimiterStoreInterface, RateLimiterStoreUpdateResult } from './rate-limiter-store.interface';
 
 /**
  * How many keys an in memory store holds at most.

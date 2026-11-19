@@ -1,5 +1,3 @@
-import { Where, WhereFilter } from './where-filter.model';
-import { WhereValueUtilities } from './where-value.utilities';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { PropertyMetadata } from '../../../entity/decorators/property.decorator';
 import { EntityOrder } from '../../../entity/models/entity-order.model';
@@ -7,6 +5,8 @@ import { EntityOrderUtilities } from '../../../entity/models/entity-order.utilit
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { Newable } from '../../../types/newable.type';
 import { ScopeWhereUtilities } from '../../scopes/scope-where.utilities';
+import { Where, WhereFilter } from './where-filter.model';
+import { WhereValueUtilities } from './where-value.utilities';
 
 /**
  * Decides which properties a similarity can be asked of, and holds every filter to that.

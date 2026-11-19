@@ -1374,19 +1374,21 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * Reads the column the other side of a to many relation stores its foreign key in.
      * @param metadata - The metadata of the relation on this side.
      * @param key - The property key, for the error message.
-     * @returns The name of the join column on the inverse side.
-     * @throws When the inverse side is missing or is not a relation.
+     * @returns The name of the join column on the inverse side, or the inverse side itself when it is
+     * a column, as the id a change set carries of its entity is.
+     * @throws When the inverse side is missing.
      */
     private requireInverseJoinColumn(metadata: RelationMetadata<BaseEntity>, key: string): string {
         const targetClass: Newable<BaseEntity> = metadata.target();
         const inverse: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(targetClass)[metadata.inverseSide];
 
-        if (inverse == undefined || !this.isRelation(inverse)) {
+        if (inverse == undefined) {
             throw new InternalError(
                 `Could not find the inverse relation "${metadata.inverseSide}" on ${targetClass.name} for ${this.entityClass.name}.${key}.`
             );
         }
-        return this.resolveJoinColumn(inverse, metadata.inverseSide);
+        // a plain column holds the key the same way a join column does: the sql schema reads it as one
+        return this.isRelation(inverse) ? this.resolveJoinColumn(inverse, metadata.inverseSide) : metadata.inverseSide;
     }
 
     /**

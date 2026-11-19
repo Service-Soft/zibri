@@ -1,4 +1,3 @@
-import { MigrationEntity } from './migration-entity.model';
 import { AlsUtilities } from '../../context/als.utilities';
 import { OperationLimitUtilities } from '../../context/operation-limit.utilities';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -8,6 +7,7 @@ import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';
+import { MigrationEntity } from './migration-entity.model';
 
 /**
  * Base class for a data source migration.

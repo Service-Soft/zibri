@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource, StartedTestServer, startTestServer } from 'zibri-testing';
 
-import { BaseRoleRepository } from './base-role-repository.model';
-import { BaseRoleEntity } from './base-role.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { CacheInvalidation } from '../../caching/cache-invalidation.model';
 import { RepositoryFor } from '../../data-source/repository/repository-for.decorator';
@@ -18,6 +16,8 @@ import { Newable } from '../../types/newable.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { BaseUserEntity } from '../models/base-user.model';
 import { BaseUserRepository } from '../user/base-user-repository.model';
+import { BaseRoleRepository } from './base-role-repository.model';
+import { BaseRoleEntity } from './base-role.model';
 
 // a file of its own, because a class declared with @RepositoryFor is checked by every application
 // the file starts once it is imported, and this one's role entity is unlike the fixtures'

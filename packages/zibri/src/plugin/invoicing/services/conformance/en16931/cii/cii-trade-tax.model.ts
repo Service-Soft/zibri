@@ -1,7 +1,7 @@
-import { CiiNamespace } from './cii-namespace.enum';
 import { Property } from '../../../../../../entity/decorators/property.decorator';
 import { XmlElement } from '../../../../../../parsing/xml/xml-element.decorator';
 import { XmlNamespace } from '../../../../../../parsing/xml/xml-namespace.decorator';
+import { CiiNamespace } from './cii-namespace.enum';
 
 /**
  * A tax applied, to one line or to everything taxed at one rate.

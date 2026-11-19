@@ -1,8 +1,3 @@
-import { BaseMembership } from './base-membership.model';
-import { MembershipEventWriteObserver } from './membership-event.write-observer';
-import { isMembershipRepository, MembershipRepositoryInterface } from './membership-repository.interface';
-import { MembershipServiceInterface } from './membership-service.interface';
-import { MembershipWriteObserver } from './membership.write-observer';
 import { type AuditServiceInterface } from '../../audit/audit-service.interface';
 import { RoleUtilities } from '../../auth/roles/role.utilities';
 import { type UserServiceInterface } from '../../auth/user/user-service.interface';
@@ -27,6 +22,11 @@ import { AuditUtilities } from '../../logging/audit.utilities';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { Newable } from '../../types/newable.type';
 import { type TenantServiceInterface } from '../tenant-service.interface';
+import { BaseMembership } from './base-membership.model';
+import { MembershipEventWriteObserver } from './membership-event.write-observer';
+import { isMembershipRepository, MembershipRepositoryInterface } from './membership-repository.interface';
+import { MembershipServiceInterface } from './membership-service.interface';
+import { MembershipWriteObserver } from './membership.write-observer';
 
 /**
  * Default membership service implementation of Zibri, reading the memberships from the one

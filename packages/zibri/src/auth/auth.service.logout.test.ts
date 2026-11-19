@@ -2,9 +2,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jes
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
 import { TestTimeouts } from '../__testing__/constants';
-import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
-import { JwtRefreshToken } from './strategies/jwt/jwt-refresh-token.model';
-import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
 import { JwtTestAuthController } from '../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../__testing__/mocks/entities/roles.enum';
@@ -21,6 +18,9 @@ import { type LoggerInterface } from '../logging/logger.interface';
 import { Newable } from '../types/newable.type';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
+import { JwtRefreshToken } from './strategies/jwt/jwt-refresh-token.model';
+import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
 
 /**
  * What the trail records about a logout.

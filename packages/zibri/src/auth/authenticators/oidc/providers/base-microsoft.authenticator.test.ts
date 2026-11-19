@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, FakeOAuthProvider, InMemoryDataSource, startFakeOAuthProvider, TestBrowser } from 'zibri-testing';
 
-import { BaseMicrosoftAuthenticator } from './base-microsoft.authenticator';
 import { TestTimeouts } from '../../../../__testing__/constants';
 import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../../__testing__/mocks/entities/roles.enum';
@@ -35,6 +34,7 @@ import { ProviderToken } from '../../provider-token.model';
 import { OidcAuthenticationTime } from '../oidc-authentication-time.type';
 import { OidcBearerTokens } from '../oidc-bearer-tokens.model';
 import { OidcDiscoveryAtBoot } from '../oidc-discovery-at-boot.type';
+import { BaseMicrosoftAuthenticator } from './base-microsoft.authenticator';
 
 const PUBLIC_URL: string = 'http://zibri.test';
 const CLIENT_ID: string = 'zibri-test-client';

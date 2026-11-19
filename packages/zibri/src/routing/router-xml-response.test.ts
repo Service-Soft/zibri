@@ -1,10 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { Body } from './decorators/body.decorator';
-import { Controller } from './decorators/controller.decorator';
-import { Delete } from './decorators/delete.decorator';
-import { Get } from './decorators/get.decorator';
-import { Post } from './decorators/post.decorator';
 import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import type { PaginationResult } from '../data-source/models/pagination-result.model';
@@ -17,6 +12,11 @@ import { Response } from '../open-api/decorators/response.decorator';
 import { XmlAttribute } from '../parsing/xml/xml-attribute.decorator';
 import { XmlElement } from '../parsing/xml/xml-element.decorator';
 import { XmlRoot } from '../parsing/xml/xml-root.decorator';
+import { Body } from './decorators/body.decorator';
+import { Controller } from './decorators/controller.decorator';
+import { Delete } from './decorators/delete.decorator';
+import { Get } from './decorators/get.decorator';
+import { Post } from './decorators/post.decorator';
 
 class OrderLine {
     @Property.string()
@@ -151,10 +151,10 @@ describe('Router - answering with xml', () => {
     }, 15000);
 
     it('answers an empty result with 204, whichever of the formats the request reads', async () => {
-        const xml: globalThis.Response = await fetch(`${baseUrl}/orders/missing`, { headers: { [KnownHeader.ACCEPT]: MimeType.XML } });
+        const xmlResponse: globalThis.Response = await fetch(`${baseUrl}/orders/missing`, { headers: { [KnownHeader.ACCEPT]: MimeType.XML } });
         const json: globalThis.Response = await fetch(`${baseUrl}/orders/missing`, { headers: { [KnownHeader.ACCEPT]: MimeType.JSON } });
 
-        expect(xml.status).toBe(HttpStatus.NO_CONTENT);
+        expect(xmlResponse.status).toBe(HttpStatus.NO_CONTENT);
         expect(json.status).toBe(HttpStatus.NO_CONTENT);
     }, 15000);
 

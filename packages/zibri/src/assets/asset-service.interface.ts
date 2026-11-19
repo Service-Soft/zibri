@@ -1,6 +1,6 @@
-import { TreeNode } from './asset.service';
 import { Route } from '../routing/controller-route-configuration.model';
 import { FsPath } from '../utilities/fs.utilities';
+import { TreeNode } from './asset.service';
 
 /**
  * Interface for an asset service.

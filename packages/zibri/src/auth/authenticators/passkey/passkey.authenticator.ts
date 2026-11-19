@@ -1,14 +1,3 @@
-import { PasskeyAdditionRequest } from './passkey-addition-request.model';
-import { PasskeyCreationOptions } from './passkey-creation-options.model';
-import { PasskeyCredentials, PasskeyTicketCredentials } from './passkey-credentials.model';
-import { PasskeyLoginInput } from './passkey-login-input.model';
-import { PasskeyRegistrationInput } from './passkey-registration-input.model';
-import { PasskeyRegistrationRequest } from './passkey-registration-request.model';
-import { PasskeyRegistrationTicket } from './passkey-registration-ticket.model';
-import { PasskeyRegistration } from './passkey-registration.model';
-import { PasskeyRequestOptions } from './passkey-request-options.model';
-import { type PasskeyServiceInterface } from './passkey-service.interface';
-import { Passkey } from './passkey.model';
 import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -22,6 +11,17 @@ import { LinkIdentityConfirmingAuthenticatorInterface } from '../link-identity-c
 import { LinkIdentityRequestingAuthenticatorInterface } from '../link-identity-requesting-authenticator.interface';
 import { LoginOptionsAuthenticatorInterface } from '../login-options-authenticator.interface';
 import { RegistrationAuthenticatorInterface } from '../registration-authenticator.interface';
+import { PasskeyAdditionRequest } from './passkey-addition-request.model';
+import { PasskeyCreationOptions } from './passkey-creation-options.model';
+import { PasskeyCredentials, PasskeyTicketCredentials } from './passkey-credentials.model';
+import { PasskeyLoginInput } from './passkey-login-input.model';
+import { PasskeyRegistrationInput } from './passkey-registration-input.model';
+import { PasskeyRegistrationRequest } from './passkey-registration-request.model';
+import { PasskeyRegistrationTicket } from './passkey-registration-ticket.model';
+import { PasskeyRegistration } from './passkey-registration.model';
+import { PasskeyRequestOptions } from './passkey-request-options.model';
+import { type PasskeyServiceInterface } from './passkey-service.interface';
+import { Passkey } from './passkey.model';
 
 /**
  * Authenticates a user by a passkey: a key their device holds and only uses once it verified them, with

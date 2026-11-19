@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { MetricsSnapshot } from './metrics-snapshot.model';
-import { PrometheusMetricsService } from './metrics.service';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -13,6 +11,8 @@ import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
+import { MetricsSnapshot } from './metrics-snapshot.model';
+import { PrometheusMetricsService } from './metrics.service';
 
 @Controller('/buckets-test')
 class BucketsTestController {

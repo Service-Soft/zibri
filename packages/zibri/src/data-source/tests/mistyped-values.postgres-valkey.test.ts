@@ -1,6 +1,5 @@
 import { afterAll, beforeAll } from '@jest/globals';
 
-import { describeMistypedColumnValues, describeMistypedValues, Gauge, MistypedValueFixture } from './mistyped-values.cases';
 import { TestTimeouts } from '../../__testing__/constants';
 import { queryPostgres } from '../../__testing__/query-postgres.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -11,6 +10,7 @@ import { Newable } from '../../types/newable.type';
 import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
 import { MigrationEntity } from '../migration/migration-entity.model';
+import { describeMistypedColumnValues, describeMistypedValues, Gauge, MistypedValueFixture } from './mistyped-values.cases';
 
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
     entities: [...defaultTestServerEntities, Gauge],

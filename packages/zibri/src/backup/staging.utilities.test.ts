@@ -7,6 +7,8 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 
+import { testFileFolder } from '../__testing__/constants';
+import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { BackupDigest } from './backup-digest.model';
 import { BackupEncryptionUtilities } from './backup-encryption.utilities';
 import { BackupChunkUtilities } from './repository/backup-chunk.utilities';
@@ -16,8 +18,6 @@ import { FetchedBackupChunk } from './repository/fetched-backup-chunk.model';
 import { StagedChunksFile } from './staged-chunks-file.model';
 import { StagedFile } from './staged-file.model';
 import { StagingUtilities } from './staging.utilities';
-import { testFileFolder } from '../__testing__/constants';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 
 const stagingFolder: FsPath = FsUtilities.getPath(testFileFolder, 'staging-utilities');
 

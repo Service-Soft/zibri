@@ -289,10 +289,10 @@ class MarkdownTreeBuilder {
     }
 
     private heading(node: Heading): MarkdownConstruct {
-        const text: string | undefined = findText(node);
-        const anchor: string | undefined = text === undefined ? undefined : this.resolveAnchor(text);
-        if (text !== undefined && anchor !== undefined) {
-            this.headings.push({ depth: node.depth, text, id: anchor });
+        const headingText: string | undefined = findText(node);
+        const anchor: string | undefined = headingText === undefined ? undefined : this.resolveAnchor(headingText);
+        if (headingText !== undefined && anchor !== undefined) {
+            this.headings.push({ depth: node.depth, text: headingText, id: anchor });
         }
         return construct('heading', { tag: `h${node.depth}`, id: anchor }, this.phrasing(node.children), node);
     }
@@ -300,11 +300,11 @@ class MarkdownTreeBuilder {
     /**
      * The anchor of a heading, the way GitHub derives it: its text in lower case, without punctuation, spaces as
      * dashes, and a number added to the second and each later heading of the same text.
-     * @param text - The text of the heading.
+     * @param headingText - The text of the heading.
      * @returns The anchor.
      */
-    private resolveAnchor(text: string): string {
-        const anchor: string = text
+    private resolveAnchor(headingText: string): string {
+        const anchor: string = headingText
             .toLowerCase()
             .trim()
             .replaceAll(/[^\p{L}\p{N} _-]/gu, '')
@@ -356,7 +356,7 @@ class MarkdownTreeBuilder {
         if (!plain && highlighted.lines === undefined) {
             this.unknownLanguages.push(node);
         }
-        const lines: HighlightedToken[][] = highlighted.lines ?? node.value.split('\n').map(text => [{ text }]);
+        const lines: HighlightedToken[][] = highlighted.lines ?? node.value.split('\n').map(lineText => [{ text: lineText }]);
         // the code starts on the line below the opening fence
         const firstLine: number = lineOf(node) + 1;
         const content: MarkdownTreeNode[] = [...lines.entries()].flatMap(([index, tokens]): MarkdownTreeNode[] => [

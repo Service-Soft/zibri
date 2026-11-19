@@ -2,7 +2,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/glob
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { type WebsocketServiceInterface } from './websocket-service.interface';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
@@ -25,6 +24,7 @@ import { WebsocketMessageSequence, WebsocketMessageSequenceCreateData } from '..
 import { CreateWebsocketMessageData, WebsocketMessage } from '../models/websocket-message.model';
 import { WebsocketReplayIncomplete } from '../models/websocket-replay-incomplete.model';
 import { WebsocketMessageCleanupCronJob } from '../websocket-message-cleanup.cron-job';
+import { type WebsocketServiceInterface } from './websocket-service.interface';
 
 @WebsocketController({ allowOrphan: true, eventPrefix: 'replay:' })
 class ReplayWsController {

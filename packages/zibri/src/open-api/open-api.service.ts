@@ -1,8 +1,3 @@
-import { OpenApiExplorerTemplate, OpenApiExplorerVersion } from './explorer/open-api-explorer.model';
-import { OpenApiSchemaUtilities } from './open-api-schema.utilities';
-import { OpenApiServiceInterface } from './open-api-service.interface';
-import { OpenApiDefinition, OpenApiTagObject, OpenApiSecuritySchemeObject, OpenApiPaths, OpenApiResponse, OpenApiOperation, OpenApiSecurityRequirementObject, OpenApiServerObject } from './open-api.model';
-import { resolveResponseClass } from './resolve-response-class.function';
 import { ZibriApplication } from '../application/application';
 import { type AssetServiceInterface } from '../assets/asset-service.interface';
 import { type AsyncApiServiceInterface } from '../async-api/async-api-service.interface';
@@ -42,6 +37,11 @@ import { SemVerUtilities } from '../utilities/sem-ver.utilities';
 import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
 import { Version, VersionFile } from '../versioning/version.model';
 import { type VersioningServiceInterface } from '../versioning/versioning-service.interface';
+import { OpenApiExplorerTemplate, OpenApiExplorerVersion } from './explorer/open-api-explorer.model';
+import { OpenApiSchemaUtilities } from './open-api-schema.utilities';
+import { OpenApiServiceInterface } from './open-api-service.interface';
+import { OpenApiDefinition, OpenApiTagObject, OpenApiSecuritySchemeObject, OpenApiPaths, OpenApiResponse, OpenApiOperation, OpenApiSecurityRequirementObject, OpenApiServerObject } from './open-api.model';
+import { resolveResponseClass } from './resolve-response-class.function';
 
 /**
  * One version of the api, paired with the open api document describing it.

@@ -3,11 +3,6 @@ import assert from 'node:assert';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Response } from './decorators/response.decorator';
-import { OpenApiExplorerMethod, OpenApiExplorerOperation, OpenApiExplorerTag } from './explorer/open-api-explorer-operation.model';
-import { OpenApiExplorerUtilities } from './explorer/open-api-explorer.utilities';
-import { OpenApiContentObject, OpenApiDefinition, OpenApiMediaTypeObject, OpenApiOperation, OpenApiReferenceObject, OpenApiResponseObject, OpenApiSchemaObject, OpenApiServerObject } from './open-api.model';
-import { OpenApiService } from './open-api.service';
 import { TestTimeouts } from '../__testing__/constants';
 import { explorerTestProviders } from '../__testing__/explorer-test-providers';
 import { type Relation } from '../__testing__/relation.type';
@@ -55,6 +50,11 @@ import { type RouterInterface } from '../routing/router.interface';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { Version } from '../versioning/version.model';
 import { type VersioningServiceInterface } from '../versioning/versioning-service.interface';
+import { Response } from './decorators/response.decorator';
+import { OpenApiExplorerMethod, OpenApiExplorerOperation, OpenApiExplorerTag } from './explorer/open-api-explorer-operation.model';
+import { OpenApiExplorerUtilities } from './explorer/open-api-explorer.utilities';
+import { OpenApiContentObject, OpenApiDefinition, OpenApiMediaTypeObject, OpenApiOperation, OpenApiReferenceObject, OpenApiResponseObject, OpenApiSchemaObject, OpenApiServerObject } from './open-api.model';
+import { OpenApiService } from './open-api.service';
 
 class Tag {
     @Property.string()

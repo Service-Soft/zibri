@@ -1,6 +1,6 @@
+import { BigNumber } from '../../../utilities/number.utilities';
 import { BaseWhereFilter, BaseWhereFilterObject } from './base-where-filter.model';
 import { PropertiesHolding, PropertyReference } from './property-reference.model';
-import { BigNumber } from '../../../utilities/number.utilities';
 
 /**
  * Every shape a number takes, for a property that holds all of them.

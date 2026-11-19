@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { RegexUtilities } from './regex.utilities';
 import { Property } from '../entity/decorators/property.decorator';
 import { Param } from '../routing/decorators/param.decorator';
+import { RegexUtilities } from './regex.utilities';
 
 describe('RegexUtilities', () => {
     it('compiles a declared pattern once', () => {

@@ -1,5 +1,5 @@
-import { WakeUpListener } from './wake-up-listener.model';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
+import { WakeUpListener } from './wake-up-listener.model';
 
 /**
  * Tells the instances of a deployment that something they look for in a data source changed, so they

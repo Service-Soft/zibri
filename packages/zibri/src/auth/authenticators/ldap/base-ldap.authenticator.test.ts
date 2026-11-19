@@ -5,12 +5,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, FakeLdapDirectory, FakeLdapEntry, InMemoryDataSource, startFakeLdapDirectory } from 'zibri-testing';
 
-import { BaseLdapAuthenticator } from './base-ldap.authenticator';
-import { DisabledLdapEntriesCronJob } from './disabled-ldap-entries.cron-job';
-import { LdapCredentials } from './ldap-credentials.model';
-import { LdapEntry } from './ldap-entry.model';
-import { LdapIdentity, LdapIdentityCreateData } from './ldap-identity.model';
-import { LdapServiceAccount } from './ldap-service-account.model';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { missingEntityPattern } from '../../../__testing__/missing-entity-pattern.function';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
@@ -48,6 +42,12 @@ import { CreatedApiKey } from '../../strategies/api-key/created-api-key.model';
 import { JwtAuthData } from '../../strategies/jwt/jwt-auth-data.model';
 import { JwtRefreshLoginDto } from '../../strategies/jwt/jwt-refresh-login-data.model';
 import { JwtAuthStrategy } from '../../strategies/jwt/jwt.auth-strategy';
+import { BaseLdapAuthenticator } from './base-ldap.authenticator';
+import { DisabledLdapEntriesCronJob } from './disabled-ldap-entries.cron-job';
+import { LdapCredentials } from './ldap-credentials.model';
+import { LdapEntry } from './ldap-entry.model';
+import { LdapIdentity, LdapIdentityCreateData } from './ldap-identity.model';
+import { LdapServiceAccount } from './ldap-service-account.model';
 
 const SEARCH_BASE: string = 'ou=people,dc=zibri,dc=test';
 const GROUP_SEARCH_BASE: string = 'ou=groups,dc=zibri,dc=test';
@@ -452,13 +452,13 @@ async function authDataOf(res: Response): Promise<JwtAuthData<string>> {
 
 /**
  * The binds a directory was asked for since a point.
- * @param server - The directory.
+ * @param ldapDirectory - The directory.
  * @param since - How many binds it had been asked for before.
  * @param dn - Whose binds to count.
  * @returns How many there were.
  */
-function countBinds(server: FakeLdapDirectory, since: number, dn: string): number {
-    return server.binds.slice(since).filter(bind => bind.dn === dn).length;
+function countBinds(ldapDirectory: FakeLdapDirectory, since: number, dn: string): number {
+    return ldapDirectory.binds.slice(since).filter(bind => bind.dn === dn).length;
 }
 
 /**

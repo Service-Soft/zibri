@@ -1,4 +1,10 @@
+import { ZibriApplication } from '../../application/application';
+import { NoProviderError } from '../../di/errors/no-provider.error';
+import { inject } from '../../di/inject.function';
+import { DiProvider } from '../../di/models/di-provider.model';
 import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models/di-token.model';
+import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
+import { validateTokensRegistered } from '../../utilities/validate-tokens-registered.function';
 import { ZibriPlugin } from '../plugin.model';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from './invoicing.tokens';
 import { InvoiceRecipientAbbreviation } from './models/invoice-recipient-abbreviation.model';
@@ -6,17 +12,11 @@ import { Invoice } from './models/invoice.model';
 import { InvoicingOptionsInput } from './models/invoicing-options-input.model';
 import { InvoicingOptions } from './models/invoicing-options.model';
 import { NumberInvoices } from './models/number-invoices.model';
+import { PeppolConformanceService } from './services/conformance/en16931/peppol-conformance.service';
+import { XRechnungConformanceService } from './services/conformance/en16931/x-rechnung-conformance.service';
 import { InvoiceCalcService } from './services/invoice-calc.service';
 import { InvoiceNumberService } from './services/invoice-number.service';
 import { InvoicePdfService } from './services/invoice-pdf.service';
-import { ZibriApplication } from '../../application/application';
-import { NoProviderError } from '../../di/errors/no-provider.error';
-import { inject } from '../../di/inject.function';
-import { DiProvider } from '../../di/models/di-provider.model';
-import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
-import { validateTokensRegistered } from '../../utilities/validate-tokens-registered.function';
-import { PeppolConformanceService } from './services/conformance/en16931/peppol-conformance.service';
-import { XRechnungConformanceService } from './services/conformance/en16931/x-rechnung-conformance.service';
 
 /**
  * Plugin that includes everything for handling invoices.

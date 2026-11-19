@@ -634,16 +634,16 @@ export function describeTenantIsolationOverHttp(name: string, dataSourceClass: N
 
         describe('writing', () => {
             it('refuses a new row for another tenant, and writes nothing there', async () => {
-                const name: string = `smuggled ${UUIDUtilities.generate()}`;
+                const projectName: string = `smuggled ${UUIDUtilities.generate()}`;
                 const res: Response = await call(PROJECTS_PATH, {
                     token: alice.token,
                     tenant: tenantA,
                     method: 'POST',
-                    body: { name, tenantId: tenantB }
+                    body: { name: projectName, tenantId: tenantB }
                 });
 
                 expect(res.status).toBe(403);
-                expect(await namesOf(await call(PROJECTS_PATH, { token: bob.token, tenant: tenantB }))).not.toContain(name);
+                expect(await namesOf(await call(PROJECTS_PATH, { token: bob.token, tenant: tenantB }))).not.toContain(projectName);
             });
 
             it('refuses new related rows for another tenant', async () => {
@@ -707,14 +707,14 @@ export function describeTenantIsolationOverHttp(name: string, dataSourceClass: N
             });
 
             it('holds a unique within each tenant, and not across them', async () => {
-                const name: string = `website ${UUIDUtilities.generate()}`;
-                const inA: Response = await call(PROJECTS_PATH, { token: alice.token, tenant: tenantA, method: 'POST', body: { name } });
-                const inB: Response = await call(PROJECTS_PATH, { token: bob.token, tenant: tenantB, method: 'POST', body: { name } });
+                const projectName: string = `website ${UUIDUtilities.generate()}`;
+                const inA: Response = await call(PROJECTS_PATH, { token: alice.token, tenant: tenantA, method: 'POST', body: { name: projectName } });
+                const inB: Response = await call(PROJECTS_PATH, { token: bob.token, tenant: tenantB, method: 'POST', body: { name: projectName } });
                 const againInA: Response = await call(PROJECTS_PATH, {
                     token: alice.token,
                     tenant: tenantA,
                     method: 'POST',
-                    body: { name }
+                    body: { name: projectName }
                 });
 
                 // another tenant holding a name says nothing about this one, and must not be found out
@@ -722,7 +722,7 @@ export function describeTenantIsolationOverHttp(name: string, dataSourceClass: N
                 expect([inA.status, inB.status]).toEqual([200, 200]);
                 // a name already taken is the caller's to change, not a fault of the server
                 expect(againInA.status).toBe(409);
-                expect(await projects().count({ where: { name }, acrossTenants: true })).toBe(2);
+                expect(await projects().count({ where: { name: projectName }, acrossTenants: true })).toBe(2);
             });
         });
 

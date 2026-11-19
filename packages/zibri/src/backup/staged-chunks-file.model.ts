@@ -1,5 +1,5 @@
-import { BackupRepositoryKey } from './repository/backup-repository-key.model';
 import { FsPath } from '../utilities/fs.utilities';
+import { BackupRepositoryKey } from './repository/backup-repository-key.model';
 
 /**
  * A file a restore stages the chunks of a resource in, as they were stored: compressed already, and encrypted with

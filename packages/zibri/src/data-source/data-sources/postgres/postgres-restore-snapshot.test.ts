@@ -2,9 +2,6 @@ import { Readable } from 'node:stream';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { PostgresBackupScope } from './postgres-backup-scope.model';
-import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
-import { PostgresPooler } from './postgres-pooler.model';
 import { testFileFolder, TestTimeouts } from '../../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
@@ -29,6 +26,9 @@ import { Migration } from '../../migration/migration.model';
 import { SchemaManagement } from '../../models/schema-management.model';
 import { Repository } from '../../repository/repository';
 import { RepositoryClass } from '../../repository/repository-class.type';
+import { PostgresBackupScope } from './postgres-backup-scope.model';
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
+import { PostgresPooler } from './postgres-pooler.model';
 
 /**
  * Whether a restore of postgres alone keeps a copy of what it holds to put back: not when the backup

@@ -1,5 +1,5 @@
-import { Metric } from './metric.model';
 import { Property } from '../entity/decorators/property.decorator';
+import { Metric } from './metric.model';
 
 /**
  * A collected snapshot of all metrics.

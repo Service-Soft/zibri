@@ -1,7 +1,3 @@
-import { Jwk } from './jwk.model';
-import { Jwks } from './jwks.model';
-import { type JwtServiceInterface } from './jwt-service.interface';
-import { JwtUtilities } from './jwt.utilities';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { InternalError } from '../../../error-handling/internal-error.model';
@@ -12,6 +8,10 @@ import { Controller } from '../../../routing/decorators/controller.decorator';
 import { Get } from '../../../routing/decorators/get.decorator';
 import { Newable } from '../../../types/newable.type';
 import { Auth } from '../../decorators/auth.decorator';
+import { Jwk } from './jwk.model';
+import { Jwks } from './jwks.model';
+import { type JwtServiceInterface } from './jwt-service.interface';
+import { JwtUtilities } from './jwt.utilities';
 
 /**
  * Where the key set is published, below the path of the controller.

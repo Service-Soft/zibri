@@ -1,11 +1,11 @@
+import { ArrayPropertyMetadata } from '../../entity/models/array-property-metadata.model';
+import { OmitStrict } from '../../types/omit-strict.type';
 import { BaseParamMetadata } from './base-param-metadata.model';
 import { BooleanParamMetadata, BooleanParamMetadataInput } from './boolean-param-metadata.model';
 import { DateParamMetadata, DateParamMetadataInput } from './date-param-metadata.model';
 import { NumberParamMetadata, NumberParamMetadataInput } from './number-param-metadata.model';
 import { ObjectParamMetadata, ObjectParamMetadataInput } from './object-param-metadata.model';
 import { StringParamMetadata, StringParamMetadataInput } from './string-param-metadata.model';
-import { ArrayPropertyMetadata } from '../../entity/models/array-property-metadata.model';
-import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
  * Metadata for an item of an array parameter.

@@ -1,10 +1,10 @@
+import { ROLE_ENTITY } from '../../data-source/repository/repository-kind.model';
+import { BaseEntity } from '../../entity/base-entity.model';
+import { Property } from '../../entity/decorators/property.decorator';
 import type { PermissionWildcard } from './permission-wildcard.type';
 import type { Permission } from './permission.type';
 import type { PlatformPermission } from './platform-permission.type';
 import type { RoleLevel } from './role-level.type';
-import { ROLE_ENTITY } from '../../data-source/repository/repository-kind.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Property } from '../../entity/decorators/property.decorator';
 
 /**
  * The levels a role can be held at, as the enum of its column.

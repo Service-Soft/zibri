@@ -1,6 +1,3 @@
-import { AuditCheckpoint } from './audit-checkpoint.model';
-import { AuditEntry } from './audit-entry.model';
-import { describeAuditIntegrity } from './audit-integrity.cases';
 import { TestTimeouts } from '../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../__testing__/test-server/create-test-val-key-data-source.function';
@@ -8,6 +5,9 @@ import { PostgresDataSource } from '../data-source/data-sources/postgres/postgre
 import { ValKeyDataSource } from '../data-source/data-sources/val-key/val-key-data-source.model';
 import { MigrationEntity } from '../data-source/migration/migration-entity.model';
 import { Newable } from '../types/newable.type';
+import { AuditCheckpoint } from './audit-checkpoint.model';
+import { AuditEntry } from './audit-entry.model';
+import { describeAuditIntegrity } from './audit-integrity.cases';
 
 // each handed to one of the two servers below, so each is declared without the other using it
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({

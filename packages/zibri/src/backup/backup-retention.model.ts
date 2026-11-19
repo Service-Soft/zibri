@@ -1,5 +1,5 @@
-import { BackupPeriod } from './backup-period.type';
 import { Timezone } from '../localization/models/timezone.model';
+import { BackupPeriod } from './backup-period.type';
 
 /**
  * Which completed backups are kept, checked each time a backup completes. Every other completed backup

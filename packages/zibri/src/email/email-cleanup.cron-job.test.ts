@@ -1,13 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { EmailCleanupCronJob } from './email-cleanup.cron-job';
-import { CreateEmailData } from './models/create-email-data.model';
-import { EmailConfigInput } from './models/email-config.model';
-import { EmailPriority } from './models/email-priority.enum';
-import { EmailStatus } from './models/email-status.enum';
-import { Email } from './models/email.model';
-import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -22,6 +15,13 @@ import { TenantServiceInterface } from '../tenancy/tenant-service.interface';
 import { RetentionInMs } from '../types/retention-in-ms.type';
 import { Ms } from '../utilities/ms';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { EmailCleanupCronJob } from './email-cleanup.cron-job';
+import { CreateEmailData } from './models/create-email-data.model';
+import { EmailConfigInput } from './models/email-config.model';
+import { EmailPriority } from './models/email-priority.enum';
+import { EmailStatus } from './models/email-status.enum';
+import { Email } from './models/email.model';
+import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
 
 // in memory, so that what the cleanup leaves behind can be read without a container
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({

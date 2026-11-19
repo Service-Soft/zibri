@@ -9,12 +9,6 @@ import express from 'express';
 import NodeFormData from 'form-data';
 import { Agent } from 'undici';
 
-import { CircuitOpenError } from './circuit-open.error';
-import { HttpClientBufferedBody } from './http-client-buffered-body.model';
-import { HttpClientDispatcher, HttpClientOptionsInput } from './http-client-options.model';
-import { HttpClientResponse } from './http-client-response.model';
-import { HttpClientError } from './http-client.error';
-import { HttpClientInterface } from './http-client.interface';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { DiContainer } from '../di/di-container';
 import { initDiContainer } from '../di/init-di-container.function';
@@ -34,6 +28,12 @@ import { Parser } from '../parsing/parser';
 import { StreamBodyParser } from '../parsing/stream/stream.body-parser';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { Ms } from '../utilities/ms';
+import { CircuitOpenError } from './circuit-open.error';
+import { HttpClientBufferedBody } from './http-client-buffered-body.model';
+import { HttpClientDispatcher, HttpClientOptionsInput } from './http-client-options.model';
+import { HttpClientResponse } from './http-client-response.model';
+import { HttpClientError } from './http-client.error';
+import { HttpClientInterface } from './http-client.interface';
 
 class Item {
     @Property.string()
@@ -1004,7 +1004,7 @@ describe('a body held as the chunks it was read in', () => {
     let server: Server;
     let baseUrl: string;
     const received: ReceivedUpload[] = [];
-    const chunks: Buffer[] = ['first chunk, ', 'second chunk, ', 'and the last'].map(text => Buffer.from(text));
+    const chunks: Buffer[] = ['first chunk, ', 'second chunk, ', 'and the last'].map(chunk => Buffer.from(chunk));
     const sent: string = chunks.map(String).join('');
 
     beforeAll(async () => {

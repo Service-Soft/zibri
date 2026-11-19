@@ -1,7 +1,5 @@
 import { defaultClusterTestEntities, StartTestServerOptions } from 'zibri-testing';
 
-import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
-import { PostgresPooler } from './postgres-pooler.model';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Newable } from '../../../types/newable.type';
@@ -10,6 +8,8 @@ import { DataSource } from '../../decorators/data-source.decorator';
 import { Migration } from '../../migration/migration.model';
 import { SchemaManagement } from '../../models/schema-management.model';
 import { RepositoryClass } from '../../repository/repository-class.type';
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
+import { PostgresPooler } from './postgres-pooler.model';
 
 /**
  * What every instance of the transaction pooler cluster boots with: the migration scenario of

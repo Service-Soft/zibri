@@ -1,8 +1,3 @@
-import { QueueDefinition } from './queue-definition.model';
-import { QueueDelivery } from './queue-delivery.type';
-import { QueuedWorkHandedBackError } from './queued-work-handed-back.error';
-import { QueuedWorkItem } from './queued-work-item.model';
-import { QueuedWorkOutcome } from './queued-work-outcome.model';
 import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 import { SpanningTransaction } from '../data-source/transaction/spanning-transaction.model';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -11,6 +6,11 @@ import { InternalError } from '../error-handling/internal-error.model';
 import { type LeaseServiceInterface } from '../leases/lease-service.interface';
 import { errorToLoggedError } from '../logging/error-to-logged-error.function';
 import { type LoggerInterface } from '../logging/logger.interface';
+import { QueueDefinition } from './queue-definition.model';
+import { QueueDelivery } from './queue-delivery.type';
+import { QueuedWorkHandedBackError } from './queued-work-handed-back.error';
+import { QueuedWorkItem } from './queued-work-item.model';
+import { QueuedWorkOutcome } from './queued-work-outcome.model';
 
 /**
  * How many rows of each queue with a `maxConcurrentPerInstance` this process runs right now, by the

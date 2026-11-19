@@ -1,5 +1,3 @@
-import { BaseRateLimiter } from './base-rate-limiter.model';
-import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
 import { TooManyRequestsError } from '../../error-handling/errors/too-many-requests.error';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { $ts } from '../../localization/translate.function';
@@ -12,6 +10,8 @@ import { RateLimitReservationRejectionReason } from '../reservation/rate-limit-r
 import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
 import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
 import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
+import { BaseRateLimiter } from './base-rate-limiter.model';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
 
 /**
  * Persisted state for a semaphore limiter – simply the number of currently acquired permits.

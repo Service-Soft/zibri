@@ -1,11 +1,11 @@
-import { EntityOrder, OrderDirection, SimilarityOrder } from './entity-order.model';
-import { RelationTree } from './entity-relations.model';
-import { isRelationMetadata } from './is-relation-metadata.function';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { TrigramUtilities } from '../../utilities/trigram.utilities';
 import { PropertyMetadata } from '../decorators/property.decorator';
+import { EntityOrder, OrderDirection, SimilarityOrder } from './entity-order.model';
+import { RelationTree } from './entity-relations.model';
+import { isRelationMetadata } from './is-relation-metadata.function';
 
 /**
  * One property an order sorts by, and the way to reach it.

@@ -1,12 +1,12 @@
-import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from './base-thread-job-worker-data.model';
-import { ThreadJobCheckpoint } from './thread-job-checkpoint.model';
-import { ThreadJobStatus } from './thread-job-status.enum';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { QueuedWorkEntity } from '../../queue/queued-work-entity.model';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { type Percentage } from '../../types/percentage.type';
 import { ThreadJob } from '../services/thread-job';
+import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from './base-thread-job-worker-data.model';
+import { ThreadJobCheckpoint } from './thread-job-checkpoint.model';
+import { ThreadJobStatus } from './thread-job-status.enum';
 
 // eslint-disable-next-line unusedImports/no-unused-vars
 const omitValues: (keyof ThreadJob<BaseThreadJobWorkerData, unknown>)[] = [

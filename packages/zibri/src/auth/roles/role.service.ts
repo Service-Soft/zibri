@@ -1,20 +1,3 @@
-import { BaseRole } from './base-role.model';
-import { PermissionDeclaration } from './permission-declaration.model';
-import { type Permission } from './permission.type';
-import { type PlatformPermission } from './platform-permission.type';
-import { RoleCreateData } from './role-create-data.model';
-import { RoleEventWriteObserver } from './role-event.write-observer';
-import { RoleIdentity } from './role-identity.model';
-import { RoleIndex } from './role-index.model';
-import { RoleLevel } from './role-level.type';
-import { isRoleRepository } from './role-repository.interface';
-import { RoleServiceInterface } from './role-service.interface';
-import { RoleUpdateData } from './role-update-data.model';
-import { RoleUtilities } from './role.utilities';
-import { RoleWriteObserver } from './role.write-observer';
-import { TenantRoleIndex } from './tenant-role-index.model';
-import { WrittenRole } from './written-role.model';
-import { ZibriPermissions, ZibriPlatformPermissions } from './zibri-permissions.model';
 import { ZibriApplication } from '../../application/application';
 import { type AuditServiceInterface } from '../../audit/audit-service.interface';
 import { CacheRestoreTagUtilities } from '../../caching/cache-restore-tag.utilities';
@@ -53,6 +36,23 @@ import { Ms } from '../../utilities/ms';
 import { type CurrentUser } from '../decorators/current-user.decorator';
 import { BaseUser } from '../models/base-user.model';
 import { type UserServiceInterface } from '../user/user-service.interface';
+import { BaseRole } from './base-role.model';
+import { PermissionDeclaration } from './permission-declaration.model';
+import { type Permission } from './permission.type';
+import { type PlatformPermission } from './platform-permission.type';
+import { RoleCreateData } from './role-create-data.model';
+import { RoleEventWriteObserver } from './role-event.write-observer';
+import { RoleIdentity } from './role-identity.model';
+import { RoleIndex } from './role-index.model';
+import { RoleLevel } from './role-level.type';
+import { isRoleRepository } from './role-repository.interface';
+import { RoleServiceInterface } from './role-service.interface';
+import { RoleUpdateData } from './role-update-data.model';
+import { RoleUtilities } from './role.utilities';
+import { RoleWriteObserver } from './role.write-observer';
+import { TenantRoleIndex } from './tenant-role-index.model';
+import { WrittenRole } from './written-role.model';
+import { ZibriPermissions, ZibriPlatformPermissions } from './zibri-permissions.model';
 
 /**
  * The tag the roles every tenant shares are invalidated by, on every instance.

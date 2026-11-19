@@ -1,4 +1,3 @@
-import { type SmsCodeLimits } from './sms-code-limits.model';
 import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
@@ -10,6 +9,7 @@ import { RateLimitStateEntity } from '../../../../rate-limiting/stores/rate-limi
 import { InProcessRateLimiterLock } from '../../../../rate-limiting/stores/rate-limiter-lock.interface';
 import { RepositoryRateLimiterStore } from '../../../../rate-limiting/stores/repository.rate-limiter-store';
 import { Ms } from '../../../../utilities/ms';
+import { type SmsCodeLimits } from './sms-code-limits.model';
 
 /**
  * How many codes the whole application sends by text message: `maxPerHour` of `SMS_CODE_LIMITS`.

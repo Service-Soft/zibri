@@ -1,8 +1,8 @@
 import { $f, $ts, Input, Metric, MetricsSnapshot, TsxComponent, useContext, useInput } from 'zibri';
 
-import { Snapshots } from './snapshots';
 import { Card } from '../../components/card';
 import { Heading } from '../../components/heading';
+import { Snapshots } from './snapshots';
 
 type Props = {
     version: string,

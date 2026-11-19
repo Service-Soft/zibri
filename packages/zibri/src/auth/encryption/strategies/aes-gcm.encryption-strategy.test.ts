@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { AesGcmEncryptionStrategy } from './aes-gcm.encryption-strategy';
 import { EncryptionContent, EncryptionString, EncryptionUtilities } from '../encryption.utilities';
+import { AesGcmEncryptionStrategy } from './aes-gcm.encryption-strategy';
 
 describe('AesGcmEncryptionStrategy', () => {
     const strategy: AesGcmEncryptionStrategy = new AesGcmEncryptionStrategy();

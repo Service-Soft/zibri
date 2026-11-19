@@ -2,7 +2,6 @@ import assert from 'assert';
 
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
-import { XmlUtilities } from './xml.utilities';
 import { initDiContainer } from '../di/init-di-container.function';
 import { Property } from '../entity/decorators/property.decorator';
 import { OneOf } from '../entity/models/one-of.model';
@@ -22,6 +21,7 @@ import { resolveBodyMetadata } from '../routing/resolve-body-metadata.function';
 import { Newable } from '../types/newable.type';
 import { BigNumber } from '../utilities/number.utilities';
 import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { XmlUtilities } from './xml.utilities';
 
 class CompletedPart {
     @Property.number({ format: 'integer' })

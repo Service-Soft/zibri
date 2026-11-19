@@ -2,7 +2,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/glob
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource, RoundTripCounter } from 'zibri-testing';
 
-import { type WebsocketServiceInterface } from './websocket-service.interface';
 import { TestTimeouts } from '../../__testing__/constants';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { MemberRoles } from '../../__testing__/mocks/entities/member-roles.enum';
@@ -34,6 +33,7 @@ import { WebsocketAnswer } from '../models/websocket-answer.model';
 import { WebsocketChannel } from '../models/websocket-channel.model';
 import { WebsocketMessage } from '../models/websocket-message.model';
 import { WebsocketOptionsInput } from '../models/websocket-options.model';
+import { type WebsocketServiceInterface } from './websocket-service.interface';
 
 @WebsocketController({ allowOrphan: true, eventPrefix: 'tenancy-ws:' })
 class TenancyWsController {

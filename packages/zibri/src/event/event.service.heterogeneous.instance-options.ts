@@ -1,7 +1,5 @@
 import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
-import { type EventServiceInterface } from './event-service.interface';
-import { Event } from './event.model';
 import { Repository } from '../data-source/repository/repository';
 import { InjectRepository } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -10,6 +8,8 @@ import { defineProvider } from '../di/models/di-provider.model';
 import { type OnAppStart } from '../global/on-app-start.interface';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Post } from '../routing/decorators/post.decorator';
+import { type EventServiceInterface } from './event-service.interface';
+import { Event } from './event.model';
 
 /**
  * What every instance of the heterogeneous event cluster boots with.

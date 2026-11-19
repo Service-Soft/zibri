@@ -1,9 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { DefaultDescriptor } from './default-descriptor';
-import { NestedDescriptor } from './model-descriptor';
-import { ModelRegistry } from './model.registry';
-import { restoreExcludeProperties } from './restore-exclude-properties.function';
 import { TestTimeouts } from '../../__testing__/constants';
 import { type Relation } from '../../__testing__/relation.type';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -20,6 +16,10 @@ import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { OmitClass } from '../../entity/omit-class.model';
 import { JsonUtilities } from '../../utilities/json.utilities';
+import { DefaultDescriptor } from './default-descriptor';
+import { NestedDescriptor } from './model-descriptor';
+import { ModelRegistry } from './model.registry';
+import { restoreExcludeProperties } from './restore-exclude-properties.function';
 
 // This entity exercises all four model-registry descriptors together (exclude, default, hash,
 // encryption), created/read through a real repository. These descriptors are wired as the default

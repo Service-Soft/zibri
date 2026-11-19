@@ -3,8 +3,8 @@ import { ChildProcess, fork, ForkOptions } from 'node:child_process';
 import { describe, expect, it } from '@jest/globals';
 import { resolveTypeScriptForkOptions } from 'zibri-testing';
 
-import { STREAMED_DOWNLOAD_BYTES, STREAMED_DOWNLOADS } from './__testing__/streamed-download.constants';
 import { FsUtilities } from '../utilities/fs.utilities';
+import { STREAMED_DOWNLOAD_BYTES, STREAMED_DOWNLOADS } from './__testing__/streamed-download.constants';
 
 // a restore through s3 ended the application: the response body was paused by a reader slower than
 // the network when the service closed the connection, and the fetch of node's bundled undici then

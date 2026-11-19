@@ -1,8 +1,3 @@
-import { CodeTwoFactorMethod } from './code.two-factor-method';
-import { SmsCodeBudgetRateLimiter } from './sms-code-budget.rate-limiter';
-import { type SmsCodeLimits } from './sms-code-limits.model';
-import { SmsCodeNumberRateLimiter } from './sms-code-number.rate-limiter';
-import { SmsRegistrationRequestData } from './sms-registration-request-data.model';
 import { ZibriApplication } from '../../../../application/application';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
 import { NoProviderError } from '../../../../di/errors/no-provider.error';
@@ -19,6 +14,11 @@ import { type SmsServiceInterface } from '../../../../sms/sms-service.interface'
 import { Newable } from '../../../../types/newable.type';
 import { Ms } from '../../../../utilities/ms';
 import { UserAccount } from '../../../models/user-account.model';
+import { CodeTwoFactorMethod } from './code.two-factor-method';
+import { SmsCodeBudgetRateLimiter } from './sms-code-budget.rate-limiter';
+import { type SmsCodeLimits } from './sms-code-limits.model';
+import { SmsCodeNumberRateLimiter } from './sms-code-number.rate-limiter';
+import { SmsRegistrationRequestData } from './sms-registration-request-data.model';
 
 /**
  * A code sent as a text message to a phone number of the user as the second factor.

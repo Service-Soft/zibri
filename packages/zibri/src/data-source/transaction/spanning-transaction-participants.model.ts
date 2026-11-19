@@ -1,10 +1,10 @@
+import { InternalError } from '../../error-handling/internal-error.model';
+import { type DataSourceInterface, StartTransactionOptions } from '../data-sources/data-source.interface';
 import { SpanningTransactionCommitError } from './spanning-transaction-commit.error';
 import { SpanningTransactionRestoreFailure } from './spanning-transaction-restore-failure.model';
 import { type SpanningTransaction } from './spanning-transaction.model';
 import { TransactionAlreadyFinishedError } from './transaction-already-finished.error';
 import { Transaction } from './transaction.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { type DataSourceInterface, StartTransactionOptions } from '../data-sources/data-source.interface';
 
 /**
  * Undoes one write of a spanning transaction, in a transaction of the data source it was made in.

@@ -27,6 +27,9 @@
         "directory": "packages/testing"
     },
     "files": [
+        "./src",
+        "!src/**/__testing__/**",
+        "!src/**/*.test.ts",
         "./dist",
         "./README.md",
         "./LICENSE"
@@ -94,7 +97,7 @@
     },
     "devDependencies": {
         "@peculiar/x509": "^2.1.0",
-        "@service-soft/eslint-config": "^2.1.7",
+        "@service-soft/eslint-config": "^2.2.0",
         "@types/node": "^24.0.0",
         "eslint": "^9.36.0",
         "jest": "^30.4.2",

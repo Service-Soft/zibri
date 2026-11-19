@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from '@jest/globals';
 
+import { DiContainer } from '../di/di-container';
+import { initDiContainer } from '../di/init-di-container.function';
+import { Ms } from '../utilities/ms';
 import { LogLevel } from './log-level.enum';
 import { Log } from './log.model';
 import { Logger } from './logger';
 import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
-import { DiContainer } from '../di/di-container';
-import { initDiContainer } from '../di/init-di-container.function';
-import { Ms } from '../utilities/ms';
 
 /**
  * How the logger hands work to its transports.

@@ -7,8 +7,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { GenericContainer, StartedTestContainer } from 'testcontainers';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { PeppolConformanceService } from './peppol-conformance.service';
-import { XRechnungConformanceService } from './x-rechnung-conformance.service';
 import { TestTimeouts } from '../../../../../__testing__/constants';
 import { companyInfoProvider } from '../../../../../__testing__/mocks/company-info-provider.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../../../__testing__/test-server/create-test-data-source.function';
@@ -23,6 +21,8 @@ import { InvoiceItem } from '../../../models/invoice-item.model';
 import { InvoiceRecipientAbbreviation } from '../../../models/invoice-recipient-abbreviation.model';
 import { Invoice } from '../../../models/invoice.model';
 import { NumberInvoices } from '../../../models/number-invoices.model';
+import { PeppolConformanceService } from './peppol-conformance.service';
+import { XRechnungConformanceService } from './x-rechnung-conformance.service';
 
 // The electronic invoices of the plugin, checked by the validator KoSIT publishes for XRechnung, the one
 // German authorities check what they receive with: EN 16931's rules and XRechnung's for an XRechnung,

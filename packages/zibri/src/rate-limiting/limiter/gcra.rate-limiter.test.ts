@@ -2,13 +2,13 @@ import assert from 'node:assert';
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { GcraRateLimiter, GcraState } from './gcra.rate-limiter';
 import { initDiContainer } from '../../di/init-di-container.function';
 import { Ms } from '../../utilities/ms';
 import { RateLimitResult } from '../rate-limit-result.model';
 import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
 import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
 import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store';
+import { GcraRateLimiter, GcraState } from './gcra.rate-limiter';
 
 const NOW: number = 1_700_000_000_000;
 const CAPACITY: number = 10;

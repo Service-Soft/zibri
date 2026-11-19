@@ -1,9 +1,9 @@
+import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
+import { LeaseCompletion } from '../leases/lease-options.model';
 import { QueueDelivery } from './queue-delivery.type';
 import { QueuedWorkItem } from './queued-work-item.model';
 import { QueuedWorkOutcome } from './queued-work-outcome.model';
 import { QueuedWorkRun } from './queued-work-run.model';
-import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
-import { LeaseCompletion } from '../leases/lease-options.model';
 
 /**
  * A queue of work rows, as one subsystem keeps it: which rows are due, how one is run, and how its

@@ -1,8 +1,8 @@
-import { BaseEntity } from './base-entity.model';
-import { Property } from './decorators/property.decorator';
 import type { ChangeSetEntity } from '../data-source/change-sets/models/change-set-entity.model';
 import type { SoftDeleteEntity } from '../data-source/change-sets/models/soft-delete-entity.model';
 import { Newable } from '../types/newable.type';
+import { BaseEntity } from './base-entity.model';
+import { Property } from './decorators/property.decorator';
 
 /**
  * A row that belongs to one tenant: an id, and the tenant in `tenantId`, which is where `@Entity()`

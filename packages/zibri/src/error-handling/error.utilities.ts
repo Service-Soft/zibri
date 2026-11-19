@@ -1,11 +1,11 @@
 import { HttpStatus } from '../http/http-status.enum';
 import { $ts } from '../localization/translate.function';
+import { LoggerInterface } from '../logging/logger.interface';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { GlobalError } from './errors/global.error';
 import { HttpError } from './errors/http.error';
 import { InternalServerError } from './errors/internal-server.error';
 import { ExternalError } from './external-error.model';
-import { LoggerInterface } from '../logging/logger.interface';
 
 /**
  * Utilities for handling errors.

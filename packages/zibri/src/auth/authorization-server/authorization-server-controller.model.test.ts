@@ -6,8 +6,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createRemoteJWKSet, exportJWK, jwtVerify, JWTVerifyResult, SignJWT } from 'jose';
 import { createFakeKeyPair, createInMemoryDataSource, FakeDpopKey, FakeKeyPair, InMemoryDataSource } from 'zibri-testing';
 
-import { AuthorizationServerController } from './authorization-server-controller.model';
-import { IntrospectionResponse } from './introspection-response.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
 import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
@@ -67,6 +65,8 @@ import { JwtAuthOptionsInput } from '../strategies/jwt/jwt-auth-options.model';
 import { JwtRevokedAccessToken } from '../strategies/jwt/jwt-revoked-access-token.model';
 import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy';
 import { JwtUtilities } from '../strategies/jwt/jwt.utilities';
+import { AuthorizationServerController } from './authorization-server-controller.model';
+import { IntrospectionResponse } from './introspection-response.model';
 
 /**
  * What the route answering with the current user answers.
@@ -318,11 +318,11 @@ function authService(): AuthServiceInterface {
 /**
  * Creates a user with the given roles.
  * @param name - What sets the user's email apart.
- * @param roles - The roles of the user.
+ * @param userRoles - The roles of the user.
  * @returns The user.
  */
-async function createUser(name: string, roles: Roles[] = [Roles.USER]): Promise<JwtUser> {
-    return await inject(repositoryTokenFor(JwtUser)).create({ email: `${name}@clients.test`, roles });
+async function createUser(name: string, userRoles: Roles[] = [Roles.USER]): Promise<JwtUser> {
+    return await inject(repositoryTokenFor(JwtUser)).create({ email: `${name}@clients.test`, roles: userRoles });
 }
 
 /**

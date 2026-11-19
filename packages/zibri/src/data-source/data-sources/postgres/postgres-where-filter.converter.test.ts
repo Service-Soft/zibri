@@ -1,9 +1,5 @@
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
-import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
-import { PostgresPooler } from './postgres-pooler.model';
-import { PostgresSchema } from './postgres-schema.model';
-import { PostgresWhereFilterConverter } from './postgres-where-filter.converter';
 import { Company } from '../../../__testing__/mocks/entities/company.entity';
 import { Profile } from '../../../__testing__/mocks/entities/profile.entity';
 import { Role } from '../../../__testing__/mocks/entities/role.entity';
@@ -17,6 +13,10 @@ import { SchemaManagement } from '../../models/schema-management.model';
 import { Where } from '../../models/where/where-filter.model';
 import { RepositoryClass } from '../../repository/repository-class.type';
 import { ParameterizedSql } from '../where-converter/parameterized-sql.model';
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
+import { PostgresPooler } from './postgres-pooler.model';
+import { PostgresSchema } from './postgres-schema.model';
+import { PostgresWhereFilterConverter } from './postgres-where-filter.converter';
 
 /**
  * A condition as a statement holds it, with each placeholder written as `?`, and what it binds in order.

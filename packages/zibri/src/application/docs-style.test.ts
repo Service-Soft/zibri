@@ -31,6 +31,13 @@ const ZIBRI_IMPORT: RegExp = /^import\s+(?:type\s+)?{([^}]*)}\s+from\s+'zibri(?:
 const REQUIREMENT_PACKAGE_HEADER: string = '| Package | Used for |';
 
 /**
+ * What the site publishes beside the pages without being one: its home page, which introduces the project the way
+ * its README does, and the changelog, which is history by what it is. The rules of a page leave them alone, and
+ * their links still have to lead somewhere.
+ */
+const NOT_PAGES: string[] = ['README.md', 'releases/CHANGELOG.md'];
+
+/**
  * The header of the table of entities under `## Requirements`.
  */
 const REQUIREMENT_ENTITY_HEADER: string = '| Entity | Needed when |';
@@ -182,7 +189,7 @@ const RULES: StyleRule[] = [
         name: 'says what is, with no history',
         pattern: /\b(any ?more|no longer|used to be|today|nowadays|2\.x)\b|\(yet\)/gi,
         readsCode: false,
-        exceptFor: ['upgrading-to-3.md']
+        exceptFor: ['releases/upgrading-to-3.md']
     },
     {
         // DOCS_STYLE, "What stays out of a page": references into the repository. Case sensitive, so
@@ -401,18 +408,19 @@ function findTableRows(lines: PageLine[], header: string): RequirementRow[] {
 }
 
 /**
- * Reads the rows of the table under `## Requirements` that the given header opens.
+ * Reads the rows of the table under a heading that the given header opens.
  * @param page - The page.
  * @param header - The header row of the table.
+ * @param heading - The heading line the table is under.
  * @returns The rows below the header, without the separator.
  */
-function findRequirementRows(page: Page, header: string): RequirementRow[] {
+function findRequirementRows(page: Page, header: string, heading: string = '## Requirements'): RequirementRow[] {
     const rows: RequirementRow[] = [];
     let inRequirements: boolean = false;
     let inTable: boolean = false;
     for (const line of page.lines.filter(entry => !entry.inCode)) {
         if (/^#+ /.test(line.raw)) {
-            inRequirements = line.raw === '## Requirements';
+            inRequirements = line.raw === heading;
             continue;
         }
         if (!line.raw.startsWith('|')) {
@@ -456,7 +464,7 @@ function resolveKeyExportNames(pages: Page[]): Set<string> {
  * @returns Each place as `page:line "match"`.
  */
 function findViolations(page: Page, rule: StyleRule): string[] {
-    if (rule.exceptFor.includes(page.name)) {
+    if (rule.exceptFor.includes(page.name) || NOT_PAGES.includes(page.name)) {
         return [];
     }
     const violations: string[] = [];
@@ -508,7 +516,7 @@ describe('the pages in docs/', () => {
 
     it('has its parts in the order of every page', () => {
         const misplaced: string[] = [];
-        for (const page of pages) {
+        for (const page of pages.filter(other => !NOT_PAGES.includes(other.name))) {
             const { name, sections } = page;
             if (sections.includes('Usage')) {
                 misplaced.push(`${name}: a "Usage" section around the tasks`);
@@ -516,10 +524,11 @@ describe('the pages in docs/', () => {
             if (sections.includes('Key exports') && sections[0] !== 'Key exports') {
                 misplaced.push(`${name}: "Key exports" is not the first section`);
             }
-            if (!['upgrading-to-3.md'].includes(name) && sections.at(-1) !== 'See also') {
+            if (!['releases/upgrading-to-3.md'].includes(name) && sections.at(-1) !== 'See also') {
                 misplaced.push(`${name}: "See also" is not the last section`);
             }
-            if (sections.includes('Requirements') && sections.at(-2) !== 'Requirements') {
+            // what the first page says a project runs on, before anything is installed, rather than what a feature needs
+            if (name !== 'getting-started.md' && sections.includes('Requirements') && sections.at(-2) !== 'Requirements') {
                 misplaced.push(`${name}: "Requirements" is not right before "See also"`);
             }
         }
@@ -624,6 +633,17 @@ describe('the pages in docs/', () => {
                 }
             }
         }
+        // the packages the build of a generated project runs on, which `zi new` installs: optional peers that need
+        // nothing from the reader
+        const layout: Page | undefined = pages.find(page => page.name === 'application/project-layout.md');
+        for (const { line, cells } of layout == undefined ? [] : findRequirementRows(layout, REQUIREMENT_PACKAGE_HEADER, '### Build dependencies')) {
+            const name: string | undefined = /^`([^`]+)`$/.exec(cells[0] ?? '')?.[1];
+            if (name == undefined || !dependencies.has(name)) {
+                wrong.push(`application/project-layout.md:${line} names no dependency`);
+                continue;
+            }
+            listed.add(name);
+        }
         for (const name of dependencies) {
             if (!listed.has(name)) {
                 wrong.push(`no page lists ${name}`);
@@ -709,7 +729,7 @@ describe('the pages in docs/', () => {
         }
 
         const unlinked: string[] = [];
-        for (const page of pages.filter(other => other.name !== GLOSSARY_PAGE)) {
+        for (const page of pages.filter(other => other.name !== GLOSSARY_PAGE && !NOT_PAGES.includes(other.name))) {
             const seeAlso: number = page.lines.find(line => line.raw === '## See also')?.line ?? Number.POSITIVE_INFINITY;
             for (const term of terms) {
                 const pattern: RegExp = resolveTermPattern(term);

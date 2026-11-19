@@ -1,8 +1,8 @@
-import { type RateLimitingServiceInterface } from './rate-limiting-service.interface';
 import { CronExpression } from '../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
 import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { type RateLimitingServiceInterface } from './rate-limiting-service.interface';
 
 /**
  * A cron job to cleanup expired rate limit data.

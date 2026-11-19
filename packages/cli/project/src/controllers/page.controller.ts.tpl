@@ -33,7 +33,8 @@ export class PageController {
     @Get()
     async index(): Promise<HtmlResponse> {
         const html: string = TsxUtilities.renderPage(HomePage, { appName: GlobalRegistry.getAppData('name') ?? '' });
-        return HtmlResponse.fromString(html);
+        // a promise, which is what @Cached takes a method to return, of a page rendered at once
+        return Promise.resolve(HtmlResponse.fromString(html));
     }
 
     @Cached(StaticPagesCache, () => StaticPagesCache.getPageKey('assets'))

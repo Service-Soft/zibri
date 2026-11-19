@@ -1,11 +1,11 @@
 import { AsyncApiDefinition, AsyncApiExplorerOperation, AsyncApiExplorerServer, AsyncApiExplorerTag, AsyncApiExplorerUtilities, AsyncApiMessage, OpenApiExampleDirection, provideContext, TsxComponent } from 'zibri';
 
+import { Heading } from '../components/heading';
+import { Link } from '../components/link';
 import { ExplorerBar } from './explorer-bar';
 import { ExplorerContent } from './explorer-content';
 import { ExplorerDefinition } from './explorer-context';
 import { ExplorerMethodClasses, resolveMethodClasses } from './explorer-methods';
-import { Heading } from '../components/heading';
-import { Link } from '../components/link';
 
 type Props = {
     definition: AsyncApiDefinition,

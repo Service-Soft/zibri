@@ -1,9 +1,6 @@
 import type { JWTPayload } from 'jose';
 import type { ClientAuth, Configuration, DiscoveryRequestOptions, IDToken, ServerMetadata, TokenEndpointResponse, TokenEndpointResponseHelpers } from 'openid-client';
 
-import { OidcAuthenticationTime } from './oidc-authentication-time.type';
-import { OidcBearerTokens } from './oidc-bearer-tokens.model';
-import { OidcDiscoveryAtBoot } from './oidc-discovery-at-boot.type';
 import { ZibriApplication } from '../../../application/application';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
@@ -40,6 +37,9 @@ import { OAuthProviderLogin } from '../oauth/oauth-provider-login.model';
 import { OpenIdClient } from '../oauth/open-id-client.type';
 import { ProviderTokenAuthenticatorInterface } from '../provider-token-authenticator.interface';
 import { ProviderToken } from '../provider-token.model';
+import { OidcAuthenticationTime } from './oidc-authentication-time.type';
+import { OidcBearerTokens } from './oidc-bearer-tokens.model';
+import { OidcDiscoveryAtBoot } from './oidc-discovery-at-boot.type';
 
 /**
  * The event a logout token carries, as OpenID Connect Back-Channel Logout 1.0 names it.

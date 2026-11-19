@@ -38,7 +38,7 @@ export function PaginationResultClass<T>(itemClass: Newable<T>): Newable<Paginat
     // named here, as an xml document would otherwise be named after this class, whatever the items are
     // eslint-disable-next-line jsdoc/require-jsdoc
     @XmlRoot({ name: 'PaginationResult' })
-    class PaginationResultClass implements PaginationResult<T> {
+    class PaginationResultOfItems implements PaginationResult<T> {
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Property.array({ items: { type: 'object', cls: () => itemClass }, description: 'the paginated items' })
         items!: T[];
@@ -47,7 +47,7 @@ export function PaginationResultClass<T>(itemClass: Newable<T>): Newable<Paginat
         totalAmount!: number;
     }
 
-    return PaginationResultClass;
+    return PaginationResultOfItems;
 }
 
 // eslint-disable-next-line jsdoc/require-returns
@@ -58,7 +58,7 @@ export function PaginationResultClass<T>(itemClass: Newable<T>): Newable<Paginat
 export function KeysetPageClass<T>(itemClass: Newable<T>): Newable<KeysetPage<T>> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     @XmlRoot({ name: 'KeysetPage' })
-    class KeysetPageClass implements KeysetPage<T> {
+    class KeysetPageOfItems implements KeysetPage<T> {
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Property.array({ items: { type: 'object', cls: () => itemClass }, description: 'the items of this page' })
         items!: T[];
@@ -73,5 +73,5 @@ export function KeysetPageClass<T>(itemClass: Newable<T>): Newable<KeysetPage<T>
         nextCursor: string | undefined;
     }
 
-    return KeysetPageClass;
+    return KeysetPageOfItems;
 }

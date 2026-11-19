@@ -1,13 +1,13 @@
-import { TenantBackupTransportKindInterface } from './tenant-backup-transport-kind.interface';
-import { TenantSftpTransportSecret } from './tenant-sftp-transport-secret.model';
-import { TenantSftpTransportSettings } from './tenant-sftp-transport-settings.model';
-import { TenantTransportNetwork } from './tenant-transport-network.model';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { $ts } from '../../localization/translate.function';
 import { Newable } from '../../types/newable.type';
 import { BackupTransportSupporting } from '../transports/backup-transport.interface';
 import { SftpAuthentication } from '../transports/sftp/sftp-authentication.model';
 import { SftpBackupTransport } from '../transports/sftp.backup-transport';
+import { TenantBackupTransportKindInterface } from './tenant-backup-transport-kind.interface';
+import { TenantSftpTransportSecret } from './tenant-sftp-transport-secret.model';
+import { TenantSftpTransportSettings } from './tenant-sftp-transport-settings.model';
+import { TenantTransportNetwork } from './tenant-transport-network.model';
 
 /**
  * An SFTP server a tenant keeps its backups on, logged in to with a password or a private key.

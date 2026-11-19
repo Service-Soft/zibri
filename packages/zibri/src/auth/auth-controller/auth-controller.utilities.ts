@@ -1,5 +1,3 @@
-import { AuthControllerClass } from './auth-controller-class.type';
-import { isAuthControllerClass } from './is-auth-controller-class.function';
 import { ZibriApplication } from '../../application/application';
 import { StartTransactionOptions } from '../../data-source/data-sources/data-source.interface';
 import { SpanningTransaction } from '../../data-source/transaction/spanning-transaction.model';
@@ -20,6 +18,8 @@ import { isLinkIdentityRequestingAuthenticator } from '../authenticators/link-id
 import { isLoginOptionsAuthenticator } from '../authenticators/login-options-authenticator.interface';
 import { isRegistrationAuthenticator } from '../authenticators/registration-authenticator.interface';
 import { isAuthControllerStrategy } from '../strategies/auth-controller-strategy.interface';
+import { AuthControllerClass } from './auth-controller-class.type';
+import { isAuthControllerClass } from './is-auth-controller-class.function';
 
 /**
  * The routes of `AuthController` that read more than a login from an authenticator.

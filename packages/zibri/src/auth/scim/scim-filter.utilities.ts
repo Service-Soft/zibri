@@ -1,9 +1,9 @@
+import { HttpStatus } from '../../http/http-status.enum';
+import { $ts } from '../../localization/translate.function';
 import { ScimErrorType } from './scim-error-type.enum';
 import { ScimAttributePath, ScimComparisonOperator, ScimFilter, ScimFilterValue } from './scim-filter.model';
 import { ScimSchema } from './scim-schema.enum';
 import { ScimError } from './scim.error';
-import { HttpStatus } from '../../http/http-status.enum';
-import { $ts } from '../../localization/translate.function';
 
 /**
  * A piece of a filter's text.

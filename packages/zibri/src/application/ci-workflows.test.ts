@@ -636,17 +636,13 @@ describe('the tree a consumer installs', () => {
         expect(res.unused).toStrictEqual(['GHSA-gggg-hhhh-iiii']);
     });
 
-    it('names the advisories it allows where a reader looks for them', () => {
-        const policy: { allowed: Record<string, { package: string }> } = JsonUtilities.parse(
-            readFileSync(path.join(repoRoot, '.github', 'advisory-policy.json'), 'utf8')
-        );
+    it('sends a reader to the advisories it allows', () => {
         const deployment: string = readFileSync(path.join(DOCS_DIR, 'operations', 'deployment.md'), 'utf8');
         const section: string = deployment.slice(deployment.indexOf('## What the application is made of'), deployment.indexOf('## Running more than one instance'));
 
         // the page promises a release has no known high or critical advisory, so every one let through
-        // is one a reader has to be told about, by its id and the package it is in
-        const allowed: string[] = Object.entries(policy.allowed).map(([id, { package: name }]) => `[${id}](https://github.com/advisories/${id}) in \`${name}\``);
-        expect(allowed.filter(entry => !section.includes(entry))).toStrictEqual([]);
+        // is one a reader has to be told about: the policy names each, by its id, its package and why
+        expect(section).toContain('](https://github.com/Service-Soft/zibri/blob/dev/.github/advisory-policy.json)');
     });
 
     it('holds every license in it to the policy', () => {

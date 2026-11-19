@@ -6,7 +6,6 @@ import { runInNewContext } from 'node:vm';
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import ts from 'typescript';
 
-import { NewCommand } from './new.command';
 import { version } from '../../../package.json';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
 import { findWorkflowCommands } from '../../__testing__/find-workflow-commands.function';
@@ -22,6 +21,7 @@ import { SCAFFOLD_FEATURE_FILES,
     ScaffoldManifest,
     ScaffoldUtilities } from '../../scaffold';
 import { Path } from '../../utilities';
+import { NewCommand } from './new.command';
 
 /**
  * Every set of features a project can be generated with.
@@ -120,7 +120,7 @@ describe('NewCommand', () => {
             scripts: {
                 start: 'webpack --watch',
                 build: 'webpack',
-                test: 'node --experimental-vm-modules node_modules/jest/bin/jest.js',
+                test: 'node scripts/test.mjs',
                 // run by the build, which carries the migrations to revert: a deployment has no cli
                 'migrate:list': 'node dist/bundle.js migrate list',
                 'migrate:down': 'node dist/bundle.js migrate down',
@@ -196,6 +196,8 @@ describe('NewCommand', () => {
             ];
             const present: string[] = [
                 'webpack.config.js',
+                // what "npm test" runs, which finds jest wherever npm installed it
+                'scripts/test.mjs',
                 'src/__testing__/health.test.ts',
                 'src/templates/emails/password-reset.tsx'
             ];
@@ -258,7 +260,7 @@ describe('NewCommand', () => {
             await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', features.length ? features.join(',') : 'none']));
             const appDir: Path = path.join(workDir, 'api') as Path;
             const files: string[] = await FsUtilities.findFiles(appDir, [NOT_IN_VERSION_CONTROL]);
-            for (const file of files.filter(file => /\.tsx?$/.test(file))) {
+            for (const file of files.filter(generatedFile => /\.tsx?$/.test(generatedFile))) {
                 const content: string = await FsUtilities.readFile(path.join(appDir, file) as Path);
                 for (const [, specifier] of content.matchAll(/(?:from|import) '(\.[^']*)'/g)) {
                     const base: string = path.posix.join(path.posix.dirname(file), specifier);
@@ -512,7 +514,7 @@ describe('NewCommand', () => {
             'src/data-sources/db/db.data-source.ts'
         ].map(read))).join('\n');
         expect(sources).not.toMatch(/Number\(\w+Env\(/);
-        for (const read of [
+        for (const envCheck of [
             'requirePortEnv(\'PORT\')',
             'requirePortEnv(\'DB_PORT\')',
             'requireUrlEnv(\'BASE_URL\')',
@@ -521,7 +523,7 @@ describe('NewCommand', () => {
             'requireEnv(\'SMTP_HOST\')',
             'requirePortEnv(\'SMTP_PORT\')'
         ]) {
-            expect(sources).toContain(read);
+            expect(sources).toContain(envCheck);
         }
     });
 

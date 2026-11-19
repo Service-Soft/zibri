@@ -1,7 +1,3 @@
-import { UserEventWriteObserver } from './user-event.write-observer';
-import { isUserRepository, UserRepositoryInterface } from './user-repository.interface';
-import { FindUserOptions, UserServiceInterface } from './user-service.interface';
-import { UserWriteObserver } from './user.write-observer';
 import { Repository } from '../../data-source/repository/repository';
 import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { EntityWriteObserverRegistry } from '../../data-source/write-observers/entity-write-observer.registry';
@@ -25,6 +21,10 @@ import { type LoggerInterface } from '../../logging/logger.interface';
 import { Newable } from '../../types/newable.type';
 import { BaseUser } from '../models/base-user.model';
 import { RoleUtilities } from '../roles/role.utilities';
+import { UserEventWriteObserver } from './user-event.write-observer';
+import { isUserRepository, UserRepositoryInterface } from './user-repository.interface';
+import { FindUserOptions, UserServiceInterface } from './user-service.interface';
+import { UserWriteObserver } from './user.write-observer';
 
 /**
  * An error to throw during user service initialization.

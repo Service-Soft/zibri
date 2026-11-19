@@ -1,6 +1,6 @@
-import { BaseMembership } from './base-membership.model';
 import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { Newable } from '../../types/newable.type';
+import { BaseMembership } from './base-membership.model';
 
 /**
  * Interface for the service that answers which tenants a user belongs to, and with which roles.

@@ -1,6 +1,6 @@
-import { FindOneOptions } from './find-one-options.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { EntitySelection } from '../../../entity/models/entity-selection.model';
+import { FindOneOptions } from './find-one-options.model';
 
 /**
  * Options for finding a single entity by its id.

@@ -2,7 +2,6 @@ import { Stats, WriteStream } from 'node:fs';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { InvoicePdfService } from './invoice-pdf.service';
 import { testFileFolder, TestTimeouts } from '../../../__testing__/constants';
 import { companyInfoProvider } from '../../../__testing__/mocks/company-info-provider.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -26,6 +25,7 @@ import { InvoiceRecipientAbbreviation } from '../models/invoice-recipient-abbrev
 import { Invoice } from '../models/invoice.model';
 import { InvoicingOptions } from '../models/invoicing-options.model';
 import { NumberInvoices } from '../models/number-invoices.model';
+import { InvoicePdfService } from './invoice-pdf.service';
 
 const invoicingOptions: InvoicingOptions = {
     pageSize: 'A4',

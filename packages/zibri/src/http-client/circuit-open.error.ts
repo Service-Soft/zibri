@@ -1,5 +1,5 @@
-import { HttpClientError } from './http-client.error';
 import { HttpMethod } from '../http/http-method.enum';
+import { HttpClientError } from './http-client.error';
 
 /**
  * Thrown by the http client for a request it did not send, because the origin it goes to failed too

@@ -1,6 +1,21 @@
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
+import { XmlString } from '../../document/xml-string.type';
+import { XmlUtilities } from '../../document/xml.utilities';
+import { FileSize, fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
+import { InternalError } from '../../error-handling/internal-error.model';
+import { HttpMethod } from '../../http/http-method.enum';
+import { HttpStatus } from '../../http/http-status.enum';
+import { KnownHeader } from '../../http/known-header.enum';
+import { MimeType } from '../../http/mime-type.enum';
+import { isHttpClientError } from '../../http-client/http-client.error';
+import { HttpClientInterface } from '../../http-client/http-client.interface';
+import { LoggerInterface } from '../../logging/logger.interface';
+import { Ms } from '../../utilities/ms';
+import { BigNumber } from '../../utilities/number.utilities';
 import { BackupKeyNotFoundError } from './backup-key-not-found.error';
 import { BackupTransportSessionInterface } from './backup-transport-session.interface';
 import { BaseBackupTransport } from './base.backup-transport';
@@ -18,21 +33,6 @@ import { S3ServerSideEncryption } from './s3/s3-server-side-encryption.model';
 import { S3SignatureUtilities } from './s3/s3-signature.utilities';
 import { S3UploadBody } from './s3/s3-upload-body.model';
 import { validateS3BucketName } from './s3/validate-s3-bucket-name.function';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { XmlString } from '../../document/xml-string.type';
-import { XmlUtilities } from '../../document/xml.utilities';
-import { FileSize, fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { HttpMethod } from '../../http/http-method.enum';
-import { HttpStatus } from '../../http/http-status.enum';
-import { KnownHeader } from '../../http/known-header.enum';
-import { MimeType } from '../../http/mime-type.enum';
-import { isHttpClientError } from '../../http-client/http-client.error';
-import { HttpClientInterface } from '../../http-client/http-client.interface';
-import { LoggerInterface } from '../../logging/logger.interface';
-import { Ms } from '../../utilities/ms';
-import { BigNumber } from '../../utilities/number.utilities';
 
 // what the protocol allows a multipart upload: at most this many parts, each but the last at least the minimum
 const MAX_PARTS: number = 10_000;

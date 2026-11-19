@@ -1,4 +1,3 @@
-import { AggregateFunction, AggregateRow } from './models/aggregate.model';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { isRelationMetadata } from '../entity/models/is-relation-metadata.function';
 import { InternalError } from '../error-handling/internal-error.model';
@@ -6,6 +5,7 @@ import { ModelRegistry } from '../global/model-registry/model.registry';
 import { Newable } from '../types/newable.type';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { AggregateFunction, AggregateRow } from './models/aggregate.model';
 
 /**
  * A group of rows while it is being added up.

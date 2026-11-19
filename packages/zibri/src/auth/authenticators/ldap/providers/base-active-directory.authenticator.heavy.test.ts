@@ -4,7 +4,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 import { createFakeKeyPair, createInMemoryDataSource, FakeKeyPair, InMemoryDataSource } from 'zibri-testing';
 
-import { BaseActiveDirectoryAuthenticator } from './base-active-directory.authenticator';
 import { ContainerOutput } from '../../../../__testing__/container-output.model';
 import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../../__testing__/mocks/entities/roles.enum';
@@ -33,6 +32,7 @@ import { LdapCredentials } from '../ldap-credentials.model';
 import { LdapEntry } from '../ldap-entry.model';
 import { LdapIdentity } from '../ldap-identity.model';
 import { LdapServiceAccount } from '../ldap-service-account.model';
+import { BaseActiveDirectoryAuthenticator } from './base-active-directory.authenticator';
 
 // built from Debian's samba package, see the Dockerfile
 const DOMAIN_CONTROLLER_IMAGE: string = 'zibri-test-samba-ad-dc';

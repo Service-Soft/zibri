@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { validateEntitiesRegistered } from './validate-entities-registered.function';
 import { TestTimeouts } from '../__testing__/constants';
 import { missingEntityPattern } from '../__testing__/missing-entity-pattern.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
@@ -17,6 +16,7 @@ import { AppState } from '../global/app-state.enum';
 import { GlobalRegistry } from '../global/global-registry';
 import { Lease } from '../leases/lease.model';
 import { ZibriPlugin } from '../plugin/plugin.model';
+import { validateEntitiesRegistered } from './validate-entities-registered.function';
 
 @Entity({ tenant: 'shared', allowOrphan: true })
 class UnregisteredScratchEntity extends BaseEntity {}

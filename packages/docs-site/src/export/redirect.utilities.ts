@@ -3,11 +3,11 @@ import path from 'node:path';
 import type { JSONOutput } from 'typedoc' with { 'resolution-mode': 'import' };
 import { DocsUtilities } from 'zibri';
 
-import { MovedPage } from './moved-page.model';
 import { API_FOLDER, ApiReferenceUtilities } from '../api/api-reference.utilities';
 import { REFLECTION_KINDS } from '../api/reflection-kinds';
 import { BASE_PATH } from '../base-path';
 import { DOCS_SITE } from '../navigation/docs-site';
+import { MovedPage } from './moved-page.model';
 
 // 3.0 published every page at documents/<name>.html, and every export at a page of typedoc, and the READMEs and
 // changelogs on npm link there. Each of those addresses gets a page that sends the reader on to where the page is now,

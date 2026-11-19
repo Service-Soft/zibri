@@ -1,7 +1,7 @@
-import { type ValidationProblem } from './validation-problem.model';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { OmitStrict } from '../types/omit-strict.type';
+import { type ValidationProblem } from './validation-problem.model';
 
 /**
  * A problem a custom rule finds with an object.

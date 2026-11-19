@@ -1,6 +1,6 @@
-import { testFileFolder } from './constants';
 import { FsUtilities } from '../encapsulation';
 import { getPath, Path } from '../utilities';
+import { testFileFolder } from './constants';
 
 /**
  * An empty directory for a suite to generate into, whatever the run before it left behind.

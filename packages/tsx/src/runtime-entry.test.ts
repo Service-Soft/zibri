@@ -197,7 +197,7 @@ describe('the runtime entry point', () => {
     });
 
     it('does not expose the compiler', () => {
-        // eslint-disable-next-line typescript/no-require-imports, typescript/no-var-requires
+        // eslint-disable-next-line typescript/no-require-imports
         const runtime: Record<string, unknown> = require('../dist/index.js') as Record<string, unknown>;
 
         expect(runtime['parse']).toBeUndefined();
@@ -236,7 +236,7 @@ describe('the runtime entry point', () => {
 
     // TODO 4.0: remove with forward/
     it('forwards its subpath of the compiler to zibri-tsx-compiler', () => {
-        // eslint-disable-next-line typescript/no-require-imports, typescript/no-var-requires
+        // eslint-disable-next-line typescript/no-require-imports
         const compiler: Record<string, unknown> = require('../forward/compiler.js') as Record<string, unknown>;
 
         expect(compiler['parseTemplate']).toBeDefined();

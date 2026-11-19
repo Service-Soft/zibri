@@ -1,6 +1,6 @@
+import { TwoFactorMethods } from '../2fa/two-factor-methods.model';
 import { AuthControllerAuthenticatorClass } from './auth-controller-authenticator-class.type';
 import { AuthControllerStrategyClass } from './auth-controller-strategy-class.type';
-import { TwoFactorMethods } from '../2fa/two-factor-methods.model';
 
 /**
  * What the routes of `AuthController` are built from. Each has to name exactly what the application

@@ -1,9 +1,3 @@
-import { AuthControllerAuthenticatorClass } from './auth-controller-authenticator-class.type';
-import { AuthControllerClass } from './auth-controller-class.type';
-import { AuthControllerOptions } from './auth-controller-options.model';
-import { FEDERATED_ROUTE } from './auth-controller-routes.model';
-import { AuthControllerStrategyClass } from './auth-controller-strategy-class.type';
-import { AuthControllerUtilities } from './auth-controller.utilities';
 import { AlsUtilities } from '../../context/als.utilities';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
@@ -65,6 +59,12 @@ import { UserLogin } from '../models/user-login.model';
 import { isAuthStrategy } from '../strategies/auth-strategy.interface';
 import { CsrfTokenAuthStrategyInterface, isCsrfTokenAuthStrategy } from '../strategies/csrf-token-auth-strategy.interface';
 import { CsrfToken } from '../strategies/csrf-token.model';
+import { AuthControllerAuthenticatorClass } from './auth-controller-authenticator-class.type';
+import { AuthControllerClass } from './auth-controller-class.type';
+import { AuthControllerOptions } from './auth-controller-options.model';
+import { FEDERATED_ROUTE } from './auth-controller-routes.model';
+import { AuthControllerStrategyClass } from './auth-controller-strategy-class.type';
+import { AuthControllerUtilities } from './auth-controller.utilities';
 
 /**
  * A model, as a function answering it once the application has started.

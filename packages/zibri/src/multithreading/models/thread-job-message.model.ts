@@ -1,7 +1,7 @@
-import { ThreadJobCheckpoint } from './thread-job-checkpoint.model';
-import { ThreadJobStatus } from './thread-job-status.enum';
 import { LoggedError } from '../../logging/logged-error.model';
 import { Percentage } from '../../types/percentage.type';
+import { ThreadJobCheckpoint } from './thread-job-checkpoint.model';
+import { ThreadJobStatus } from './thread-job-status.enum';
 
 /**
  * The internal thread job message types.

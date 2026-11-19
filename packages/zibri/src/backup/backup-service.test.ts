@@ -2,14 +2,8 @@ import assert from 'node:assert';
 
 import { beforeAll, afterAll, describe, it, expect, jest } from '@jest/globals';
 
-import { BackupEntity } from './backup-entity.model';
-import { BackupResourceEntity } from './backup-resource-entity.model';
-import { BackupService } from './backup.service';
 import { BackupLayoutTestUtilities } from '../__testing__/backup/backup-layout-test.utilities';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
-import { Backup } from './decorators/backup-resource.decorator';
-import { BackupTransport } from './decorators/backup-transport.decorator';
-import { FsBackupTransport } from './transports/fs.backup-transport';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { PostgresBackupScope } from '../data-source/data-sources/postgres/postgres-backup-scope.model';
@@ -28,6 +22,12 @@ import { Property } from '../entity/decorators/property.decorator';
 import { LoggerInterface } from '../logging/logger.interface';
 import { Newable } from '../types/newable.type';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
+import { BackupEntity } from './backup-entity.model';
+import { BackupResourceEntity } from './backup-resource-entity.model';
+import { BackupService } from './backup.service';
+import { Backup } from './decorators/backup-resource.decorator';
+import { BackupTransport } from './decorators/backup-transport.decorator';
+import { FsBackupTransport } from './transports/fs.backup-transport';
 
 const backupFsFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups');
 

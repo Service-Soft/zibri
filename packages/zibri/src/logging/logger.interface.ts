@@ -1,5 +1,5 @@
-import { LogContextInput } from './log-context.model';
 import { OmitStrict } from '../types/omit-strict.type';
+import { LogContextInput } from './log-context.model';
 import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
 
 /**

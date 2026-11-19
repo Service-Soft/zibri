@@ -1,8 +1,8 @@
-import { CiiNamespace } from './cii-namespace.enum';
-import { CiiTradeParty } from './cii-trade-party.model';
 import { Property } from '../../../../../../entity/decorators/property.decorator';
 import { XmlElement } from '../../../../../../parsing/xml/xml-element.decorator';
 import { XmlNamespace } from '../../../../../../parsing/xml/xml-namespace.decorator';
+import { CiiNamespace } from './cii-namespace.enum';
+import { CiiTradeParty } from './cii-trade-party.model';
 
 /**
  * Who the invoice is between.

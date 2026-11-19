@@ -4,9 +4,6 @@ import path from 'node:path';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { MultithreadingServiceInterface } from './multithreading-service.interface';
-import { MultithreadingService, PersistedFunctionJobError } from './multithreading.service';
-import { ThreadJobWorker } from './thread-job-worker';
 import { TestTimeouts } from '../../__testing__/constants';
 import { describeThreadJob } from '../../__testing__/describe-thread-job.function';
 import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
@@ -28,6 +25,9 @@ import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../mod
 import { MultithreadingOptions } from '../models/multithreading-options.model';
 import { ThreadJobEntity } from '../models/thread-job-entity.model';
 import { ThreadJobStatus } from '../models/thread-job-status.enum';
+import { MultithreadingServiceInterface } from './multithreading-service.interface';
+import { MultithreadingService, PersistedFunctionJobError } from './multithreading.service';
+import { ThreadJobWorker } from './thread-job-worker';
 
 let multithreadingService: MultithreadingServiceInterface;
 let server: StartedTestServer;

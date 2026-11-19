@@ -3,7 +3,6 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { NewCommand } from './new.command';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
 import { findWorkflowCommands } from '../../__testing__/find-workflow-commands.function';
 import { EVERY_FEATURE } from '../../__testing__/generated-file-paths';
@@ -13,6 +12,7 @@ import { resolveNpmAdvisories } from '../../__testing__/resolve-npm-advisories.f
 import { resolveNpmProblems } from '../../__testing__/resolve-npm-problems.function';
 import { CPUtilities, FsUtilities } from '../../encapsulation';
 import { getPath, Path } from '../../utilities';
+import { NewCommand } from './new.command';
 
 // three installs rather than two: the harness goes in after the framework it peer depends on, so
 // that npm resolves the peer to the copy this generator just installed rather than fetching one
@@ -96,6 +96,25 @@ describe('NewCommand (real npm install)', () => {
             expect(await FsUtilities.exists(path.join(appDir, 'node_modules', name) as Path)).toBe(false);
         }
         expect(await FsUtilities.exists(path.join(appDir, 'dist', 'bundle.js') as Path)).toBe(true);
+    }, CI_WORKFLOW_TIMEOUT_MS);
+
+    // a project inside an npm workspace, whose packages npm installs into the node_modules of the workspace's root
+    it('runs its tests inside an npm workspace, which installs jest into the root of the workspace', async () => {
+        await FsUtilities.createFile(
+            path.join(workDir, 'package.json') as Path,
+            JSON.stringify({ name: 'monorepo', private: true, workspaces: ['apps/*'] }),
+            true,
+            false
+        );
+        const appsDir: Path = path.join(workDir, 'apps') as Path;
+        await FsUtilities.mkdir(appsDir, true, false);
+        CPUtilities['cwd'] = appsDir;
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', 'none']));
+        const appDir: Path = path.join(appsDir, 'api') as Path;
+
+        expect(await FsUtilities.exists(path.join(workDir, 'node_modules', 'jest') as Path)).toBe(true);
+        expect(await FsUtilities.exists(path.join(appDir, 'node_modules', 'jest') as Path)).toBe(false);
+        execSync('npm test', { cwd: appDir, stdio: 'pipe' });
     }, CI_WORKFLOW_TIMEOUT_MS);
 });
 

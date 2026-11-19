@@ -1,5 +1,5 @@
-import { BulkWriteOptions } from './bulk-write-options.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
+import { BulkWriteOptions } from './bulk-write-options.model';
 
 /**
  * Options for updating multiple entities at once.

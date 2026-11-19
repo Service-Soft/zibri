@@ -1,7 +1,7 @@
-import { AsyncApiExplorerOperation, AsyncApiExplorerServer, AsyncApiExplorerTag } from './async-api-explorer-operation.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { AsyncApiChannel, AsyncApiDefinition, AsyncApiMessage, AsyncApiOperation, AsyncApiReference, AsyncApiSecurityScheme } from '../async-api.model';
+import { AsyncApiExplorerOperation, AsyncApiExplorerServer, AsyncApiExplorerTag } from './async-api-explorer-operation.model';
 
 /**
  * The tag of the operations that name none.

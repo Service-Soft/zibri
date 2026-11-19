@@ -1,4 +1,3 @@
-import { BadRequestError } from './bad-request.error';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -7,6 +6,7 @@ import { LocaleCode } from '../../localization/models/locale-code.model';
 import { TranslatedString } from '../../localization/models/translated-string.model';
 import { $t, $ts, TranslationToken } from '../../localization/translate.function';
 import { ValidationProblem } from '../../validation/validation-problem.model';
+import { BadRequestError } from './bad-request.error';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export type ValidationErrorType = 'body' | 'path' | 'query' | 'header' | 'websocketRequest';

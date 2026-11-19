@@ -1,15 +1,15 @@
-import { parseArray } from './parse-array.function';
-import { parseBoolean } from './parse-boolean.function';
-import { parseDate } from './parse-date.function';
-import { parseNumber } from './parse-number.function';
-import { parseOneOf } from './parse-one-of.function';
-import { parseString } from './parse-string.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { Relation } from '../../entity/models/relation.enum';
 import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
+import { parseArray } from './parse-array.function';
+import { parseBoolean } from './parse-boolean.function';
+import { parseDate } from './parse-date.function';
+import { parseNumber } from './parse-number.function';
+import { parseOneOf } from './parse-one-of.function';
+import { parseString } from './parse-string.function';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export function parseObject(

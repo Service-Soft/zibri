@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource, RoundTripCounter } from 'zibri-testing';
 
-import { Repository } from './repository';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -14,6 +13,7 @@ import { TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { Newable } from '../../types/newable.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { Transaction } from '../transaction/transaction.model';
+import { Repository } from './repository';
 
 /**
  * What repository writes cost, as the calls they make on the store. Compared as the list of calls

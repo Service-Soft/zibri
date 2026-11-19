@@ -1,10 +1,10 @@
-import { FileToGenerate, generateEntityFilesForProvider, GenerateEntityFilesForProviderResult } from './generate-entity-files-for-provider.function';
-import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
 import { initDiContainer } from '../../di/init-di-container.function';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { ConsoleUtilities } from '../../logging/console.utilities';
 import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 import { registerTsNode } from '../../utilities/register-ts-node.function';
+import { FileToGenerate, generateEntityFilesForProvider, GenerateEntityFilesForProviderResult } from './generate-entity-files-for-provider.function';
+import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
 
 /**
  * Resolves providers from the src/models/generated/providers.ts file and generates entities from them.
@@ -31,7 +31,7 @@ export async function generateEntityFiles(root: string = process.cwd()): Promise
     // in TypeScript. Below the guard above rather than at the top of the file, so an application
     // that only ever imports `zibri` never resolves a compiler it has no use for.
     registerTsNode(`The providers file ${providersPath}`);
-    // eslint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-assignment, typescript/no-require-imports, typescript/no-var-requires
+    // eslint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-assignment, typescript/no-require-imports
     const imported: any = require(providersPath);
     // eslint-disable-next-line typescript/no-unsafe-member-access
     const providersRaw: unknown = (imported.providers ?? imported.default) as unknown;

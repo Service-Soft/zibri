@@ -1,5 +1,4 @@
 
-import { InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -9,6 +8,7 @@ import { BigNumber, NumberUtilities } from '../../../utilities/number.utilities'
 import { InvoiceItem } from '../models/invoice-item.model';
 import { Invoice as BaseInvoice, Invoice } from '../models/invoice.model';
 import { Vat } from '../models/vat.model';
+import { InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
 
 /**
  * Default implementation of the invoice calculation service.

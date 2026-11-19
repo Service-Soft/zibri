@@ -11,6 +11,9 @@
         "directory": "packages/cli"
     },
     "files": [
+        "./src",
+        "!src/**/__testing__/**",
+        "!src/**/*.test.ts",
         "./dist",
         "./README.md",
         "./LICENSE",
@@ -54,7 +57,7 @@
         "@jest/globals": "^30.4.1",
         "@jridgewell/gen-mapping": "^0.3.13",
         "@jridgewell/trace-mapping": "^0.3.31",
-        "@service-soft/eslint-config": "^2.1.7",
+        "@service-soft/eslint-config": "^2.2.0",
         "@types/figlet": "^1.7.0",
         "@types/node": "^24.0.0",
         "eslint": "^9.36.0",

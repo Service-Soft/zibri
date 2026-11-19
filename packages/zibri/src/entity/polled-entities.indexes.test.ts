@@ -1,12 +1,12 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { BaseEntity } from './base-entity.model';
 import { CacheInvalidation } from '../caching/cache-invalidation.model';
 import { Email } from '../email/models/email.model';
 import { Event } from '../event/event.model';
 import { ThreadJobEntity } from '../multithreading/models/thread-job-entity.model';
 import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { BaseEntity } from './base-entity.model';
 
 /**
  * The entities an instance polls on a timer, and the columns each poll filters on.

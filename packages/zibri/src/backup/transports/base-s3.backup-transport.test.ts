@@ -6,11 +6,6 @@ import { buffer } from 'node:stream/consumers';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { describeBackupTransport } from './backup-transport.cases';
-import { BaseS3BackupTransport } from './base-s3.backup-transport';
-import { Format1BackupTransport } from './format-1.backup-transport';
-import { S3BackupTransportOptions } from './s3/s3-backup-transport-options.model';
-import { S3SignatureUtilities } from './s3/s3-signature.utilities';
 import { BackupTransportTestServerUtilities,
     S3TestServerOptions,
     StartedS3TestServer } from '../../__testing__/backup/backup-transport-test-server.utilities';
@@ -36,6 +31,11 @@ import { BackupResourceEntity } from '../backup-resource-entity.model';
 import { BackupService } from '../backup.service';
 import { Backup } from '../decorators/backup-resource.decorator';
 import { BackupTransport } from '../decorators/backup-transport.decorator';
+import { describeBackupTransport } from './backup-transport.cases';
+import { BaseS3BackupTransport } from './base-s3.backup-transport';
+import { Format1BackupTransport } from './format-1.backup-transport';
+import { S3BackupTransportOptions } from './s3/s3-backup-transport-options.model';
+import { S3SignatureUtilities } from './s3/s3-signature.utilities';
 
 const BUCKET: string = 'backups';
 const REGION: string = 'us-east-1';

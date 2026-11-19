@@ -1,7 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { Cache } from './cache.decorator';
-import { Cached } from './cached.decorator';
 import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Inject } from '../../di/decorators/inject.decorator';
@@ -12,6 +10,8 @@ import { type MetricsServiceInterface } from '../../metrics/metrics-service.inte
 import { WriteThroughReadThroughCache } from '../cache/read-through/write-through-read-through.cache';
 import { type CacheServiceInterface } from '../cache-service.interface';
 import { InMemoryCacheStore } from '../store/in-memory.cache-store';
+import { Cache } from './cache.decorator';
+import { Cached } from './cached.decorator';
 
 @Cache()
 class MultiplierCache extends WriteThroughReadThroughCache<string, number, 'Cached Decorator Test Cache'> {

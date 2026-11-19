@@ -4,13 +4,13 @@ import path from 'node:path';
 import { describe, expect, it } from '@jest/globals';
 import { defaultTestProviders } from 'zibri-testing';
 
-import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 import { DOCS_DIR, DocsPagesUtilities } from '../../__testing__/docs-pages.utilities';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../plugin/invoicing/invoicing.tokens';
 import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from '../../plugin/mailing-list/mailing-list.tokens';
 import { ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from '../../plugin/payment/payment.tokens';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { TokenRecord, tokenName } from '../models/di-token.model';
+import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 
 /**
  * A page that lists the tokens of one token object, in tables headed `| Token | Type | What it is |`.

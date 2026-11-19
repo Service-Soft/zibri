@@ -2,8 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { TOTP } from 'otpauth';
 import { createInMemoryDataSource, RecordingEmailTransport } from 'zibri-testing';
 
-import { PasswordCredentials, PasswordCredentialsCreateData } from './password-credentials.model';
-import { PasswordAuthenticator } from './password.authenticator';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
@@ -29,6 +27,8 @@ import { PasswordResetToken } from '../../models/password-reset-token.model';
 import { PasswordPolicy } from '../../password-policy/password-policy.model';
 import { JwtRefreshToken } from '../../strategies/jwt/jwt-refresh-token.model';
 import { JwtAuthStrategy } from '../../strategies/jwt/jwt.auth-strategy';
+import { PasswordCredentials, PasswordCredentialsCreateData } from './password-credentials.model';
+import { PasswordAuthenticator } from './password.authenticator';
 
 /**
  * A password set before the policy asked for 15 characters.

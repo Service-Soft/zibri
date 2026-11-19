@@ -1,6 +1,3 @@
-import { ThreadJob } from './thread-job';
-import { ThreadJobWorker } from './thread-job-worker';
-import { ThreadJobWorkerEvents } from './thread-job-worker-events.model';
 import { errorToLoggedError } from '../../logging/error-to-logged-error.function';
 import { LoggedError } from '../../logging/logged-error.model';
 import { JsonUtilities } from '../../utilities/json.utilities';
@@ -9,6 +6,9 @@ import { ThreadJobCheckpointAnswer } from '../models/thread-job-checkpoint-answe
 import { ThreadJobCheckpoint } from '../models/thread-job-checkpoint.model';
 import { ThreadJobMessage } from '../models/thread-job-message.model';
 import { ThreadJobStatus } from '../models/thread-job-status.enum';
+import { ThreadJob } from './thread-job';
+import { ThreadJobWorker } from './thread-job-worker';
+import { ThreadJobWorkerEvents } from './thread-job-worker-events.model';
 
 /**
  * Handles what the workers of a thread job pool report: their messages, their exit and their errors.

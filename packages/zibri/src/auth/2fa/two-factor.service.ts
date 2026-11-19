@@ -1,4 +1,3 @@
-import { InvalidTwoFactorCodeError } from './invalid-two-factor-code.error';
 import { ZibriApplication } from '../../application/application';
 import { type AuditServiceInterface } from '../../audit/audit-service.interface';
 import { HttpRequestContext } from '../../context/request/http-request.context';
@@ -23,6 +22,7 @@ import { type LoggerInterface } from '../../logging/logger.interface';
 import { Ms } from '../../utilities/ms';
 import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
 import { UserAccount } from '../models/user-account.model';
+import { InvalidTwoFactorCodeError } from './invalid-two-factor-code.error';
 import { TwoFactorMethod } from './methods/two-factor-method.interface';
 import { SecondFactorMissingError } from './second-factor-missing.error';
 import { TwoFactorFailureLimit, TwoFactorLock } from './two-factor-failure-limit.model';

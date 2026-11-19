@@ -1,17 +1,17 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { ErrorUtilities } from './error.utilities';
-import { GlobalError } from './errors/global.error';
-import { HttpError } from './errors/http.error';
-import { InternalServerError } from './errors/internal-server.error';
-import { NotFoundError } from './errors/not-found.error';
-import { InternalError } from './internal-error.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { $ts } from '../localization/translate.function';
 import { LoggerInterface } from '../logging/logger.interface';
+import { ErrorUtilities } from './error.utilities';
+import { GlobalError } from './errors/global.error';
+import { HttpError } from './errors/http.error';
+import { InternalServerError } from './errors/internal-server.error';
+import { NotFoundError } from './errors/not-found.error';
+import { InternalError } from './internal-error.model';
 
 describe('ErrorUtilities', () => {
     let server: StartedTestServer;

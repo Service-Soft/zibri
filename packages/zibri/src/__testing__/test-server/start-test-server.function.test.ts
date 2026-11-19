@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { defaultTestServerEntities, defaultTestServerRepositories } from './create-test-data-source.function';
-import { defaultTestServerProviders } from './providers';
-import { StartedTestServer, startTestServer } from './start-test-server.function';
 import { AuditCheckpointCronJob } from '../../audit/audit-checkpoint.cron-job';
 import { ChainedAuditEntry } from '../../audit/chained-audit-entry.model';
 import { CronServiceInterface } from '../../cron/cron-service.interface';
@@ -12,6 +9,9 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { DiProvider, defineProvider } from '../../di/models/di-provider.model';
 import { TestTimeouts } from '../constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from './create-test-data-source.function';
+import { defaultTestServerProviders } from './providers';
+import { StartedTestServer, startTestServer } from './start-test-server.function';
 
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
     entities: [...defaultTestServerEntities, ChainedAuditEntry],

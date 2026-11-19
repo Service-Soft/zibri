@@ -1,3 +1,4 @@
+import { RefTarget } from '../runtime/refs';
 import { AnchorAttributes,
     AreaAttributes,
     BaseAttributes,
@@ -40,7 +41,6 @@ import { AnchorAttributes,
     TrackAttributes,
     VideoAttributes } from './jsx-element-attributes.model';
 import { HtmlAttributes } from './jsx.model';
-import { RefTarget } from '../runtime/refs';
 
 /**
  * Every html tag that carries no attributes beyond the global ones. Listing them explicitly is what

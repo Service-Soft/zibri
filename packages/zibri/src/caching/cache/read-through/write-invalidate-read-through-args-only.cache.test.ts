@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { WriteInvalidateReadThroughArgsOnlyCache } from './write-invalidate-read-through-args-only.cache';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Inject } from '../../../di/decorators/inject.decorator';
@@ -13,6 +12,7 @@ import { CacheService } from '../../cache.service';
 import { Cache } from '../../decorators/cache.decorator';
 import { CachedValue } from '../../store/cached-value.model';
 import { InMemoryCacheStore } from '../../store/in-memory.cache-store';
+import { WriteInvalidateReadThroughArgsOnlyCache } from './write-invalidate-read-through-args-only.cache';
 
 @Cache()
 class MainCache extends WriteInvalidateReadThroughArgsOnlyCache<string, string, 'Write Invalidate Read Through Args Only Main Cache'> {

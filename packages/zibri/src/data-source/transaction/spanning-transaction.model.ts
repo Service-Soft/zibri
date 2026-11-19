@@ -1,5 +1,5 @@
-import { SpanningTransactionParticipants } from './spanning-transaction-participants.model';
 import { StartTransactionOptions } from '../data-sources/data-source.interface';
+import { SpanningTransactionParticipants } from './spanning-transaction-participants.model';
 
 /**
  * A transaction across every data source its writes reach, which repositories take wherever they

@@ -1,6 +1,5 @@
 import { FilterConfig, FilterMatch } from 'zibri-contract';
 
-import { holdsPlainValue } from './holds-plain-value.function';
 import { FuzzySearchUtilities } from '../../data-source/models/where/fuzzy-search.utilities';
 import { Where } from '../../data-source/models/where/where-filter.model';
 import { Property, PropertyMetadata } from '../../entity/decorators/property.decorator';
@@ -9,6 +8,7 @@ import { isRelationMetadata } from '../../entity/models/is-relation-metadata.fun
 import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { holdsPlainValue } from './holds-plain-value.function';
 
 /**
  * A level of a filter config as it is at runtime: a match or the config of the properties inside, by property.

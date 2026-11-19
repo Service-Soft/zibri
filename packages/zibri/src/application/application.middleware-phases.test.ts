@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { RequestHandler } from 'express';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { ZibriApplication } from './application';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -12,6 +11,7 @@ import { HttpMethod } from '../http/http-method.enum';
 import { HttpRequest } from '../http/http-request.model';
 import { MiddlewarePhase } from '../http/middleware-phase.enum';
 import { type RouterInterface } from '../routing/router.interface';
+import { ZibriApplication } from './application';
 
 // the order middleware runs in is stated by its phase rather than emerging from the order the calls
 // happened in - which for the framework's own middleware was the order the di container built the

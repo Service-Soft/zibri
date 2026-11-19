@@ -1,6 +1,5 @@
 import { defaultTestProviders } from 'zibri-testing';
 
-import { DefaultTestServerRoleRepository } from './role-repository';
 import { PasswordResetEmailTemplate } from '../../auth/authenticators/password/password-reset-email-template.model';
 import { PermissionDeclaration } from '../../auth/roles/permission-declaration.model';
 import { RoleCreateData } from '../../auth/roles/role-create-data.model';
@@ -16,6 +15,7 @@ import { MemberRoles } from '../mocks/entities/member-roles.enum';
 import { Roles } from '../mocks/entities/roles.enum';
 import { TestPermissions, TestPlatformPermissions } from '../mocks/entities/test-permissions.model';
 import { TestRole } from '../mocks/entities/test-role.entity';
+import { DefaultTestServerRoleRepository } from './role-repository';
 
 export { testMasterKey } from 'zibri-testing';
 

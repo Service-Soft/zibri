@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { type AuditServiceInterface } from './audit-service.interface';
-import { ChainedAuditEntry, ChainedAuditEntryCreateData } from './chained-audit-entry.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { runWithApplicationClockAhead } from '../__testing__/run-with-application-clock-ahead.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
@@ -17,6 +15,8 @@ import { AuditAction, AuditOutcome } from '../logging/audit-event.model';
 import { TenantServiceInterface } from '../tenancy/tenant-service.interface';
 import { Ms } from '../utilities/ms';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { type AuditServiceInterface } from './audit-service.interface';
+import { ChainedAuditEntry, ChainedAuditEntryCreateData } from './chained-audit-entry.model';
 
 const RETENTION_IN_MS: number = Ms.DAY * 30;
 

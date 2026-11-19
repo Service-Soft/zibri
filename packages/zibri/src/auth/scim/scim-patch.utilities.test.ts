@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { ScimErrorType } from './scim-error-type.enum';
 import { ScimPatchOperation } from './scim-patch-operation.model';
 import { ScimPatchUtilities } from './scim-patch.utilities';
 import { ScimSchema } from './scim-schema.enum';
-import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 
 /**
  * Applies a patch request body to a resource.

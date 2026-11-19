@@ -1,4 +1,3 @@
-import { HandlerTimeout } from './handler-timeout.type';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -7,6 +6,7 @@ import { GatewayTimeoutError } from '../error-handling/errors/gateway-timeout.er
 import { InternalError } from '../error-handling/internal-error.model';
 import { $ts } from '../localization/translate.function';
 import { LoggerInterface } from '../logging/logger.interface';
+import { HandlerTimeout } from './handler-timeout.type';
 
 /**
  * Bounds how long a handler may take, whichever kind of request it is answering.

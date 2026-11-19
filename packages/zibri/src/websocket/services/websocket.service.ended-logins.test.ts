@@ -2,7 +2,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/glob
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { type WebsocketServiceInterface } from './websocket-service.interface';
 import { TestTimeouts } from '../../__testing__/constants';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
@@ -40,6 +39,7 @@ import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { WebsocketController } from '../decorators/websocket-controller.decorator';
 import { WebsocketRoute } from '../decorators/websocket-route.decorator';
 import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model';
+import { type WebsocketServiceInterface } from './websocket-service.interface';
 
 @WebsocketController({ allowOrphan: true, eventPrefix: 'ended-logins:' })
 class EndedLoginsWsController {

@@ -48,5 +48,6 @@ export enum MetadataInjectionKeys {
     WEBSOCKET_CONTROLLER_DATA = 'websocket_controller:data',
     WEBSOCKET_CONTROLLER_ROUTES = 'websocket_controller:routes',
     ROUTE_CURRENT_WEBSOCKET_CONNECTION = 'route:current_websocket_connection',
-    EXCLUDED_PROPERTY_VALUE = 'entity:excluded_property_value'
+    EXCLUDED_PROPERTY_VALUE = 'entity:excluded_property_value',
+    COPIED_FROM = 'class:copied_from'
 }
