@@ -5,10 +5,10 @@ import * as zibriExports from 'zibri';
 import { BaseEntity, JsonUtilities, Newable } from 'zibri';
 import { MetadataUtilities } from 'zibri/internal';
 
+import { BASE_PATH } from '../base-path';
 import { ApiCodeTarget, ApiExport, ApiKind } from './api-export.model';
 import { API_JSON_FILE } from './api-json-file';
 import { REFLECTION_KINDS } from './reflection-kinds';
-import { BASE_PATH } from '../base-path';
 
 /**
  * The reference, read from typedoc's json once.

@@ -1,11 +1,8 @@
 /* eslint-disable jsdoc/require-jsdoc */
-import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
-import { ReflectUtilities } from './reflect.utilities';
-import { resolveCallSites } from './resolve-call-sites.function';
-import { resolveOriginalFile } from './resolve-original-file.function';
 // every import of a subsystem built on utilities is marked `type`: this file only names their
 // metadata shapes, and a value import would put utilities in a runtime cycle with each of them
 import { type CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
+import { type HasAnyLevelPermissionMetadata } from '../auth/models/has-any-level-permission-metadata.model';
 import { type HasPermissionMetadata, type SkipHasPermissionMetadata } from '../auth/models/has-permission-metadata.model';
 import { type IsLoggedInMetadata, type SkipIsLoggedInMetadata } from '../auth/models/is-logged-in-metadata.model';
 import { type IsNotLoggedInMetadata, type SkipIsNotLoggedInMetadata } from '../auth/models/is-not-logged-in-metadata.model';
@@ -36,6 +33,10 @@ import { type CustomValidationRule } from '../validation/custom-validation.model
 import { type CurrentWebsocketConnectionMetadata } from '../websocket/decorators/current-websocket-connection.decorator';
 import { type WebsocketControllerData } from '../websocket/decorators/websocket-controller.decorator';
 import { type WebsocketControllerRouteConfiguration } from '../websocket/models/websocket-controller-route-configuration.model';
+import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
+import { ReflectUtilities } from './reflect.utilities';
+import { resolveCallSites } from './resolve-call-sites.function';
+import { resolveOriginalFile } from './resolve-original-file.function';
 
 const modelPropertiesStore: WeakMap<Function, Record<string, PropertyMetadata>> = new WeakMap();
 const xmlPropertiesStore: WeakMap<Function, Record<string, XmlPropertyMetadata>> = new WeakMap();
@@ -314,6 +315,15 @@ export abstract class MetadataUtilities {
         ) ?? [];
     }
 
+    // ---------- classes copied by OmitClass, PickClass and IntersectionClass ----------
+    static addCopiedFrom(target: Function, source: Newable<unknown>): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.COPIED_FROM, [...MetadataUtilities.getOwnCopiedFrom(target), source], target);
+    }
+
+    static getOwnCopiedFrom(target: Function): Newable<unknown>[] {
+        return ReflectUtilities.getOwnMetadata<Newable<unknown>[]>(MetadataInjectionKeys.COPIED_FROM, target) ?? [];
+    }
+
     // ---------- controller base route ----------
     static setControllerData(controller: Function, data: ControllerData): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_DATA, data, controller);
@@ -542,6 +552,58 @@ export abstract class MetadataUtilities {
 
     static getControllerSkipHasPlatformPermission(controller: Function): SkipHasPermissionMetadata | undefined {
         return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_PLATFORM_PERMISSION, controller);
+    }
+
+    // ---------- any level permission metadata (method-level for routes) ----------
+    static setRouteHasAnyLevelPermission(controller: Function, data: HasAnyLevelPermissionMetadata, controllerMethod: string): void {
+        MetadataUtilities.validateNoPermissionYet(
+            MetadataInjectionKeys.ROUTE_HAS_ANY_LEVEL_PERMISSION,
+            '@Auth.hasAnyLevelPermission',
+            controller,
+            controllerMethod
+        );
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_HAS_ANY_LEVEL_PERMISSION, data, controller, controllerMethod);
+    }
+
+    static getRouteHasAnyLevelPermission(controller: Function, controllerMethod: string): HasAnyLevelPermissionMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<HasAnyLevelPermissionMetadata>(
+            MetadataInjectionKeys.ROUTE_HAS_ANY_LEVEL_PERMISSION,
+            controller,
+            controllerMethod
+        );
+    }
+
+    static setRouteSkipHasAnyLevelPermission(controller: Function, data: SkipHasPermissionMetadata, controllerMethod: string): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SKIP_HAS_ANY_LEVEL_PERMISSION, data, controller, controllerMethod);
+    }
+
+    static getRouteSkipHasAnyLevelPermission(controller: Function, controllerMethod: string): SkipHasPermissionMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<SkipHasPermissionMetadata>(
+            MetadataInjectionKeys.ROUTE_SKIP_HAS_ANY_LEVEL_PERMISSION,
+            controller,
+            controllerMethod
+        );
+    }
+
+    static setControllerHasAnyLevelPermission(controller: Function, data: HasAnyLevelPermissionMetadata): void {
+        MetadataUtilities.validateNoPermissionYet(
+            MetadataInjectionKeys.CONTROLLER_HAS_ANY_LEVEL_PERMISSION,
+            '@Auth.hasAnyLevelPermission',
+            controller
+        );
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_HAS_ANY_LEVEL_PERMISSION, data, controller);
+    }
+
+    static getControllerHasAnyLevelPermission(controller: Function): HasAnyLevelPermissionMetadata | undefined {
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_HAS_ANY_LEVEL_PERMISSION, controller);
+    }
+
+    static setControllerSkipHasAnyLevelPermission(controller: Function, data: SkipHasPermissionMetadata): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_ANY_LEVEL_PERMISSION, data, controller);
+    }
+
+    static getControllerSkipHasAnyLevelPermission(controller: Function): SkipHasPermissionMetadata | undefined {
+        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_ANY_LEVEL_PERMISSION, controller);
     }
 
     // ---------- require2fa (method-level, inherit) ----------

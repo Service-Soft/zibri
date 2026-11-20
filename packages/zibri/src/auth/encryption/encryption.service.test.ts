@@ -2,12 +2,6 @@ import assert from 'node:assert';
 
 import { afterAll, beforeAll, describe, expect, jest, test } from '@jest/globals';
 
-import { EncryptionKey, EncryptionKeyStatus } from './encryption-key.model';
-import { EncryptionRotationCronJob } from './encryption-rotation.cron-job';
-import { EncryptionService } from './encryption.service';
-import { EncryptionString } from './encryption.utilities';
-import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
-import { EncryptionStrategyEntity } from './strategies/encryption-strategy-entity.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
@@ -20,6 +14,12 @@ import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { OtpCredentials } from '../2fa/methods/otp/otp-credentials.model';
+import { EncryptionKey, EncryptionKeyStatus } from './encryption-key.model';
+import { EncryptionRotationCronJob } from './encryption-rotation.cron-job';
+import { EncryptionService } from './encryption.service';
+import { EncryptionString } from './encryption.utilities';
+import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
+import { EncryptionStrategyEntity } from './strategies/encryption-strategy-entity.model';
 
 // first, for the reason on startAndStopTestServerWithout
 describe('EncryptionService — starting', () => {

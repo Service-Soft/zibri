@@ -1,7 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { MailingListServiceInterface, MailingListSubscriberCreateData } from './mailing-list-service.interface';
-import { MailingListService } from './mailing-list.service';
 import { compileTsxTemplate } from '../../../__testing__/compile-tsx-template.function';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { missingEntityPattern } from '../../../__testing__/missing-entity-pattern.function';
@@ -33,6 +31,8 @@ import { MailingListSubscriber } from '../models/mailing-list-subscriber.model';
 import { MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from '../models/mailing-list-subscription-confirmation-token.model';
 import { MailingListUnsubscribeConfirmationPageTemplate } from '../models/mailing-list-unsubscribe-confirmation-page-template.model';
 import { MailingList } from '../models/mailing-list.model';
+import { MailingListServiceInterface, MailingListSubscriberCreateData } from './mailing-list-service.interface';
+import { MailingListService } from './mailing-list.service';
 
 const baseEmailTemplate: MailingListBaseEmailTemplate = compileTsxTemplate<MailingListBaseEmailTemplate>(
     'export const Email = ({ title }) => <div>{title}</div>;'

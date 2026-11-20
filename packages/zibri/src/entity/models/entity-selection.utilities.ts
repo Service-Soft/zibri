@@ -1,6 +1,3 @@
-import { RelationTree } from './entity-relations.model';
-import { EntitySelection } from './entity-selection.model';
-import { isRelationMetadata } from './is-relation-metadata.function';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { EncryptionSettings } from '../../global/model-registry/encryption-descriptor';
 import { ModelRegistry, ModelRegistryData } from '../../global/model-registry/model.registry';
@@ -8,6 +5,9 @@ import { StringValueDescriptor } from '../../global/model-registry/string-value-
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { PropertyMetadata } from '../decorators/property.decorator';
+import { RelationTree } from './entity-relations.model';
+import { EntitySelection } from './entity-selection.model';
+import { isRelationMetadata } from './is-relation-metadata.function';
 
 /**
  * A selection in the one shape it is walked in: each property it names, holding `true` for the whole

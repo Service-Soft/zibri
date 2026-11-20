@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { DocsUtilities } from 'zibri';
 import { StartedTestServer, startTestServer } from 'zibri-testing';
 
-import { testApplicationOptions } from './test-application-options';
 import { DOCS_SITE } from '../templates/docs/docs-site';
+import { testApplicationOptions } from './test-application-options';
 
 let server: StartedTestServer;
 let baseUrl: string;

@@ -1,9 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { BaseChainedEntity } from './base-chained-entity.model';
-import { ChainAnchor, ChainAnchorCreateData } from './chain-anchor.model';
-import { ChainServiceInterface } from './chain-service.interface';
-import { ChainVerification } from './chain-verification.model';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
@@ -15,6 +11,10 @@ import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { RepositoryDriverInterface } from '../driver/repository-driver.interface';
 import { dataSourceNow } from '../models/data-source-now.function';
 import { Repository } from '../repository/repository';
+import { BaseChainedEntity } from './base-chained-entity.model';
+import { ChainAnchor, ChainAnchorCreateData } from './chain-anchor.model';
+import { ChainServiceInterface } from './chain-service.interface';
+import { ChainVerification } from './chain-verification.model';
 
 /**
  * The cases every data source answers the same way about an entity declared `chained: true`. A file

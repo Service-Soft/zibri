@@ -3,8 +3,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Log } from './log.model';
-import { LoggerInterface } from './logger.interface';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -15,6 +13,8 @@ import { HttpStatus } from '../http/http-status.enum';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
 import { Ms } from '../utilities/ms';
+import { Log } from './log.model';
+import { LoggerInterface } from './logger.interface';
 
 /**
  * When the failing handler fails: after the logger's flush interval of a second, so the drain the

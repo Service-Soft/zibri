@@ -1,6 +1,6 @@
-import { SoftDeletedRows } from './soft-deleted-rows.type';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { UpdateByIdOptions } from '../../models/options/update-by-id-options.model';
+import { SoftDeletedRows } from './soft-deleted-rows.type';
 
 /**
  * Options for updating a soft delete entity by its id.

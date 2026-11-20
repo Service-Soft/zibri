@@ -1,17 +1,11 @@
 import { NextFunction } from 'express';
 
-import { ErrorPageTemplate, GlobalErrorHandler } from './error-handler.model';
-import { ErrorResponseBody } from './error-response-body.model';
-import { ErrorUtilities } from './error.utilities';
-import { CustomBodyHttpError } from './errors/custom-body-http.error';
-import { InternalError } from './internal-error.model';
 import { CheckConstraintViolationError } from '../data-source/check-constraint-violation.error';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { XmlWriterUtilities } from '../document/xml-writer.utilities';
 import { type HttpRequest } from '../http/http-request.model';
 import { type HttpResponse } from '../http/http-response.model';
-import { HttpError } from './errors/http.error';
 import { HttpStatus } from '../http/http-status.enum';
 import { type JsonMimeType } from '../http/json-mime-type.type';
 import { KnownHeader } from '../http/known-header.enum';
@@ -20,11 +14,17 @@ import { AuditAction, AuditOutcome } from '../logging/audit-event.model';
 import { TracingUtilities } from '../tracing/tracing.utilities';
 import { TsxUtilities } from '../tsx/tsx.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
+import { NumberUtilities } from '../utilities/number.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities';
+import { ErrorPageTemplate, GlobalErrorHandler } from './error-handler.model';
+import { ErrorResponseBody } from './error-response-body.model';
+import { ErrorUtilities } from './error.utilities';
+import { CustomBodyHttpError } from './errors/custom-body-http.error';
+import { HttpError } from './errors/http.error';
 import { MethodNotAllowedError } from './errors/method-not-allowed.error';
 import { TooManyRequestsError } from './errors/too-many-requests.error';
 import { ValidationError } from './errors/validation.error';
-import { NumberUtilities } from '../utilities/number.utilities';
-import { ObjectUtilities } from '../utilities/object.utilities';
+import { InternalError } from './internal-error.model';
 
 /**
  * The default error handler implementation of Zibri.

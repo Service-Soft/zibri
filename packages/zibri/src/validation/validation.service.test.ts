@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { ValidateCustom } from './decorators/validate-custom.decorator';
-import { ValidationService } from './validation.service';
 import { TestTimeouts } from '../__testing__/constants';
 import { type Relation } from '../__testing__/relation.type';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
@@ -24,6 +22,8 @@ import { ParamMetadataUtilities } from '../routing/param-metadata.utilities';
 import { resolveBodyMetadata } from '../routing/resolve-body-metadata.function';
 import { Newable } from '../types/newable.type';
 import { BigNumber } from '../utilities/number.utilities';
+import { ValidateCustom } from './decorators/validate-custom.decorator';
+import { ValidationService } from './validation.service';
 
 class Nested {
     @Property.string()

@@ -4,10 +4,10 @@ import { Readable } from 'node:stream';
 
 import { afterAll, describe, expect, it } from '@jest/globals';
 
+import { testFileFolder } from '../__testing__/constants';
 import { FsPath, FsUtilities } from './fs.utilities';
 import { TarEntry, TarUtilities } from './tar.utilities';
 import { UUIDUtilities } from './uuid.utilities';
-import { testFileFolder } from '../__testing__/constants';
 
 const folder: FsPath = FsUtilities.getPath(testFileFolder, `tar-${UUIDUtilities.generate()}`);
 
@@ -43,7 +43,7 @@ async function pack(entries: { name: string, content: Buffer }[]): Promise<Buffe
  */
 async function resolveHeaderOf(size: number): Promise<Buffer> {
     // eslint-disable-next-line typescript/require-await
-    const entries: AsyncGenerator<TarEntry> = (async function* entries(): AsyncGenerator<TarEntry> {
+    const entries: AsyncGenerator<TarEntry> = (async function* generateLargeEntry(): AsyncGenerator<TarEntry> {
         yield { name: 'large.jsonl', size, modifiedAt: new Date('2026-11-12T10:00:00.000Z'), content: Readable.from([]) };
     })();
     for await (const piece of TarUtilities.pack(entries)) {

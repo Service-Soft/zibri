@@ -1,7 +1,7 @@
-import { HttpClientCircuitBreakerOptions } from './http-client-circuit-breaker-options.model';
-import { HttpClientRedirect } from './http-client-redirect.model';
 import { FileSize } from '../entity/models/file-property-metadata.model';
 import { BodySizeLimits } from '../http/body-size-limits.model';
+import { HttpClientCircuitBreakerOptions } from './http-client-circuit-breaker-options.model';
+import { HttpClientRedirect } from './http-client-redirect.model';
 
 // Described here rather than imported from `undici-types`, which is the version undici's own
 // `Dispatcher` would have dragged in. Naming that package means naming a *version* of it, and there

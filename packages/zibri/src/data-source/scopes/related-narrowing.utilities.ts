@@ -1,5 +1,3 @@
-import { resolveEntityScope } from './resolve-entity-scope.function';
-import { ScopedWhere, ScopeWhereUtilities } from './scope-where.utilities';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { EntityMetadata } from '../../entity/decorators/entity.decorator';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
@@ -14,6 +12,8 @@ import { isSoftDeleteEntityNewable } from '../change-sets/models/is-soft-delete-
 import { SoftDeleteEntity } from '../change-sets/models/soft-delete-entity.model';
 import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { Where, WhereFilter } from '../models/where/where-filter.model';
+import { resolveEntityScope } from './resolve-entity-scope.function';
+import { ScopedWhere, ScopeWhereUtilities } from './scope-where.utilities';
 
 /**
  * Narrows the rows a call reaches through a relation to the rows the caller may see of them.

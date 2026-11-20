@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
 
-import { BaseCommand } from './base-command.model';
 import { mockExitGracefully, ProcessExitError } from '../__testing__/mock-exit-gracefully.function';
+import { BaseCommand } from './base-command.model';
 
 type TestInput = {
     value: string

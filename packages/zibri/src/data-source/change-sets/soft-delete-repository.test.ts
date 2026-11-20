@@ -3,12 +3,6 @@ import assert from 'node:assert';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { ChangeSetType } from './models/change-set-type.enum';
-import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
-import { Change } from './models/change.model';
-import { SoftDeleteEntity } from './models/soft-delete-entity.model';
-import { SoftDeleteWhere } from './models/soft-delete-where.model';
-import { SoftDeleteRepository } from './soft-delete-repository';
 import { TestTimeouts } from '../../__testing__/constants';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -43,6 +37,12 @@ import { Where } from '../models/where/where-filter.model';
 import { whereFor } from '../models/where/where-for.function';
 import { Repository } from '../repository/repository';
 import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
+import { ChangeSetType } from './models/change-set-type.enum';
+import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
+import { Change } from './models/change.model';
+import { SoftDeleteEntity } from './models/soft-delete-entity.model';
+import { SoftDeleteWhere } from './models/soft-delete-where.model';
+import { SoftDeleteRepository } from './soft-delete-repository';
 
 // ---------- Test entity ----------
 @Entity({ tenant: 'shared' })

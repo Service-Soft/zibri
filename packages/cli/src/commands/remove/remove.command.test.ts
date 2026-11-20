@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { RemoveCommand } from './remove.command';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
 import { EVERY_FEATURE } from '../../__testing__/generated-file-paths';
 import { GeneratedProject } from '../../__testing__/generated-project';
@@ -8,6 +7,7 @@ import { mockExitGracefully, ProcessExitError } from '../../__testing__/mock-exi
 import { quietly } from '../../__testing__/quietly.function';
 import { CPUtilities, FsUtilities } from '../../encapsulation';
 import { Path } from '../../utilities';
+import { RemoveCommand } from './remove.command';
 
 /**
  * Removing a feature from a project generated with it: what the project never

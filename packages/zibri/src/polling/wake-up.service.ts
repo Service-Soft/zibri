@@ -1,5 +1,3 @@
-import { WakeUpListener } from './wake-up-listener.model';
-import { WakeUpServiceInterface } from './wake-up-service.interface';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { DataSourceSubscription, isPubSubDataSource, PubSubDataSourceInterface } from '../data-source/data-sources/pub-sub-data-source.interface';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -8,6 +6,8 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { InternalError } from '../error-handling/internal-error.model';
 import { OnAppShutdown } from '../global/on-app-shutdown.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
+import { WakeUpListener } from './wake-up-listener.model';
+import { WakeUpServiceInterface } from './wake-up-service.interface';
 
 /**
  * The channel every wake up is sent on. The topic is the message.

@@ -2,7 +2,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jes
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { type WebsocketServiceInterface } from './websocket-service.interface';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
@@ -19,6 +18,7 @@ import { SocketIOWebsocketConnection } from '../models/connection/socket-io-webs
 import { WebsocketEvent } from '../models/websocket-event.enum';
 import { WebsocketMessage } from '../models/websocket-message.model';
 import { WebsocketOptionsInput } from '../models/websocket-options.model';
+import { type WebsocketServiceInterface } from './websocket-service.interface';
 
 /**
  * Values json has no form of its own for, each written the way the framework writes it everywhere else.

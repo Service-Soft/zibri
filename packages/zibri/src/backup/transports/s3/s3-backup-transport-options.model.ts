@@ -1,6 +1,6 @@
+import { FileSize } from '../../../entity/models/file-property-metadata.model';
 import { S3Credentials } from './s3-credentials.model';
 import { S3ServerSideEncryption } from './s3-server-side-encryption.model';
-import { FileSize } from '../../../entity/models/file-property-metadata.model';
 
 /**
  * Where and how an S3 backup transport stores backups.

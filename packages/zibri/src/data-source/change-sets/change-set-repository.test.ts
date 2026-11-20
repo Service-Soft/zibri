@@ -2,11 +2,6 @@ import assert from 'node:assert';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { ChangeSetRepository, ResetChangeSetResult } from './change-set-repository';
-import { ChangeSetEntity } from './models/change-set-entity.model';
-import { ChangeSetType } from './models/change-set-type.enum';
-import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
-import { Change } from './models/change.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -36,6 +31,11 @@ import { Patch } from '../../routing/decorators/patch.decorator';
 import { Post } from '../../routing/decorators/post.decorator';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { Repository } from '../repository/repository';
+import { ChangeSetRepository, ResetChangeSetResult } from './change-set-repository';
+import { ChangeSetEntity } from './models/change-set-entity.model';
+import { ChangeSetType } from './models/change-set-type.enum';
+import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
+import { Change } from './models/change.model';
 
 // ---- Test entity that extends ChangeSetEntity ----
 @Entity({ tenant: 'shared' })

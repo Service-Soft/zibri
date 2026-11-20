@@ -1,5 +1,5 @@
-import type { MjCarouselImageProps } from './mj-carousel-image';
 import { createContext, RenderContext } from '../runtime/server-runtime';
+import type { MjCarouselImageProps } from './mj-carousel-image';
 
 /**
  * The images the `MjCarousel` around an image collects, each as it records itself, or undefined for an image

@@ -1,3 +1,5 @@
+import assert from 'node:assert';
+
 import { afterEach, describe, expect, it } from '@jest/globals';
 
 import { type Relation } from '../../__testing__/relation.type';
@@ -443,6 +445,21 @@ export function describeOwnedRelations(dataSourceName: string, repositoriesOf: (
             const changeSets: ChangeSet[] = await repositoriesOf().changeSets.findAll({ where: { changeSetEntityId: ada?.id } });
             expect(changeSets.map(c => c.type)).toEqual([ChangeSetType.CREATE, ChangeSetType.UPDATE]);
             expect(changeSets[1]?.changes.map(c => [c.key, c.previousValue, c.newValue])).toEqual([['name', 'Ada', 'Ada L.']]);
+        });
+
+        it('reads the change sets of a row as its relation, whose inverse side is a plain column', async () => {
+            const household: Household = await repositoriesOf().households.create({ name: 'read guest', guests: [{ name: 'Ada' }] });
+            const [ada] = household.guests;
+            assert(ada != undefined);
+            await repositoriesOf().guests.updateById(ada.id, { name: 'Ada L.' });
+
+            const read: Guest = await repositoriesOf().guests.findById(ada.id, { relations: { changeSets: { changes: true } } });
+
+            expect(read.changeSets.map(c => c.type)).toEqual([ChangeSetType.CREATE, ChangeSetType.UPDATE]);
+            expect(read.changeSets[1]?.changes.map(c => [c.key, c.previousValue, c.newValue])).toEqual([['name', 'Ada', 'Ada L.']]);
+            const nested: Household = await repositoriesOf().households
+                .findById(household.id, { relations: { guests: { changeSets: true } } });
+            expect(nested.guests[0]?.changeSets.map(c => c.type)).toEqual([ChangeSetType.CREATE, ChangeSetType.UPDATE]);
         });
 
         it('soft deletes a row left out of a relation whose entity soft deletes', async () => {

@@ -2,10 +2,6 @@ import { afterAll, describe, expect, it } from '@jest/globals';
 import { TOTP } from 'otpauth';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { OtpRegistration, OtpTwoFactorMethod } from './methods/otp/otp.two-factor-method';
-import { RecoveryCodeRegistration, RecoveryCodeTwoFactorMethod } from './methods/recovery-code/recovery-code.two-factor-method';
-import { TwoFactorRecoveryCode } from './methods/recovery-code/two-factor-recovery-code.model';
-import { type TwoFactorServiceInterface } from './two-factor-service.interface';
 import { TestTimeouts } from '../../__testing__/constants';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
@@ -19,6 +15,10 @@ import { inject } from '../../di/inject.function';
 import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
 import { Newable } from '../../types/newable.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { OtpRegistration, OtpTwoFactorMethod } from './methods/otp/otp.two-factor-method';
+import { RecoveryCodeRegistration, RecoveryCodeTwoFactorMethod } from './methods/recovery-code/recovery-code.two-factor-method';
+import { TwoFactorRecoveryCode } from './methods/recovery-code/two-factor-recovery-code.model';
+import { type TwoFactorServiceInterface } from './two-factor-service.interface';
 
 // one for every server of the file, each starting with its own store
 const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({

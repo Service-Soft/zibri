@@ -1,13 +1,13 @@
-import { BackupDigest } from './backup-digest.model';
-import { RestoreJournalEntry } from './restore-journal-entry.model';
-import { RestoreJournal } from './restore-journal.model';
-import { StagedFileEncryption } from './staged-file-encryption.model';
-import { StagedFile } from './staged-file.model';
 import { type EncryptionServiceInterface } from '../auth/encryption/encryption-service.interface';
 import { type EncryptionString } from '../auth/encryption/encryption.utilities';
 import { InternalError } from '../error-handling/internal-error.model';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
+import { BackupDigest } from './backup-digest.model';
+import { RestoreJournalEntry } from './restore-journal-entry.model';
+import { RestoreJournal } from './restore-journal.model';
+import { StagedFileEncryption } from './staged-file-encryption.model';
+import { StagedFile } from './staged-file.model';
 
 /**
  * Reads and writes the journals a restore keeps beside its snapshots.

@@ -1,11 +1,11 @@
 import assert from 'node:assert';
 
-import { BaseRateLimiter } from './base-rate-limiter.model';
-import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
 import { NumberUtilities } from '../../utilities/number.utilities';
 import { RateLimitResult } from '../rate-limit-result.model';
 import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
 import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
+import { BaseRateLimiter } from './base-rate-limiter.model';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
 
 /**
  * Result of rolling the sliding window forward to the current point in time.

@@ -33,6 +33,7 @@ A websocket server is started for an application that declares websockets: one t
 | `WebsocketMessageSequence` | entity | The seq the last message was given |
 | `WebsocketMessageCleanupCronJob` | cron job | Deletes the messages older than `messageRetentionInMs` |
 | `WebsocketReplayIncomplete` | type | What a reconnecting client is sent instead of the messages it missed, when they cannot all be sent |
+| `WebsocketTenantDeactivated` | type | What the connections in a [tenant](../glossary.md#tenant) are sent once it is deactivated, see [tenants](#tenants) |
 | `WebsocketAnswer` | type | What one connection answered to a message sent to several, see [waiting for answers](#waiting-for-answers) |
 | `ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE` | DI token | Injects `WebsocketService` |
 | `ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT` | DI token | The websocket options your application sets, `messageRetentionInMs` among them |
@@ -265,6 +266,11 @@ channels, and receives them again once they are a member again.
 
 A reconnecting client is sent what it missed in the tenants its user is a member of, and what was
 sent outside every tenant.
+
+Once a tenant is [deactivated](../data/tenancy.md#deactivating-a-tenant), its connections are sent
+`ws:tenant-deactivated`, whose `data` is a `WebsocketTenantDeactivated` naming the tenant, and stop receiving it
+as they would for a deactivated membership. A message naming it is answered `403`. They stay connected for the
+other tenants of their users, and receive the tenant again once it is reactivated.
 
 ## Logins
 A connection receives as the user its handshake's credential resolves to, for as long as a request

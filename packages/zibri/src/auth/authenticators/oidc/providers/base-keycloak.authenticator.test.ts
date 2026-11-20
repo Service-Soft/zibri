@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 import { createInMemoryDataSource, InMemoryDataSource, TestBrowser } from 'zibri-testing';
 
-import { BaseKeycloakAuthenticator } from './base-keycloak.authenticator';
 import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../../__testing__/mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../../__testing__/test-server/create-test-data-source.function';
@@ -44,6 +43,7 @@ import { BaseSamlAuthenticator } from '../../saml/base-saml.authenticator';
 import { SamlIdentityProvider } from '../../saml/saml-identity-provider.model';
 import { OidcBearerTokens } from '../oidc-bearer-tokens.model';
 import { OidcDiscoveryAtBoot } from '../oidc-discovery-at-boot.type';
+import { BaseKeycloakAuthenticator } from './base-keycloak.authenticator';
 
 /**
  * The Keycloak the login is tested against, run in development mode, which serves plain http.

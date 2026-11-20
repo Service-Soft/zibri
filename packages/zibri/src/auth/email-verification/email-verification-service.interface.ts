@@ -1,6 +1,6 @@
-import { EmailConfirmation } from './email-confirmation.model';
 import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { UserAccount } from '../models/user-account.model';
+import { EmailConfirmation } from './email-confirmation.model';
 
 /**
  * Interface for the service that verifies the email addresses of users and changes them.

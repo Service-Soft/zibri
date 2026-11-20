@@ -1,5 +1,3 @@
-import { CacheInvalidation } from './cache-invalidation.model';
-import { type CacheServiceInterface } from './cache-service.interface';
 import { CronExpression } from '../cron/cron-expression.utilities';
 import { InitialCronConfig } from '../cron/cron-job.model';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -8,6 +6,8 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { PollingCronJob } from '../polling/polling-cron-job.model';
 import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
 import { Newable } from '../types/newable.type';
+import { CacheInvalidation } from './cache-invalidation.model';
+import { type CacheServiceInterface } from './cache-service.interface';
 
 // Deliberately `runsOn: 'everyInstance'`. Every instance has its own caches to clear, so every instance
 // has to run this; electing one would clear one instance's caches and leave the rest stale, which

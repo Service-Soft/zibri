@@ -1,10 +1,10 @@
-import { type EmailVerificationTokenPurpose } from './email-verification-token-purpose.type';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { OmitClass } from '../../entity/omit-class.model';
 import type { HashString } from '../hash/hash.utilities';
 import { Sha256HashStrategy } from '../hash/strategies/sha256.hash-strategy';
+import { type EmailVerificationTokenPurpose } from './email-verification-token-purpose.type';
 
 /**
  * The verification purposes, as the enum of the column.

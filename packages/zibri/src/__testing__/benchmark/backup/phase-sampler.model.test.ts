@@ -2,11 +2,11 @@ import { setTimeout as wait } from 'node:timers/promises';
 
 import { afterEach, describe, expect, it } from '@jest/globals';
 
-import { PhaseMeasurement } from './backup-measurement.model';
-import { PhaseSampler } from './phase-sampler.model';
 import { FsUtilities } from '../../../utilities/fs.utilities';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { testFileFolder } from '../../constants';
+import { PhaseMeasurement } from './backup-measurement.model';
+import { PhaseSampler } from './phase-sampler.model';
 
 /**
  * How long one collection of the stand-in collector blocks, about what a collection of a running application takes.
@@ -14,7 +14,7 @@ import { testFileFolder } from '../../constants';
 const COLLECTION_MS: number = 20;
 
 /**
- * How long the work of a measured phase keeps its thread busy, many clock ticks of 10 ms.
+ * How much CPU time the work of a measured phase spends on its thread, many clock ticks of 10 ms.
  */
 const BUSY_MS: number = 300;
 
@@ -49,10 +49,12 @@ describe('PhaseSampler', () => {
         const sampler: PhaseSampler = new PhaseSampler(FsUtilities.getPath(testFileFolder, `phase-sampler-${UUIDUtilities.generate()}`), undefined);
 
         sampler.begin(undefined);
-        // what leaves the collector work to do, which its helpers do beside the thread allocating
-        const busyUntil: number = performance.now() + BUSY_MS;
+        // what leaves the collector work to do, which its helpers do beside the thread allocating. Until the thread
+        // itself spent the time, rather than until the time passed: on a busy machine the thread is not run for all of
+        // it, and spent 76 of 300 ms
+        const start: NodeJS.CpuUsage = process.threadCpuUsage();
         let held: Buffer[] = [];
-        while (performance.now() < busyUntil) {
+        for (let spent: NodeJS.CpuUsage = process.threadCpuUsage(start); spent.user + spent.system < BUSY_MS * 1000; spent = process.threadCpuUsage(start)) {
             held.push(Buffer.alloc(1024));
             if (held.length > 100_000) {
                 held = [];

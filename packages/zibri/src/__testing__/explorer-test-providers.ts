@@ -1,7 +1,7 @@
-import { compileTsxTemplate } from './compile-tsx-template.function';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { defineProvider, DiProvider } from '../di/models/di-provider.model';
 import { OpenApiExplorerTemplate } from '../open-api/explorer/open-api-explorer.model';
+import { compileTsxTemplate } from './compile-tsx-template.function';
 
 /**
  * An explorer page writing what it is handed, so a test reads it from the html.

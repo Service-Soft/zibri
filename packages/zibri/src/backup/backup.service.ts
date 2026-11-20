@@ -8,6 +8,61 @@ import { setTimeout } from 'node:timers/promises';
 
 import { BehaviorSubject, first, firstValueFrom } from 'rxjs';
 
+import { ZibriApplication } from '../application/application';
+import { type AuditServiceInterface } from '../audit/audit-service.interface';
+import { EncryptionKey } from '../auth/encryption/encryption-key.model';
+import { type EncryptionServiceInterface } from '../auth/encryption/encryption-service.interface';
+import { type EncryptionString } from '../auth/encryption/encryption.utilities';
+import { KeptEncryptionKeys } from '../auth/encryption/kept-encryption-keys.model';
+import { KeysInUse } from '../auth/encryption/keys-in-use.model';
+import { SigningKey } from '../auth/encryption/signing-key.model';
+import { EncryptionStrategyEntity } from '../auth/encryption/strategies/encryption-strategy-entity.model';
+import { type UserServiceInterface } from '../auth/user/user-service.interface';
+import { CacheRestoreTagUtilities } from '../caching/cache-restore-tag.utilities';
+import { type CacheServiceInterface } from '../caching/cache-service.interface';
+import { DataSourceInterface, isDataSource } from '../data-source/data-sources/data-source.interface';
+import { Repository } from '../data-source/repository/repository';
+import { Transaction } from '../data-source/transaction/transaction.model';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
+import { Inject } from '../di/decorators/inject.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { getDiTokenName } from '../di/get-di-token-name.function';
+import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function';
+import { inject } from '../di/inject.function';
+import { DiProvider } from '../di/models/di-provider.model';
+import { DiVariants } from '../di/models/di-variant.model';
+import { BadRequestError } from '../error-handling/errors/bad-request.error';
+import { ConflictError } from '../error-handling/errors/conflict.error';
+import { InternalError } from '../error-handling/internal-error.model';
+import { AfterAppInit } from '../global/after-app-init.interface';
+import { OnAppInit } from '../global/on-app-init.interface';
+import { OnAppShutdown } from '../global/on-app-shutdown.interface';
+import { MimeType } from '../http/mime-type.enum';
+import { type LeaseServiceInterface } from '../leases/lease-service.interface';
+import { $ts } from '../localization/translate.function';
+import { AuditAction, AuditOutcome } from '../logging/audit-event.model';
+import { AuditUtilities } from '../logging/audit.utilities';
+import { type LoggerInterface } from '../logging/logger.interface';
+import { parseObject } from '../parsing/functions/parse-object.function';
+import { WakeUpListener } from '../polling/wake-up-listener.model';
+import { type WakeUpServiceInterface } from '../polling/wake-up-service.interface';
+import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
+import { QueueDefinition } from '../queue/queue-definition.model';
+import { QueueUtilities } from '../queue/queue.utilities';
+import { QueuedWorkHandedBackError } from '../queue/queued-work-handed-back.error';
+import { QueuedWorkOutcome } from '../queue/queued-work-outcome.model';
+import { resolveStructuredBodyMetadata } from '../routing/resolve-body-metadata.function';
+import { TracingUtilities } from '../tracing/tracing.utilities';
+import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { JsonUtilities } from '../utilities/json.utilities';
+import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { Ms } from '../utilities/ms';
+import { ObjectUtilities } from '../utilities/object.utilities';
+import { PromiseUtilities, TimeoutError } from '../utilities/promise.utilities';
+import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
+import { type ValidationServiceInterface } from '../validation/validation-service.interface';
 import { BackupChunkEntity } from './backup-chunk-entity.model';
 import { BackupDataOptions } from './backup-data-options.model';
 import { BackupDigest } from './backup-digest.model';
@@ -70,61 +125,6 @@ import { BaseSftpBackupTransport } from './transports/base-sftp.backup-transport
 import { BaseBackupTransport } from './transports/base.backup-transport';
 import { Format1BackupTransport } from './transports/format-1.backup-transport';
 import { UnreadableBackupError } from './unreadable-backup.error';
-import { ZibriApplication } from '../application/application';
-import { type AuditServiceInterface } from '../audit/audit-service.interface';
-import { EncryptionKey } from '../auth/encryption/encryption-key.model';
-import { type EncryptionServiceInterface } from '../auth/encryption/encryption-service.interface';
-import { type EncryptionString } from '../auth/encryption/encryption.utilities';
-import { KeptEncryptionKeys } from '../auth/encryption/kept-encryption-keys.model';
-import { KeysInUse } from '../auth/encryption/keys-in-use.model';
-import { SigningKey } from '../auth/encryption/signing-key.model';
-import { EncryptionStrategyEntity } from '../auth/encryption/strategies/encryption-strategy-entity.model';
-import { type UserServiceInterface } from '../auth/user/user-service.interface';
-import { CacheRestoreTagUtilities } from '../caching/cache-restore-tag.utilities';
-import { type CacheServiceInterface } from '../caching/cache-service.interface';
-import { DataSourceInterface, isDataSource } from '../data-source/data-sources/data-source.interface';
-import { Repository } from '../data-source/repository/repository';
-import { Transaction } from '../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { getDiTokenName } from '../di/get-di-token-name.function';
-import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function';
-import { inject } from '../di/inject.function';
-import { DiProvider } from '../di/models/di-provider.model';
-import { DiVariants } from '../di/models/di-variant.model';
-import { BadRequestError } from '../error-handling/errors/bad-request.error';
-import { ConflictError } from '../error-handling/errors/conflict.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { AfterAppInit } from '../global/after-app-init.interface';
-import { OnAppInit } from '../global/on-app-init.interface';
-import { OnAppShutdown } from '../global/on-app-shutdown.interface';
-import { MimeType } from '../http/mime-type.enum';
-import { type LeaseServiceInterface } from '../leases/lease-service.interface';
-import { $ts } from '../localization/translate.function';
-import { AuditAction, AuditOutcome } from '../logging/audit-event.model';
-import { AuditUtilities } from '../logging/audit.utilities';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { parseObject } from '../parsing/functions/parse-object.function';
-import { WakeUpListener } from '../polling/wake-up-listener.model';
-import { type WakeUpServiceInterface } from '../polling/wake-up-service.interface';
-import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
-import { QueueDefinition } from '../queue/queue-definition.model';
-import { QueueUtilities } from '../queue/queue.utilities';
-import { QueuedWorkHandedBackError } from '../queue/queued-work-handed-back.error';
-import { QueuedWorkOutcome } from '../queue/queued-work-outcome.model';
-import { resolveStructuredBodyMetadata } from '../routing/resolve-body-metadata.function';
-import { TracingUtilities } from '../tracing/tracing.utilities';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { Ms } from '../utilities/ms';
-import { ObjectUtilities } from '../utilities/object.utilities';
-import { PromiseUtilities, TimeoutError } from '../utilities/promise.utilities';
-import { UUIDUtilities } from '../utilities/uuid.utilities';
-import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
-import { type ValidationServiceInterface } from '../validation/validation-service.interface';
 
 /**
  * How long storing a resource waits for a restore or another backup of it to be done, before the
@@ -628,8 +628,8 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
             try {
                 await this.wakeUpService.wake(this.backupRepository.dataSource, WAKE_UP_TOPICS.BACKUPS);
             }
-            catch (error) {
-                this.logger.warn(`Could not tell the other instances that backups were handed back: ${String(error)}`);
+            catch (error_) {
+                this.logger.warn(`Could not tell the other instances that backups were handed back: ${String(error_)}`);
             }
         }
     }
@@ -1021,22 +1021,22 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
     private mergeEntities(groupedEntities: Record<string, BackupEntity[]>): BackupEntity[] {
         const res: BackupEntity[] = [];
         for (const [, entities] of ObjectUtilities.entries(groupedEntities)) {
-            const first: BackupEntity | undefined = entities[0];
-            if (first == undefined) {
+            const firstEntity: BackupEntity | undefined = entities[0];
+            if (firstEntity == undefined) {
                 continue;
             }
             res.push({
-                createdAt: first.createdAt,
-                id: first.id,
-                name: first.name,
+                createdAt: firstEntity.createdAt,
+                id: firstEntity.id,
+                name: firstEntity.name,
                 // carried rather than left to the defaults, which would stamp every backup the
                 // transports hold as written by whatever happens to be reading them
-                zibriVersion: first.zibriVersion,
-                formatVersion: first.formatVersion,
-                status: first.status,
-                tenantId: first.tenantId,
-                masterKeys: first.masterKeys,
-                dataKeyIds: first.dataKeyIds,
+                zibriVersion: firstEntity.zibriVersion,
+                formatVersion: firstEntity.formatVersion,
+                status: firstEntity.status,
+                tenantId: firstEntity.tenantId,
+                masterKeys: firstEntity.masterKeys,
+                dataKeyIds: firstEntity.dataKeyIds,
                 resources: entities.reduce<BackupResourceEntity[]>(
                     (prev, curr) => [
                         ...prev,

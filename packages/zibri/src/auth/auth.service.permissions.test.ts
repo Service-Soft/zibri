@@ -1,19 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { type AuthServiceInterface } from './auth-service.interface';
-import { Auth } from './decorators/auth.decorator';
-import { CurrentUser } from './decorators/current-user.decorator';
-import { type CurrentUserMembership } from './models/current-user-membership.model';
-import { type RouteAuthConfiguration } from './models/route-auth-configuration.model';
-import { definePermissions, definePlatformPermissions } from './roles/define-permissions.function';
-import { type Permission } from './roles/permission.type';
-import { type PlatformPermission } from './roles/platform-permission.type';
 import { TestTimeouts } from '../__testing__/constants';
-import { ApiKeyAuthStrategy } from './strategies/api-key/api-key.auth-strategy';
-import { ApiKey } from './strategies/api-key/api-key.model';
-import { CreatedApiKey } from './strategies/api-key/created-api-key.model';
-import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { MemberRoles } from '../__testing__/mocks/entities/member-roles.enum';
 import { Roles } from '../__testing__/mocks/entities/roles.enum';
@@ -40,6 +28,18 @@ import type { CurrentMembership } from '../tenancy/membership/current-membership
 import { type TenantServiceInterface } from '../tenancy/tenant-service.interface';
 import { Newable } from '../types/newable.type';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { type AuthServiceInterface } from './auth-service.interface';
+import { Auth } from './decorators/auth.decorator';
+import { CurrentUser } from './decorators/current-user.decorator';
+import { type CurrentUserMembership } from './models/current-user-membership.model';
+import { type RouteAuthConfiguration } from './models/route-auth-configuration.model';
+import { definePermissions, definePlatformPermissions } from './roles/define-permissions.function';
+import { type Permission } from './roles/permission.type';
+import { type PlatformPermission } from './roles/platform-permission.type';
+import { ApiKeyAuthStrategy } from './strategies/api-key/api-key.auth-strategy';
+import { ApiKey } from './strategies/api-key/api-key.model';
+import { CreatedApiKey } from './strategies/api-key/created-api-key.model';
+import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
 
 // a role an administrator creates at runtime can be named by no code, and a credential limited below
 // its user's roles can only be described by what it may do, so what a request is handed is what its

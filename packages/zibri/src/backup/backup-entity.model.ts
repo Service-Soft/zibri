@@ -1,6 +1,3 @@
-import { BACKUP_FORMAT_VERSION } from './backup-format';
-import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model';
-import { BackupStatus } from './backup-status.enum';
 import { MasterKeyReference } from '../auth/encryption/master-key-reference.model';
 import { FrameworkColumnRegistry } from '../data-source/migration/framework-column.registry';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -13,6 +10,9 @@ import { LocaleCode } from '../localization/models/locale-code.model';
 import { OmitStrict } from '../types/omit-strict.type';
 import { type SemVerVersion } from '../utilities/sem-ver.utilities';
 import { zibriVersion } from '../versioning/zibri-version.function';
+import { BACKUP_FORMAT_VERSION } from './backup-format';
+import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model';
+import { BackupStatus } from './backup-status.enum';
 
 /**
  * The entity of a single backup.

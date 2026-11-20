@@ -1,9 +1,9 @@
-import { HashDescriptor } from './hash-descriptor';
-import { ModelRegistry } from './model.registry';
 import { PasswordPolicy } from '../../auth/password-policy/password-policy.model';
 import { PasswordPolicyUtilities } from '../../auth/password-policy/password-policy.utilities';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
+import { HashDescriptor } from './hash-descriptor';
+import { ModelRegistry } from './model.registry';
 
 /**
  * Validates every password a write sets against the password policy, before any of them is hashed:

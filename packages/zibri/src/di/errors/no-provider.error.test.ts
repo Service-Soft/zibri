@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { NoProviderError } from './no-provider.error';
 import { Inject } from '../decorators/inject.decorator';
 import { InjectionToken } from '../models/injection-token.model';
+import { NoProviderError } from './no-provider.error';
 
 describe('NoProviderError', () => {
     it('sets its name and extends InternalError-style messaging', () => {

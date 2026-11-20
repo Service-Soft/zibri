@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { ZibriPlugin } from './plugin.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -27,6 +26,7 @@ import { WebsocketRoute } from '../websocket/decorators/websocket-route.decorato
 import { SocketIOWebsocketConnection } from '../websocket/models/connection/socket-io-websocket-connection.model';
 import { WebsocketMessage } from '../websocket/models/websocket-message.model';
 import { type WebsocketServiceInterface } from '../websocket/services/websocket-service.interface';
+import { ZibriPlugin } from './plugin.model';
 
 /**
  * What the plugin stores, in a data source of its own.

@@ -1,10 +1,10 @@
-import { AnyNumber } from './number-where-filter.model';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { PropertyMetadata } from '../../../entity/decorators/property.decorator';
 import { Relation } from '../../../entity/models/relation.enum';
 import { BigNumber, NumberUtilities } from '../../../utilities/number.utilities';
 import { ObjectUtilities } from '../../../utilities/object.utilities';
+import { AnyNumber } from './number-where-filter.model';
 
 /**
  * Compares the values a where filter is written with the same way everywhere one is read.

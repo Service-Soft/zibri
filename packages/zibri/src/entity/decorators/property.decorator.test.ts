@@ -1,6 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { Property, PropertyMetadata } from './property.decorator';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { BaseEncryptOptions, EncryptionStrategyInterface } from '../../auth/encryption/strategies/encryption-strategy.interface';
 import { BcryptHashStrategy } from '../../auth/hash/strategies/bcrypt.hash-strategy';
@@ -11,6 +10,7 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { BaseEntity } from '../base-entity.model';
 import { type OneOf } from '../models/one-of.model';
 import { Relation } from '../models/relation.enum';
+import { Property, PropertyMetadata } from './property.decorator';
 
 /**
  * Encryption and hashing declared on a string, wherever the string sits: a property, an item of an

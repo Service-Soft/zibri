@@ -1,9 +1,9 @@
-import { AuthControllerAuthenticatorClass } from './auth-controller-authenticator-class.type';
-import { AuthControllerOptions } from './auth-controller-options.model';
-import { AuthControllerConfirmEmailRoutes, AuthControllerCsrfTokenRoutes, AuthControllerCurrentUserRoutes, AuthControllerEmailVerificationRoutes, AuthControllerFederatedRoutes, AuthControllerIdentityRoutes, AuthControllerLinkIdentityConfirmingRoutes, AuthControllerLinkIdentityRoutes, AuthControllerLoginListingRoutes, AuthControllerLoginRoutes, AuthControllerPasswordChangeRoutes, AuthControllerPasswordResetRoutes, AuthControllerLoginOptionsRoutes, AuthControllerRegistrationRoutes, AuthControllerTwoFactorRegistrationsRoutes, AuthControllerTwoFactorRoutes } from './auth-controller-routes.model';
-import { AuthControllerStrategyClass } from './auth-controller-strategy-class.type';
 import { Newable } from '../../types/newable.type';
 import { TwoFactorMethods } from '../2fa/two-factor-methods.model';
+import { AuthControllerAuthenticatorClass } from './auth-controller-authenticator-class.type';
+import { AuthControllerOptions } from './auth-controller-options.model';
+import { AuthControllerConfirmEmailRoutes, AuthControllerCsrfTokenRoutes, AuthControllerCurrentUserRoutes, AuthControllerEmailVerificationRoutes, AuthControllerFederatedRoutes, AuthControllerIdentityRoutes, AuthControllerInvitationRoutes, AuthControllerLinkIdentityConfirmingRoutes, AuthControllerLinkIdentityRoutes, AuthControllerLoginListingRoutes, AuthControllerLoginRoutes, AuthControllerPasswordChangeRoutes, AuthControllerPasswordResetRoutes, AuthControllerLoginOptionsRoutes, AuthControllerRegistrationRoutes, AuthControllerTwoFactorRegistrationsRoutes, AuthControllerTwoFactorRoutes } from './auth-controller-routes.model';
+import { AuthControllerStrategyClass } from './auth-controller-strategy-class.type';
 
 /**
  * Whether any of the given instance types has the given member.
@@ -42,10 +42,12 @@ export type AuthControllerRoutes<
     EmailVerification extends boolean = false,
     CurrentUserRoute extends boolean = false,
     ConfirmEmailRoute extends boolean = false,
-    TwoFactorRegistrationsRoute extends boolean = false
+    TwoFactorRegistrationsRoute extends boolean = false,
+    InvitationRoutes extends boolean = false
 > = AuthControllerLoginRoutes
     & EmailRoutes<EmailVerification, ConfirmEmailRoute>
     & ([CurrentUserRoute] extends [true] ? AuthControllerCurrentUserRoutes : unknown)
+    & ([InvitationRoutes] extends [true] ? AuthControllerInvitationRoutes : unknown)
     & RoutesIf<InstanceType<Strategies[number]>, 'resolveCsrfToken', AuthControllerCsrfTokenRoutes>
     & RoutesIf<InstanceType<Strategies[number]>, 'findLogins', AuthControllerLoginListingRoutes>
     & RoutesIf<InstanceType<Authenticators[number]>, 'confirmPasswordReset', AuthControllerPasswordResetRoutes>
@@ -68,7 +70,8 @@ export type AuthControllerClass<
     EmailVerification extends boolean = boolean,
     CurrentUserRoute extends boolean = boolean,
     ConfirmEmailRoute extends boolean = boolean,
-    TwoFactorRegistrationsRoute extends boolean = boolean
+    TwoFactorRegistrationsRoute extends boolean = boolean,
+    InvitationRoutes extends boolean = boolean
 > = Newable<AuthControllerRoutes<
     Strategies,
     Authenticators,
@@ -76,7 +79,8 @@ export type AuthControllerClass<
     EmailVerification,
     CurrentUserRoute,
     ConfirmEmailRoute,
-    TwoFactorRegistrationsRoute
+    TwoFactorRegistrationsRoute,
+    InvitationRoutes
 >> & {
     /**
      * What the routes were built from.
@@ -88,6 +92,7 @@ export type AuthControllerClass<
         EmailVerification,
         CurrentUserRoute,
         ConfirmEmailRoute,
-        TwoFactorRegistrationsRoute
+        TwoFactorRegistrationsRoute,
+        InvitationRoutes
     >
 };

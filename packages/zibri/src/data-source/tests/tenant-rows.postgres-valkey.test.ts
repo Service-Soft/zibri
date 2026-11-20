@@ -1,6 +1,5 @@
 import { afterAll, beforeAll } from '@jest/globals';
 
-import { describeTenantRows, describeTenantRowsAsOfOneMoment, TENANT_ROWS_ENTITIES } from './tenant-rows.cases';
 import { TestTimeouts } from '../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
@@ -13,6 +12,7 @@ import { PostgresDataSource } from '../data-sources/postgres/postgres-data-sourc
 import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
 import { DataSource } from '../decorators/data-source.decorator';
 import { MigrationEntity } from '../migration/migration-entity.model';
+import { describeTenantRows, describeTenantRowsAsOfOneMoment, TENANT_ROWS_ENTITIES } from './tenant-rows.cases';
 
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
     entities: [...defaultTestServerEntities, ...TENANT_ROWS_ENTITIES],

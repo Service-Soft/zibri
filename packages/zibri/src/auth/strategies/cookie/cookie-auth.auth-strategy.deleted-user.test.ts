@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { CookieAuthRefreshSession } from './cookie-auth-refresh-session.model';
-import { CookieAuthSession } from './cookie-auth-session.model';
-import { CookieAuthStrategy } from './cookie-auth.auth-strategy';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { CookieTestAuthController } from '../../../__testing__/mocks/controllers/cookie-test-auth.controller';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
@@ -28,6 +25,9 @@ import { Auth } from '../../decorators/auth.decorator';
 import { CurrentUser } from '../../decorators/current-user.decorator';
 import { BaseUserEntity } from '../../models/base-user.model';
 import { BaseUserRepository } from '../../user/base-user-repository.model';
+import { CookieAuthRefreshSession } from './cookie-auth-refresh-session.model';
+import { CookieAuthSession } from './cookie-auth-session.model';
+import { CookieAuthStrategy } from './cookie-auth.auth-strategy';
 
 const PASSWORD: string = 'correct horse battery staple';
 const SESSION_COOKIE: string = 'sessionId';

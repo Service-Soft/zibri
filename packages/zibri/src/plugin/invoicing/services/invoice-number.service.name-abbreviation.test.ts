@@ -2,7 +2,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { InvoiceNumberService } from './invoice-number.service';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { companyInfoProvider } from '../../../__testing__/mocks/company-info-provider.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -21,6 +20,7 @@ import { InvoiceAddress } from '../models/invoice-address.model';
 import { InvoiceRecipientAbbreviation } from '../models/invoice-recipient-abbreviation.model';
 import { Invoice } from '../models/invoice.model';
 import { NumberInvoices } from '../models/number-invoices.model';
+import { InvoiceNumberService } from './invoice-number.service';
 
 // in memory, as the abbreviations are judged by the service alone, whichever store holds the counters.
 // A file of its own, because an application refuses a data source declared by another one the same

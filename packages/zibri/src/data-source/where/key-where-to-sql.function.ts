@@ -1,4 +1,3 @@
-import { PropertyReferenceUtilities } from './property-reference.utilities';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { KeyWhere } from '../../entity/models/unique-declaration.model';
@@ -7,6 +6,7 @@ import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { literalToSql } from '../literal-to-sql.function';
+import { PropertyReferenceUtilities } from './property-reference.utilities';
 
 /**
  * The values a key's filter may compare against.

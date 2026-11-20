@@ -1,7 +1,3 @@
-import { UserEventWriteObserver } from './user-event.write-observer';
-import { isUserRepository, UserRepositoryInterface } from './user-repository.interface';
-import { FindUserOptions, UserServiceInterface } from './user-service.interface';
-import { UserWriteObserver } from './user.write-observer';
 import { Repository } from '../../data-source/repository/repository';
 import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { EntityWriteObserverRegistry } from '../../data-source/write-observers/entity-write-observer.registry';
@@ -25,6 +21,10 @@ import { type LoggerInterface } from '../../logging/logger.interface';
 import { Newable } from '../../types/newable.type';
 import { BaseUser } from '../models/base-user.model';
 import { RoleUtilities } from '../roles/role.utilities';
+import { UserEventWriteObserver } from './user-event.write-observer';
+import { isUserRepository, UserRepositoryInterface } from './user-repository.interface';
+import { FindUserOptions, UserServiceInterface } from './user-service.interface';
+import { UserWriteObserver } from './user.write-observer';
 
 /**
  * An error to throw during user service initialization.
@@ -240,6 +240,19 @@ export class UserService implements UserServiceInterface, OnAppInit {
         const found: unknown[][] = await Promise.all(this.userEntityRepositories
             .map(async repository => await repository.resolveDistinctAsStored('id', { id: { oneOf: userIds } }, undefined)));
         return found.flat().filter(id => typeof id === 'string');
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteUser(id: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+        // through the repository that holds the user, so that what follows a deleted user, such as their
+        // memberships and credentials, goes with it, and a user entity that soft deletes keeps the row
+        const counts: number[] = await Promise.all(this.userEntityRepositories
+            .map(async repository => await repository.count({ where: { id }, transaction })));
+        const holder: Repository<BaseUser<string>> | undefined = this.userEntityRepositories.find((_, index) => (counts[index] ?? 0) > 0);
+        if (holder == undefined) {
+            throw new NotFoundError($ts`Could not find user with id "${id}".`);
+        }
+        await holder.deleteById(id, { transaction });
     }
 
     /**

@@ -1,6 +1,5 @@
 import { ClusterMark, defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
-import { definePermissions, definePlatformPermissions } from './define-permissions.function';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { TestRole } from '../../__testing__/mocks/entities/test-role.entity';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -21,6 +20,7 @@ import { Auth } from '../decorators/auth.decorator';
 import { ApiKeyAuthStrategy } from '../strategies/api-key/api-key.auth-strategy';
 import { ApiKey } from '../strategies/api-key/api-key.model';
 import { CreatedApiKey } from '../strategies/api-key/created-api-key.model';
+import { definePermissions, definePlatformPermissions } from './define-permissions.function';
 
 /**
  * What every instance of the roles cluster boots with.

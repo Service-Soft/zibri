@@ -1,6 +1,6 @@
+import { TraceBufferInterface } from '../trace-buffer.interface';
 import { OpenTelemetryApi, OpenTelemetryReadableSpan, OpenTelemetrySpanProcessor } from './open-telemetry-api.model';
 import { OpenTelemetryUtilities } from './open-telemetry.utilities';
-import { TraceBufferInterface } from '../trace-buffer.interface';
 
 /**
  * Puts every span the application finishes into the buffer it keeps.

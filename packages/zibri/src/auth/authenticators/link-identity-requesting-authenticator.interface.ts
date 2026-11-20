@@ -1,7 +1,7 @@
-import { IdentityLinkingAuthenticatorInterface, isIdentityLinkingAuthenticator } from './identity-linking-authenticator.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
 import { BaseUser } from '../models/base-user.model';
+import { IdentityLinkingAuthenticatorInterface, isIdentityLinkingAuthenticator } from './identity-linking-authenticator.interface';
 
 /**
  * Interface for an authenticator whose identities a logged in user links to their account through

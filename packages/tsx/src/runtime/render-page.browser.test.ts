@@ -3,11 +3,11 @@ import assert from 'node:assert';
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { Browser, chromium } from 'playwright';
 
+import { compilePage, loadTemplatePage } from '../../../tsx-compiler/src/__testing__/server-render.helper';
+import { openPage, OpenedPage } from '../__testing__/browser.helper';
 import { CompiledPage } from './render-page';
 import { SERVER_HOOKS } from './server-hooks';
 import { attr, createContext, renderChild } from './server-runtime';
-import { compilePage, loadTemplatePage } from '../../../tsx-compiler/src/__testing__/server-render.helper';
-import { openPage, OpenedPage } from '../__testing__/browser.helper';
 
 declare global {
 

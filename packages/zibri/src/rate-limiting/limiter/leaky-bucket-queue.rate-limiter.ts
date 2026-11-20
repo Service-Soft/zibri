@@ -1,16 +1,16 @@
 import assert from 'node:assert';
 
 import { NumberUtilities } from '../../utilities/number.utilities';
-import { RateLimitResult } from '../rate-limit-result.model';
-import { BaseRateLimiter } from './base-rate-limiter.model';
-import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { RateLimitResult } from '../rate-limit-result.model';
 import { RateLimitReservationNotFoundError } from '../reservation/rate-limit-reservation-not-found.error';
 import { RateLimitReservationRejectionReason } from '../reservation/rate-limit-reservation-rejection-reason.enum';
 import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
 import { RateLimitReservationError } from '../reservation/rate-limit-reservation.error';
 import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
 import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
+import { BaseRateLimiter } from './base-rate-limiter.model';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
 
 /**
  * A single scheduled item in the leaky bucket queue.
@@ -211,8 +211,8 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
             () => this.config.store.atomicUpdate(
                 key,
                 (current) => {
-                    const state: LeakyBucketQueueState = current ?? this.initialAlgoState(now);
-                    const queue: ScheduledItem[] = [...state.queue];
+                    const previousState: LeakyBucketQueueState = current ?? this.initialAlgoState(now);
+                    const queue: ScheduledItem[] = [...previousState.queue];
                     const active: ScheduledItem[] = queue.filter(item => item.finishesAtMs > now);
 
                     // Calculate start time for the new request
@@ -224,12 +224,12 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
 
                     if (newQueueLength > this.maxQueueSize) {
                         allowed = false;
-                        return { ...state, queue: active, expiresAtMs: this.queueExpiresAtMs(active, now) };
+                        return { ...previousState, queue: active, expiresAtMs: this.queueExpiresAtMs(active, now) };
                     }
 
                     if (finishTime - now > this.maxQueueTimeMs) {
                         allowed = false;
-                        return { ...state, queue: active, expiresAtMs: this.queueExpiresAtMs(active, now) };
+                        return { ...previousState, queue: active, expiresAtMs: this.queueExpiresAtMs(active, now) };
                     }
 
                     allowed = true;
@@ -241,7 +241,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
                         committed: true // regular request, cannot be cancelled
                     };
                     active.push(newItem);
-                    return { ...state, queue: active, expiresAtMs: this.queueExpiresAtMs(active, now) };
+                    return { ...previousState, queue: active, expiresAtMs: this.queueExpiresAtMs(active, now) };
                 }
             )
         );

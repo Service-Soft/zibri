@@ -1,7 +1,7 @@
-import { AstBlockStatement, AstExpression, AstProgram, AstStatement } from './ast.model';
-import { resolveKeyForPathExpression } from './resolve-key-for-path-expression.function';
 import { InternalError } from '../error-handling/internal-error.model';
 import { JsonUtilities } from '../utilities/json.utilities';
+import { AstBlockStatement, AstExpression, AstProgram, AstStatement } from './ast.model';
+import { resolveKeyForPathExpression } from './resolve-key-for-path-expression.function';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export function resolveAllArrayKeys(ast: AstProgram, parentKey: string | undefined): string[] {

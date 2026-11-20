@@ -1,7 +1,7 @@
-import { TransactionAlreadyFinishedError } from './transaction-already-finished.error';
-import { Transaction } from './transaction.model';
 import { type OperationLimit } from '../../context/operation-limit.model';
 import { type PgPoolClient } from '../data-sources/postgres/postgres-client.model';
+import { TransactionAlreadyFinishedError } from './transaction-already-finished.error';
+import { Transaction } from './transaction.model';
 
 /**
  * A transaction of a postgres data source, holding the connection it runs on.

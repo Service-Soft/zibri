@@ -1,8 +1,5 @@
 import { afterAll, beforeAll } from '@jest/globals';
 
-import { MigrationEntity } from './migration-entity.model';
-import { Migration } from './migration.model';
-import { createUpgradeGizmoMigration, describeMovedEntities, firstVersionEntities, secondVersionEntities, seedFirstVersion } from './moved-entities.cases';
 import { TestTimeouts } from '../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
@@ -12,6 +9,9 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
 import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
+import { MigrationEntity } from './migration-entity.model';
+import { Migration } from './migration.model';
+import { createUpgradeGizmoMigration, describeMovedEntities, firstVersionEntities, secondVersionEntities, seedFirstVersion } from './moved-entities.cases';
 
 // changed in place by the upgrade below, so that the second version starts on the same data source
 // classes - and so on the same containers, which belong to the classes

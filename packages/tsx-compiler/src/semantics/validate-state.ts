@@ -1,15 +1,15 @@
 import ts from 'typescript';
 import { Diagnostic, DiagnosticSeverity } from 'zibri-tsx';
 
+import { nestedJsx, STATE_HANDLE_HOOKS, stateDeclarations, stateReach } from '../codegen/client/bindings';
+import { attributeExpression, attributesOf, isEventHandlerName } from '../codegen/client/handlers';
+import { collectRegions, RegionCollection } from '../codegen/client/regions';
 import { collectReferencedSymbols, isBindingIdentifier } from './binding';
 import { ComponentFunction, ComponentInfo } from './component';
 import { symbolOf } from './symbols';
 import { isFunctionNode, runsWhereItIsWritten, ValidationCode } from './validate';
 import { forEachDescendant, isNamedAtTop } from './validate-refs';
 import { isHookCall } from './walk';
-import { nestedJsx, STATE_HANDLE_HOOKS, stateDeclarations, stateReach } from '../codegen/client/bindings';
-import { attributeExpression, attributesOf, isEventHandlerName } from '../codegen/client/handlers';
-import { collectRegions, RegionCollection } from '../codegen/client/regions';
 
 /**
  * The methods that change an array, a map or a set in place, which a state cannot see.

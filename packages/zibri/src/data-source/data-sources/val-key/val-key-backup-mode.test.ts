@@ -3,12 +3,6 @@ import { Readable } from 'node:stream';
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { ValKeyBackupMode } from './val-key-backup-mode.model';
-import { ValKeyCopyOnWriteUtilities } from './val-key-copy-on-write.utilities';
-import { ValKeyDataSource, ValKeyOptions } from './val-key-data-source.model';
-import { valKeyGlide } from './val-key-glide.function';
-import { ValKeyRestoreMode } from './val-key-restore-mode.model';
-import { ValKeyScanUtilities } from './val-key-scan.utilities';
 import { BackupDataOptionsTestUtilities } from '../../../__testing__/backup/backup-data-options-test.utilities';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { TestMembership } from '../../../__testing__/mocks/entities/test-membership.entity';
@@ -51,6 +45,12 @@ import { Repository } from '../../repository/repository';
 import { RepositoryClass } from '../../repository/repository-class.type';
 import { applyGuardedValKeyWrites } from '../../transaction/apply-guarded-val-key-writes.function';
 import { Transaction } from '../../transaction/transaction.model';
+import { ValKeyBackupMode } from './val-key-backup-mode.model';
+import { ValKeyCopyOnWriteUtilities } from './val-key-copy-on-write.utilities';
+import { ValKeyDataSource, ValKeyOptions } from './val-key-data-source.model';
+import { valKeyGlide } from './val-key-glide.function';
+import { ValKeyRestoreMode } from './val-key-restore-mode.model';
+import { ValKeyScanUtilities } from './val-key-scan.utilities';
 
 // a backup walked the keys while transactions committed
 // in between, and a restore swapped in whatever the walk saw with nothing bringing a row and its

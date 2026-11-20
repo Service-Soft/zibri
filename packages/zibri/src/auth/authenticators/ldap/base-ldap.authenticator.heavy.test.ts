@@ -3,11 +3,6 @@ import { Attribute, Change, Client, Entry } from 'ldapts';
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 import { createFakeKeyPair, createInMemoryDataSource, FakeKeyPair, InMemoryDataSource } from 'zibri-testing';
 
-import { BaseLdapAuthenticator } from './base-ldap.authenticator';
-import { LdapCredentials } from './ldap-credentials.model';
-import { LdapEntry } from './ldap-entry.model';
-import { LdapIdentity } from './ldap-identity.model';
-import { LdapServiceAccount } from './ldap-service-account.model';
 import { ContainerOutput } from '../../../__testing__/container-output.model';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
@@ -32,6 +27,11 @@ import { Auth } from '../../decorators/auth.decorator';
 import { JwtAuthData } from '../../strategies/jwt/jwt-auth-data.model';
 import { JwtRefreshLoginDto } from '../../strategies/jwt/jwt-refresh-login-data.model';
 import { JwtAuthStrategy } from '../../strategies/jwt/jwt.auth-strategy';
+import { BaseLdapAuthenticator } from './base-ldap.authenticator';
+import { LdapCredentials } from './ldap-credentials.model';
+import { LdapEntry } from './ldap-entry.model';
+import { LdapIdentity } from './ldap-identity.model';
+import { LdapServiceAccount } from './ldap-service-account.model';
 
 // the 389 Directory Server project's own image
 const DIRECTORY_TEST_IMAGE: string = '389ds/dirsrv:3.1';

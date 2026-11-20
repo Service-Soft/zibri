@@ -4,6 +4,10 @@ import { createHash, createPrivateKey, createPublicKey, createSecretKey, JsonWeb
 // loaded through optionalPeer where a token is signed or verified
 import type { JWK, JWTPayload, JWTVerifyResult } from 'jose';
 
+import { OmitStrict } from '../../../types/omit-strict.type';
+import { JsonUtilities } from '../../../utilities/json.utilities';
+import { Ms } from '../../../utilities/ms';
+import { optionalPeer } from '../../../utilities/optional-peer.function';
 import { EncodedJwt } from './encoded-jwt.model';
 import { Jwk } from './jwk.model';
 import { JwtAssertionVerifyOptions } from './jwt-assertion-verify-options.model';
@@ -16,10 +20,6 @@ import { JwtRemoteKeySet } from './jwt-remote-key-set.type';
 import { JwtSignOptions } from './jwt-sign-options.model';
 import { JwtVerifyOptions } from './jwt-verify-options.model';
 import { VerifiedDpopProof } from './verified-dpop-proof.model';
-import { OmitStrict } from '../../../types/omit-strict.type';
-import { JsonUtilities } from '../../../utilities/json.utilities';
-import { Ms } from '../../../utilities/ms';
-import { optionalPeer } from '../../../utilities/optional-peer.function';
 
 /**
  * The exports of the `jose` package.

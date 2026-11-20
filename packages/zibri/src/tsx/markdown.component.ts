@@ -1,10 +1,10 @@
 import { MdxComponents } from 'zibri-tsx';
 import { defineServerComponent, isCompiledComponent } from 'zibri-tsx/internal';
 
-import { TsxComponent } from './tsx-component.model';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { InternalError } from '../error-handling/internal-error.model';
+import { TsxComponent } from './tsx-component.model';
 
 /**
  * The props of {@link Markdown}.

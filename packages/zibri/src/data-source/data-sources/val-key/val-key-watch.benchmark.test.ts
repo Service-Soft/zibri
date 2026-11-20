@@ -2,8 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import type { GlideClient, GlideReturnType } from '@valkey/valkey-glide';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { ValKeyDataSource } from './val-key-data-source.model';
-import { valKeyGlide } from './val-key-glide.function';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../../__testing__/test-server/create-test-val-key-data-source.function';
@@ -11,6 +9,8 @@ import { StartedTestServer, startTestServer } from '../../../__testing__/test-se
 import { inject } from '../../../di/inject.function';
 import { Newable } from '../../../types/newable.type';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
+import { ValKeyDataSource } from './val-key-data-source.model';
+import { valKeyGlide } from './val-key-glide.function';
 
 /**
  * What it costs the server to `WATCH` every key a backup reads, as a backup copying on write would to

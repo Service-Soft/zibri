@@ -1,11 +1,11 @@
 import { Socket } from 'socket.io';
 
-import { BaseWebsocketConnection } from './base-websocket-connection.model';
 import { KnownHeader } from '../../../http/known-header.enum';
 import { Version } from '../../../versioning/version.model';
 import { LooseWebsocketEvent, WebsocketEvent } from '../websocket-event.enum';
 import { WebsocketMessage } from '../websocket-message.model';
 import { WebsocketRequest } from '../websocket-request.model';
+import { BaseWebsocketConnection } from './base-websocket-connection.model';
 
 /**
  * A socket.io websocket connection.

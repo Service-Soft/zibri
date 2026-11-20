@@ -1,10 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { Auth } from './auth.decorator';
 import { TestPermissions, TestPlatformPermissions } from '../../__testing__/mocks/entities/test-permissions.model';
 import { InvalidDecoratorCombinationError } from '../../error-handling/errors/invalid-decorator-combination.error';
 import { Controller } from '../../routing/decorators/controller.decorator';
 import { Get } from '../../routing/decorators/get.decorator';
+import { Auth } from './auth.decorator';
 
 /**
  * A route names one permission. The decorator stores a single one, so a second on the same route or

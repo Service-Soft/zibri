@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource, zibriFrameworkEntities } from 'zibri-testing';
 
-import { TransactionAlreadyFinishedError } from './transaction-already-finished.error';
-import { Transaction } from './transaction.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -11,6 +9,8 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
 import { DataSource } from '../decorators/data-source.decorator';
 import { RepositoryClass } from '../repository/repository-class.type';
+import { TransactionAlreadyFinishedError } from './transaction-already-finished.error';
+import { Transaction } from './transaction.model';
 
 // every transaction got ten seconds unless the call
 // starting it said otherwise, with no default of the data source's own

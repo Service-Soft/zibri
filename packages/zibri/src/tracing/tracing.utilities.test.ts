@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it } from '@jest/globals';
 
+import { DiContainer } from '../di/di-container';
+import { initDiContainer } from '../di/init-di-container.function';
 import { TraceContextUtilities } from './trace-context.utilities';
 import { TraceSpanContext } from './trace-span-context.model';
 import { TraceSpanKind } from './trace-span-kind.enum';
 import { TraceSpanStatus } from './trace-span-status.enum';
 import { TraceSpanInterface } from './trace-span.interface';
 import { TracingUtilities } from './tracing.utilities';
-import { DiContainer } from '../di/di-container';
-import { initDiContainer } from '../di/init-di-container.function';
 
 describe('TracingUtilities', () => {
 

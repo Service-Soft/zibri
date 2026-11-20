@@ -1,6 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { Migration } from './migration.model';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
@@ -10,6 +9,7 @@ import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';
+import { Migration } from './migration.model';
 
 /**
  * A gizmo as the first version of the application stores it, under a table name the second version

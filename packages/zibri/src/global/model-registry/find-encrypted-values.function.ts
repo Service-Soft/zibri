@@ -1,7 +1,3 @@
-import { resolveEncryptOptions, ResolvedEncryptOptions } from './encrypt-encryption-properties.function';
-import { EncryptionDescriptor } from './encryption-descriptor';
-import { ModelRegistry } from './model.registry';
-import { StringValueUtilities } from './string-value.utilities';
 import { EncryptionString } from '../../auth/encryption/encryption.utilities';
 import { BaseEncryptOptions } from '../../auth/encryption/strategies/encryption-strategy.interface';
 import { AlsUtilities } from '../../context/als.utilities';
@@ -9,6 +5,10 @@ import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { AnyObject } from '../../entity/any-object.model';
 import { Newable } from '../../types/newable.type';
+import { resolveEncryptOptions, ResolvedEncryptOptions } from './encrypt-encryption-properties.function';
+import { EncryptionDescriptor } from './encryption-descriptor';
+import { ModelRegistry } from './model.registry';
+import { StringValueUtilities } from './string-value.utilities';
 
 /**
  * An encrypted value as a row stores it.

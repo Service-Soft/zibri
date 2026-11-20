@@ -1,7 +1,7 @@
-import { IdentityLinkingAuthenticatorInterface } from './identity-linking-authenticator.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
 import { BaseUser } from '../models/base-user.model';
+import { IdentityLinkingAuthenticatorInterface } from './identity-linking-authenticator.interface';
 
 /**
  * A list of authenticator classes that link identities to users, whose identities are of the given type.

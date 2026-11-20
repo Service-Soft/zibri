@@ -1,6 +1,5 @@
 import { defaultClusterTestEntities, StartTestServerOptions } from 'zibri-testing';
 
-import { Migration } from './migration.model';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
@@ -10,6 +9,7 @@ import { PostgresPooler } from '../data-sources/postgres/postgres-pooler.model';
 import { DataSource } from '../decorators/data-source.decorator';
 import { SchemaManagement } from '../models/schema-management.model';
 import { RepositoryClass } from '../repository/repository-class.type';
+import { Migration } from './migration.model';
 
 /**
  * What every instance of the migration cluster boots with.

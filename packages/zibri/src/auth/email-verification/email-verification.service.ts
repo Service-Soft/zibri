@@ -1,12 +1,5 @@
 import { randomBytes } from 'node:crypto';
 
-import { EmailConfirmation } from './email-confirmation.model';
-import { type EmailVerificationOptions } from './email-verification-options.model';
-import { type EmailVerificationPurpose } from './email-verification-purpose.type';
-import { type EmailVerificationServiceInterface } from './email-verification-service.interface';
-import { type EmailVerificationTokenPurpose } from './email-verification-token-purpose.type';
-import { EmailVerificationToken, EmailVerificationTokenCreateData } from './email-verification-token.model';
-import { EmailVerificationWriteObserver } from './email-verification.write-observer';
 import { ZibriApplication } from '../../application/application';
 import { type AuditServiceInterface } from '../../audit/audit-service.interface';
 import { Repository } from '../../data-source/repository/repository';
@@ -32,6 +25,13 @@ import { validateEntitiesRegistered } from '../../utilities/validate-entities-re
 import { Sha256HashStrategy } from '../hash/strategies/sha256.hash-strategy';
 import { BaseUser } from '../models/base-user.model';
 import { UserAccount } from '../models/user-account.model';
+import { EmailConfirmation } from './email-confirmation.model';
+import { type EmailVerificationOptions } from './email-verification-options.model';
+import { type EmailVerificationPurpose } from './email-verification-purpose.type';
+import { type EmailVerificationServiceInterface } from './email-verification-service.interface';
+import { type EmailVerificationTokenPurpose } from './email-verification-token-purpose.type';
+import { EmailVerificationToken, EmailVerificationTokenCreateData } from './email-verification-token.model';
+import { EmailVerificationWriteObserver } from './email-verification.write-observer';
 
 /**
  * How long a link works when the options say nothing.

@@ -3,14 +3,14 @@ import { readFileSync } from 'node:fs';
 import type PdfPrinter from 'pdfmake';
 import type { TDocumentDefinitions, Column, Content, Size, ImageDefinition, BufferOptions, PageSize } from 'pdfmake/interfaces';
 
-import { PdfFontFallbackUtilities, PdfGlyphCoverage } from './pdf-font-fallback.utilities';
-import { PdfFontFamily, PdfFontFile, PdfFontOptions } from './pdf-font-options.model';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { getAllRegisteredTokens } from '../di/get-all-registered-tokens.function';
 import { inject } from '../di/inject.function';
 import { InternalError } from '../error-handling/internal-error.model';
 import { FsPath } from '../utilities/fs.utilities';
 import { optionalPeer, optionalPeerDependency } from '../utilities/optional-peer.function';
+import { PdfFontFallbackUtilities, PdfGlyphCoverage } from './pdf-font-fallback.utilities';
+import { PdfFontFamily, PdfFontFile, PdfFontOptions } from './pdf-font-options.model';
 
 /**
  * Complete definition of a PDF document.

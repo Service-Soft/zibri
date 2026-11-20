@@ -1,11 +1,11 @@
 import ts from 'typescript';
 import { AccessShape } from 'zibri-tsx/internal';
 
-import { accessShapeOf } from './access-shape-analysis';
-import { regionExpressions } from './regions';
 import { collectPatternBindings, collectPatternNames, collectReferencedSymbols, declaredSymbols, symbolsOf } from '../../semantics/binding';
 import { ComponentFunction } from '../../semantics/component';
 import { childrenOf, isHookCall, unwrapTypeSyntax, walk } from '../../semantics/walk';
+import { accessShapeOf } from './access-shape-analysis';
+import { regionExpressions } from './regions';
 
 /**
  * A collected event-handler site on a host element within a component.

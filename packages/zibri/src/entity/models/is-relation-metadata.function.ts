@@ -1,6 +1,6 @@
-import { Relation } from './relation.enum';
 import { type BaseEntity } from '../base-entity.model';
 import { type PropertyMetadata, type RelationMetadata } from '../decorators/property.decorator';
+import { Relation } from './relation.enum';
 
 /**
  * Every kind of relation, as the `type` its metadata carries.

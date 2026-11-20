@@ -1,7 +1,6 @@
 import { afterAll, beforeAll } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { describeTextOrder, GlossaryWord } from './text-order.cases';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
@@ -11,6 +10,7 @@ import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
 import { defineDateFormat } from '../../localization/define-date-format.function';
 import { Newable } from '../../types/newable.type';
+import { describeTextOrder, GlossaryWord } from './text-order.cases';
 
 const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
     entities: [...defaultTestServerEntities, GlossaryWord],

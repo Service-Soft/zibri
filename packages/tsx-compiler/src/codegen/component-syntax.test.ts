@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { compile, CompileResult } from './compile';
 import { compilePage, renderTestPage } from '../__testing__/server-render.helper';
 import { ValidationCode } from '../semantics/validate';
+import { compile, CompileResult } from './compile';
 
 /**
  * Compiles a template and returns its first component's client script, asserting it compiled cleanly.

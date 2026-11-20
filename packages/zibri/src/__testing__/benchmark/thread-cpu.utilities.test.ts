@@ -56,8 +56,10 @@ describe('ThreadCpuUtilities', () => {
     // which is no figure to compare one build with another by
     (readsNanoseconds ? it : it.skip)('reads what a thread spent finer than a clock tick of 10 ms', () => {
         const before: ThreadCpu | undefined = ThreadCpuUtilities.findThreadCpu();
-        const busyUntil: number = performance.now() + 25;
-        while (performance.now() < busyUntil) {
+        // until the thread itself spent 25 ms, rather than 25 ms passed: on a busy machine the thread is not run for
+        // all of them, and spent 16 of 25
+        const start: NodeJS.CpuUsage = process.threadCpuUsage();
+        while (process.threadCpuUsage(start).user + process.threadCpuUsage(start).system < 25_000) {
             // the main thread working
         }
         const after: ThreadCpu | undefined = ThreadCpuUtilities.findThreadCpu();
@@ -116,14 +118,21 @@ describe('ThreadCpuUtilities', () => {
     // the threads of a process are read from /proc, which only Linux has: on another system the case would read nothing
     (process.platform === 'linux' ? it : it.skip)('counts what the main thread spends as the main thread\'s, and what the pool spends as the pool\'s', async () => {
         const before: ThreadCpu | undefined = ThreadCpuUtilities.findThreadCpu();
-        const busyUntil: number = performance.now() + BUSY_MS;
-        while (performance.now() < busyUntil) {
+        // until the threads spent the time, rather than until it passed: on a busy machine they are not run for all of it
+        const mainStart: NodeJS.CpuUsage = process.threadCpuUsage();
+        for (let spent: NodeJS.CpuUsage = process.threadCpuUsage(mainStart); spent.user + spent.system < BUSY_MS * 1000; spent = process.threadCpuUsage(mainStart)) {
             // the main thread working
         }
         const afterMain: ThreadCpu | undefined = ThreadCpuUtilities.findThreadCpu();
-        // pbkdf2 runs on libuv's pool, long enough for many ticks
-        const poolUntil: number = performance.now() + BUSY_MS;
-        while (performance.now() < poolUntil) {
+        // pbkdf2 runs on libuv's pool, long enough for many ticks: what the process spends beside the main thread
+        const processStart: NodeJS.CpuUsage = process.cpuUsage();
+        const threadStart: NodeJS.CpuUsage = process.threadCpuUsage();
+        const spentBesideMain: () => number = () => {
+            const all: NodeJS.CpuUsage = process.cpuUsage(processStart);
+            const main: NodeJS.CpuUsage = process.threadCpuUsage(threadStart);
+            return all.user + all.system - main.user - main.system;
+        };
+        while (spentBesideMain() < BUSY_MS * 1000) {
             await keepPoolBusy(100_000);
         }
         const afterPool: ThreadCpu | undefined = ThreadCpuUtilities.findThreadCpu();

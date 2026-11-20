@@ -1,6 +1,5 @@
 import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
-import { type LeaseServiceInterface } from './lease-service.interface';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestValKeyEntities } from '../__testing__/test-server/create-test-val-key-data-source.function';
 import { testServerPasswordPolicyProvider } from '../__testing__/test-server/providers';
@@ -15,6 +14,7 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Post } from '../routing/decorators/post.decorator';
 import { Newable } from '../types/newable.type';
+import { type LeaseServiceInterface } from './lease-service.interface';
 
 /**
  * What every instance of the lock cluster boots with.

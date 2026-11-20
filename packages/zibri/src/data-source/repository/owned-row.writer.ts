@@ -1,6 +1,3 @@
-import { OwnedRowsById } from './owned-rows-by-id.type';
-import { ReferenceValidator } from './reference.validator';
-import { type Repository, type WrittenUpdate } from './repository';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { type RelationTree } from '../../entity/models/entity-relations.model';
 import { EntityRelationsUtilities } from '../../entity/models/entity-relations.utilities';
@@ -20,6 +17,9 @@ import { OwnedRelation } from '../models/owned-relation.model';
 import { Where } from '../models/where/where-filter.model';
 import { OwnedRelationUtilities } from '../owned-relation.utilities';
 import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
+import { OwnedRowsById } from './owned-rows-by-id.type';
+import { ReferenceValidator } from './reference.validator';
+import { type Repository, type WrittenUpdate } from './repository';
 
 /**
  * What a write giving rows of its relations hands on to every level of them.

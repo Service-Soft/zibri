@@ -162,7 +162,11 @@ export type AsyncApiOperation = {
     /**
      * The permission of the platform the operation requires.
      */
-    'x-platform-permission'?: string
+    'x-platform-permission'?: string,
+    /**
+     * True when either `x-permission` or `x-platform-permission` is enough for the operation.
+     */
+    'x-any-level-permission'?: true
 };
 
 /**

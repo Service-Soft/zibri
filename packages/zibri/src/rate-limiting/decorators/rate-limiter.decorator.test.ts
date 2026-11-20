@@ -1,10 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { RateLimiter } from './rate-limiter.decorator';
 import { DiProvider } from '../../di/models/di-provider.model';
 import { DiVariants } from '../../di/models/di-variant.model';
 import { InjectionToken } from '../../di/models/injection-token.model';
 import { GlobalRegistry } from '../../global/global-registry';
+import { RateLimiter } from './rate-limiter.decorator';
 
 describe('RateLimiter decorator', () => {
     it('registers the class immediately, tagged with the RATE_LIMITER variant', () => {

@@ -1,3 +1,5 @@
+import { BaseUser } from '../../models/base-user.model';
+import { IdentityLinkingAuthenticatorInterface, isIdentityLinkingAuthenticator } from '../identity-linking-authenticator.interface';
 import { FederatedCredentials, FederatedTicketCredentials } from './federated-credentials.model';
 import { FederatedIdentity } from './federated-identity.model';
 import { FederatedLinkIdentityRequest } from './federated-link-identity-request.model';
@@ -13,8 +15,6 @@ import { FederatedRoute } from './federated-route.type';
 import { FederatedSessionMatch } from './federated-session-match.model';
 import { FederatedSession } from './federated-session.model';
 import { FederatedSoapLogout } from './federated-soap-logout.model';
-import { BaseUser } from '../../models/base-user.model';
-import { IdentityLinkingAuthenticatorInterface, isIdentityLinkingAuthenticator } from '../identity-linking-authenticator.interface';
 
 /**
  * Interface for an authenticator that logs users in at a provider: the browser is sent there, and

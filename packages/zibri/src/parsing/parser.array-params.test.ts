@@ -1,10 +1,10 @@
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
-import { Parser } from './parser';
 import { initDiContainer } from '../di/init-di-container.function';
 import { HeaderParamMetadata, QueryParamMetadata } from '../routing/decorators/param.decorator';
 import { ParamMetadataUtilities } from '../routing/param-metadata.utilities';
 import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { Parser } from './parser';
 
 describe('parsing an array parameter', () => {
     let parser: Parser;

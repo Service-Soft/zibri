@@ -4,14 +4,14 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { TOTP } from 'otpauth';
 import { ClusterInstance, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { OtpRegistration } from './otp.two-factor-method';
-import { otpUserEmail, otpUserPassword } from './otp.two-factor-method.instance-options';
-import { OTP_PERIOD_IN_SECONDS } from './otp.utilities';
 import { TestTimeouts } from '../../../../__testing__/constants';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../../di/inject.function';
 import { FsUtilities } from '../../../../utilities/fs.utilities';
 import { JsonUtilities } from '../../../../utilities/json.utilities';
+import { OtpRegistration } from './otp.two-factor-method';
+import { otpUserEmail, otpUserPassword } from './otp.two-factor-method.instance-options';
+import { OTP_PERIOD_IN_SECONDS } from './otp.utilities';
 
 /**
  * A replayed one time code, the half that only more than one replica can show.

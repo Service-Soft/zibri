@@ -1,9 +1,3 @@
-import { PostgresColumnSql } from './postgres-column-sql.model';
-import { PostgresColumnSettings, PostgresSchema } from './postgres-schema.model';
-import { PostgresSqlUtilities } from './postgres-sql.utilities';
-import { PostgresColumn, PostgresForeignKey, PostgresKey, PostgresReferentialAction, PostgresTable } from './postgres-table.model';
-import { PostgresValueConversionUtilities } from './postgres-value-conversion.utilities';
-import { TrigramSupport } from './postgres-where-filter.converter';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { BaseEntity } from '../../../entity/base-entity.model';
@@ -29,6 +23,12 @@ import { FuzzySearchUtilities } from '../../models/where/fuzzy-search.utilities'
 import { uniqueConstraintName } from '../../unique-constraint-name.function';
 import { ValueConversionUtilities } from '../../value-conversion.utilities';
 import { keyWhereToSql } from '../../where/key-where-to-sql.function';
+import { PostgresColumnSql } from './postgres-column-sql.model';
+import { PostgresColumnSettings, PostgresSchema } from './postgres-schema.model';
+import { PostgresSqlUtilities } from './postgres-sql.utilities';
+import { PostgresColumn, PostgresForeignKey, PostgresKey, PostgresReferentialAction, PostgresTable } from './postgres-table.model';
+import { PostgresValueConversionUtilities } from './postgres-value-conversion.utilities';
+import { TrigramSupport } from './postgres-where-filter.converter';
 
 /**
  * Runs one statement on the connection the schema work is done on.

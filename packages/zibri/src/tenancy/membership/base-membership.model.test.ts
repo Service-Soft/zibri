@@ -1,7 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { BaseMembershipRepository } from './base-membership-repository.model';
-import { BaseMembershipEntity } from './base-membership.model';
 import { ChangeSetEntity } from '../../data-source/change-sets/models/change-set-entity.model';
 import { isChangeSetEntityNewable } from '../../data-source/change-sets/models/is-change-set-entity.function';
 import { isSoftDeleteEntityNewable } from '../../data-source/change-sets/models/is-soft-delete-entity.function';
@@ -9,6 +7,8 @@ import { SoftDeleteEntity } from '../../data-source/change-sets/models/soft-dele
 import { SoftDeleteRepository } from '../../data-source/change-sets/soft-delete-repository';
 import { MEMBERSHIP_ENTITY } from '../../data-source/repository/repository-kind.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
+import { BaseMembershipRepository } from './base-membership-repository.model';
+import { BaseMembershipEntity } from './base-membership.model';
 
 /**
  * A membership that soft deletes, declared through the base alone: the base extended `BaseEntity`,

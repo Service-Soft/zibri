@@ -1,4 +1,3 @@
-import { PostgresColumnSql } from './postgres-column-sql.model';
 import { NumberFormat, NumberPropertyMetadata } from '../../../entity/models/number-property-metadata.model';
 import { StoredStringPropertyMetadata } from '../../../entity/models/string-property-metadata.model';
 import { INTEGER_REGEX } from '../../../parsing/functions/parse-number.function';
@@ -10,6 +9,7 @@ import { ConversionRefusal } from '../../models/conversion-refusal.enum';
 import { ResolvedPropertyConversion } from '../../models/resolved-property-conversion.model';
 import { ValueConversion } from '../../models/value-conversion.enum';
 import { ValueConversionUtilities } from '../../value-conversion.utilities';
+import { PostgresColumnSql } from './postgres-column-sql.model';
 
 /**
  * A string property of any kind, which is all a conversion reads of one.

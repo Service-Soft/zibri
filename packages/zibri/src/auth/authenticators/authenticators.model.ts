@@ -1,6 +1,6 @@
-import { AuthenticatorInterface } from './authenticator.interface';
 import { Newable } from '../../types/newable.type';
 import { BaseUser } from '../models/base-user.model';
+import { AuthenticatorInterface } from './authenticator.interface';
 
 /**
  * A list of authenticator classes.

@@ -1,7 +1,5 @@
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
-import { ValidationProblem } from './validation-problem.model';
-import { ValidationService } from './validation.service';
 import { initDiContainer } from '../di/init-di-container.function';
 import { Property } from '../entity/decorators/property.decorator';
 import { type OneOf } from '../entity/models/one-of.model';
@@ -12,6 +10,8 @@ import { BodyDeclaration, resolveBodyMetadata } from '../routing/resolve-body-me
 import { Newable } from '../types/newable.type';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { ValidationProblem } from './validation-problem.model';
+import { ValidationService } from './validation.service';
 
 /**
  * What a body turned into once it was read and checked.

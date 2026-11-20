@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { inject, JsonUtilities, PasswordCredentials, PasswordCredentialsCreateData, Repository, repositoryTokenFor } from 'zibri';
 import { StartedTestServer, startTestServer, TestCommandRun } from 'zibri-testing';
 
-import { testApplicationOptions } from './test-application-options';
 import { User } from '../models';
 import { UserRepository } from '../repositories';
+import { testApplicationOptions } from './test-application-options';
 
 const PASSWORD: string = 'a password long enough';
 

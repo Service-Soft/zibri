@@ -15,6 +15,10 @@ export * from './error-response-body.model';
 export * from './validation-problem.model';
 
 // auth
+export * from './permission.type';
+export * from './platform-permission.type';
+export * from './define-permissions.function';
+export * from './zibri-permissions.model';
 export * from './code-registration-confirm-data.model';
 export * from './cookie-auth-data.model';
 export * from './csrf-token.model';
@@ -22,6 +26,10 @@ export * from './current-user-membership.model';
 export * from './current-user-profile.model';
 export * from './email-confirmation.model';
 export * from './federated-link-identity-start.model';
+export * from './accept-invitation-input.model';
+export * from './invitation.model';
+export * from './invitation-token-validity.model';
+export * from './tenant-deletion.model';
 export * from './jwt-auth-data.model';
 export * from './jwt.model';
 export * from './linked-identity.model';

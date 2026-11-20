@@ -2,9 +2,9 @@ import { ChildProcess, fork, ForkOptions } from 'node:child_process';
 
 import { resolveTypeScriptForkOptions } from 'zibri-testing';
 
-import { ValKeyServerMeasurement } from './backup-measurement.model';
 import { FsPath, FsUtilities } from '../../../utilities/fs.utilities';
 import { JsonUtilities } from '../../../utilities/json.utilities';
+import { ValKeyServerMeasurement } from './backup-measurement.model';
 
 /**
  * The environment variable the probe process reads the {@link ValKeyProbeAddress} of its server from.

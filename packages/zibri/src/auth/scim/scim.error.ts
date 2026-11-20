@@ -1,11 +1,11 @@
-import { ScimErrorType } from './scim-error-type.enum';
-import { ScimSchema } from './scim-schema.enum';
 import { CustomBodyHttpError } from '../../error-handling/errors/custom-body-http.error';
 import { HttpStatus } from '../../http/http-status.enum';
 import { JsonMimeType } from '../../http/json-mime-type.type';
 import { MimeType } from '../../http/mime-type.enum';
 import { TranslatedString } from '../../localization/models/translated-string.model';
 import { $ts } from '../../localization/translate.function';
+import { ScimErrorType } from './scim-error-type.enum';
+import { ScimSchema } from './scim-schema.enum';
 
 /**
  * An error answered the way SCIM says errors look (RFC 7644, 3.12).

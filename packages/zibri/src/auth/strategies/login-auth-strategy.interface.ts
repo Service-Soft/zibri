@@ -1,9 +1,9 @@
-import { AuthStrategyInterface } from './auth-strategy.interface';
 import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { FederatedSessionMatch } from '../authenticators/federated/federated-session-match.model';
 import { Authentication } from '../models/authentication.model';
 import { BaseUser } from '../models/base-user.model';
 import { EndedLogin } from '../models/ended-login.model';
+import { AuthStrategyInterface } from './auth-strategy.interface';
 
 /**
  * Interface for an auth strategy that carries a login from one request to the next.

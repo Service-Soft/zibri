@@ -14,7 +14,7 @@ keywords: [login route, logout, refresh token, register, sign up, password reset
 | `AuthControllerRoutes` | type | The routes `AuthController` defines for the given strategies, authenticators and two factor methods |
 | `isAuthControllerClass` | function | Tells a class `AuthController` defined apart |
 | `AuthControllerStrategyClass`, `AuthControllerAuthenticatorClass` | type | A class of a strategy and of an authenticator the routes log in with |
-| `AuthControllerLoginRoutes`, `AuthControllerCurrentUserRoutes`, `AuthControllerLoginListingRoutes`, `AuthControllerEmailVerificationRoutes`, `AuthControllerConfirmEmailRoutes`, `AuthControllerCsrfTokenRoutes`, `AuthControllerPasswordResetRoutes`, `AuthControllerPasswordChangeRoutes`, `AuthControllerLoginOptionsRoutes`, `AuthControllerRegistrationRoutes`, `AuthControllerFederatedRoutes`, `AuthControllerLinkIdentityRoutes`, `AuthControllerLinkIdentityConfirmingRoutes`, `AuthControllerIdentityRoutes`, `AuthControllerTwoFactorRoutes`, `AuthControllerTwoFactorRegistrationsRoutes` | type | The methods of the routes, by the classes that call for them |
+| `AuthControllerLoginRoutes`, `AuthControllerCurrentUserRoutes`, `AuthControllerLoginListingRoutes`, `AuthControllerEmailVerificationRoutes`, `AuthControllerConfirmEmailRoutes`, `AuthControllerCsrfTokenRoutes`, `AuthControllerPasswordResetRoutes`, `AuthControllerPasswordChangeRoutes`, `AuthControllerLoginOptionsRoutes`, `AuthControllerRegistrationRoutes`, `AuthControllerFederatedRoutes`, `AuthControllerLinkIdentityRoutes`, `AuthControllerLinkIdentityConfirmingRoutes`, `AuthControllerIdentityRoutes`, `AuthControllerTwoFactorRoutes`, `AuthControllerTwoFactorRegistrationsRoutes`, `AuthControllerInvitationRoutes` | type | The methods of the routes, by the classes that call for them |
 | `FEDERATED_ROUTE` | constant | Where the routes of a login at a provider are, below the path of the controller: `/federated` |
 | `AuthControllerUtilities` | class | What the routes share: finding the class a request names, checking a body against one model, running in a transaction across data sources |
 | `AuthControllerStrategyInterface`, `isAuthControllerStrategy` | interface, function | What a strategy the routes log in with implements |
@@ -60,6 +60,7 @@ export class AppAuthController extends AuthController({
 | `currentUserRoute` | `true` for `GET /me`, which answers the logged in user and what they may do. Not by default |
 | `confirmEmailRoute` | `true` for `POST /confirm-email` beside the routes of `emailVerification`, which confirms any link a user is mailed. Needs `confirmEmail` of the `EmailVerificationService`. Not by default |
 | `twoFactorRegistrationsRoute` | `true` for `GET /2fa/registrations` beside the routes of the two factor methods, which lists the methods the user has enrolled. Not by default |
+| `invitationRoutes` | `true` for the routes that answer the link of an [invitation](./invitations.md). Needs an invitation repository. Not by default |
 
 Name exactly what your application registers: its auth strategies that log in, its authenticators, and its two factor methods, including the ones it registers when you configure none, `JwtAuthStrategy`, `PasswordAuthenticator` and `OtpTwoFactorMethod`. An application has one controller `AuthController` defines.
 
@@ -81,6 +82,7 @@ Every route is below the path of your controller. A route is there when one of t
 | `POST /confirm-password-reset` | `PasswordAuthenticator` | `{ "resetToken", "newPassword" }` | anyone |
 | `POST /request-email-verification`, `POST /confirm-email-verification`, `POST /request-email-change`, `POST /confirm-email-change` | `emailVerification` | see [verifying email addresses](./email-verification.md) | a logged in user to request, anyone with the link to confirm. A change is requested with a second factor or a [recent login](../glossary.md#recent-login) |
 | `POST /confirm-email` | `emailVerification` and `confirmEmailRoute` | see [verifying email addresses](./email-verification.md) | anyone with the link |
+| `POST /verify-invitation-token`, `POST /accept-invitation`, `POST /decline-invitation` | `invitationRoutes` | see [accepting and declining](./invitations.md#accepting-and-declining) | anyone with the link, logged in as the account of the email when it had one before |
 | `POST /change-password` | `PasswordAuthenticator` | `{ "currentPassword", "newPassword" }`. Ends every other login of the user, see [changing a password](./auth.md#changing-a-password) | a logged in user |
 | `POST /login/change-password` | `PasswordAuthenticator` | `{ "newPassword" }`, for a login that waits for a new password. Answers what `login` answers, see [requiring a new password](./auth.md#requiring-a-new-password) | anyone, with the login [ticket](../glossary.md#ticket) |
 | `POST /login-options` | an authenticator hands out a challenge to log in with, such as `PasskeyAuthenticator` | nothing. Answers the challenge | anyone |

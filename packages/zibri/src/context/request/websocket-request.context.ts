@@ -1,8 +1,8 @@
-import { RequestContextToken } from './request-context-token.model';
 import { Newable } from '../../types/newable.type';
 import { BaseWebsocketConnection } from '../../websocket/models/connection/base-websocket-connection.model';
 import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
 import { BaseContext } from '../base-context';
+import { RequestContextToken } from './request-context-token.model';
 
 /**
  * The context of an incoming websocket request.

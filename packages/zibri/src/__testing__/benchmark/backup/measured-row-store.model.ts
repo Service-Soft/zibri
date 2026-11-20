@@ -1,7 +1,7 @@
-import { MeasuredRow } from './measured-row.model';
-import { SeededChanges, SeededFingerprint, SeededRow, SeededTable } from './seeded-table.model';
 import { Repository } from '../../../data-source/repository/repository';
 import { PromiseUtilities } from '../../../utilities/promise.utilities';
+import { MeasuredRow } from './measured-row.model';
+import { SeededChanges, SeededFingerprint, SeededRow, SeededTable } from './seeded-table.model';
 
 /**
  * How many rows are written or read in one call.

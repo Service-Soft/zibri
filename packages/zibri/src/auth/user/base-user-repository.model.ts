@@ -1,4 +1,3 @@
-import { UserRepositoryInterface } from './user-repository.interface';
 import { ChangeSetRepository } from '../../data-source/change-sets/change-set-repository';
 import { type ChangeSetEntity } from '../../data-source/change-sets/models/change-set-entity.model';
 import { type SoftDeleteEntity } from '../../data-source/change-sets/models/soft-delete-entity.model';
@@ -11,6 +10,7 @@ import { type RepositoryTransaction } from '../../data-source/transaction/reposi
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
 import { BaseUser } from '../models/base-user.model';
+import { UserRepositoryInterface } from './user-repository.interface';
 
 /**
  * A user repository class built over the repository a data source builds for its entity.

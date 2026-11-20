@@ -2,7 +2,6 @@ import { Readable } from 'node:stream';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { TenantRowsBackupResource } from './tenant-rows.backup-resource';
 import { BenchmarkTiming } from '../__testing__/benchmark/benchmark-timing.model';
 import { BenchmarkUtilities } from '../__testing__/benchmark/benchmark.utilities';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
@@ -16,6 +15,7 @@ import { inject } from '../di/inject.function';
 import { Newable } from '../types/newable.type';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { TenantRowsBackupResource } from './tenant-rows.backup-resource';
 
 /**
  * What a restore of a tenant's rows costs when rows outside the backup point at some of them: those are

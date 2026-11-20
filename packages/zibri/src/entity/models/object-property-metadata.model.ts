@@ -1,6 +1,6 @@
-import { BasePropertyMetadata } from './base-property-metadata.model';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
+import { BasePropertyMetadata } from './base-property-metadata.model';
 
 /**
  * Metadata for object properties.

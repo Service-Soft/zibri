@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { attachedContent, mailCronIntervalInMs, queuedMailCount } from './email.service.instance-options';
 import { TestTimeouts } from '../__testing__/constants';
 import { FsUtilities } from '../utilities/fs.utilities';
+import { attachedContent, mailCronIntervalInMs, queuedMailCount } from './email.service.instance-options';
 
 /**
  * EmailService.onAppInit registers SendQueuedEmailsCronJob on whatever application is booting, so

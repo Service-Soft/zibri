@@ -1,13 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { ChangeSetEntity } from './change-sets/models/change-set-entity.model';
-import { ChangeSet } from './change-sets/models/change-set.model';
-import { Change } from './change-sets/models/change.model';
-import { SoftDeleteEntity } from './change-sets/models/soft-delete-entity.model';
-import { DataSource } from './decorators/data-source.decorator';
-import { MigrationEntity } from './migration/migration-entity.model';
-import { RepositoryClass } from './repository/repository-class.type';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
@@ -18,6 +11,13 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { Newable } from '../types/newable.type';
+import { ChangeSetEntity } from './change-sets/models/change-set-entity.model';
+import { ChangeSet } from './change-sets/models/change-set.model';
+import { Change } from './change-sets/models/change.model';
+import { SoftDeleteEntity } from './change-sets/models/soft-delete-entity.model';
+import { DataSource } from './decorators/data-source.decorator';
+import { MigrationEntity } from './migration/migration-entity.model';
+import { RepositoryClass } from './repository/repository-class.type';
 
 // every entity and data source below is allowed to go unused, because each case boots only some of them
 
@@ -92,6 +92,7 @@ class Note extends BaseEntity {
  */
 function declareImportedNote(): Newable<BaseEntity> {
     @Entity({ tenant: 'shared', allowOrphan: true, tableName: 'imported_note' })
+    // eslint-disable-next-line typescript/no-shadow -- the name the other one has is what the cases are about
     class Note extends BaseEntity {
         @Property.string()
         body!: string;
@@ -125,6 +126,7 @@ class ImportedNoteDataSource extends InMemoryDataSource {
  */
 function declareSecondNoteDataSource(): Newable<InMemoryDataSource> {
     @DataSource({ allowOrphan: true })
+    // eslint-disable-next-line typescript/no-shadow -- the name the other one has is what the cases are about
     class NoteDataSource extends InMemoryDataSource {
         override readonly entities: Newable<BaseEntity>[] = [MigrationEntity, Memo];
         override readonly repositories: RepositoryClass[] = [];

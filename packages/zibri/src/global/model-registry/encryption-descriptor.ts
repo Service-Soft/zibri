@@ -1,13 +1,13 @@
-import { ModelDescriptor } from './model-descriptor';
-import { ModelRegistry } from './model.registry';
-import { StringValueDescriptor } from './string-value-descriptor.model';
-import { StringValueUtilities } from './string-value.utilities';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { StoredEncryptionPropertyValue } from '../../entity/models/string-property-metadata.model';
 import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
+import { ModelDescriptor } from './model-descriptor';
+import { ModelRegistry } from './model.registry';
+import { StringValueDescriptor } from './string-value-descriptor.model';
+import { StringValueUtilities } from './string-value.utilities';
 
 /**
  * The encryption settings of one string, when it has any.

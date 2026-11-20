@@ -3,10 +3,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { LeaseLostError } from './lease-lost.error';
-import { LeaseServiceInterface } from './lease-service.interface';
-import { Lease } from './lease.model';
-import { LeaseService } from './lease.service';
 import { TestTimeouts } from '../__testing__/constants';
 import { missingEntityPattern } from '../__testing__/missing-entity-pattern.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
@@ -28,6 +24,10 @@ import { MetricsServiceInterface } from '../metrics/metrics-service.interface';
 import { MetricsSnapshot } from '../metrics/metrics-snapshot.model';
 import { Newable } from '../types/newable.type';
 import { PromiseUtilities } from '../utilities/promise.utilities';
+import { LeaseLostError } from './lease-lost.error';
+import { LeaseServiceInterface } from './lease-service.interface';
+import { Lease } from './lease.model';
+import { LeaseService } from './lease.service';
 
 describe('LeaseService — starting', () => {
     it('refuses to start without Lease, and names it', async () => {

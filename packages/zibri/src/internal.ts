@@ -14,6 +14,8 @@ import type * as openApi from './open-api/open-api.model';
 // auth
 export { type CurrentUserMetadata } from './auth/decorators/current-user.decorator';
 export { hasPermissionDecorator } from './auth/decorators/has-permission.decorator';
+export { hasAnyLevelPermissionDecorator } from './auth/decorators/has-any-level-permission.decorator';
+export { TENANT_ROW_ENTITY } from './entity/base-tenant-entity.model';
 export { isLoggedInDecorator } from './auth/decorators/is-logged-in.decorator';
 export { isNotLoggedInDecorator } from './auth/decorators/is-not-logged-in.decorator';
 export { require2faDecorator } from './auth/decorators/require-2fa.decorator';

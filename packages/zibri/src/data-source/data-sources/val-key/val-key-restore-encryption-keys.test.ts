@@ -1,8 +1,5 @@
 import { afterAll, beforeAll } from '@jest/globals';
 
-import { ValKeyBackupMode } from './val-key-backup-mode.model';
-import { ValKeyDataSource, ValKeyOptions } from './val-key-data-source.model';
-import { ValKeyRestoreMode } from './val-key-restore-mode.model';
 import { testFileFolder, TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { TestMembership } from '../../../__testing__/mocks/entities/test-membership.entity';
@@ -44,6 +41,9 @@ import { ChainAnchor } from '../../chain/chain-anchor.model';
 import { DataSource } from '../../decorators/data-source.decorator';
 import { MigrationEntity } from '../../migration/migration-entity.model';
 import { RepositoryClass } from '../../repository/repository-class.type';
+import { ValKeyBackupMode } from './val-key-backup-mode.model';
+import { ValKeyDataSource, ValKeyOptions } from './val-key-data-source.model';
+import { ValKeyRestoreMode } from './val-key-restore-mode.model';
 
 /**
  * The keys across a restore of valkey, whose uniques are kept beside the rows.

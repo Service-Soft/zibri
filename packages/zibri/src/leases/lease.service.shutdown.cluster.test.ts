@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { ClusterInstance, ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { blockedSectionKey, httpDrainTimeoutInMs, leaseDrainTimeoutInMs, lockHoldInMs, sectionKey } from './lease.service.shutdown.instance-options';
 import { TestTimeouts } from '../__testing__/constants';
 import { FsUtilities } from '../utilities/fs.utilities';
+import { blockedSectionKey, httpDrainTimeoutInMs, leaseDrainTimeoutInMs, lockHoldInMs, sectionKey } from './lease.service.shutdown.instance-options';
 
 /**
  * What a replica's leases do while it shuts down.

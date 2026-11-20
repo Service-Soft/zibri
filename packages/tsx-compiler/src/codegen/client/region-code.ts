@@ -1,10 +1,10 @@
 import ts from 'typescript';
 import { decodeJsxEntities, normalizeJsxText, SETUP_RUNTIME_PARAM, toScriptValue } from 'zibri-tsx/internal';
 
-import { attributeExpression, attributesOf, isComponentName, isEventHandlerName, tagNameOf } from './handlers';
-import { containsJsx, JsxMarkup, PartPropKind, RegionCollection, RegionForm, RegionSite, resolveForm } from './regions';
 import { collectPatternNames } from '../../semantics/binding';
 import { printClientNode } from '../server/print';
+import { attributeExpression, attributesOf, isComponentName, isEventHandlerName, tagNameOf } from './handlers';
+import { containsJsx, JsxMarkup, PartPropKind, RegionCollection, RegionForm, RegionSite, resolveForm } from './regions';
 
 /**
  * The client-side bootstrap that hands the page the conditions and lists this instance renders: for each region entry

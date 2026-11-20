@@ -3,7 +3,6 @@ import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { NewCommand } from './new.command';
 import { acceptedSandboxDifferences } from '../../__testing__/accepted-sandbox-differences';
 import { diffFileContents } from '../../__testing__/diff-file-contents.function';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
@@ -12,6 +11,7 @@ import { normalizePackageJson } from '../../__testing__/normalize-package-json.f
 import { quietly } from '../../__testing__/quietly.function';
 import { CPUtilities, FsUtilities } from '../../encapsulation';
 import { Path } from '../../utilities';
+import { NewCommand } from './new.command';
 
 /**
  * The same comparison `new.command.sandbox-parity.test.ts` makes in under two seconds, with the real

@@ -4,10 +4,10 @@ import type { Transporter } from 'nodemailer';
 import type SMTPPool from 'nodemailer/lib/smtp-pool';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 
-import { EmailSendResult, EmailTransportInterface } from './email-transport.interface';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { optionalPeer } from '../../utilities/optional-peer.function';
 import { Email } from '../models/email.model';
+import { EmailSendResult, EmailTransportInterface } from './email-transport.interface';
 
 /**
  * How to reach an SMTP server.

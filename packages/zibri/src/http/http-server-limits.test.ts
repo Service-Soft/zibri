@@ -5,8 +5,6 @@ import { connect, Socket } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { HttpServerLimits } from './http-server-limits.model';
-import { HttpStatus } from './http-status.enum';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -18,6 +16,8 @@ import { Body } from '../routing/decorators/body.decorator';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
 import { Post } from '../routing/decorators/post.decorator';
+import { HttpServerLimits } from './http-server-limits.model';
+import { HttpStatus } from './http-status.enum';
 
 class LimitsNote {
     @Property.string({ maxLength: 10_000 })

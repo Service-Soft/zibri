@@ -1,6 +1,5 @@
 import { Readable } from 'stream';
 
-import { buildCspOptions, CspOptions, CspOptionsInput } from './csp-options.model';
 import { type HttpRequestContext } from '../../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
 import { type WebsocketRequestContext } from '../../context/request/websocket-request.context';
@@ -8,6 +7,7 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { Property } from '../../entity/decorators/property.decorator';
 import { SelfDescribing } from '../../types/self-describing.type';
+import { buildCspOptions, CspOptions, CspOptionsInput } from './csp-options.model';
 
 /**
  * Additional options for a html response.

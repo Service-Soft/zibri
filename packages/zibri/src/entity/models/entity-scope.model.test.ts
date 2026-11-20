@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { denyAll, scopeFor } from './entity-scope.model';
 import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
@@ -34,6 +33,7 @@ import { JsonUtilities } from '../../utilities/json.utilities';
 import { BaseEntity } from '../base-entity.model';
 import { Entity } from '../decorators/entity.decorator';
 import { Property } from '../decorators/property.decorator';
+import { denyAll, scopeFor } from './entity-scope.model';
 
 // over real http against real logins, because what is worth knowing is whether two accounts are kept
 // apart across every way of reaching a table - a list, a single row, an update, a delete and a

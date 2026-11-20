@@ -1,4 +1,3 @@
-import { EncryptionKey } from './encryption-key.model';
 import { WriteThroughReadThroughCache } from '../../caching/cache/read-through/write-through-read-through.cache';
 import { CacheServiceInterface } from '../../caching/cache-service.interface';
 import { Cache } from '../../caching/decorators/cache.decorator';
@@ -7,6 +6,7 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { LoggerInterface } from '../../logging/logger.interface';
 import { MetricsServiceInterface } from '../../metrics/metrics-service.interface';
+import { EncryptionKey } from './encryption-key.model';
 
 @Cache({ register: 'onUse' })
 // eslint-disable-next-line jsdoc/require-jsdoc

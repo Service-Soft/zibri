@@ -1,7 +1,7 @@
-import { NotEnoughRestoreSpaceReason } from './not-enough-restore-space-reason.type';
-import { RestoreSpace, RestoreSpaceOfResource } from './restore-space.model';
 import { InternalError } from '../error-handling/internal-error.model';
 import { Bytes } from '../utilities/bytes';
+import { NotEnoughRestoreSpaceReason } from './not-enough-restore-space-reason.type';
+import { RestoreSpace, RestoreSpaceOfResource } from './restore-space.model';
 
 /**
  * How much more than the sizes a restore takes is asked to be free: what stays on the disk beside the

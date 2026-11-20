@@ -1,5 +1,5 @@
-import { DataSourceTime } from './data-source-time.model';
 import { InternalError } from '../../error-handling/internal-error.model';
+import { DataSourceTime } from './data-source-time.model';
 
 /**
  * The time on the clock of the data source as it runs the statement, plus an offset:

@@ -4,8 +4,8 @@ import path from 'node:path';
 
 import { describe, expect, it } from '@jest/globals';
 
-import { testFileFolder } from './constants';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { testFileFolder } from './constants';
 
 /**
  * Where the package's jest configuration is.

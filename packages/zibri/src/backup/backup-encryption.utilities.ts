@@ -1,7 +1,7 @@
 import { Cipheriv, CipherGCM, CipherGCMTypes, createCipheriv, createDecipheriv, Decipheriv, DecipherGCM, randomBytes } from 'node:crypto';
 
-import { StagedFileEncryption } from './staged-file-encryption.model';
 import { InternalError } from '../error-handling/internal-error.model';
+import { StagedFileEncryption } from './staged-file-encryption.model';
 
 /**
  * What a backup's data is encrypted with.

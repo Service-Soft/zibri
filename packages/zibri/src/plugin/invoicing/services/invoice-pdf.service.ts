@@ -1,8 +1,3 @@
-import { type CompanyInfoServiceInterface } from './company-info-service.interface';
-import { InvoiceConformanceServiceInterface, InvoiceConformance } from './conformance/invoice-conformance-service.interface';
-import { type InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
-import { InvoicePdfServiceInterface } from './invoice-pdf-service.interface';
-import { validateInvoiceTotal } from './validate-invoice-total.function';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -18,6 +13,11 @@ import { CompanyInfo } from '../models/company-info.model';
 import { Invoice } from '../models/invoice.model';
 import { type InvoicingOptions } from '../models/invoicing-options.model';
 import { Vat } from '../models/vat.model';
+import { type CompanyInfoServiceInterface } from './company-info-service.interface';
+import { InvoiceConformanceServiceInterface, InvoiceConformance } from './conformance/invoice-conformance-service.interface';
+import { type InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
+import { InvoicePdfServiceInterface } from './invoice-pdf-service.interface';
+import { validateInvoiceTotal } from './validate-invoice-total.function';
 
 /**
  * Default implementation of the invoice pdf service.

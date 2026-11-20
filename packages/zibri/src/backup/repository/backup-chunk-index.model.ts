@@ -1,8 +1,8 @@
-import { StoredBackupChunk } from './stored-backup-chunk.model';
 import { Repository } from '../../data-source/repository/repository';
 import { PromiseUtilities } from '../../utilities/promise.utilities';
 import { BackupChunkEntity, BackupChunkEntityCreateData } from '../backup-chunk-entity.model';
 import { BackupTransportSessionInterface } from '../transports/backup-transport-session.interface';
+import { StoredBackupChunk } from './stored-backup-chunk.model';
 
 /**
  * How many chunks one round trip looks up or records.

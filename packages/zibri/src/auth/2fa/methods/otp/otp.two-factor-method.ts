@@ -1,13 +1,5 @@
 import { randomBytes } from 'node:crypto';
 
-import { InvalidTwoFactorCodeError } from '../../invalid-two-factor-code.error';
-import { SecondFactorMissingError } from '../../second-factor-missing.error';
-import { NoRegistrationRequestData } from '../no-registration-request-data.model';
-import { TwoFactorMethod } from '../two-factor-method.interface';
-import { base32Encode } from './base32-encode.function';
-import { OtpCodeAlreadyUsedError } from './otp-code-already-used.error';
-import { OtpCredentials, OtpCredentialsCreateData } from './otp-credentials.model';
-import { OtpUtilities, type OtpValidationWindowInMs } from './otp.utilities';
 import { ZibriApplication } from '../../../../application/application';
 import { HttpRequestContext } from '../../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context';
@@ -29,6 +21,14 @@ import { Ms } from '../../../../utilities/ms';
 import { optionalPeer } from '../../../../utilities/optional-peer.function';
 import { validateEntitiesRegistered } from '../../../../utilities/validate-entities-registered.function';
 import { UserAccount } from '../../../models/user-account.model';
+import { InvalidTwoFactorCodeError } from '../../invalid-two-factor-code.error';
+import { SecondFactorMissingError } from '../../second-factor-missing.error';
+import { NoRegistrationRequestData } from '../no-registration-request-data.model';
+import { TwoFactorMethod } from '../two-factor-method.interface';
+import { base32Encode } from './base32-encode.function';
+import { OtpCodeAlreadyUsedError } from './otp-code-already-used.error';
+import { OtpCredentials, OtpCredentialsCreateData } from './otp-credentials.model';
+import { OtpUtilities, type OtpValidationWindowInMs } from './otp.utilities';
 
 /**
  * The data for confirming the registration of the otp two factor method.

@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { PayPalPaymentProvider, PayPalPaymentProviderPaymentData } from './pay-pal.payment-provider';
 import { TestTimeouts } from '../../../../__testing__/constants';
 import { LocalPayPalCall, LocalPayPalServer } from '../../../../__testing__/local-pay-pal-server';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../../__testing__/test-server/create-test-data-source.function';
@@ -26,6 +25,7 @@ import { Payment } from '../../models/payment.model';
 import { ZibriPaymentPlugin } from '../../payment.plugin';
 import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from '../../payment.tokens';
 import { PaymentServiceInterface } from '../../services/payment-service.interface';
+import { PayPalPaymentProvider, PayPalPaymentProviderPaymentData } from './pay-pal.payment-provider';
 
 const localPayPal: LocalPayPalServer = new LocalPayPalServer();
 let localPayPalUrl: string;

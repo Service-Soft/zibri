@@ -1,5 +1,5 @@
-import { BackupEntity } from './backup-entity.model';
 import { InternalError } from '../error-handling/internal-error.model';
+import { BackupEntity } from './backup-entity.model';
 
 /**
  * An error for a restore that was stopped because the application is shutting down.

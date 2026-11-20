@@ -1,6 +1,6 @@
-import { type VersionMatcher } from './supported-versions-options.model';
 import { Property } from '../entity/decorators/property.decorator';
 import { type OneOf } from '../entity/models/one-of.model';
+import { type VersionMatcher } from './supported-versions-options.model';
 
 /**
  * The versions a route in a version file supports: every version, or those the matchers match.

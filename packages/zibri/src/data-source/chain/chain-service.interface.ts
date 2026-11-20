@@ -1,8 +1,8 @@
-import { BaseChainedEntity } from './base-chained-entity.model';
-import { ChainVerification } from './chain-verification.model';
 import { Newable } from '../../types/newable.type';
 import { Where } from '../models/where/where-filter.model';
 import { Transaction } from '../transaction/transaction.model';
+import { BaseChainedEntity } from './base-chained-entity.model';
+import { ChainVerification } from './chain-verification.model';
 
 /**
  * Where a row stands in its chain.

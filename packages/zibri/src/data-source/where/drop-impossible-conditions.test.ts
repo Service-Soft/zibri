@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { dropImpossibleConditions } from './drop-impossible-conditions.function';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -11,6 +10,7 @@ import { Property, PropertyMetadata } from '../../entity/decorators/property.dec
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { WhereFilter } from '../models/where/where-filter.model';
+import { dropImpossibleConditions } from './drop-impossible-conditions.function';
 
 @Entity({ tenant: 'shared', allowOrphan: true })
 class Document extends BaseEntity {

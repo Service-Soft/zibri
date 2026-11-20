@@ -1,5 +1,5 @@
-import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model';
 import { OmitStrict } from '../../types/omit-strict.type';
+import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model';
 
 /**
  * Metadata for boolean properties.

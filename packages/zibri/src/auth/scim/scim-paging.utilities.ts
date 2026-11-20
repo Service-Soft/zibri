@@ -1,3 +1,7 @@
+import { WhereFilter } from '../../data-source/models/where/where-filter.model';
+import { ScopedWhere, ScopeWhereUtilities } from '../../data-source/scopes/scope-where.utilities';
+import { EntityOrder } from '../../entity/models/entity-order.model';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ScimBody } from './scim-body.model';
 import { ScimListQuery } from './scim-list-query.model';
 import { ScimSchema } from './scim-schema.enum';
@@ -5,10 +9,6 @@ import { ScimUserPages } from './scim-user-pages.model';
 import { ScimUserValue } from './scim-user-value.model';
 import { ScimUser } from './scim-user.model';
 import { ScimValueSort } from './scim-value-sort.model';
-import { WhereFilter } from '../../data-source/models/where/where-filter.model';
-import { ScopedWhere, ScopeWhereUtilities } from '../../data-source/scopes/scope-where.utilities';
-import { EntityOrder } from '../../entity/models/entity-order.model';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
 
 /**
  * Reads the pages of the lists SCIM answers (RFC 7644, 3.4.2): where a page starts, how long it is,

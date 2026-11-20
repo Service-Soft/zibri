@@ -2,8 +2,8 @@ import { writeFile } from 'node:fs/promises';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { FsPath, FsUtilities } from './fs.utilities';
 import { testFileFolder } from '../__testing__/constants';
+import { FsPath, FsUtilities } from './fs.utilities';
 
 const workDir: FsPath = FsUtilities.getPath(testFileFolder, 'fs-utilities-test');
 

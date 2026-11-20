@@ -1,4 +1,3 @@
-import { CodeTwoFactorMethod } from './code.two-factor-method';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../../di/inject.function';
 import { EmailPriority } from '../../../../email/models/email-priority.enum';
@@ -7,6 +6,7 @@ import { Newable } from '../../../../types/newable.type';
 import { Ms } from '../../../../utilities/ms';
 import { UserAccount } from '../../../models/user-account.model';
 import { NoRegistrationRequestData } from '../no-registration-request-data.model';
+import { CodeTwoFactorMethod } from './code.two-factor-method';
 
 /**
  * A code sent to the email address of the user as the second factor.

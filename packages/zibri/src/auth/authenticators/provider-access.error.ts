@@ -1,6 +1,6 @@
-import { ProviderAccessFailure } from './provider-access-failure.enum';
 import { ForbiddenError } from '../../error-handling/errors/forbidden.error';
 import { $ts } from '../../localization/translate.function';
+import { ProviderAccessFailure } from './provider-access-failure.enum';
 
 /**
  * Thrown when there is no access token for calling a provider's apis for a user.

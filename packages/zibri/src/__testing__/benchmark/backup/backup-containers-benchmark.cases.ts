@@ -1,7 +1,7 @@
+import { FsPath, FsUtilities } from '../../../utilities/fs.utilities';
 import { BackupScenario, resolveBackupScenario } from './backup-benchmark.cases';
 import { MeasuredResourceConfig, MeasuredTransportConfig } from './backup-measurement.model';
 import { ChangeProfile } from './seeded-table.model';
-import { FsPath, FsUtilities } from '../../../utilities/fs.utilities';
 
 const MIB: number = 1024 * 1024;
 

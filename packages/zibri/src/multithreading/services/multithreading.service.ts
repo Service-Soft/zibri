@@ -3,11 +3,6 @@ import { type ResourceLimits, Worker } from 'node:worker_threads';
 
 import { filter, firstValueFrom } from 'rxjs';
 
-import { MultithreadingServiceInterface } from './multithreading-service.interface';
-import { ThreadJob } from './thread-job';
-import { ThreadJobWorker } from './thread-job-worker';
-import { ThreadJobWorkerEventUtilities } from './thread-job-worker-event.utilities';
-import { ThreadJobWorkerEvents } from './thread-job-worker-events.model';
 import { ZibriApplication } from '../../application/application';
 import { AlsUtilities } from '../../context/als.utilities';
 import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
@@ -57,6 +52,11 @@ import { ThreadJobStartMessage } from '../models/thread-job-start-message.model'
 import { ThreadJobStatus } from '../models/thread-job-status.enum';
 import { RunQueuedThreadJobsCronJob } from '../run-queued-thread-jobs.cron-job';
 import { ThreadJobCleanupCronJob } from '../thread-job-cleanup.cron-job';
+import { MultithreadingServiceInterface } from './multithreading-service.interface';
+import { ThreadJob } from './thread-job';
+import { ThreadJobWorker } from './thread-job-worker';
+import { ThreadJobWorkerEventUtilities } from './thread-job-worker-event.utilities';
+import { ThreadJobWorkerEvents } from './thread-job-worker-events.model';
 
 /**
  * An error to throw during multithreading service initialization.
@@ -528,6 +528,15 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
             );
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async cancelQueuedThreadJobs(tenantId: string): Promise<number> {
+        // cancelled rather than deleted, so that whoever waits for one is told it ended
+        return await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(tenantId, async () => await this.threadJobEntityRepository.updateAll(
+            { status: { oneOf: [ThreadJobStatus.IN_QUEUE, ThreadJobStatus.INTERRUPTED] }, tenantId },
+            { status: ThreadJobStatus.CANCELLED }
+        ));
+    }
+
     private async validateInputs(): Promise<void> {
         const workerFileExists: boolean = await FsUtilities.exists(this.threadJobWorkerFilePath);
         if (!workerFileExists) {
@@ -578,6 +587,9 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         // database, and write access to that table would be enough to run code.
         validateNotAFunctionJob(threadJobData.workerData);
         this.validateWorkerFileCanBeLoaded(threadJobData.workerData);
+        // a deactivated tenant runs nothing, and would run it all once it is reactivated
+        const tenantService: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
+        await tenantService.validateNotDeactivated?.(tenantService.getActiveTenantId());
 
         const entityData: OmitStrict<ThreadJobEntity<WorkerData, ResultType>, 'id'> = {
             queuedAtMs: Date.now(),

@@ -1,6 +1,6 @@
+import { TraceSpanContext } from '../../tracing/trace-span-context.model';
 import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from './base-thread-job-worker-data.model';
 import { ThreadJobCheckpoint } from './thread-job-checkpoint.model';
-import { TraceSpanContext } from '../../tracing/trace-span-context.model';
 
 /**
  * What a worker is handed to run a job.

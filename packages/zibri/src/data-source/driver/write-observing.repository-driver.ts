@@ -1,7 +1,3 @@
-import { findUpsertRowOf, findUpsertTargets } from './find-upsert-targets.function';
-import { ForwardingRepositoryDriver } from './forwarding.repository-driver';
-import { RemovalReach } from './removal-reach.model';
-import { DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { InternalError } from '../../error-handling/internal-error.model';
@@ -18,6 +14,10 @@ import { type RepositoryTransaction } from '../transaction/repository-transactio
 import { Transaction } from '../transaction/transaction.model';
 import { EntityWrite, EntityWriteObserver, RowWrite, WriteOperation, WrittenRows } from '../write-observers/entity-write-observer.model';
 import { EntityWriteObserverRegistry } from '../write-observers/entity-write-observer.registry';
+import { findUpsertRowOf, findUpsertTargets } from './find-upsert-targets.function';
+import { ForwardingRepositoryDriver } from './forwarding.repository-driver';
+import { RemovalReach } from './removal-reach.model';
+import { DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
 
 /**
  * A write, as it is observed.

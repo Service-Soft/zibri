@@ -215,8 +215,8 @@ export abstract class JsonUtilities {
     static stringify<T>(value: T, replacer?: (this: any, key: string, value: unknown) => unknown, space?: string | number): string {
         return JSON.stringify(
             value,
-            (_key, value: unknown) => {
-                const res: unknown = typeof value === 'bigint' ? value.toString() : value;
+            (_key, propertyValue: unknown) => {
+                const res: unknown = typeof propertyValue === 'bigint' ? propertyValue.toString() : propertyValue;
                 return replacer ? replacer(_key, res) : res;
             },
             space

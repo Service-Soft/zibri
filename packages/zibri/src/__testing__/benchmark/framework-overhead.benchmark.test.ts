@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { BenchmarkTiming } from './benchmark-timing.model';
-import { BenchmarkUtilities } from './benchmark.utilities';
 import { type HashServiceInterface } from '../../auth/hash/hash-service.interface';
 import { HashString } from '../../auth/hash/hash.utilities';
 import { PostgresSchema } from '../../data-source/data-sources/postgres/postgres-schema.model';
@@ -29,6 +27,8 @@ import { RegexUtilities } from '../../utilities/regex.utilities';
 import { testFileFolder, TestTimeouts } from '../constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { BenchmarkTiming } from './benchmark-timing.model';
+import { BenchmarkUtilities } from './benchmark.utilities';
 
 /**
  * What the framework itself costs in time, around a request and around a repository call.

@@ -7,11 +7,11 @@ import { setTimeout as wait } from 'node:timers/promises';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { Client, ClientSFTPCallback, Connection, SFTPWrapper, utils } from 'ssh2';
 
+import { InProcessSftpLogin, InProcessSftpRequest, InProcessSftpServer } from '../../__testing__/backup/in-process-sftp-server.model';
+import { Ms } from '../../utilities/ms';
 import { BackupKeyAccessDeniedError } from './backup-key-access-denied.error';
 import { BackupTransportSessionInterface } from './backup-transport-session.interface';
 import { SftpBackupTransport } from './sftp.backup-transport';
-import { InProcessSftpLogin, InProcessSftpRequest, InProcessSftpServer } from '../../__testing__/backup/in-process-sftp-server.model';
-import { Ms } from '../../utilities/ms';
 
 // against a server in the test's own process, which a case has answer as a server the transport does not
 // control can: wrongly, refusing, or not at all. What a real server accepts is checked against one in a

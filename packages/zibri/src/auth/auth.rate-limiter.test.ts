@@ -1,6 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { AuthRateLimiter } from './auth.rate-limiter';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { initDiContainer } from '../di/init-di-container.function';
 import { inject } from '../di/inject.function';
@@ -9,6 +8,7 @@ import { type LoggerInterface } from '../logging/logger.interface';
 import { RateLimitStoreFailurePolicy } from '../rate-limiting/limiter/rate-limiter-config.model';
 import { RateLimitStoreUnavailableError } from '../rate-limiting/stores/rate-limit-store-unavailable.error';
 import { Ms } from '../utilities/ms';
+import { AuthRateLimiter } from './auth.rate-limiter';
 
 /**
  * The auth limiter with room for two callers.

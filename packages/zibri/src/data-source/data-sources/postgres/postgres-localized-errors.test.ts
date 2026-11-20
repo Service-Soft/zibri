@@ -1,7 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
-import { PostgresPooler } from './postgres-pooler.model';
 import { queryPostgres } from '../../../__testing__/query-postgres.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
@@ -17,6 +15,8 @@ import { RepositoryClass } from '../../repository/repository-class.type';
 import { StoredValueTypeMismatchError } from '../../stored-value-type-mismatch.error';
 import { Gauge, GaugeReading } from '../../tests/mistyped-values.cases';
 import { UniqueConstraintViolationError } from '../../unique-constraint-violation.error';
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
+import { PostgresPooler } from './postgres-pooler.model';
 
 // what a refused write collided on, and what a json
 // column was found holding, were read out of the server's english messages

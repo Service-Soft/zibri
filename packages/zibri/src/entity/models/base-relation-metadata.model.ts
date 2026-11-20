@@ -1,6 +1,6 @@
-import { BasePropertyMetadata } from './base-property-metadata.model';
 import { Newable } from '../../types/newable.type';
 import { type BaseEntity } from '../base-entity.model';
+import { BasePropertyMetadata } from './base-property-metadata.model';
 
 /**
  * What a write or a removal of a row does to the rows of a relation: `true` for everything, or the

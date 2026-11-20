@@ -1,7 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { CacheDelete } from './cache-delete.decorator';
-import { Cache } from './cache.decorator';
 import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Inject } from '../../di/decorators/inject.decorator';
@@ -13,6 +11,8 @@ import { WriteThroughReadThroughCache } from '../cache/read-through/write-throug
 import { type CacheServiceInterface } from '../cache-service.interface';
 import { CachedValue } from '../store/cached-value.model';
 import { InMemoryCacheStore } from '../store/in-memory.cache-store';
+import { CacheDelete } from './cache-delete.decorator';
+import { Cache } from './cache.decorator';
 
 @Cache()
 class DeleteTestCache extends WriteThroughReadThroughCache<string, string, 'Cache Delete Decorator Test Cache'> {

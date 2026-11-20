@@ -4,9 +4,6 @@ import { inflateRawSync } from 'node:zlib';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createFakeKeyPair, createInMemoryDataSource, FakeKeyPair, FakeSamlAnswer, FakeSamlBackChannelAnswer, FakeSamlLogoutForm, FakeSamlLogoutResponse, FakeSamlProvider, InMemoryDataSource, startFakeSamlProvider, TestBrowser } from 'zibri-testing';
 
-import { BaseSamlAuthenticator } from './base-saml.authenticator';
-import { SamlIdentityProvider } from './saml-identity-provider.model';
-import { SamlKeyPair } from './saml-key-pair.model';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
@@ -47,6 +44,9 @@ import { FederatedLoginAttempt } from '../federated/federated-login-attempt.mode
 import { FederatedRegistrationTicket } from '../federated/federated-registration-ticket.model';
 import { FederatedRegistration } from '../federated/federated-registration.model';
 import { FederationOptions } from '../federated/federation-options.model';
+import { BaseSamlAuthenticator } from './base-saml.authenticator';
+import { SamlIdentityProvider } from './saml-identity-provider.model';
+import { SamlKeyPair } from './saml-key-pair.model';
 
 // where the application is reached from the outside, as its baseUrl, which a browser here resolves to
 // wherever the server ended up listening

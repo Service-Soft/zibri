@@ -1,6 +1,6 @@
+import { InternalError } from '../error-handling/internal-error.model';
 import { BackupEntity } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
-import { InternalError } from '../error-handling/internal-error.model';
 
 /**
  * An error for a backup whose resource was never finished being written, so there is nothing to

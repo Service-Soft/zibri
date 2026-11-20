@@ -1,10 +1,10 @@
-import { EntityWriteObserver } from './entity-write-observer.model';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../global/global-registry';
 import { LifecyclePhase } from '../../global/lifecycle-phase.enum';
 import { Newable } from '../../types/newable.type';
+import { EntityWriteObserver } from './entity-write-observer.model';
 
 /**
  * Holds the observers of every entity, which every write to it reaches, registered by the services

@@ -1,10 +1,10 @@
+import { InternalError } from '../error-handling/internal-error.model';
+import { getZonedDate, ZonedDate } from '../localization/format-date.function';
+import { Timezone } from '../localization/models/timezone.model';
 import { BackupEntity } from './backup-entity.model';
 import { BackupPeriod } from './backup-period.type';
 import { BackupResourceEntity } from './backup-resource-entity.model';
 import { BackupRetention } from './backup-retention.model';
-import { InternalError } from '../error-handling/internal-error.model';
-import { getZonedDate, ZonedDate } from '../localization/format-date.function';
-import { Timezone } from '../localization/models/timezone.model';
 
 /**
  * What a retention reads of a backup: when it was taken, and which backups its resources build on.

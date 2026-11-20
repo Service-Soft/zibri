@@ -1,9 +1,5 @@
 import type { GlideClient, GlideString, Script } from '@valkey/valkey-glide';
 
-import { cacheKeyOf } from '../cache-key.function';
-import { CacheModel } from './cache-model.model';
-import { CacheStoreConfig, CacheStoreInterface } from './cache-store.interface';
-import { CachedValue } from './cached-value.model';
 import { ValKeyDataSource } from '../../data-source/data-sources/val-key/val-key-data-source.model';
 import { valKeyGlide } from '../../data-source/data-sources/val-key/val-key-glide.function';
 import { InternalError } from '../../error-handling/internal-error.model';
@@ -12,6 +8,10 @@ import { Newable } from '../../types/newable.type';
 import { Bytes } from '../../utilities/bytes';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { nowInNs } from '../../utilities/now-in-ns.function';
+import { cacheKeyOf } from '../cache-key.function';
+import { CacheModel } from './cache-model.model';
+import { CacheStoreConfig, CacheStoreInterface } from './cache-store.interface';
+import { CachedValue } from './cached-value.model';
 
 /**
  * The number of eviction candidates that are pulled from the index in one go. Only as many of them

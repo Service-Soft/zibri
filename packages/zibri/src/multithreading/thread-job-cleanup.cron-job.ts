@@ -1,8 +1,8 @@
 import { CronExpression } from '../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
-import { type MultithreadingServiceInterface } from './services/multithreading-service.interface';
 import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { type MultithreadingServiceInterface } from './services/multithreading-service.interface';
 
 /**
  * Deletes the thread jobs that are over and older than `ZIBRI_DI_TOKENS.THREAD_JOB_RETENTION_IN_MS`.

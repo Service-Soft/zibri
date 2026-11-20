@@ -1,13 +1,13 @@
 import { IncomingMessage, Server as HttpServer, ServerResponse } from 'node:http';
 
-import { WebsocketMessageRefusalListener } from './message-size-limiting-web-socket-server.function';
-import { PollingPayloadScanner } from './polling-payload.scanner';
-import { WebsocketMessageLimitResolver, WebsocketMessageRefusal, WebsocketMessageSizeScanner } from './websocket-message-size.scanner';
 import { HttpMethod } from '../../http/http-method.enum';
 import { HttpStatus } from '../../http/http-status.enum';
 import { KnownHeader } from '../../http/known-header.enum';
 import { MimeType } from '../../http/mime-type.enum';
 import { Route } from '../../routing/controller-route-configuration.model';
+import { WebsocketMessageRefusalListener } from './message-size-limiting-web-socket-server.function';
+import { PollingPayloadScanner } from './polling-payload.scanner';
+import { WebsocketMessageLimitResolver, WebsocketMessageRefusal, WebsocketMessageSizeScanner } from './websocket-message-size.scanner';
 
 /**
  * A session of the websocket server's engine, as far as the guard needs one: its id, and when it ends.

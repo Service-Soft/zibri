@@ -7,10 +7,6 @@ import { buffer } from 'node:stream/consumers';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { utils } from 'ssh2';
 
-import { describeBackupTransport } from './backup-transport.cases';
-import { BaseSftpBackupTransport } from './base-sftp.backup-transport';
-import { Format1BackupTransport } from './format-1.backup-transport';
-import { SftpBackupTransportOptions } from './sftp/sftp-backup-transport-options.model';
 import { BackupTransportTestServerUtilities, StartedSftpTestServer } from '../../__testing__/backup/backup-transport-test-server.utilities';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -35,6 +31,10 @@ import { BackupResourceEntity } from '../backup-resource-entity.model';
 import { BackupService } from '../backup.service';
 import { Backup } from '../decorators/backup-resource.decorator';
 import { BackupTransport } from '../decorators/backup-transport.decorator';
+import { describeBackupTransport } from './backup-transport.cases';
+import { BaseSftpBackupTransport } from './base-sftp.backup-transport';
+import { Format1BackupTransport } from './format-1.backup-transport';
+import { SftpBackupTransportOptions } from './sftp/sftp-backup-transport-options.model';
 
 const USERNAME: string = 'zibri';
 const PASSWORD: string = 'zibri-test-password';

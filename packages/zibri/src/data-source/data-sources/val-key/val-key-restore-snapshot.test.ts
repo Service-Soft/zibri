@@ -2,9 +2,6 @@ import { Readable } from 'node:stream';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { ValKeyBackupMode } from './val-key-backup-mode.model';
-import { ValKeyDataSource, ValKeyOptions } from './val-key-data-source.model';
-import { ValKeyRestoreMode } from './val-key-restore-mode.model';
 import { testFileFolder, TestTimeouts } from '../../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
@@ -27,6 +24,9 @@ import { MigrationEntity } from '../../migration/migration-entity.model';
 import { Migration } from '../../migration/migration.model';
 import { RepositoryClass } from '../../repository/repository-class.type';
 import { DataSourceInterface } from '../data-source.interface';
+import { ValKeyBackupMode } from './val-key-backup-mode.model';
+import { ValKeyDataSource, ValKeyOptions } from './val-key-data-source.model';
+import { ValKeyRestoreMode } from './val-key-restore-mode.model';
 
 /**
  * Whether a restore of valkey alone keeps a copy of what it holds to put back: not when it is staged and

@@ -1,6 +1,5 @@
 import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
-import { Transaction } from './transaction.model';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestValKeyEntities } from '../../__testing__/test-server/create-test-val-key-data-source.function';
 import { testServerPasswordPolicyProvider } from '../../__testing__/test-server/providers';
@@ -15,6 +14,7 @@ import { ValKeyDataSource, ValKeyOptions } from '../data-sources/val-key/val-key
 import { DataSource } from '../decorators/data-source.decorator';
 import { Repository } from '../repository/repository';
 import { RepositoryClass } from '../repository/repository-class.type';
+import { Transaction } from './transaction.model';
 
 /**
  * What every instance of the valkey transaction cluster boots with.

@@ -1,7 +1,7 @@
-import { AsyncApiExplorerOperation, AsyncApiExplorerServer, AsyncApiExplorerTag } from './async-api-explorer-operation.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { AsyncApiChannel, AsyncApiDefinition, AsyncApiMessage, AsyncApiOperation, AsyncApiReference, AsyncApiSecurityScheme } from '../async-api.model';
+import { AsyncApiExplorerOperation, AsyncApiExplorerServer, AsyncApiExplorerTag } from './async-api-explorer-operation.model';
 
 /**
  * The tag of the operations that name none.
@@ -64,7 +64,8 @@ export abstract class AsyncApiExplorerUtilities {
                 .map(message => this.resolveMessage(definition, message)),
             replies: (operation.reply?.messages ?? []).map(message => this.resolveMessage(definition, message)),
             securitySchemes: (operation.security ?? []).map(scheme => this.resolveSecuritySchemeName(scheme)),
-            permissions: [operation['x-permission'], operation['x-platform-permission']].filter(permission => permission != undefined)
+            permissions: [operation['x-permission'], operation['x-platform-permission']].filter(permission => permission != undefined),
+            anyLevelPermission: operation['x-any-level-permission'] === true
         };
     }
 

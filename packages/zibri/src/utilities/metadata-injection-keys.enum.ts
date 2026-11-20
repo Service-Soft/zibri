@@ -18,6 +18,8 @@ export enum MetadataInjectionKeys {
     CONTROLLER_SKIP_HAS_PERMISSION = 'controller:skip_has_permission',
     CONTROLLER_HAS_PLATFORM_PERMISSION = 'controller:has_platform_permission',
     CONTROLLER_SKIP_HAS_PLATFORM_PERMISSION = 'controller:skip_has_platform_permission',
+    CONTROLLER_HAS_ANY_LEVEL_PERMISSION = 'controller:has_any_level_permission',
+    CONTROLLER_SKIP_HAS_ANY_LEVEL_PERMISSION = 'controller:skip_has_any_level_permission',
     CONTROLLER_REQUIRE_2FA = 'controller:require_2fa',
     CONTROLLER_SKIP_REQUIRE_2FA = 'controller:skip_require_2fa',
     CONTROLLER_SKIP_AUTH = 'controller:skip_auth',
@@ -35,6 +37,8 @@ export enum MetadataInjectionKeys {
     ROUTE_HAS_PERMISSION = 'route:has_permission',
     ROUTE_SKIP_HAS_PLATFORM_PERMISSION = 'route:skip_has_platform_permission',
     ROUTE_HAS_PLATFORM_PERMISSION = 'route:has_platform_permission',
+    ROUTE_SKIP_HAS_ANY_LEVEL_PERMISSION = 'route:skip_has_any_level_permission',
+    ROUTE_HAS_ANY_LEVEL_PERMISSION = 'route:has_any_level_permission',
     ROUTE_REQUIRE_2FA = 'route:require_2fa',
     ROUTE_SKIP_REQUIRE_2FA = 'route:skip_require_2fa',
     ROUTE_SKIP_AUTH = 'route:skip_auth',
@@ -48,5 +52,6 @@ export enum MetadataInjectionKeys {
     WEBSOCKET_CONTROLLER_DATA = 'websocket_controller:data',
     WEBSOCKET_CONTROLLER_ROUTES = 'websocket_controller:routes',
     ROUTE_CURRENT_WEBSOCKET_CONNECTION = 'route:current_websocket_connection',
-    EXCLUDED_PROPERTY_VALUE = 'entity:excluded_property_value'
+    EXCLUDED_PROPERTY_VALUE = 'entity:excluded_property_value',
+    COPIED_FROM = 'class:copied_from'
 }

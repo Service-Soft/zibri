@@ -1,6 +1,6 @@
-import { DeletedRelatedRows } from './deleted-related-rows.type';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
+import { DeletedRelatedRows } from './deleted-related-rows.type';
 
 /**
  * A one to many or has one relation: the rows it holds point at the row that owns them, through a

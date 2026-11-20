@@ -2,7 +2,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jes
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { type WebsocketServiceInterface } from './websocket-service.interface';
 import { TestTimeouts } from '../../__testing__/constants';
 import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
 import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
@@ -30,6 +29,7 @@ import { SocketIOWebsocketConnection } from '../models/connection/socket-io-webs
 import { WebsocketChannel } from '../models/websocket-channel.model';
 import { WebsocketEvent } from '../models/websocket-event.enum';
 import { WebsocketMessage } from '../models/websocket-message.model';
+import { type WebsocketServiceInterface } from './websocket-service.interface';
 
 type LoginResponseBody = { accessToken: { value: string } };
 

@@ -1,6 +1,6 @@
+import { Newable } from '../../types/newable.type';
 import { AuthorizationServerControllerOptions } from './authorization-server-controller-options.model';
 import { AuthorizationServerEndpoint } from './authorization-server-endpoint.model';
-import { Newable } from '../../types/newable.type';
 
 /**
  * A controller class defined by `AuthorizationServerController`.

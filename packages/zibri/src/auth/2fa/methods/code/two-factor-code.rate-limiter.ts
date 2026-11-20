@@ -1,4 +1,3 @@
-import { type TwoFactorCodeOptions } from './two-factor-code-options.model';
 import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
@@ -9,6 +8,7 @@ import { RateLimitStateEntity } from '../../../../rate-limiting/stores/rate-limi
 import { InProcessRateLimiterLock } from '../../../../rate-limiting/stores/rate-limiter-lock.interface';
 import { RepositoryRateLimiterStore } from '../../../../rate-limiting/stores/repository.rate-limiter-store';
 import { Ms } from '../../../../utilities/ms';
+import { type TwoFactorCodeOptions } from './two-factor-code-options.model';
 
 /**
  * How often a user is sent a two factor code by email or text message: once per `resendAfterInMs` of

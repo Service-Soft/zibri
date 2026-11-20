@@ -3,8 +3,6 @@ import { performance } from 'perf_hooks';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { MultithreadingServiceInterface } from './multithreading-service.interface';
-import { MultithreadingService } from './multithreading.service';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -12,6 +10,8 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
 import { Ms } from '../../utilities/ms';
+import { MultithreadingServiceInterface } from './multithreading-service.interface';
+import { MultithreadingService } from './multithreading.service';
 
 // This test compares wall-clock timing between sequential main-thread execution and parallel
 // worker-thread execution. It is inherently flaky under CI/parallel-test-runner load (other Jest

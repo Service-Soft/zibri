@@ -1,11 +1,11 @@
-import { CacheStoreInterface } from './cache-store.interface';
-import { CachedValue } from './cached-value.model';
-import { InMemoryCacheStoreConfig } from './in-memory-cache-store-config.model';
 import { Bytes } from '../../utilities/bytes';
 import { DoublyLinkedList, LinkedListNode } from '../../utilities/doubly-linked-list';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { NumberUtilities } from '../../utilities/number.utilities';
 import { cacheKeyOf } from '../cache-key.function';
+import { CacheStoreInterface } from './cache-store.interface';
+import { CachedValue } from './cached-value.model';
+import { InMemoryCacheStoreConfig } from './in-memory-cache-store-config.model';
 
 /**
  * Internal linked list node.

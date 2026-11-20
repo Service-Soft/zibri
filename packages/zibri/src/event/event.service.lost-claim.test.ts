@@ -3,9 +3,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { type EventServiceInterface } from './event-service.interface';
-import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model';
-import { Event, EventStatus } from './event.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -19,6 +16,9 @@ import { defineProvider } from '../di/models/di-provider.model';
 import { LeaseLostError } from '../leases/lease-lost.error';
 import { Lease } from '../leases/lease.model';
 import { Ms } from '../utilities/ms';
+import { type EventServiceInterface } from './event-service.interface';
+import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model';
+import { Event, EventStatus } from './event.model';
 
 declare module './event-service.interface' {
     /**

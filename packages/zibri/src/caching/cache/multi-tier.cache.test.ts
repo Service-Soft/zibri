@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
-import { MultiTierCache } from './multi-tier.cache';
 import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Inject } from '../../di/decorators/inject.decorator';
@@ -9,10 +8,11 @@ import { inject } from '../../di/inject.function';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface';
 import { type CacheServiceInterface } from '../cache-service.interface';
-import { InMemoryCacheStore } from '../store/in-memory.cache-store';
-import { WriteThroughReadThroughCache } from './read-through/write-through-read-through.cache';
 import { Cache } from '../decorators/cache.decorator';
 import { CachedValue } from '../store/cached-value.model';
+import { InMemoryCacheStore } from '../store/in-memory.cache-store';
+import { MultiTierCache } from './multi-tier.cache';
+import { WriteThroughReadThroughCache } from './read-through/write-through-read-through.cache';
 
 // ---------------------------------------------------------------------------
 // Two simple tiers of WriteThroughReadThrough caches.

@@ -1,9 +1,9 @@
-import { PathParamMetadataInput, PathParamMetadata, QueryParamMetadataInput, QueryParamMetadata, HeaderParamMetadataInput, HeaderParamMetadata } from './decorators/param.decorator';
-import { ArrayParamItemMetadataInput, ArrayParamItemMetadata } from './models/array-param-metadata.model';
-import { OneOfParamMetadata, OneOfQueryParamMetadataInput, PathParamShapeMetadataInput } from './models/one-of-param-metadata.model';
 import { createAnyOfShapesMetadata } from '../entity/decorators/property.decorator';
 import { InternalError } from '../error-handling/internal-error.model';
 import { RegexUtilities } from '../utilities/regex.utilities';
+import { PathParamMetadataInput, PathParamMetadata, QueryParamMetadataInput, QueryParamMetadata, HeaderParamMetadataInput, HeaderParamMetadata } from './decorators/param.decorator';
+import { ArrayParamItemMetadataInput, ArrayParamItemMetadata } from './models/array-param-metadata.model';
+import { OneOfParamMetadata, OneOfQueryParamMetadataInput, PathParamShapeMetadataInput } from './models/one-of-param-metadata.model';
 
 /**
  * Utilities for the metadata of path, query and header parameters.

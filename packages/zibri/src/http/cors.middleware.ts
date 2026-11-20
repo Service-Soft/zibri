@@ -1,11 +1,11 @@
 import { Request, RequestHandler } from 'express';
 
-import { Header } from './header.type';
-import { HttpMethod } from './http-method.enum';
-import { KnownHeader } from './known-header.enum';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { InternalError } from '../error-handling/internal-error.model';
+import { Header } from './header.type';
+import { HttpMethod } from './http-method.enum';
+import { KnownHeader } from './known-header.enum';
 
 /**
  * An origin a browser page can be served from.
@@ -120,6 +120,8 @@ export function corsMiddleware(options: CorsOptions): RequestHandler {
             inject(ZIBRI_DI_TOKENS.API_KEY_HEADER),
             KnownHeader.TRACEPARENT,
             KnownHeader.TRACESTATE,
+            // the header a request names its tenant by, if the tenant service reads one
+            ...[inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).getTenantHeader?.()].filter(header => header != undefined),
             ...options.additionalAllowedHeaders ?? []
         ].join(', ');
         // a browser hides every response header a page did not ask to see, so headers the framework

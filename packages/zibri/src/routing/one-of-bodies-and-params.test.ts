@@ -3,12 +3,6 @@ import assert from 'assert';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Body } from './decorators/body.decorator';
-import { Controller } from './decorators/controller.decorator';
-import { Get } from './decorators/get.decorator';
-import { Param } from './decorators/param.decorator';
-import { Post } from './decorators/post.decorator';
-import { RouterInterface } from './router.interface';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -30,6 +24,12 @@ import { ValidationProblem } from '../validation/validation-problem.model';
 import { ValidationService } from '../validation/validation.service';
 import { WebsocketBody } from '../websocket/decorators/websocket-body.decorator';
 import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { Body } from './decorators/body.decorator';
+import { Controller } from './decorators/controller.decorator';
+import { Get } from './decorators/get.decorator';
+import { Param } from './decorators/param.decorator';
+import { Post } from './decorators/post.decorator';
+import { RouterInterface } from './router.interface';
 
 class Signup {
     @Property.string({ regex: /^[^\s@]+@[^\s@]+$/ })

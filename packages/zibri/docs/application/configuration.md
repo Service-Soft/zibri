@@ -89,6 +89,7 @@ These have no default either. An application using the feature provides them.
 | `PASSWORD_RESET_EMAIL_TEMPLATE` | `PasswordResetEmailTemplate` | The email carrying that link. Required by `PasswordAuthenticator` |
 | [`PASSWORD_POLICY`](../auth/auth.md#how-long-a-password-may-be) | `PasswordPolicy` | What a password has to be. Required once an entity holds a password, such as `PasswordCredentials` with `PasswordAuthenticator` |
 | [`EMAIL_VERIFICATION_OPTIONS`](../auth/email-verification.md#setting-it-up) | `EmailVerificationOptions \| undefined` | How email addresses are verified. Not at all by default |
+| [`INVITATION_OPTIONS`](../auth/invitations.md#setting-it-up) | `InvitationOptions \| undefined` | How invitations are sent. Required once an invitation repository is listed |
 | [`EMAIL_VERIFICATION_SERVICE`](../auth/email-verification.md) | `EmailVerificationServiceInterface` | Mails the links verifying and changing addresses, and confirms them |
 | [`PASSKEY_OPTIONS`](../auth/passkeys.md) | `PasskeyOptions` | The domain passkeys are bound to and the pages that use them. Required by `PasskeyAuthenticator` |
 | [`FEDERATION_OPTIONS`](../auth/login-through-a-provider.md) | `FederationOptions` | What every provider a user logs in at shares. Required by an [authenticator](../glossary.md#authenticator) of a provider |
@@ -270,6 +271,7 @@ token to replace it.
 | [`WAKE_UP_SERVICE`](../background-work/cron.md) | `WakeUpServiceInterface` | Wakes the instances waiting for work on a topic. `WakeUpService` by default |
 | [`TENANT_SERVICE`](../data/tenancy.md) | `TenantServiceInterface` | Creates and reads [tenants](../glossary.md#tenant). `TenantService` by default |
 | [`MEMBERSHIP_SERVICE`](../data/tenancy.md) | `MembershipServiceInterface` | Adds users to tenants and removes them. `MembershipService` by default |
+| [`INVITATION_SERVICE`](../auth/invitations.md) | `InvitationServiceInterface` | Invites people to the application or a tenant, and answers their invitations. `InvitationService` by default |
 | [`JWT_SERVICE`](../auth/auth.md) | `JwtServiceInterface` | Signs and verifies access tokens. `JwtService` by default |
 | [`DPOP_SERVICE`](../auth/dpop.md) | `DpopServiceInterface` | Checks DPoP proofs. `DpopService` by default |
 | [`PASSKEY_SERVICE`](../auth/passkeys.md) | `PasskeyServiceInterface` | Creates and checks passkeys. `PasskeyService` by default |

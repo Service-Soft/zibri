@@ -1,6 +1,7 @@
 import ts from 'typescript';
 import { Diagnostic, DiagnosticSeverity, SourceSpan } from 'zibri-tsx';
 
+import { ModuleLoadingSite, OuterName } from '../codegen/client/client-codegen';
 import { isBindingIdentifier } from './binding';
 import { browserGlobals, browserOnlyGlobals, declaredValueNames } from './browser-globals';
 import { ComponentInfo, findComponents, hasModifier } from './component';
@@ -8,7 +9,6 @@ import { isHookModule } from './hook-names';
 import { readImports, TemplateImport } from './imports';
 import { isAmbient, symbolOf } from './symbols';
 import { isHookCall, walk } from './walk';
-import { ModuleLoadingSite, OuterName } from '../codegen/client/client-codegen';
 
 /**
  * Diagnostic codes produced by dialect validation.

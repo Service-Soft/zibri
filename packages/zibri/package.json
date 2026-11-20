@@ -3,7 +3,7 @@
     "publishConfig": {
         "access": "public"
     },
-    "version": "3.1.0",
+    "version": "3.2.0",
     "main": "./dist/cjs/index.js",
     "types": "./dist/cjs/index.d.ts",
     "repository": {
@@ -107,10 +107,10 @@
         "socket.io-adapter": "^2.5.5",
         "socket.io-parser": "^4.2.4",
         "ssh2": "^1.17.0",
-        "ws": "^8.21.0",
         "swagger2openapi": "^7.0.8",
         "systeminformation": "^5.31.6",
-        "zibri-tsx": "^3.1.0"
+        "ws": "^8.21.0",
+        "zibri-tsx": "^3.2.0"
     },
     "peerDependenciesMeta": {
         "@opentelemetry/api": {
@@ -210,7 +210,7 @@
         "path-to-regexp": "^8.0.0",
         "reflect-metadata": "^0.2.2",
         "undici": "^8.12.3",
-        "zibri-contract": "^3.1.0"
+        "zibri-contract": "^3.2.0"
     },
     "devDependencies": {
         "@faker-js/faker": "^10.6.0",
@@ -223,7 +223,7 @@
         "@opentelemetry/sdk-trace-node": "^2.11.0",
         "@peculiar/x509": "^2.1.0",
         "@prometheus-io/client": "^0.16.1",
-        "@service-soft/eslint-config": "^2.1.7",
+        "@service-soft/eslint-config": "^2.2.0",
         "@simplewebauthn/server": "^14.0.3",
         "@swc/core": "^1.15.40",
         "@types/node": "^24.0.0",
@@ -263,8 +263,8 @@
         "typescript": "^5.9.2",
         "typescript-6": "npm:typescript@^6.0.2",
         "webpack": "^5.105.3",
-        "zibri-mdx": "^3.1.0",
-        "zibri-testing": "^3.1.0",
-        "zibri-tsx-compiler": "^3.1.0"
+        "zibri-mdx": "^3.2.0",
+        "zibri-testing": "^3.2.0",
+        "zibri-tsx-compiler": "^3.2.0"
     }
 }

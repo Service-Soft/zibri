@@ -1,5 +1,5 @@
-import { BaseRole } from './base-role.model';
 import { OmitStrict } from '../../types/omit-strict.type';
+import { BaseRole } from './base-role.model';
 
 /**
  * What a new role is created with: what the application's role entity holds. A permission that is

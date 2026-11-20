@@ -1,7 +1,5 @@
 import { FilterConfig, OrderValue } from 'zibri-contract';
 
-import { CrudControllerOptions } from './crud-controller-options.model';
-import { CrudControllerOrderUtilities } from './crud-controller-order.utilities';
 import { PaginationResult } from '../../data-source/models/pagination-result.model';
 import { Where } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository/repository';
@@ -20,6 +18,8 @@ import { Param } from '../decorators/param.decorator';
 import { Patch } from '../decorators/patch.decorator';
 import { Post } from '../decorators/post.decorator';
 import { FilterUtilities } from '../filter/filter.utilities';
+import { CrudControllerOptions } from './crud-controller-options.model';
+import { CrudControllerOrderUtilities } from './crud-controller-order.utilities';
 
 /**
  * The largest page a CRUD controller reads, when it was given no `maxLimit`.
@@ -89,11 +89,11 @@ export function CrudController<
         : CrudControllerOrderUtilities.resolveOrderClass(entityClass, options.order);
     // eslint-disable-next-line jsdoc/require-jsdoc
     class Temp implements CrudControllerInterface<T, CreateData, UpdateData> {
+        // a getter, as a class built from this one with OmitClass, PickClass or IntersectionClass runs
+        // none of its constructor. A subclass declaring `repo` as a field of its own shadows it
         // eslint-disable-next-line jsdoc/require-jsdoc
-        protected readonly repo: Repository<T, CreateData, UpdateData>;
-
-        constructor() {
-            this.repo = inject(repositoryTokenFor(entityClass));
+        protected get repo(): Repository<T, CreateData, UpdateData> {
+            return inject(repositoryTokenFor(entityClass));
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc

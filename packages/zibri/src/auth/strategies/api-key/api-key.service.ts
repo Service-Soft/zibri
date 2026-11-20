@@ -1,13 +1,5 @@
 import { randomBytes, X509Certificate } from 'node:crypto';
 
-import { ApiKeyAuthenticationMethod } from './api-key-authentication-method.enum';
-import { ApiKeyCleanupCronJob } from './api-key-cleanup.cron-job';
-import { ApiKeyClientAuthentication } from './api-key-client-authentication.model';
-import { ApiKeyCreateData } from './api-key-create-data.model';
-import { ApiKeyOptions } from './api-key-options.model';
-import { ApiKeyServiceInterface } from './api-key-service.interface';
-import { ApiKey, ApiKeyCreateDto } from './api-key.model';
-import { CreatedApiKey } from './created-api-key.model';
 import { ZibriApplication } from '../../../application/application';
 import { Repository } from '../../../data-source/repository/repository';
 import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
@@ -30,6 +22,14 @@ import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
 import { BaseUser } from '../../models/base-user.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { JwtUtilities } from '../jwt/jwt.utilities';
+import { ApiKeyAuthenticationMethod } from './api-key-authentication-method.enum';
+import { ApiKeyCleanupCronJob } from './api-key-cleanup.cron-job';
+import { ApiKeyClientAuthentication } from './api-key-client-authentication.model';
+import { ApiKeyCreateData } from './api-key-create-data.model';
+import { ApiKeyOptions } from './api-key-options.model';
+import { ApiKeyServiceInterface } from './api-key-service.interface';
+import { ApiKey, ApiKeyCreateDto } from './api-key.model';
+import { CreatedApiKey } from './created-api-key.model';
 
 /**
  * What every api key starts with, unless `API_KEY_OPTIONS` says.

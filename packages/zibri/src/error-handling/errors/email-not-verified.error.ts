@@ -1,5 +1,5 @@
-import { ForbiddenError } from './forbidden.error';
 import { $ts } from '../../localization/translate.function';
+import { ForbiddenError } from './forbidden.error';
 
 /**
  * An error to throw when what was asked for needs a verified email address, and the user's is not.

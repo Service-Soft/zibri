@@ -1,7 +1,7 @@
 import { execSync, ExecSyncOptions, spawnSync, SpawnSyncOptionsWithBufferEncoding, SpawnSyncReturns } from 'child_process';
 
-import { ChalkUtilities } from './chalk.utilities';
 import { exitGracefully, exitWithInterrupt, isErrorWithSignal, isExitPromptError } from '../utilities';
+import { ChalkUtilities } from './chalk.utilities';
 
 /**
  * The programs npm installs, which are scripts rather than executables on windows.

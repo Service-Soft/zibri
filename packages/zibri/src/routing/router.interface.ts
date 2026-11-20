@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
 
-import { RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
 import { HttpMethod } from '../http/http-method.enum';
 import { Newable } from '../types/newable.type';
 import { BodyMetadata, DeclaredBodyInput } from './decorators/body-metadata.model';
 import { PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput, PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from './decorators/param.decorator';
+import { RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
 
 /**
  * Interface for a router.

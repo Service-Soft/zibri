@@ -1,14 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { type AuthServiceInterface } from './auth-service.interface';
-import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
-import { Auth } from './decorators/auth.decorator';
-import { CurrentUser } from './decorators/current-user.decorator';
-import { ApiKeyAuthStrategy } from './strategies/api-key/api-key.auth-strategy';
-import { ApiKey } from './strategies/api-key/api-key.model';
-import { CreatedApiKey } from './strategies/api-key/created-api-key.model';
-import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
 import { JwtTestAuthController } from '../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../__testing__/mocks/entities/roles.enum';
@@ -27,6 +19,14 @@ import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
 import { Newable } from '../types/newable.type';
 import { JsonUtilities } from '../utilities/json.utilities';
+import { type AuthServiceInterface } from './auth-service.interface';
+import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
+import { Auth } from './decorators/auth.decorator';
+import { CurrentUser } from './decorators/current-user.decorator';
+import { ApiKeyAuthStrategy } from './strategies/api-key/api-key.auth-strategy';
+import { ApiKey } from './strategies/api-key/api-key.model';
+import { CreatedApiKey } from './strategies/api-key/created-api-key.model';
+import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
 
 /**
  * What the login route answers.

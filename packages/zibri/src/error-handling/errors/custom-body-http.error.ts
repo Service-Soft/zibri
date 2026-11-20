@@ -1,8 +1,8 @@
-import { HttpError } from './http.error';
 import { HttpStatus } from '../../http/http-status.enum';
 import { type JsonMimeType } from '../../http/json-mime-type.type';
 import { type KnownHeader } from '../../http/known-header.enum';
 import { TranslatedString } from '../../localization/models/translated-string.model';
+import { HttpError } from './http.error';
 
 /**
  * An http error that is answered with a body of its own, written as json, in place of the body every

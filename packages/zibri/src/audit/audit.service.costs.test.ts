@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource, RoundTripCounter } from 'zibri-testing';
 
-import { type AuditServiceInterface } from './audit-service.interface';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -11,6 +10,7 @@ import { AuditAction, AuditOutcome } from '../logging/audit-event.model';
 import { TenantServiceInterface } from '../tenancy/tenant-service.interface';
 import { Newable } from '../types/newable.type';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { type AuditServiceInterface } from './audit-service.interface';
 
 /**
  * What storing the audit trail costs, as calls on the store.

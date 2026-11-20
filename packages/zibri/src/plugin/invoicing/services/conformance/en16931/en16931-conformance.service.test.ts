@@ -2,8 +2,6 @@ import assert from 'node:assert';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { PeppolConformanceService } from './peppol-conformance.service';
-import { XRechnungConformanceService } from './x-rechnung-conformance.service';
 import { TestTimeouts } from '../../../../../__testing__/constants';
 import { companyInfoProvider } from '../../../../../__testing__/mocks/company-info-provider.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../../../__testing__/test-server/create-test-data-source.function';
@@ -28,6 +26,8 @@ import { InvoiceRecipientAbbreviation } from '../../../models/invoice-recipient-
 import { Invoice } from '../../../models/invoice.model';
 import { InvoicingOptions } from '../../../models/invoicing-options.model';
 import { NumberInvoices } from '../../../models/number-invoices.model';
+import { PeppolConformanceService } from './peppol-conformance.service';
+import { XRechnungConformanceService } from './x-rechnung-conformance.service';
 
 const baseInvoicingOptions: InvoicingOptions = {
     pageSize: 'A4',

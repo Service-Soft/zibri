@@ -1,7 +1,7 @@
-import { BaseAuditEntry } from './base-audit-entry.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { OmitStrict } from '../types/omit-strict.type';
+import { BaseAuditEntry } from './base-audit-entry.model';
 
 /**
  * One entry of the audit trail. Each carries a keyed hash of what it holds, and each hour of entries

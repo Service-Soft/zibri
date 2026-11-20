@@ -1,5 +1,5 @@
-import { BackupEntity } from './backup-entity.model';
 import { InternalError } from '../error-handling/internal-error.model';
+import { BackupEntity } from './backup-entity.model';
 
 /**
  * What waiting for a backup fails with when a resource of it spent its attempts without being stored.

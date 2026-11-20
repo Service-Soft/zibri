@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { logToDb } from './log-to-db.function';
 import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
@@ -9,6 +8,7 @@ import { inject } from '../../di/inject.function';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { LogLevel } from '../log-level.enum';
 import { Log } from '../log.model';
+import { logToDb } from './log-to-db.function';
 
 describe('logToDb', () => {
     let server: StartedTestServer;

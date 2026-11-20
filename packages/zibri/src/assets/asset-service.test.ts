@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { AssetService, TreeNode } from './asset.service';
 import { testAssetsFolder, testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -9,6 +8,7 @@ import { initDiContainer } from '../di/init-di-container.function';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
+import { AssetService, TreeNode } from './asset.service';
 
 describe('AssetService', () => {
     describe('buildFileTree', () => {

@@ -1,11 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { EventCleanupCronJob } from './event-cleanup.cron-job';
-import { type EventServiceInterface, EventSubscriptionInterface } from './event-service.interface';
-import { EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model';
-import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model';
-import { Event, EventStatus } from './event.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -19,6 +14,11 @@ import { TenantServiceInterface } from '../tenancy/tenant-service.interface';
 import { RetentionInMs } from '../types/retention-in-ms.type';
 import { Ms } from '../utilities/ms';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { EventCleanupCronJob } from './event-cleanup.cron-job';
+import { type EventServiceInterface, EventSubscriptionInterface } from './event-service.interface';
+import { EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model';
+import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model';
+import { Event, EventStatus } from './event.model';
 
 declare module './event-service.interface' {
     /**

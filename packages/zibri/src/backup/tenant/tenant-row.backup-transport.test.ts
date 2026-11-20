@@ -5,11 +5,6 @@ import { Readable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { S3TenantBackupTransportKind } from './s3.tenant-backup-transport-kind';
-import { TenantBackupTransportOptions } from './tenant-backup-transport-options.model';
-import { TenantBackupTransport } from './tenant-backup-transport.model';
-import { TenantRowBackupTransport } from './tenant-row.backup-transport';
-import { TenantS3TransportSettings } from './tenant-s3-transport-settings.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -18,6 +13,11 @@ import { KnownHeader } from '../../http/known-header.enum';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { BackupTransportSessionInterface } from '../transports/backup-transport-session.interface';
+import { S3TenantBackupTransportKind } from './s3.tenant-backup-transport-kind';
+import { TenantBackupTransportOptions } from './tenant-backup-transport-options.model';
+import { TenantBackupTransport } from './tenant-backup-transport.model';
+import { TenantRowBackupTransport } from './tenant-row.backup-transport';
+import { TenantS3TransportSettings } from './tenant-s3-transport-settings.model';
 
 /**
  * What a tenant's bucket may lead the requests to: its bucket named in the host or in a redirect, held to

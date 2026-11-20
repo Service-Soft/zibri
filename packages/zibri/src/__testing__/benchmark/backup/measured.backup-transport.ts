@@ -1,7 +1,5 @@
 import { pipeline, Readable, Transform } from 'node:stream';
 
-import { MeasuredTransportConfig, TransportMeasurement } from './backup-measurement.model';
-import { resolveBackupMeasurementConfig } from './resolve-backup-measurement-config.function';
 import { BackupTransport } from '../../../backup/decorators/backup-transport.decorator';
 import { BackupTransportSessionInterface } from '../../../backup/transports/backup-transport-session.interface';
 import { BackupTransportInterface, BackupTransportSupporting } from '../../../backup/transports/backup-transport.interface';
@@ -10,6 +8,8 @@ import { S3BackupTransport } from '../../../backup/transports/s3.backup-transpor
 import { SftpBackupTransport } from '../../../backup/transports/sftp.backup-transport';
 import { FsUtilities } from '../../../utilities/fs.utilities';
 import { BackupTransportSessionTestUtilities } from '../../backup/backup-transport-session-test.utilities';
+import { MeasuredTransportConfig, TransportMeasurement } from './backup-measurement.model';
+import { resolveBackupMeasurementConfig } from './resolve-backup-measurement-config.function';
 
 /**
  * Builds the transport the config names.

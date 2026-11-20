@@ -1,11 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { CacheInvalidation } from './cache-invalidation.model';
-import { type CacheServiceInterface } from './cache-service.interface';
-import { CacheService } from './cache.service';
-import { Cache } from './decorators/cache.decorator';
-import { CachedValue } from './store/cached-value.model';
-import { InMemoryCacheStore } from './store/in-memory.cache-store';
 import { TestTimeouts } from '../__testing__/constants';
 import { missingEntityPattern } from '../__testing__/missing-entity-pattern.function';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
@@ -16,6 +10,12 @@ import { inject } from '../di/inject.function';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { type MetricsServiceInterface } from '../metrics/metrics-service.interface';
 import { WriteThroughReadThroughCache } from './cache/read-through/write-through-read-through.cache';
+import { CacheInvalidation } from './cache-invalidation.model';
+import { type CacheServiceInterface } from './cache-service.interface';
+import { CacheService } from './cache.service';
+import { Cache } from './decorators/cache.decorator';
+import { CachedValue } from './store/cached-value.model';
+import { InMemoryCacheStore } from './store/in-memory.cache-store';
 
 @Cache()
 class UserTagCache extends WriteThroughReadThroughCache<string, string, 'User Tag Cache'> {

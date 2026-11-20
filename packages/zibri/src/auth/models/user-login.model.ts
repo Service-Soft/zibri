@@ -1,5 +1,5 @@
-import { LOGIN_USER_AGENT_MAX_LENGTH } from './login-device.model';
 import { Property } from '../../entity/decorators/property.decorator';
+import { LOGIN_USER_AGENT_MAX_LENGTH } from './login-device.model';
 
 /**
  * A login of a user, as a strategy keeps it: one device or browser the user logged in on, which

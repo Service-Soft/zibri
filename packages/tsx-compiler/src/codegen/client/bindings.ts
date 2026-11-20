@@ -1,12 +1,12 @@
 import ts from 'typescript';
 import { AccessShape, mergeAccessShapes } from 'zibri-tsx/internal';
 
-import { attributeExpression, attributesOf, CapturedVariable, capturedVariables, collectServerOnlyCallbacks, isComponentName, isEventHandlerName, JsxElementLike, ScopeFrame, scopeFrameFor, tagNameOf, visitComponentBody } from './handlers';
-import { regionExpressions } from './regions';
 import { collectReferencedSymbols } from '../../semantics/binding';
 import { ComponentFunction } from '../../semantics/component';
 import { symbolOf } from '../../semantics/symbols';
 import { childrenOf, isHookCall, walk } from '../../semantics/walk';
+import { attributeExpression, attributesOf, CapturedVariable, capturedVariables, collectServerOnlyCallbacks, isComponentName, isEventHandlerName, JsxElementLike, ScopeFrame, scopeFrameFor, tagNameOf, visitComponentBody } from './handlers';
+import { regionExpressions } from './regions';
 
 /**
  * Where a binding writes in the page. A prop is handed to a component, or provided to a context: the binding writes

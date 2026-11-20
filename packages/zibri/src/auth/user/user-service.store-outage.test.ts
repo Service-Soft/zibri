@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { BaseUserRepository } from './base-user-repository.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
@@ -21,6 +20,7 @@ import { type LoggerInterface } from '../../logging/logger.interface';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { PasswordCredentials } from '../authenticators/password/password-credentials.model';
 import { BaseUserEntity } from '../models/base-user.model';
+import { BaseUserRepository } from './base-user-repository.model';
 
 /**
  * What a login does while one of the places users are kept cannot be reached.

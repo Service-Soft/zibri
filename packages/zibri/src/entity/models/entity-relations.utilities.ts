@@ -1,9 +1,9 @@
-import { EntityRelations, RelationTree } from './entity-relations.model';
-import { isRelationMetadata } from './is-relation-metadata.function';
-import { Relation } from './relation.enum';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { type BaseEntity } from '../base-entity.model';
 import { type PropertyMetadata, type RelationMetadata } from '../decorators/property.decorator';
+import { EntityRelations, RelationTree } from './entity-relations.model';
+import { isRelationMetadata } from './is-relation-metadata.function';
+import { Relation } from './relation.enum';
 
 /**
  * Utilities for the relations a read resolves.

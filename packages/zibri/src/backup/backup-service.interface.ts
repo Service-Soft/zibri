@@ -2,6 +2,7 @@ import { Readable } from 'node:stream';
 
 import { BehaviorSubject } from 'rxjs';
 
+import { OmitStrict } from '../types/omit-strict.type';
 import { BackupEntity, BackupEntityCreateData } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
 import { BackupResourceInterface } from './backup-resource.interface';
@@ -9,7 +10,6 @@ import { BackupRetention } from './backup-retention.model';
 import { RestoreOptions } from './restore-options.model';
 import { TenantBackupTransport, TenantBackupTransportCreateData } from './tenant/tenant-backup-transport.model';
 import { TenantExportFormat } from './tenant-export-format.type';
-import { OmitStrict } from '../types/omit-strict.type';
 import { BackupTransportInterface } from './transports/backup-transport.interface';
 
 /**

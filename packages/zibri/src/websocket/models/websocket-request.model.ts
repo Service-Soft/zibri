@@ -1,8 +1,8 @@
-import { BaseWebsocketConnection } from './connection/base-websocket-connection.model';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Header } from '../../http/header.type';
 import { HttpRequest } from '../../http/http-request.model';
 import { KnownHeader } from '../../http/known-header.enum';
+import { BaseWebsocketConnection } from './connection/base-websocket-connection.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 class QueryObject implements Record<string, unknown> {

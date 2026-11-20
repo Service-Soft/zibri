@@ -1,8 +1,14 @@
-import { BaseEntity } from './base-entity.model';
-import { Property } from './decorators/property.decorator';
 import type { ChangeSetEntity } from '../data-source/change-sets/models/change-set-entity.model';
 import type { SoftDeleteEntity } from '../data-source/change-sets/models/soft-delete-entity.model';
 import { Newable } from '../types/newable.type';
+import { BaseEntity } from './base-entity.model';
+import { Property } from './decorators/property.decorator';
+
+/**
+ * Marks an entity extending `BaseTenantEntity()`, whose rows belong to a tenant, as a static member of its class, so
+ * that an entity of tenants extending it by mistake is told apart.
+ */
+export const TENANT_ROW_ENTITY: unique symbol = Symbol('zibri.tenant-row-entity');
 
 /**
  * A row that belongs to one tenant: an id, and the tenant in `tenantId`, which is where `@Entity()`
@@ -33,6 +39,8 @@ export function BaseTenantEntity(base: typeof ChangeSetEntity): Newable<ChangeSe
 export function BaseTenantEntity(base: typeof BaseEntity = BaseEntity): Newable<TenantRow> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     class TenantEntity extends base implements TenantRow {
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        static readonly [TENANT_ROW_ENTITY]: true = true;
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Property.string({ format: 'uuid' })
         tenantId!: string;

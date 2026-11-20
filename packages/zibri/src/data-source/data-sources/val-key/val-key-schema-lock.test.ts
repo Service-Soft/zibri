@@ -4,8 +4,6 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import type { GlideClient } from '@valkey/valkey-glide';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { ValKeyDataSource } from './val-key-data-source.model';
-import { valKeyGlide } from './val-key-glide.function';
 import { TestServerTimeouts, TestTimeouts } from '../../../__testing__/constants';
 import { holdUntilLetGo } from '../../../__testing__/hold-until-let-go.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -20,6 +18,8 @@ import { Newable } from '../../../types/newable.type';
 import { PromiseUtilities } from '../../../utilities/promise.utilities';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { SCHEMA_LOCK_KEY } from '../data-source.interface';
+import { ValKeyDataSource } from './val-key-data-source.model';
+import { valKeyGlide } from './val-key-glide.function';
 
 const timeouts: TestServerTimeouts = TestTimeouts.resolveCombined('inMemory', 'valKey');
 

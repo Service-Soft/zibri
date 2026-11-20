@@ -1,5 +1,5 @@
-import { PaymentMethod } from './payment-method.model';
 import { AnyPaymentProviderInterface } from '../providers/payment-provider.interface';
+import { PaymentMethod } from './payment-method.model';
 
 /**
  * Configuration for the payment plugin.

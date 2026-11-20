@@ -1,9 +1,5 @@
 import { randomInt, timingSafeEqual } from 'node:crypto';
 
-import { TwoFactorCodeCredentials, TwoFactorCodeCredentialsCreateData } from './two-factor-code-credentials.model';
-import { TwoFactorCodeOptions } from './two-factor-code-options.model';
-import { TwoFactorCode, TwoFactorCodeCreateData } from './two-factor-code.model';
-import { TwoFactorCodeRateLimiter } from './two-factor-code.rate-limiter';
 import { ZibriApplication } from '../../../../application/application';
 import { HttpRequestContext } from '../../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context';
@@ -30,6 +26,10 @@ import { UserAccount } from '../../../models/user-account.model';
 import { InvalidTwoFactorCodeError } from '../../invalid-two-factor-code.error';
 import { SecondFactorMissingError } from '../../second-factor-missing.error';
 import { TwoFactorMethod } from '../two-factor-method.interface';
+import { TwoFactorCodeCredentials, TwoFactorCodeCredentialsCreateData } from './two-factor-code-credentials.model';
+import { TwoFactorCodeOptions } from './two-factor-code-options.model';
+import { TwoFactorCode, TwoFactorCodeCreateData } from './two-factor-code.model';
+import { TwoFactorCodeRateLimiter } from './two-factor-code.rate-limiter';
 
 /**
  * The data for confirming the enrollment of a method that sends codes.

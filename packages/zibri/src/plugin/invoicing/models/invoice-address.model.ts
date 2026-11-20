@@ -1,5 +1,5 @@
-import { ElectronicAddress } from './electronic-address.model';
 import { Property } from '../../../entity/decorators/property.decorator';
+import { ElectronicAddress } from './electronic-address.model';
 
 /**
  * The invoice address, which can be either a private or a company address.

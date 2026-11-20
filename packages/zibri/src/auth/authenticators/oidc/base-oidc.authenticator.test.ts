@@ -3,9 +3,6 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, FakeOAuthProvider, InMemoryDataSource, startFakeOAuthProvider, TestBrowser } from 'zibri-testing';
 
-import { BaseOidcAuthenticator } from './base-oidc.authenticator';
-import { OidcAuthenticationTime } from './oidc-authentication-time.type';
-import { OidcDiscoveryAtBoot } from './oidc-discovery-at-boot.type';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { missingEntityPattern } from '../../../__testing__/missing-entity-pattern.function';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
@@ -62,6 +59,9 @@ import { OAuthProviderTokens } from '../oauth/oauth-provider-tokens.model';
 import { OAuthResponseMode } from '../oauth/oauth-response-mode.type';
 import { ProviderAccessFailure } from '../provider-access-failure.enum';
 import { ProviderAccessError } from '../provider-access.error';
+import { BaseOidcAuthenticator } from './base-oidc.authenticator';
+import { OidcAuthenticationTime } from './oidc-authentication-time.type';
+import { OidcDiscoveryAtBoot } from './oidc-discovery-at-boot.type';
 
 // where the application is reached from the outside, as its baseUrl, which a browser here resolves to
 // wherever the server ended up listening - the shape of a deployment behind a reverse proxy
@@ -320,20 +320,20 @@ class CookieRegistrationController {
         @Body(FederatedTicketCredentials)
         credentials: FederatedTicketCredentials
     ): Promise<CookieAuthData<string>> {
-        const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
+        const injectedAuthService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         const users: Repository<JwtUser> = inject(repositoryTokenFor(JwtUser));
         const transaction: Transaction = await users.dataSource.startTransaction();
         try {
-            const registration: FederatedRegistration = await authService.resolveRegistration(FakeProviderAuthenticator, credentials, transaction);
+            const registration: FederatedRegistration = await injectedAuthService.resolveRegistration(FakeProviderAuthenticator, credentials, transaction);
             const user: JwtUser = await users.create({ email: registration.email ?? '', roles: [Roles.USER] }, { transaction });
-            await authService.linkTicketIdentity(FakeProviderAuthenticator, credentials, user.id, transaction);
+            await injectedAuthService.linkTicketIdentity(FakeProviderAuthenticator, credentials, user.id, transaction);
             await transaction.commit();
         }
         catch (error) {
             await transaction.rollback();
             throw error;
         }
-        return await authService.login(FakeProviderAuthenticator, CookieAuthStrategy, credentials, undefined);
+        return await injectedAuthService.login(FakeProviderAuthenticator, CookieAuthStrategy, credentials, undefined);
     }
 }
 
@@ -345,11 +345,11 @@ class JwtRegistrationController {
         @Body(FederatedTicketCredentials)
         credentials: FederatedTicketCredentials
     ): Promise<JwtAuthData<string>> {
-        const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
-        const registration: FederatedRegistration = await authService.resolveRegistration(FakeProviderAuthenticator, credentials, undefined);
+        const injectedAuthService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
+        const registration: FederatedRegistration = await injectedAuthService.resolveRegistration(FakeProviderAuthenticator, credentials, undefined);
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: registration.email ?? '', roles: [Roles.USER] });
-        await authService.linkTicketIdentity(FakeProviderAuthenticator, credentials, user.id, undefined);
-        return await authService.login(FakeProviderAuthenticator, JwtAuthStrategy, credentials, undefined);
+        await injectedAuthService.linkTicketIdentity(FakeProviderAuthenticator, credentials, user.id, undefined);
+        return await injectedAuthService.login(FakeProviderAuthenticator, JwtAuthStrategy, credentials, undefined);
     }
 }
 
@@ -361,10 +361,10 @@ class ApiRegistrationController {
         @Body(FederatedTicketCredentials)
         credentials: FederatedTicketCredentials
     ): Promise<{ userId: string }> {
-        const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
-        const registration: FederatedRegistration = await authService.resolveRegistration(ApiProviderAuthenticator, credentials, undefined);
+        const injectedAuthService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
+        const registration: FederatedRegistration = await injectedAuthService.resolveRegistration(ApiProviderAuthenticator, credentials, undefined);
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: registration.email ?? '', roles: [Roles.USER] });
-        await authService.linkTicketIdentity(ApiProviderAuthenticator, credentials, user.id, undefined);
+        await injectedAuthService.linkTicketIdentity(ApiProviderAuthenticator, credentials, user.id, undefined);
         return { userId: user.id };
     }
 }
@@ -390,12 +390,12 @@ class ConnectionController {
     @Post('/connect/:provider')
     async connect(
         @Param.path('provider')
-        provider: string,
+        providerName: string,
         @Body(ConnectionInput)
         input: ConnectionInput
     ): Promise<FederatedLinkIdentityStart> {
         return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).requestLinkIdentity(
-            FederatedRouteUtilities.resolveAuthenticator(provider),
+            FederatedRouteUtilities.resolveAuthenticator(providerName),
             { redirectTo: input.redirectTo, forLogin: true }
         );
     }

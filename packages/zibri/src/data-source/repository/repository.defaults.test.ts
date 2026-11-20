@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Repository } from './repository';
 import { TestTimeouts } from '../../__testing__/constants';
 import { type Relation } from '../../__testing__/relation.type';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -11,6 +10,7 @@ import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
+import { Repository } from './repository';
 
 // When a property's `default` fills it in: when a row is created, the models it holds included, and
 // when a write creates a related row. An update writes what it is given - a partial update changing

@@ -3,13 +3,13 @@ import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
-import { NewCommand } from './new.command';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
 import { CLI_ROOT, EVERY_FEATURE } from '../../__testing__/generated-file-paths';
 import { quietly } from '../../__testing__/quietly.function';
 import { CPUtilities, FsUtilities } from '../../encapsulation';
 import { SCAFFOLD_FEATURE_REQUIREMENTS, SCAFFOLD_FEATURES } from '../../scaffold';
 import { Path } from '../../utilities';
+import { NewCommand } from './new.command';
 
 /**
  * The page that goes through what "zi new" writes. A reader takes it as the list of every file, and
@@ -35,10 +35,18 @@ function findRows(heading: string): string[][] {
  * @returns The paths, a folder ending in "/".
  */
 function findTablePaths(): string[] {
-    return PAGE.split('\n')
-        .filter(line => line.startsWith('| `'))
-        .flatMap(line => [...(line.split('|')[1] ?? '').matchAll(/`([^`]+)`/g)].map(match => match[1]))
-        .filter(named => !SCAFFOLD_FEATURES.some(feature => feature === named));
+    const res: string[] = [];
+    // the page has tables of other things too, such as the features and the packages of the build
+    let inFileTable: boolean = false;
+    for (const line of PAGE.split('\n')) {
+        if (line.startsWith('| ') && !line.startsWith('| `')) {
+            inFileTable = line.startsWith('| File |');
+        }
+        else if (inFileTable && line.startsWith('| `')) {
+            res.push(...[...(line.split('|')[1] ?? '').matchAll(/`([^`]+)`/g)].map(match => match[1] ?? ''));
+        }
+    }
+    return res;
 }
 
 /**
@@ -77,13 +85,13 @@ describe('NewCommand, as the page on the generated project describes it', () => 
     it('names every file it writes', () => {
         const named: string[] = findTablePaths();
 
-        expect(files.filter(file => !named.some(path => isNamedBy(path, file)))).toEqual([]);
+        expect(files.filter(file => !named.some(namedPath => isNamedBy(namedPath, file)))).toEqual([]);
     });
 
     it('names only files it writes', () => {
         const named: string[] = findTablePaths();
 
-        expect(named.filter(path => !files.some(file => isNamedBy(path, file)))).toEqual([]);
+        expect(named.filter(namedPath => !files.some(file => isNamedBy(namedPath, file)))).toEqual([]);
     });
 
     it('lists every feature, with the features it needs', () => {

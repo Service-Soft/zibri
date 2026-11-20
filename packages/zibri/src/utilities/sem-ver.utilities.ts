@@ -1,6 +1,6 @@
-import { isNumeric } from './is-numeric.function';
 import { InternalError } from '../error-handling/internal-error.model';
 import { type SemVerMatcher } from '../versioning/supported-versions-options.model';
+import { isNumeric } from './is-numeric.function';
 
 /**
  * Definition for a SemVer version.

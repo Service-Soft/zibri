@@ -1,10 +1,10 @@
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
+import { initDiContainer } from '../../di/init-di-container.function';
+import { GlobalRegistry } from '../../global/global-registry';
 import { generateXlf } from './generate-xlf.function';
 import { ExtractedTranslationString } from './models/extracted-translation-string.model';
 import { parseSourceXlf } from './parse-source-xlf.function';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { GlobalRegistry } from '../../global/global-registry';
 
 beforeAll(() => {
     initDiContainer();

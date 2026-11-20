@@ -51,7 +51,7 @@ function resolveCacheFile(folder: string, ts: typeof TypeScript, input: string, 
 export function create(createOptions: CreateTranspilerOptions): Transpiler {
     const { config } = createOptions.service;
     // the copy of the compiler ts-node itself uses: the project's, found from where the process runs
-    // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/no-require-imports, typescript/no-var-requires
+    // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/no-require-imports
     const ts: typeof TypeScript = require(require.resolve('typescript', { paths: [process.cwd()] }));
     const cacheFolder: string | undefined = process.env[CACHE_FOLDER_ENV];
     if (cacheFolder != undefined) {
@@ -91,7 +91,7 @@ export function create(createOptions: CreateTranspilerOptions): Transpiler {
 // ts-node/register
 const REGISTER_INSTANCE: symbol = Symbol.for('ts-node.register.instance');
 if (!(REGISTER_INSTANCE in process)) {
-    // eslint-disable-next-line typescript/no-require-imports, typescript/no-unsafe-assignment, typescript/no-var-requires
+    // eslint-disable-next-line typescript/no-require-imports, typescript/no-unsafe-assignment
     const tsNode: typeof import('ts-node') = require('ts-node');
     tsNode.register({ transpiler: [__filename, {}] });
 }

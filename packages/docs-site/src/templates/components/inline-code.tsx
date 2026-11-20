@@ -1,9 +1,9 @@
 import { MdxInlineCodeProps, TsxComponent, TsxElement, useContext } from 'zibri';
 
-import { InsideLinkContext } from './inside-link-context';
-import { KindBadge } from './kind-badge';
 import { ApiCodeTarget } from '../../api/api-export.model';
 import { ApiReferenceUtilities } from '../../api/api-reference.utilities';
+import { InsideLinkContext } from './inside-link-context';
+import { KindBadge } from './kind-badge';
 
 // a code span naming an export of zibri, such as `MarkdownService`, leads to its page in the API reference, its kind
 // in front of it

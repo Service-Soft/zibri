@@ -1,11 +1,11 @@
 import { JsonUtilities, OpenApiExplorerOperation, OpenApiExplorerSchemaSource, OpenApiExplorerSecurityScheme, OpenApiExplorerUtilities, OpenApiMediaTypeObject, OpenApiParameterObject, OpenApiRequestBodyObject, OpenApiSchemaObject, TsxComponent, useContext } from 'zibri';
 
+import { Heading } from '../components/heading';
 import { ExplorerContent } from './explorer-content';
 import { ExplorerDefinition } from './explorer-context';
 import { ExplorerLock } from './explorer-lock';
 import { ExplorerMethodClasses, resolveMethodClasses } from './explorer-methods';
 import { ExplorerCredentialScheme, ExplorerFormField, ExplorerRequestBody, ExplorerRequestParameter, ExplorerTryItOut } from './explorer-try-it-out';
-import { Heading } from '../components/heading';
 
 type Props = {
     operation: OpenApiExplorerOperation,
@@ -167,9 +167,10 @@ export const ExplorerOperation: TsxComponent<Props> = ({ operation, schemes, ver
                 </span>
                 <span className="flex-1 text-disabled">{operation.summary}</span>
                 <span id={`${operation.id}-permissions`} className="flex gap-2 items-center">
-                    {operation.permissions.map(permission => <span
-                        className="px-2 pb-0.5 rounded-full border border-white bg-dark-gray text-sm"
-                    >{permission}</span>)}
+                    {operation.permissions.map((permission, index) => <>
+                        {index > 0 && operation.anyLevelPermission ? <span className="text-sm">or</span> : ''}
+                        <span className="px-2 pb-0.5 rounded-full border border-white bg-dark-gray text-sm">{permission}</span>
+                    </>)}
                 </span>
                 {operation.securitySchemes.length > 0 && <ExplorerLock id={`${operation.id}-lock`} schemes={operation.securitySchemes}/>}
             </summary>

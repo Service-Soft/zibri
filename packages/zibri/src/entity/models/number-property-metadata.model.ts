@@ -1,7 +1,7 @@
-import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model';
-import { UniqueDeclaration } from './unique-declaration.model';
 import { AnyEnum } from '../../types/any-enum.type';
 import { OmitStrict } from '../../types/omit-strict.type';
+import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model';
+import { UniqueDeclaration } from './unique-declaration.model';
 
 /**
  * The possible formats a number value can have.

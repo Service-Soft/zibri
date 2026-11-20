@@ -1,11 +1,11 @@
+import { TokenRecord } from '../../di/models/di-token.model';
+import { InjectionToken } from '../../di/models/injection-token.model';
 import { MailingListBaseEmailTemplate } from './models/mailing-list-base-email-template.model';
 import { MailingListPreferencesPageTemplate } from './models/mailing-list-preferences-page-template.model';
 import { MailingListSubscribeConfirmationEmailTemplate } from './models/mailing-list-subscribe-confirmation-email-template.model';
 import { MailingListSubscribeSuccessPageTemplate } from './models/mailing-list-subscribe-success-page-template.model';
 import { MailingListUnsubscribeConfirmationPageTemplate } from './models/mailing-list-unsubscribe-confirmation-page-template.model';
 import { MailingListServiceInterface } from './services/mailing-list-service.interface';
-import { TokenRecord } from '../../di/models/di-token.model';
-import { InjectionToken } from '../../di/models/injection-token.model';
 
 /**
  * The dependency injection tokens used by the ZibriMailingListPlugin.

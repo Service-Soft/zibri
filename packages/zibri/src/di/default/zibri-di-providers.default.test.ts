@@ -1,8 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { ZIBRI_DI_PROVIDERS } from './zibri-di-providers.default';
-import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
@@ -25,6 +23,8 @@ import { resolveAppRoot } from '../../utilities/resolve-app-root.function';
 import { inject } from '../inject.function';
 import { defineProvider, DiProvider, type DiProviderWithoutToken } from '../models/di-provider.model';
 import { DiToken } from '../models/di-token.model';
+import { ZIBRI_DI_PROVIDERS } from './zibri-di-providers.default';
+import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 
 // email, events and thread jobs are building blocks every application
 // sets up, so that plugins can rely on them. An application doing without one replaces its service,

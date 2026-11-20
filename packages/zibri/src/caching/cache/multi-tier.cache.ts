@@ -1,7 +1,4 @@
 
-import { CacheOperation } from './cache-operation.enum';
-import { CacheWrapOptions, CacheWrapWriteOptionsWithResult, CacheWrapWriteOptionsArgsOnly, CacheWrapDeleteOptions, CacheWrapInvalidateOptions, CacheKeyProvider, ResultCacheKeyProvider, OnInvalidationFailure, CacheTagsProvider, CacheSetDirectOptions } from './cache-options.model';
-import { CacheInterface } from './cache.interface';
 import { AlsUtilities } from '../../context/als.utilities';
 import { CacheContext } from '../../context/cache/cache.context';
 import { InternalError } from '../../error-handling/internal-error.model';
@@ -15,6 +12,9 @@ import { type CacheTagMatcher } from '../cache-tag-matchers';
 import { ExtractCacheWriteResultAvailable } from '../decorators/decorator-types';
 import { CachedValue } from '../store/cached-value.model';
 import { CacheFill, FillGuardedCacheStore } from '../store/fill-guarded.cache-store';
+import { CacheOperation } from './cache-operation.enum';
+import { CacheWrapOptions, CacheWrapWriteOptionsWithResult, CacheWrapWriteOptionsArgsOnly, CacheWrapDeleteOptions, CacheWrapInvalidateOptions, CacheKeyProvider, ResultCacheKeyProvider, OnInvalidationFailure, CacheTagsProvider, CacheSetDirectOptions } from './cache-options.model';
+import { CacheInterface } from './cache.interface';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type TierLike<K, V, CacheTag extends string, N extends string> = {

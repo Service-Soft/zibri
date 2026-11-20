@@ -1,4 +1,3 @@
-import { BodyMetadata, BodyMetadataInput, BodyShapeMetadata, OneOfBodyMetadataInput, RawXmlBodyMetadataInput, ShapedBodyMetadata, StreamBodyMetadataInput } from './body-metadata.model';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { FileSize, fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
 import { Relation } from '../../entity/models/relation.enum';
@@ -11,6 +10,7 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { resolveBodyMetadata } from '../resolve-body-metadata.function';
+import { BodyMetadata, BodyMetadataInput, BodyShapeMetadata, OneOfBodyMetadataInput, RawXmlBodyMetadataInput, ShapedBodyMetadata, StreamBodyMetadataInput } from './body-metadata.model';
 
 /**
  * Defines an xml http request body handed over as the document that arrived, a string, such as one

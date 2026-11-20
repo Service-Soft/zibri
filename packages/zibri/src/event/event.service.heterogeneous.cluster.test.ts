@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { webInstanceId } from './event.service.heterogeneous.instance-options';
 import { TestTimeouts } from '../__testing__/constants';
 import { FsUtilities } from '../utilities/fs.utilities';
+import { webInstanceId } from './event.service.heterogeneous.instance-options';
 
 /**
  * An event emitted on one replica reaches the subscribers registered on the others.

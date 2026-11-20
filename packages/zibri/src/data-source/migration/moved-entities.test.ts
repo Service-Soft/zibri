@@ -1,8 +1,6 @@
 import { afterAll, beforeAll } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { Migration } from './migration.model';
-import { createUpgradeGizmoMigration, describeMovedEntities, firstVersionEntities, secondVersionEntities, seedFirstVersion } from './moved-entities.cases';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -11,6 +9,8 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
 import { DataSource } from '../decorators/data-source.decorator';
 import { RepositoryClass } from '../repository/repository-class.type';
+import { Migration } from './migration.model';
+import { createUpgradeGizmoMigration, describeMovedEntities, firstVersionEntities, secondVersionEntities, seedFirstVersion } from './moved-entities.cases';
 
 // changed in place by the upgrade below, so that the second version starts on the same data source
 // class - and so on the same store, which belongs to the class

@@ -1,6 +1,6 @@
+import { Property } from '../../entity/decorators/property.decorator';
 import { RateLimitReservationRejectionReason } from './rate-limit-reservation-rejection-reason.enum';
 import { RateLimitReservation } from './rate-limit-reservation.model';
-import { Property } from '../../entity/decorators/property.decorator';
 
 /**
  * Result for a rate limit reservation request that was not successful.

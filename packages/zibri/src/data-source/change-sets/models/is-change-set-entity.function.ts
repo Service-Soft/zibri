@@ -1,6 +1,6 @@
-import { type ChangeSetEntity } from './change-set-entity.model';
 import { Newable } from '../../../types/newable.type';
 import { MetadataUtilities } from '../../../utilities/metadata.utilities';
+import { type ChangeSetEntity } from './change-set-entity.model';
 
 /**
  * Checks whether the given class is a ChangeSetEntity class.

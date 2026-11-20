@@ -1,6 +1,5 @@
 import type { ParseOptions } from 'handlebars';
 
-import { AstProgram } from './ast.model';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { InternalError } from '../error-handling/internal-error.model';
@@ -9,6 +8,7 @@ import { JsonUtilities } from '../utilities/json.utilities';
 import { MaskUtilities } from '../utilities/mask.utilities';
 import { hasOptionalPeer, optionalPeer } from '../utilities/optional-peer.function';
 import { toCamelCase } from '../utilities/to-camel-case.function';
+import { AstProgram } from './ast.model';
 
 /**
  * Options for configuring things about handlebars.

@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { MigrationEntity } from './migration-entity.model';
-import { Migration } from './migration.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -15,6 +13,8 @@ import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { DataSource } from '../decorators/data-source.decorator';
 import { Repository } from '../repository/repository';
 import { RepositoryClass } from '../repository/repository-class.type';
+import { MigrationEntity } from './migration-entity.model';
+import { Migration } from './migration.model';
 
 /**
  * The data source, as the build under test carries it: one migration, of a version older than the app.

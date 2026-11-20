@@ -37,7 +37,7 @@ A message a client sends holds the `@WebsocketBody` of the route as `body`, besi
 
 The answer is the message every event is answered with: `ok`, `status` and the `data` the route returns, or `ok: false` with the `error`. It arrives through the acknowledgement of the message, or as the event `ws:response` to a client that sends none.
 
-An operation of a route that requires a login lists every strategy under `security`, and one behind a permission names it in `x-permission` or `x-platform-permission`.
+An operation of a route that requires a login lists every strategy under `security`, and one behind a permission names it in `x-permission` or `x-platform-permission`. One either of two permissions opens names both, with `x-any-level-permission: true`.
 
 The document holds one event the application sends: `ws:replay-incomplete`, see [reconnecting](./websocket.md#reconnecting). An event your code sends with the websocket service is added to it by [changing the document](#changing-the-document).
 

@@ -1,7 +1,5 @@
 import { randomBytes } from 'node:crypto';
 
-import { HttpRequestContext } from './http-request.context';
-import { WebsocketRequestContext } from './websocket-request.context';
 import { TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.interface';
 import { AuthServiceInterface } from '../../auth/auth-service.interface';
 import { type CurrentUser, CurrentUserMetadata } from '../../auth/decorators/current-user.decorator';
@@ -12,6 +10,8 @@ import { InternalError } from '../../error-handling/internal-error.model';
 import { RouteRegistry } from '../../global/route-registry/route.registry';
 import { TraceContextUtilities } from '../../tracing/trace-context.utilities';
 import { TraceSpanContext } from '../../tracing/trace-span-context.model';
+import { HttpRequestContext } from './http-request.context';
+import { WebsocketRequestContext } from './websocket-request.context';
 
 const allRequestContextTokenKeys: Set<string> = new Set();
 

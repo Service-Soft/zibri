@@ -1,12 +1,12 @@
 import { hkdfSync, randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 
+import { InternalError } from '../../error-handling/internal-error.model';
+import { BackupEncryptionUtilities } from '../backup-encryption.utilities';
 import { BackupChunkUtilities } from './backup-chunk.utilities';
 import { BackupManifestEntry } from './backup-manifest-entry.model';
 import { BackupRepositoryKey } from './backup-repository-key.model';
 import { BackupStoredResource } from './backup-stored-resource.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { BackupEncryptionUtilities } from '../backup-encryption.utilities';
 
 /**
  * What the first byte of the object a resource is stored under says: the shape of the bytes after it.

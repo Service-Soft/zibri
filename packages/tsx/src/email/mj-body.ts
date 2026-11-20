@@ -1,8 +1,8 @@
+import { escapeAttribute } from '../runtime/server-runtime';
 import { defineEmailComponent, TsxComponent } from './define-email-component';
 import { EmailLayout, EmailLayoutContext } from './email-layout.context';
 import { EmailRegionContext } from './email-region.context';
 import { documentDefaults, withDefaults } from './with-defaults';
-import { escapeAttribute } from '../runtime/server-runtime';
 
 /**
  * Props for {@link MjBody}.

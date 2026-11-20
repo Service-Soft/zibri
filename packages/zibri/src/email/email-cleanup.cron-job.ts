@@ -1,8 +1,8 @@
-import { type EmailServiceInterface } from './email-service.interface';
 import { CronExpression } from '../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
 import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { type EmailServiceInterface } from './email-service.interface';
 
 /**
  * Deletes the failed emails that are older than `failedRetentionInMs`.

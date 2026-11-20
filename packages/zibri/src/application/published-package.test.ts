@@ -2,11 +2,11 @@ import assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { builtinModules } from 'node:module';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { describe, expect, it } from '@jest/globals';
 
+import { NpmPackUtilities, PackedTarball } from '../__testing__/npm-pack.utilities';
 import { PACKAGES_LEFT_TO_THE_APPLICATION } from '../__testing__/packages-left-to-the-application';
 import { JsonUtilities } from '../utilities/json.utilities';
 
@@ -26,39 +26,13 @@ import { JsonUtilities } from '../utilities/json.utilities';
 const packageDir: string = path.resolve(__dirname, '..', '..');
 const repoRoot: string = path.resolve(packageDir, '..', '..');
 const builtEntry: string = path.join(packageDir, 'dist', 'cjs', 'index.js');
-const packCache: string = path.join(tmpdir(), 'zibri-npm-pack-cache');
 
 /**
- * What `npm publish` would upload, without publishing anything.
- */
-type PackedTarball = {
-    /**
-     * Every path the tarball would contain, relative to the package root.
-     */
-    files: string[],
-    /**
-     * What those files weigh once installed, in bytes.
-     */
-    unpackedSize: number
-};
-
-/**
- * Runs `npm pack` without publishing.
+ * Runs `npm pack` on zibri without publishing.
  * @returns The tarball's contents and installed size.
  */
 function packed(): PackedTarball {
-    // a cache of its own: `npm pack` writes to one, and reading the tarball a manifest describes
-    // has nothing to do with whatever the machine's shared cache happens to hold or allow
-    const output: string = execFileSync('npm', ['pack', '--dry-run', '--json', '--cache', packCache], {
-        cwd: packageDir,
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'ignore']
-    });
-    const parsed: { files: { path: string }[], unpackedSize: number }[] = JsonUtilities.parse(output);
-    // `npm pack --json` reports one entry per tarball, and one tarball was asked for
-    const [packed] = parsed;
-    assert(packed, 'npm pack reported no tarball');
-    return { files: packed.files.map(f => f.path), unpackedSize: packed.unpackedSize };
+    return NpmPackUtilities.resolveTarball(packageDir);
 }
 
 /**

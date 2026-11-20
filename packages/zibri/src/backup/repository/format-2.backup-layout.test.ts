@@ -6,11 +6,6 @@ import { setTimeout } from 'node:timers/promises';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { BackupChunkUtilities } from './backup-chunk.utilities';
-import { BackupChunkingOptions } from './backup-chunking-options.model';
-import { BackupRepositoryKey } from './backup-repository-key.model';
-import { Format2BackupLayout } from './format-2.backup-layout';
-import { RetrievedBackupResource } from './retrieved-backup-resource.model';
 import { BackupTransportSessionTestUtilities } from '../../__testing__/backup/backup-transport-session-test.utilities';
 import { InMemoryBackupTransport } from '../../__testing__/backup/in-memory.backup-transport';
 import { TestTimeouts } from '../../__testing__/constants';
@@ -31,6 +26,11 @@ import { BACKUP_REPOSITORY_FOLDER } from '../backup-format';
 import { BackupResourceEntity } from '../backup-resource-entity.model';
 import { BackupTransportSessionInterface } from '../transports/backup-transport-session.interface';
 import { BackupTransportInterface, BackupTransportSupporting } from '../transports/backup-transport.interface';
+import { BackupChunkUtilities } from './backup-chunk.utilities';
+import { BackupChunkingOptions } from './backup-chunking-options.model';
+import { BackupRepositoryKey } from './backup-repository-key.model';
+import { Format2BackupLayout } from './format-2.backup-layout';
+import { RetrievedBackupResource } from './retrieved-backup-resource.model';
 
 // small, so that a few MiB of data make dozens of chunks
 const CHUNKING: BackupChunkingOptions = { minChunkBytes: 16 * 1024, averageChunkBytes: 64 * 1024, maxChunkBytes: 256 * 1024, compressionLevel: 3 };

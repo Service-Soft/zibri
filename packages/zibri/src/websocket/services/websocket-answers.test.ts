@@ -2,7 +2,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/glob
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { type WebsocketServiceInterface } from './websocket-service.interface';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
@@ -16,6 +15,7 @@ import { WebsocketRoute } from '../decorators/websocket-route.decorator';
 import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model';
 import { WebsocketAnswer } from '../models/websocket-answer.model';
 import { WebsocketOptionsInput } from '../models/websocket-options.model';
+import { type WebsocketServiceInterface } from './websocket-service.interface';
 
 @WebsocketController({ allowOrphan: true, eventPrefix: 'answers:' })
 class AnswersWsController {

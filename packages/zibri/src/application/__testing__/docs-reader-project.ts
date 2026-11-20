@@ -5,7 +5,7 @@
 // The shapes follow what a page that does show the file declares, and what `zi new` generates. What
 // the reader writes against a service of their own, such as a client of their mail provider, is only
 // declared.
-import { type AppCommand, AuditServiceInterface, BaseEntity, BaseGoogleAuthenticator, BaseMembershipEntity, BaseRateLimitState, BaseRoleEntity, BaseTenantEntity, BaseUserEntity, Cache, type CacheServiceInterface, type CompanyInfo, Controller, DataSource, DefinedPermissions, definePermissions, DefinedPlatformPermissions, definePlatformPermissions, DiProvider, EmailChangedEmailTemplate, EmailVerificationEmailTemplate, EncryptionString, Entity, File, FsPath, HtmlResponse, HttpRequestContext, inject, Inject, Injectable, InjectionToken, InMemoryCacheStore, LocaleCode, Log, type LoggerInterface, MailingListController, type MetricsServiceInterface, Migration, MimeType, Newable, OAuthClientAuthentication, OidcDiscoveryAtBoot, OmitClass, OmitStrict, OpenApiExplorerTemplate, PartialClass, PostgresDataSource, PostgresOptions, PostgresPooler, Property, RateLimiterInterface, Repository, RepositoryClass, S3Credentials, SchemaManagement, Timezone, TraceSpanContext, TraceSpanInterface, TsxChildren, TsxComponent, ValKeyDataSource, ValKeyOptions, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS, ZIBRI_PERMISSIONS, ZIBRI_PLATFORM_PERMISSIONS, ZibriApplicationOptions } from '../../index';
+import { type AppCommand, AuditServiceInterface, BaseEntity, BaseGoogleAuthenticator, BaseMembershipEntity, BaseRateLimitState, BaseRoleEntity, BaseTenantEntity, BaseUserEntity, Cache, type CacheServiceInterface, type CompanyInfo, Controller, DataSource, DefinedPermissions, definePermissions, DefinedPlatformPermissions, definePlatformPermissions, DiProvider, EmailChangedEmailTemplate, EmailVerificationEmailTemplate, EncryptionString, Entity, File, FsPath, HtmlResponse, HttpRequestContext, inject, Inject, Injectable, InjectionToken, InMemoryCacheStore, InvitationEmailTemplate, LocaleCode, Log, type LoggerInterface, MailingListController, type MetricsServiceInterface, Migration, MimeType, Newable, OAuthClientAuthentication, OidcDiscoveryAtBoot, OmitClass, OmitStrict, OpenApiExplorerTemplate, PartialClass, PostgresDataSource, PostgresOptions, PostgresPooler, Property, RateLimiterInterface, Repository, RepositoryClass, S3Credentials, SchemaManagement, Timezone, TraceSpanContext, TraceSpanInterface, TsxChildren, TsxComponent, ValKeyDataSource, ValKeyOptions, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS, ZIBRI_PERMISSIONS, ZIBRI_PLATFORM_PERMISSIONS, ZibriApplicationOptions } from '../../index';
 
 // src/models: the running example of the docs, a task tracker for teams
 
@@ -333,6 +333,7 @@ export declare const ResourceUsageChart: TsxComponent<{ primary: string, seconda
 export declare const NetworkChart: TsxComponent<{ primary: string, secondary: string, className?: string }>;
 export declare const VerifyEmailEmail: EmailVerificationEmailTemplate;
 export declare const EmailChangedEmail: EmailChangedEmailTemplate;
+export declare const InvitationEmail: InvitationEmailTemplate;
 
 // src: configuration
 
@@ -365,6 +366,10 @@ export declare const clientKey: string;
 
 @Injectable()
 export class PdfService {}
+
+export declare class DashboardService {
+    resolveDashboard(): Promise<unknown>;
+}
 
 export type ReportStorage = {
     save: (name: string, content: Buffer) => Promise<void>

@@ -1,11 +1,3 @@
-import { CiiCrossIndustryInvoice } from './cii/cii-cross-industry-invoice.model';
-import { CiiDateTime } from './cii/cii-date-time.model';
-import { CiiHeaderTradeSettlement } from './cii/cii-header-trade-settlement.model';
-import { CiiSchemedId } from './cii/cii-schemed-id.model';
-import { CiiTaxRegistration } from './cii/cii-tax-registration.model';
-import { CiiTradeLineItem } from './cii/cii-trade-line-item.model';
-import { CiiTradeParty } from './cii/cii-trade-party.model';
-import { CiiTradeTax } from './cii/cii-trade-tax.model';
 import { Inject } from '../../../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../../../di/default/zibri-di-tokens.default';
 import { PdfDocumentDefinition, PdfAttachmentDefinition, PdfDocument } from '../../../../../document/pdf.utilities';
@@ -28,6 +20,14 @@ import { type CompanyInfoServiceInterface } from '../../company-info-service.int
 import { type InvoiceCalcServiceInterface } from '../../invoice-calc-service.interface';
 import { validateInvoiceTotal } from '../../validate-invoice-total.function';
 import { InvoiceConformance, InvoiceConformanceServiceInterface } from '../invoice-conformance-service.interface';
+import { CiiCrossIndustryInvoice } from './cii/cii-cross-industry-invoice.model';
+import { CiiDateTime } from './cii/cii-date-time.model';
+import { CiiHeaderTradeSettlement } from './cii/cii-header-trade-settlement.model';
+import { CiiSchemedId } from './cii/cii-schemed-id.model';
+import { CiiTaxRegistration } from './cii/cii-tax-registration.model';
+import { CiiTradeLineItem } from './cii/cii-trade-line-item.model';
+import { CiiTradeParty } from './cii/cii-trade-party.model';
+import { CiiTradeTax } from './cii/cii-trade-tax.model';
 
 /**
  * The different possible document context ids.

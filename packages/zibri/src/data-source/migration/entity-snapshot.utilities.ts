@@ -1,6 +1,3 @@
-import { EntitySnapshot, SnapshotColumn, SnapshotEntity, SnapshotKeys, SnapshotProperty, SnapshotRelation } from './entity-snapshot.model';
-import { MigratedEntityUtilities } from './migrated-entity.utilities';
-import { MigrationEntity } from './migration-entity.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator';
 import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model';
@@ -15,6 +12,9 @@ import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
+import { EntitySnapshot, SnapshotColumn, SnapshotEntity, SnapshotKeys, SnapshotProperty, SnapshotRelation } from './entity-snapshot.model';
+import { MigratedEntityUtilities } from './migrated-entity.utilities';
+import { MigrationEntity } from './migration-entity.model';
 
 const STRING_FORMATS: StringFormat[] = ['uuid', 'email', 'phone'];
 

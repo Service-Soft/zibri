@@ -1,9 +1,9 @@
 import { BaseEntity, DataSource, Migration, Newable, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
 
+import { requireBooleanEnv, requireEnv, requirePortEnv } from '../../env';
 import { entities } from './entities';
 import { migrations } from './migrations';
 import { repositories } from './repositories';
-import { requireBooleanEnv, requireEnv, requirePortEnv } from '../../env';
 
 @DataSource()
 export class DbDataSource extends PostgresDataSource {

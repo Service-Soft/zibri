@@ -1,7 +1,7 @@
-import { SkipMetadata } from './skip-auth-metadata.model';
 import { type Permission } from '../roles/permission.type';
 import { type PlatformPermission } from '../roles/platform-permission.type';
 import { AuthStrategies } from '../strategies/auth-strategies.model';
+import { SkipMetadata } from './skip-auth-metadata.model';
 
 /**
  * Metadata for the \@Auth.hasPermission and \@Auth.hasPlatformPermission decorators.

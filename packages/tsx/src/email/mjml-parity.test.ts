@@ -1,6 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 import mjml2html from 'mjml';
 
+import { renderEmail, Mount } from '../__testing__/email-render.helper';
+import { raw } from '../runtime/server-runtime';
 import { MjAccordion } from './mj-accordion';
 import { MjAccordionElement } from './mj-accordion-element';
 import { MjAccordionText } from './mj-accordion-text';
@@ -32,8 +34,6 @@ import { MjText } from './mj-text';
 import { MjTitle } from './mj-title';
 import { MjWrapper } from './mj-wrapper';
 import { Mjml } from './mjml';
-import { renderEmail, Mount } from '../__testing__/email-render.helper';
-import { raw } from '../runtime/server-runtime';
 
 /**
  * The structural fingerprint of an email's body: the ordered list of element tags, including those

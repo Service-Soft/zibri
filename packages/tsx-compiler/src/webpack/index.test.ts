@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
-import zibriTsxLoader, { LoaderContext, LoaderOptions } from './index';
 import { SourceMap } from '../codegen/source-map';
+import zibriTsxLoader, { LoaderContext, LoaderOptions } from './index';
 
 /**
  * What the loader handed webpack.

@@ -1,6 +1,5 @@
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
-import { ScopedWhere, ScopeWhereUtilities } from './scope-where.utilities';
 import { initDiContainer } from '../../di/init-di-container.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
@@ -8,6 +7,7 @@ import { Property, PropertyMetadata } from '../../entity/decorators/property.dec
 import { type OneOf } from '../../entity/models/one-of.model';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { Where, WhereFilter } from '../models/where/where-filter.model';
+import { ScopedWhere, ScopeWhereUtilities } from './scope-where.utilities';
 
 class MailAddress {
     @Property.string()

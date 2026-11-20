@@ -2,10 +2,10 @@ import { setTimeout as wait } from 'node:timers/promises';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { S3StandIn } from './s3-stand-in.model';
 import { FsUtilities } from '../../utilities/fs.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { testFileFolder } from '../constants';
+import { S3StandIn } from './s3-stand-in.model';
 
 const standIn: S3StandIn = new S3StandIn(FsUtilities.getPath(testFileFolder, `s3-stand-in-${UUIDUtilities.generate()}`));
 

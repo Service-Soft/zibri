@@ -73,7 +73,7 @@ export abstract class NetworkAddressUtilities {
     static async resolvePublicAddress(host: string, allowedHosts: string[] | undefined): Promise<string> {
         this.validateAllowedHost(host, allowedHosts);
         const name: string = host.replace(/^\[(.*)]$/, '$1');
-        const addresses: string[] = isIP(name) ? [name] : (await lookup(name, { all: true, verbatim: true })).map(a => a.address);
+        const addresses: string[] = isIP(name) ? [name] : (await lookup(name, { all: true, order: 'verbatim' })).map(a => a.address);
         const inside: string | undefined = addresses.find(address => !this.isPublic(address));
         if (inside != undefined || !addresses.length) {
             throw new InternalError(

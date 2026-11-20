@@ -1,10 +1,10 @@
-import { ModelDescriptor } from './model-descriptor';
-import { ModelRegistry } from './model.registry';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { holdsPlainValue } from '../../routing/filter/holds-plain-value.function';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
+import { ModelDescriptor } from './model-descriptor';
+import { ModelRegistry } from './model.registry';
 
 /**
  * The types of the properties that hold one value a list can be ordered by.

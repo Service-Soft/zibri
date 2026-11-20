@@ -1,4 +1,3 @@
-import { type EmailConfigInput } from './models/email-config.model';
 import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { InternalError } from '../error-handling/internal-error.model';
@@ -6,6 +5,7 @@ import { RateLimiter } from '../rate-limiting/decorators/rate-limiter.decorator'
 import { TokenBucketRateLimiter, TokenBucketState } from '../rate-limiting/limiter/token-bucket.rate-limiter';
 import { InMemoryRateLimiterStore } from '../rate-limiting/stores/in-memory.rate-limiter-store';
 import { Ms } from '../utilities/ms';
+import { type EmailConfigInput } from './models/email-config.model';
 
 /**
  * Default email service rate limiter of Zibri.

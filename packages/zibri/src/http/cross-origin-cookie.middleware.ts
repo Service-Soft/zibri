@@ -1,13 +1,13 @@
 import { Request, RequestHandler } from 'express';
 
-import { CorsOptions } from './cors.middleware';
-import { HttpMethod } from './http-method.enum';
-import { KnownHeader } from './known-header.enum';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { ForbiddenError } from '../error-handling/errors/forbidden.error';
 import { $ts } from '../localization/translate.function';
 import { AuditAction, AuditOutcome, AuditReason } from '../logging/audit-event.model';
+import { CorsOptions } from './cors.middleware';
+import { HttpMethod } from './http-method.enum';
+import { KnownHeader } from './known-header.enum';
 
 /**
  * The methods that change nothing, and are therefore never refused.

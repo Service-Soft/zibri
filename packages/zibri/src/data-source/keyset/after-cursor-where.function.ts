@@ -1,4 +1,3 @@
-import { KeysetOrderKey } from './keyset-order.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
@@ -7,6 +6,7 @@ import { BigNumber } from '../../utilities/number.utilities';
 import { BoundedFuzzyLikeFilter, SimilarityBound } from '../models/where/fuzzy-like.model';
 import { Where, WhereFilter } from '../models/where/where-filter.model';
 import { ScopedWhere, ScopeWhereUtilities } from '../scopes/scope-where.utilities';
+import { KeysetOrderKey } from './keyset-order.model';
 
 /**
  * A value a cursor can carry, which is every ordered property type flattened for transport.

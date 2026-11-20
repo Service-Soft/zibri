@@ -3,18 +3,6 @@ import os from 'node:os';
 import type { Registry, Counter, Histogram, Gauge, MetricObjectWithValues, MetricValue } from '@prometheus-io/client';
 import type { Systeminformation } from 'systeminformation';
 
-import { CollectMetricsCronJob } from './collect-metrics.cron-job';
-import { CounterInterface } from './counter.interface';
-import { DurationHistogram } from './duration-histogram.model';
-import { GaugeInterface } from './gauge.interface';
-import { HistogramInterface } from './histogram.interface';
-import { MetricType } from './metric-type.enum';
-import { Metric } from './metric.model';
-import { MetricsCollector } from './metrics-collector.model';
-import { MetricsExposition } from './metrics-exposition.model';
-import { CounterMetricName, GaugeMetricName, HistogramMetricName, MetricsServiceInterface } from './metrics-service.interface';
-import { MetricsSnapshot } from './metrics-snapshot.model';
-import { RuntimeMetrics } from './runtime-metrics.model';
 import { ZibriApplication } from '../application/application';
 import { type AssetServiceInterface } from '../assets/asset-service.interface';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -29,6 +17,18 @@ import { MiddlewarePhase } from '../http/middleware-phase.enum';
 import { RouteLabelUtilities } from '../http/route-label.utilities';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { optionalPeer } from '../utilities/optional-peer.function';
+import { CollectMetricsCronJob } from './collect-metrics.cron-job';
+import { CounterInterface } from './counter.interface';
+import { DurationHistogram } from './duration-histogram.model';
+import { GaugeInterface } from './gauge.interface';
+import { HistogramInterface } from './histogram.interface';
+import { MetricType } from './metric-type.enum';
+import { Metric } from './metric.model';
+import { MetricsCollector } from './metrics-collector.model';
+import { MetricsExposition } from './metrics-exposition.model';
+import { CounterMetricName, GaugeMetricName, HistogramMetricName, MetricsServiceInterface } from './metrics-service.interface';
+import { MetricsSnapshot } from './metrics-snapshot.model';
+import { RuntimeMetrics } from './runtime-metrics.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export class PromCounter implements CounterInterface {

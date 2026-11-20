@@ -1,7 +1,7 @@
+import { FsPath } from '../../utilities/fs.utilities';
 import { BackupTransportSessionInterface } from './backup-transport-session.interface';
 import { BaseBackupTransport } from './base.backup-transport';
 import { FsBackupTransport } from './fs.backup-transport';
-import { FsPath } from '../../utilities/fs.utilities';
 
 /**
  * A transport that keeps the backups in a folder of this instance's own disk, `backupBasePath`. Of both versions,

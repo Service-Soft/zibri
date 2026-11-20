@@ -2,7 +2,6 @@ import assert from 'node:assert';
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { TokenBucketRateLimiter, TokenBucketState } from './token-bucket.rate-limiter';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { initDiContainer } from '../../di/init-di-container.function';
 import { inject } from '../../di/inject.function';
@@ -16,6 +15,7 @@ import { RateLimitReservationResult, SuccessRateLimitReservationResult } from '.
 import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
 import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store';
 import { BaseRateLimitState, RateLimiterStoreUpdateResult } from '../stores/rate-limiter-store.interface';
+import { TokenBucketRateLimiter, TokenBucketState } from './token-bucket.rate-limiter';
 
 const NOW: number = 1_700_000_000_000;
 const MAX: number = 10;
@@ -829,13 +829,13 @@ describe('TokenBucketRateLimiter', () => {
         // eslint-disable-next-line typescript/no-explicit-any
         type TestFn = (...args: any[]) => Promise<string>;
 
-        let limiter: TokenBucketRateLimiter;
+        let wrappingLimiter: TokenBucketRateLimiter;
         let fn: jest.Mock<TestFn>;
 
         beforeEach(() => {
             jest.useFakeTimers();
             jest.setSystemTime(NOW);
-            limiter = new TestRateLimiter();
+            wrappingLimiter = new TestRateLimiter();
             fn = jest.fn<TestFn>().mockResolvedValue('ok');
         });
 
@@ -845,7 +845,7 @@ describe('TokenBucketRateLimiter', () => {
 
         it('calls the function and returns its result when consume allows', async () => {
             // eslint-disable-next-line typescript/typedef
-            const wrapped = limiter.wrap(fn, { reserveIfUnavailable: true });
+            const wrapped = wrappingLimiter.wrap(fn, { reserveIfUnavailable: true });
             const result: string | SuccessRateLimitReservationResult = await wrapped();
             expect(result).toBe('ok');
             expect(fn).toHaveBeenCalledTimes(1);
@@ -853,18 +853,18 @@ describe('TokenBucketRateLimiter', () => {
 
         it('throws TooManyRequestsError when consume denies and reserveIfUnavailable is not set', async () => {
             // exhaust capacity
-            await drain(limiter, 'global', MAX);
+            await drain(wrappingLimiter, 'global', MAX);
             // eslint-disable-next-line typescript/typedef
-            const wrapped = limiter.wrap(fn, {});
+            const wrapped = wrappingLimiter.wrap(fn, {});
             await expect(wrapped()).rejects.toThrow('Rate limit was reached');
             expect(fn).not.toHaveBeenCalled();
         });
 
         it('returns a reservation when consume denies and reserveIfUnavailable is true', async () => {
             // exhaust capacity
-            await drain(limiter, 'global', MAX);
+            await drain(wrappingLimiter, 'global', MAX);
             // eslint-disable-next-line typescript/typedef
-            const wrapped = limiter.wrap(fn, { reserveIfUnavailable: true });
+            const wrapped = wrappingLimiter.wrap(fn, { reserveIfUnavailable: true });
             const result: string | SuccessRateLimitReservationResult = await wrapped();
             // Should be a successful reservation
             expect(result).toHaveProperty('allowed', true);
@@ -872,12 +872,12 @@ describe('TokenBucketRateLimiter', () => {
             expect(result.reservation).toBeDefined();
             expect(fn).not.toHaveBeenCalled();
             // Clean up reservation
-            await limiter.cancelReservation(result.reservation);
+            await wrappingLimiter.cancelReservation(result.reservation);
         });
 
         it('throws TooManyRequestsError when reserveIfUnavailable is true but reservation is rejected (e.g., capacity exceeded)', async () => {
             // exhaust capacity
-            await drain(limiter, 'global', MAX);
+            await drain(wrappingLimiter, 'global', MAX);
             // Set a tiny maxReservationWaitInMs so reservation gets rejected quickly
             const strictStore: InMemoryRateLimiterStore<TokenBucketState> = new InMemoryRateLimiterStore();
             // eslint-disable-next-line typescript/typedef
@@ -901,14 +901,14 @@ describe('TokenBucketRateLimiter', () => {
         });
 
         it('does not call the function when reservation is returned', async () => {
-            await drain(limiter, 'global', MAX);
+            await drain(wrappingLimiter, 'global', MAX);
             // eslint-disable-next-line typescript/typedef
-            const wrapped = limiter.wrap(fn, { reserveIfUnavailable: true });
+            const wrapped = wrappingLimiter.wrap(fn, { reserveIfUnavailable: true });
             const result: string | SuccessRateLimitReservationResult = await wrapped();
             expect(result).toHaveProperty('allowed', true);
             expect(fn).not.toHaveBeenCalled();
             assert(typeof result === 'object');
-            await limiter.cancelReservation(result.reservation);
+            await wrappingLimiter.cancelReservation(result.reservation);
         });
 
         it('works with custom key and count functions', async () => {
@@ -917,7 +917,7 @@ describe('TokenBucketRateLimiter', () => {
             // eslint-disable-next-line typescript/no-explicit-any
             const countFn: jest.Mock<RateLimitCountProvider<any[]>> = jest.fn<RateLimitCountProvider<any[]>>().mockReturnValue(2);
             // eslint-disable-next-line typescript/typedef
-            const wrapped = limiter.wrap(fn, { keyFn, countFn, reserveIfUnavailable: true });
+            const wrapped = wrappingLimiter.wrap(fn, { keyFn, countFn, reserveIfUnavailable: true });
             const result: string | SuccessRateLimitReservationResult = await wrapped('arg1', 'arg2');
             expect(result).toBe('ok');
             expect(keyFn).toHaveBeenCalledWith('arg1', 'arg2');

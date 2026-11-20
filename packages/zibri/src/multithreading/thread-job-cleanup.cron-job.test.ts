@@ -1,12 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from './models/base-thread-job-worker-data.model';
-import { ThreadJobEntity } from './models/thread-job-entity.model';
-import { ThreadJobStatus } from './models/thread-job-status.enum';
-import { MultithreadingServiceInterface } from './services/multithreading-service.interface';
-import { MultithreadingService } from './services/multithreading.service';
-import { ThreadJobCleanupCronJob } from './thread-job-cleanup.cron-job';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -18,6 +12,12 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { Ms } from '../utilities/ms';
+import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from './models/base-thread-job-worker-data.model';
+import { ThreadJobEntity } from './models/thread-job-entity.model';
+import { ThreadJobStatus } from './models/thread-job-status.enum';
+import { MultithreadingServiceInterface } from './services/multithreading-service.interface';
+import { MultithreadingService } from './services/multithreading.service';
+import { ThreadJobCleanupCronJob } from './thread-job-cleanup.cron-job';
 
 /**
  * A thread job row as the repository hands it back.

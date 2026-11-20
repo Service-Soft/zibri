@@ -2,13 +2,13 @@ import ts from 'typescript';
 import { Diagnostic, DiagnosticSeverity } from 'zibri-tsx';
 import { AccessShape } from 'zibri-tsx/internal';
 
-import { isFunctionValue, stateDeclarations, stateReach, TWO_WAY_ATTRIBUTES } from './bindings';
-import { attributeExpression, attributesOf, CapturedVariable, capturedVariables, isComponentName, isEventHandlerName, ScopeFrame, scopeFrameFor, tagNameOf, visitComponentBody } from './handlers';
 import { collectPatternBindings, collectReferencedSymbols } from '../../semantics/binding';
 import { ComponentFunction } from '../../semantics/component';
 import { symbolOf } from '../../semantics/symbols';
 import { ValidationCode } from '../../semantics/validate';
 import { childrenOf, isHookCall, walk } from '../../semantics/walk';
+import { isFunctionValue, stateDeclarations, stateReach, TWO_WAY_ATTRIBUTES } from './bindings';
+import { attributeExpression, attributesOf, CapturedVariable, capturedVariables, isComponentName, isEventHandlerName, ScopeFrame, scopeFrameFor, tagNameOf, visitComponentBody } from './handlers';
 
 /**
  * Markup written in JSX: an element, or a fragment.

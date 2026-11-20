@@ -1,11 +1,3 @@
-import { ForwardingRepositoryDriver } from './forwarding.repository-driver';
-import { RemovalReach } from './removal-reach.model';
-import { DriverAggregateOptions,
-    DriverFindAndCountOptions,
-    DriverFindOptions,
-    DriverStreamOptions,
-    DriverUpdateAllOptions,
-    RepositoryDriverInterface } from './repository-driver.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { DataSourceTimeUtilities } from '../data-source-time.utilities';
@@ -15,6 +7,14 @@ import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
 import { Transaction } from '../transaction/transaction.model';
+import { ForwardingRepositoryDriver } from './forwarding.repository-driver';
+import { RemovalReach } from './removal-reach.model';
+import { DriverAggregateOptions,
+    DriverFindAndCountOptions,
+    DriverFindOptions,
+    DriverStreamOptions,
+    DriverUpdateAllOptions,
+    RepositoryDriverInterface } from './repository-driver.interface';
 
 /**
  * Resolves every time of the data source a call names against the clock of the store, for a driver

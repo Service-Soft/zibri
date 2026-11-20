@@ -1,6 +1,6 @@
-import { NpmAdvisories } from './npm-advisories.model';
 import { CPUtilities } from '../encapsulation';
 import { Path } from '../utilities';
+import { NpmAdvisories } from './npm-advisories.model';
 
 /**
  * An advisory npm audit found for a package that is installed in an affected version.

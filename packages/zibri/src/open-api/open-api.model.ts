@@ -295,7 +295,11 @@ export type OpenApiOperation = OpenApiSpecificationExtensions & {
     /**
      * The permission a user needs on the platform for the operation, whatever the tenant.
      */
-    'x-platform-permission'?: string
+    'x-platform-permission'?: string,
+    /**
+     * True when either `x-permission` or `x-platform-permission` is enough for the operation.
+     */
+    'x-any-level-permission'?: true
 };
 
 /**

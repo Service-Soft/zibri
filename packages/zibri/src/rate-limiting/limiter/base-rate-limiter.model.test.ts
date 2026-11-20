@@ -2,9 +2,6 @@ import assert from 'node:assert';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
-import { SemaphoreRateLimiter, SemaphoreState } from './semaphore.rate-limiter';
-import { TokenBucketRateLimiter, TokenBucketState } from './token-bucket.rate-limiter';
 import { initDiContainer } from '../../di/init-di-container.function';
 import { TooManyRequestsError } from '../../error-handling/errors/too-many-requests.error';
 import { GlobalRegistry } from '../../global/global-registry';
@@ -16,6 +13,9 @@ import { RateLimitReservation } from '../reservation/rate-limit-reservation.mode
 import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store';
 import { RateLimitStoreUnavailableError } from '../stores/rate-limit-store-unavailable.error';
 import { BaseRateLimitState, RateLimiterStoreUpdateResult } from '../stores/rate-limiter-store.interface';
+import { RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
+import { SemaphoreRateLimiter, SemaphoreState } from './semaphore.rate-limiter';
+import { TokenBucketRateLimiter, TokenBucketState } from './token-bucket.rate-limiter';
 
 const CAPACITY: number = 10;
 

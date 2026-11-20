@@ -1,11 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { CachedValue } from './cached-value.model';
-import { InMemoryCacheStore } from './in-memory.cache-store';
 import { AlsUtilities } from '../../context/als.utilities';
 import { Bytes } from '../../utilities/bytes';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { CachedValue } from './cached-value.model';
+import { InMemoryCacheStore } from './in-memory.cache-store';
 
 function createCachedValue<V>(value: V, tags: string[]): CachedValue<V> {
     return {

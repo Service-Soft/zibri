@@ -1,6 +1,6 @@
 /* eslint-disable cspell/spellchecker */
-import { HtmlAttributes } from './jsx.model';
 import type { State } from '../runtime/state';
+import { HtmlAttributes } from './jsx.model';
 
 /**
  * Presentational attributes that are obsolete in html5 but still required by email clients.

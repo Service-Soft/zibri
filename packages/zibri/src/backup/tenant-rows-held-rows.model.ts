@@ -1,5 +1,3 @@
-import { TenantRowsEntity, TenantRowsRow } from './tenant-rows-entity.model';
-import { TenantRowsStandInKind, TenantRowsStandInUtilities } from './tenant-rows-stand-in.utilities';
 import { isSoftDeleteEntityNewable } from '../data-source/change-sets/models/is-soft-delete-entity.function';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { WhereFilterEvaluator } from '../data-source/data-sources/where-converter/where-filter.evaluator';
@@ -21,6 +19,8 @@ import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 import { PromiseUtilities } from '../utilities/promise.utilities';
+import { TenantRowsEntity, TenantRowsRow } from './tenant-rows-entity.model';
+import { TenantRowsStandInKind, TenantRowsStandInUtilities } from './tenant-rows-stand-in.utilities';
 
 /**
  * How many rows are read by their ids at once.

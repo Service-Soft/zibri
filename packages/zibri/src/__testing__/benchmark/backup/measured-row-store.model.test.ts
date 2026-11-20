@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { MeasuredRowStore } from './measured-row-store.model';
-import { MeasuredRow } from './measured-row.model';
-import { ChangeProfile, SeededFingerprint, SeededTable } from './seeded-table.model';
 import { DataSourceInterface } from '../../../data-source/data-sources/data-source.interface';
 import { Repository } from '../../../data-source/repository/repository';
 import { inject } from '../../../di/inject.function';
@@ -11,6 +8,9 @@ import { Newable } from '../../../types/newable.type';
 import { TestTimeouts } from '../../constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../test-server/start-test-server.function';
+import { MeasuredRowStore } from './measured-row-store.model';
+import { MeasuredRow } from './measured-row.model';
+import { ChangeProfile, SeededFingerprint, SeededTable } from './seeded-table.model';
 
 // the backup measurements compare a restored data source with the table it was filled from. Its rows
 // were once stored under ids of the table, which a create replaces with ids of its own: deleting the

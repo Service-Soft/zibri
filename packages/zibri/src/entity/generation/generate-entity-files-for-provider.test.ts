@@ -2,14 +2,14 @@ import assert from 'assert';
 
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
-import { FileToGenerate, generateEntityFilesForProvider } from './generate-entity-files-for-provider.function';
-import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
-import { OpenApiUrlProvider } from './providers/open-api-url.provider';
 import { initDiContainer } from '../../di/init-di-container.function';
 import type { OpenApiDefinition } from '../../open-api/open-api.model';
 import { toKebabCase } from '../../utilities/to-kebab-case.function';
 import { toPascalCase } from '../../utilities/to-pascal-case.function';
 import { EntityTenant } from '../models/entity-tenant.model';
+import { FileToGenerate, generateEntityFilesForProvider } from './generate-entity-files-for-provider.function';
+import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
+import { OpenApiUrlProvider } from './providers/open-api-url.provider';
 
 // small InlineProvider so tests are offline and deterministic
 class InlineProvider implements EntityGenerationProvider {

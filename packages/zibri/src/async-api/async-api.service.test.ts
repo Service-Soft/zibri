@@ -2,12 +2,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/glob
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { AsyncApiDefinition, AsyncApiMessage, AsyncApiServer } from './async-api.model';
-import { $ts } from '../localization/translate.function';
-import { AsyncApiExplorerOperation, AsyncApiExplorerTag } from './explorer/async-api-explorer-operation.model';
-import { AsyncApiExplorerUtilities } from './explorer/async-api-explorer.utilities';
 import { TestTimeouts } from '../__testing__/constants';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
+import { TestPermissions, TestPlatformPermissions } from '../__testing__/mocks/entities/test-permissions.model';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -19,6 +16,7 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { defineProvider, DiProvider } from '../di/models/di-provider.model';
 import { Property } from '../entity/decorators/property.decorator';
 import { MimeType } from '../http/mime-type.enum';
+import { $ts } from '../localization/translate.function';
 import { Response } from '../open-api/decorators/response.decorator';
 import { OpenApiExplorerUtilities } from '../open-api/explorer/open-api-explorer.utilities';
 import { OpenApiSecuritySchemeObject } from '../open-api/open-api.model';
@@ -29,6 +27,9 @@ import { WebsocketController } from '../websocket/decorators/websocket-controlle
 import { WebsocketRoute } from '../websocket/decorators/websocket-route.decorator';
 import { WebsocketMessage } from '../websocket/models/websocket-message.model';
 import { WebsocketOptionsInput } from '../websocket/models/websocket-options.model';
+import { AsyncApiDefinition, AsyncApiMessage, AsyncApiOperation, AsyncApiServer } from './async-api.model';
+import { AsyncApiExplorerOperation, AsyncApiExplorerTag } from './explorer/async-api-explorer-operation.model';
+import { AsyncApiExplorerUtilities } from './explorer/async-api-explorer.utilities';
 
 class ChatMessage {
     @Property.string()
@@ -58,6 +59,12 @@ class ChatWebsocketController {
     @Auth.isLoggedIn()
     @WebsocketRoute('history')
     history(): ChatMessage[] {
+        return [];
+    }
+
+    @Auth.hasAnyLevelPermission({ permission: TestPermissions.MEMBER_ADMIN, platformPermission: TestPlatformPermissions.ADMIN })
+    @WebsocketRoute('moderate')
+    moderate(): ChatMessage[] {
         return [];
     }
 }
@@ -182,7 +189,7 @@ describe('AsyncApiService', () => {
         expect(definition.info).toEqual({ title: expect.any(String), version: '1.0.0' });
         expect(Object.values(definition.channels ?? {}).map(channel => channel.address)
             .sort())
-            .toEqual(['chat:history', 'chat:note', 'chat:send', 'ws:replay-incomplete']);
+            .toEqual(['chat:history', 'chat:moderate', 'chat:note', 'chat:send', 'ws:replay-incomplete', 'ws:tenant-deactivated']);
         expect(definition.servers?.['application']).toMatchObject({ protocol: expect.stringMatching(/^wss?$/), pathname: '/socket.io' });
     });
 
@@ -190,11 +197,26 @@ describe('AsyncApiService', () => {
         const tags: AsyncApiExplorerTag[] = AsyncApiExplorerUtilities.resolveTags(definition);
         const schemes: string[] = Object.keys(definition.components?.securitySchemes ?? {});
 
-        expect(tags.map(tag => tag.name)).toEqual(['ChatWebsocketController', 'Reconnecting']);
+        expect(tags.map(tag => tag.name)).toEqual(['ChatWebsocketController', 'Reconnecting', 'Tenants']);
         expect(operation('chat:send')).toMatchObject({ action: 'receive', securitySchemes: [] });
         expect(operation('chat:history').securitySchemes).toEqual(schemes);
         expect(schemes.length).toBeGreaterThan(0);
         expect(operation('ws:replay-incomplete')).toMatchObject({ action: 'send', replies: [] });
+    });
+
+    it('names both permissions of an event behind @Auth.hasAnyLevelPermission, and that either is enough', () => {
+        const moderate: [string, AsyncApiOperation] | undefined = Object.entries(definition.operations ?? {})
+            .find(([key]) => key.endsWith('moderate'));
+        expect(moderate?.[1]).toMatchObject({
+            'x-permission': TestPermissions.MEMBER_ADMIN,
+            'x-platform-permission': TestPlatformPermissions.ADMIN,
+            'x-any-level-permission': true
+        });
+        expect(operation('chat:moderate')).toMatchObject({
+            permissions: [TestPermissions.MEMBER_ADMIN, TestPlatformPermissions.ADMIN],
+            anyLevelPermission: true
+        });
+        expect(operation('chat:history')).toMatchObject({ permissions: [], anyLevelPermission: false });
     });
 
     it('builds an example of a message the route accepts, and answers it the way the answer is described', async () => {

@@ -1,9 +1,9 @@
 import { decodedMappings, SourceMapSegment, TraceMap } from '@jridgewell/trace-mapping';
 
-import { BundlePart } from './bundle-part.model';
-import { DeploymentMeasurement } from './deployment-measurement.model';
 import { FsUtilities } from '../encapsulation';
 import { Path } from '../utilities';
+import { BundlePart } from './bundle-part.model';
+import { DeploymentMeasurement } from './deployment-measurement.model';
 
 /**
  * How much larger or slower than its baseline a measurement may be before the report says so. A

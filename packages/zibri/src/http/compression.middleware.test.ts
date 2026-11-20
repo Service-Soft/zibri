@@ -7,10 +7,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import express, { Express } from 'express';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { compressionMiddleware } from './compression.middleware';
-import { HttpMethod } from './http-method.enum';
-import { KnownHeader } from './known-header.enum';
-import { MimeType } from './mime-type.enum';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -20,6 +16,10 @@ import { inject } from '../di/inject.function';
 import { type RouterInterface } from '../routing/router.interface';
 import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { compressionMiddleware } from './compression.middleware';
+import { HttpMethod } from './http-method.enum';
+import { KnownHeader } from './known-header.enum';
+import { MimeType } from './mime-type.enum';
 
 type RawResponse = { status: number, contentEncoding: string | undefined, body: Buffer };
 

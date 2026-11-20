@@ -1,6 +1,5 @@
 import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
-import { type WebsocketServiceInterface } from './websocket-service.interface';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -27,6 +26,7 @@ import { Ms } from '../../utilities/ms';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model';
 import { WebsocketAnswer } from '../models/websocket-answer.model';
+import { type WebsocketServiceInterface } from './websocket-service.interface';
 
 /**
  * What every instance of the websocket cluster boots with.

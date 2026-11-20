@@ -2,8 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { FilterConfig, OrderConfig } from 'zibri-contract';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { CrudControllerOptions } from './crud-controller-options.model';
-import { CrudController } from './crud-controller.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -14,6 +12,8 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Controller } from '../decorators/controller.decorator';
+import { CrudControllerOptions } from './crud-controller-options.model';
+import { CrudController } from './crud-controller.model';
 
 class CrudTaskAddress {
     @Property.string()

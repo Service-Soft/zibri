@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, defaultTestProviders, StartedTestServer, startTestServer } from 'zibri-testing';
 
-import { ZibriApplicationOptions } from './application-options.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { OtpTwoFactorMethod } from '../auth/2fa/methods/otp/otp.two-factor-method';
 import { TwoFactorServiceInterface } from '../auth/2fa/two-factor-service.interface';
@@ -16,6 +15,7 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
+import { ZibriApplicationOptions } from './application-options.model';
 
 @Controller('/open', { allowOrphan: true, versions: 'all' })
 class OpenController {

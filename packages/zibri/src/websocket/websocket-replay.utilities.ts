@@ -1,3 +1,8 @@
+import { type CurrentUser } from '../auth/decorators/current-user.decorator';
+import { WhereFilter } from '../data-source/models/where/where-filter.model';
+import { Repository } from '../data-source/repository/repository';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
+import { inject } from '../di/inject.function';
 import { SocketIOWebsocketConnection } from './models/connection/socket-io-websocket-connection.model';
 import { WebsocketChannel } from './models/websocket-channel.model';
 import { WebsocketEvent } from './models/websocket-event.enum';
@@ -5,11 +10,6 @@ import { WEBSOCKET_MESSAGE_SEQUENCE_NAME, WebsocketMessageSequence, WebsocketMes
 import { CreateWebsocketMessageData, WebsocketMessage, WebsocketRecipientType } from './models/websocket-message.model';
 import { WebsocketReplayIncomplete } from './models/websocket-replay-incomplete.model';
 import { WebsocketSendDataMessage, WebsocketServiceInterface } from './services/websocket-service.interface';
-import { type CurrentUser } from '../auth/decorators/current-user.decorator';
-import { WhereFilter } from '../data-source/models/where/where-filter.model';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { inject } from '../di/inject.function';
 
 /**
  * Sends a client that reconnects the messages it missed while it was away.

@@ -1,9 +1,9 @@
-import { SoftDeleteEntity } from './soft-delete-entity.model';
-import { SoftDeleteWhere } from './soft-delete-where.model';
-import { SoftDeletedRows } from './soft-deleted-rows.type';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { GroupKeysOf } from '../../models/aggregate.model';
 import { CountOptions } from '../../models/options/count-options.model';
+import { SoftDeleteEntity } from './soft-delete-entity.model';
+import { SoftDeleteWhere } from './soft-delete-where.model';
+import { SoftDeletedRows } from './soft-deleted-rows.type';
 
 /**
  * Options for counting soft delete entities, or asking whether any exists.

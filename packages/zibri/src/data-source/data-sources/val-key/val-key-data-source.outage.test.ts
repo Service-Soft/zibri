@@ -2,8 +2,6 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import type { GlideClient } from '@valkey/valkey-glide';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { ValKeyDataSource } from './val-key-data-source.model';
-import { valKeyGlide } from './val-key-glide.function';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../../__testing__/test-server/create-test-val-key-data-source.function';
@@ -13,6 +11,8 @@ import { Newable } from '../../../types/newable.type';
 import { MigrationEntity } from '../../migration/migration-entity.model';
 import { Repository } from '../../repository/repository';
 import { DataSourceInitializationError } from '../data-source-initialization.error';
+import { ValKeyDataSource } from './val-key-data-source.model';
+import { valKeyGlide } from './val-key-glide.function';
 
 // the framework's own entities in memory, so that the valkey data source holds only what the case reads
 const frameworkDataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({

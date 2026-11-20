@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { ValKeyClock } from './val-key-clock.model';
 import { Ms } from '../../../utilities/ms';
+import { ValKeyClock } from './val-key-clock.model';
 
 /**
  * A server clock standing an hour ahead of this process, counting how often it is read.

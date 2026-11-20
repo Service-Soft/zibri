@@ -1,8 +1,3 @@
-import { BaseMembership } from './base-membership.model';
-import { MembershipEventWriteObserver } from './membership-event.write-observer';
-import { isMembershipRepository, MembershipRepositoryInterface } from './membership-repository.interface';
-import { MembershipServiceInterface } from './membership-service.interface';
-import { MembershipWriteObserver } from './membership.write-observer';
 import { type AuditServiceInterface } from '../../audit/audit-service.interface';
 import { RoleUtilities } from '../../auth/roles/role.utilities';
 import { type UserServiceInterface } from '../../auth/user/user-service.interface';
@@ -27,6 +22,11 @@ import { AuditUtilities } from '../../logging/audit.utilities';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { Newable } from '../../types/newable.type';
 import { type TenantServiceInterface } from '../tenant-service.interface';
+import { BaseMembership } from './base-membership.model';
+import { MembershipEventWriteObserver } from './membership-event.write-observer';
+import { isMembershipRepository, MembershipRepositoryInterface } from './membership-repository.interface';
+import { MembershipServiceInterface } from './membership-service.interface';
+import { MembershipWriteObserver } from './membership.write-observer';
 
 /**
  * Default membership service implementation of Zibri, reading the memberships from the one
@@ -148,6 +148,46 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
     async findActiveMemberships<Role extends string, T extends BaseMembership<Role>>(userId: string): Promise<T[]> {
         const memberships: BaseMembership<string>[] = await this.repository?.findMemberships(userId) ?? [];
         return memberships.filter(m => m.deactivatedAt == undefined) as T[];
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findMembership<Role extends string, T extends BaseMembership<Role>>(
+        userId: string,
+        tenantId: string,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<T | undefined> {
+        const repository: MembershipRepositoryInterface<string, BaseMembership<string>> | undefined = this.repository;
+        // in that tenant, for the reason findActiveMembership gives
+        return repository == undefined
+            ? undefined
+            : await this.tenantService.runAs(
+                tenantId,
+                async () => await repository.findMembership(userId, tenantId, transaction)
+            ) as T | undefined;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findMemberships<Role extends string, T extends BaseMembership<Role>>(userId: string): Promise<T[]> {
+        return await this.repository?.findMemberships(userId) as T[] | undefined ?? [];
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findActiveMemberIds(tenantId: string): Promise<string[]> {
+        // the entity of a data source only, for the reason onAppInit gives
+        const repository: Repository<BaseMembership<string>> | undefined = this.entityRepository;
+        if (repository == undefined) {
+            return [];
+        }
+        const members: Pick<BaseMembership<string>, 'userId'>[] = await this.tenantService.runAs(
+            tenantId,
+            async () => await repository.findAll({
+                where: { tenantId, deactivatedAt: null },
+                select: ['userId'],
+                limit: 'all',
+                unscoped: true
+            })
+        );
+        return members.map(member => member.userId);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

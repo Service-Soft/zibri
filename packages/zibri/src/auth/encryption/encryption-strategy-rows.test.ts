@@ -1,11 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { EncryptionKey, EncryptionKeyStatus } from './encryption-key.model';
-import { EncryptionService } from './encryption.service';
-import { EncryptionString } from './encryption.utilities';
-import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
-import { EncryptionStrategyEntity } from './strategies/encryption-strategy-entity.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -14,6 +9,11 @@ import { repositoryTokenFor } from '../../di/decorators/inject-repository.decora
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
+import { EncryptionKey, EncryptionKeyStatus } from './encryption-key.model';
+import { EncryptionService } from './encryption.service';
+import { EncryptionString } from './encryption.utilities';
+import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
+import { EncryptionStrategyEntity } from './strategies/encryption-strategy-entity.model';
 
 /**
  * What encrypting writes beside the value: the row saying which strategy is in use, and the key it

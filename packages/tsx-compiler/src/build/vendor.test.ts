@@ -4,8 +4,8 @@ import path from 'node:path';
 
 import { afterAll, describe, expect, it } from '@jest/globals';
 
-import { generateVendorBundles, VendorBundle, VendorBundleOptions } from './vendor';
 import { testFileFolder } from '../__testing__/constants';
+import { generateVendorBundles, VendorBundle, VendorBundleOptions } from './vendor';
 
 // Resolution is anchored at the sandbox app, which depends on the browser-shipping packages the
 // templates import with `?client`.

@@ -1,7 +1,3 @@
-import { OpenTelemetryApi, OpenTelemetryApiTracer, OpenTelemetryContext, OpenTelemetryNodeSdk, OpenTelemetryResource, OpenTelemetryResources, OpenTelemetrySpanContext, OpenTelemetrySpanExporter, OpenTelemetrySpanProcessor, OpenTelemetryTracerProvider } from './open-telemetry-api.model';
-import { OpenTelemetrySpanAdapter } from './open-telemetry.span';
-import { OpenTelemetryUtilities } from './open-telemetry.utilities';
-import { TraceBufferSpanProcessor } from './trace-buffer.span-processor';
 import { ZibriApplication } from '../../application/application';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -14,6 +10,10 @@ import { TraceBufferInterface } from '../trace-buffer.interface';
 import { TraceSpanContext } from '../trace-span-context.model';
 import { TraceSpanInterface } from '../trace-span.interface';
 import { StartSpanOptions, TracerInterface } from '../tracer.interface';
+import { OpenTelemetryApi, OpenTelemetryApiTracer, OpenTelemetryContext, OpenTelemetryNodeSdk, OpenTelemetryResource, OpenTelemetryResources, OpenTelemetrySpanContext, OpenTelemetrySpanExporter, OpenTelemetrySpanProcessor, OpenTelemetryTracerProvider } from './open-telemetry-api.model';
+import { OpenTelemetrySpanAdapter } from './open-telemetry.span';
+import { OpenTelemetryUtilities } from './open-telemetry.utilities';
+import { TraceBufferSpanProcessor } from './trace-buffer.span-processor';
 
 const sampledFlag: number = 0b0000_0001;
 

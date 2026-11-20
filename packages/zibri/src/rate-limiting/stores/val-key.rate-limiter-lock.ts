@@ -1,10 +1,10 @@
 import type { GlideClient, GlideString, Script } from '@valkey/valkey-glide';
 
-import { RateLimiterLockInterface } from './rate-limiter-lock.interface';
 import { ValKeyDataSource } from '../../data-source/data-sources/val-key/val-key-data-source.model';
 import { valKeyGlide } from '../../data-source/data-sources/val-key/val-key-glide.function';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { RateLimiterLockInterface } from './rate-limiter-lock.interface';
 
 /**
  * How long a lock is held at most, so that a crashed process cannot block a key forever.

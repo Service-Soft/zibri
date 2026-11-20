@@ -1,7 +1,6 @@
 /* eslint-disable typescript/require-await */
 import { describe, expect, it } from '@jest/globals';
 
-import { Response } from './response.decorator';
 import { KeysetPage, PaginationResult } from '../../data-source/models/pagination-result.model';
 import { Property } from '../../entity/decorators/property.decorator';
 import { HttpStatus } from '../../http/http-status.enum';
@@ -11,6 +10,7 @@ import { FileResponse } from '../../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../../parsing/html/html-response.model';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { OpenApiResponse } from '../open-api.model';
+import { Response } from './response.decorator';
 
 class Task {
     @Property.string()

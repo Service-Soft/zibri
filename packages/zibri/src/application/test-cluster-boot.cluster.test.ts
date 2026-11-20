@@ -1,9 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
 import { StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { stuckStatementMarker } from './test-cluster-boot.instance-options';
 import { TestTimeouts } from '../__testing__/constants';
 import { FsUtilities } from '../utilities/fs.utilities';
+import { stuckStatementMarker } from './test-cluster-boot.instance-options';
 
 /**
  * What a test cluster reports about an instance that does not finish booting.

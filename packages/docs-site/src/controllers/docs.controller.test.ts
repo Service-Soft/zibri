@@ -64,9 +64,9 @@ describe('the pages of the site', () => {
         expect(html).toMatch(/<details open[^>]*><summary[^>]*>Auth<\/summary>/);
     });
 
-    it('answers 404 where no page is, the first page included under its file name', async () => {
+    it('answers 404 where no page is, the home page included under its file name', async () => {
         expect((await fetch(`${baseUrl}/zibri/auth/nothing/`)).status).toBe(404);
-        expect((await fetch(`${baseUrl}/zibri/getting-started/`)).status).toBe(404);
+        expect((await fetch(`${baseUrl}/zibri/README/`)).status).toBe(404);
     });
 
     it('serves the stylesheet below the path of the site', async () => {

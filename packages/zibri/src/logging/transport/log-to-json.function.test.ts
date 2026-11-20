@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { BaseLoggerTransportConfig, LoggerTransport } from './logger-transport.model';
 import { HttpMethod } from '../../http/http-method.enum';
 import { LogRequestContext } from '../log-context.model';
 import { LogLevel } from '../log-level.enum';
 import { Log } from '../log.model';
+import { BaseLoggerTransportConfig, LoggerTransport } from './logger-transport.model';
 
 /**
  * An entry as the logger hands it to a transport.

@@ -4,8 +4,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from '@jest/globals';
 
-import { collectClientPackagesFromFiles, findTemplateFiles } from './templates';
 import { testFileFolder } from '../__testing__/constants';
+import { collectClientPackagesFromFiles, findTemplateFiles } from './templates';
 
 // The sandbox app is the real-world corpus: it holds page, component and email templates, some of
 // which import browser packages with `?client`.

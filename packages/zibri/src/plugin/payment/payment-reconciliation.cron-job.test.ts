@@ -1,15 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { KnownPaymentMethod, PaymentMethod } from './models/payment-method.model';
-import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model';
-import { PaymentStatus } from './models/payment-status.enum';
-import { Payment } from './models/payment.model';
-import { PaymentReconciliationCronJob } from './payment-reconciliation.cron-job';
-import { ZibriPaymentPlugin } from './payment.plugin';
-import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
-import { PayPalPaymentProvider, PayPalPaymentProviderPaymentData } from './providers/pay-pal/pay-pal.payment-provider';
-import { PaymentServiceInterface } from './services/payment-service.interface';
 import { TestTimeouts } from '../../__testing__/constants';
 import { LocalPayPalServer } from '../../__testing__/local-pay-pal-server';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -26,6 +17,15 @@ import { type TenantServiceInterface } from '../../tenancy/tenant-service.interf
 import { Ms } from '../../utilities/ms';
 import { NumberUtilities } from '../../utilities/number.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { KnownPaymentMethod, PaymentMethod } from './models/payment-method.model';
+import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model';
+import { PaymentStatus } from './models/payment-status.enum';
+import { Payment } from './models/payment.model';
+import { PaymentReconciliationCronJob } from './payment-reconciliation.cron-job';
+import { ZibriPaymentPlugin } from './payment.plugin';
+import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
+import { PayPalPaymentProvider, PayPalPaymentProviderPaymentData } from './providers/pay-pal/pay-pal.payment-provider';
+import { PaymentServiceInterface } from './services/payment-service.interface';
 
 const localPayPal: LocalPayPalServer = new LocalPayPalServer();
 let localPayPalUrl: string;

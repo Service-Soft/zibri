@@ -4,7 +4,6 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { UpgradeCommand } from './upgrade.command';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
 import { EVERY_FEATURE } from '../../__testing__/generated-file-paths';
 import { quietly } from '../../__testing__/quietly.function';
@@ -12,6 +11,7 @@ import { CPUtilities, FsUtilities, GitUtilities } from '../../encapsulation';
 import { SCAFFOLD_MANIFEST_FILE, ScaffoldManifest, ScaffoldUtilities } from '../../scaffold';
 import { Path } from '../../utilities';
 import { NewCommand } from '../new/new.command';
+import { UpgradeCommand } from './upgrade.command';
 
 // installs of a whole project, Tailwind's own tool, the installs of the upgrade and a build
 const TEST_TIMEOUT_MS: number = 600_000;

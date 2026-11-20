@@ -1,11 +1,11 @@
 /* eslint-disable jsdoc/require-jsdoc */
+import { TokenRecord } from '../../di/models/di-token.model';
+import { InjectionToken } from '../../di/models/injection-token.model';
 import { PaymentMethod } from './models/payment-method.model';
 import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model';
 import { PaymentPluginOptions } from './models/payment-plugin-options.model';
 import { AnyPaymentProviderInterface } from './providers/payment-provider.interface';
 import { PaymentServiceInterface } from './services/payment-service.interface';
-import { TokenRecord } from '../../di/models/di-token.model';
-import { InjectionToken } from '../../di/models/injection-token.model';
 
 export type DefaultPaymentProviderArray = readonly AnyPaymentProviderInterface[];
 

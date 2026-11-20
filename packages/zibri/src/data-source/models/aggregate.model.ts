@@ -1,6 +1,6 @@
+import { BaseEntity } from '../../entity/base-entity.model';
 import { BaseRepositoryOptions } from './options/base-repository-options.model';
 import { Where } from './where/where-filter.model';
-import { BaseEntity } from '../../entity/base-entity.model';
 
 /**
  * The properties of an entity that hold a number, which a sum or an average is taken of.

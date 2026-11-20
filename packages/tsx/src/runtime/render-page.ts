@@ -1,11 +1,11 @@
+import { CLIENT_HOOK_SOURCES, HookData, substituteHookPlaceholders } from '../codegen/client/hooks';
+import { vendorFileName } from '../vendor-file-name';
 import { projectValue } from './access-shape';
 import { isRefMarker } from './refs';
 import { RenderEnvironment, reportRenderMistake } from './render-environment';
 import { toScriptValue } from './script-value';
 import { ClientInstanceEntry, CompiledComponent, createServerRuntime, isClientPropMarker, isPartReference, PartRecord, renderChild,
     RenderContext, RenderRegistry, RenderServerRuntime, resolveReferencedKeys, TemplateRecord } from './server-runtime';
-import { CLIENT_HOOK_SOURCES, HookData, substituteHookPlaceholders } from '../codegen/client/hooks';
-import { vendorFileName } from '../vendor-file-name';
 
 /**
  * A compiled page ready to render. Alias of {@link CompiledComponent} — a page is just the root

@@ -1,5 +1,3 @@
-import { WebsocketMessage } from './models/websocket-message.model';
-import { type WebsocketOptions } from './models/websocket-options.model';
 import { CronExpression } from '../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
 import { Repository } from '../data-source/repository/repository';
@@ -7,6 +5,8 @@ import { InjectRepository } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { InternalError } from '../error-handling/internal-error.model';
+import { WebsocketMessage } from './models/websocket-message.model';
+import { type WebsocketOptions } from './models/websocket-options.model';
 
 /**
  * Deletes the websocket messages that are older than `messageRetentionInMs`.

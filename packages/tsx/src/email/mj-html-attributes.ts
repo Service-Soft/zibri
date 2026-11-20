@@ -1,10 +1,10 @@
+import { ATTRIBUTE_NAME } from '../runtime/attribute-rules';
+import { createContext, escapeAttribute, RenderContext } from '../runtime/server-runtime';
 import { defineEmailComponent, TsxComponent } from './define-email-component';
 import { HeadChannel } from './head-channels';
 import { EmailHtmlAttribute } from './head-records';
 import { textContent } from './text-content';
 import { withDefaults } from './with-defaults';
-import { ATTRIBUTE_NAME } from '../runtime/attribute-rules';
-import { createContext, escapeAttribute, RenderContext } from '../runtime/server-runtime';
 
 /**
  * The selector the attributes in an `MjSelector` are set on the elements of.

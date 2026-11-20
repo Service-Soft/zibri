@@ -3,22 +3,10 @@ import assert from 'node:assert';
 import { NextFunction, Request, RequestHandler, Response, Router as ExpressRouter } from 'express';
 import { match } from 'path-to-regexp';
 
-import { ControllerRouteConfiguration } from './controller-route-configuration.model';
-import { AcceptCrossSitePostsOptions } from './decorators/accept-cross-site-posts-options.model';
-import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata, PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput } from './decorators/param.decorator';
-import { MissingBaseRouteError } from './missing-base-route.error';
-import { ParamMetadataUtilities } from './param-metadata.utilities';
-import { resolveBodyMetadata } from './resolve-body-metadata.function';
-import { ResponseWriterUtilities } from './response-writer.utilities';
-import { OpenApiRouteConfiguration, RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
-import { RouteParamMetadata } from './route-param-metadata.model';
-import { RouteParamUtilities } from './route-param.utilities';
-import { RouterInterface } from './router.interface';
 import { ZibriApplication } from '../application/application';
 import type { AuthServiceInterface } from '../auth/auth-service.interface';
 import type { RouteAuthServiceInterface } from '../auth/route-auth-service.interface';
 import { AlsUtilities } from '../context/als.utilities';
-import { ControllerData } from './decorators/controller.decorator';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -29,6 +17,7 @@ import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-
 import { inject } from '../di/inject.function';
 import { DiProvider } from '../di/models/di-provider.model';
 import { DiVariants } from '../di/models/di-variant.model';
+import { ClassPropertyUtilities } from '../entity/utilities/class-property.utilities';
 import { MethodNotAllowedError } from '../error-handling/errors/method-not-allowed.error';
 import { NotAcceptableError } from '../error-handling/errors/not-acceptable.error';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
@@ -60,7 +49,19 @@ import { RouteWithVersionData } from '../versioning/route-with-version-data.mode
 import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
 import { Version } from '../versioning/version.model';
 import { type VersioningServiceInterface } from '../versioning/versioning-service.interface';
+import { ControllerRouteConfiguration } from './controller-route-configuration.model';
+import { AcceptCrossSitePostsOptions } from './decorators/accept-cross-site-posts-options.model';
 import { BodyMetadata, DeclaredBodyInput } from './decorators/body-metadata.model';
+import { ControllerData } from './decorators/controller.decorator';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata, PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput } from './decorators/param.decorator';
+import { MissingBaseRouteError } from './missing-base-route.error';
+import { ParamMetadataUtilities } from './param-metadata.utilities';
+import { resolveBodyMetadata } from './resolve-body-metadata.function';
+import { ResponseWriterUtilities } from './response-writer.utilities';
+import { OpenApiRouteConfiguration, RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
+import { RouteParamMetadata } from './route-param-metadata.model';
+import { RouteParamUtilities } from './route-param.utilities';
+import { RouterInterface } from './router.interface';
 
 /**
  * A declared response whose format is negotiated.
@@ -167,9 +168,13 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             this.logger.info(`  - ${controller.name} (${routes.length} routes)`);
             this.registerController(controller);
         }
+        this.validateCopiedControllers(app.options.controllers);
         this.validateNoOrphanedControllers(app.options.controllers);
 
-        for (const group of this.pendingRouteGroups.values()) {
+        // mounted in the order requests are matched in, which is the order of declaration otherwise: a
+        // `/:id` declared before `/summary` would take its requests
+        for (const group of [...this.pendingRouteGroups.values()]
+            .sort((a, b) => this.compareRouteSpecificity(a.finalRoute, b.finalRoute))) {
             const dispatchHandler: RequestHandler = this.createDispatchHandler(group.entries);
             this.logger.debug(`- mounting ${group.httpMethod} ${group.finalRoute}`);
             this.expressRouter[httpMethodKey(group.httpMethod)](group.finalRoute, dispatchHandler);
@@ -459,6 +464,68 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         return Object.values(HttpMethod).filter(m => declared.has(m));
     }
 
+    /**
+     * Compares two routes by the first segment in which they differ in kind: a fixed one before a
+     * path parameter, and a path parameter before a wildcard.
+     * @param a - The one route.
+     * @param b - The other route.
+     * @returns Below 0 when `a` is matched first, above 0 when `b` is, and 0 to keep their order.
+     */
+    private compareRouteSpecificity(a: string, b: string): number {
+        // 0 for a fixed segment, 1 for one holding a parameter or an optional part, 2 for a wildcard
+        const kindsOf: (route: string) => number[] = route => route.split('/').map(segment => {
+            if (segment.startsWith('*')) {
+                return 2;
+            }
+            return segment.includes(':') || segment.includes('{') || segment.includes('*') ? 1 : 0;
+        });
+        const kindsOfA: number[] = kindsOf(a);
+        const kindsOfB: number[] = kindsOf(b);
+        for (let i: number = 0; i < Math.min(kindsOfA.length, kindsOfB.length); i++) {
+            const difference: number = (kindsOfA[i] ?? 0) - (kindsOfB[i] ?? 0);
+            if (difference !== 0) {
+                return difference;
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * Refuses a controller built with `OmitClass`, `PickClass` or `IntersectionClass` from a class
+     * whose constructor sets something up: the class built from it never runs that constructor.
+     * @param controllers - The controllers of the application.
+     * @throws When a class one is built from takes constructor parameters, or sets a property.
+     */
+    private validateCopiedControllers(controllers: Newable<unknown>[]): void {
+        const problems: string[] = [];
+        for (const controller of controllers) {
+            for (const source of ClassPropertyUtilities.resolveCopiedFrom(controller)) {
+                if (source.length > 0 || MetadataUtilities.getParamTypes(source).length > 0) {
+                    problems.push(`  - ${controller.name}, from ${source.name}: takes constructor parameters`);
+                    continue;
+                }
+                // constructed once here to see what it sets: a property declared without a value is
+                // there as undefined, and loses nothing
+                const instance: unknown = new source();
+                const set: string[] = instance instanceof Object
+                    ? Object.entries(instance).filter(([, value]) => value !== undefined)
+                        .map(([key]) => `"${key}"`)
+                    : [];
+                if (set.length) {
+                    problems.push(`  - ${controller.name}, from ${source.name}: sets ${set.join(', ')}`);
+                }
+            }
+        }
+        if (problems.length) {
+            throw new InitRouterError([
+                'Found controllers built with OmitClass, PickClass or IntersectionClass from a class whose constructor never runs:',
+                ...problems,
+                'Such a class needs to set nothing up in its constructor: read a service in a getter instead,'
+                + ' such as `private get service(): Service { return inject(Service); }`.'
+            ]);
+        }
+    }
+
     private validateNoOrphanedControllers(controllers: Newable<unknown>[]): void {
         const orphanedControllers: DiProvider<unknown>[] = getRegisteredProvidersOfVariant(DiVariants.CONTROLLER).filter(c => {
             return isNewable(c.useClass)
@@ -505,16 +572,16 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         this.allFinalRoutes.push({ key, versions });
 
         const pathParams: Record<string, PathParamMetadata> = {};
-        for (const [key, param] of ObjectUtilities.entries(input.pathParams ?? {})) {
-            pathParams[key] = ParamMetadataUtilities.createPathParam(key, param);
+        for (const [paramName, param] of ObjectUtilities.entries(input.pathParams ?? {})) {
+            pathParams[paramName] = ParamMetadataUtilities.createPathParam(paramName, param);
         }
         const queryParams: Record<string, QueryParamMetadata> = {};
-        for (const [key, param] of ObjectUtilities.entries(input.queryParams ?? {})) {
-            queryParams[key] = ParamMetadataUtilities.createQueryParam(key, param);
+        for (const [paramName, param] of ObjectUtilities.entries(input.queryParams ?? {})) {
+            queryParams[paramName] = ParamMetadataUtilities.createQueryParam(paramName, param);
         }
         const headerParams: Record<string, HeaderParamMetadata> = {};
-        for (const [key, param] of ObjectUtilities.entries(input.headerParams ?? {})) {
-            headerParams[key] = ParamMetadataUtilities.createHeaderParam(key, param);
+        for (const [paramName, param] of ObjectUtilities.entries(input.headerParams ?? {})) {
+            headerParams[paramName] = ParamMetadataUtilities.createHeaderParam(paramName, param);
         }
 
         // eslint-disable-next-line typescript/no-explicit-any
@@ -787,11 +854,11 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
                     const dispatch: () => Promise<void> = async () => {
                         const version: Version = await context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_VERSION);
                         // eslint-disable-next-line typescript/typedef
-                        const match = entries.find(e => this.versioningService.matchesVersion(e.versions, version));
-                        if (!match) {
+                        const matchingEntry = entries.find(e => this.versioningService.matchesVersion(e.versions, version));
+                        if (!matchingEntry) {
                             throw new NotFoundError($ts`Could not find route "${request.url}" for version "${version.value}"`);
                         }
-                        await match.innerHandler(context, next);
+                        await matchingEntry.innerHandler(context, next);
                     };
                     await (tenantId == undefined ? dispatch() : this.tenantService.runAs(tenantId, dispatch));
                 }

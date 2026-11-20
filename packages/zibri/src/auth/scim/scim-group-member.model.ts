@@ -1,7 +1,7 @@
-import { ScimMemberType } from './scim-member-type.enum';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
+import { ScimMemberType } from './scim-member-type.enum';
 
 /**
  * That a user or a group an identity provider provisioned is a member of a group it provisioned.

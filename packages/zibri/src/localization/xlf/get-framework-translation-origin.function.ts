@@ -1,5 +1,5 @@
-import { ScannedTranslationOrigin } from './models/source-translation-origin.model';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
+import { ScannedTranslationOrigin } from './models/source-translation-origin.model';
 
 /**
  * The framework's own sources, as its build scans them for the strings it marks for translation.

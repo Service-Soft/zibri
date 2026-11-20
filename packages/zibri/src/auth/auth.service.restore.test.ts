@@ -1,13 +1,7 @@
 import { afterAll, beforeAll } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { describeLoginsAcrossRestore } from './auth.service.restore.cases';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
-import { FederatedIdentity } from './authenticators/federated/federated-identity.model';
-import { OAuthProviderTokens } from './authenticators/oauth/oauth-provider-tokens.model';
-import { ApiKeyAuthStrategy } from './strategies/api-key/api-key.auth-strategy';
-import { ApiKey } from './strategies/api-key/api-key.model';
-import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
 import { JwtTestAuthController } from '../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -23,6 +17,12 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { Newable } from '../types/newable.type';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { describeLoginsAcrossRestore } from './auth.service.restore.cases';
+import { FederatedIdentity } from './authenticators/federated/federated-identity.model';
+import { OAuthProviderTokens } from './authenticators/oauth/oauth-provider-tokens.model';
+import { ApiKeyAuthStrategy } from './strategies/api-key/api-key.auth-strategy';
+import { ApiKey } from './strategies/api-key/api-key.model';
+import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
 
 const backupFolder: FsPath = FsUtilities.getPath(testFileFolder, `auth-restore-${UUIDUtilities.generate()}`);
 

@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { collectRegions, RegionCollection } from './regions';
 import { parseTemplateOk } from '../../__testing__/parse.helper';
 import { ComponentFunction, findComponents } from '../../semantics/component';
+import { collectRegions, RegionCollection } from './regions';
 
 describe('collectRegions', () => {
     // every pass of a compile reads the regions, and walking the markup of a large page once for each was most of what

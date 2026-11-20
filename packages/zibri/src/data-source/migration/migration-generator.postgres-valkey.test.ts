@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, describe } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { MigrationEntity } from './migration-entity.model';
-import { describeGeneratedMigrations, firstVersionEntities, GeneratedMigrations, generateMigrations, loadGeneratedMigration, secondVersionEntities } from './migration-generator.cases';
-import { Migration } from './migration.model';
 import { TestServerTimeouts, TestTimeouts } from '../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
@@ -14,6 +11,9 @@ import { Newable } from '../../types/newable.type';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
+import { MigrationEntity } from './migration-entity.model';
+import { describeGeneratedMigrations, firstVersionEntities, GeneratedMigrations, generateMigrations, loadGeneratedMigration, secondVersionEntities } from './migration-generator.cases';
+import { Migration } from './migration.model';
 
 const timeouts: TestServerTimeouts = TestTimeouts.resolveCombined('inMemory', 'postgres', 'valKey');
 

@@ -1,5 +1,3 @@
-import { type UniqueConstraintViolationError } from './unique-constraint-violation.error';
-import { PropertyReferenceUtilities } from './where/property-reference.utilities';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -15,6 +13,8 @@ import { Newable } from '../types/newable.type';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { type ValidationProblem } from '../validation/validation-problem.model';
+import { type UniqueConstraintViolationError } from './unique-constraint-violation.error';
+import { PropertyReferenceUtilities } from './where/property-reference.utilities';
 
 /**
  * An error for a write that a check of its entity refuses.

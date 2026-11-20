@@ -31,7 +31,7 @@ function main() {
     if (version == undefined) {
         throw new Error('usage: node release-notes.mjs <version>');
     }
-    const changelog = readFileSync(path.join(repoRoot, 'CHANGELOG.md'), 'utf8');
+    const changelog = readFileSync(path.join(repoRoot, 'packages', 'zibri', 'docs', 'releases', 'CHANGELOG.md'), 'utf8');
     process.stdout.write(`${resolveReleaseNotes(changelog, version)}\n`);
 }
 

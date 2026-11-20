@@ -37,10 +37,10 @@ describe('a table of a page, in a browser', () => {
 
     /**
      * Opens a page of the documentation.
-     * @param path - Its path below `/zibri/`, such as `data/data-source`.
+     * @param pagePath - Its path below `/zibri/`, such as `data/data-source`.
      */
-    async function open(path: string): Promise<void> {
-        await page.goto(`${origin}/zibri/${path}/`);
+    async function open(pagePath: string): Promise<void> {
+        await page.goto(`${origin}/zibri/${pagePath}/`);
     }
 
     beforeAll(async () => {

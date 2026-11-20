@@ -229,7 +229,8 @@ export class MetricsController {
             MetricsPage,
             { version, cacheNames, rateLimiterNames, primary: '#0e456f', secondary: '#00b4d8' }
         );
-        return HtmlResponse.fromString(html);
+        // a promise, which is what @Cached takes a method to return, of a page rendered at once
+        return Promise.resolve(HtmlResponse.fromString(html));
     }
 }
 ```

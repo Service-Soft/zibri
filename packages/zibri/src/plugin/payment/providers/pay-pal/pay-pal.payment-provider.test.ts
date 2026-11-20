@@ -5,7 +5,6 @@ import { parseEnv } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { Browser, chromium, Page } from 'playwright';
 
-import { PayPalPaymentData, PayPalPaymentProvider, PayPalPaymentProviderPaymentData, PayPalValidatedPaymentData } from './pay-pal.payment-provider';
 import { testFileFolder, TestTimeouts } from '../../../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../__testing__/test-server/providers';
@@ -29,6 +28,7 @@ import { Payment } from '../../models/payment.model';
 import { ZibriPaymentPlugin } from '../../payment.plugin';
 import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from '../../payment.tokens';
 import { PaymentServiceInterface } from '../../services/payment-service.interface';
+import { PayPalPaymentData, PayPalPaymentProvider, PayPalPaymentProviderPaymentData, PayPalValidatedPaymentData } from './pay-pal.payment-provider';
 
 const testDir: FsPath = FsUtilities.getPath(testFileFolder, 'pay-pal-payment-provider');
 

@@ -4,12 +4,6 @@ import { setTimeout } from 'node:timers/promises';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { TOTP } from 'otpauth';
 
-import { InvalidTwoFactorCodeError } from './invalid-two-factor-code.error';
-import { OtpCodeAlreadyUsedError } from './methods/otp/otp-code-already-used.error';
-import { OtpCredentials } from './methods/otp/otp-credentials.model';
-import { TwoFactorFailureStreak } from './two-factor-failure-streak.model';
-import { TwoFactorServiceInterface } from './two-factor-service.interface';
-import { TwoFactorThrottledError } from './two-factor-throttled.error';
 import { TestTimeouts } from '../../__testing__/constants';
 import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
@@ -30,11 +24,17 @@ import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { Ms } from '../../utilities/ms';
 import { BaseUserEntity } from '../models/base-user.model';
 import { BaseUserRepository } from '../user/base-user-repository.model';
+import { InvalidTwoFactorCodeError } from './invalid-two-factor-code.error';
+import { OtpCodeAlreadyUsedError } from './methods/otp/otp-code-already-used.error';
+import { OtpCredentials } from './methods/otp/otp-credentials.model';
 import { OtpTwoFactorMethod } from './methods/otp/otp.two-factor-method';
 import { OTP_PERIOD_IN_SECONDS } from './methods/otp/otp.utilities';
-import { Ms } from '../../utilities/ms';
+import { TwoFactorFailureStreak } from './two-factor-failure-streak.model';
+import { TwoFactorServiceInterface } from './two-factor-service.interface';
+import { TwoFactorThrottledError } from './two-factor-throttled.error';
 
 // allowed to go unused, because the starting case boots without it
 @Entity({ tenant: 'shared', allowOrphan: true })

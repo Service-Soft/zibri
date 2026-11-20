@@ -1,5 +1,3 @@
-import { OAuth2ErrorCode } from './oauth2-error-code.enum';
-import { OAuth2ErrorOptions } from './oauth2-error-options.model';
 import { CustomBodyHttpError } from '../../error-handling/errors/custom-body-http.error';
 import { HttpStatus } from '../../http/http-status.enum';
 import { JsonMimeType } from '../../http/json-mime-type.type';
@@ -7,6 +5,8 @@ import { KnownHeader } from '../../http/known-header.enum';
 import { MimeType } from '../../http/mime-type.enum';
 import { TranslatedString } from '../../localization/models/translated-string.model';
 import { $ts } from '../../localization/translate.function';
+import { OAuth2ErrorCode } from './oauth2-error-code.enum';
+import { OAuth2ErrorOptions } from './oauth2-error-options.model';
 
 /**
  * An error answered the way OAuth2 says errors look (RFC 6749, 5.2).

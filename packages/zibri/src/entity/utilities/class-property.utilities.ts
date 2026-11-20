@@ -100,6 +100,36 @@ export abstract class ClassPropertyUtilities {
         }
 
         ClassPropertyUtilities.carryControllerChecks(TargetClass, SourceClass, baseRoutes.map(route => route.controllerMethod));
+        // the copy's constructor runs none of the source's, so whoever instantiates it can check
+        // that the source sets nothing up there
+        MetadataUtilities.addCopiedFrom(TargetClass, SourceClass);
+    }
+
+    /**
+     * Resolves the classes the members of a class were copied from, by `OmitClass`, `PickClass` and
+     * `IntersectionClass`: those of the class and of every class it extends, and those they were
+     * copied from in turn.
+     * @param cls - The class.
+     * @returns The classes, each once.
+     */
+    static resolveCopiedFrom(cls: Function): Newable<unknown>[] {
+        const res: Set<Newable<unknown>> = new Set();
+        const pending: Function[] = [cls];
+        for (let next: Function | undefined = pending.pop(); next != undefined; next = pending.pop()) {
+            for (
+                let inChain: unknown = next;
+                typeof inChain === 'function' && inChain !== Function.prototype;
+                inChain = Object.getPrototypeOf(inChain)
+            ) {
+                for (const source of MetadataUtilities.getOwnCopiedFrom(inChain)) {
+                    if (!res.has(source)) {
+                        res.add(source);
+                        pending.push(source);
+                    }
+                }
+            }
+        }
+        return [...res];
     }
 
     /**

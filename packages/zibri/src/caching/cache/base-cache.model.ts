@@ -8,12 +8,12 @@ import { CacheMetrics } from '../cache-metrics.model';
 import { CacheServiceInterface } from '../cache-service.interface';
 import { CacheSingleFlight } from '../cache-single-flight.model';
 import { CacheTagMatcher } from '../cache-tag-matchers';
-import { CacheOperation } from './cache-operation.enum';
-import { CacheKeyProvider, CacheSetDirectOptions, CacheTagsProvider, CacheTtlProvider, CacheWrapDeleteOptions, CacheWrapInvalidateOptions, OnInvalidationFailure, ResultCacheTagsProvider, ResultCacheTtlProvider } from './cache-options.model';
-import { CacheInterface } from './cache.interface';
 import { CacheStoreInterface } from '../store/cache-store.interface';
 import { CachedValue } from '../store/cached-value.model';
 import { FillGuardedCacheStore } from '../store/fill-guarded.cache-store';
+import { CacheOperation } from './cache-operation.enum';
+import { CacheKeyProvider, CacheSetDirectOptions, CacheTagsProvider, CacheTtlProvider, CacheWrapDeleteOptions, CacheWrapInvalidateOptions, OnInvalidationFailure, ResultCacheTagsProvider, ResultCacheTtlProvider } from './cache-options.model';
+import { CacheInterface } from './cache.interface';
 
 /**
  * Shared base class of all caches.

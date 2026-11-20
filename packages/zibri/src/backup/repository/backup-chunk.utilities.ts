@@ -2,9 +2,9 @@ import { createHash, createHmac, Hash, randomBytes, webcrypto } from 'node:crypt
 import { promisify } from 'node:util';
 import { constants, zstdCompress, zstdDecompress } from 'node:zlib';
 
+import { InternalError } from '../../error-handling/internal-error.model';
 import { BackupRepositoryKey } from './backup-repository-key.model';
 import { FetchedBackupChunk } from './fetched-backup-chunk.model';
-import { InternalError } from '../../error-handling/internal-error.model';
 
 /**
  * How zstd compresses a chunk.

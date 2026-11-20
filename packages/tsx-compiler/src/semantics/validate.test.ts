@@ -4,9 +4,9 @@ import { join } from 'node:path';
 import { describe, expect, it } from '@jest/globals';
 import { Diagnostic } from 'zibri-tsx';
 
-import { validate, ValidationCode } from './validate';
 import { parseTemplateOk } from '../__testing__/parse.helper';
 import { collectTsxFiles, resolveTemplateName } from '../__testing__/sandbox.helper';
+import { validate, ValidationCode } from './validate';
 
 function diagnose(source: string): Diagnostic[] {
     return validate(parseTemplateOk(source));

@@ -1,11 +1,5 @@
 import { buffer } from 'node:stream/consumers';
 
-import { BackupChunkIndex } from './backup-chunk-index.model';
-import { BackupChunkUtilities } from './backup-chunk.utilities';
-import { BackupManifestChunks } from './backup-manifest-chunks.model';
-import { BackupRepositoryKey } from './backup-repository-key.model';
-import { BackupScrubOptions } from './backup-scrub-options.model';
-import { Format2BackupLayout } from './format-2.backup-layout';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -21,6 +15,12 @@ import { BackupStatus } from '../backup-status.enum';
 import { InitBackupServiceError } from '../init-backup-service.error';
 import { BackupTransportSessionInterface } from '../transports/backup-transport-session.interface';
 import { BackupTransportSupporting } from '../transports/backup-transport.interface';
+import { BackupChunkIndex } from './backup-chunk-index.model';
+import { BackupChunkUtilities } from './backup-chunk.utilities';
+import { BackupManifestChunks } from './backup-manifest-chunks.model';
+import { BackupRepositoryKey } from './backup-repository-key.model';
+import { BackupScrubOptions } from './backup-scrub-options.model';
+import { Format2BackupLayout } from './format-2.backup-layout';
 
 /**
  * How many chunks one window deletes: one request of the S3 transport.

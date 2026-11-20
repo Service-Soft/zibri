@@ -1,5 +1,5 @@
-import { MigrationPropertyMetadata } from './migration-property-metadata.model';
 import { BigNumber } from '../../utilities/number.utilities';
+import { MigrationPropertyMetadata } from './migration-property-metadata.model';
 
 /**
  * Metadata naming the enum a string property holds the members of.

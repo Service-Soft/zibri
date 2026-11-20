@@ -248,11 +248,11 @@ export function describeTenantIsolation(name: string, getRepositories: () => Ten
             const created: TenantProject = await projects().create({ name: 'created across', tenantId: tenantB }, { acrossTenants: true });
             expect([created.tenantId, created.tasks]).toEqual([tenantB, []]);
 
-            const name: string = 'upserted across';
+            const projectName: string = 'upserted across';
             const upserted: TenantProject = await projects().upsert(
-                { name },
-                { name, tenantId: tenantB },
-                { name: { set: name } },
+                { name: projectName },
+                { name: projectName, tenantId: tenantB },
+                { name: { set: projectName } },
                 { acrossTenants: true }
             );
             expect([upserted.tenantId, upserted.tasks]).toEqual([tenantB, []]);

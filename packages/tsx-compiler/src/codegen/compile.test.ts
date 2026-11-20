@@ -4,10 +4,10 @@ import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from '@jest/globals';
 import { createContext, DiagnosticSeverity } from 'zibri-tsx';
 
-import { compile, CompileResult } from './compile';
 import { isCompiledPage, loadCjs, renderTestPage } from '../__testing__/server-render.helper';
 import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols';
 import { ValidationCode } from '../semantics/validate';
+import { compile, CompileResult } from './compile';
 
 // The emitted module is ESM, so `new Function` cannot validate it — but TypeScript's parser handles
 // import/export, so it asserts the emitted source is syntactically valid.

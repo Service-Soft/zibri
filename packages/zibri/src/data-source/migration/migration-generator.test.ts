@@ -6,12 +6,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import ts from 'typescript';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { EntitySnapshot } from './entity-snapshot.model';
-import { EntitySnapshotUtilities } from './entity-snapshot.utilities';
-import { MigratedEntityUtilities } from './migrated-entity.utilities';
-import { DATA_SOURCE_IMPORT, describeGeneratedMigrations, firstVersionEntities, GeneratedMigrations, generateMigrations, GenNote, loadGeneratedMigration, secondVersionEntities } from './migration-generator.cases';
-import { GeneratedMigration, MigrationGeneratorUtilities } from './migration-generator.utilities';
-import { Migration } from './migration.model';
 import { testFileFolder, TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -24,6 +18,12 @@ import { Newable } from '../../types/newable.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { DataSource } from '../decorators/data-source.decorator';
 import { RepositoryClass } from '../repository/repository-class.type';
+import { EntitySnapshot } from './entity-snapshot.model';
+import { EntitySnapshotUtilities } from './entity-snapshot.utilities';
+import { MigratedEntityUtilities } from './migrated-entity.utilities';
+import { DATA_SOURCE_IMPORT, describeGeneratedMigrations, firstVersionEntities, GeneratedMigrations, generateMigrations, GenNote, loadGeneratedMigration, secondVersionEntities } from './migration-generator.cases';
+import { GeneratedMigration, MigrationGeneratorUtilities } from './migration-generator.utilities';
+import { Migration } from './migration.model';
 
 /**
  * The note of the first version, with a text no two notes share.

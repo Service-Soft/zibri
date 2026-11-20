@@ -1,5 +1,3 @@
-import { RemovalReach } from './removal-reach.model';
-import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface, STREAM_BATCH_SIZE } from './repository-driver.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator';
 import { EntityOrderUtilities, OrderKey } from '../../entity/models/entity-order.utilities';
@@ -39,6 +37,8 @@ import { UniqueConstraintViolationError } from '../unique-constraint-violation.e
 import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
 import { keyWhereToSql } from '../where/key-where-to-sql.function';
 import { WriteDataUtilities } from '../write-data.utilities';
+import { RemovalReach } from './removal-reach.model';
+import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface, STREAM_BATCH_SIZE } from './repository-driver.interface';
 
 /**
  * The alias the rows of the entity are read and written under.

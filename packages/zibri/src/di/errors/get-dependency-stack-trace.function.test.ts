@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { getDependencyStackTrace } from './get-dependency-stack-trace.function';
 import { Injectable } from '../decorators/injectable.decorator';
+import { getDependencyStackTrace } from './get-dependency-stack-trace.function';
 
 class First {}
 

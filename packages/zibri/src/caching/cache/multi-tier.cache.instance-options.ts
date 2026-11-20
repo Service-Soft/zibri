@@ -1,7 +1,5 @@
 import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
-import { MultiTierCache } from './multi-tier.cache';
-import { WriteThroughReadThroughCache } from './read-through/write-through-read-through.cache';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestValKeyEntities } from '../../__testing__/test-server/create-test-val-key-data-source.function';
 import { testServerPasswordPolicyProvider } from '../../__testing__/test-server/providers';
@@ -24,6 +22,8 @@ import { type CacheServiceInterface } from '../cache-service.interface';
 import { Cache } from '../decorators/cache.decorator';
 import { InMemoryCacheStore } from '../store/in-memory.cache-store';
 import { ValKeyCacheStore } from '../store/val-key.cache-store';
+import { MultiTierCache } from './multi-tier.cache';
+import { WriteThroughReadThroughCache } from './read-through/write-through-read-through.cache';
 
 /**
  * What every instance of the caching cluster boots with.

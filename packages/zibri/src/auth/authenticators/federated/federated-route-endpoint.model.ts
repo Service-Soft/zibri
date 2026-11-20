@@ -1,5 +1,5 @@
-import { FederatedRoute } from './federated-route.type';
 import { HttpMethod } from '../../../http/http-method.enum';
+import { FederatedRoute } from './federated-route.type';
 
 /**
  * A route whose url an authenticator gives out, and the method the browser requests that url with.

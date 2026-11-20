@@ -1,4 +1,3 @@
-import { RouteParamMetadata } from './route-param-metadata.model';
 import { type CurrentUser } from '../auth/decorators/current-user.decorator';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
@@ -8,6 +7,7 @@ import { inject } from '../di/inject.function';
 import { InternalError } from '../error-handling/internal-error.model';
 import { ParserInterface } from '../parsing/parser.interface';
 import { ValidationServiceInterface } from '../validation/validation-service.interface';
+import { RouteParamMetadata } from './route-param-metadata.model';
 
 /**
  * Utilities for the arguments a route handler is called with.

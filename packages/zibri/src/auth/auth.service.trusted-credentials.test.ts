@@ -1,10 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, RoundTripCounter } from 'zibri-testing';
 
-import { definePermissions, definePlatformPermissions } from './roles/define-permissions.function';
-import { ZIBRI_PERMISSIONS, ZIBRI_PLATFORM_PERMISSIONS } from './roles/zibri-permissions.model';
 import { TestTimeouts } from '../__testing__/constants';
-import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
 import { JwtTestAuthController } from '../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { TestMembership } from '../__testing__/mocks/entities/test-membership.entity';
@@ -12,8 +9,6 @@ import { defaultTestServerEntities, defaultTestServerRepositories } from '../__t
 import { DefaultTestServerMembershipRepository } from '../__testing__/test-server/membership-repository';
 import { defaultTestServerProviders, rolesAndPermissionsProviders, TestServerRole } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
-import { Auth } from './decorators/auth.decorator';
 import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -26,6 +21,11 @@ import { Get } from '../routing/decorators/get.decorator';
 import { type TenantServiceInterface } from '../tenancy/tenant-service.interface';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
+import { Auth } from './decorators/auth.decorator';
+import { definePermissions, definePlatformPermissions } from './roles/define-permissions.function';
+import { ZIBRI_PERMISSIONS, ZIBRI_PLATFORM_PERMISSIONS } from './roles/zibri-permissions.model';
+import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
 
 // eslint-disable-next-line typescript/typedef
 const Permissions = definePermissions([...ZIBRI_PERMISSIONS, 'invoices.read', 'invoices.export'] as const);

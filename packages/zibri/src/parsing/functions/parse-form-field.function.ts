@@ -1,3 +1,5 @@
+import { PropertyMetadata } from '../../entity/decorators/property.decorator';
+import { Relation } from '../../entity/models/relation.enum';
 import { parseArray } from './parse-array.function';
 import { parseBoolean } from './parse-boolean.function';
 import { parseDate } from './parse-date.function';
@@ -5,8 +7,6 @@ import { parseNumber } from './parse-number.function';
 import { parseObject } from './parse-object.function';
 import { parseOneOf } from './parse-one-of.function';
 import { parseString } from './parse-string.function';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { Relation } from '../../entity/models/relation.enum';
 
 /**
  * Reads the text of a form field as the property it fills.
