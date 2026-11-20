@@ -1,5 +1,3 @@
-import { RemovalReach } from './removal-reach.model';
-import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { AggregateRow } from '../models/aggregate.model';
@@ -10,6 +8,8 @@ import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
 import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
 import { Transaction } from '../transaction/transaction.model';
+import { RemovalReach } from './removal-reach.model';
+import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
 
 /**
  * A driver that hands every operation to the one it wraps.

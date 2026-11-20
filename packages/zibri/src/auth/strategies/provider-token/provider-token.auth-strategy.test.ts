@@ -3,7 +3,6 @@ import { randomBytes, X509Certificate } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createFakeKeyPair, createInMemoryDataSource, FakeDpopKey, FakeKeyPair, FakeOAuthProvider, InMemoryDataSource, startFakeOAuthProvider } from 'zibri-testing';
 
-import { ProviderTokenAuthStrategy } from './provider-token.auth-strategy';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
@@ -39,6 +38,7 @@ import { BaseClientCertificateAuthStrategy } from '../client-certificate/base-cl
 import { ClientCertificateHeaderFormat } from '../client-certificate/client-certificate-header-format.type';
 import { JwtAuthStrategy } from '../jwt/jwt.auth-strategy';
 import { JwtUtilities } from '../jwt/jwt.utilities';
+import { ProviderTokenAuthStrategy } from './provider-token.auth-strategy';
 
 // where the application is reached from the outside, which a DPoP proof names
 const PUBLIC_URL: string = 'http://zibri.test';

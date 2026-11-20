@@ -70,13 +70,13 @@ function packet(event: string, length: number): Buffer {
 
 /**
  * Pushes bytes through a fresh scanner, in pieces.
- * @param pieces - The pieces.
+ * @param chunks - The pieces.
  * @returns The refusal, if any piece caused one, and after how many bytes.
  */
-function scan(pieces: Buffer[]): { refusal: WebsocketMessageRefusal | undefined, afterBytes: number } {
+function scan(chunks: Buffer[]): { refusal: WebsocketMessageRefusal | undefined, afterBytes: number } {
     const scanner: WebsocketFrameScanner = new WebsocketFrameScanner(new WebsocketMessageSizeScanner(resolveLimit));
     let afterBytes: number = 0;
-    for (const piece of pieces) {
+    for (const piece of chunks) {
         afterBytes += piece.length;
         const refusal: WebsocketMessageRefusal | undefined = scanner.push(piece);
         if (refusal != undefined) {

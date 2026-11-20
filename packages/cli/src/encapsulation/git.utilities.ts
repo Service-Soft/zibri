@@ -1,8 +1,8 @@
 import { createHash } from 'crypto';
 
+import { getPath, Path } from '../utilities';
 import { CPUtilities, ProcessResult } from './cp.utilities';
 import { FsUtilities } from './fs.utilities';
-import { getPath, Path } from '../utilities';
 
 /**
  * Three versions of a file merged into one.

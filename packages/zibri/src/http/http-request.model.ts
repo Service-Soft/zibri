@@ -1,8 +1,8 @@
 import { Request } from 'express';
 
+import { OmitStrict } from '../types/omit-strict.type';
 import { Header } from './header.type';
 import { HttpMethod } from './http-method.enum';
-import { OmitStrict } from '../types/omit-strict.type';
 
 /**
  * Http request. Based on Request from express.

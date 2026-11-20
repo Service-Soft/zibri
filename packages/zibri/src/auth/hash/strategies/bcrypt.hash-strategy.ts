@@ -1,6 +1,6 @@
-import { HashStrategyInterface } from './hash-strategy.interface';
 import { optionalPeer } from '../../../utilities/optional-peer.function';
 import { HashContent, HashString, HashUtilities } from '../hash.utilities';
+import { HashStrategyInterface } from './hash-strategy.interface';
 
 /**
  * Options for hashing via the bcrypt hash strategy.

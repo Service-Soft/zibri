@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { eventLeaseInMs, slowHookWorkInMs } from './event.service.instance-options';
 import { TestTimeouts } from '../__testing__/constants';
 import { FsUtilities } from '../utilities/fs.utilities';
 import { Ms } from '../utilities/ms';
+import { eventLeaseInMs, slowHookWorkInMs } from './event.service.instance-options';
 
 /**
  * Docs/events.md promises that events survive restarts and are retried until every subscriber

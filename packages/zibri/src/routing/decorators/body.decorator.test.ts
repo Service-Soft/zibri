@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { BodyMetadata } from './body-metadata.model';
 import { Body } from './body.decorator';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
 
 /**
  * What the shapes of a body can be declared with.

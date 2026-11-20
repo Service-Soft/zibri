@@ -4,11 +4,6 @@ import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, test } from '@jest/globals';
 import { createInMemoryDataSource, testMasterKey } from 'zibri-testing';
 
-import { EncryptionMasterKey } from './encryption-master-options.model';
-import { EncryptionServiceInterface } from './encryption-service.interface';
-import { EncryptionString, EncryptionUtilities } from './encryption.utilities';
-import { SigningKey, SigningKeyCreateData } from './signing-key.model';
-import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
@@ -18,6 +13,11 @@ import { repositoryTokenFor } from '../../di/decorators/inject-repository.decora
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
+import { EncryptionMasterKey } from './encryption-master-options.model';
+import { EncryptionServiceInterface } from './encryption-service.interface';
+import { EncryptionString, EncryptionUtilities } from './encryption.utilities';
+import { SigningKey, SigningKeyCreateData } from './signing-key.model';
+import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
 
 const replacementMasterKey: EncryptionMasterKey<Buffer> = {
     id: 'mk2',

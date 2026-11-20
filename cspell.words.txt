@@ -404,3 +404,5 @@ blpop
 MMAP
 schedstat
 Schedstat
+deactivatable
+Partialized

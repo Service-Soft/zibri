@@ -1,12 +1,12 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { PaymentServiceInterface } from './payment-service.interface';
-import { AllowedCancellationMethods, AllowedRefundMethods, AllowedReservationMethods, PaymentDataForMethod, PaymentForMethod, ValidatedPaymentDataForMethod } from './payment-service.types';
 import { NumberUtilities } from '../../../utilities/number.utilities';
 import { KnownPaymentMethod } from '../models/payment-method.model';
 import { PaymentPluginOptionsInput } from '../models/payment-plugin-options-input.model';
 import { PayPalPaymentProvider } from '../providers/pay-pal/pay-pal.payment-provider';
 import { PaymentProviderInterface } from '../providers/payment-provider.interface';
+import { PaymentServiceInterface } from './payment-service.interface';
+import { AllowedCancellationMethods, AllowedRefundMethods, AllowedReservationMethods, PaymentDataForMethod, PaymentForMethod, ValidatedPaymentDataForMethod } from './payment-service.types';
 
 /**
  * What a card payment of the test's card provider is made with.

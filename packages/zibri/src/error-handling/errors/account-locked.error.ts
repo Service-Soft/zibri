@@ -1,5 +1,5 @@
-import { ForbiddenError } from './forbidden.error';
 import { $ts } from '../../localization/translate.function';
+import { ForbiddenError } from './forbidden.error';
 
 /**
  * An error to throw when a user whose account is locked after too many wrong two factor codes tries to

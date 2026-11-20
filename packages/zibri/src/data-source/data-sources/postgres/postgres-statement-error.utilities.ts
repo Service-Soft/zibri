@@ -1,5 +1,3 @@
-import { PostgresSchemaManager } from './postgres-schema-manager.model';
-import { PostgresStatement } from './postgres-sql.utilities';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { KeyWhere } from '../../../entity/models/unique-declaration.model';
 import { Newable } from '../../../types/newable.type';
@@ -9,6 +7,8 @@ import { MistypedStoredValue, StoredValueTypeMismatchError } from '../../stored-
 import { TransactionDeadlockError } from '../../transaction/transaction-deadlock.error';
 import { TransactionSerializationError } from '../../transaction/transaction-serialization.error';
 import { UniqueConstraintViolationError } from '../../unique-constraint-violation.error';
+import { PostgresSchemaManager } from './postgres-schema-manager.model';
+import { PostgresStatement } from './postgres-sql.utilities';
 
 /**
  * The sql state postgres reports a unique violation under.

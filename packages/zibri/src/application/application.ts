@@ -4,9 +4,6 @@ import { Duplex } from 'node:stream';
 
 import express, { ErrorRequestHandler, RequestHandler } from 'express';
 
-import { AppCommand } from './app-command.model';
-import { HstsOptions, ZibriApplicationOptions, ZibriApplicationSecurityOptions } from './application-options.model';
-import { ZIBRI_ENVIRONMENTS } from './zibri-environment.type';
 import { OtpTwoFactorMethod } from '../auth/2fa/methods/otp/otp.two-factor-method';
 import { isTwoFactorMethod } from '../auth/2fa/methods/two-factor-method.interface';
 import { PasswordAuthenticator } from '../auth/authenticators/password/password.authenticator';
@@ -68,6 +65,9 @@ import { Ms } from '../utilities/ms';
 import { NumberUtilities } from '../utilities/number.utilities';
 import { PromiseUtilities } from '../utilities/promise.utilities';
 import { RequiredEntities } from '../utilities/required-entities.model';
+import { AppCommand } from './app-command.model';
+import { HstsOptions, ZibriApplicationOptions, ZibriApplicationSecurityOptions } from './application-options.model';
+import { ZIBRI_ENVIRONMENTS } from './zibri-environment.type';
 
 /**
  * The options of a built application, with every default filled in.
@@ -713,8 +713,8 @@ export class ZibriApplication {
             case AppState.STARTED: {
                 this.logger.info('shutting down...');
                 GlobalRegistry.markAppAsShuttingDown();
-                for (const [signal, handler] of this.signalHandlers) {
-                    process.off(signal, handler);
+                for (const [handledSignal, handler] of this.signalHandlers) {
+                    process.off(handledSignal, handler);
                 }
                 this.removeErrorHandlers();
 

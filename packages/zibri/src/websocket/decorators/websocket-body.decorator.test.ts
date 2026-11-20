@@ -1,11 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { WebsocketBody } from './websocket-body.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
 import { MimeType } from '../../http/mime-type.enum';
 import { BodyMetadata } from '../../routing/decorators/body-metadata.model';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { WebsocketBody } from './websocket-body.decorator';
 
 class Message {
     @Property.string()

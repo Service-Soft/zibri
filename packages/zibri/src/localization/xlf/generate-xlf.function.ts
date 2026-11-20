@@ -1,12 +1,12 @@
+import { XmlString } from '../../document/xml-string.type';
+import { XmlWriterUtilities } from '../../document/xml-writer.utilities';
+import { XmlUtilities } from '../../document/xml.utilities';
+import { ObjectUtilities } from '../../utilities/object.utilities';
 import { ExtractedTranslationString } from './models/extracted-translation-string.model';
 import { XliffDocument } from './models/xliff-document.model';
 import { XliffFile } from './models/xliff-file.model';
 import { XliffSegment } from './models/xliff-segment.model';
 import { XliffTransUnit } from './models/xliff-trans-unit.model';
-import { XmlString } from '../../document/xml-string.type';
-import { XmlWriterUtilities } from '../../document/xml-writer.utilities';
-import { XmlUtilities } from '../../document/xml.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type CollectedString = {

@@ -3,7 +3,6 @@ import assert from 'node:assert';
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { PasswordCredentials, PasswordCredentialsCreateData } from './password-credentials.model';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
@@ -42,6 +41,7 @@ import { HashStrategyEntity, HashStrategyEntityCreateData, HashStrategyStatus } 
 import { ScryptHashStrategy } from '../../hash/strategies/scrypt.hash-strategy';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
 import { PasswordPolicy } from '../../password-policy/password-policy.model';
+import { PasswordCredentials, PasswordCredentialsCreateData } from './password-credentials.model';
 
 /**
  * The providers of this repository's test servers, without a password policy.

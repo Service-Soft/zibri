@@ -1,11 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
-import { AppendOnlyUtilities } from './append-only.utilities';
-import { OwnedRowsEntry, OwnedRowWriter } from './owned-row.writer';
-import { OwnedRowsById } from './owned-rows-by-id.type';
-import { PreparedUpsert } from './prepared-upsert.model';
-import { ReferenceValidator } from './reference.validator';
-import { UpsertWriter } from './upsert.writer';
 import { type AuthServiceInterface } from '../../auth/auth-service.interface';
 import { type UserServiceInterface } from '../../auth/user/user-service.interface';
 import { AlsUtilities } from '../../context/als.utilities';
@@ -104,6 +98,12 @@ import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
 import { validateWriteIsNotBlind } from '../validate-write-is-not-blind.function';
 import { dropImpossibleConditions } from '../where/drop-impossible-conditions.function';
 import { WriteDataUtilities } from '../write-data.utilities';
+import { AppendOnlyUtilities } from './append-only.utilities';
+import { OwnedRowsEntry, OwnedRowWriter } from './owned-row.writer';
+import { OwnedRowsById } from './owned-rows-by-id.type';
+import { PreparedUpsert } from './prepared-upsert.model';
+import { ReferenceValidator } from './reference.validator';
+import { UpsertWriter } from './upsert.writer';
 
 /**
  * How many rows a bulk update may touch before it says out loud that it is writing them one by one.

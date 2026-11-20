@@ -1,6 +1,6 @@
+import { ObjectUtilities } from '../utilities/object.utilities';
 import { FileExtension, mimeTypeToExtensions } from './file-extension.model';
 import { FileMimeType, LooseFileMimeType, MimeType } from './mime-type.enum';
-import { ObjectUtilities } from '../utilities/object.utilities';
 
 /**
  * Utilities for mime types: reading them from file paths, and telling what kind of content they are.

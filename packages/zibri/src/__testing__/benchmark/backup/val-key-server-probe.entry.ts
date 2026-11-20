@@ -4,9 +4,9 @@
 import { connect, Socket } from 'node:net';
 import { setTimeout as wait } from 'node:timers/promises';
 
+import { JsonUtilities } from '../../../utilities/json.utilities';
 import { ValKeyServerMeasurement } from './backup-measurement.model';
 import { VALKEY_PROBE_ADDRESS_ENV, ValKeyProbeAddress, ValKeyProbeCommand, ValKeyProbeMessage } from './val-key-server-probe.model';
-import { JsonUtilities } from '../../../utilities/json.utilities';
 
 /**
  * How long the probe waits between an answer and its next question: often enough to tell a pause of the

@@ -2,8 +2,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
-import { PostgresPooler } from './postgres-pooler.model';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { queryPostgres } from '../../../__testing__/query-postgres.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -25,6 +23,8 @@ import { Repository } from '../../repository/repository';
 import { RepositoryClass } from '../../repository/repository-class.type';
 import { Transaction } from '../../transaction/transaction.model';
 import { DataSourceSubscription } from '../pub-sub-data-source.interface';
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
+import { PostgresPooler } from './postgres-pooler.model';
 
 /**
  * A data source behind PgBouncer in transaction mode, where each transaction may run on another

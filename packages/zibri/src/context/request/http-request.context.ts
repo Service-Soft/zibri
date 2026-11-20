@@ -1,9 +1,9 @@
 
-import { BaseContext } from '../base-context';
-import { RequestContextToken } from './request-context-token.model';
 import { HttpRequest } from '../../http/http-request.model';
 import { HttpResponse } from '../../http/http-response.model';
 import { Newable } from '../../types/newable.type';
+import { BaseContext } from '../base-context';
+import { RequestContextToken } from './request-context-token.model';
 
 /**
  * The context of an incoming http request.

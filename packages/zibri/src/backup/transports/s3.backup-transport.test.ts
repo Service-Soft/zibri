@@ -1,10 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { BackupTransportSessionInterface } from './backup-transport-session.interface';
-import { describeBackupTransport } from './backup-transport.cases';
-import { Format1BackupTransport } from './format-1.backup-transport';
-import { S3BackupTransport } from './s3.backup-transport';
 import { S3StandIn } from '../../__testing__/backup/s3-stand-in.model';
 import { testFileFolder, TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -12,6 +8,10 @@ import { StartedTestServer, startTestServer } from '../../__testing__/test-serve
 import { FsUtilities } from '../../utilities/fs.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { BackupEntity } from '../backup-entity.model';
+import { BackupTransportSessionInterface } from './backup-transport-session.interface';
+import { describeBackupTransport } from './backup-transport.cases';
+import { Format1BackupTransport } from './format-1.backup-transport';
+import { S3BackupTransport } from './s3.backup-transport';
 
 // against the stand-in, which runs wherever the suites run: what is checked is what the store asks of
 // a bucket. What a real service accepts of it, such as its signatures and digests, is checked against

@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, it } from '@jest/globals';
 
-import { Controller } from './decorators/controller.decorator';
-import { Get } from './decorators/get.decorator';
 import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { Controller } from './decorators/controller.decorator';
+import { Get } from './decorators/get.decorator';
 
 @Controller('/versioned', { versions: ['1.0.0'] })
 class VersionedControllerV1 {

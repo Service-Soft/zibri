@@ -29,6 +29,9 @@ A route asks for a permission, and a role carries permissions. You declare every
 | `Auth.hasPermission`, `Auth.hasPlatformPermission` | decorator | A route only reachable when one of the caller's roles carries the permission, see [securing endpoints](../endpoints/creating-endpoints.md#securing-endpoints) |
 | `HasPermissionMetadata` | type | What both decorators declare, and what `auth.hasPermission` and `auth.hasPlatformPermission` of a manually registered route take |
 | `HasPermissionFn` | interface | The type of both decorators: a permission and the strategies allowed, with their `skip` |
+| `Auth.hasAnyLevelPermission` | decorator | A route reachable with a tenant permission or a platform permission, either of which is enough, see [accepting a permission of either level](#accepting-a-permission-of-either-level) |
+| `AnyLevelPermissions` | type | The tenant `permission` and the `platformPermission` that decorator takes |
+| `HasAnyLevelPermissionMetadata`, `HasAnyLevelPermissionFn` | type, interface | What it declares, and what `auth.hasAnyLevelPermission` of a manually registered route takes, and its type, with its `skip` |
 | `CurrentUser` | type | The user a handler or a scope is handed: the user without their roles, with the `permissions` and `platformPermissions` the request may use |
 
 ## Declaring permissions
@@ -51,6 +54,8 @@ export const permissions: PermissionDeclaration = {
 ```
 
 Each permission is named by its value in upper case, with every `.` and `-` turned into `_`: `Permissions.INVOICES_READ` is `'invoices.read'`. A permission is declared at one level, and once, and its name holds no `*`.
+
+`zibri-contract` exports `definePermissions`, `definePlatformPermissions`, `ZIBRI_PERMISSIONS` and `ZIBRI_PLATFORM_PERMISSIONS` as well, the same ones `zibri` exports. Declare the permissions in a library your frontend shares with your api, from `zibri-contract`, which runs in a browser, and import them into the api from there: both name them by the same object.
 
 Provide the declaration to your application:
 
@@ -194,6 +199,31 @@ inject(ZIBRI_DI_TOKENS.ROUTER).registerRoute({
 
 The OpenAPI document carries the permission of a route as `x-permission` and `x-platform-permission`.
 
+## Accepting a permission of either level
+`@Auth.hasAnyLevelPermission` opens a route to a caller whose membership in the tenant of the request carries the tenant permission, and to one whose own roles carry the platform permission. The administrators of a tenant read its invoices through the same route the support of your application reads every tenant's invoices through:
+
+```ts
+// src/controllers/invoice-review.controller.ts
+import { Auth, Controller, Get } from 'zibri';
+
+import { Permissions, PlatformPermissions } from '../models/permissions';
+
+@Controller('/invoice-reviews')
+export class InvoiceReviewController {
+    @Auth.hasAnyLevelPermission({ permission: Permissions.INVOICES_READ, platformPermission: PlatformPermissions.TENANTS_MANAGE })
+    @Get('/')
+    async list(): Promise<unknown> {
+        return [];
+    }
+}
+```
+
+A request naming no tenant passes by the platform permission alone. Each permission is declared at its level, and the [credential](./api-keys.md#what-a-key-may-do) of the request limits both, as it limits every check. A caller holding neither is answered `403`, recorded as `missing-permission`.
+
+The decorator works on a controller as well, and has a `skip`. It stands alone on a route: a route that also gets `@Auth.hasPermission` or `@Auth.hasPlatformPermission`, such as from its controller, skips that one with its `skip`, or the application refuses the route. A manually registered route states it as `auth: { hasAnyLevelPermission: { permission, platformPermission } }`.
+
+The OpenAPI and the AsyncAPI document name both permissions in `x-permission` and `x-platform-permission`, with `x-any-level-permission: true`, and the explorer shows an "or" between them.
+
 ## Managing roles
 The `RoleService` creates, changes and deletes roles, and gives them to users and takes them away. Each of these takes the caller, the `CurrentUser` of the request, and checks what they may do:
 
@@ -202,9 +232,9 @@ The `RoleService` creates, changes and deletes roles, and gives them to users an
 | `createRole`, `updateRole`, `deleteRole` of a role every tenant shares | `auth.create_role`, `auth.update_role`, `auth.delete_role` for a tenant role, `auth.create_platform_role`, `auth.update_platform_role`, `auth.delete_platform_role` for a platform role, as a platform permission |
 | `createRole`, `updateRole`, `deleteRole` of a tenant's own role | `auth.create_tenant_role`, `auth.update_tenant_role`, `auth.delete_tenant_role`, as a tenant permission in the tenant the request acts in |
 | `assignRole`, `unassignRole` of a platform role | `auth.assign_platform_role`, `auth.unassign_platform_role`, as a platform permission |
-| `assignRole`, `unassignRole` of a tenant role | `auth.assign_role`, `auth.unassign_role`, as a tenant permission in the tenant the request acts in |
+| `assignRole`, `unassignRole` of a tenant role | `auth.assign_role`, `auth.unassign_role`, as a tenant permission in the tenant the request acts in, or `auth.assign_role_in_any_tenant.with_any_permission`, `auth.unassign_role_in_any_tenant.with_any_permission` as a platform permission, in whichever tenant is active |
 
-Each of them comes as `.with_any_permission`, for any role, and `.with_own_permissions`, for a role whose every permission the caller holds at its level. A role carrying a wildcard needs `.with_any_permission`, since it carries what a later release declares as well.
+Each of them comes as `.with_any_permission`, for any role, and `.with_own_permissions`, for a role whose every permission the caller holds at its level. A role carrying a wildcard needs `.with_any_permission`, since it carries what a later release declares as well. The two of any tenant come as `.with_any_permission` only, for the support of your application, who holds no permission in the tenant: give a tenant role there from code running in that tenant, such as with `runAs` of the [`TenantService`](../data/tenancy.md#reaching-every-tenant). An [invitation](./invitations.md) is checked the same way.
 
 Roles given to and taken from one user at the same time, by several requests or instances, are all kept: each change waits for the one before it, until that one's transaction has ended. Several changes in one transaction each see the one before. `updateRole` checks the role as it is and as it becomes. A caller who may not is answered `403`, recorded as `missing-permission`.
 
@@ -313,7 +343,7 @@ export class MeController {
 }
 ```
 
-`hasPermission` and `hasPlatformPermission` of the `AuthService` answer the same for the request being handled:
+`hasPermission`, `hasPlatformPermission` and `hasAnyLevelPermission` of the `AuthService` answer the same for the request being handled:
 
 ```ts
 // src/services/may-export.function.ts
@@ -331,7 +361,7 @@ export async function mayExport(): Promise<boolean> {
 
 A permission they are asked for that is not declared at their level is carried by no role: the check answers no, and logs a warning the first time it is asked.
 
-A [scope](../data/data-source.md#what-a-scope-is-told) asks the same with `hasPermission` and `hasPlatformPermission` of the context it is given, or reads the permissions of its `currentUser`.
+A [scope](../data/data-source.md#what-a-scope-is-told) asks the same with `hasPermission`, `hasPlatformPermission` and `hasAnyLevelPermission` of the context it is given, or reads the permissions of its `currentUser`.
 
 The roles a user holds are data you read where they are stored. To find out whether somebody already holds a role in a tenant before giving it to them, read their membership:
 

@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource, RoundTripCounter } from 'zibri-testing';
 
-import { SoftDeleteEntity } from './models/soft-delete-entity.model';
-import { SoftDeleteRepository } from './soft-delete-repository';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -10,6 +8,8 @@ import { inject } from '../../di/inject.function';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
+import { SoftDeleteEntity } from './models/soft-delete-entity.model';
+import { SoftDeleteRepository } from './soft-delete-repository';
 
 /**
  * What the writes of an entity recording change sets cost, as the calls its repositories make on the

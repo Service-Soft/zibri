@@ -1,7 +1,5 @@
 import { randomBytes } from 'node:crypto';
 
-import { RecoveryCodeOptions } from './recovery-code-options.model';
-import { TwoFactorRecoveryCode, TwoFactorRecoveryCodeCreateData } from './two-factor-recovery-code.model';
 import { ZibriApplication } from '../../../../application/application';
 import { HttpRequestContext } from '../../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context';
@@ -26,6 +24,8 @@ import { SecondFactorMissingError } from '../../second-factor-missing.error';
 import { NoRegistrationRequestData } from '../no-registration-request-data.model';
 import { base32Encode } from '../otp/base32-encode.function';
 import { TwoFactorMethod } from '../two-factor-method.interface';
+import { RecoveryCodeOptions } from './recovery-code-options.model';
+import { TwoFactorRecoveryCode, TwoFactorRecoveryCodeCreateData } from './two-factor-recovery-code.model';
 
 /**
  * How many codes a set holds, unless `RECOVERY_CODE_OPTIONS` says.

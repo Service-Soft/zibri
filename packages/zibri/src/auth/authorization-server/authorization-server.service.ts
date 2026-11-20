@@ -1,19 +1,5 @@
 import { createPublicKey, KeyObject, X509Certificate } from 'node:crypto';
 
-import { AuthorizationServerControllerClass } from './authorization-server-controller-class.type';
-import { AuthorizationServerControllerOptions } from './authorization-server-controller-options.model';
-import { isAuthorizationServerControllerClass } from './authorization-server-controller.model';
-import { AuthorizationServerEndpoint } from './authorization-server-endpoint.model';
-import { AuthorizationServerMetadata } from './authorization-server-metadata.model';
-import { AuthorizationServerServiceInterface } from './authorization-server-service.interface';
-import { IntrospectionResponse } from './introspection-response.model';
-import { OAuth2ClientCredentials } from './oauth2-client-credentials.model';
-import { OAuth2ErrorCode } from './oauth2-error-code.enum';
-import { OAuth2ErrorOptions } from './oauth2-error-options.model';
-import { OAuth2Error } from './oauth2.error';
-import { TokenPresentation } from './token-presentation.model';
-import { TokenRequest } from './token-request.model';
-import { TokenResponse } from './token-response.model';
 import { ZibriApplication } from '../../application/application';
 import { type AuditServiceInterface } from '../../audit/audit-service.interface';
 import { HttpRequestContext } from '../../context/request/http-request.context';
@@ -54,6 +40,20 @@ import { JwtRemoteKeySet } from '../strategies/jwt/jwt-remote-key-set.type';
 import { JwtUtilities } from '../strategies/jwt/jwt.utilities';
 import { isTokenIntrospectingAuthStrategy, TokenIntrospectingAuthStrategyInterface } from '../strategies/token-introspecting-auth-strategy.interface';
 import { type UserServiceInterface } from '../user/user-service.interface';
+import { AuthorizationServerControllerClass } from './authorization-server-controller-class.type';
+import { AuthorizationServerControllerOptions } from './authorization-server-controller-options.model';
+import { isAuthorizationServerControllerClass } from './authorization-server-controller.model';
+import { AuthorizationServerEndpoint } from './authorization-server-endpoint.model';
+import { AuthorizationServerMetadata } from './authorization-server-metadata.model';
+import { AuthorizationServerServiceInterface } from './authorization-server-service.interface';
+import { IntrospectionResponse } from './introspection-response.model';
+import { OAuth2ClientCredentials } from './oauth2-client-credentials.model';
+import { OAuth2ErrorCode } from './oauth2-error-code.enum';
+import { OAuth2ErrorOptions } from './oauth2-error-options.model';
+import { OAuth2Error } from './oauth2.error';
+import { TokenPresentation } from './token-presentation.model';
+import { TokenRequest } from './token-request.model';
+import { TokenResponse } from './token-response.model';
 
 /**
  * The only grant the token endpoint issues tokens for.

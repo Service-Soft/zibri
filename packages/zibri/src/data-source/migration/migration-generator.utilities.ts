@@ -1,7 +1,3 @@
-import { EntitySnapshot, SnapshotColumn, SnapshotEntity, SnapshotProperty, SnapshotRelation } from './entity-snapshot.model';
-import { EntitySnapshotUtilities } from './entity-snapshot.utilities';
-import { FrameworkColumnRegistry } from './framework-column.registry';
-import { MigratedEntityUtilities } from './migrated-entity.utilities';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { Relation } from '../../entity/models/relation.enum';
@@ -10,6 +6,10 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { ValueConversionUtilities } from '../value-conversion.utilities';
+import { EntitySnapshot, SnapshotColumn, SnapshotEntity, SnapshotProperty, SnapshotRelation } from './entity-snapshot.model';
+import { EntitySnapshotUtilities } from './entity-snapshot.utilities';
+import { FrameworkColumnRegistry } from './framework-column.registry';
+import { MigratedEntityUtilities } from './migrated-entity.utilities';
 
 /**
  * What generating the migration of one data source is given.

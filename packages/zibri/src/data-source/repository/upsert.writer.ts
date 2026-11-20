@@ -1,6 +1,3 @@
-import { PreparedUpsert } from './prepared-upsert.model';
-import { ReferenceValidator } from './reference.validator';
-import { UpsertWriterContext } from './upsert-writer-context.model';
 import { AlsUtilities } from '../../context/als.utilities';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { EntityMetadata } from '../../entity/decorators/entity.decorator';
@@ -35,6 +32,9 @@ import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
 import { validateWriteIsNotBlind } from '../validate-write-is-not-blind.function';
 import { dropImpossibleConditions } from '../where/drop-impossible-conditions.function';
 import { WriteDataUtilities } from '../write-data.utilities';
+import { PreparedUpsert } from './prepared-upsert.model';
+import { ReferenceValidator } from './reference.validator';
+import { UpsertWriterContext } from './upsert-writer-context.model';
 
 /**
  * What the conflict path of an upsert row sets, prepared the way an update prepares its values.

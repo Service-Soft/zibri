@@ -1,7 +1,7 @@
-import { HttpError } from './http.error';
 import { HttpStatus } from '../../http/http-status.enum';
 import { type MimeType } from '../../http/mime-type.enum';
 import { $ts } from '../../localization/translate.function';
+import { HttpError } from './http.error';
 
 /**
  * A http error to throw when the caller accepts nothing this route can produce.

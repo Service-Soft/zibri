@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { PostgresDataSource } from './postgres-data-source.model';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../../di/inject.function';
@@ -11,6 +10,7 @@ import { TransactionConflictError } from '../../transaction/transaction-conflict
 import { TransactionSerializationError } from '../../transaction/transaction-serialization.error';
 import { Transaction } from '../../transaction/transaction.model';
 import { IsolationLevel } from '../data-source.interface';
+import { PostgresDataSource } from './postgres-data-source.model';
 
 // a serializable transaction that lost to another one
 // failed with the bare query error, which nothing could tell from any other failed statement

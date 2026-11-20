@@ -1,9 +1,9 @@
+import { isScriptUrl } from '../runtime/server-runtime';
 import { defineEmailComponent, TsxComponent } from './define-email-component';
 import { EmailPaddingProps, resolvePaddingOf } from './dimensions';
 import { EmailMarkupUtilities } from './email-markup.utilities';
 import { NavbarBaseUrlContext } from './navbar.context';
 import { withDefaults } from './with-defaults';
-import { isScriptUrl } from '../runtime/server-runtime';
 
 /**
  * Props for {@link MjNavbarLink}.

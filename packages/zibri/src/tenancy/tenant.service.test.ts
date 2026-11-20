@@ -3,8 +3,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/glob
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { TenantServiceInterface } from './tenant-service.interface';
-import { TenantService } from './tenant.service';
 import { TestTimeouts } from '../__testing__/constants';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { MemberRoles } from '../__testing__/mocks/entities/member-roles.enum';
@@ -37,6 +35,8 @@ import { WebsocketRoute } from '../websocket/decorators/websocket-route.decorato
 import { WebsocketMessage } from '../websocket/models/websocket-message.model';
 import { WebsocketOptionsInput } from '../websocket/models/websocket-options.model';
 import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { TenantServiceInterface } from './tenant-service.interface';
+import { TenantService } from './tenant.service';
 
 // the tenant property from the base class, the way an application declares most entities
 @Entity()

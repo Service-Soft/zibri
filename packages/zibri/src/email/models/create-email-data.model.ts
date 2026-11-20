@@ -1,8 +1,8 @@
-import { Email } from './email.model';
 import { IntersectionClass } from '../../entity/intersection-class.model';
 import { OmitClass } from '../../entity/omit-class.model';
 import { PartialClass } from '../../entity/partial-class.model';
 import { PickClass } from '../../entity/pick-class.model';
+import { Email } from './email.model';
 
 /**
  * Data for creating a new email in the db.

@@ -1,6 +1,6 @@
-import { type EmailVerificationPurpose } from './email-verification-purpose.type';
 import { TsxEmailComponent } from '../../tsx/tsx-email-component.model';
 import { UserAccount } from '../models/user-account.model';
+import { type EmailVerificationPurpose } from './email-verification-purpose.type';
 
 /**
  * Properties of the email a link to verify an address is sent in.

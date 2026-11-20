@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Controller } from './decorators/controller.decorator';
-import { Get } from './decorators/get.decorator';
-import { type RouterInterface } from './router.interface';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -14,6 +11,9 @@ import { HttpMethod } from '../http/http-method.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { Response } from '../open-api/decorators/response.decorator';
+import { Controller } from './decorators/controller.decorator';
+import { Get } from './decorators/get.decorator';
+import { type RouterInterface } from './router.interface';
 
 class Resource {
     @Property.string()

@@ -4,9 +4,9 @@ import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
+import { testFileFolder } from '../__testing__/constants';
 import { optionalPeer } from './optional-peer.function';
 import { UUIDUtilities } from './uuid.utilities';
-import { testFileFolder } from '../__testing__/constants';
 
 /**
  * What the context peer exports: a function running a callback in the context the peer loaded in.

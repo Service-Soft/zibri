@@ -1,5 +1,5 @@
-import { Jwt } from './jwt.model';
 import { Property } from '../../../entity/decorators/property.decorator';
+import { Jwt } from './jwt.model';
 
 /**
  * The authentication data that gets returned when logging in or refreshing the login.

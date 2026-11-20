@@ -8,7 +8,7 @@ import { PageBrowser, startPageBrowser, StartedTestServer, startTestServer } fro
 import { version } from '../../../package.json';
 import { buildStylesheet } from '../../__testing__/build-stylesheet.function';
 import { testApplicationOptions } from '../../__testing__/test-application-options';
-import { Permissions, User } from '../../models';
+import { Permissions, PlatformPermissions, User } from '../../models';
 import { UserRepository } from '../../repositories';
 
 const TIMEOUT: number = 30000;
@@ -29,6 +29,7 @@ const LOGINS: string = 'AppAuthController-get--auth-logins';
 const FILE_UPLOAD: string = 'FileController-post--files-';
 // `@Get()` is at `/explorer-permissions/`
 const PERMISSION_READ: string = 'ExplorerPermissionController-get--explorer-permissions-';
+const PERMISSION_READ_EITHER: string = 'ExplorerPermissionController-get--explorer-permissions-either';
 // the ids the explorer gives an event: its tag and its operation
 const CHAT_MESSAGE: string = 'asyncapi-TestWebsocketController-TestWebsocketController_receiveChatMessage';
 
@@ -39,6 +40,15 @@ class ExplorerPermissionController {
     @Auth.hasPermission(Permissions.AUTH_ASSIGN_ROLE_WITH_ANY_PERMISSION)
     @Get()
     read(): { ok: boolean } {
+        return { ok: true };
+    }
+
+    @Auth.hasAnyLevelPermission({
+        permission: Permissions.AUTH_ASSIGN_ROLE_WITH_ANY_PERMISSION,
+        platformPermission: PlatformPermissions.AUTH_ASSIGN_PLATFORM_ROLE_WITH_ANY_PERMISSION
+    })
+    @Get('/either')
+    readEither(): { ok: boolean } {
         return { ok: true };
     }
 }
@@ -190,6 +200,14 @@ describe('the OpenAPI explorer, in a browser', () => {
 
         expect(await page.locator(`#${PERMISSION_READ}-permissions`).textContent()).toBe(Permissions.AUTH_ASSIGN_ROLE_WITH_ANY_PERMISSION);
         expect(await page.locator(`#${HEALTH_LIVE}-permissions`).textContent()).toBe('');
+    }, TIMEOUT);
+
+    it('names both permissions of an operation either of which is enough, with an "or" between them', async () => {
+        await open();
+
+        expect(await page.locator(`#${PERMISSION_READ_EITHER}-permissions`).textContent()).toBe(
+            `${Permissions.AUTH_ASSIGN_ROLE_WITH_ANY_PERMISSION}or${PlatformPermissions.AUTH_ASSIGN_PLATFORM_ROLE_WITH_ANY_PERMISSION}`
+        );
     }, TIMEOUT);
 
     it('sends a request and shows what it answered with, naming the version it was sent for', async () => {
@@ -360,8 +378,8 @@ describe('the OpenAPI explorer, in a browser', () => {
  * An AsyncAPI document describing no event, as a service of an application's own may answer.
  */
 class NoEventsAsyncApiService extends AsyncApiService {
-    override async createAsyncApiDefinition(app: ZibriApplication, version: Version): Promise<AsyncApiDefinition> {
-        const definition: AsyncApiDefinition = await super.createAsyncApiDefinition(app, version);
+    override async createAsyncApiDefinition(app: ZibriApplication, apiVersion: Version): Promise<AsyncApiDefinition> {
+        const definition: AsyncApiDefinition = await super.createAsyncApiDefinition(app, apiVersion);
         return { ...definition, channels: {}, operations: {} };
     }
 }

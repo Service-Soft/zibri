@@ -1,7 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { createLogToEmail, EmailLoggerTransportConfig } from './log-to-email.function';
-import { LogEmailTemplate, LoggerTransportSend } from './logger-transport.model';
 import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function';
 import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -13,6 +11,8 @@ import { Email } from '../../email/models/email.model';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { LogLevel } from '../log-level.enum';
 import { Log } from '../log.model';
+import { createLogToEmail, EmailLoggerTransportConfig } from './log-to-email.function';
+import { LogEmailTemplate, LoggerTransportSend } from './logger-transport.model';
 
 const template: LogEmailTemplate = compileTsxTemplate<LogEmailTemplate>(
     'export const Email = ({ logs }) => <div>{logs.map(l => <p>{l.message}</p>)}</div>;'

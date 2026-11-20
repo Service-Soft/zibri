@@ -2,9 +2,9 @@ import assert from 'node:assert';
 
 import { describe, expect, it } from '@jest/globals';
 
-import { Property, PropertyMetadata } from './property.decorator';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { type OneOf } from '../models/one-of.model';
+import { Property, PropertyMetadata } from './property.decorator';
 
 /**
  * What a change set is allowed to hold.

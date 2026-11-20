@@ -1325,12 +1325,12 @@ export function createServerRuntime(environment: RenderEnvironment = 'production
     const contextStack: ContextFrame[] = [];
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    function provideContext<T>(context: RenderContext<T>, value: T): void {
+    function provideRenderContext<T>(context: RenderContext<T>, value: T): void {
         contextStack.push({ context: context, value });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    function useContext<T>(context: RenderContext<T>, forInput: boolean = false): T {
+    function useRenderContext<T>(context: RenderContext<T>, forInput: boolean = false): T {
         for (let i: number = contextStack.length - 1; i >= 0; i--) {
             if (contextStack[i].context === context) {
                 const value: unknown = contextStack[i].value;
@@ -1749,8 +1749,8 @@ export function createServerRuntime(environment: RenderEnvironment = 'production
         instances,
         vendorPackages,
         clientProps,
-        provideContext,
-        useContext,
+        provideContext: provideRenderContext,
+        useContext: useRenderContext,
         input,
         forward,
         region,

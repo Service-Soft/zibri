@@ -1,5 +1,5 @@
-import { FederatedProfile } from './federated-profile.model';
 import { ProviderAuthentication } from '../../models/provider-authentication.model';
+import { FederatedProfile } from './federated-profile.model';
 
 /**
  * Who logged in at a provider, as its answer to a login proves.

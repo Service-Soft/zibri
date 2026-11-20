@@ -1,6 +1,5 @@
 import { defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
-import { type MultithreadingServiceInterface } from './multithreading-service.interface';
 import { Repository } from '../../data-source/repository/repository';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -12,6 +11,7 @@ import { Post } from '../../routing/decorators/post.decorator';
 import { FsUtilities, type FsPath } from '../../utilities/fs.utilities';
 import { BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
 import { ThreadJobEntity } from '../models/thread-job-entity.model';
+import { type MultithreadingServiceInterface } from './multithreading-service.interface';
 
 /**
  * What every instance of the thread job cluster boots with.

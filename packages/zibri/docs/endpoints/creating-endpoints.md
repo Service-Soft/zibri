@@ -147,6 +147,8 @@ export class ReadingUserController {
 
 The value the method returns is sent as JSON. To answer with another content type, see [changing the return type](#changing-the-return-type).
 
+A fixed segment of a path is matched before a path parameter in the same place, whichever route is declared first: `GET /users/me` reaches its own method beside `GET /users/:id`. The first segment in which two paths differ decides.
+
 The OpenAPI explorer, at `http://localhost:3000/explorer` by default, lists the route `GET /users` with its return type, see [the OpenAPI document](./open-api.md).
 
 ## Extending a controller
@@ -181,6 +183,27 @@ This controller serves these endpoints:
 - `GET /tasks/dashboard`, from `MetricsController`, under the base route of the class that picked it
 
 A method two of the combined classes share is served from the last class naming it, under its route.
+
+A class built with `OmitClass`, `PickClass` or `IntersectionClass` runs none of the constructors of the classes it is built from. Such a class needs to set nothing up in its constructor, neither from constructor parameters nor in a field with a value. Read a service in a getter instead:
+
+```ts
+// src/controllers/dashboard.controller.ts
+import { Controller, Get, inject } from 'zibri';
+
+import { DashboardService } from '../services/dashboard.service';
+
+@Controller('/dashboards')
+export class DashboardController {
+    private get dashboards(): DashboardService {
+        return inject(DashboardService);
+    }
+
+    @Get('/tasks')
+    async tasks(): Promise<unknown> {
+        return await this.dashboards.resolveDashboard();
+    }
+}
+```
 
 `GET /tasks` takes `page` and `limit` from the query: whole numbers of at least 1, and a `limit` of
 at most 100. Anything else is answered with a 400. Pass `maxLimit` to allow larger pages:
@@ -663,6 +686,8 @@ export class OperationsController {
     }
 }
 ```
+
+`@Auth.hasAnyLevelPermission()` takes one permission of each level, either of which is enough, see [accepting a permission of either level](../auth/roles-and-permissions.md#accepting-a-permission-of-either-level).
 
 ### Which rows a caller may see
 Which rows belong to the logged in user is declared once, on the entity, and applies to every query of every endpoint. A row the caller may not see is not found, the same as a row that does not exist. See [restricting which rows a caller may see](../data/data-source.md#restricting-which-rows-a-caller-may-see).

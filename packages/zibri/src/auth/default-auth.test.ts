@@ -2,10 +2,6 @@ import assert from 'node:assert';
 
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
-import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
-import { Auth } from './decorators/auth.decorator';
-import { CurrentUser } from './decorators/current-user.decorator';
-import { RouteAuthServiceInterface } from './route-auth-service.interface';
 import { JwtTestAuthController } from '../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../__testing__/mocks/entities/roles.enum';
@@ -26,6 +22,10 @@ import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
 import { type RouterInterface } from '../routing/router.interface';
 import { JsonUtilities } from '../utilities/json.utilities';
+import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
+import { Auth } from './decorators/auth.decorator';
+import { CurrentUser } from './decorators/current-user.decorator';
+import { RouteAuthServiceInterface } from './route-auth-service.interface';
 
 /**
  * The `'isLoggedIn'` half of `defaultAuth`.

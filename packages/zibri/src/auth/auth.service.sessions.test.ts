@@ -3,17 +3,6 @@ import assert from 'node:assert';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { TOTP } from 'otpauth';
 
-import { OtpCredentials, OtpCredentialsCreateData } from './2fa/methods/otp/otp-credentials.model';
-import { OtpTwoFactorMethod } from './2fa/methods/otp/otp.two-factor-method';
-import { CreateTwoFactorFailureStreakData, TwoFactorFailureStreak } from './2fa/two-factor-failure-streak.model';
-import { AuthService } from './auth.service';
-import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
-import { Auth } from './decorators/auth.decorator';
-import { BaseUser } from './models/base-user.model';
-import { AuthStrategyInterface } from './strategies/auth-strategy.interface';
-import { CredentialEntity } from './strategies/credential-entity.model';
-import { JwtRefreshToken } from './strategies/jwt/jwt-refresh-token.model';
-import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
 import { JwtTestAuthController } from '../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../__testing__/mocks/entities/roles.enum';
@@ -33,6 +22,17 @@ import { OpenApiSecuritySchemeObject } from '../open-api/open-api.model';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
 import { JsonUtilities } from '../utilities/json.utilities';
+import { OtpCredentials, OtpCredentialsCreateData } from './2fa/methods/otp/otp-credentials.model';
+import { OtpTwoFactorMethod } from './2fa/methods/otp/otp.two-factor-method';
+import { CreateTwoFactorFailureStreakData, TwoFactorFailureStreak } from './2fa/two-factor-failure-streak.model';
+import { AuthService } from './auth.service';
+import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
+import { Auth } from './decorators/auth.decorator';
+import { BaseUser } from './models/base-user.model';
+import { AuthStrategyInterface } from './strategies/auth-strategy.interface';
+import { CredentialEntity } from './strategies/credential-entity.model';
+import { JwtRefreshToken } from './strategies/jwt/jwt-refresh-token.model';
+import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
 
 // over real HTTP against a real login, because all of this is about what a *second* request may do
 // with what a first one produced - a second refresh with the same token, a second use of the same

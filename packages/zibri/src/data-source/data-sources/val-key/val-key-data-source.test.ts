@@ -3,8 +3,6 @@ import { Readable } from 'node:stream';
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { DataSourceInterface } from '../data-source.interface';
-import { ValKeyDataSource } from './val-key-data-source.model';
 import { BackupDataOptionsTestUtilities } from '../../../__testing__/backup/backup-data-options-test.utilities';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { createTestDataSource } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -35,6 +33,8 @@ import { KeyDeclarationsChangedError } from '../../transaction/key-declarations-
 import { Transaction } from '../../transaction/transaction.model';
 import { ValKeyTransaction } from '../../transaction/val-key-transaction.model';
 import { UniqueConstraintViolationError } from '../../unique-constraint-violation.error';
+import { DataSourceInterface } from '../data-source.interface';
+import { ValKeyDataSource } from './val-key-data-source.model';
 
 // ---------- Test entities ----------
 

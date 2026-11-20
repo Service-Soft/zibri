@@ -3,11 +3,6 @@ import assert from 'node:assert';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Response } from './decorators/response.decorator';
-import { OpenApiExplorerMethod, OpenApiExplorerOperation, OpenApiExplorerTag } from './explorer/open-api-explorer-operation.model';
-import { OpenApiExplorerUtilities } from './explorer/open-api-explorer.utilities';
-import { OpenApiContentObject, OpenApiDefinition, OpenApiMediaTypeObject, OpenApiOperation, OpenApiReferenceObject, OpenApiResponseObject, OpenApiSchemaObject, OpenApiServerObject } from './open-api.model';
-import { OpenApiService } from './open-api.service';
 import { TestTimeouts } from '../__testing__/constants';
 import { explorerTestProviders } from '../__testing__/explorer-test-providers';
 import { type Relation } from '../__testing__/relation.type';
@@ -55,6 +50,11 @@ import { type RouterInterface } from '../routing/router.interface';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { Version } from '../versioning/version.model';
 import { type VersioningServiceInterface } from '../versioning/versioning-service.interface';
+import { Response } from './decorators/response.decorator';
+import { OpenApiExplorerMethod, OpenApiExplorerOperation, OpenApiExplorerTag } from './explorer/open-api-explorer-operation.model';
+import { OpenApiExplorerUtilities } from './explorer/open-api-explorer.utilities';
+import { OpenApiContentObject, OpenApiDefinition, OpenApiMediaTypeObject, OpenApiOperation, OpenApiReferenceObject, OpenApiResponseObject, OpenApiSchemaObject, OpenApiServerObject } from './open-api.model';
+import { OpenApiService } from './open-api.service';
 
 class Tag {
     @Property.string()
@@ -323,6 +323,11 @@ class ItemController {
     @Get('/purge')
     purge(): void { }
 
+    @Auth.hasAnyLevelPermission({ permission: ITEMS_EXPORT, platformPermission: ITEMS_PURGE })
+    @Response.empty()
+    @Get('/either')
+    either(): void { }
+
     @Response.object(Owner, { status: HttpStatus.OK })
     @Get('/:id/owner')
     getOwner(
@@ -531,6 +536,15 @@ describe('OpenApiService', () => {
         const operation: OpenApiOperation = op('/items/purge', 'get');
         expect(operation['x-platform-permission']).toBe('items.purge');
         expect(operation['x-permission']).toBeUndefined();
+        expect(operation['x-any-level-permission']).toBeUndefined();
+        expect(operation.security).toBeDefined();
+    });
+
+    it('names both permissions of a route behind @Auth.hasAnyLevelPermission(), and that either is enough', () => {
+        const operation: OpenApiOperation = op('/items/either', 'get');
+        expect(operation['x-permission']).toBe('items.export');
+        expect(operation['x-platform-permission']).toBe('items.purge');
+        expect(operation['x-any-level-permission']).toBe(true);
         expect(operation.security).toBeDefined();
     });
 
@@ -860,6 +874,8 @@ describe('OpenApiService', () => {
             });
             expect(explorerOperation('/items/export', 'get').permissions).toEqual(['items.export']);
             expect(explorerOperation('/items/purge', 'get').permissions).toEqual(['items.purge']);
+            expect(explorerOperation('/items/purge', 'get').anyLevelPermission).toBe(false);
+            expect(explorerOperation('/items/either', 'get')).toMatchObject({ permissions: ['items.export', 'items.purge'], anyLevelPermission: true });
             expect(explorerOperation('/manual/ping', 'get').responses.map(response => response.status)).toEqual(['200']);
         });
 

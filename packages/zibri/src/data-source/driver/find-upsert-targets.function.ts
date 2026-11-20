@@ -1,9 +1,9 @@
-import { RepositoryDriverInterface } from './repository-driver.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
 import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
 import { Transaction } from '../transaction/transaction.model';
+import { RepositoryDriverInterface } from './repository-driver.interface';
 
 /**
  * Finds the rows already there that an upsert meets: those sharing the identity of a row written,

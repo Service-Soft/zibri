@@ -1,8 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { MigratedEntityUtilities } from './migrated-entity.utilities';
-import { MigrationEntity } from './migration-entity.model';
-import { Migration } from './migration.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { queryPostgres } from '../../__testing__/query-postgres.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -17,6 +14,9 @@ import { Newable } from '../../types/newable.type';
 import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { PostgresDataSource } from '../data-sources/postgres/postgres-data-source.model';
 import { Transaction } from '../transaction/transaction.model';
+import { MigratedEntityUtilities } from './migrated-entity.utilities';
+import { MigrationEntity } from './migration-entity.model';
+import { Migration } from './migration.model';
 
 const LOGS: string = MigratedEntityUtilities.resolveTableName(Log);
 const RESOURCES: string = MigratedEntityUtilities.resolveTableName(BackupResourceEntity);

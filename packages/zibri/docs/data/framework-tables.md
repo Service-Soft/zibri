@@ -38,6 +38,7 @@ A cleanup cron job is registered for you with the feature that needs it. An expi
 | `Email` | Every mail queued, see [what happens to the row](../templates/email.md#what-happens-to-the-row) | Deleted once it is sent, or kept for good with `persist`. A failed one goes daily by `EmailCleanupCronJob` once older than `failedRetentionInMs`, which has no default |
 | `Event` | Every event emitted, see [events](../background-work/events.md#when-an-event-cannot-be-handled) | Daily by `EventCleanupCronJob`: a finished one after the `cleanupAfterInMs` it was emitted with, a day by default, a failed one once older than `EVENT_FAILED_RETENTION_IN_MS`, which has no default |
 | `EventSubscriberRun` | One row per subscriber that owes an event a run | Deleted with its event |
+| `TenantDeletion` | One row per tenant whose [deletion](./tenancy.md#deleting-a-tenant) was started | Kept for good, as the record that the tenant was deleted |
 | `EventSubscriberRegistration` | One row per subscriber and event type the instances host | Deleted once no instance refreshed it for `EVENT_SUBSCRIBER_REGISTRATION_TTL_IN_MS`, a minute by default |
 | `ThreadJobEntity` | Every thread job queued, see [multithreading](../background-work/multithreading.md#what-happens-to-a-finished-job) | Daily by `ThreadJobCleanupCronJob` once it is over and older than `THREAD_JOB_RETENTION_IN_MS`, which has no default |
 | `CronJobEntity` | One row per [cron job](../background-work/cron.md) the application registers | Kept for good, also for a job the application stops registering |

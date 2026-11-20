@@ -103,7 +103,7 @@ The decorator goes on a route that changes something, and every version of the r
 
 ### Headers your browser clients may send
 
-The framework's own headers are always allowed, such as `authorization`, `dpop`, the CSRF token, the two-factor codes, the [API key](../glossary.md#api-key), the trace context and the version header, under the names their DI tokens give them. Add your own with `additionalAllowedHeaders`:
+The framework's own headers are always allowed, such as `authorization`, `dpop`, the CSRF token, the two-factor codes, the [API key](../glossary.md#api-key), the trace context and the version header, under the names their DI tokens give them, and the header the [`TenantService`](../data/tenancy.md#the-tenant-of-a-request) reads the [tenant](../glossary.md#tenant) from, `x-tenant-id`, under the name `getTenantHeader` gives it. Add your own with `additionalAllowedHeaders`:
 
 ```ts
 // src/application-options.base.ts
@@ -111,7 +111,7 @@ import { CorsOptions } from 'zibri';
 
 const corsWithOwnHeaders: CorsOptions = {
     origins: ['https://app.example.com'],
-    additionalAllowedHeaders: ['x-tenant-id']
+    additionalAllowedHeaders: ['x-request-id']
 };
 ```
 

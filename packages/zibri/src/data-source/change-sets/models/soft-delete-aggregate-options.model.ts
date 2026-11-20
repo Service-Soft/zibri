@@ -1,8 +1,8 @@
+import { OmitStrict } from '../../../types/omit-strict.type';
+import { AggregateOptions, GroupKeysOf } from '../../models/aggregate.model';
 import { SoftDeleteEntity } from './soft-delete-entity.model';
 import { SoftDeleteWhere } from './soft-delete-where.model';
 import { SoftDeletedRows } from './soft-deleted-rows.type';
-import { OmitStrict } from '../../../types/omit-strict.type';
-import { AggregateOptions, GroupKeysOf } from '../../models/aggregate.model';
 
 /**
  * Options for taking a value over soft delete entities.

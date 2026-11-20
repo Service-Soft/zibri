@@ -1,9 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { PostgresDataSource } from './data-sources/postgres/postgres-data-source.model';
-import { ValKeyDataSource } from './data-sources/val-key/val-key-data-source.model';
-import { MigrationEntity } from './migration/migration-entity.model';
-import { Repository } from './repository/repository';
 import { TestTimeouts } from '../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../__testing__/test-server/create-test-val-key-data-source.function';
@@ -14,6 +10,10 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { Newable } from '../types/newable.type';
+import { PostgresDataSource } from './data-sources/postgres/postgres-data-source.model';
+import { ValKeyDataSource } from './data-sources/val-key/val-key-data-source.model';
+import { MigrationEntity } from './migration/migration-entity.model';
+import { Repository } from './repository/repository';
 
 /**
  * Lives in both data sources on purpose, eg. Postgres owns it and valkey caches it.

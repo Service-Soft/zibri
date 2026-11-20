@@ -1,5 +1,3 @@
-import { BaseMembership } from './base-membership.model';
-import { type MembershipServiceInterface } from './membership-service.interface';
 import { TenantUtilities } from '../../data-source/tenancy/tenant.utilities';
 import { EntityWrite, EntityWriteObserver, WrittenRows } from '../../data-source/write-observers/entity-write-observer.model';
 import { BaseEntity } from '../../entity/base-entity.model';
@@ -8,6 +6,8 @@ import { FrameworkEventNames } from '../../event/framework-event-names.model';
 import { FrameworkEventUtilities } from '../../event/framework-event.utilities';
 import { type MembershipEventData } from '../../event/membership-event-data.model';
 import { Newable } from '../../types/newable.type';
+import { BaseMembership } from './base-membership.model';
+import { type MembershipServiceInterface } from './membership-service.interface';
 
 /**
  * The memberships of one user in one tenant a write touched.

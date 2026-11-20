@@ -3,13 +3,13 @@ import { constants, createBrotliCompress, createGzip } from 'node:zlib';
 
 import { RequestHandler } from 'express';
 
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
 import { HttpMethod } from './http-method.enum';
 import { HttpResponse } from './http-response.model';
 import { HttpStatus } from './http-status.enum';
 import { KnownHeader } from './known-header.enum';
 import { MimeTypeUtilities } from './mime-type.utilities';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
 
 /**
  * What a response may be encoded with.

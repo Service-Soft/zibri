@@ -1,7 +1,7 @@
-import { S3ObjectIdentifier } from './s3-object-identifier.model';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { XmlElement } from '../../../parsing/xml/xml-element.decorator';
 import { XmlRoot } from '../../../parsing/xml/xml-root.decorator';
+import { S3ObjectIdentifier } from './s3-object-identifier.model';
 
 /**
  * The request that deletes several objects at once, up to 1,000.

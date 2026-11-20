@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { parseObject } from './parse-object.function';
 import { Property } from '../../entity/decorators/property.decorator';
 import { JsonUtilities } from '../../utilities/json.utilities';
+import { parseObject } from './parse-object.function';
 
 class Dummy {}
 

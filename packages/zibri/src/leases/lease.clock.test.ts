@@ -3,7 +3,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { LeaseServiceInterface } from './lease-service.interface';
 import { TestTimeouts } from '../__testing__/constants';
 import { holdUntilLetGo } from '../__testing__/hold-until-let-go.function';
 import { runApplicationClockAhead } from '../__testing__/run-application-clock-ahead.function';
@@ -12,6 +11,7 @@ import { StartedTestServer, startTestServer } from '../__testing__/test-server/s
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { Ms } from '../utilities/ms';
+import { LeaseServiceInterface } from './lease-service.interface';
 
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
     entities: defaultTestServerEntities,

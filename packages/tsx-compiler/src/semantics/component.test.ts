@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 import ts from 'typescript';
 
-import { ComponentInfo, findComponents, isJsxExpression, returnsJsx } from './component';
 import { parseTemplateArrow, parseTemplateExpression, parseTemplateOk } from '../__testing__/parse.helper';
+import { ComponentInfo, findComponents, isJsxExpression, returnsJsx } from './component';
 
 describe('component detection', () => {
     describe('isJsxExpression', () => {

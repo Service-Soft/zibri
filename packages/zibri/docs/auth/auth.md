@@ -22,7 +22,7 @@ Logging users in, and deciding what each request may do. An [authenticator](../g
 | `UserRepositoryClass`, `isUserRepository` | type, function | The class `BaseUserRepository` answers, and tells a user repository apart |
 | `USER_ENTITY`, `USER_REPOSITORY` | constant | Mark an entity and a repository as the ones of users. `BaseUserEntity` and `BaseUserRepository` set them |
 | `isBaseUser` | function | Tells a user apart: a value with an `id`, an `email` and `roles` |
-| `UserService`, `UserServiceInterface`, `isUserService` | class, interface, function | Finds users by id and by email, and changes their deactivation and roles. Replaceable through `ZIBRI_DI_TOKENS.USER_SERVICE` |
+| `UserService`, `UserServiceInterface`, `isUserService` | class, interface, function | Finds users by id and by email, changes their deactivation and roles, and deletes them through the repository holding them. Replaceable through `ZIBRI_DI_TOKENS.USER_SERVICE` |
 | `FindUserOptions` | type | Whether looking a user up requires one to be found |
 | `UserAccount` | type | A user without their roles: what a stored user and the [`CurrentUser`](./roles-and-permissions.md#in-your-own-code) of a request have in common, and what the two factor methods take |
 | `RouteAuthService`, `RouteAuthServiceInterface` | class, interface | Resolves what the `@Auth` decorators of a route and the `auth` of a manually registered route require, the application's `defaultAuth` included, while the routes are registered. Replaceable through `ZIBRI_DI_TOKENS.ROUTE_AUTH_SERVICE` |
@@ -238,7 +238,7 @@ inject(ZIBRI_DI_TOKENS.ROUTER).registerRoute({
 });
 ```
 
-Without `auth`, `defaultAuth` decides, as on an undecorated controller route. `auth` takes `isLoggedIn`, `isNotLoggedIn`, `hasPermission`, `hasPlatformPermission` and `require2fa`, the metadata the matching decorators produce. It also takes `skip`, which is `@Auth.skip()` for a route that has no method to put it on. The same checks run in the same order and answer with the same statuses as on a decorated route, and the OpenAPI spec documents the route the same way.
+Without `auth`, `defaultAuth` decides, as on an undecorated controller route. `auth` takes `isLoggedIn`, `isNotLoggedIn`, `hasPermission`, `hasPlatformPermission`, `hasAnyLevelPermission` and `require2fa`, the metadata the matching decorators produce. It also takes `skip`, which is `@Auth.skip()` for a route that has no method to put it on. The same checks run in the same order and answer with the same statuses as on a decorated route, and the OpenAPI spec documents the route the same way.
 
 Files in `assets/public` are served at `/assets` to anyone, whatever `defaultAuth` says, since a login page needs its stylesheet before there is a login. Put anything a login should gate behind a route.
 
@@ -251,7 +251,7 @@ A refused request gets a `401` when the caller could not be identified, and a `4
 |---|---|---|
 | `@Auth.isLoggedIn` / the `'isLoggedIn'` default | `401` | nobody was resolved, so a credential is missing |
 | a request for a [tenant](../data/tenancy.md#the-tenant-of-a-request) | `403` | the caller is known and is no member of the tenant |
-| `@Auth.hasPermission` / `@Auth.hasPlatformPermission` | `403` | the caller is known and none of their roles carries the [permission](./roles-and-permissions.md) |
+| `@Auth.hasPermission` / `@Auth.hasPlatformPermission` / `@Auth.hasAnyLevelPermission` | `403` | the caller is known and none of their roles carries the [permission](./roles-and-permissions.md) |
 | `@Auth.isNotLoggedIn` | `403` | the caller is known, and that is the reason it is refused |
 | `@Auth.require2fa` | `401` | a second factor is a further credential the caller can still present |
 

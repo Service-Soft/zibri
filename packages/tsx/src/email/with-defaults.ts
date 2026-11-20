@@ -1,5 +1,5 @@
-import { HeadChannel } from './head-channels';
 import { escapeAttribute, RenderServerRuntime } from '../runtime/server-runtime';
+import { HeadChannel } from './head-channels';
 
 /**
  * One document's declared defaults: a global set and per-component sets.

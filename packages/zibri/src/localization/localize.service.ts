@@ -1,12 +1,4 @@
 
-import { formatDate } from './format-date.function';
-import { FormatDateOptions, FormatPercentOptions, FormatPriceOptions, LocalizeServiceInterface } from './localize-service.interface';
-import { DateFormatShortcut, DateFormatString, DefinedDateFormatString } from './models/date-format.model';
-import { LocaleCode, resolveLocaleCode } from './models/locale-code.model';
-import { type LocalizeOptions } from './models/localize-options.model';
-import { TranslationRegistry } from './translation.registry';
-import { parseSourceXlf } from './xlf/parse-source-xlf.function';
-import { parseTranslationXlf } from './xlf/parse-translation-xlf.function';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
@@ -15,15 +7,23 @@ import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { InternalError } from '../error-handling/internal-error.model';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { KnownHeader } from '../http/known-header.enum';
-import { CurrencyCode } from './models/currency-code.model';
-import { InternalError } from '../error-handling/internal-error.model';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { type FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 import { optionalPeer } from '../utilities/optional-peer.function';
+import { formatDate } from './format-date.function';
+import { FormatDateOptions, FormatPercentOptions, FormatPriceOptions, LocalizeServiceInterface } from './localize-service.interface';
+import { CurrencyCode } from './models/currency-code.model';
+import { DateFormatShortcut, DateFormatString, DefinedDateFormatString } from './models/date-format.model';
+import { LocaleCode, resolveLocaleCode } from './models/locale-code.model';
+import { type LocalizeOptions } from './models/localize-options.model';
+import { TranslationRegistry } from './translation.registry';
 import { ExtractedTranslationString } from './xlf/models/extracted-translation-string.model';
+import { parseSourceXlf } from './xlf/parse-source-xlf.function';
+import { parseTranslationXlf } from './xlf/parse-translation-xlf.function';
 
 // whitespace is allowed around the `;` of the weight (RFC 9110, 12.4.2)
 const acceptLanguageRegex: RegExp = /((([A-Za-z]+(-[\dA-Za-z]+){0,2})|\*)([\t ]*;[\t ]*q=[01](\.\d+)?)?)*/g;

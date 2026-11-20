@@ -1,6 +1,6 @@
-import { TenantTransportNetwork } from './tenant-transport-network.model';
 import { Newable } from '../../types/newable.type';
 import { BackupTransportSupporting } from '../transports/backup-transport.interface';
+import { TenantTransportNetwork } from './tenant-transport-network.model';
 
 /**
  * A kind of storage a tenant may keep its backups on, such as a bucket or an SFTP server: what a tenant

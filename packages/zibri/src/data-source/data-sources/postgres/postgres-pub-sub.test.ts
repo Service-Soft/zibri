@@ -2,13 +2,13 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { PostgresDataSource } from './postgres-data-source.model';
 import { queryPostgres } from '../../../__testing__/query-postgres.function';
 import { createTestDataSource } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../../di/inject.function';
 import { Newable } from '../../../types/newable.type';
 import { DataSourceSubscription } from '../pub-sub-data-source.interface';
+import { PostgresDataSource } from './postgres-data-source.model';
 
 const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource();
 

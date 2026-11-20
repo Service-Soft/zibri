@@ -4,10 +4,9 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import ts from 'typescript';
 
-import { NewCommand } from './new.command';
 import { acceptedSandboxDifferences } from '../../__testing__/accepted-sandbox-differences';
-import { testFileFolder } from '../../__testing__/constants';
 import { diffFileContents } from '../../__testing__/diff-file-contents.function';
+import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
 import { AUTHORED_CODE_PATHS,
     CLI_ROOT,
     EVERY_FEATURE,
@@ -17,7 +16,8 @@ import { AUTHORED_CODE_PATHS,
     SANDBOX_DIR } from '../../__testing__/generated-file-paths';
 import { quietly } from '../../__testing__/quietly.function';
 import { CPUtilities, FsUtilities } from '../../encapsulation';
-import { getPath, Path } from '../../utilities';
+import { Path } from '../../utilities';
+import { NewCommand } from './new.command';
 
 /**
  * Whether "zi new" still writes what packages/sandbox holds, in milliseconds.
@@ -72,8 +72,7 @@ let appDir: Path;
 describe('NewCommand (sandbox parity, without installing)', () => {
 
     beforeAll(async () => {
-        workDir = getPath(testFileFolder, 'sandbox-parity-fast');
-        await FsUtilities.mkdir(workDir);
+        workDir = await emptyWorkDirectory('sandbox-parity-fast');
         CPUtilities['cwd'] = workDir;
         appDir = path.join(workDir, 'sandbox') as Path;
 

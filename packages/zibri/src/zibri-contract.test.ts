@@ -31,6 +31,24 @@ describe('the types of zibri-contract', () => {
         expect(Zibri.ChangeSetType).toBe(Contract.ChangeSetType);
     });
 
+    // the contract library of an api declares the permissions of the application with zibri's own spread in, in a
+    // browser, which cannot import zibri: both sides have to make the same permissions
+    it('are the permissions zibri declares and makes, rather than a copy of them', () => {
+        expect(Zibri.ZIBRI_PERMISSIONS).toBe(Contract.ZIBRI_PERMISSIONS);
+        expect(Zibri.ZIBRI_PLATFORM_PERMISSIONS).toBe(Contract.ZIBRI_PLATFORM_PERMISSIONS);
+        expect(Zibri.ZibriPermissions).toBe(Contract.ZibriPermissions);
+        expect(Zibri.ZibriPlatformPermissions).toBe(Contract.ZibriPlatformPermissions);
+        expect(Zibri.definePermissions).toBe(Contract.definePermissions);
+        expect(Zibri.definePlatformPermissions).toBe(Contract.definePlatformPermissions);
+
+        // a permission the contract makes is one zibri takes, and one of the other level is refused by both
+        const permissions: Contract.DefinedPermissions<readonly ['invoices.read']> = Contract.definePermissions(['invoices.read'] as const);
+        const asked: Zibri.Permission = permissions.INVOICES_READ;
+        // @ts-expect-error - a tenant permission is no platform permission, whichever package made it
+        const wrong: Zibri.PlatformPermission = permissions.INVOICES_READ;
+        expect([asked, wrong]).toEqual(['invoices.read', 'invoices.read']);
+    });
+
     it('read a page and an error as zibri sends them', () => {
         const checks: true[] = [
             true satisfies Equals<Json<Zibri.PaginationResult<Row>>, Json<Contract.PaginationResult<Row>>>,
@@ -61,7 +79,12 @@ describe('the types of zibri-contract', () => {
             true satisfies Equals<Json<Zibri.LinkedIdentity>, Json<Contract.LinkedIdentity>>,
             true satisfies Equals<Json<Zibri.PasswordResetTokenValidity>, Json<Contract.PasswordResetTokenValidity>>,
             true satisfies Equals<Json<Zibri.FederatedLinkIdentityStart>, Json<Contract.FederatedLinkIdentityStart>>,
-            true satisfies Equals<Json<Zibri.PasskeyTicketCredentials>, Json<Contract.PasskeyTicketCredentials>>
+            true satisfies Equals<Json<Zibri.PasskeyTicketCredentials>, Json<Contract.PasskeyTicketCredentials>>,
+            true satisfies Equals<Json<Zibri.InvitationTokenValidity>, Json<Contract.InvitationTokenValidity>>,
+            true satisfies Equals<Json<Zibri.AcceptInvitationInput>, Json<Contract.AcceptInvitationInput>>,
+            // without the hash of its token, which a route of the application leaves out
+            true satisfies Equals<Json<Omit<Zibri.BaseInvitation, 'token'>>, Json<Contract.Invitation>>,
+            true satisfies Equals<Json<Zibri.TenantDeletion>, Json<Contract.TenantDeletion>>
         ];
         expect(checks).not.toContain(false);
     });

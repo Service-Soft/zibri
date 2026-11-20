@@ -7,10 +7,10 @@ import type MiniCssExtractPlugin from 'mini-css-extract-plugin';
 import type { Configuration, FileCacheOptions, NormalModuleReplacementPlugin } from 'webpack';
 import type * as ZibriTsxCompilerWebpack from 'zibri-tsx-compiler/webpack';
 
+import { InternalError } from '../error-handling/internal-error.model';
 import { GenerateSourcesOnBuildPlugin } from './generate-sources-on-build.plugin';
 import { RestartServerOnBuildPlugin } from './restart-server-on-build.plugin';
 import { WebpackConfigurationOptions } from './webpack-configuration-options.model';
-import { InternalError } from '../error-handling/internal-error.model';
 
 /**
  * The stylesheet of the pages, relative to the application, and where the build writes it.

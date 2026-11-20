@@ -8,12 +8,6 @@ import { createInMemoryDataSource,
     RecordingSmsService,
     TestBrowser } from 'zibri-testing';
 
-import { EmailTwoFactorMethod } from './email.two-factor-method';
-import { SmsCodeLimits } from './sms-code-limits.model';
-import { SmsTwoFactorMethod } from './sms.two-factor-method';
-import { TwoFactorCodeCredentials } from './two-factor-code-credentials.model';
-import { TwoFactorCodeOptions } from './two-factor-code-options.model';
-import { TwoFactorCode } from './two-factor-code.model';
 import { TestTimeouts } from '../../../../__testing__/constants';
 import { missingEntityPattern } from '../../../../__testing__/missing-entity-pattern.function';
 import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
@@ -50,6 +44,12 @@ import { CookieAuthRefreshSession } from '../../../strategies/cookie/cookie-auth
 import { CookieAuthSession } from '../../../strategies/cookie/cookie-auth-session.model';
 import { CookieAuthStrategy } from '../../../strategies/cookie/cookie-auth.auth-strategy';
 import { type TwoFactorServiceInterface } from '../../two-factor-service.interface';
+import { EmailTwoFactorMethod } from './email.two-factor-method';
+import { SmsCodeLimits } from './sms-code-limits.model';
+import { SmsTwoFactorMethod } from './sms.two-factor-method';
+import { TwoFactorCodeCredentials } from './two-factor-code-credentials.model';
+import { TwoFactorCodeOptions } from './two-factor-code-options.model';
+import { TwoFactorCode } from './two-factor-code.model';
 
 const EMAIL_HEADER: string = 'x-authorization-email-code';
 const SMS_HEADER: string = 'x-authorization-sms-code';
@@ -296,14 +296,14 @@ describe('Two factor codes — starting', () => {
     }, TestTimeouts.inMemory.start);
 
     it('refuses to start the sms method without a sender', async () => {
-        const dataSourceClass: new () => InMemoryDataSource = createInMemoryDataSource({
+        const smsDataSourceClass: new () => InMemoryDataSource = createInMemoryDataSource({
             entities: [...defaultTestServerEntities, TwoFactorCodeCredentials, TwoFactorCode, RateLimitStateEntity],
             repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
 
         const start: Promise<StartedTestServer> = startTestServer({
-            dataSources: [dataSourceClass],
+            dataSources: [smsDataSourceClass],
             twoFactorMethods: [SmsTwoFactorMethod],
             providers: [...defaultTestServerProviders]
         });
@@ -314,14 +314,14 @@ describe('Two factor codes — starting', () => {
     // a text message is the one channel that costs money, and
     // nothing bounded how many any caller could have sent, or where to
     it('refuses to start the sms method without limits on what its text messages cost', async () => {
-        const dataSourceClass: new () => InMemoryDataSource = createInMemoryDataSource({
+        const smsDataSourceClass: new () => InMemoryDataSource = createInMemoryDataSource({
             entities: [...defaultTestServerEntities, TwoFactorCodeCredentials, TwoFactorCode, RateLimitStateEntity],
             repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
 
         const start: Promise<StartedTestServer> = startTestServer({
-            dataSources: [dataSourceClass],
+            dataSources: [smsDataSourceClass],
             twoFactorMethods: [SmsTwoFactorMethod],
             providers: [...defaultTestServerProviders, defineProvider({ token: ZIBRI_DI_TOKENS.SMS_SERVICE, useValue: sms })]
         });
@@ -330,14 +330,14 @@ describe('Two factor codes — starting', () => {
     }, TestTimeouts.inMemory.start);
 
     it('refuses to start without the entity that keeps how many codes went out, and names it', async () => {
-        const dataSourceClass: new () => InMemoryDataSource = createInMemoryDataSource({
+        const dataSourceClassWithoutRateLimitState: new () => InMemoryDataSource = createInMemoryDataSource({
             entities: [...defaultTestServerEntities, TwoFactorCodeCredentials, TwoFactorCode],
             repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
 
         const start: Promise<StartedTestServer> = startTestServer({
-            dataSources: [dataSourceClass],
+            dataSources: [dataSourceClassWithoutRateLimitState],
             twoFactorMethods: [EmailTwoFactorMethod],
             providers: [...defaultTestServerProviders]
         });

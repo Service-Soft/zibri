@@ -2,8 +2,6 @@ import assert from 'node:assert';
 
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
-import { PgSessionClient } from './postgres-client.model';
-import { PostgresDataSource } from './postgres-data-source.model';
 import { connectAsAnotherInstance } from '../../../__testing__/connect-as-another-instance.function';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { queryPostgres } from '../../../__testing__/query-postgres.function';
@@ -20,6 +18,8 @@ import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { PromiseUtilities } from '../../../utilities/promise.utilities';
 import { Repository } from '../../repository/repository';
 import { Transaction } from '../../transaction/transaction.model';
+import { PgSessionClient } from './postgres-client.model';
+import { PostgresDataSource } from './postgres-data-source.model';
 
 // postgres indexes the key a foreign key refers to, never the column holding it: deleting a row checked, or
 // cascaded to, the rows pointing at it by reading the whole table they are in, once for every row deleted.

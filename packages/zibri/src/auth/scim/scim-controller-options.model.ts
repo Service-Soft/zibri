@@ -1,5 +1,5 @@
-import { ScimBulkOptions } from './scim-bulk-options.model';
 import { type Permission } from '../roles/permission.type';
+import { ScimBulkOptions } from './scim-bulk-options.model';
 
 /**
  * How the SCIM routes of an application are guarded.

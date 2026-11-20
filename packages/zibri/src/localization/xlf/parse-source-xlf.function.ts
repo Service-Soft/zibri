@@ -1,6 +1,6 @@
+import { XmlUtilities } from '../../document/xml.utilities';
 import { ExtractedTranslationString } from './models/extracted-translation-string.model';
 import { XliffDocument } from './models/xliff-document.model';
-import { XmlUtilities } from '../../document/xml.utilities';
 
 /**
  * Parses a xlf source file back into ExtractedTranslationStrings.

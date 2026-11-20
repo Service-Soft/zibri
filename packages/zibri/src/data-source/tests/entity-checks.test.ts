@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { Chore, describeEntityChecks } from './entity-checks.cases';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -19,6 +18,7 @@ import { Newable } from '../../types/newable.type';
 import { CheckConstraintViolationError } from '../check-constraint-violation.error';
 import { whereFor } from '../models/where/where-for.function';
 import { Repository } from '../repository/repository';
+import { Chore, describeEntityChecks } from './entity-checks.cases';
 
 const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({ entities: [...defaultTestServerEntities, Chore], repositories: defaultTestServerRepositories });
 

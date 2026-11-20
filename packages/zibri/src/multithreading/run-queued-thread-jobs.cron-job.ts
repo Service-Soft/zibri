@@ -1,13 +1,13 @@
 import { CronExpression } from '../cron/cron-expression.utilities';
 import { InitialCronConfig } from '../cron/cron-job.model';
-import { ThreadJobEntity } from './models/thread-job-entity.model';
-import { type MultithreadingServiceInterface } from './services/multithreading-service.interface';
 import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { BaseEntity } from '../entity/base-entity.model';
 import { PollingCronJob } from '../polling/polling-cron-job.model';
 import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
 import { Newable } from '../types/newable.type';
+import { ThreadJobEntity } from './models/thread-job-entity.model';
+import { type MultithreadingServiceInterface } from './services/multithreading-service.interface';
 
 /**
  * Looks for queued thread jobs this instance could be running.

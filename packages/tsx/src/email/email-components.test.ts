@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { renderEmail, Mount } from '../__testing__/email-render.helper';
 import { MjAccordion } from './mj-accordion';
 import { MjAccordionElement } from './mj-accordion-element';
 import { MjAccordionTitle } from './mj-accordion-title';
@@ -30,7 +31,6 @@ import { MjText } from './mj-text';
 import { MjTitle } from './mj-title';
 import { MjWrapper } from './mj-wrapper';
 import { Mjml } from './mjml';
-import { renderEmail, Mount } from '../__testing__/email-render.helper';
 
 /**
  * Renders content inside a body/section/column so components that read the layout resolve normally.

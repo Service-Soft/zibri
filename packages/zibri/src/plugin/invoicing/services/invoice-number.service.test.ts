@@ -1,7 +1,6 @@
 /* eslint-disable cspell/spellchecker */
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { InvoiceNumberService } from './invoice-number.service';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { missingEntityPattern } from '../../../__testing__/missing-entity-pattern.function';
 import { companyInfoProvider } from '../../../__testing__/mocks/company-info-provider.function';
@@ -28,6 +27,7 @@ import { InvoiceRecipientAbbreviation } from '../models/invoice-recipient-abbrev
 import { Invoice } from '../models/invoice.model';
 import { InvoicingOptions } from '../models/invoicing-options.model';
 import { NumberInvoices } from '../models/number-invoices.model';
+import { InvoiceNumberService } from './invoice-number.service';
 
 // in the zone of the company below, which decides the year an invoice is numbered in
 const currentYear: string = getZonedDate(new Date(), 'Europe/Berlin').year.toString();

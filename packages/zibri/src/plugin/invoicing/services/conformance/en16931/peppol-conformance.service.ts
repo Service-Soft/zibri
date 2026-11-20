@@ -1,11 +1,11 @@
-import { CiiSchemedId } from './cii/cii-schemed-id.model';
-import { EN16931ConformanceService, EN16931DocumentContextId } from './en16931-conformance.service';
 import { Injectable } from '../../../../../di/decorators/injectable.decorator';
 import { InternalError } from '../../../../../error-handling/internal-error.model';
 import { BigNumber, NumberUtilities } from '../../../../../utilities/number.utilities';
 import { ElectronicAddress } from '../../../models/electronic-address.model';
 import { Invoice } from '../../../models/invoice.model';
 import { InvoiceConformance } from '../invoice-conformance-service.interface';
+import { CiiSchemedId } from './cii/cii-schemed-id.model';
+import { EN16931ConformanceService, EN16931DocumentContextId } from './en16931-conformance.service';
 
 /**
  * Handles conforming to the peppol standard.

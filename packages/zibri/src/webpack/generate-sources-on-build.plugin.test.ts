@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
-import { GenerateSourcesOnBuildPlugin, WebpackCompileCompiler } from './generate-sources-on-build.plugin';
 import { testFileFolder } from '../__testing__/constants';
 import { ConsoleUtilities } from '../logging/console.utilities';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { resolveZibriRoot } from '../utilities/resolve-zibri-root.function';
+import { GenerateSourcesOnBuildPlugin, WebpackCompileCompiler } from './generate-sources-on-build.plugin';
 
 const root: FsPath = FsUtilities.getPath(testFileFolder, 'generate-sources-on-build');
 

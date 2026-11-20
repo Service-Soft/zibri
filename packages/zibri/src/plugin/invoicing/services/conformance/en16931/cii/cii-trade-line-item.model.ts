@@ -1,12 +1,12 @@
+import { Property } from '../../../../../../entity/decorators/property.decorator';
+import { XmlElement } from '../../../../../../parsing/xml/xml-element.decorator';
+import { XmlNamespace } from '../../../../../../parsing/xml/xml-namespace.decorator';
 import { CiiLineDocument } from './cii-line-document.model';
 import { CiiLineTradeAgreement } from './cii-line-trade-agreement.model';
 import { CiiLineTradeDelivery } from './cii-line-trade-delivery.model';
 import { CiiLineTradeSettlement } from './cii-line-trade-settlement.model';
 import { CiiNamespace } from './cii-namespace.enum';
 import { CiiTradeProduct } from './cii-trade-product.model';
-import { Property } from '../../../../../../entity/decorators/property.decorator';
-import { XmlElement } from '../../../../../../parsing/xml/xml-element.decorator';
-import { XmlNamespace } from '../../../../../../parsing/xml/xml-namespace.decorator';
 
 /**
  * One line of the invoice.

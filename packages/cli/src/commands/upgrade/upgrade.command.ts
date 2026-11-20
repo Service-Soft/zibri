@@ -1,5 +1,5 @@
 import { version } from '../../../package.json';
-import { CPUtilities } from '../../encapsulation';
+import { CPUtilities, FsUtilities } from '../../encapsulation';
 import { ScaffoldAnswers, ScaffoldManifest, ScaffoldUtilities } from '../../scaffold';
 import { exitWithError, getPath, isLaterVersion, Path } from '../../utilities';
 import { RegeneratingCommand } from '../regenerating-command.model';
@@ -8,6 +8,12 @@ import { RegeneratingCommand } from '../regenerating-command.model';
  * The major release of Tailwind this release generates a project for.
  */
 const TAILWIND_MAJOR: number = 4;
+
+/**
+ * The test script of package.json as `zi new` wrote it up to 3.1.0, which finds jest only in the project's own
+ * node_modules.
+ */
+const GENERATED_TEST_SCRIPT_BEFORE_3_1_1: string = '"test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"';
 
 /**
  * What an upgrade works on.
@@ -47,6 +53,21 @@ export class UpgradeCommand extends RegeneratingCommand<UpgradeInput> {
         await this.migrateTailwind(projectPath);
         await this.installDependencies(projectPath, ScaffoldUtilities.resolveDependencies(answers.features), true);
         await this.regenerate(projectPath, manifest, answers, `zi new ${version}`);
+        await this.migrateTestScript(projectPath);
+    }
+
+    /**
+     * Runs the tests through `scripts/test.mjs`, which finds jest wherever npm installed it, such as in the root of
+     * an npm workspace, when the project's test script is still the one an earlier release wrote.
+     * @param projectPath - The project.
+     */
+    private async migrateTestScript(projectPath: Path): Promise<void> {
+        // package.json is the project's own once it is written, and no merge reaches it: a script the project
+        // changed stays as it is
+        const packageJsonPath: Path = getPath(projectPath, 'package.json');
+        if ((await FsUtilities.readFile(packageJsonPath)).includes(GENERATED_TEST_SCRIPT_BEFORE_3_1_1)) {
+            await FsUtilities.replaceInFile(packageJsonPath, GENERATED_TEST_SCRIPT_BEFORE_3_1_1, '"test": "node scripts/test.mjs"');
+        }
     }
 
     /**

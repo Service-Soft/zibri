@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, TestCommandRun } from 'zibri-testing';
 
-import { AppCommand } from './app-command.model';
-import { ZibriApplication } from './application';
-import { ZibriApplicationOptions } from './application-options.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../__testing__/mocks/entities/roles.enum';
@@ -12,6 +9,9 @@ import { StartedTestServer, startTestServer } from '../__testing__/test-server/s
 import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { inject } from '../di/inject.function';
+import { AppCommand } from './app-command.model';
+import { ZibriApplication } from './application';
+import { ZibriApplicationOptions } from './application-options.model';
 
 /**
  * What the command of this file was handed, each time it ran.

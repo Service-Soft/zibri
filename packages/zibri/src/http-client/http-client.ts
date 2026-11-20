@@ -2,18 +2,6 @@ import { setTimeout as wait } from 'node:timers/promises';
 
 import { FormData as UndiciFormData, fetch as undiciFetch } from 'undici';
 
-import { CircuitBreaker } from './circuit-breaker.model';
-import { CircuitOpenError } from './circuit-open.error';
-import { FetchForLibraryOptions } from './fetch-for-library-options.model';
-import { HttpClientBodyUtilities } from './http-client-body.utilities';
-import { HttpClientBufferedBody } from './http-client-buffered-body.model';
-import { HttpClientIdempotencyKey } from './http-client-idempotency-key.model';
-import { type HttpClientDispatcher, type HttpClientOptions } from './http-client-options.model';
-import { HttpClientRedirect } from './http-client-redirect.model';
-import { HttpClientResponse, HttpClientResponseBodyInput } from './http-client-response.model';
-import { HttpClientResult } from './http-client-result.type';
-import { HttpClientError } from './http-client.error';
-import { HttpClientHeaderValue, HttpClientInterface, HttpOptionsInput, HttpClientRequestBody, HttpClientRequestBodyMimeType, HttpOptionsWithoutResponseBodyInput } from './http-client.interface';
 import { AlsUtilities } from '../context/als.utilities';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
@@ -46,6 +34,18 @@ import { ObjectUtilities } from '../utilities/object.utilities';
 import { UrlUtilities } from '../utilities/url.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
 import { type ValidationServiceInterface } from '../validation/validation-service.interface';
+import { CircuitBreaker } from './circuit-breaker.model';
+import { CircuitOpenError } from './circuit-open.error';
+import { FetchForLibraryOptions } from './fetch-for-library-options.model';
+import { HttpClientBodyUtilities } from './http-client-body.utilities';
+import { HttpClientBufferedBody } from './http-client-buffered-body.model';
+import { HttpClientIdempotencyKey } from './http-client-idempotency-key.model';
+import { type HttpClientDispatcher, type HttpClientOptions } from './http-client-options.model';
+import { HttpClientRedirect } from './http-client-redirect.model';
+import { HttpClientResponse, HttpClientResponseBodyInput } from './http-client-response.model';
+import { HttpClientResult } from './http-client-result.type';
+import { HttpClientError } from './http-client.error';
+import { HttpClientHeaderValue, HttpClientInterface, HttpOptionsInput, HttpClientRequestBody, HttpClientRequestBodyMimeType, HttpOptionsWithoutResponseBodyInput } from './http-client.interface';
 
 /**
  * A request that is on its way, and the means to end the deadline it was sent under.
@@ -722,28 +722,28 @@ export class HttpClient implements HttpClientInterface {
             try {
                 responseBody = await this.parser.parseBody(res as unknown as HttpClientResponse, responseBodyMetadata);
             }
-            catch (error) {
+            catch (error_) {
                 throw new HttpClientError(
                     'Could not parse response body',
                     {
                         responseData: { body: res.rawBody, status: res.status, statusText: res.statusText, headers: responseHeaders },
                         requestData: { method, url, body: requestBody, headers: options?.headers as Record<string, unknown> ?? {} }
                     },
-                    { cause: error }
+                    { cause: error_ }
                 );
             }
 
             try {
                 await this.validationService.validateBody(responseBody, responseBodyMetadata);
             }
-            catch (error) {
+            catch (error_) {
                 throw new HttpClientError(
                     'Could not validate response body',
                     {
                         responseData: { body: res.rawBody, status: res.status, statusText: res.statusText, headers: responseHeaders },
                         requestData: { method, url, body: requestBody, headers: options?.headers as Record<string, unknown> ?? {} }
                     },
-                    { cause: error }
+                    { cause: error_ }
                 );
             }
         }
@@ -759,28 +759,28 @@ export class HttpClient implements HttpClientInterface {
                         headerMetadata
                     );
                 }
-                catch (error) {
+                catch (error_) {
                     throw new HttpClientError(
                         `Could not parse response header "${headerMetadata.name}"`,
                         {
                             responseData: { body: res.rawBody, status: res.status, statusText: res.statusText, headers: responseHeaders },
                             requestData: { method, url, body: requestBody, headers: options?.headers as Record<string, unknown> ?? {} }
                         },
-                        { cause: error }
+                        { cause: error_ }
                     );
                 }
 
                 try {
                     await this.validationService.validateHeaderParam(res.headers[key], headerMetadata);
                 }
-                catch (error) {
+                catch (error_) {
                     throw new HttpClientError(
                         `Could not validate response header "${headerMetadata.name}"`,
                         {
                             responseData: { body: res.rawBody, status: res.status, statusText: res.statusText, headers: responseHeaders },
                             requestData: { method, url, body: requestBody, headers: options?.headers as Record<string, unknown> ?? {} }
                         },
-                        { cause: error }
+                        { cause: error_ }
                     );
                 }
             })

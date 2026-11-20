@@ -1,5 +1,5 @@
-import { PgOutputColumn, PgOutputMessage, PgOutputValue } from './pg-output-message.model';
 import { InternalError } from '../../../error-handling/internal-error.model';
+import { PgOutputColumn, PgOutputMessage, PgOutputValue } from './pg-output-message.model';
 
 /**
  * The bit of a column's flags in a relation message saying it is part of the replica identity.

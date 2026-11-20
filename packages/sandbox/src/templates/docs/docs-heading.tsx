@@ -1,7 +1,7 @@
 import { MdxHeadingProps, TsxComponent } from 'zibri';
 
-import { DocsHeadingLink } from './docs-heading-link';
 import { Heading } from '../components/heading';
+import { DocsHeadingLink } from './docs-heading-link';
 
 type HeadingLevel = MdxHeadingProps['tag'];
 

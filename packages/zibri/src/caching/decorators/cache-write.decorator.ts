@@ -1,9 +1,9 @@
-import { ExtractCacheWriteResultAvailable } from './decorator-types';
 import { inject } from '../../di/inject.function';
 import { DiToken } from '../../di/models/di-token.model';
 import { CacheKeyProvider, CacheWrapWriteOptionsArgsOnly, CacheWrapWriteOptionsWithResult, ResultCacheKeyProvider } from '../cache/cache-options.model';
 import { CacheInterface } from '../cache/cache.interface';
 import { MultiTierCache, MultiWrapWriteOptions } from '../cache/multi-tier.cache';
+import { ExtractCacheWriteResultAvailable } from './decorator-types';
 
 /** Extract the wrapWrite options type for a given cache and TArgs. */
 type ExtractWrapWriteOptions<C, TArgs extends unknown[]>

@@ -1,8 +1,8 @@
+import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { type CacheTagMatcher } from '../cache-tag-matchers';
+import { type CacheStoreInterface } from '../store/cache-store.interface';
 import { CacheKeyProvider, CacheSetDirectOptions, CacheWrapDeleteOptions, CacheWrapInvalidateOptions, CacheWrapOptions, CacheWrapWriteOptionsArgsOnly, CacheWrapWriteOptionsWithResult, OnInvalidationFailure, ResultCacheKeyProvider } from './cache-options.model';
 import { MultiTierCache } from './multi-tier.cache';
-import { ExcludeStrict } from '../../types/exclude-strict.type';
-import { type CacheStoreInterface } from '../store/cache-store.interface';
 
 /**
  * Definition for a cache.

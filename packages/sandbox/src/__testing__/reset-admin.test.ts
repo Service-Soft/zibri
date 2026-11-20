@@ -2,10 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { AuthServiceInterface, inject, JsonUtilities, PasswordCredentials, PasswordCredentialsCreateData, Repository, repositoryTokenFor, ZIBRI_DI_TOKENS } from 'zibri';
 import { StartedTestServer, startTestServer, TestCommandRun } from 'zibri-testing';
 
-import { testApplicationOptions } from './test-application-options';
 import { requireEnv } from '../env';
 import { PlatformRoles, User } from '../models';
 import { RoleRepository, UserRepository } from '../repositories';
+import { testApplicationOptions } from './test-application-options';
 
 /**
  * What the login route answers while it waits for a password of the admin's own.

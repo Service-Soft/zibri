@@ -1,5 +1,5 @@
-import { RestoreJournalEntry } from './restore-journal-entry.model';
 import { KeptEncryptionKeys } from '../auth/encryption/kept-encryption-keys.model';
+import { RestoreJournalEntry } from './restore-journal-entry.model';
 
 /**
  * What a restore in progress has applied, kept on disk beside its snapshots.

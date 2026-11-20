@@ -1,6 +1,12 @@
 import { Chart } from 'chart.js?client';
 import { $ts, MetricsSnapshot, onClient, provideContext, State, TsxComponent, useEffect, useState } from 'zibri';
 
+import { BasePage } from '../../components/base-page';
+import { Checkbox } from '../../components/checkbox';
+import { Heading } from '../../components/heading';
+import { StatCard } from '../../components/stat-card';
+import { TabBar } from '../../components/tab-bar';
+import { TabItem } from '../../components/tab-item';
 import { CacheDetailSection } from './cache/cache-details-section';
 import { CacheHitRateStatCard } from './cache/cache-hit-rate-stat-card';
 import { CacheInFlightStatCard } from './cache/cache-inflight-stat-card';
@@ -17,12 +23,6 @@ import { RequestDurationChart } from './request-duration-chart';
 import { RequestsPerSecondChart } from './requests-per-second-chart';
 import { ResourceUsageChart } from './resource-usage-chart';
 import { Snapshots } from './snapshots';
-import { BasePage } from '../../components/base-page';
-import { Checkbox } from '../../components/checkbox';
-import { Heading } from '../../components/heading';
-import { StatCard } from '../../components/stat-card';
-import { TabBar } from '../../components/tab-bar';
-import { TabItem } from '../../components/tab-item';
 
 type Props = {
     version: string,

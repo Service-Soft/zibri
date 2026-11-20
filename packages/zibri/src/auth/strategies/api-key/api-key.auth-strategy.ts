@@ -1,5 +1,3 @@
-import { type ApiKeyServiceInterface } from './api-key-service.interface';
-import { ApiKey } from './api-key.model';
 import { ZibriApplication } from '../../../application/application';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
@@ -17,6 +15,8 @@ import { AuthorizationToken } from '../authorization-token.model';
 import { CredentialEntity } from '../credential-entity.model';
 import { CredentialLimits } from '../credential-limits.model';
 import { TokenIntrospectingAuthStrategyInterface } from '../token-introspecting-auth-strategy.interface';
+import { type ApiKeyServiceInterface } from './api-key-service.interface';
+import { ApiKey } from './api-key.model';
 
 /**
  * Api key auth strategy implementation of Zibri.

@@ -1,4 +1,3 @@
-import { BaseParamMetadata } from './base-param-metadata.model';
 import { ArrayPropertyMetadataInput } from '../../entity/models/array-property-metadata.model';
 import { BasePropertyMetadata } from '../../entity/models/base-property-metadata.model';
 import { BooleanPropertyMetadataInput } from '../../entity/models/boolean-property-metadata.model';
@@ -8,6 +7,7 @@ import { ObjectPropertyMetadataInput } from '../../entity/models/object-property
 import { AnyOfShapesMetadata } from '../../entity/models/one-of-property-metadata.model';
 import { IncomingStringPropertyMetadataInput } from '../../entity/models/string-property-metadata.model';
 import { OmitStrict } from '../../types/omit-strict.type';
+import { BaseParamMetadata } from './base-param-metadata.model';
 
 /**
  * Metadata of a parameter that is the first of several shapes it fits.

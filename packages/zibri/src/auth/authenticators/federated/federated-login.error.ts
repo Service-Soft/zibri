@@ -1,8 +1,8 @@
-import { FederatedLoginAction } from './federated-login-action.type';
-import { FederatedLoginFailure } from './federated-login-failure.enum';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
 import { $ts } from '../../../localization/translate.function';
 import { AuditAction } from '../../../logging/audit-event.model';
+import { FederatedLoginAction } from './federated-login-action.type';
+import { FederatedLoginFailure } from './federated-login-failure.enum';
 
 /**
  * The options of a FederatedLoginError.

@@ -5,10 +5,10 @@ import { OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOption
 import { OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOptions } from 'zibri';
 {{/mailingList}}
 
+import { version } from '../package.json';
 import { endEveryLoginCommand, resetAdminCommand } from './commands';
 import { AppAuthController{{#mailingList}}, AppMailingListController{{/mailingList}}{{#docs}}, DocsController{{/docs}}, HealthController{{#pages}}, PageController{{/pages}} } from './controllers';
 import { requireOneOfEnv, requireUrlEnv } from './env';
-import { version } from '../package.json';
 import { providers } from './providers';
 
 if (!SemVerUtilities.isSemVerVersion(version)) {

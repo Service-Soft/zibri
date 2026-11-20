@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { InvoicePdfService } from './invoice-pdf.service';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { createFakeFont } from '../../../__testing__/fake-font.function';
 import { companyInfoProvider } from '../../../__testing__/mocks/company-info-provider.function';
@@ -20,6 +19,7 @@ import { InvoiceRecipientAbbreviation } from '../models/invoice-recipient-abbrev
 import { Invoice } from '../models/invoice.model';
 import { InvoicingOptionsInput } from '../models/invoicing-options-input.model';
 import { NumberInvoices } from '../models/number-invoices.model';
+import { InvoicePdfService } from './invoice-pdf.service';
 
 /**
  * The width and height of a page, in pt, as pdfkit lays it out.

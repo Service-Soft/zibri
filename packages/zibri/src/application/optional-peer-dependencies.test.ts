@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
+import { DOCS_DIR, DocsPagesUtilities } from '../__testing__/docs-pages.utilities';
 import { PACKAGES_LEFT_TO_THE_APPLICATION } from '../__testing__/packages-left-to-the-application';
 import { JsonUtilities } from '../utilities/json.utilities';
 
@@ -672,11 +673,17 @@ describe('@peculiar/x509', () => {
 describe('every optional peer', () => {
 
     it('is listed where a reader looks for what to install', () => {
-        const section: string = resolveDocsSection('getting-started.md', '### Optional packages');
-        const listed: Set<string> = new Set([...section.matchAll(/`([^`]+)`/g)].map(match => match[1] ?? ''));
+        // the requirements of the page of each feature, which getting-started.md sends a reader to
+        const listed: Set<string> = new Set(DocsPagesUtilities.resolvePageNames()
+            .filter(
+                page => readFileSync(path.join(DOCS_DIR, page), 'utf8')
+                    .split('\n')
+                    .includes('## Requirements')
+            )
+            .flatMap(page => [...resolveDocsSection(page, '## Requirements').matchAll(/`([^`]+)`/g)].map(match => match[1] ?? '')));
 
-        // a package the table leaves out is one an upgrade finds missing at the first boot. The table
-        // named `pg` alone for postgres, which also refuses to start without `pg-query-stream`, and
+        // a package the pages leave out is one an upgrade finds missing at the first boot. The table they
+        // replaced named `pg` alone for postgres, which also refuses to start without `pg-query-stream`, and
         // left out tracing, sftp backups and translation extraction entirely
         expect(optionalPeers().filter(name => !listed.has(name))).toStrictEqual([]);
     });

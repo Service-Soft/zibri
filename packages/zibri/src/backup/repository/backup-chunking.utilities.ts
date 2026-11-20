@@ -1,8 +1,8 @@
 import { hkdfSync } from 'node:crypto';
 
+import { InternalError } from '../../error-handling/internal-error.model';
 import { BackupChunkingOptions } from './backup-chunking-options.model';
 import { BackupManifestUtilities } from './backup-manifest.utilities';
-import { InternalError } from '../../error-handling/internal-error.model';
 
 /**
  * How many bits the gear hash keeps of the bytes it saw: one per byte, so a boundary depends on the

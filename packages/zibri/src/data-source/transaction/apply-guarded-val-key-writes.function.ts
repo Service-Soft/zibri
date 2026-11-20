@@ -1,12 +1,12 @@
 import type { GlideClient, GlideReturnType, Script } from '@valkey/valkey-glide';
 
-import { TransactionLocksLostError } from './transaction-locks-lost.error';
-import { TransactionSerializationError } from './transaction-serialization.error';
-import { type ValKeyBufferedWrite, type ValKeyGrantRelease } from './val-key-transaction.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { VAL_KEY_COPY_ON_WRITE_NAMES, ValKeyCopyOnWriteUtilities, type ValKeyReadView } from '../data-sources/val-key/val-key-copy-on-write.utilities';
 import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function';
+import { TransactionLocksLostError } from './transaction-locks-lost.error';
+import { TransactionSerializationError } from './transaction-serialization.error';
+import { type ValKeyBufferedWrite, type ValKeyGrantRelease } from './val-key-transaction.model';
 
 /**
  * What a guarded write checks before it writes: what each guarded key and each guarded hash held

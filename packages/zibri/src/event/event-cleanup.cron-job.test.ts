@@ -1,9 +1,9 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
-import { EventCleanupCronJob } from './event-cleanup.cron-job';
-import { Event, EventStatus } from './event.model';
 import { Repository } from '../data-source/repository/repository';
 import { LoggerInterface } from '../logging/logger.interface';
+import { EventCleanupCronJob } from './event-cleanup.cron-job';
+import { Event, EventStatus } from './event.model';
 
 function fakeEventRepository(): Repository<Event<unknown>> & { deleteAll: jest.Mock<(options: unknown) => Promise<number>> } {
     return {

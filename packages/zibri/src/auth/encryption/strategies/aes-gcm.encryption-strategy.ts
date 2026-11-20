@@ -1,8 +1,8 @@
 import { CipherGCM, CipherGCMTypes, createCipheriv, createDecipheriv, DecipherGCM, randomBytes } from 'node:crypto';
 
+import { InternalError } from '../../../error-handling/internal-error.model';
 import { EncryptionContent, EncryptionString, EncryptionUtilities } from '../encryption.utilities';
 import { BaseDecryptOptions, BaseEncryptOptions, EncryptionBinding, EncryptionStrategyInterface } from './encryption-strategy.interface';
-import { InternalError } from '../../../error-handling/internal-error.model';
 
 /**
  * The length in bytes of the authentication tag a value is written with, node's default for gcm.

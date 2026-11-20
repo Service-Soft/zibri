@@ -1,7 +1,7 @@
-import { FindAllOptions } from './find-all-options.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { EntitySelection } from '../../../entity/models/entity-selection.model';
 import { OmitStrict } from '../../../types/omit-strict.type';
+import { FindAllOptions } from './find-all-options.model';
 
 /**
  * Options for reading every matching entity without holding them all at once.

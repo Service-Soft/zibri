@@ -1,8 +1,8 @@
+import { Repository } from '../data-source/repository/repository';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { type CronExpressionString } from './cron-expression.utilities';
 import { CreateCronJobEntityData, CronJobEntity, CronJobState } from './cron-job-entity.model';
 import { type CronConfig } from './cron-job.model';
-import { Repository } from '../data-source/repository/repository';
-import { type LoggerInterface } from '../logging/logger.interface';
 
 /**
  * The source of a job declared as a class of the application.

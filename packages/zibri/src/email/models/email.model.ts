@@ -1,9 +1,9 @@
-import { EmailAttachment } from './email-attachment.model';
-import { EmailPriority } from './email-priority.enum';
-import { EmailStatus } from './email-status.enum';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { QueuedWorkEntity } from '../../queue/queued-work-entity.model';
+import { EmailAttachment } from './email-attachment.model';
+import { EmailPriority } from './email-priority.enum';
+import { EmailStatus } from './email-status.enum';
 
 /**
  * Definition of a Email. Its `attempts` count the sends that threw, such as because its server could

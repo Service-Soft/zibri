@@ -8,15 +8,15 @@ import 'reflect-metadata'; // has to come before every zibri import below: they 
 import { DataSourceInterface, DiProvider, FsPath, inject, Newable, ZibriApplication, ZibriApplicationOptions } from 'zibri';
 import { initDiContainer } from 'zibri/internal';
 
-import { defaultClusterDataSources } from './cluster-data-sources';
-import { requireClusterEnv } from './cluster-env.function';
-import { CLUSTER_DATA_SOURCE_PORTS_ENV, CLUSTER_INSTANCE_OPTIONS_ENV, CLUSTER_SCRATCH_PATH_ENV, ClusterInstanceMessage } from './cluster-message.model';
-import { defaultClusterProviders } from './cluster-providers';
 import { registerAheadOfInit } from '../register-ahead-of-init.function';
 import { resolveApplicationOptions } from '../resolve-application-options.function';
 import { scratchProviders } from '../scratch-directory.function';
 import { applyContainerPorts, buildDataSources, DataSourcePorts, needsContainer, TestDataSource } from '../start-data-source-containers.function';
 import { StartTestServerOptions } from '../start-test-server-options.model';
+import { defaultClusterDataSources } from './cluster-data-sources';
+import { requireClusterEnv } from './cluster-env.function';
+import { CLUSTER_DATA_SOURCE_PORTS_ENV, CLUSTER_INSTANCE_OPTIONS_ENV, CLUSTER_SCRATCH_PATH_ENV, ClusterInstanceMessage } from './cluster-message.model';
+import { defaultClusterProviders } from './cluster-providers';
 
 /**
  * One instance of a Zibri application, in its own process.

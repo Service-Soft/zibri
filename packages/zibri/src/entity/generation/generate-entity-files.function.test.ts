@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { generateEntityFiles } from './generate-entity-files.function';
 import { testFileFolder } from '../../__testing__/constants';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
+import { generateEntityFiles } from './generate-entity-files.function';
 
 // A schema rich enough to exercise multiple property-type branches through the full cwd -> ts-node ->
 // require() -> disk pipeline, not just the pure generateEntityFilesForProvider() logic (that deeper,

@@ -1,13 +1,5 @@
 import { randomBytes } from 'node:crypto';
 
-import { ChangePasswordData } from './change-password-data.model';
-import { ConfirmPasswordResetData } from './confirm-password-reset-data.model';
-import { PasswordCredentials, PasswordCredentialsCreateData, PasswordCredentialsDto } from './password-credentials.model';
-import { PasswordFailureLimit } from './password-failure-limit.model';
-import { PasswordFailureStreak, PasswordFailureStreakCreateData } from './password-failure-streak.model';
-import { PasswordResetEmailTemplate } from './password-reset-email-template.model';
-import { RequestPasswordResetData } from './request-password-reset-data.model';
-import { SetPasswordData } from './set-password-data.model';
 import { ZibriApplication } from '../../../application/application';
 import { Repository } from '../../../data-source/repository/repository';
 import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
@@ -42,6 +34,14 @@ import { PasswordPolicy } from '../../password-policy/password-policy.model';
 import { PasswordPolicyUtilities } from '../../password-policy/password-policy.utilities';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthControllerAuthenticatorInterface } from '../auth-controller-authenticator.interface';
+import { ChangePasswordData } from './change-password-data.model';
+import { ConfirmPasswordResetData } from './confirm-password-reset-data.model';
+import { PasswordCredentials, PasswordCredentialsCreateData, PasswordCredentialsDto } from './password-credentials.model';
+import { PasswordFailureLimit } from './password-failure-limit.model';
+import { PasswordFailureStreak, PasswordFailureStreakCreateData } from './password-failure-streak.model';
+import { PasswordResetEmailTemplate } from './password-reset-email-template.model';
+import { RequestPasswordResetData } from './request-password-reset-data.model';
+import { SetPasswordData } from './set-password-data.model';
 
 /**
  * Authenticates a user by email and password, and resets a forgotten password by email.

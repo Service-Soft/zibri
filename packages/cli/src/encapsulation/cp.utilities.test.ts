@@ -1,9 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { CPUtilities, ProcessResult } from './cp.utilities';
-import { FsUtilities } from './fs.utilities';
 import { emptyWorkDirectory } from '../__testing__/empty-work-directory.function';
 import { getPath, Path } from '../utilities';
+import { CPUtilities, ProcessResult } from './cp.utilities';
+import { FsUtilities } from './fs.utilities';
 
 describe('CPUtilities.resolveResult', () => {
     // npm's programs are scripts on windows rather than executables, and `zi upgrade` runs npx to

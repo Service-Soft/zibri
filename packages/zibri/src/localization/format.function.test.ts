@@ -1,9 +1,9 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { $f } from './format.function';
 import { initDiContainer } from '../di/init-di-container.function';
 import { AppState } from '../global/app-state.enum';
 import { GlobalRegistry } from '../global/global-registry';
+import { $f } from './format.function';
 
 describe('$f', () => {
     beforeAll(() => {

@@ -1,8 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
-import { AuditCheckpoint, AuditCheckpointCreateData } from './audit-checkpoint.model';
-import { AuditEntry, AuditEntryCreateData } from './audit-entry.model';
-import { type AuditServiceInterface } from './audit-service.interface';
 import { runWithApplicationClockAhead } from '../__testing__/run-with-application-clock-ahead.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
@@ -16,6 +13,9 @@ import { type LoggerInterface } from '../logging/logger.interface';
 import { Newable } from '../types/newable.type';
 import { Ms } from '../utilities/ms';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { AuditCheckpoint, AuditCheckpointCreateData } from './audit-checkpoint.model';
+import { AuditEntry, AuditEntryCreateData } from './audit-entry.model';
+import { type AuditServiceInterface } from './audit-service.interface';
 
 /**
  * The cases every data source answers the same way about an audit trail kept with checkpoints. A file

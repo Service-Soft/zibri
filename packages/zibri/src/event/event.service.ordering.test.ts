@@ -3,8 +3,6 @@ import { setTimeout } from 'node:timers/promises';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { type EventServiceInterface } from './event-service.interface';
-import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -15,6 +13,8 @@ import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
+import { type EventServiceInterface } from './event-service.interface';
+import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model';
 
 declare module './event-service.interface' {
     /**

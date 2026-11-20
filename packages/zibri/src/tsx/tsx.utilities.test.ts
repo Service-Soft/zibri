@@ -1,8 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { CompiledPage } from 'zibri-tsx';
 
-import { TsxComponent } from './tsx-component.model';
-import { TsxUtilities } from './tsx.utilities';
 import { compileTsxTemplate } from '../__testing__/compile-tsx-template.function';
 import { ZibriApplicationOptions } from '../application/application-options.model';
 import { AssetService } from '../assets/asset.service';
@@ -16,6 +14,8 @@ import { GlobalRegistry } from '../global/global-registry';
 import { LocaleCode } from '../localization/models/locale-code.model';
 import { TranslationRegistry } from '../localization/translation.registry';
 import { Route } from '../routing/controller-route-configuration.model';
+import { TsxComponent } from './tsx-component.model';
+import { TsxUtilities } from './tsx.utilities';
 
 /**
  * Assets served below a path of their own, as a site published under one serves them.

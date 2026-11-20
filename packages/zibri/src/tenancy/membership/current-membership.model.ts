@@ -1,5 +1,5 @@
-import { type BaseMembership } from './base-membership.model';
 import { OmitStrict } from '../../types/omit-strict.type';
+import { type BaseMembership } from './base-membership.model';
 
 /**
  * The membership a request acts through in the active tenant, as a handler or a scope is handed it:

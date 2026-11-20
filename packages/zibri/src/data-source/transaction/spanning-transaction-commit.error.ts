@@ -1,5 +1,5 @@
-import { SpanningTransactionRestoreFailure } from './spanning-transaction-restore-failure.model';
 import { InternalError } from '../../error-handling/internal-error.model';
+import { SpanningTransactionRestoreFailure } from './spanning-transaction-restore-failure.model';
 
 /**
  * Thrown when a spanning transaction could not commit in one of the data sources it spans.

@@ -1,6 +1,6 @@
+import { BaseEntity } from '../../../entity/base-entity.model';
 import { BaseRepositoryOptions } from './base-repository-options.model';
 import { WriteRelationsOptions } from './write-relations-options.model';
-import { BaseEntity } from '../../../entity/base-entity.model';
 
 /**
  * Options for creating a single entity.

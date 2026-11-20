@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
 
-import { HelpCommand } from './help.command';
 import { Command } from '../command.enum';
+import { HelpCommand } from './help.command';
 
 describe('HelpCommand', () => {
     afterEach(() => {

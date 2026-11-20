@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, FakeLdapDirectory, FakeLdapEntry, InMemoryDataSource, startFakeLdapDirectory } from 'zibri-testing';
 
-import { BaseActiveDirectoryAuthenticator } from './base-active-directory.authenticator';
 import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../../__testing__/mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../../__testing__/test-server/create-test-data-source.function';
@@ -28,6 +27,7 @@ import { LdapCredentials } from '../ldap-credentials.model';
 import { LdapEntry } from '../ldap-entry.model';
 import { LdapIdentity } from '../ldap-identity.model';
 import { LdapServiceAccount } from '../ldap-service-account.model';
+import { BaseActiveDirectoryAuthenticator } from './base-active-directory.authenticator';
 
 const DOMAIN: string = 'DC=zibri,DC=test';
 const USERS: string = `CN=Users,${DOMAIN}`;

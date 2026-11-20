@@ -1,6 +1,6 @@
-import { S3DeleteError } from './s3-delete-error.model';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { XmlElement } from '../../../parsing/xml/xml-element.decorator';
+import { S3DeleteError } from './s3-delete-error.model';
 
 /**
  * What a request to delete several objects is answered with, quietly: the objects it could not delete.

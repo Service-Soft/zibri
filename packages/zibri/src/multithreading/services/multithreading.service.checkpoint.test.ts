@@ -3,8 +3,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { MultithreadingServiceInterface } from './multithreading-service.interface';
-import { MultithreadingService } from './multithreading.service';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
@@ -22,6 +20,8 @@ import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../mod
 import { ThreadJobCheckpoint } from '../models/thread-job-checkpoint.model';
 import { ThreadJobEntity } from '../models/thread-job-entity.model';
 import { ThreadJobStatus } from '../models/thread-job-status.enum';
+import { MultithreadingServiceInterface } from './multithreading-service.interface';
+import { MultithreadingService } from './multithreading.service';
 
 // a job taken over ran again from the
 // beginning, with nothing of how far it had got kept

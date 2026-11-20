@@ -1,8 +1,8 @@
+import { HttpRequestContext } from '../../context/request/http-request.context';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { AuthorizationToken } from './authorization-token.model';
 import { isJwtConfirmation } from './jwt/jwt-confirmation.model';
 import { JwtUtilities } from './jwt/jwt.utilities';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 
 /**
  * Reads the access token of a request's authorization header.

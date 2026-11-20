@@ -1,5 +1,3 @@
-import { type EventServiceInterface } from './event-service.interface';
-import { Event } from './event.model';
 import { CronExpression } from '../cron/cron-expression.utilities';
 import { InitialCronConfig } from '../cron/cron-job.model';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -9,6 +7,8 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { PollingCronJob } from '../polling/polling-cron-job.model';
 import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
 import { Newable } from '../types/newable.type';
+import { type EventServiceInterface } from './event-service.interface';
+import { Event } from './event.model';
 
 // Deliberately `runsOn: 'everyInstance'`. Every instance polls, so any of them can take over abandoned
 // work; which one actually runs a given subscriber is decided by the claim in EventService, not by

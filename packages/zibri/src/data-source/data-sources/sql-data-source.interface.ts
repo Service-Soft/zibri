@@ -1,7 +1,7 @@
-import { DataSourceInterface } from './data-source.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
 import { Transaction } from '../transaction/transaction.model';
+import { DataSourceInterface } from './data-source.interface';
 
 /**
  * The direction rows are ordered in.

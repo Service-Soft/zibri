@@ -12,7 +12,9 @@ export function OmitClass<T, K extends keyof T>(
     keys: readonly K[]
 ): Newable<Omit<T, K>> {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    class OmitClass {}
-    ClassPropertyUtilities.copy(OmitClass, Base, keys as K[]);
-    return OmitClass as Newable<Omit<T, K>>;
+    class Omitted {}
+    // the name an xml body or document of the class is read and written under, unless a class extending it names one
+    Object.defineProperty(Omitted, 'name', { value: 'OmitClass' });
+    ClassPropertyUtilities.copy(Omitted, Base, keys as K[]);
+    return Omitted as Newable<Omit<T, K>>;
 }

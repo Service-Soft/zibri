@@ -4,6 +4,17 @@ import { setTimeout as wait } from 'node:timers/promises';
 import { afterAll, describe, expect, it } from '@jest/globals';
 import { resolveTypeScriptForkOptions } from 'zibri-testing';
 
+import { BACKUP_FORMAT_VERSION } from '../../../backup/backup-format';
+import { FsPath, FsUtilities } from '../../../utilities/fs.utilities';
+import { JsonUtilities } from '../../../utilities/json.utilities';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities';
+import { testFileFolder } from '../../constants';
+import { BenchmarkFigure } from '../benchmark-figure.model';
+import { BenchmarkTiming } from '../benchmark-timing.model';
+import { BenchmarkUtilities } from '../benchmark.utilities';
+import { PerfControl } from '../perf-control.model';
+import { PerfFork, PerfRecordingUtilities } from '../perf-recording.utilities';
+import { ThreadCpu, ThreadCpuUtilities } from '../thread-cpu.utilities';
 import { BackupComparisonUtilities, ComparedMeasurement } from './backup-comparison.utilities';
 import { BACKUP_MEASUREMENT_CONFIG_ENV,
     BackupMeasurement,
@@ -17,17 +28,6 @@ import { BACKUP_MEASUREMENT_CONFIG_ENV,
     PhaseMeasurement,
     ValKeyServerMeasurement } from './backup-measurement.model';
 import { ChangeProfile } from './seeded-table.model';
-import { BACKUP_FORMAT_VERSION } from '../../../backup/backup-format';
-import { FsPath, FsUtilities } from '../../../utilities/fs.utilities';
-import { JsonUtilities } from '../../../utilities/json.utilities';
-import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { testFileFolder } from '../../constants';
-import { BenchmarkFigure } from '../benchmark-figure.model';
-import { BenchmarkTiming } from '../benchmark-timing.model';
-import { BenchmarkUtilities } from '../benchmark.utilities';
-import { PerfControl } from '../perf-control.model';
-import { PerfFork, PerfRecordingUtilities } from '../perf-recording.utilities';
-import { ThreadCpu, ThreadCpuUtilities } from '../thread-cpu.utilities';
 
 const MIB: number = 1024 * 1024;
 

@@ -6,9 +6,6 @@ import { buffer, text } from 'node:stream/consumers';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { PostgresBackupScope } from './postgres-backup-scope.model';
-import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
-import { PostgresPooler } from './postgres-pooler.model';
 import { BackupDataOptionsTestUtilities } from '../../../__testing__/backup/backup-data-options-test.utilities';
 import { BackupLayoutTestUtilities } from '../../../__testing__/backup/backup-layout-test.utilities';
 import { testFileFolder } from '../../../__testing__/constants';
@@ -42,6 +39,9 @@ import { Repository } from '../../repository/repository';
 import { RepositoryClass } from '../../repository/repository-class.type';
 import { Transaction } from '../../transaction/transaction.model';
 import { ValKeyDataSource, ValKeyOptions } from '../val-key/val-key-data-source.model';
+import { PostgresBackupScope } from './postgres-backup-scope.model';
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
+import { PostgresPooler } from './postgres-pooler.model';
 
 // a file of its own because `@DataSource` and `@Backup` both register when the decorator runs, and
 // nothing takes them back out. The data source declares no root credentials, which is the point of

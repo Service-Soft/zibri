@@ -1,10 +1,10 @@
 import type ts from 'typescript';
 
-import { ExtractedTranslationString } from './models/extracted-translation-string.model';
-import { ScannedTranslationOrigin } from './models/source-translation-origin.model';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
 import { optionalPeer } from '../../utilities/optional-peer.function';
 import { LocaleCode } from '../models/locale-code.model';
+import { ExtractedTranslationString } from './models/extracted-translation-string.model';
+import { ScannedTranslationOrigin } from './models/source-translation-origin.model';
 
 /**
  * TypeScript's own module, as loaded at runtime.

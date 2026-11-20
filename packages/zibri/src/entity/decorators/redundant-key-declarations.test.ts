@@ -1,12 +1,12 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { Entity } from './entity.decorator';
-import { Property } from './property.decorator';
 import { whereFor } from '../../data-source/models/where/where-for.function';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { KeyGroups, keyGroupsOf } from '../../global/model-registry/key-descriptor';
 import { Newable } from '../../types/newable.type';
 import { BaseEntity } from '../base-entity.model';
+import { Entity } from './entity.decorator';
+import { Property } from './property.decorator';
 
 /**
  * What a key may be declared as, and where.

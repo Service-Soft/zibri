@@ -1,9 +1,3 @@
-import { XmlElementNode } from './xml-element-node.model';
-import { XmlGenerateOptions } from './xml-generate-options.model';
-import { XmlParseOptions } from './xml-parse-options.model';
-import { XmlReaderUtilities } from './xml-reader.utilities';
-import { XmlString } from './xml-string.type';
-import { XmlWriterUtilities } from './xml-writer.utilities';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { InternalError } from '../error-handling/internal-error.model';
@@ -12,6 +6,12 @@ import { parseShape } from '../parsing/functions/parse-one-of.function';
 import { JsonBodyMetadata, XmlBodyMetadata } from '../routing/decorators/body-metadata.model';
 import { resolveStructuredBodyMetadata } from '../routing/resolve-body-metadata.function';
 import { Newable } from '../types/newable.type';
+import { XmlElementNode } from './xml-element-node.model';
+import { XmlGenerateOptions } from './xml-generate-options.model';
+import { XmlParseOptions } from './xml-parse-options.model';
+import { XmlReaderUtilities } from './xml-reader.utilities';
+import { XmlString } from './xml-string.type';
+import { XmlWriterUtilities } from './xml-writer.utilities';
 
 /**
  * Utility class for handling xml documents.

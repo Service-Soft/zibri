@@ -1,7 +1,7 @@
-import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { OmitStrict } from '../../types/omit-strict.type';
+import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model';
 
 /**
  * A bound of a date property, asked each time a value is validated: given the object the property

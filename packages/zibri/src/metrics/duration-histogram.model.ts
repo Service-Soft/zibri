@@ -1,6 +1,6 @@
+import { Ms } from '../utilities/ms';
 import { HistogramInterface } from './histogram.interface';
 import { type MetricsServiceInterface } from './metrics-service.interface';
-import { Ms } from '../utilities/ms';
 
 /**
  * A histogram of durations, observed in milliseconds and recorded in seconds.

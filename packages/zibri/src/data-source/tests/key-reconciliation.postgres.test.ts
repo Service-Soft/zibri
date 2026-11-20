@@ -1,4 +1,3 @@
-import { describeKeyReconciliation, PlainWidget } from './key-reconciliation.cases';
 import { queryPostgres } from '../../__testing__/query-postgres.function';
 import { createTestDataSource } from '../../__testing__/test-server/create-test-data-source.function';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -11,6 +10,7 @@ import { PostgresDataSource } from '../data-sources/postgres/postgres-data-sourc
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { Migration } from '../migration/migration.model';
 import { Transaction } from '../transaction/transaction.model';
+import { describeKeyReconciliation, PlainWidget } from './key-reconciliation.cases';
 
 /**
  * The entities of the postgres data source, the widget last - which the cases swap for another

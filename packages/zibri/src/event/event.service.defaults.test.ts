@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { type EventServiceInterface } from './event-service.interface';
-import { Event } from './event.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -14,6 +12,8 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { Ms } from '../utilities/ms';
+import { type EventServiceInterface } from './event-service.interface';
+import { Event } from './event.model';
 
 // a finished event was kept a day and a hook given 30
 // seconds unless each emit and each subscriber said otherwise, so the framework's own events could not

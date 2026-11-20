@@ -1,5 +1,3 @@
-import { BaseMembership } from './base-membership.model';
-import { MembershipRepositoryInterface } from './membership-repository.interface';
 import { ChangeSetRepository } from '../../data-source/change-sets/change-set-repository';
 import { type ChangeSetEntity } from '../../data-source/change-sets/models/change-set-entity.model';
 import { type SoftDeleteEntity } from '../../data-source/change-sets/models/soft-delete-entity.model';
@@ -11,6 +9,8 @@ import { type RepositoryTransaction } from '../../data-source/transaction/reposi
 import { ModelRegistry } from '../../global/model-registry/model.registry';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
+import { BaseMembership } from './base-membership.model';
+import { MembershipRepositoryInterface } from './membership-repository.interface';
 
 /**
  * A membership repository class built over the repository a data source builds for its entity.

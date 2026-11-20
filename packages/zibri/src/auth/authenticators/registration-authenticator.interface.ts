@@ -1,6 +1,6 @@
-import { AuthenticatorInterface, isAuthenticator } from './authenticator.interface';
 import { Newable } from '../../types/newable.type';
 import { BaseUser } from '../models/base-user.model';
+import { AuthenticatorInterface, isAuthenticator } from './authenticator.interface';
 
 /**
  * Interface for an authenticator that registers a user who does not exist yet by itself, such as with

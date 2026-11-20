@@ -1,9 +1,9 @@
 import { ChartConfiguration, Chart as ChartJsChart } from 'chart.js?client';
 import { Input, MetricsSnapshot, onClient, Ref, TsxComponent, useContext, useEffect, useInput, useRef } from 'zibri';
 
+import { Snapshots } from '../pages/metrics/snapshots';
 import { Card } from './card';
 import { Heading } from './heading';
-import { Snapshots } from '../pages/metrics/snapshots';
 
 type Props = {
     title: string,

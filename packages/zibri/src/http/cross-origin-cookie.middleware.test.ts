@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { CorsOrigin } from './cors.middleware';
-import { KnownHeader } from './known-header.enum';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -22,6 +20,8 @@ import { Get } from '../routing/decorators/get.decorator';
 import { Param } from '../routing/decorators/param.decorator';
 import { Post } from '../routing/decorators/post.decorator';
 import { Newable } from '../types/newable.type';
+import { CorsOrigin } from './cors.middleware';
+import { KnownHeader } from './known-header.enum';
 
 const allowedOrigin: CorsOrigin = 'https://app.example.com';
 const foreignOrigin: CorsOrigin = 'https://evil.example.com';

@@ -1,6 +1,6 @@
-import { BaseMembership } from './base-membership.model';
 import { MEMBERSHIP_REPOSITORY } from '../../data-source/repository/repository-kind.model';
 import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
+import { BaseMembership } from './base-membership.model';
 
 // methods rather than properties holding functions, for the reason UserRepositoryInterface gives
 /* eslint-disable typescript/method-signature-style */

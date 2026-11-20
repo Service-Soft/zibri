@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { Repository } from './repository';
 import { TestTimeouts } from '../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -14,6 +13,7 @@ import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { QueryFailedError } from '../query-failed.error';
 import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
+import { Repository } from './repository';
 
 @Entity({ tenant: 'shared' })
 class Widget extends BaseEntity {

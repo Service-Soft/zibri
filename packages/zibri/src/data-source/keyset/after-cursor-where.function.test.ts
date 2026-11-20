@@ -1,7 +1,5 @@
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
-import { afterCursorWhere, KeysetStep, keysetStepsFor, keysetValuesOf } from './after-cursor-where.function';
-import { KeysetOrderKey, resolveKeysetOrder } from './keyset-order.model';
 import { initDiContainer } from '../../di/init-di-container.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
@@ -12,6 +10,8 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { BigNumber } from '../../utilities/number.utilities';
 import { WhereFilterEvaluator } from '../data-sources/where-converter/where-filter.evaluator';
 import { ScopedWhere } from '../scopes/scope-where.utilities';
+import { afterCursorWhere, KeysetStep, keysetStepsFor, keysetValuesOf } from './after-cursor-where.function';
+import { KeysetOrderKey, resolveKeysetOrder } from './keyset-order.model';
 
 @Entity({ tenant: 'shared', allowOrphan: true })
 class WalkedRow extends BaseEntity {

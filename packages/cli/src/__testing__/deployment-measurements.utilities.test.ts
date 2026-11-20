@@ -3,12 +3,12 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { addMapping, GenMapping, toEncodedMap } from '@jridgewell/gen-mapping';
 
+import { FsUtilities } from '../encapsulation';
+import { Path } from '../utilities';
 import { BundlePart } from './bundle-part.model';
 import { DeploymentMeasurement } from './deployment-measurement.model';
 import { DeploymentMeasurementUtilities } from './deployment-measurements.utilities';
 import { emptyWorkDirectory } from './empty-work-directory.function';
-import { FsUtilities } from '../encapsulation';
-import { Path } from '../utilities';
 
 let workDir: Path;
 let reportPath: Path;

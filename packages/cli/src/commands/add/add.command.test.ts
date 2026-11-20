@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { AddCommand } from './add.command';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
 import { GeneratedProject } from '../../__testing__/generated-project';
 import { mockExitGracefully, ProcessExitError } from '../../__testing__/mock-exit-gracefully.function';
@@ -9,6 +8,7 @@ import { CPUtilities, FsUtilities } from '../../encapsulation';
 import { ScaffoldUtilities } from '../../scaffold';
 import { Path } from '../../utilities';
 import { RemoveCommand } from '../remove/remove.command';
+import { AddCommand } from './add.command';
 
 /**
  * Adding a feature to a project generated without it, the way `zi upgrade` brings

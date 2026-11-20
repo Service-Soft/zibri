@@ -1,11 +1,11 @@
 import { OpenApiExplorerProps, OpenApiExplorerUtilities, onClient, TsxComponent, TsxElement } from 'zibri';
 
-import { ExplorerAsyncApi } from './explorer-async-api';
-import { ExplorerOpenApi } from './explorer-open-api';
 import { BasePage } from '../components/base-page';
 import { Heading } from '../components/heading';
 import { TabBar } from '../components/tab-bar';
 import { TabItem } from '../components/tab-item';
+import { ExplorerAsyncApi } from './explorer-async-api';
+import { ExplorerOpenApi } from './explorer-open-api';
 
 export const ExplorerPage: TsxComponent<OpenApiExplorerProps> = ({ versions, version, definition, asyncApiDefinition, versionHeader }) => {
     // a tab for each document that describes anything, and the tabs only for both

@@ -2,10 +2,6 @@ import assert from 'node:assert';
 
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
-import { FederatedIdentity, FederatedIdentityCreateData } from './authenticators/federated/federated-identity.model';
-import { OAuthProviderTokens, OAuthProviderTokensCreateData } from './authenticators/oauth/oauth-provider-tokens.model';
-import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
-import { ApiKey } from './strategies/api-key/api-key.model';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../__testing__/mocks/entities/roles.enum';
 import { StartedTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -25,6 +21,10 @@ import { Newable } from '../types/newable.type';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { FederatedIdentity, FederatedIdentityCreateData } from './authenticators/federated/federated-identity.model';
+import { OAuthProviderTokens, OAuthProviderTokensCreateData } from './authenticators/oauth/oauth-provider-tokens.model';
+import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
+import { ApiKey } from './strategies/api-key/api-key.model';
 
 const PASSWORD: string = 'correct horse battery staple';
 const BACKUP_PASSWORD: string = 'the password of the backup';

@@ -1,7 +1,7 @@
-import { ThreadJob } from './thread-job';
-import { ThreadJobWorker } from './thread-job-worker';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
+import { ThreadJob } from './thread-job';
+import { ThreadJobWorker } from './thread-job-worker';
 
 /**
  * What handling the events of a pool's workers does to the pool and to its jobs, provided by the

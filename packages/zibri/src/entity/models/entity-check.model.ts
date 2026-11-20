@@ -1,5 +1,5 @@
-import { type KeyWhere } from './unique-declaration.model';
 import { type TranslationToken } from '../../localization/translate.function';
+import { type KeyWhere } from './unique-declaration.model';
 
 /**
  * A rule every row of an entity has to follow.

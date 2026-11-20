@@ -1,9 +1,3 @@
-import { HeldLease, KeptGrant } from './held-lease.model';
-import { LeaseAcquisitionTimeoutError } from './lease-acquisition-timeout.error';
-import { LeaseLostError } from './lease-lost.error';
-import { LeaseAcquisitionMode, LeaseOptions, LeaseSetOptions } from './lease-options.model';
-import { LeaseServiceInterface } from './lease-service.interface';
-import { CreateLeaseData, Lease } from './lease.model';
 import { ZibriApplication } from '../application/application';
 import { AlsUtilities } from '../context/als.utilities';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
@@ -26,6 +20,12 @@ import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
 import { Ms } from '../utilities/ms';
 import { PromiseUtilities } from '../utilities/promise.utilities';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
+import { HeldLease, KeptGrant } from './held-lease.model';
+import { LeaseAcquisitionTimeoutError } from './lease-acquisition-timeout.error';
+import { LeaseLostError } from './lease-lost.error';
+import { LeaseAcquisitionMode, LeaseOptions, LeaseSetOptions } from './lease-options.model';
+import { LeaseServiceInterface } from './lease-service.interface';
+import { CreateLeaseData, Lease } from './lease.model';
 
 /**
  * How long to wait between attempts in 'wait' mode, on a data source that carries no wake ups between

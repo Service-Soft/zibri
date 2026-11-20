@@ -1,7 +1,7 @@
-import { RepositoryHooks } from './repository-hooks.model';
 import { type EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface';
 import { type HashServiceInterface } from '../../auth/hash/hash-service.interface';
 import { type PasswordPolicy } from '../../auth/password-policy/password-policy.model';
+import { RepositoryHooks } from './repository-hooks.model';
 
 /**
  * What the hooks of a repository run with: the hooks the application provides, and the services the

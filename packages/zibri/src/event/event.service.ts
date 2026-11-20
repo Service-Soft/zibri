@@ -1,13 +1,5 @@
 import { filter, Subject, Subscription } from 'rxjs';
 
-import { EventCleanupCronJob } from './event-cleanup.cron-job';
-import { EventDispatchCronJob } from './event-dispatch.cron-job';
-import { EventProcessingError } from './event-processing.error';
-import { type EventReplayOptions } from './event-replay-options.model';
-import { EventHook, EventServiceInterface, EventSubscribeOptions, EventSubscriptionInterface, ZibriEventMap } from './event-service.interface';
-import { ALL_EVENTS_TYPE, EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model';
-import { EventSubscriberRun, EventSubscriberRunCreateData, EventSubscriberRunStatus } from './event-subscriber-run.model';
-import { Event, EventCreateData, EventStatus } from './event.model';
 import { ZibriApplication } from '../application/application';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { DataSourceSubscription, isPubSubDataSource } from '../data-source/data-sources/pub-sub-data-source.interface';
@@ -37,6 +29,14 @@ import { Ms } from '../utilities/ms';
 import { PromiseUtilities } from '../utilities/promise.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
+import { EventCleanupCronJob } from './event-cleanup.cron-job';
+import { EventDispatchCronJob } from './event-dispatch.cron-job';
+import { EventProcessingError } from './event-processing.error';
+import { type EventReplayOptions } from './event-replay-options.model';
+import { EventHook, EventServiceInterface, EventSubscribeOptions, EventSubscriptionInterface, ZibriEventMap } from './event-service.interface';
+import { ALL_EVENTS_TYPE, EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model';
+import { EventSubscriberRun, EventSubscriberRunCreateData, EventSubscriberRunStatus } from './event-subscriber-run.model';
+import { Event, EventCreateData, EventStatus } from './event.model';
 
 /**
  * The channel an emitted event is announced on to the subscribers on every instance.
@@ -252,6 +252,9 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         data: ZibriEventMap[K],
         cleanupAfterInMs: number = inject(ZIBRI_DI_TOKENS.EVENT_FINISHED_RETENTION_IN_MS)
     ): Promise<void> {
+        // a deactivated tenant runs nothing, and would run it all once it is reactivated
+        const tenantService: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
+        await tenantService.validateNotDeactivated?.(tenantService.getActiveTenantId());
         const registrations: EventSubscriberRegistration[] = await this.findLiveRegistrations([String(type)]);
         const event: Event<ZibriEventMap[keyof ZibriEventMap]> = await this.eventRepository.create({
             type: String(type),
@@ -852,6 +855,24 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         }
         await this.eventRepository.updateById(event.id, { status: EventStatus.CREATED }, { transaction });
         return false;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async deletePendingEvents(tenantId: string): Promise<number> {
+        return await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(tenantId, async () => {
+            const pending: Pick<Event<unknown>, 'id'>[] = await this.eventRepository.findAll({
+                where: { status: EventStatus.CREATED, tenantId },
+                select: ['id'],
+                limit: 'all'
+            });
+            if (!pending.length) {
+                return 0;
+            }
+            const eventIds: string[] = pending.map(event => event.id);
+            // the runs first, which point at their events
+            await this.eventSubscriberRunRepository.deleteAll({ eventId: { oneOf: eventIds } });
+            return await this.eventRepository.deleteAll({ id: { oneOf: eventIds } });
+        });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

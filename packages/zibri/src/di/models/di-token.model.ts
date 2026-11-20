@@ -1,7 +1,7 @@
-import { DiProvider, DiProviderWithoutToken } from './di-provider.model';
-import { InjectionToken } from './injection-token.model';
 import { Newable } from '../../types/newable.type';
 import { ObjectUtilities } from '../../utilities/object.utilities';
+import { DiProvider, DiProviderWithoutToken } from './di-provider.model';
+import { InjectionToken } from './injection-token.model';
 
 /**
  * A token where DI values can be registered under.

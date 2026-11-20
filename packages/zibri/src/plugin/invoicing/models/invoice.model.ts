@@ -1,9 +1,9 @@
-import { InvoiceAddress } from './invoice-address.model';
-import { InvoiceItem } from './invoice-item.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { type CurrencyCode } from '../../../localization/models/currency-code.model';
+import { InvoiceAddress } from './invoice-address.model';
+import { InvoiceItem } from './invoice-item.model';
 
 /**
  * Contains information about an invoice.

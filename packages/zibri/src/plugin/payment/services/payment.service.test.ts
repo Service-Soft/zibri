@@ -1,6 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
-import { PaymentServiceInterface } from './payment-service.interface';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
@@ -22,6 +21,7 @@ import { Payment } from '../models/payment.model';
 import { ZibriPaymentPlugin } from '../payment.plugin';
 import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from '../payment.tokens';
 import { AnyPaymentProviderInterface } from '../providers/payment-provider.interface';
+import { PaymentServiceInterface } from './payment-service.interface';
 
 // eslint-disable-next-line typescript/no-explicit-any
 function createFakeProvider(): AnyPaymentProviderInterface & Record<string, any> {

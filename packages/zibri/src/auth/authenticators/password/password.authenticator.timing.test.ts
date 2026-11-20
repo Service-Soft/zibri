@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { PasswordCredentials, PasswordCredentialsCreateData } from './password-credentials.model';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
@@ -16,6 +15,7 @@ import { inject } from '../../../di/inject.function';
 import { defineProvider } from '../../../di/models/di-provider.model';
 import { JsonUtilities } from '../../../utilities/json.utilities';
 import { ScryptCost } from '../../hash/strategies/scrypt.hash-strategy';
+import { PasswordCredentials, PasswordCredentialsCreateData } from './password-credentials.model';
 
 /**
  * How long a login with a wrong password takes for each address, the quickest of a few.

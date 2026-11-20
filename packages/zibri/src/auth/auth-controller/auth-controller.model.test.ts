@@ -4,7 +4,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { TOTP } from 'otpauth';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { AuthController } from './auth-controller.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
@@ -37,6 +36,7 @@ import { CookieAuthRefreshSession } from '../strategies/cookie/cookie-auth-refre
 import { CookieAuthSession } from '../strategies/cookie/cookie-auth-session.model';
 import { CookieAuthStrategy } from '../strategies/cookie/cookie-auth.auth-strategy';
 import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy';
+import { AuthController } from './auth-controller.model';
 
 const EMAIL: string = 'auth-controller@example.com';
 const PASSWORD: string = 'secure123';

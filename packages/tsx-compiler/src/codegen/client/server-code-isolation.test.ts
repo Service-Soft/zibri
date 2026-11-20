@@ -2,10 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createContext } from 'zibri-tsx';
 import { SERVER_HOOKS } from 'zibri-tsx/internal';
 
-import { ClientScript } from './client-codegen';
 import { compilePage, renderTemplateDocument, renderTestPage } from '../../__testing__/server-render.helper';
 import { ValidationCode } from '../../semantics/validate';
 import { compile, CompileResult } from '../compile';
+import { ClientScript } from './client-codegen';
 
 /**
  * Globals the pages these templates stand for provide, so client code in the tests can call something

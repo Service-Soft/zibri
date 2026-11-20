@@ -1,7 +1,7 @@
-import { ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
 import { CronExpression } from '../../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../../cron/cron-job.model';
 import { inject } from '../../di/inject.function';
+import { ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
 
 /**
  * Asks the payment providers every hour what became of the payments nobody confirmed within their

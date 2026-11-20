@@ -1,9 +1,9 @@
-import { LoginAuthStrategyInterface } from './login-auth-strategy.interface';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { BaseUser } from '../models/base-user.model';
 import { ListedLogin } from '../models/listed-login.model';
+import { LoginAuthStrategyInterface } from './login-auth-strategy.interface';
 
 /**
  * Interface for an auth strategy that lists the logins of a user and ends them one at a time, for a

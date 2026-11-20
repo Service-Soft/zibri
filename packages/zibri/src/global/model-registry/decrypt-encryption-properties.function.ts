@@ -1,6 +1,3 @@
-import { EncryptionDescriptor } from './encryption-descriptor';
-import { ModelRegistry } from './model.registry';
-import { StringValueUtilities } from './string-value.utilities';
 import { EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface';
 import { EncryptionString } from '../../auth/encryption/encryption.utilities';
 import { BaseDecryptOptions, BaseEncryptOptions } from '../../auth/encryption/strategies/encryption-strategy.interface';
@@ -12,6 +9,9 @@ import { EncryptAndDecryptOptions, EncryptionPropertyValue } from '../../entity/
 import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
+import { EncryptionDescriptor } from './encryption-descriptor';
+import { ModelRegistry } from './model.registry';
+import { StringValueUtilities } from './string-value.utilities';
 
 /**
  * Decrypts all properties defined with the encryption flag based on a pre-built EncryptionDescriptor.

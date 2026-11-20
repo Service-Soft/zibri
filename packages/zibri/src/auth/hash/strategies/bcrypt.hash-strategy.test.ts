@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { BcryptHashStrategy } from './bcrypt.hash-strategy';
 import { HashString } from '../hash.utilities';
+import { BcryptHashStrategy } from './bcrypt.hash-strategy';
 
 describe('BcryptHashStrategy', () => {
     // deprecated for new hashes, and still what verifies the ones 2.x wrote

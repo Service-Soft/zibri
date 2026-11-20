@@ -1,8 +1,8 @@
-import { CiiNamespace } from './cii-namespace.enum';
-import { CiiTradePrice } from './cii-trade-price.model';
 import { Property } from '../../../../../../entity/decorators/property.decorator';
 import { XmlElement } from '../../../../../../parsing/xml/xml-element.decorator';
 import { XmlNamespace } from '../../../../../../parsing/xml/xml-namespace.decorator';
+import { CiiNamespace } from './cii-namespace.enum';
+import { CiiTradePrice } from './cii-trade-price.model';
 
 /**
  * What was agreed for a line.

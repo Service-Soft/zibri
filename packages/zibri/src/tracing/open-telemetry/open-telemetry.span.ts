@@ -1,10 +1,10 @@
-import { OpenTelemetryApi, OpenTelemetrySpan, OpenTelemetrySpanContext } from './open-telemetry-api.model';
-import { OpenTelemetryUtilities } from './open-telemetry.utilities';
 import { TraceContextUtilities } from '../trace-context.utilities';
 import { TraceSpanAttributeName, TraceSpanAttributeValue, TraceSpanAttributes } from '../trace-span-attributes.model';
 import { TraceSpanContext } from '../trace-span-context.model';
 import { TraceSpanStatus } from '../trace-span-status.enum';
 import { TraceSpanInterface } from '../trace-span.interface';
+import { OpenTelemetryApi, OpenTelemetrySpan, OpenTelemetrySpanContext } from './open-telemetry-api.model';
+import { OpenTelemetryUtilities } from './open-telemetry.utilities';
 
 const sampledFlag: number = 0b0000_0001;
 

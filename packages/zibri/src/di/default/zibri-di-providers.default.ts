@@ -1,13 +1,8 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import os from 'node:os';
 
-import { AsyncApiService } from '../../async-api/async-api.service';
-import { S3TenantBackupTransportKind } from '../../backup/tenant/s3.tenant-backup-transport-kind';
-import { SftpTenantBackupTransportKind } from '../../backup/tenant/sftp.tenant-backup-transport-kind';
-import { errorHandler } from '../../error-handling/error-handler';
-import { inject } from '../inject.function';
-import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 import { AssetService } from '../../assets/asset.service';
+import { AsyncApiService } from '../../async-api/async-api.service';
 import { AuditService } from '../../audit/audit.service';
 import { TwoFactorService } from '../../auth/2fa/two-factor.service';
 import { AuthRateLimiter } from '../../auth/auth.rate-limiter';
@@ -23,6 +18,7 @@ import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-g
 import { HashService } from '../../auth/hash/hash.service';
 import { defaultScryptCost, ScryptHashStrategy } from '../../auth/hash/strategies/scrypt.hash-strategy';
 import { Sha256HashStrategy } from '../../auth/hash/strategies/sha256.hash-strategy';
+import { InvitationService } from '../../auth/invitation/invitation.service';
 import { RouteAuthConfiguration } from '../../auth/models/route-auth-configuration.model';
 import { RoleService } from '../../auth/roles/role.service';
 import { RouteAuthService } from '../../auth/route-auth.service';
@@ -33,6 +29,8 @@ import { JwtAuthOptionsInput } from '../../auth/strategies/jwt/jwt-auth-options.
 import { JwtService } from '../../auth/strategies/jwt/jwt.service';
 import { UserService } from '../../auth/user/user.service';
 import { BackupService } from '../../backup/backup.service';
+import { S3TenantBackupTransportKind } from '../../backup/tenant/s3.tenant-backup-transport-kind';
+import { SftpTenantBackupTransportKind } from '../../backup/tenant/sftp.tenant-backup-transport-kind';
 import { CacheService } from '../../caching/cache.service';
 import { AlsUtilities } from '../../context/als.utilities';
 import { CronService } from '../../cron/cron.service';
@@ -43,6 +41,7 @@ import { PdfFontOptions } from '../../document/pdf-font-options.model';
 import { EmailRateLimiter } from '../../email/email.rate-limiter';
 import { EmailService } from '../../email/email.service';
 import { LoggingEmailTransport } from '../../email/transports/logging.email-transport';
+import { errorHandler } from '../../error-handling/error-handler';
 import { EventService } from '../../event/event.service';
 import { GlobalRegistry } from '../../global/global-registry';
 import { BodySizeLimits } from '../../http/body-size-limits.model';
@@ -80,8 +79,10 @@ import { ValidationService } from '../../validation/validation.service';
 import { VersioningService } from '../../versioning/versioning.service';
 import { WebsocketOptions, WebsocketOptionsInput } from '../../websocket/models/websocket-options.model';
 import { WebsocketService } from '../../websocket/services/websocket.service';
+import { inject } from '../inject.function';
 import { DefaultDiProviderRecord } from '../models/default-di-provider-record.model';
 import { DiVariants } from '../models/di-variant.model';
+import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 
 const allThreads: number = os.availableParallelism();
 
@@ -211,6 +212,10 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     PDF_FONT_OPTIONS: { useFactory: (): PdfFontOptions => ({ families: {}, fallbacks: [] }) },
     TENANT_SERVICE: { useClass: TenantService },
     MEMBERSHIP_SERVICE: { useClass: MembershipService },
+    INVITATION_SERVICE: { useClass: InvitationService },
+    // none: how long a link works and what an expired one does are the application's to say, once it lists an
+    // invitation repository
+    INVITATION_OPTIONS: { useFactory: () => undefined },
     // how long a shutting down instance waits for work it holds a lease on before taking the lease
     // away. Comfortably inside the shutdown timeout, or the hook is cut off before it can release.
     LEASE_DRAIN_TIMEOUT_IN_MS: { useFactory: () => Ms.SECOND * 10 },

@@ -1,10 +1,10 @@
+import { HttpRequestContext } from '../context/request/http-request.context';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context';
+import { AnyNumber } from '../data-source/models/where/number-where-filter.model';
 import { CurrencyCode } from './models/currency-code.model';
 import { DateFormatShortcut, DateFormatString } from './models/date-format.model';
 import { LocaleCode } from './models/locale-code.model';
 import { Timezone } from './models/timezone.model';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { AnyNumber } from '../data-source/models/where/number-where-filter.model';
 
 /**
  * The options for formatting a price.

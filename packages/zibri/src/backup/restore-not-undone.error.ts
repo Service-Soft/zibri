@@ -1,6 +1,6 @@
-import { BackupEntity } from './backup-entity.model';
 import { InternalError } from '../error-handling/internal-error.model';
 import { FsPath } from '../utilities/fs.utilities';
+import { BackupEntity } from './backup-entity.model';
 
 /**
  * A resource a failed restore could not put back, and where what it held is kept.

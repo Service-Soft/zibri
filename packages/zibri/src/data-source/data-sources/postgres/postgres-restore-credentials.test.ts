@@ -1,8 +1,5 @@
 import { afterAll, beforeAll } from '@jest/globals';
 
-import { PostgresBackupScope } from './postgres-backup-scope.model';
-import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
-import { PostgresPooler } from './postgres-pooler.model';
 import { testFileFolder, TestTimeouts } from '../../../__testing__/constants';
 import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -26,6 +23,9 @@ import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { DataSource } from '../../decorators/data-source.decorator';
 import { SchemaManagement } from '../../models/schema-management.model';
 import { RepositoryClass } from '../../repository/repository-class.type';
+import { PostgresBackupScope } from './postgres-backup-scope.model';
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
+import { PostgresPooler } from './postgres-pooler.model';
 
 /**
  * Logging in across a restore of postgres, whose restore of a data source alone changes everything or nothing.

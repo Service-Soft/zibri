@@ -1,8 +1,8 @@
-import { Authenticators } from './authenticators.model';
 import { ZibriApplication } from '../../application/application';
 import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { Authentication } from '../models/authentication.model';
 import { BaseUser } from '../models/base-user.model';
+import { Authenticators } from './authenticators.model';
 
 /**
  * Interface for an authenticator: what proves who someone is.

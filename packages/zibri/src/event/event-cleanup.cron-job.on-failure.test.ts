@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { EventCleanupCronJob } from './event-cleanup.cron-job';
-import { Event, EventStatus } from './event.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -16,6 +14,8 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { Ms } from '../utilities/ms';
+import { EventCleanupCronJob } from './event-cleanup.cron-job';
+import { Event, EventStatus } from './event.model';
 
 /**
  * Refuses to delete any event, the way a store does whose permission to delete was revoked.

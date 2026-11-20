@@ -1,5 +1,3 @@
-import { BackupResourceEntity } from './backup-resource-entity.model';
-import { type BackupServiceInterface } from './backup-service.interface';
 import { CronExpression } from '../cron/cron-expression.utilities';
 import { InitialCronConfig } from '../cron/cron-job.model';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -8,6 +6,8 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
 import { QueuePollCronJob } from '../queue/queue-poll.cron-job';
 import { Newable } from '../types/newable.type';
+import { BackupResourceEntity } from './backup-resource-entity.model';
+import { type BackupServiceInterface } from './backup-service.interface';
 
 /**
  * Stores the resources of queued backups that are due on this instance: those an instance that

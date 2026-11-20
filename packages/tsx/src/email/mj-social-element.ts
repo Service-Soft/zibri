@@ -1,9 +1,9 @@
+import { isScriptUrl } from '../runtime/server-runtime';
 import { defineEmailComponent, TsxComponent } from './define-email-component';
 import { EmailPaddingProps, resolvePaddingOf } from './dimensions';
 import { EmailMarkupUtilities } from './email-markup.utilities';
 import { SocialContext, SocialPassedAttributes, SocialSettings } from './social.context';
 import { withDefaults } from './with-defaults';
-import { isScriptUrl } from '../runtime/server-runtime';
 
 /**
  * Props for {@link MjSocialElement}.

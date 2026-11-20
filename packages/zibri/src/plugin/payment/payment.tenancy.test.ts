@@ -1,14 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { KnownPaymentMethod, PaymentMethod } from './models/payment-method.model';
-import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model';
-import { PaymentStatus } from './models/payment-status.enum';
-import { Payment } from './models/payment.model';
-import { ZibriPaymentPlugin } from './payment.plugin';
-import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
-import { AnyPaymentProviderInterface } from './providers/payment-provider.interface';
-import { PaymentServiceInterface } from './services/payment-service.interface';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
@@ -22,6 +14,14 @@ import { type TenantServiceInterface } from '../../tenancy/tenant-service.interf
 import { Ms } from '../../utilities/ms';
 import { NumberUtilities } from '../../utilities/number.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { KnownPaymentMethod, PaymentMethod } from './models/payment-method.model';
+import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model';
+import { PaymentStatus } from './models/payment-status.enum';
+import { Payment } from './models/payment.model';
+import { ZibriPaymentPlugin } from './payment.plugin';
+import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
+import { AnyPaymentProviderInterface } from './providers/payment-provider.interface';
+import { PaymentServiceInterface } from './services/payment-service.interface';
 
 /**
  * A provider that accepts any payment data and makes no calls.

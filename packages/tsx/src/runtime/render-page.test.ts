@@ -2,9 +2,9 @@ import assert from 'node:assert';
 
 import { describe, expect, it, jest } from '@jest/globals';
 
+import { compilePage, renderTemplateDocument, renderTestPage } from '../../../tsx-compiler/src/__testing__/server-render.helper';
 import { CompiledPage, LocaleData, renderPage, wrapDocument } from './render-page';
 import { createContext } from './server-runtime';
-import { compilePage, renderTemplateDocument, renderTestPage } from '../../../tsx-compiler/src/__testing__/server-render.helper';
 
 // --- minimal DOM stub -------------------------------------------------------
 

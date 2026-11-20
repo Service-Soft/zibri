@@ -1,8 +1,8 @@
 import { DocsUtilities, MdxLinkProps, provideContext, TsxComponent, useContext } from 'zibri';
 
+import { DOCS_SITE } from '../../navigation/docs-site';
 import { DocsPageContext } from './docs-page-context';
 import { InsideLinkContext } from './inside-link-context';
-import { DOCS_SITE } from '../../navigation/docs-site';
 
 // a link of a page, which names another page by its file, as GitHub follows it, and leads to that page of the site
 export const Link: TsxComponent<MdxLinkProps> = ({ href, title, children }) => {

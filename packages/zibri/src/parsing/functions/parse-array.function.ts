@@ -1,12 +1,12 @@
+import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model';
+import { ArrayParamItemMetadata } from '../../routing/models/array-param-metadata.model';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { parseBoolean } from './parse-boolean.function';
 import { parseDate } from './parse-date.function';
 import { parseNumber } from './parse-number.function';
 import { parseObject } from './parse-object.function';
 import { parseOneOf } from './parse-one-of.function';
 import { parseString } from './parse-string.function';
-import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model';
-import { ArrayParamItemMetadata } from '../../routing/models/array-param-metadata.model';
-import { JsonUtilities } from '../../utilities/json.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export function parseArray(

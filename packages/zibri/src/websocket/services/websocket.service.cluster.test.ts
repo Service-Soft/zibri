@@ -5,10 +5,10 @@ import { io, Socket } from 'socket.io-client';
 import { ExecResult } from 'testcontainers';
 import { ClusterInstance, StartedDataSourceContainer, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { clusterAskedEvent, clusterBroadcastEvent, ClusterLogin, ClusterWebsocketValKeyDataSource } from './websocket.service.instance-options';
 import { TestTimeouts } from '../../__testing__/constants';
 import { FsUtilities } from '../../utilities/fs.utilities';
 import { WebsocketAnswer } from '../models/websocket-answer.model';
+import { clusterAskedEvent, clusterBroadcastEvent, ClusterLogin, ClusterWebsocketValKeyDataSource } from './websocket.service.instance-options';
 
 /**
  * A socket belongs to the instance that accepted it. Without an adapter, sending to all clients

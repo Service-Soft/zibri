@@ -1,9 +1,3 @@
-import { CronExpressionString } from './cron-expression.utilities';
-import { CreateCronJobEntityData, CronJobEntity } from './cron-job-entity.model';
-import { CronJob } from './cron-job.model';
-import { CronServiceInterface } from './cron-service.interface';
-import { CronSyncCronJob } from './cron-sync.cron-job';
-import { ExpiredRowsCleanupCronJob } from './expired-rows-cleanup.cron-job';
 import { ZibriApplication } from '../application/application';
 import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
@@ -25,6 +19,12 @@ import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
 import { OmitStrict } from '../types/omit-strict.type';
 import { Ms } from '../utilities/ms';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
+import { CronExpressionString } from './cron-expression.utilities';
+import { CreateCronJobEntityData, CronJobEntity } from './cron-job-entity.model';
+import { CronJob } from './cron-job.model';
+import { CronServiceInterface } from './cron-service.interface';
+import { CronSyncCronJob } from './cron-sync.cron-job';
+import { ExpiredRowsCleanupCronJob } from './expired-rows-cleanup.cron-job';
 
 /**
  * Data that can be used to update a cron job.

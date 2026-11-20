@@ -1,9 +1,4 @@
-import { EmailCleanupCronJob } from './email-cleanup.cron-job';
-import { EmailServiceInterface } from './email-service.interface';
 import { ZibriApplication } from '../application/application';
-import { CreateEmailData, QueueEmailData } from './models/create-email-data.model';
-import { Email } from './models/email.model';
-import { SendQueuedEmailsCronJob } from './send-queued-emails.cron-job';
 import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -11,7 +6,9 @@ import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { TooManyRequestsError } from '../error-handling/errors/too-many-requests.error';
+import { InternalError } from '../error-handling/internal-error.model';
 import { OnAppInit } from '../global/on-app-init.interface';
+import { OnAppShutdown } from '../global/on-app-shutdown.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { type GaugeInterface } from '../metrics/gauge.interface';
 import { type MetricsServiceInterface } from '../metrics/metrics-service.interface';
@@ -20,19 +17,22 @@ import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
 import { QueueDefinition } from '../queue/queue-definition.model';
 import { QueueUtilities } from '../queue/queue.utilities';
 import { QueuedWorkOutcome } from '../queue/queued-work-outcome.model';
-import { Ms } from '../utilities/ms';
-import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
-import { EmailConfig, EmailConfigInput } from './models/email-config.model';
-import { EmailPriority } from './models/email-priority.enum';
-import { EmailStatus } from './models/email-status.enum';
-import { InternalError } from '../error-handling/internal-error.model';
-import { OnAppShutdown } from '../global/on-app-shutdown.interface';
 import { RateLimited } from '../rate-limiting/decorators/rate-limited.decorator';
 import { RateLimitKeys } from '../rate-limiting/rate-limit-keys';
 import { type TenantServiceInterface } from '../tenancy/tenant-service.interface';
 import { TraceSpanKind } from '../tracing/trace-span-kind.enum';
 import { TraceSpanInterface } from '../tracing/trace-span.interface';
 import { TracingUtilities } from '../tracing/tracing.utilities';
+import { Ms } from '../utilities/ms';
+import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
+import { EmailCleanupCronJob } from './email-cleanup.cron-job';
+import { EmailServiceInterface } from './email-service.interface';
+import { CreateEmailData, QueueEmailData } from './models/create-email-data.model';
+import { EmailConfig, EmailConfigInput } from './models/email-config.model';
+import { EmailPriority } from './models/email-priority.enum';
+import { EmailStatus } from './models/email-status.enum';
+import { Email } from './models/email.model';
+import { SendQueuedEmailsCronJob } from './send-queued-emails.cron-job';
 import { type EmailSendResult, type EmailTransportInterface } from './transports/email-transport.interface';
 
 /**
@@ -161,12 +161,23 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteQueuedEmails(tenantId: string): Promise<number> {
+        return await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
+            tenantId,
+            async () => await this.emailRepository.deleteAll({ status: EmailStatus.QUEUED, tenantId })
+        );
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async onAppShutdown(): Promise<void> {
         await this.transport.close?.();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async queue(data: QueueEmailData): Promise<void> {
+        // a deactivated tenant sends nothing, and would send it all once it is reactivated
+        const tenantService: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
+        await tenantService.validateNotDeactivated?.(tenantService.getActiveTenantId());
         await this.emailRepository.create({
             status: EmailStatus.QUEUED,
             priority: EmailPriority.NORMAL,

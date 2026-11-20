@@ -1,5 +1,4 @@
 
-import { Event, EventStatus } from './event.model';
 import { CronExpression } from '../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
 import { Repository } from '../data-source/repository/repository';
@@ -8,6 +7,7 @@ import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { InternalError } from '../error-handling/internal-error.model';
 import { type RetentionInMs } from '../types/retention-in-ms.type';
+import { Event, EventStatus } from './event.model';
 
 /**
  * CronJob that cleans up past events: the finished ones past their `cleanupAt`, and the failed ones

@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { executionLeaseInMs } from './cron.startup.instance-options';
 import { TestTimeouts } from '../__testing__/constants';
 import { FsUtilities } from '../utilities/fs.utilities';
+import { executionLeaseInMs } from './cron.startup.instance-options';
 
 /**
  * A job that asks for a startup run gets one per deploy, not one per instance that boots. The

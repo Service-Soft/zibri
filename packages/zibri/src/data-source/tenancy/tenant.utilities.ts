@@ -1,4 +1,3 @@
-import { NoActiveTenantError } from './no-active-tenant.error';
 import { AlsUtilities } from '../../context/als.utilities';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { EntityMetadata } from '../../entity/decorators/entity.decorator';
@@ -11,6 +10,7 @@ import { $ts } from '../../localization/translate.function';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { Where } from '../models/where/where-filter.model';
+import { NoActiveTenantError } from './no-active-tenant.error';
 
 /**
  * How the rows of one entity relate to tenants.

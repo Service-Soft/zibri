@@ -1,12 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { BackupEntity } from './backup-entity.model';
-import { BackupResourceEntity } from './backup-resource-entity.model';
-import { BackupServiceInterface } from './backup-service.interface';
-import { Backup } from './decorators/backup-resource.decorator';
-import { BackupTransport } from './decorators/backup-transport.decorator';
-import { BackupTransportInterface } from './transports/backup-transport.interface';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -17,6 +11,12 @@ import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Logger } from '../logging/logger';
 import { Newable } from '../types/newable.type';
+import { BackupEntity } from './backup-entity.model';
+import { BackupResourceEntity } from './backup-resource-entity.model';
+import { BackupServiceInterface } from './backup-service.interface';
+import { Backup } from './decorators/backup-resource.decorator';
+import { BackupTransport } from './decorators/backup-transport.decorator';
+import { BackupTransportInterface } from './transports/backup-transport.interface';
 
 /**
  * A transport whose server cannot be reached, the way one that is down or refusing this application fails.

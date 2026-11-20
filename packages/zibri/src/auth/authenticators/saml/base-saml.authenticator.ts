@@ -2,16 +2,6 @@ import { randomBytes } from 'node:crypto';
 
 import type { CacheItem, CacheProvider, Profile, SAML } from '@node-saml/node-saml';
 
-import { SamlMetadataEndpoint } from './metadata/saml-metadata-endpoint.model';
-import { SamlMetadataEntityDescriptor } from './metadata/saml-metadata-entity-descriptor.model';
-import { NodeSamlXml } from './node-saml-xml.type';
-import { NodeSaml } from './node-saml.type';
-import { SamlIdentityProviderSettings } from './saml-identity-provider-settings.model';
-import { SamlIdentityProvider } from './saml-identity-provider.model';
-import { SamlKeyPair } from './saml-key-pair.model';
-import { SamlLogoutSubject } from './saml-logout-subject.model';
-import { SamlNameIdFormat } from './saml-name-id-format.enum';
-import { SamlSoapUtilities } from './saml-soap.utilities';
 import { ZibriApplication } from '../../../application/application';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
@@ -43,6 +33,16 @@ import { FederatedReauthentication } from '../federated/federated-reauthenticati
 import { FederatedRouteEndpoint } from '../federated/federated-route-endpoint.model';
 import { FederatedSession } from '../federated/federated-session.model';
 import { FederatedSoapLogout } from '../federated/federated-soap-logout.model';
+import { SamlMetadataEndpoint } from './metadata/saml-metadata-endpoint.model';
+import { SamlMetadataEntityDescriptor } from './metadata/saml-metadata-entity-descriptor.model';
+import { NodeSamlXml } from './node-saml-xml.type';
+import { NodeSaml } from './node-saml.type';
+import { SamlIdentityProviderSettings } from './saml-identity-provider-settings.model';
+import { SamlIdentityProvider } from './saml-identity-provider.model';
+import { SamlKeyPair } from './saml-key-pair.model';
+import { SamlLogoutSubject } from './saml-logout-subject.model';
+import { SamlNameIdFormat } from './saml-name-id-format.enum';
+import { SamlSoapUtilities } from './saml-soap.utilities';
 
 /**
  * The binding the browser is sent to the identity provider with: the request in the query of a redirect.

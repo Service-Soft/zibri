@@ -3,13 +3,13 @@ import { AddressInfo, createServer, Server } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { createFakeKeyPair, FakeKeyPair } from 'zibri-testing';
 
-import { EmailSendResult } from './email-transport.interface';
-import { SmtpEmailTransport } from './smtp.email-transport';
 import { CapturingSmtpServer } from '../../__testing__/capturing-smtp-server.model';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { EmailPriority } from '../models/email-priority.enum';
 import { EmailStatus } from '../models/email-status.enum';
 import { Email } from '../models/email.model';
+import { EmailSendResult } from './email-transport.interface';
+import { SmtpEmailTransport } from './smtp.email-transport';
 
 let smtp: CapturingSmtpServer;
 let transport: SmtpEmailTransport;

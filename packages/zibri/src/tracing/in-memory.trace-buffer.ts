@@ -1,6 +1,6 @@
+import { InternalError } from '../error-handling/internal-error.model';
 import { TraceBufferInterface } from './trace-buffer.interface';
 import { TraceSpanRecord } from './trace-span-record.model';
-import { InternalError } from '../error-handling/internal-error.model';
 
 /**
  * How many spans are kept when nothing says otherwise.

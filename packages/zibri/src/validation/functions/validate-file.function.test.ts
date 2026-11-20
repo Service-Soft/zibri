@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { validateFile } from './validate-file.function';
 import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
@@ -12,6 +11,7 @@ import { IsRequiredValidationProblem,
     MimeTypeMismatchValidationProblem,
     TypeMismatchValidationProblem,
     ValidationProblem } from '../validation-problem.model';
+import { validateFile } from './validate-file.function';
 
 function meta(overrides: Partial<FilePropertyMetadata> = {}): FilePropertyMetadata {
     return {

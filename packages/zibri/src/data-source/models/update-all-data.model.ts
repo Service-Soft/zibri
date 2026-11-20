@@ -1,6 +1,6 @@
-import { DataSourceTimeFor } from './data-source-time.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { DeepPartial } from '../../types/deep-partial.type';
+import { DataSourceTimeFor } from './data-source-time.model';
 
 /**
  * An amount added to what a number property stores, in the same write.

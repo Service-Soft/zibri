@@ -3,8 +3,6 @@ import { X509Certificate } from 'node:crypto';
 import type { MDSJWTPayload, MetadataBLOBPayloadEntry } from '@simplewebauthn/server';
 import type { CompactVerifyResult } from 'jose';
 
-import { FidoMetadataServiceInterface } from './fido-metadata-service.interface';
-import { SimpleWebAuthnHelpers } from './simple-web-authn-helpers.type';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
@@ -12,6 +10,8 @@ import { InternalError } from '../../../error-handling/internal-error.model';
 import { JsonUtilities } from '../../../utilities/json.utilities';
 import { Ms } from '../../../utilities/ms';
 import { optionalPeer } from '../../../utilities/optional-peer.function';
+import { FidoMetadataServiceInterface } from './fido-metadata-service.interface';
+import { SimpleWebAuthnHelpers } from './simple-web-authn-helpers.type';
 
 /**
  * The module of `jose`, which checks the signature of the metadata.

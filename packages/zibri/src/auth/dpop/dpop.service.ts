@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 
-import { DpopServiceInterface } from './dpop-service.interface';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { Inject } from '../../di/decorators/inject.decorator';
@@ -18,6 +17,7 @@ import { JwtAsymmetricAlgorithm } from '../strategies/jwt/jwt-asymmetric-algorit
 import { type JwtServiceInterface } from '../strategies/jwt/jwt-service.interface';
 import { JwtUtilities } from '../strategies/jwt/jwt.utilities';
 import { VerifiedDpopProof } from '../strategies/jwt/verified-dpop-proof.model';
+import { DpopServiceInterface } from './dpop-service.interface';
 
 /**
  * What a proof may be signed with.

@@ -85,7 +85,11 @@ export type OpenApiExplorerOperation = {
     /**
      * The permissions the operation requires, from `x-permission` and `x-platform-permission`.
      */
-    permissions: string[]
+    permissions: string[],
+    /**
+     * Whether either of the permissions is enough, from `x-any-level-permission`.
+     */
+    anyLevelPermission: boolean
 };
 
 /**

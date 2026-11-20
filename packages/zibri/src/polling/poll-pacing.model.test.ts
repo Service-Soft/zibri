@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { PollPacing } from './poll-pacing.model';
 import { Ms } from '../utilities/ms';
+import { PollPacing } from './poll-pacing.model';
 
 describe('PollPacing', () => {
     let now: number;

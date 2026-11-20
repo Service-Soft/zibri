@@ -1,6 +1,3 @@
-import { SaveOperation } from './before-save';
-import { RepositoryHookServices } from './repository-hook-services.model';
-import { RepositoryHooks } from './repository-hooks.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { decryptEncryptionProperties } from '../../global/model-registry/decrypt-encryption-properties.function';
 import { encryptEncryptionProperties } from '../../global/model-registry/encrypt-encryption-properties.function';
@@ -11,6 +8,9 @@ import { setDefaultValues } from '../../global/model-registry/set-default-values
 import { validatePasswordProperties } from '../../global/model-registry/validate-password-properties.function';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
+import { SaveOperation } from './before-save';
+import { RepositoryHookServices } from './repository-hook-services.model';
+import { RepositoryHooks } from './repository-hooks.model';
 
 /**
  * Runs the hooks every repository runs: the ones the application provides under

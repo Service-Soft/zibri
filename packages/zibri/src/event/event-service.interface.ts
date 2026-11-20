@@ -1,8 +1,8 @@
-import { type EventReplayOptions } from './event-replay-options.model';
-import { Event } from './event.model';
 import { type QueueDelivery } from '../queue/queue-delivery.type';
 import { type QueuedWorkRun } from '../queue/queued-work-run.model';
 import { type RunsOn } from '../types/runs-on.type';
+import { type EventReplayOptions } from './event-replay-options.model';
+import { Event } from './event.model';
 
 /**
  * Options for subscribing to events.
@@ -105,6 +105,13 @@ export interface EventServiceInterface {
      * @returns How many runs are offered again.
      */
     replayFailed: (options: EventReplayOptions) => Promise<number>,
+    /**
+     * Deletes the events of a tenant that subscribers still owe a run, with their runs, such as once it is
+     * deactivated.
+     * @returns How many events were deleted.
+     */
+    // TODO 4.0: required, which a service of your own would have had to add in a minor release
+    deletePendingEvents?: (tenantId: string) => Promise<number>,
     /**
      * Emits an event of the given type and data. Once finished it is kept for `cleanupAfterInMs`,
      * `ZIBRI_DI_TOKENS.EVENT_FINISHED_RETENTION_IN_MS` when that is not given.

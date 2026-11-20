@@ -1,11 +1,3 @@
-import { AuthorizationServerControllerClass } from './authorization-server-controller-class.type';
-import { AuthorizationServerControllerOptions } from './authorization-server-controller-options.model';
-import { AuthorizationServerEndpoint } from './authorization-server-endpoint.model';
-import { type AuthorizationServerServiceInterface } from './authorization-server-service.interface';
-import { IntrospectionResponse } from './introspection-response.model';
-import { TokenPresentation } from './token-presentation.model';
-import { TokenRequest } from './token-request.model';
-import { TokenResponse } from './token-response.model';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { InternalError } from '../../error-handling/internal-error.model';
@@ -23,6 +15,14 @@ import { Post } from '../../routing/decorators/post.decorator';
 import { Newable } from '../../types/newable.type';
 import { Ms } from '../../utilities/ms';
 import { Auth } from '../decorators/auth.decorator';
+import { AuthorizationServerControllerClass } from './authorization-server-controller-class.type';
+import { AuthorizationServerControllerOptions } from './authorization-server-controller-options.model';
+import { AuthorizationServerEndpoint } from './authorization-server-endpoint.model';
+import { type AuthorizationServerServiceInterface } from './authorization-server-service.interface';
+import { IntrospectionResponse } from './introspection-response.model';
+import { TokenPresentation } from './token-presentation.model';
+import { TokenRequest } from './token-request.model';
+import { TokenResponse } from './token-response.model';
 
 /**
  * What a response holding a token, or what one says, carries besides its body: no cache in between

@@ -1,7 +1,7 @@
-import { ExcludeDescriptor } from './exclude-descriptor';
-import { ModelRegistry } from './model.registry';
 import { AnyObject } from '../../entity/any-object.model';
 import { Newable } from '../../types/newable.type';
+import { ExcludeDescriptor } from './exclude-descriptor';
+import { ModelRegistry } from './model.registry';
 
 /**
  * Restores all excluded properties back to enumerable own properties before persisting.

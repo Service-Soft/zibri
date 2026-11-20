@@ -1,6 +1,6 @@
+import { InternalError } from '../error-handling/internal-error.model';
 import { AlsUtilities } from './als.utilities';
 import { OperationLimit } from './operation-limit.model';
-import { InternalError } from '../error-handling/internal-error.model';
 
 /**
  * A limit that has been started, and the way to stop its clock.

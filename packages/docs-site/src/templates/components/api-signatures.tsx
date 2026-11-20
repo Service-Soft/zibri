@@ -1,9 +1,9 @@
 import type { JSONOutput } from 'typedoc' with { 'resolution-mode': 'import' };
 import { TsxComponent } from 'zibri';
 
+import { ApiToken } from '../../api/api-token.model';
 import { ApiCode } from './api-code';
 import { ApiComment } from './api-comment';
-import { ApiToken } from '../../api/api-token.model';
 
 type ApiSignaturesProps = {
     // the line each signature is declared with, in the order of the signatures

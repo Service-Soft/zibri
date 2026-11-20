@@ -1,6 +1,3 @@
-import { AuthStrategies } from './auth-strategies.model';
-import { CredentialEntity } from './credential-entity.model';
-import { CredentialLimits } from './credential-limits.model';
 import { ZibriApplication } from '../../application/application';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
@@ -9,6 +6,9 @@ import { OpenApiSecuritySchemeObject } from '../../open-api/open-api.model';
 import { BaseUser } from '../models/base-user.model';
 import { ClaimedUser } from '../models/claimed-user.model';
 import { ProviderAuthentication } from '../models/provider-authentication.model';
+import { AuthStrategies } from './auth-strategies.model';
+import { CredentialEntity } from './credential-entity.model';
+import { CredentialLimits } from './credential-limits.model';
 
 /**
  * Interface for an auth strategy: how a request says who it is from.

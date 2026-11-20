@@ -5,9 +5,9 @@ import path from 'node:path';
 import { Diagnostic, SourceSpan } from 'zibri-tsx';
 import { offsetToLineColumn } from 'zibri-tsx/internal';
 
-import { MarkdownKind, MarkdownPrinter, MarkdownPrinterModule, PrintedMarkdown } from './markdown-printer.model';
 import { compile, CompileOptions, CompileResult } from '../codegen/compile';
 import { decodeMappings, encodeMappings, SourceMap } from '../codegen/source-map';
+import { MarkdownKind, MarkdownPrinter, MarkdownPrinterModule, PrintedMarkdown } from './markdown-printer.model';
 
 /**
  * A markdown template printed as a tsx template, with what leads from the one back to the other.

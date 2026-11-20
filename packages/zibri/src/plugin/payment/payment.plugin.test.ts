@@ -1,11 +1,5 @@
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
 
-import { KnownPaymentMethod, PaymentMethod } from './models/payment-method.model';
-import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model';
-import { Payment } from './models/payment.model';
-import { ZibriPaymentPlugin } from './payment.plugin';
-import { ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
-import { AnyPaymentProviderInterface } from './providers/payment-provider.interface';
 import { TestTimeouts } from '../../__testing__/constants';
 import { missingEntityPattern } from '../../__testing__/missing-entity-pattern.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -16,6 +10,12 @@ import { defineProvider } from '../../di/models/di-provider.model';
 import { AppState } from '../../global/app-state.enum';
 import { GlobalRegistry } from '../../global/global-registry';
 import { Ms } from '../../utilities/ms';
+import { KnownPaymentMethod, PaymentMethod } from './models/payment-method.model';
+import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model';
+import { Payment } from './models/payment.model';
+import { ZibriPaymentPlugin } from './payment.plugin';
+import { ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
+import { AnyPaymentProviderInterface } from './providers/payment-provider.interface';
 
 // eslint-disable-next-line typescript/no-explicit-any
 function createFakeProvider(name: string): AnyPaymentProviderInterface & Record<string, any> {

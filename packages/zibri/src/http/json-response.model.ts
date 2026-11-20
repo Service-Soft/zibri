@@ -1,7 +1,7 @@
-import { Header } from './header.type';
-import { HttpStatus } from './http-status.enum';
 import { Property } from '../entity/decorators/property.decorator';
 import { SelfDescribing } from '../types/self-describing.type';
+import { Header } from './header.type';
+import { HttpStatus } from './http-status.enum';
 
 /**
  * What a json response answers with beside its body.

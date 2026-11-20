@@ -8,10 +8,10 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { DocsUtilities, UUIDUtilities } from 'zibri';
 import { StartedTestServer } from 'zibri-testing';
 
-import { SiteExport } from './site-export.model';
-import { SiteExportUtilities } from './site-export.utilities';
 import { startDocsSite } from '../__testing__/start-docs-site.function';
 import { DOCS_SITE } from '../navigation/docs-site';
+import { SiteExport } from './site-export.model';
+import { SiteExportUtilities } from './site-export.utilities';
 
 /**
  * A folder of its own for one export.

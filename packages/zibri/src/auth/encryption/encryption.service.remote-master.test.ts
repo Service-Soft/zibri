@@ -3,11 +3,6 @@ import { CipherGCM, createCipheriv, createDecipheriv, DecipherGCM, randomBytes }
 import { describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { EncryptionKey } from './encryption-key.model';
-import { EncryptionMasterOptions } from './encryption-master-options.model';
-import { EncryptionContent, EncryptionString, EncryptionUtilities } from './encryption.utilities';
-import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
-import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from './strategies/encryption-strategy.interface';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders, testMasterKey } from '../../__testing__/test-server/providers';
@@ -20,6 +15,11 @@ import { defineProvider } from '../../di/models/di-provider.model';
 import { Newable } from '../../types/newable.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { OtpCredentials } from '../2fa/methods/otp/otp-credentials.model';
+import { EncryptionKey } from './encryption-key.model';
+import { EncryptionMasterOptions } from './encryption-master-options.model';
+import { EncryptionContent, EncryptionString, EncryptionUtilities } from './encryption.utilities';
+import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
+import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from './strategies/encryption-strategy.interface';
 
 // a master key belongs in a kms or an hsm, which hands an application a reference and never the
 // bytes: this is a master strategy built that way, standing in for one

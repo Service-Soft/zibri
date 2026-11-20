@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { OpenApiConvertUtilities } from './open-api-convert.utilities';
 import type { OpenApiDefinition } from '../../../open-api/open-api.model';
+import { OpenApiConvertUtilities } from './open-api-convert.utilities';
 
 describe('OpenApiConvertUtilities.toV3', () => {
     it('throws when given a non-object document', async () => {

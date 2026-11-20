@@ -1,9 +1,9 @@
-import { UserRepositoryInterface } from './user-repository.interface';
 import { FindByIdOptions } from '../../data-source/models/options/find-by-id-options.model';
 import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
 import { BaseUser } from '../models/base-user.model';
+import { UserRepositoryInterface } from './user-repository.interface';
 
 /**
  * Options for looking a user up: whether the user has to exist, and the transaction to read in, as
@@ -91,7 +91,14 @@ export interface UserServiceInterface {
      * Reads the users of every user repository built on the data layer.
      */
     // TODO 4.0: required
-    findStoredUserIds?: (userIds: string[]) => Promise<string[]>
+    findStoredUserIds?: (userIds: string[]) => Promise<string[]>,
+    /**
+     * Deletes a user through the repository holding them, with what follows a deleted user, such as their
+     * memberships. A user entity that soft deletes keeps the row.
+     * @throws A NotFoundError when no repository holds the user.
+     */
+    // TODO 4.0: required
+    deleteUser?: (id: string, transaction: RepositoryTransaction | undefined) => Promise<void>
 }
 
 /**

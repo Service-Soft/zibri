@@ -1,8 +1,8 @@
-import { ChangeSet } from './change-set.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitStrict } from '../../../types/omit-strict.type';
+import { ChangeSet } from './change-set.model';
 
 /**
  * Defines a single value change of an change set.

@@ -1,11 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { EmailServiceInterface } from './email-service.interface';
-import { CreateEmailData, QueueEmailData } from './models/create-email-data.model';
-import { EmailConfig } from './models/email-config.model';
-import { EmailPriority } from './models/email-priority.enum';
-import { EmailStatus } from './models/email-status.enum';
-import { Email } from './models/email.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { missingEntityPattern } from '../__testing__/missing-entity-pattern.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -15,8 +9,14 @@ import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
-import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
 import { Ms } from '../utilities/ms';
+import { EmailServiceInterface } from './email-service.interface';
+import { CreateEmailData, QueueEmailData } from './models/create-email-data.model';
+import { EmailConfig } from './models/email-config.model';
+import { EmailPriority } from './models/email-priority.enum';
+import { EmailStatus } from './models/email-status.enum';
+import { Email } from './models/email.model';
+import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
 
 // ---------- The transport under the real service ----------
 

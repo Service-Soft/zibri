@@ -1,13 +1,13 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { DuplicateFrameworkCopyError } from './framework-copies';
-import { GlobalRegistry } from './global-registry';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { initDiContainer } from '../di/init-di-container.function';
 import { Newable } from '../types/newable.type';
+import { DuplicateFrameworkCopyError } from './framework-copies';
+import { GlobalRegistry } from './global-registry';
 
 /**
  * The second copy loaded below counts itself into a slot the whole realm shares, and nothing takes

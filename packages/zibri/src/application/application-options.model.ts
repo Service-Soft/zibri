@@ -1,5 +1,3 @@
-import { AppCommand } from './app-command.model';
-import { ZibriEnvironment } from './zibri-environment.type';
 import { TwoFactorAtLogin } from '../auth/2fa/two-factor-at-login.type';
 import { TwoFactorFailureLimit } from '../auth/2fa/two-factor-failure-limit.model';
 import { TwoFactorMethods } from '../auth/2fa/two-factor-methods.model';
@@ -18,6 +16,8 @@ import { DeepPartial } from '../types/deep-partial.type';
 import { Newable } from '../types/newable.type';
 import { OmitStrict } from '../types/omit-strict.type';
 import { SemVerVersion } from '../utilities/sem-ver.utilities';
+import { AppCommand } from './app-command.model';
+import { ZibriEnvironment } from './zibri-environment.type';
 
 /**
  * Configuration options for strict transport security / hsts.

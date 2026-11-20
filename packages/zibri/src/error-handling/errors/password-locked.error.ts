@@ -1,5 +1,5 @@
-import { UnauthorizedError } from './unauthorized.error';
 import { $ts } from '../../localization/translate.function';
+import { UnauthorizedError } from './unauthorized.error';
 
 /**
  * An error to throw when the right password is presented for an account locked after too many wrong

@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { PasswordCredentials, PasswordCredentialsCreateData } from './password-credentials.model';
-import { PasswordFailureStreak } from './password-failure-streak.model';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
@@ -26,6 +24,8 @@ import { AuthService } from '../../auth.service';
 import { LoginTicket } from '../../models/login-ticket.model';
 import { JwtRefreshToken } from '../../strategies/jwt/jwt-refresh-token.model';
 import { JwtAuthStrategy } from '../../strategies/jwt/jwt.auth-strategy';
+import { PasswordCredentials, PasswordCredentialsCreateData } from './password-credentials.model';
+import { PasswordFailureStreak } from './password-failure-streak.model';
 
 const OLD_PASSWORD: string = 'the one they forgot';
 const NEW_PASSWORD: string = 'the one support set';

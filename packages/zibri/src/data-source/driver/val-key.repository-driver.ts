@@ -2,10 +2,6 @@ import { createHash } from 'node:crypto';
 
 import type { Batch, GlideClient, GlideReturnType, GlideString, Script } from '@valkey/valkey-glide';
 
-import { RelatedRowsReader } from './related-rows-reader.interface';
-import { RelationResolutionUtilities } from './relation-resolution.utilities';
-import { RemovalReach } from './removal-reach.model';
-import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface, STREAM_BATCH_SIZE } from './repository-driver.interface';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
@@ -56,6 +52,10 @@ import { UnboundedReturnError } from '../unbounded-return.error';
 import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
 import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
 import { WriteDataUtilities } from '../write-data.utilities';
+import { RelatedRowsReader } from './related-rows-reader.interface';
+import { RelationResolutionUtilities } from './relation-resolution.utilities';
+import { RemovalReach } from './removal-reach.model';
+import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface, STREAM_BATCH_SIZE } from './repository-driver.interface';
 
 // a stream reads its ids in one go because that is the small half, and the rows behind them, which
 // is what would not fit, STREAM_BATCH_SIZE at a time
@@ -1916,7 +1916,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         // the other side are this entity's own sets then, which move with the rows - without the rows
         // left out
         if (target === this.entityClass) {
-            for (const [id, members] of related.filter(([id]) => moved.has(id))) {
+            for (const [id, members] of related.filter(([relatedId]) => moved.has(relatedId))) {
                 const kept: string[] = members.filter(m => moved.has(m));
                 if (kept.length) {
                     res.push({ type: 'setAdd', key: this.joinKey(id, key), members: kept });

@@ -1,6 +1,6 @@
-import { XmlPropertyMetadata } from './xml-property-metadata.model';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { XmlPropertyMetadata } from './xml-property-metadata.model';
 
 /**
  * Reads and writes the decorated property as an attribute of the element, instead of as a child element.

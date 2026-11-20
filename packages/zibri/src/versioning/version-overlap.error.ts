@@ -1,5 +1,5 @@
-import { SupportedVersionsOptions } from './supported-versions-options.model';
 import { InternalError } from '../error-handling/internal-error.model';
+import { SupportedVersionsOptions } from './supported-versions-options.model';
 
 /**
  * An error for a route, a base route or a websocket event that is declared twice for versions that

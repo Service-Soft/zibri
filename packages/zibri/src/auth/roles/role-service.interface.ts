@@ -1,3 +1,5 @@
+import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
+import { type CurrentUser } from '../decorators/current-user.decorator';
 import { BaseRole } from './base-role.model';
 import { type Permission } from './permission.type';
 import { type PlatformPermission } from './platform-permission.type';
@@ -5,8 +7,6 @@ import { RoleCreateData } from './role-create-data.model';
 import { RoleIdentity } from './role-identity.model';
 import { RoleUpdateData } from './role-update-data.model';
 import { WrittenRole } from './written-role.model';
-import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
-import { type CurrentUser } from '../decorators/current-user.decorator';
 
 /**
  * Interface for the service keeping the roles of an application: the permissions it declares in code,
@@ -121,17 +121,36 @@ export interface RoleServiceInterface {
     deleteRole: (caller: CurrentUser, name: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Gives a user a role: a platform role to the user, a tenant role to their membership in the
-     * tenant the request acts in. The caller needs `auth.assign_platform_role` as a platform
-     * permission, or `auth.assign_role` as a tenant permission in that tenant, `.with_any_permission`
-     * or, for a role carrying only permissions they hold at its level, `.with_own_permissions`.
+     * active tenant. The caller needs `auth.assign_platform_role` as a platform permission, or
+     * `auth.assign_role` as a tenant permission in the tenant the request acts in, `.with_any_permission`
+     * or, for a role carrying only permissions they hold at its level, `.with_own_permissions`. A tenant
+     * role is also given by a caller holding `auth.assign_role_in_any_tenant.with_any_permission` as a
+     * platform permission, in whichever tenant is active.
      * @throws A ForbiddenError when the caller may not, a NotFoundError when there is no such role,
      * user or membership, a BadRequestError for a tenant role while no tenant is active.
      */
     assignRole: (caller: CurrentUser, userId: string, role: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
      * Takes a role from a user, the way `assignRole` gives it. The caller needs
-     * `auth.unassign_platform_role` or `auth.unassign_role`, checked the same way.
+     * `auth.unassign_platform_role`, `auth.unassign_role` or `auth.unassign_role_in_any_tenant`, checked the same way.
      * @throws Like `assignRole`.
      */
-    unassignRole: (caller: CurrentUser, userId: string, role: string, transaction: RepositoryTransaction | undefined) => Promise<void>
+    unassignRole: (caller: CurrentUser, userId: string, role: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
+    // TODO 4.0: required, like the methods above
+    /**
+     * Refuses roles a caller may not hand out, the way `assignRole` checks them, before anybody holds them, such as
+     * the roles of an invitation: platform roles without a tenant, tenant roles of the given tenant. Tenant roles of
+     * another tenant than the one the request acts in need `auth.assign_role_in_any_tenant.with_any_permission`.
+     * @param caller - Who hands them out.
+     * @param roles - The roles.
+     * @param tenantId - The tenant the roles are held in, or undefined for platform roles.
+     * @param transaction - The transaction to read the roles in, if any.
+     * @throws A ForbiddenError when the caller may not, a BadRequestError when a role does not exist at that level.
+     */
+    validateMayAssign?: (
+        caller: CurrentUser,
+        roles: string[],
+        tenantId: string | undefined,
+        transaction: RepositoryTransaction | undefined
+    ) => Promise<void>
 }

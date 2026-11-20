@@ -3,16 +3,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { BaseScimProvisioner } from './base-scim-provisioner';
-import { ScimController } from './scim-controller.model';
-import { ScimFilterUtilities } from './scim-filter.utilities';
-import { ScimGroupMember } from './scim-group-member.model';
-import { ScimGroupResource } from './scim-group-resource.model';
-import { ScimGroup } from './scim-group.model';
-import { ScimSchema } from './scim-schema.enum';
-import { ScimUserResource } from './scim-user-resource.model';
-import { ScimUserValue } from './scim-user-value.model';
-import { ScimUser } from './scim-user.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { MemberRoles } from '../../__testing__/mocks/entities/member-roles.enum';
@@ -45,6 +35,16 @@ import { ApiKeyAuthStrategy } from '../strategies/api-key/api-key.auth-strategy'
 import { ApiKey } from '../strategies/api-key/api-key.model';
 import { AuthStrategies } from '../strategies/auth-strategies.model';
 import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy';
+import { BaseScimProvisioner } from './base-scim-provisioner';
+import { ScimController } from './scim-controller.model';
+import { ScimFilterUtilities } from './scim-filter.utilities';
+import { ScimGroupMember } from './scim-group-member.model';
+import { ScimGroupResource } from './scim-group-resource.model';
+import { ScimGroup } from './scim-group.model';
+import { ScimSchema } from './scim-schema.enum';
+import { ScimUserResource } from './scim-user-resource.model';
+import { ScimUserValue } from './scim-user-value.model';
+import { ScimUser } from './scim-user.model';
 
 /**
  * What a SCIM answer holds.

@@ -1,7 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { Repository } from './repository/repository';
-import { Transaction } from './transaction/transaction.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
@@ -11,6 +9,8 @@ import { LeaseServiceInterface } from '../leases/lease-service.interface';
 import { LogLevel } from '../logging/log-level.enum';
 import { Log } from '../logging/log.model';
 import { Ms } from '../utilities/ms';
+import { Repository } from './repository/repository';
+import { Transaction } from './transaction/transaction.model';
 
 /**
  * The guard that reports a transaction outliving the grant it was written under.

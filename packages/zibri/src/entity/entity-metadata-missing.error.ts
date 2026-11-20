@@ -1,6 +1,6 @@
-import { BaseEntity } from './base-entity.model';
 import { InternalError } from '../error-handling/internal-error.model';
 import { Newable } from '../types/newable.type';
+import { BaseEntity } from './base-entity.model';
 
 /**
  * An error that gets thrown when entity metadata that is required is missing.

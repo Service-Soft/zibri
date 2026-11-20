@@ -1,6 +1,6 @@
-import { ApiKeyClientAuthentication } from './api-key-client-authentication.model';
 import { type Permission } from '../../roles/permission.type';
 import { type PlatformPermission } from '../../roles/platform-permission.type';
+import { ApiKeyClientAuthentication } from './api-key-client-authentication.model';
 
 /**
  * What a new api key is created with.

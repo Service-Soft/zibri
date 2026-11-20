@@ -3,8 +3,8 @@ import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import v8 from 'node:v8';
 
-import { LivePhaseMeasurement, PhaseMeasurement } from './backup-measurement.model';
 import { ThreadCpu, ThreadCpuUtilities } from '../thread-cpu.utilities';
+import { LivePhaseMeasurement, PhaseMeasurement } from './backup-measurement.model';
 
 /**
  * How a phase is read right after a collection.

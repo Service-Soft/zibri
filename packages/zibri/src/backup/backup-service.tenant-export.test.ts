@@ -5,9 +5,6 @@ import { pipeline } from 'node:stream/promises';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { BackupEntity } from './backup-entity.model';
-import { BackupResourceEntity } from './backup-resource-entity.model';
-import { BackupServiceInterface } from './backup-service.interface';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -25,6 +22,9 @@ import { Newable } from '../types/newable.type';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { BackupEntity } from './backup-entity.model';
+import { BackupResourceEntity } from './backup-resource-entity.model';
+import { BackupServiceInterface } from './backup-service.interface';
 
 /**
  * An entity each of two data sources holds rows of its own of.

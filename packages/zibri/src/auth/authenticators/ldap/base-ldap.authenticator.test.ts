@@ -5,12 +5,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, FakeLdapDirectory, FakeLdapEntry, InMemoryDataSource, startFakeLdapDirectory } from 'zibri-testing';
 
-import { BaseLdapAuthenticator } from './base-ldap.authenticator';
-import { DisabledLdapEntriesCronJob } from './disabled-ldap-entries.cron-job';
-import { LdapCredentials } from './ldap-credentials.model';
-import { LdapEntry } from './ldap-entry.model';
-import { LdapIdentity, LdapIdentityCreateData } from './ldap-identity.model';
-import { LdapServiceAccount } from './ldap-service-account.model';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { missingEntityPattern } from '../../../__testing__/missing-entity-pattern.function';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
@@ -48,6 +42,12 @@ import { CreatedApiKey } from '../../strategies/api-key/created-api-key.model';
 import { JwtAuthData } from '../../strategies/jwt/jwt-auth-data.model';
 import { JwtRefreshLoginDto } from '../../strategies/jwt/jwt-refresh-login-data.model';
 import { JwtAuthStrategy } from '../../strategies/jwt/jwt.auth-strategy';
+import { BaseLdapAuthenticator } from './base-ldap.authenticator';
+import { DisabledLdapEntriesCronJob } from './disabled-ldap-entries.cron-job';
+import { LdapCredentials } from './ldap-credentials.model';
+import { LdapEntry } from './ldap-entry.model';
+import { LdapIdentity, LdapIdentityCreateData } from './ldap-identity.model';
+import { LdapServiceAccount } from './ldap-service-account.model';
 
 const SEARCH_BASE: string = 'ou=people,dc=zibri,dc=test';
 const GROUP_SEARCH_BASE: string = 'ou=groups,dc=zibri,dc=test';
@@ -92,8 +92,9 @@ function group(cn: string, members: string[]): FakeLdapEntry {
 let directory: FakeLdapDirectory;
 // a second server of the same directory, for the authenticator that knows both
 let replica: FakeLdapDirectory;
-// a server that was started and stopped again, so nothing answers on its ports
-let unreachable: FakeLdapDirectory;
+// a server that resets every connection it takes, the way a port nothing listens on refuses one. A server stopped
+// again instead frees its port, which the next server asking for one, such as a silent one, can be given
+let unreachable: NetServer;
 
 /**
  * Every entry the first login hook was handed, in order.
@@ -205,7 +206,7 @@ class PartlyUnreachableDirectory extends TestDirectory {
     readonly name: string = 'partly-unreachable';
 
     get urls(): string[] {
-        return [unreachable.ldapsUrl, directory.ldapsUrl];
+        return [resolveLdapsUrl(unreachable), directory.ldapsUrl];
     }
 }
 
@@ -213,7 +214,7 @@ class UnreachableDirectory extends TestDirectory {
     readonly name: string = 'unreachable';
 
     get urls(): string[] {
-        return [unreachable.ldapsUrl];
+        return [resolveLdapsUrl(unreachable)];
     }
 }
 
@@ -226,7 +227,7 @@ class SwitchableDirectory extends TestDirectory {
     readonly name: string = 'switchable';
 
     get urls(): string[] {
-        return [switchableReachable ? directory.ldapsUrl : unreachable.ldapsUrl];
+        return [switchableReachable ? directory.ldapsUrl : resolveLdapsUrl(unreachable)];
     }
 }
 
@@ -241,14 +242,21 @@ let silentServers: NetServer[] = [];
 const silentSockets: Socket[] = [];
 
 /**
+ * The url of a server of the suite's own that speaks no LDAP.
+ * @param server - The server.
+ * @returns The url.
+ */
+function resolveLdapsUrl(server: NetServer): string {
+    const address: AddressInfo | string | null = server.address();
+    return typeof address === 'object' && address != undefined ? `ldaps://127.0.0.1:${address.port}` : '';
+}
+
+/**
  * The urls of the servers that never answer.
  * @returns The urls.
  */
 function silentUrls(): string[] {
-    return silentServers.map(silent => {
-        const address: AddressInfo | string | null = silent.address();
-        return typeof address === 'object' && address != undefined ? `ldaps://127.0.0.1:${address.port}` : '';
-    });
+    return silentServers.map(silent => resolveLdapsUrl(silent));
 }
 
 // four servers that never answer, and one that does
@@ -452,13 +460,13 @@ async function authDataOf(res: Response): Promise<JwtAuthData<string>> {
 
 /**
  * The binds a directory was asked for since a point.
- * @param server - The directory.
+ * @param ldapDirectory - The directory.
  * @param since - How many binds it had been asked for before.
  * @param dn - Whose binds to count.
  * @returns How many there were.
  */
-function countBinds(server: FakeLdapDirectory, since: number, dn: string): number {
-    return server.binds.slice(since).filter(bind => bind.dn === dn).length;
+function countBinds(ldapDirectory: FakeLdapDirectory, since: number, dn: string): number {
+    return ldapDirectory.binds.slice(since).filter(bind => bind.dn === dn).length;
 }
 
 /**
@@ -533,12 +541,12 @@ beforeAll(async () => {
         { ...group('not-a-group', [ivy]), attributes: { objectClass: ['organizationalRole'], cn: ['not-a-group'], member: [ivy] } },
         { ...group('outside', [ivy]), dn: 'cn=outside,ou=elsewhere,dc=zibri,dc=test' }
     ];
-    [directory, replica, unreachable] = await Promise.all([
+    [directory, replica] = await Promise.all([
         startFakeLdapDirectory({ entries }),
-        startFakeLdapDirectory({ entries }),
-        startFakeLdapDirectory({ entries: [] })
+        startFakeLdapDirectory({ entries })
     ]);
-    await unreachable.stop();
+    unreachable = createServer(socket => socket.resetAndDestroy());
+    await new Promise<void>(resolve => unreachable.listen(0, '127.0.0.1', resolve));
     silentServers = await Promise.all(Array.from({ length: 4 }, async () => {
         const silent: NetServer = createServer(socket => silentSockets.push(socket));
         await new Promise<void>(resolve => silent.listen(0, '127.0.0.1', resolve));
@@ -553,6 +561,7 @@ afterEach(() => {
 
 afterAll(async () => {
     await Promise.all([directory?.stop(), replica?.stop()]);
+    unreachable?.close();
     for (const socket of silentSockets) {
         socket.destroy();
     }

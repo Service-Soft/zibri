@@ -2,7 +2,6 @@ import { Readable } from 'node:stream';
 
 import { NextFunction } from 'express';
 
-import { Route } from './controller-route-configuration.model';
 import { RouteAuthConfiguration } from '../auth/models/route-auth-configuration.model';
 import { ArrayPropertyItemMetadataInput, ArrayPropertyItemMetadata } from '../entity/models/array-property-metadata.model';
 import { DeclaredBodyShape, DeclaredShape, ShapeType } from '../entity/models/shape-type.model';
@@ -10,8 +9,12 @@ import { HandlerTimeout } from '../http/handler-timeout.type';
 import { HttpMethod } from '../http/http-method.enum';
 import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
+import { MimeType } from '../http/mime-type.enum';
 import { OpenApiResponse } from '../open-api/open-api.model';
 import { OmitStrict } from '../types/omit-strict.type';
+import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
+import { Route } from './controller-route-configuration.model';
+import { BodyMetadata, DeclaredBodyInput } from './decorators/body-metadata.model';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata, PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput } from './decorators/param.decorator';
 import { ArrayParamMetadataInput, ArrayParamMetadata } from './models/array-param-metadata.model';
 import { BooleanParamMetadataInput, BooleanParamMetadata } from './models/boolean-param-metadata.model';
@@ -20,9 +23,6 @@ import { NumberParamMetadataInput, NumberParamMetadata } from './models/number-p
 import { ObjectParamMetadataInput, ObjectParamMetadata } from './models/object-param-metadata.model';
 import { OneOfParamMetadata } from './models/one-of-param-metadata.model';
 import { StringParamMetadataInput, StringParamMetadata } from './models/string-param-metadata.model';
-import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
-import { BodyMetadata, DeclaredBodyInput } from './decorators/body-metadata.model';
-import { MimeType } from '../http/mime-type.enum';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 type PathMetaObjectToParamsObject<PathMetaObject extends Record<string, PathParamMetadata>> = {

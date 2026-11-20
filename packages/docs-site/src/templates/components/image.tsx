@@ -1,7 +1,7 @@
 import { MdxImageProps, TsxComponent, useContext } from 'zibri';
 
-import { DocsPageContext } from './docs-page-context';
 import { ImageUtilities } from '../../navigation/image.utilities';
+import { DocsPageContext } from './docs-page-context';
 
 // an image beside its page, which the build copies into the assets
 export const Image: TsxComponent<MdxImageProps> = ({ src, alt, title }) => {

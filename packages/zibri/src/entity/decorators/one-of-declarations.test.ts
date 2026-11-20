@@ -1,9 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { Property, PropertyMetadata } from './property.decorator';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { type OneOf } from '../models/one-of.model';
+import { Property, PropertyMetadata } from './property.decorator';
 
 class EmailChannel {
     @Property.string()

@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { AuthController } from './auth-controller.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
@@ -25,6 +24,7 @@ import { PasswordAuthenticator } from '../authenticators/password/password.authe
 import { Authentication } from '../models/authentication.model';
 import { JwtAuthData } from '../strategies/jwt/jwt-auth-data.model';
 import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy';
+import { AuthController } from './auth-controller.model';
 
 /**
  * The jwt strategy, failing every login once its refresh token is written.

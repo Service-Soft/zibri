@@ -1,7 +1,7 @@
-import { SoftDeleteEntity } from './soft-delete-entity.model';
-import { SoftDeletedRows } from './soft-deleted-rows.type';
 import { EntitySelection } from '../../../entity/models/entity-selection.model';
 import { FindByIdOptions } from '../../models/options/find-by-id-options.model';
+import { SoftDeleteEntity } from './soft-delete-entity.model';
+import { SoftDeletedRows } from './soft-deleted-rows.type';
 
 /**
  * Options for finding a single soft delete entity by its id.

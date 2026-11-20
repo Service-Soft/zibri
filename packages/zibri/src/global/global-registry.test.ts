@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from '@jest/globals';
 
+import { ZibriApplicationOptions } from '../application/application-options.model';
 import { AppState } from './app-state.enum';
 import { GlobalRegistry } from './global-registry';
-import { ZibriApplicationOptions } from '../application/application-options.model';
 
 function resetToOffline(): void {
     GlobalRegistry['appData'].state = AppState.OFFLINE;

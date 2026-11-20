@@ -1,10 +1,10 @@
-import { AuditReason } from './audit-event.model';
 import { ErrorUtilities } from '../error-handling/error.utilities';
 import { AccountDeactivatedError } from '../error-handling/errors/account-deactivated.error';
 import { CredentialClonedError } from '../error-handling/errors/credential-cloned.error';
 import { CredentialReusedError } from '../error-handling/errors/credential-reused.error';
 import { EmailNotVerifiedError } from '../error-handling/errors/email-not-verified.error';
 import { PasswordLockedError } from '../error-handling/errors/password-locked.error';
+import { AuditReason } from './audit-event.model';
 
 /**
  * What an audit event records about an attempt: why it was refused, whom it named, and whom it

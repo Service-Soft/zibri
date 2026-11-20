@@ -3,9 +3,6 @@ import { setTimeout as wait } from 'node:timers/promises';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { CookieAuthRefreshSession } from './cookie-auth-refresh-session.model';
-import { CookieAuthSession } from './cookie-auth-session.model';
-import { CookieAuthStrategy } from './cookie-auth.auth-strategy';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { CookieTestAuthController } from '../../../__testing__/mocks/controllers/cookie-test-auth.controller';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
@@ -26,6 +23,9 @@ import { Get } from '../../../routing/decorators/get.decorator';
 import { JsonUtilities } from '../../../utilities/json.utilities';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../authenticators/password/password-credentials.model';
 import { Auth } from '../../decorators/auth.decorator';
+import { CookieAuthRefreshSession } from './cookie-auth-refresh-session.model';
+import { CookieAuthSession } from './cookie-auth-session.model';
+import { CookieAuthStrategy } from './cookie-auth.auth-strategy';
 
 const PASSWORD: string = 'correct horse battery staple';
 const GRACE_IN_MS: number = 1000;

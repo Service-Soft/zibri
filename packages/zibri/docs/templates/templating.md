@@ -128,7 +128,7 @@ component: a function named in PascalCase that returns JSX (`ZTSX010`).
 
 Any TypeScript syntax works in a template, inside components as well as around them: classes, enums,
 generators, getters, every kind of loop. The compiled server module and client script target ES2022,
-which Node and current browsers run. Newer syntax, such as decorators and `using`, is compiled down to
+which Node.js and current browsers run. Newer syntax, such as decorators and `using`, is compiled down to
 it.
 
 Every value a template writes is escaped, text and attribute values alike, whatever shape it has. Only

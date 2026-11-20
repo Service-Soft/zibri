@@ -1,10 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, StartedTestServer, startTestServer } from 'zibri-testing';
 
-import { BaseEntity } from './base-entity.model';
-import { BaseTenantEntity } from './base-tenant-entity.model';
-import { Entity } from './decorators/entity.decorator';
-import { Property } from './decorators/property.decorator';
 import { TestTimeouts } from '../__testing__/constants';
 import { ChangeSetEntity } from '../data-source/change-sets/models/change-set-entity.model';
 import { isChangeSetEntityNewable } from '../data-source/change-sets/models/is-change-set-entity.function';
@@ -16,6 +12,10 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { TenantServiceInterface } from '../tenancy/tenant-service.interface';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { BaseEntity } from './base-entity.model';
+import { BaseTenantEntity } from './base-tenant-entity.model';
+import { Entity } from './decorators/entity.decorator';
+import { Property } from './decorators/property.decorator';
 
 @Entity({ allowOrphan: true })
 class Note extends BaseTenantEntity() {

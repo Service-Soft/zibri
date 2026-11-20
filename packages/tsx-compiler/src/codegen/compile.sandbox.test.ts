@@ -3,10 +3,10 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from '@jest/globals';
 
-import { compile, CompileResult } from './compile';
 import { collectTsxFiles, resolveTemplateName } from '../__testing__/sandbox.helper';
 import { collectClientGlobalAliasesFromSource } from '../semantics/client-packages';
 import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols';
+import { compile, CompileResult } from './compile';
 
 const templatesDir: string = join(__dirname, '..', '..', '..', 'sandbox', 'src', 'templates');
 

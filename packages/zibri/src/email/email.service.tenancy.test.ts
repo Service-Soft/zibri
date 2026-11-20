@@ -1,11 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { EmailServiceInterface } from './email-service.interface';
-import { CreateEmailData } from './models/create-email-data.model';
-import { EmailStatus } from './models/email-status.enum';
-import { Email } from './models/email.model';
-import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -18,6 +13,11 @@ import { defineProvider } from '../di/models/di-provider.model';
 import { TenantServiceInterface } from '../tenancy/tenant-service.interface';
 import { Ms } from '../utilities/ms';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { EmailServiceInterface } from './email-service.interface';
+import { CreateEmailData } from './models/create-email-data.model';
+import { EmailStatus } from './models/email-status.enum';
+import { Email } from './models/email.model';
+import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
 
 // in memory, so that what a mail does across tenants can be watched without a container
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({

@@ -1,12 +1,3 @@
-import { MigratedEntityUtilities } from './migration/migrated-entity.utilities';
-import { CastCheckedProperty } from './models/cast-checked-property.model';
-import { ChangePropertyOfEntityInput } from './models/change-property-of-entity-input.model';
-import { ConversionRefusal } from './models/conversion-refusal.enum';
-import { ConvertedValue } from './models/converted-value.model';
-import { MigrationPropertyMetadata } from './models/migration-property-metadata.model';
-import { RefusedValue } from './models/refused-value.model';
-import { ResolvedPropertyConversion } from './models/resolved-property-conversion.model';
-import { ValueConversion } from './models/value-conversion.enum';
 import { BaseEntity } from '../entity/base-entity.model';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { NumberFormat, NumberPropertyMetadata } from '../entity/models/number-property-metadata.model';
@@ -20,6 +11,15 @@ import { JsonUtilities } from '../utilities/json.utilities';
 import { BigNumber } from '../utilities/number.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { MigratedEntityUtilities } from './migration/migrated-entity.utilities';
+import { CastCheckedProperty } from './models/cast-checked-property.model';
+import { ChangePropertyOfEntityInput } from './models/change-property-of-entity-input.model';
+import { ConversionRefusal } from './models/conversion-refusal.enum';
+import { ConvertedValue } from './models/converted-value.model';
+import { MigrationPropertyMetadata } from './models/migration-property-metadata.model';
+import { RefusedValue } from './models/refused-value.model';
+import { ResolvedPropertyConversion } from './models/resolved-property-conversion.model';
+import { ValueConversion } from './models/value-conversion.enum';
 
 /**
  * What a property change does to the values it converts, whichever data source stores them.

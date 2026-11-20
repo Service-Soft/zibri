@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 
-import { HashStrategyInterface } from './hash-strategy.interface';
 import { HashContent, HashString, HashUtilities } from '../hash.utilities';
+import { HashStrategyInterface } from './hash-strategy.interface';
 
 /**
  * Hash strategy for values that carry their own entropy, and have to stay findable.

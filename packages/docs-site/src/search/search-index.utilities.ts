@@ -1,11 +1,11 @@
 import { DocsUtilities } from 'zibri';
 
-import { SearchEntry } from './search-entry.model';
 import { ApiCommentUtilities } from '../api/api-comment.utilities';
 import { ApiPageUtilities } from '../api/api-page.utilities';
 import { ApiReferenceUtilities } from '../api/api-reference.utilities';
 import { DOCS_SITE } from '../navigation/docs-site';
 import { BADGE_LOOKS } from '../templates/components/kind-badge';
+import { SearchEntry } from './search-entry.model';
 
 /**
  * Where the browser fetches what the search looks through, below the site.

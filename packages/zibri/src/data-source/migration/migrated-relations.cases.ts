@@ -1,6 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { Migration } from './migration.model';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
@@ -9,6 +8,7 @@ import { Newable } from '../../types/newable.type';
 import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { Transaction } from '../transaction/transaction.model';
+import { Migration } from './migration.model';
 
 /**
  * An author of the books.

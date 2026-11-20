@@ -1,6 +1,6 @@
+import { FederatedSession } from '../authenticators/federated/federated-session.model';
 import { BaseUser } from './base-user.model';
 import { ProviderAuthentication } from './provider-authentication.model';
-import { FederatedSession } from '../authenticators/federated/federated-session.model';
 
 /**
  * Who proved who they are, and when.

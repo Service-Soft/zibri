@@ -2,11 +2,6 @@ import assert from 'node:assert';
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
-import { LogLevel } from './log-level.enum';
-import { Log } from './log.model';
-import { Logger } from './logger';
-import { LoggerInterface } from './logger.interface';
-import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { missingEntityPattern } from '../__testing__/missing-entity-pattern.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -25,6 +20,11 @@ import { HttpMethod } from '../http/http-method.enum';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
 import { Ms } from '../utilities/ms';
+import { LogLevel } from './log-level.enum';
+import { Log } from './log.model';
+import { Logger } from './logger';
+import { LoggerInterface } from './logger.interface';
+import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
 
 /**
  * The first entry of the first batch a transport was handed.

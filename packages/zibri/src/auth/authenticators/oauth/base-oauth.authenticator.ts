@@ -1,12 +1,5 @@
 import type { AuthorizationCodeGrantChecks, ClientAuth, Configuration, DiscoveryRequestOptions, TokenEndpointResponse, TokenEndpointResponseHelpers } from 'openid-client';
 
-import { OAuthClientAuthentication, OAuthClientSecret } from './oauth-client-authentication.model';
-import { OAuthCodeExchange } from './oauth-code-exchange.model';
-import { OAuthOfflineAccess } from './oauth-offline-access.model';
-import { OAuthProviderLogin } from './oauth-provider-login.model';
-import { OAuthProviderTokens, OAuthProviderTokensCreateData } from './oauth-provider-tokens.model';
-import { OAuthResponseMode } from './oauth-response-mode.type';
-import { OpenIdClient } from './open-id-client.type';
 import { ZibriApplication } from '../../../application/application';
 import { type AuditServiceInterface } from '../../../audit/audit-service.interface';
 import { Repository } from '../../../data-source/repository/repository';
@@ -37,6 +30,13 @@ import { ProviderTokenGrant } from '../federated/provider-token-grant.model';
 import { ProviderAccessAuthenticatorInterface } from '../provider-access-authenticator.interface';
 import { ProviderAccessFailure } from '../provider-access-failure.enum';
 import { ProviderAccessError } from '../provider-access.error';
+import { OAuthClientAuthentication, OAuthClientSecret } from './oauth-client-authentication.model';
+import { OAuthCodeExchange } from './oauth-code-exchange.model';
+import { OAuthOfflineAccess } from './oauth-offline-access.model';
+import { OAuthProviderLogin } from './oauth-provider-login.model';
+import { OAuthProviderTokens, OAuthProviderTokensCreateData } from './oauth-provider-tokens.model';
+import { OAuthResponseMode } from './oauth-response-mode.type';
+import { OpenIdClient } from './open-id-client.type';
 
 /**
  * The codes `openid-client` refuses an answer of the provider with because checking it found it wrong.

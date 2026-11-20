@@ -6,9 +6,6 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import express, { Express } from 'express';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { HttpMethod } from './http-method.enum';
-import { HttpServerLimits } from './http-server-limits.model';
-import { HttpStatus } from './http-status.enum';
 import { TestTimeouts } from '../__testing__/constants';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
@@ -29,6 +26,9 @@ import { FileResponse } from '../parsing/form-data/file-response.model';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
 import { RouterInterface } from '../routing/router.interface';
+import { HttpMethod } from './http-method.enum';
+import { HttpServerLimits } from './http-server-limits.model';
+import { HttpStatus } from './http-status.enum';
 
 /**
  * What a refused or failed request answers with.

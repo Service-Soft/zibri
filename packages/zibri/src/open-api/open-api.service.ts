@@ -1,8 +1,3 @@
-import { OpenApiExplorerTemplate, OpenApiExplorerVersion } from './explorer/open-api-explorer.model';
-import { OpenApiSchemaUtilities } from './open-api-schema.utilities';
-import { OpenApiServiceInterface } from './open-api-service.interface';
-import { OpenApiDefinition, OpenApiTagObject, OpenApiSecuritySchemeObject, OpenApiPaths, OpenApiResponse, OpenApiOperation, OpenApiSecurityRequirementObject, OpenApiServerObject } from './open-api.model';
-import { resolveResponseClass } from './resolve-response-class.function';
 import { ZibriApplication } from '../application/application';
 import { type AssetServiceInterface } from '../assets/asset-service.interface';
 import { type AsyncApiServiceInterface } from '../async-api/async-api-service.interface';
@@ -42,6 +37,12 @@ import { SemVerUtilities } from '../utilities/sem-ver.utilities';
 import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
 import { Version, VersionFile } from '../versioning/version.model';
 import { type VersioningServiceInterface } from '../versioning/versioning-service.interface';
+import { OpenApiExplorerTemplate, OpenApiExplorerVersion } from './explorer/open-api-explorer.model';
+import { OpenApiSchemaUtilities } from './open-api-schema.utilities';
+import { OpenApiServiceInterface } from './open-api-service.interface';
+import { OpenApiDefinition, OpenApiTagObject, OpenApiSecuritySchemeObject, OpenApiPaths, OpenApiResponse, OpenApiOperation, OpenApiSecurityRequirementObject, OpenApiServerObject } from './open-api.model';
+import { resolvePermissionExtensions } from './resolve-permission-extensions.function';
+import { resolveResponseClass } from './resolve-response-class.function';
 
 /**
  * One version of the api, paired with the open api document describing it.
@@ -346,13 +347,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
 
                 const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(controllerClass, route.controllerMethod);
 
-                const {
-                    hasPermission: hasPermissionMetadata,
-                    hasPlatformPermission: hasPlatformPermissionMetadata
-                }: ResolvedAuthMetadata = RouteRegistry.get(
-                    controllerClass,
-                    route.controllerMethod
-                ).auth.metadata;
+                const authMetadata: ResolvedAuthMetadata = RouteRegistry.get(controllerClass, route.controllerMethod).auth.metadata;
 
                 const operation: OpenApiOperation = {
                     description: this.describeScopes(responses),
@@ -365,8 +360,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                     ],
                     requestBody: OpenApiSchemaUtilities.resolveRequestBody(bodyMetadata),
                     security: await this.resolveOperationSecurity(controllerClass, route.controllerMethod),
-                    ['x-permission']: hasPermissionMetadata?.permission,
-                    ['x-platform-permission']: hasPlatformPermissionMetadata?.permission
+                    ...resolvePermissionExtensions(authMetadata)
                 };
                 res[fullPath][httpMethodKey(route.httpMethod)] = operation;
             }
@@ -397,8 +391,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                 // that it states one - or inherits `defaultAuth` by stating nothing - the spec says
                 // the same thing about it that it says about a controller route
                 security: this.resolveRouteSecurity(route.auth),
-                ['x-permission']: route.auth?.hasPermission?.permission,
-                ['x-platform-permission']: route.auth?.hasPlatformPermission?.permission
+                ...resolvePermissionExtensions(route.auth ?? {})
             };
             res[fullPath][httpMethodKey(route.httpMethod)] = operation;
         }

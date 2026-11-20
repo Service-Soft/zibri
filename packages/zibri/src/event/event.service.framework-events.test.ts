@@ -1,12 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { type EventServiceInterface } from './event-service.interface';
-import { Event } from './event.model';
-import { FrameworkEventNames } from './framework-event-names.model';
-import { MembershipEventData } from './membership-event-data.model';
-import { RolesChangedEventData } from './roles-changed-event-data.model';
-import { UserEventData } from './user-event-data.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { MemberRoles } from '../__testing__/mocks/entities/member-roles.enum';
@@ -26,6 +20,12 @@ import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { type TenantServiceInterface } from '../tenancy/tenant-service.interface';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { type EventServiceInterface } from './event-service.interface';
+import { Event } from './event.model';
+import { FrameworkEventNames } from './framework-event-names.model';
+import { MembershipEventData } from './membership-event-data.model';
+import { RolesChangedEventData } from './roles-changed-event-data.model';
+import { UserEventData } from './user-event-data.model';
 
 declare module './event-service.interface' {
 

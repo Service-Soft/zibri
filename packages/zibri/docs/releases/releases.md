@@ -47,11 +47,38 @@ Fixes, security fixes included, are released for the newest major only. To get t
 | `next` | The newest prerelease, such as `4.0.0-rc.1` |
 
 ## Finding what changed
-[CHANGELOG.md](https://github.com/Service-Soft/zibri/blob/release/CHANGELOG.md) lists every release. Each major has an upgrade guide with what to change in your code:
+[CHANGELOG.md](./CHANGELOG.md) lists every release. Each major has an upgrade guide with what to change in your code:
 
 - [Upgrading to 3](./upgrading-to-3.md)
 
+## Upgrading your project
+Run `zi upgrade` in your project with the cli of the release you upgrade to:
+
+```sh
+npm i -g zibri-cli@latest
+zi upgrade
+```
+
+This will update all packages and install every package a new project gets that
+yours does not have, and brings each file `zi new` generated to what that release generates:
+
+- a file you never changed is replaced.
+- a file you changed is merged with what the release changed, the way git merges a branch. Where you
+  both changed the same lines, the file has conflict markers for you to resolve.
+- a file you deleted stays deleted.
+
+`zibri-scaffold.json` records what was generated. The merge reads that version back out of your git
+history, or generates it again with `npx zibri-cli@<recorded release> generate`. Commit before you
+upgrade, and commit the result. A file whose generated version is found in neither keeps your content,
+with the release's version beside it as `<file>.zibri-upgrade` to compare.
+
+`zi upgrade github` or `zi upgrade none` changes which continuous integration workflow the project has.
+
+The build, the jest configuration and the compiler options come from the packages themselves:
+`webpack.config.js` calls `resolveWebpackConfiguration` of `zibri/webpack`, `jest.config.mjs` names the
+`zibri-testing` preset, and `tsconfig.json` extends `zibri/tsconfig.application.json`. Updating the
+packages updates them.
+
 ## See also
 - [Upgrading to 3](./upgrading-to-3.md) — what to change in your code for 3.0.0
-- [Getting started](./getting-started.md#upgrading-a-project) — bringing a project to what a new version generates, with `zi upgrade`
-- [Versioning](./endpoints/versioning.md) — the version of your own application, and what it decides
+- [Versioning](../endpoints/versioning.md) — the version of your own application, and what it decides

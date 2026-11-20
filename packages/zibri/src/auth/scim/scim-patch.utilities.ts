@@ -1,12 +1,12 @@
+import { HttpStatus } from '../../http/http-status.enum';
+import { $ts } from '../../localization/translate.function';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { ScimErrorType } from './scim-error-type.enum';
 import { ScimAttributePath, ScimFilter } from './scim-filter.model';
 import { ScimFilterUtilities } from './scim-filter.utilities';
 import { ScimPatchOperation } from './scim-patch-operation.model';
 import { ScimSchema } from './scim-schema.enum';
 import { ScimError } from './scim.error';
-import { HttpStatus } from '../../http/http-status.enum';
-import { $ts } from '../../localization/translate.function';
-import { JsonUtilities } from '../../utilities/json.utilities';
 
 /**
  * Where in a resource a patch operation applies.

@@ -1,4 +1,3 @@
-import { PropertyReferenceUtilities } from './property-reference.utilities';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator';
 import { isRelationMetadata } from '../../entity/models/is-relation-metadata.function';
@@ -10,6 +9,7 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { WhereFilter } from '../models/where/where-filter.model';
 import { ScopeWhereUtilities } from '../scopes/scope-where.utilities';
+import { PropertyReferenceUtilities } from './property-reference.utilities';
 
 /**
  * The marker returned for a condition no stored value can satisfy.

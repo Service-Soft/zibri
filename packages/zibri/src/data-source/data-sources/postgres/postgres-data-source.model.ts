@@ -3,22 +3,6 @@ import { Readable } from 'node:stream';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { ConnectionOptions } from 'node:tls';
 
-import { pgTypeParsers } from './pg-type-parsers.function';
-import { PostgresBackupReadProgress } from './postgres-backup-read-progress.model';
-import { PostgresBackupScope } from './postgres-backup-scope.model';
-import { PostgresBackupRunner } from './postgres-backup.runner';
-import { Pg, PgClient, PgPool, PgPoolClient, PgQueryResult, PgSessionClient } from './postgres-client.model';
-import { PostgresIncrementalReader } from './postgres-incremental-reader.model';
-import { ListeningConnection, PostgresNotificationListener } from './postgres-notification-listener.model';
-import { PostgresPooler, PostgresTransactionPooler } from './postgres-pooler.model';
-import { PostgresQueryBuilder } from './postgres-query-builder.model';
-import { KeyReconciliation, PostgresRun, PostgresSchemaManager } from './postgres-schema-manager.model';
-import { ColumnPropertyMetadata, PostgresColumnSettings, PostgresSchema } from './postgres-schema.model';
-import { PostgresSqlUtilities, PostgresStatement } from './postgres-sql.utilities';
-import { PostgresStatementErrorUtilities } from './postgres-statement-error.utilities';
-import { PostgresKey, PostgresTable } from './postgres-table.model';
-import { PostgresWhereFilterConverter, TrigramSupport } from './postgres-where-filter.converter';
-import { sendPostgresCancelRequest } from './send-postgres-cancel-request.function';
 import { type AuthServiceInterface } from '../../../auth/auth-service.interface';
 import { type BackupDataOptions } from '../../../backup/backup-data-options.model';
 import { type BackupEntity } from '../../../backup/backup-entity.model';
@@ -81,6 +65,22 @@ import { DataSourceInterface, DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS, Repository
 import { DataSourceSubscription, PubSubDataSourceInterface } from '../pub-sub-data-source.interface';
 import { QueryBuilder, QueryOptions, SqlDataSourceInterface } from '../sql-data-source.interface';
 import { ParameterizedSql } from '../where-converter/parameterized-sql.model';
+import { pgTypeParsers } from './pg-type-parsers.function';
+import { PostgresBackupReadProgress } from './postgres-backup-read-progress.model';
+import { PostgresBackupScope } from './postgres-backup-scope.model';
+import { PostgresBackupRunner } from './postgres-backup.runner';
+import { Pg, PgClient, PgPool, PgPoolClient, PgQueryResult, PgSessionClient } from './postgres-client.model';
+import { PostgresIncrementalReader } from './postgres-incremental-reader.model';
+import { ListeningConnection, PostgresNotificationListener } from './postgres-notification-listener.model';
+import { PostgresPooler, PostgresTransactionPooler } from './postgres-pooler.model';
+import { PostgresQueryBuilder } from './postgres-query-builder.model';
+import { KeyReconciliation, PostgresRun, PostgresSchemaManager } from './postgres-schema-manager.model';
+import { ColumnPropertyMetadata, PostgresColumnSettings, PostgresSchema } from './postgres-schema.model';
+import { PostgresSqlUtilities, PostgresStatement } from './postgres-sql.utilities';
+import { PostgresStatementErrorUtilities } from './postgres-statement-error.utilities';
+import { PostgresKey, PostgresTable } from './postgres-table.model';
+import { PostgresWhereFilterConverter, TrigramSupport } from './postgres-where-filter.converter';
+import { sendPostgresCancelRequest } from './send-postgres-cancel-request.function';
 
 /**
  * How a postgres data source connects to its server.

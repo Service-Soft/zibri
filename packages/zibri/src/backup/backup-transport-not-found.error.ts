@@ -1,5 +1,5 @@
-import { BackupResourceInterface } from './backup-resource.interface';
 import { InternalError } from '../error-handling/internal-error.model';
+import { BackupResourceInterface } from './backup-resource.interface';
 
 /**
  * An error for a backup resource that no transport takes.

@@ -1,11 +1,11 @@
+import { initDiContainer } from '../../di/init-di-container.function';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
+import { optionalPeer } from '../../utilities/optional-peer.function';
 import { extractTranslationStrings } from './extract-translation-strings.function';
 import { generateXlf } from './generate-xlf.function';
 import { ExtractedTranslationString } from './models/extracted-translation-string.model';
 import { ScannedTranslationOrigin, ShippedTranslationOrigin, SourceTranslationOrigin } from './models/source-translation-origin.model';
 import { parseSourceXlf } from './parse-source-xlf.function';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
-import { optionalPeer } from '../../utilities/optional-peer.function';
 
 /**
  * Writes `translations/source.xlf` of the given root, holding every string the origins mark for

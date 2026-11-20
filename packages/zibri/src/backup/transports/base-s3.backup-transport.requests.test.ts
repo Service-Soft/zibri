@@ -8,12 +8,6 @@ import { buffer } from 'node:stream/consumers';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { BackupTransportSessionInterface } from './backup-transport-session.interface';
-import { BaseS3BackupTransport } from './base-s3.backup-transport';
-import { Format1BackupTransport } from './format-1.backup-transport';
-import { S3BackupTransportOptions } from './s3/s3-backup-transport-options.model';
-import { S3Credentials } from './s3/s3-credentials.model';
-import { S3SignatureUtilities } from './s3/s3-signature.utilities';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -22,6 +16,12 @@ import { Newable } from '../../types/newable.type';
 import { BackupEntity } from '../backup-entity.model';
 import { BackupResourceEntity } from '../backup-resource-entity.model';
 import { BackupTransport } from '../decorators/backup-transport.decorator';
+import { BackupTransportSessionInterface } from './backup-transport-session.interface';
+import { BaseS3BackupTransport } from './base-s3.backup-transport';
+import { Format1BackupTransport } from './format-1.backup-transport';
+import { S3BackupTransportOptions } from './s3/s3-backup-transport-options.model';
+import { S3Credentials } from './s3/s3-credentials.model';
+import { S3SignatureUtilities } from './s3/s3-signature.utilities';
 
 // the transport signed with a static access key and its
 // secret alone, which is what a workload with expiring credentials does not have, asked for no

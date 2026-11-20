@@ -88,6 +88,8 @@ jobs:
             - run: npm run build:prod -w zibri
             # loaded built, the way a consumer gets it, by the check that it loads without its optional peers
             - run: npm run build -w zibri-testing
+            # published-source-maps.test.ts reads the maps of every package the release publishes
+            - run: npm run build -w zibri-cli
             # Ubuntu sets perf_event_paranoid to 4, which refuses perf to record even a process of the runner's own,
             # and perf-recording.utilities.test.ts records one. Lowered for this job's machine only
             - name: allow perf to record

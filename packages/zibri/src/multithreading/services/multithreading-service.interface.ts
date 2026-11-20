@@ -98,5 +98,12 @@ export interface MultithreadingServiceInterface {
      * counted from when they were queued. `ThreadJobCleanupCronJob` calls it.
      * @returns How many were deleted.
      */
-    deleteExpiredJobs: () => Promise<number>
+    deleteExpiredJobs: () => Promise<number>,
+    /**
+     * Cancels the thread jobs of a tenant that have not started, or were interrupted, such as once it is deactivated.
+     * Whoever waits for one is told it was cancelled.
+     * @returns How many jobs were cancelled.
+     */
+    // TODO 4.0: required, which a service of your own would have had to add in a minor release
+    cancelQueuedThreadJobs?: (tenantId: string) => Promise<number>
 }

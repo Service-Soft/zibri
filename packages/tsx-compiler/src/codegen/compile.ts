@@ -2,13 +2,6 @@ import ts from 'typescript';
 import { Diagnostic, DiagnosticSeverity } from 'zibri-tsx';
 import { CLIENT_HOOK_SOURCES, PAGE_RUNTIME_NAMES } from 'zibri-tsx/internal';
 
-import { CLIENT_SETUP_HOOKS, ClientScript, compileClientScript } from './client/client-codegen';
-import { collectInputs } from './client/inputs';
-import { unavailableNamesIn } from './client/script-names';
-import { EmittedModule, emitModuleCode, eraseTypes } from './erase-types';
-import { printNode, SERVER_INLINED_HOOKS } from './server/print';
-import { compileServerRender, ServerRenderCode } from './server/render-codegen';
-import { concatLines, emitLines, EmittedLines, emitVerbatim, resolveOrigin, resolveOriginAt, resolveTemplateSourceMap, SourceMap } from './source-map';
 import { collectClientGlobalAliases, collectClientPackages } from '../semantics/client-packages';
 import { ComponentInfo, findComponents } from '../semantics/component';
 import { isHookModule } from '../semantics/hook-names';
@@ -20,6 +13,13 @@ import { validateEmailNesting, validateNoClientInEmail } from '../semantics/vali
 import { createsRefsOrState, validateRefs } from '../semantics/validate-refs';
 import { validateState } from '../semantics/validate-state';
 import { UnhandledSyntaxError } from '../semantics/walk';
+import { CLIENT_SETUP_HOOKS, ClientScript, compileClientScript } from './client/client-codegen';
+import { collectInputs } from './client/inputs';
+import { unavailableNamesIn } from './client/script-names';
+import { EmittedModule, emitModuleCode, eraseTypes } from './erase-types';
+import { printNode, SERVER_INLINED_HOOKS } from './server/print';
+import { compileServerRender, ServerRenderCode } from './server/render-codegen';
+import { concatLines, emitLines, EmittedLines, emitVerbatim, resolveOrigin, resolveOriginAt, resolveTemplateSourceMap, SourceMap } from './source-map';
 
 /**
  * The name an anonymous default-exported component is declared under in the emitted module.

@@ -1,6 +1,6 @@
-import { BaseParamMetadata } from './base-param-metadata.model';
 import { BooleanPropertyMetadata } from '../../entity/models/boolean-property-metadata.model';
 import { OmitStrict } from '../../types/omit-strict.type';
+import { BaseParamMetadata } from './base-param-metadata.model';
 
 /**
  * Metadata for boolean parameters.

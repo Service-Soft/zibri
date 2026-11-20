@@ -1,10 +1,10 @@
 import assert from 'node:assert';
 
-import { BaseRateLimiter } from './base-rate-limiter.model';
 import { RateLimitResult } from '../rate-limit-result.model';
-import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
 import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
 import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
+import { BaseRateLimiter } from './base-rate-limiter.model';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
 
 /**
  * State for a sliding window log rate limiter state.

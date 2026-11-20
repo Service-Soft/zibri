@@ -1,8 +1,8 @@
+import { OmitStrict } from '../../../types/omit-strict.type';
 import { JwtKey } from './jwt-key.model';
 import { JwtSignOptions } from './jwt-sign-options.model';
 import { JwtVerifyOptions } from './jwt-verify-options.model';
 import { VerifiedJwt } from './verified-jwt.model';
-import { OmitStrict } from '../../../types/omit-strict.type';
 
 /**
  * Interface for the service signing and verifying the access tokens of the application.

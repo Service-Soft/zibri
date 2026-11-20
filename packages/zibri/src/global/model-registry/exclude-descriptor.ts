@@ -1,11 +1,11 @@
-import { ModelDescriptor } from './model-descriptor';
-import { ModelRegistry } from './model.registry';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { ExcludePropertyValue } from '../../entity/models/base-property-metadata.model';
 import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
+import { ModelDescriptor } from './model-descriptor';
+import { ModelRegistry } from './model.registry';
 
 /**
  * A descriptor that keeps track of the exclude properties of an entity.

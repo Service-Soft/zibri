@@ -1,13 +1,13 @@
 import type { JSONOutput } from 'typedoc' with { 'resolution-mode': 'import' };
 import { Markdown, TsxComponent } from 'zibri';
 
+import { ApiCommentUtilities } from '../../api/api-comment.utilities';
 import { InlineCode } from './inline-code';
 import { Table } from './table';
 import { TableBody } from './table-body';
 import { TableCell } from './table-cell';
 import { TableHead } from './table-head';
 import { TableRow } from './table-row';
-import { ApiCommentUtilities } from '../../api/api-comment.utilities';
 
 type ApiParametersProps = {
     parameters: JSONOutput.ParameterReflection[] | undefined

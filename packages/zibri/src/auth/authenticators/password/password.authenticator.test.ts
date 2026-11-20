@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { PasswordCredentials, PasswordCredentialsCreateData } from './password-credentials.model';
-import { PasswordAuthenticator } from './password.authenticator';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { missingEntityPattern } from '../../../__testing__/missing-entity-pattern.function';
 import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
@@ -45,6 +43,8 @@ import { CookieAuthSession } from '../../strategies/cookie/cookie-auth-session.m
 import { CookieAuthStrategy } from '../../strategies/cookie/cookie-auth.auth-strategy';
 import { JwtRefreshToken } from '../../strategies/jwt/jwt-refresh-token.model';
 import { JwtAuthStrategy } from '../../strategies/jwt/jwt.auth-strategy';
+import { PasswordCredentials, PasswordCredentialsCreateData } from './password-credentials.model';
+import { PasswordAuthenticator } from './password.authenticator';
 
 /**
  * Logs in over http.

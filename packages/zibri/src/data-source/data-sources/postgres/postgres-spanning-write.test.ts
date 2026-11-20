@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { PostgresDataSource } from './postgres-data-source.model';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { queryPostgres } from '../../../__testing__/query-postgres.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -15,6 +14,7 @@ import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { Repository } from '../../repository/repository';
 import { SpanningTransaction } from '../../transaction/spanning-transaction.model';
 import { Transaction } from '../../transaction/transaction.model';
+import { PostgresDataSource } from './postgres-data-source.model';
 
 /**
  * Written by a trigger of the application's own.

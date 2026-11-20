@@ -1,7 +1,4 @@
 
-import { generateEntityFile, GenerateEntityFileResult } from './generate-entity-file.function';
-import { getEntityFileName } from './get-entity-file-name.function';
-import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
 import { ErrorUtilities } from '../../error-handling/error.utilities';
 import { ConsoleUtilities } from '../../logging/console.utilities';
 import type { OpenApiDefinition, OpenApiSchemas, OpenApiOperation, OpenApiResponseObject, OpenApiReferenceObject, OpenApiSchemaObject } from '../../open-api/open-api.model';
@@ -9,6 +6,9 @@ import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { toKebabCase } from '../../utilities/to-kebab-case.function';
 import { toPascalCase } from '../../utilities/to-pascal-case.function';
+import { generateEntityFile, GenerateEntityFileResult } from './generate-entity-file.function';
+import { getEntityFileName } from './get-entity-file-name.function';
+import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
 
 /**
  * All data needed to generate a file.

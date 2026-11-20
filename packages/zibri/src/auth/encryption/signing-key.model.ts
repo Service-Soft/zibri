@@ -1,8 +1,8 @@
-import { type EncryptionString } from './encryption.utilities';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { OmitStrict } from '../../types/omit-strict.type';
+import { type EncryptionString } from './encryption.utilities';
 
 /**
  * A key that signs, kept encrypted under the master key and found by its name.

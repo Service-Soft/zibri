@@ -1,8 +1,3 @@
-import { booleanValueProblems } from './validate-boolean.function';
-import { dateValueProblems } from './validate-date.function';
-import { fileValueProblems } from './validate-file.function';
-import { numberValueProblems } from './validate-number.function';
-import { stringValueProblems } from './validate-string.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model';
 import { ObjectPropertyMetadata } from '../../entity/models/object-property-metadata.model';
@@ -13,6 +8,11 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { BigNumber } from '../../utilities/number.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { IsRequiredValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, UnknownKeyValidationProblem, UnknownShapeValidationProblem, ValidationProblem } from '../validation-problem.model';
+import { booleanValueProblems } from './validate-boolean.function';
+import { dateValueProblems } from './validate-date.function';
+import { fileValueProblems } from './validate-file.function';
+import { numberValueProblems } from './validate-number.function';
+import { stringValueProblems } from './validate-string.function';
 
 /**
  * The problems of a value as the given shape, judged by the value alone.

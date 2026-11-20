@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
+import { initDiContainer } from '../di/init-di-container.function';
+import { GlobalRegistry } from '../global/global-registry';
+import { Ms } from '../utilities/ms';
 import { LogLevel } from './log-level.enum';
 import { Log } from './log.model';
 import { Logger } from './logger';
 import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
-import { initDiContainer } from '../di/init-di-container.function';
-import { GlobalRegistry } from '../global/global-registry';
-import { Ms } from '../utilities/ms';
 
 /**
  * What a transport was handed.

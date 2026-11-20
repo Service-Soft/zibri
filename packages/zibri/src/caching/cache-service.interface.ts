@@ -1,6 +1,6 @@
+import { type ZibriApplication } from '../application/application';
 import { AnyCache } from './cache/cache.interface';
 import { type CacheTagMatcher } from './cache-tag-matchers';
-import { type ZibriApplication } from '../application/application';
 
 /**
  * Interface for a cache service.

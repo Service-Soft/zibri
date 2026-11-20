@@ -1,5 +1,3 @@
-import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model';
-import { UniqueDeclaration } from './unique-declaration.model';
 import type { EncryptOptions } from '../../auth/encryption/encryption-service.interface';
 import type { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from '../../auth/encryption/strategies/encryption-strategy.interface';
 import type { HashOptions } from '../../auth/hash/hash-service.interface';
@@ -9,6 +7,8 @@ import { AnyEnum } from '../../types/any-enum.type';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { AnyObject } from '../any-object.model';
+import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model';
+import { UniqueDeclaration } from './unique-declaration.model';
 
 /**
  * Options for encrypt and decrypt.

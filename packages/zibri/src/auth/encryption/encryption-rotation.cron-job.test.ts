@@ -3,14 +3,6 @@ import assert from 'node:assert';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { EncryptionKey, EncryptionKeyStatus } from './encryption-key.model';
-import { EncryptionRotationFailure } from './encryption-rotation-failure.model';
-import { EncryptionRotationProgress } from './encryption-rotation-progress.model';
-import { EncryptionRotationCronJob } from './encryption-rotation.cron-job';
-import { type EncryptionServiceInterface } from './encryption-service.interface';
-import { EncryptionString } from './encryption.utilities';
-import { RetiredKeyUsage } from './retired-key-usage.model';
-import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -21,6 +13,14 @@ import { inject } from '../../di/inject.function';
 import { Ms } from '../../utilities/ms';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { OtpCredentials } from '../2fa/methods/otp/otp-credentials.model';
+import { EncryptionKey, EncryptionKeyStatus } from './encryption-key.model';
+import { EncryptionRotationFailure } from './encryption-rotation-failure.model';
+import { EncryptionRotationProgress } from './encryption-rotation-progress.model';
+import { EncryptionRotationCronJob } from './encryption-rotation.cron-job';
+import { type EncryptionServiceInterface } from './encryption-service.interface';
+import { EncryptionString } from './encryption.utilities';
+import { RetiredKeyUsage } from './retired-key-usage.model';
+import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
 
 describe('EncryptionRotationCronJob', () => {
     let server: StartedTestServer;

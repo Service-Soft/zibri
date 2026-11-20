@@ -1,8 +1,8 @@
-import { Event } from './event.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { QueuedWorkEntity } from '../queue/queued-work-entity.model';
 import { OmitStrict } from '../types/omit-strict.type';
+import { Event } from './event.model';
 
 // Three states rather than a `finishedAt` timestamp, because a run that is over and a run that
 // succeeded are not the same thing and every reader of this row needs to tell them apart. A single

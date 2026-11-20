@@ -1,7 +1,7 @@
-import { TenantBackupRetention } from './tenant-backup-retention.model';
 import { BaseTenantEntity } from '../../entity/base-tenant-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
+import { TenantBackupRetention } from './tenant-backup-retention.model';
 
 /**
  * How a tenant's backups are kept, one row per tenant.

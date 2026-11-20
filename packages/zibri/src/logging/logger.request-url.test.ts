@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { LogLevel } from './log-level.enum';
-import { Log } from './log.model';
-import { LoggerInterface } from './logger.interface';
 import { compileTsxTemplate } from '../__testing__/compile-tsx-template.function';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
@@ -30,6 +27,9 @@ import { Get } from '../routing/decorators/get.decorator';
 import { Param } from '../routing/decorators/param.decorator';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { LogLevel } from './log-level.enum';
+import { Log } from './log.model';
+import { LoggerInterface } from './logger.interface';
 
 const SECRET: string = 'permanent-subscriber-secret';
 const TOKEN: string = 'one-time-link-token';

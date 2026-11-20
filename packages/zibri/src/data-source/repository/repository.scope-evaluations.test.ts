@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Repository } from './repository';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -12,6 +11,7 @@ import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { scopeFor } from '../../entity/models/entity-scope.model';
 import { SoftDeleteEntity } from '../change-sets/models/soft-delete-entity.model';
+import { Repository } from './repository';
 
 /**
  * How often the scope of an entity is asked. A scope may read what it needs from the data source

@@ -1,7 +1,7 @@
-import { AuthStrategyInterface } from './auth-strategy.interface';
-import { isLoginAuthStrategy, LoginAuthStrategyInterface } from './login-auth-strategy.interface';
 import { Newable } from '../../types/newable.type';
 import { BaseUser } from '../models/base-user.model';
+import { AuthStrategyInterface } from './auth-strategy.interface';
+import { isLoginAuthStrategy, LoginAuthStrategyInterface } from './login-auth-strategy.interface';
 
 /**
  * Interface for an auth strategy the routes of `AuthController` log in, refresh and log out with.

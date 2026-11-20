@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, FakeOAuthApiRequest, FakeOAuthProvider, InMemoryDataSource, startFakeOAuthProvider, TestBrowser } from 'zibri-testing';
 
-import { BaseGitHubAuthenticator } from './base-github.authenticator';
 import { TestTimeouts } from '../../../../__testing__/constants';
 import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../../__testing__/mocks/entities/roles.enum';
@@ -34,6 +33,7 @@ import { FederatedRegistrationTicket } from '../../federated/federated-registrat
 import { FederatedRegistration } from '../../federated/federated-registration.model';
 import { OAuthClientAuthentication } from '../../oauth/oauth-client-authentication.model';
 import { OAuthProviderTokens } from '../../oauth/oauth-provider-tokens.model';
+import { BaseGitHubAuthenticator } from './base-github.authenticator';
 
 const PUBLIC_URL: string = 'http://zibri.test';
 const CLIENT_ID: string = 'zibri-github-client';

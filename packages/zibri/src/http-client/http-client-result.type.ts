@@ -1,6 +1,6 @@
-import { HttpClientResponseBodyInput, HttpClientResponseForBody } from './http-client-response.model';
 import { HeaderParamMetadataInput } from '../routing/decorators/param.decorator';
 import { HeaderMetaInputObjectToMetaObject, HeaderMetaObjectToParamsObject } from '../routing/route-configuration.model';
+import { HttpClientResponseBodyInput, HttpClientResponseForBody } from './http-client-response.model';
 
 /**
  * What a request of the http client resolves to: the response for the `responseBody` it declares,

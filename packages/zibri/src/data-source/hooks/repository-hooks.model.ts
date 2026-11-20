@@ -1,9 +1,9 @@
-import { BeforeDeleteHook } from './before-delete';
-import { BeforeReturnHook } from './before-return';
-import { BeforeSaveHook, SaveOperation } from './before-save';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
+import { BeforeDeleteHook } from './before-delete';
+import { BeforeReturnHook } from './before-return';
+import { BeforeSaveHook, SaveOperation } from './before-save';
 
 /**
  * The hooks every repository runs, provided under `ZIBRI_DI_TOKENS.REPOSITORY_HOOKS`. Each receives

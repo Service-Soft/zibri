@@ -1,4 +1,3 @@
-import { XmlPropertyMetadata } from './xml-property-metadata.model';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { ObjectPropertyMetadata } from '../../entity/models/object-property-metadata.model';
 import { OneOfShapeMetadata } from '../../entity/models/one-of-property-metadata.model';
@@ -7,6 +6,7 @@ import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
+import { XmlPropertyMetadata } from './xml-property-metadata.model';
 
 /**
  * What the parts of a mixed property can be.

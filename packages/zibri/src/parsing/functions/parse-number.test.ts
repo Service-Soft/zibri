@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { parseNumber } from './parse-number.function';
 import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
+import { parseNumber } from './parse-number.function';
 
 describe('parseNumber', () => {
     it('parses valid integer string', () => {

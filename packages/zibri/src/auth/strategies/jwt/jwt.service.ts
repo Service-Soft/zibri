@@ -1,3 +1,10 @@
+import { Inject } from '../../../di/decorators/inject.decorator';
+import { Injectable } from '../../../di/decorators/injectable.decorator';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
+import { InternalError } from '../../../error-handling/internal-error.model';
+import { GlobalRegistry } from '../../../global/global-registry';
+import { OmitStrict } from '../../../types/omit-strict.type';
+import { optionalPeer } from '../../../utilities/optional-peer.function';
 import { type AccessTokenRevocation } from './access-token-revocation.type';
 import { EncodedJwt } from './encoded-jwt.model';
 import { JwtAsymmetricKey } from './jwt-asymmetric-key.model';
@@ -9,13 +16,6 @@ import { JwtVerifyOptions } from './jwt-verify-options.model';
 import { JwtUtilities } from './jwt.utilities';
 import { MissingJwtSecretError } from './missing-jwt-secret.error';
 import { VerifiedJwt } from './verified-jwt.model';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { Injectable } from '../../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { GlobalRegistry } from '../../../global/global-registry';
-import { OmitStrict } from '../../../types/omit-strict.type';
-import { optionalPeer } from '../../../utilities/optional-peer.function';
 
 /**
  * Default implementation of the service signing and verifying the access tokens of the application.

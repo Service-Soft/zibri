@@ -15,12 +15,6 @@ import { AccessShape,
     toScriptValue,
     TranslationSources } from 'zibri-tsx/internal';
 
-import { accessShapeOf, namedKeysOf, propertyKeyOf } from './access-shape-analysis';
-import { BindingSite, collectBindingSites, STATE_HANDLE_HOOKS } from './bindings';
-import { CLIENT_PROP_VALUES, CLIENT_PROPS_RUNTIME, ClientPropSite, collectClientPropSites } from './client-props';
-import { collectHandlerSites, collectServerOnlyCallbacks, HandlerSite } from './handlers';
-import { REGION_RUNTIME, regionTable } from './region-code';
-import { collectRegions, RegionCollection } from './regions';
 import { collectOuterNames, collectOuterReferences, collectPatternBindings, collectReferencedSymbols, declaredSymbols, OuterOrigin } from '../../semantics/binding';
 import { ClientGlobalAlias } from '../../semantics/client-packages';
 import { ComponentFunction, isJsxExpression, nestedStatements } from '../../semantics/component';
@@ -29,6 +23,12 @@ import { symbolOf } from '../../semantics/symbols';
 import { collectTranslationSources } from '../../semantics/translation-sources';
 import { isHookCall, unwrapTypeSyntax, walk } from '../../semantics/walk';
 import { printClientNode } from '../server/print';
+import { accessShapeOf, namedKeysOf, propertyKeyOf } from './access-shape-analysis';
+import { BindingSite, collectBindingSites, STATE_HANDLE_HOOKS } from './bindings';
+import { CLIENT_PROP_VALUES, CLIENT_PROPS_RUNTIME, ClientPropSite, collectClientPropSites } from './client-props';
+import { collectHandlerSites, collectServerOnlyCallbacks, HandlerSite } from './handlers';
+import { REGION_RUNTIME, regionTable } from './region-code';
+import { collectRegions, RegionCollection } from './regions';
 
 /**
  * The generated client behavior for a component.

@@ -5,7 +5,7 @@
     "scripts": {
         "start": "webpack --watch",
         "build": "webpack",
-        "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+        "test": "node scripts/test.mjs",
         "migrate:list": "node dist/bundle.js migrate list",
         "migrate:down": "node dist/bundle.js migrate down",
         "reset-admin": "node dist/bundle.js reset-admin",

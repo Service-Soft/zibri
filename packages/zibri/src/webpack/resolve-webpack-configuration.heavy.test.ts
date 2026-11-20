@@ -83,10 +83,10 @@ async function copyProject(from: string, to: string): Promise<void> {
 /**
  * Changes a file of the project.
  * @param file - The file.
- * @param change - What it is to hold, given what it holds.
+ * @param rewrite - What it is to hold, given what it holds.
  */
-async function change(file: string, change: (content: string) => string): Promise<void> {
-    await writeFile(file, change(await readFile(file, 'utf8')));
+async function change(file: string, rewrite: (content: string) => string): Promise<void> {
+    await writeFile(file, rewrite(await readFile(file, 'utf8')));
 }
 
 /**

@@ -4,8 +4,6 @@ import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
 import { StartedTestContainer } from 'testcontainers';
 import { createPostgresTestContainer } from 'zibri-testing';
 
-import { MigrationEntity } from './migration-entity.model';
-import { Migration } from './migration.model';
 import { findStoredColumns, StoredColumn } from '../../__testing__/find-stored-columns.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
@@ -28,6 +26,8 @@ import { SchemaManagement } from '../models/schema-management.model';
 import { Repository } from '../repository/repository';
 import { RepositoryClass } from '../repository/repository-class.type';
 import { Transaction } from '../transaction/transaction.model';
+import { MigrationEntity } from './migration-entity.model';
+import { Migration } from './migration.model';
 
 @Entity({ tenant: 'shared', tableName: 'item' })
 class LegacyItem {

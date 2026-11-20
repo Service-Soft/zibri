@@ -2,9 +2,9 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { describe, expect, it } from '@jest/globals';
 
+import { InternalError } from '../error-handling/internal-error.model';
 import { AlsUtilities } from './als.utilities';
 import { OperationLimitUtilities } from './operation-limit.utilities';
-import { InternalError } from '../error-handling/internal-error.model';
 
 describe('OperationLimitUtilities', () => {
     it('fires the signal of the work once it has run out of time', async () => {

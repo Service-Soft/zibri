@@ -1,9 +1,3 @@
-import { PaymentMethod } from './models/payment-method.model';
-import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model';
-import { PaymentPluginOptions } from './models/payment-plugin-options.model';
-import { Payment } from './models/payment.model';
-import { PaymentReconciliationCronJob } from './payment-reconciliation.cron-job';
-import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
 import { ZibriApplication } from '../../application/application';
 import { CronJob } from '../../cron/cron-job.model';
 import { NoProviderError } from '../../di/errors/no-provider.error';
@@ -13,9 +7,15 @@ import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models
 import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
 import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
-import { ZibriPlugin } from '../plugin.model';
-import { PaymentService } from './services/payment.service';
 import { validateTokensRegistered } from '../../utilities/validate-tokens-registered.function';
+import { ZibriPlugin } from '../plugin.model';
+import { PaymentMethod } from './models/payment-method.model';
+import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model';
+import { PaymentPluginOptions } from './models/payment-plugin-options.model';
+import { Payment } from './models/payment.model';
+import { PaymentReconciliationCronJob } from './payment-reconciliation.cron-job';
+import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
+import { PaymentService } from './services/payment.service';
 
 /**
  * Plugin that includes everything for handling payments.

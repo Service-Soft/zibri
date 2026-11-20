@@ -1,10 +1,10 @@
-import { PostgresSchema } from './postgres-schema.model';
-import { PostgresSqlUtilities } from './postgres-sql.utilities';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Newable } from '../../../types/newable.type';
 import { Transaction } from '../../transaction/transaction.model';
 import { QueryBuilder, QueryOrder } from '../sql-data-source.interface';
 import { ParameterizedSql } from '../where-converter/parameterized-sql.model';
+import { PostgresSchema } from './postgres-schema.model';
+import { PostgresSqlUtilities } from './postgres-sql.utilities';
 
 /**
  * Runs one statement of a postgres data source.

@@ -1,6 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { dropImpossibleConditions } from './drop-impossible-conditions.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
@@ -24,6 +23,7 @@ import { propertyOf } from '../models/where/property-of.function';
 import { StringWhereFilter } from '../models/where/string-where-filter.model';
 import { Where, WhereFilter } from '../models/where/where-filter.model';
 import { Repository } from '../repository/repository';
+import { dropImpossibleConditions } from './drop-impossible-conditions.function';
 
 /**
  * The conformance of every store's reading of a where filter with the one evaluator the repository
@@ -805,7 +805,7 @@ export function describeWhereConformance(dataSourceName: string, repositoriesOf:
          * @param repository - The repository of the rows they read.
          * @param stored - The rows, as the evaluator judges them.
          * @param cls - Their entity.
-         * @param describe - Names a row.
+         * @param nameRow - Names a row.
          * @returns A line for every filter the two read differently, saying what each found.
          */
         async function mismatchesIn<E extends Batched>(
@@ -813,7 +813,7 @@ export function describeWhereConformance(dataSourceName: string, repositoriesOf:
             repository: Repository<E>,
             stored: E[],
             cls: Newable<E>,
-            describe: (row: E) => string
+            nameRow: (row: E) => string
         ): Promise<string[]> {
             await seed();
             const mismatches: string[] = [];
@@ -828,8 +828,8 @@ export function describeWhereConformance(dataSourceName: string, repositoriesOf:
                     }
                     continue;
                 }
-                const onlyStore: string[] = stored.filter(row => read.has(row.id) && !expected.has(row.id)).map(row => describe(row));
-                const onlyEvaluator: string[] = stored.filter(row => expected.has(row.id) && !read.has(row.id)).map(row => describe(row));
+                const onlyStore: string[] = stored.filter(row => read.has(row.id) && !expected.has(row.id)).map(row => nameRow(row));
+                const onlyEvaluator: string[] = stored.filter(row => expected.has(row.id) && !read.has(row.id)).map(row => nameRow(row));
                 if (onlyStore.length || onlyEvaluator.length) {
                     mismatches.push([
                         `${JsonUtilities.stringify(filter)}:`,

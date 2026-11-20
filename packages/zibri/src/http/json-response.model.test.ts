@@ -1,10 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { HttpStatus } from './http-status.enum';
-import { JsonResponse } from './json-response.model';
-import { KnownHeader } from './known-header.enum';
-import { MimeType } from './mime-type.enum';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -15,6 +11,10 @@ import { Get } from '../routing/decorators/get.decorator';
 import { Param } from '../routing/decorators/param.decorator';
 import { Post } from '../routing/decorators/post.decorator';
 import { Put } from '../routing/decorators/put.decorator';
+import { HttpStatus } from './http-status.enum';
+import { JsonResponse } from './json-response.model';
+import { KnownHeader } from './known-header.enum';
+import { MimeType } from './mime-type.enum';
 
 const VERSION: string = 'W/"1"';
 

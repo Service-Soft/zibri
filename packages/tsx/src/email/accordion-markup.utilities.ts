@@ -1,9 +1,9 @@
+import { isScriptUrl } from '../runtime/server-runtime';
 import { AccordionPassedAttributes, AccordionSettings } from './accordion.context';
 import { resolvePaddingOf } from './dimensions';
 import { EmailMarkupUtilities } from './email-markup.utilities';
 import type { MjAccordionTextProps } from './mj-accordion-text';
 import type { MjAccordionTitleProps } from './mj-accordion-title';
-import { isScriptUrl } from '../runtime/server-runtime';
 
 /**
  * Builds the title and the text of an accordion element, which an element without one of them writes empty, as MJML

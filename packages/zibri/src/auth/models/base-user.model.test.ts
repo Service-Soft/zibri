@@ -1,6 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { BaseUserEntity } from './base-user.model';
 import { ChangeSetEntity } from '../../data-source/change-sets/models/change-set-entity.model';
 import { isSoftDeleteEntityNewable } from '../../data-source/change-sets/models/is-soft-delete-entity.function';
 import { SoftDeleteEntity } from '../../data-source/change-sets/models/soft-delete-entity.model';
@@ -8,6 +7,7 @@ import { USER_ENTITY } from '../../data-source/repository/repository-kind.model'
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { keyGroupsOf } from '../../global/model-registry/key-descriptor';
+import { BaseUserEntity } from './base-user.model';
 
 /**
  * A user that soft deletes, declared through the base alone: a user entity that soft deleted had to

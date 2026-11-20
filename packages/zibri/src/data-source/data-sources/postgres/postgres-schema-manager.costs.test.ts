@@ -1,8 +1,6 @@
 import { beforeAll, describe, expect, it } from '@jest/globals';
 import { RoundTripCounter } from 'zibri-testing';
 
-import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
-import { PostgresPooler } from './postgres-pooler.model';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
@@ -18,6 +16,8 @@ import { Migration } from '../../migration/migration.model';
 import { SchemaManagement } from '../../models/schema-management.model';
 import { RepositoryClass } from '../../repository/repository-class.type';
 import { Transaction } from '../../transaction/transaction.model';
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
+import { PostgresPooler } from './postgres-pooler.model';
 
 /**
  * What setting the schema up costs a boot, in round trips: the same however many entities the data

@@ -1,9 +1,6 @@
 
 import { afterAll, beforeAll, describe, expect, test } from '@jest/globals';
 
-import { type HttpRequestContext } from './http-request.context';
-import { RequestContextToken } from './request-context-token.model';
-import { type WebsocketRequestContext } from './websocket-request.context';
 import { TestTimeouts } from '../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -18,6 +15,9 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { KnownHeader } from '../../http/known-header.enum';
 import { Controller } from '../../routing/decorators/controller.decorator';
 import { Get } from '../../routing/decorators/get.decorator';
+import { type HttpRequestContext } from './http-request.context';
+import { RequestContextToken } from './request-context-token.model';
+import { type WebsocketRequestContext } from './websocket-request.context';
 
 const CURRENT_USER: RequestContextToken<{ isAdmin: boolean }> = new RequestContextToken(
     'current-user',

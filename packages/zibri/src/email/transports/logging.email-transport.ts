@@ -1,8 +1,8 @@
-import { EmailSendResult, EmailTransportInterface } from './email-transport.interface';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { LoggerInterface } from '../../logging/logger.interface';
 import { Email } from '../models/email.model';
+import { EmailSendResult, EmailTransportInterface } from './email-transport.interface';
 
 /**
  * A transport that logs every mail instead of sending it: its recipients, its subject and its

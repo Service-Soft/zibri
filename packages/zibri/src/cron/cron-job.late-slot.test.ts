@@ -1,10 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { CronExpression, CronExpressionString } from './cron-expression.utilities';
-import { CronJobEntity } from './cron-job-entity.model';
-import { CronJob, InitialCronConfig } from './cron-job.model';
-import { CronService } from './cron.service';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -14,6 +10,10 @@ import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { LoggerInterface } from '../logging/logger.interface';
 import { Ms } from '../utilities/ms';
+import { CronExpression, CronExpressionString } from './cron-expression.utilities';
+import { CronJobEntity } from './cron-job-entity.model';
+import { CronJob, InitialCronConfig } from './cron-job.model';
+import { CronService } from './cron.service';
 
 /**
  * Every five seconds, so a slot comes up while the case runs and the next one is far enough away to

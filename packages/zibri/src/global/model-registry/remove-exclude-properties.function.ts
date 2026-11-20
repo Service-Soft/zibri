@@ -1,9 +1,9 @@
-import { ExcludeDescriptor } from './exclude-descriptor';
-import { ModelRegistry } from './model.registry';
 import { AlsUtilities } from '../../context/als.utilities';
 import { AnyObject } from '../../entity/any-object.model';
 import { Newable } from '../../types/newable.type';
 import { MetadataInjectionKeys } from '../../utilities/metadata-injection-keys.enum';
+import { ExcludeDescriptor } from './exclude-descriptor';
+import { ModelRegistry } from './model.registry';
 
 /**
  * Replaces all properties defined with "exclude: true" (or a function returning true)

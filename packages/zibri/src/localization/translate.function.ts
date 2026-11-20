@@ -1,13 +1,13 @@
-import { LocaleCode } from './models/locale-code.model';
-import { TranslationRegistry } from './translation.registry';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
+import { InternalError } from '../error-handling/internal-error.model';
 import { GlobalRegistry } from '../global/global-registry';
 import { ObjectUtilities } from '../utilities/object.utilities';
+import { LocaleCode } from './models/locale-code.model';
 import { TranslatedString } from './models/translated-string.model';
-import { InternalError } from '../error-handling/internal-error.model';
+import { TranslationRegistry } from './translation.registry';
 
 /**
  * Definition of a value marked with $translate``.

@@ -2,7 +2,6 @@ import { Dirent } from 'node:fs';
 
 import express from 'express';
 
-import { AssetServiceInterface } from './asset-service.interface';
 import { ZibriApplication } from '../application/application';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
@@ -18,6 +17,7 @@ import { type LoggerInterface } from '../logging/logger.interface';
 import { FileResponse } from '../parsing/form-data/file-response.model';
 import { Route } from '../routing/controller-route-configuration.model';
 import { FsUtilities, type FsPath } from '../utilities/fs.utilities';
+import { AssetServiceInterface } from './asset-service.interface';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export type FileNode = { type: 'file', name: string, route: string };

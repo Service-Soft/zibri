@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { TsxUtilities } from 'zibri';
 import { StartedTestServer, startTestServer } from 'zibri-testing';
 
-import { Checkbox } from './checkbox';
 import { testApplicationOptions } from '../../__testing__/test-application-options';
+import { Checkbox } from './checkbox';
 
 const TIMEOUT: number = 30000;
 

@@ -2,9 +2,6 @@ import assert from 'node:assert';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { PostgresBackupScope } from './postgres-backup-scope.model';
-import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
-import { PostgresPooler } from './postgres-pooler.model';
 import { testFileFolder } from '../../../__testing__/constants';
 import { queryPostgres } from '../../../__testing__/query-postgres.function';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -26,6 +23,9 @@ import { DataSource } from '../../decorators/data-source.decorator';
 import { SchemaManagement } from '../../models/schema-management.model';
 import { Repository } from '../../repository/repository';
 import { RepositoryClass } from '../../repository/repository-class.type';
+import { PostgresBackupScope } from './postgres-backup-scope.model';
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
+import { PostgresPooler } from './postgres-pooler.model';
 
 /**
  * A postgres backup restored by a role of its own rather than the one the application connects with.

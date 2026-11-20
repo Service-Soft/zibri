@@ -1,3 +1,7 @@
+import { HttpError } from '../../error-handling/errors/http.error';
+import { HttpStatus } from '../../http/http-status.enum';
+import { $ts } from '../../localization/translate.function';
+import { type LoggerInterface } from '../../logging/logger.interface';
 import { ScimBody } from './scim-body.model';
 import { ScimEndpoint } from './scim-endpoint.model';
 import { ScimErrorType } from './scim-error-type.enum';
@@ -6,10 +10,6 @@ import { ScimResourceResponse } from './scim-resource-response.model';
 import { ScimSchema } from './scim-schema.enum';
 import { ScimServiceInterface } from './scim-service.interface';
 import { ScimError } from './scim.error';
-import { HttpError } from '../../error-handling/errors/http.error';
-import { HttpStatus } from '../../http/http-status.enum';
-import { $ts } from '../../localization/translate.function';
-import { type LoggerInterface } from '../../logging/logger.interface';
 
 /**
  * The methods an operation of a bulk request may have.

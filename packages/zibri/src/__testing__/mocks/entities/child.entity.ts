@@ -1,6 +1,6 @@
-import { Parent } from './parent.entity';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
+import { Parent } from './parent.entity';
 
 @Entity({ tenant: 'shared' })
 export class Child {

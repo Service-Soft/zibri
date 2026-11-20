@@ -1,7 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { isCache } from './cache.interface';
-import { WriteThroughReadThroughCache } from './read-through/write-through-read-through.cache';
 import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Inject } from '../../di/decorators/inject.decorator';
@@ -12,6 +10,8 @@ import { type MetricsServiceInterface } from '../../metrics/metrics-service.inte
 import { type CacheServiceInterface } from '../cache-service.interface';
 import { Cache } from '../decorators/cache.decorator';
 import { InMemoryCacheStore } from '../store/in-memory.cache-store';
+import { isCache } from './cache.interface';
+import { WriteThroughReadThroughCache } from './read-through/write-through-read-through.cache';
 
 @Cache()
 class IsCacheTestCache extends WriteThroughReadThroughCache<string, string, 'Is Cache Test Cache'> {

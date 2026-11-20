@@ -3,7 +3,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource, RoundTripCounter } from 'zibri-testing';
 
-import { LeaseServiceInterface } from './lease-service.interface';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -11,6 +10,7 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { Newable } from '../types/newable.type';
 import { Ms } from '../utilities/ms';
+import { LeaseServiceInterface } from './lease-service.interface';
 
 /**
  * What queueing for a grant costs, as calls on the store.

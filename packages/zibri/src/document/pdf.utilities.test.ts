@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { PdfAttachmentDefinition, PdfDocument, PdfUtilities } from './pdf.utilities';
 import { FsUtilities } from '../utilities/fs.utilities';
+import { PdfAttachmentDefinition, PdfDocument, PdfUtilities } from './pdf.utilities';
 
 /**
  * Reads a created document to its end.

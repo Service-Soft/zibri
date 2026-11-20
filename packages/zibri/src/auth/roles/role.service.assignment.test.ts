@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { definePermissions, definePlatformPermissions } from './define-permissions.function';
-import { type RoleServiceInterface } from './role-service.interface';
-import { ZIBRI_PERMISSIONS, ZIBRI_PLATFORM_PERMISSIONS } from './zibri-permissions.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { TestMembership } from '../../__testing__/mocks/entities/test-membership.entity';
@@ -19,6 +16,9 @@ import { inject } from '../../di/inject.function';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { CurrentUser } from '../decorators/current-user.decorator';
+import { definePermissions, definePlatformPermissions } from './define-permissions.function';
+import { type RoleServiceInterface } from './role-service.interface';
+import { ZIBRI_PERMISSIONS, ZIBRI_PLATFORM_PERMISSIONS } from './zibri-permissions.model';
 
 // eslint-disable-next-line typescript/typedef
 const Permissions = definePermissions([...ZIBRI_PERMISSIONS, 'invoices.read', 'audit.read'] as const);

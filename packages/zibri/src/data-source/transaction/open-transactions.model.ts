@@ -1,6 +1,6 @@
-import { Transaction } from './transaction.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { type LoggerInterface } from '../../logging/logger.interface';
+import { Transaction } from './transaction.model';
 
 /**
  * The transactions a data source started that are not committed or rolled back yet, so that it can

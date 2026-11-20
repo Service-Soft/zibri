@@ -3,7 +3,7 @@
     "publishConfig": {
         "access": "public"
     },
-    "version": "3.1.0",
+    "version": "3.2.0",
     "license": "MIT",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -65,6 +65,9 @@
         "directory": "packages/tsx"
     },
     "files": [
+        "./src",
+        "!src/**/__testing__/**",
+        "!src/**/*.test.ts",
         "./dist",
         "./forward",
         "./README.md",
@@ -101,7 +104,7 @@
     },
     "devDependencies": {
         "@jest/globals": "^30.4.1",
-        "@service-soft/eslint-config": "^2.1.7",
+        "@service-soft/eslint-config": "^2.2.0",
         "@types/node": "^24.0.0",
         "cheerio": "^1.2.0",
         "eslint": "^9.36.0",
@@ -110,6 +113,6 @@
         "playwright": "^1.61.1",
         "ts-jest": "^29.4.11",
         "typescript": "^5.9.2",
-        "zibri-tsx-compiler": "^3.1.0"
+        "zibri-tsx-compiler": "^3.2.0"
     }
 }

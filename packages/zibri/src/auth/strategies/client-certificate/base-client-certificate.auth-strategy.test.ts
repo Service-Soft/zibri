@@ -3,8 +3,6 @@ import { X509Certificate } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createFakeKeyPair, createInMemoryDataSource, FakeKeyPair, FakeKeyPairOptions, InMemoryDataSource } from 'zibri-testing';
 
-import { BaseClientCertificateAuthStrategy } from './base-client-certificate.auth-strategy';
-import { ClientCertificateHeaderFormat } from './client-certificate-header-format.type';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
@@ -27,6 +25,8 @@ import { CurrentUser } from '../../decorators/current-user.decorator';
 import { AuthStrategies } from '../auth-strategies.model';
 import { JwtAuthData } from '../jwt/jwt-auth-data.model';
 import { JwtAuthStrategy } from '../jwt/jwt.auth-strategy';
+import { BaseClientCertificateAuthStrategy } from './base-client-certificate.auth-strategy';
+import { ClientCertificateHeaderFormat } from './client-certificate-header-format.type';
 
 /**
  * What the route answering with the current user answers.

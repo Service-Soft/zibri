@@ -1,6 +1,6 @@
 /* eslint-disable jsdoc/require-jsdoc */
-import { LoggedError } from './logged-error.model';
 import { JsonUtilities } from '../utilities/json.utilities';
+import { LoggedError } from './logged-error.model';
 
 export function errorToLoggedError(error: Error): LoggedError {
     const res: LoggedError = {

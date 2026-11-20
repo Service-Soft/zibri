@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { WriteThroughReadThroughCache } from './read-through/write-through-read-through.cache';
 import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Inject } from '../../di/decorators/inject.decorator';
@@ -13,6 +12,7 @@ import { CacheService } from '../cache.service';
 import { Cache } from '../decorators/cache.decorator';
 import { CachedValue } from '../store/cached-value.model';
 import { InMemoryCacheStore } from '../store/in-memory.cache-store';
+import { WriteThroughReadThroughCache } from './read-through/write-through-read-through.cache';
 
 @Cache()
 class BestEffortCache extends WriteThroughReadThroughCache<string, string, 'Base Cache Best Effort Cache'> {

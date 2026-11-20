@@ -3,7 +3,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { Migration } from './migration.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -17,6 +16,7 @@ import { Newable } from '../../types/newable.type';
 import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';
+import { Migration } from './migration.model';
 
 /**
  * Longer than a transaction may sit idle when it does not say otherwise, which is ten seconds.

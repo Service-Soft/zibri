@@ -1,4 +1,3 @@
-import { type RemovalReach } from './removal-reach.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { type RelationTree } from '../../entity/models/entity-relations.model';
 import { type SelectionTree } from '../../entity/models/entity-selection.utilities';
@@ -14,6 +13,7 @@ import { Where } from '../models/where/where-filter.model';
 import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
 import { Transaction } from '../transaction/transaction.model';
 import { type WriteDataUtilities } from '../write-data.utilities';
+import { type RemovalReach } from './removal-reach.model';
 
 /**
  * The resolved options that a repository driver receives for reading entities.

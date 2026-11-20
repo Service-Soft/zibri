@@ -1,5 +1,3 @@
-import { type LooseWebsocketEvent } from './websocket-event.enum';
-import { WEBSOCKET_MESSAGE_SEQUENCE_NAME, WebsocketMessageSequence, WebsocketMessageSequenceCreateData } from './websocket-message-sequence.model';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
@@ -9,6 +7,8 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { OmitClass } from '../../entity/omit-class.model';
 import { HttpError } from '../../error-handling/errors/http.error';
 import { HttpStatus } from '../../http/http-status.enum';
+import { type LooseWebsocketEvent } from './websocket-event.enum';
+import { WEBSOCKET_MESSAGE_SEQUENCE_NAME, WebsocketMessageSequence, WebsocketMessageSequenceCreateData } from './websocket-message-sequence.model';
 
 /**
  * The type of a websocket message recipient.

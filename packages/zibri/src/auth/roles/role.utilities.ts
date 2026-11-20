@@ -1,9 +1,9 @@
+import { ArrayWhereFilter } from '../../data-source/models/where/array-where-filter.model';
 import { BaseRole } from './base-role.model';
 import { PermissionWildcard } from './permission-wildcard.type';
 import { RoleIndex } from './role-index.model';
 import { RoleLevel } from './role-level.type';
 import { TenantRoleIndex } from './tenant-role-index.model';
-import { ArrayWhereFilter } from '../../data-source/models/where/array-where-filter.model';
 
 /**
  * Utilities for the roles of an application.

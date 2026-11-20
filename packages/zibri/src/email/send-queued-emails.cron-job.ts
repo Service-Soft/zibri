@@ -1,5 +1,3 @@
-import { type EmailServiceInterface } from './email-service.interface';
-import { Email } from './models/email.model';
 import { CronExpression } from '../cron/cron-expression.utilities';
 import { InitialCronConfig } from '../cron/cron-job.model';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -8,6 +6,8 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
 import { QueuePollCronJob } from '../queue/queue-poll.cron-job';
 import { Newable } from '../types/newable.type';
+import { type EmailServiceInterface } from './email-service.interface';
+import { Email } from './models/email.model';
 
 /**
  * Cron Job for sending out queued emails.

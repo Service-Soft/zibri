@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { Repository } from './repository';
 import { TestTimeouts } from '../../__testing__/constants';
 import { type Relation } from '../../__testing__/relation.type';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
@@ -13,6 +12,7 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { FindAllPaginatedOptions } from '../models/options/find-all-paginated-options.model';
 import { KeysetPage, PaginationResult } from '../models/pagination-result.model';
+import { Repository } from './repository';
 
 // ==================== ENTITIES ====================
 

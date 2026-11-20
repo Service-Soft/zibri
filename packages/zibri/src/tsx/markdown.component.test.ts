@@ -1,10 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { MdxComponent, MdxComponents, MdxHeadingProps, MdxPage } from 'zibri-tsx';
 
-import { Markdown } from './markdown.component';
-import { MarkdownService } from './markdown.service';
-import { TsxComponent } from './tsx-component.model';
-import { TsxUtilities } from './tsx.utilities';
 import { compileMarkdownTemplate, compileTsxTemplate } from '../__testing__/compile-tsx-template.function';
 import { ZibriApplicationOptions } from '../application/application-options.model';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -12,6 +8,10 @@ import { initDiContainer } from '../di/init-di-container.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { register } from '../di/register.function';
 import { GlobalRegistry } from '../global/global-registry';
+import { Markdown } from './markdown.component';
+import { MarkdownService } from './markdown.service';
+import { TsxComponent } from './tsx-component.model';
+import { TsxUtilities } from './tsx.utilities';
 
 const applicationOptions: ZibriApplicationOptions = {
     name: 'Task Tracker',

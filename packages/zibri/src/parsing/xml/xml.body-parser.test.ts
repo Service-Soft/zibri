@@ -2,9 +2,6 @@ import assert from 'assert';
 
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
-import { XmlAttribute } from './xml-attribute.decorator';
-import { XmlText } from './xml-text.decorator';
-import { XmlBodyParser } from './xml.body-parser';
 import { initDiContainer } from '../../di/init-di-container.function';
 import { Property } from '../../entity/decorators/property.decorator';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
@@ -18,6 +15,9 @@ import { Newable } from '../../types/newable.type';
 import { ValidationProblem } from '../../validation/validation-problem.model';
 import { ValidationService } from '../../validation/validation.service';
 import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
+import { XmlAttribute } from './xml-attribute.decorator';
+import { XmlText } from './xml-text.decorator';
+import { XmlBodyParser } from './xml.body-parser';
 
 /**
  * What a body turned into once it was read and checked.

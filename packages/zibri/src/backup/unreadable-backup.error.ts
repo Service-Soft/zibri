@@ -1,6 +1,6 @@
+import { InternalError } from '../error-handling/internal-error.model';
 import { BackupEntity } from './backup-entity.model';
 import { READABLE_BACKUP_FORMAT_VERSIONS } from './backup-format';
-import { InternalError } from '../error-handling/internal-error.model';
 
 /**
  * An error for a backup written in a shape this build does not read.

@@ -1,12 +1,12 @@
 
+import { ExcludeStrict } from '../../../types/exclude-strict.type';
+import { ObjectUtilities } from '../../../utilities/object.utilities';
 import { ArrayWhereFilter, ObjectArrayWhereFilter } from './array-where-filter.model';
 import { BooleanWhereFilter } from './boolean-where-filter.model';
 import { DateWhereFilter } from './date-where-filter.model';
 import { NumberWhereFilter } from './number-where-filter.model';
 import { ObjectWhereFilter } from './object-where-filter.model';
 import { StringWhereFilter } from './string-where-filter.model';
-import { ExcludeStrict } from '../../../types/exclude-strict.type';
-import { ObjectUtilities } from '../../../utilities/object.utilities';
 
 /**
  * Where filter keys of object properties.

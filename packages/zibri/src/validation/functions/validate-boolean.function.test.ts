@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { validateBoolean } from './validate-boolean.function';
 import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { BooleanPropertyMetadata } from '../../entity/models/boolean-property-metadata.model';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
+import { validateBoolean } from './validate-boolean.function';
 
 function meta(overrides: Partial<BooleanPropertyMetadata> = {}): BooleanPropertyMetadata {
     return {

@@ -1,14 +1,14 @@
 import type { JSONOutput } from 'typedoc' with { 'resolution-mode': 'import' };
 import { TsxComponent } from 'zibri';
 
-import { ApiCode } from './api-code';
-import { ApiComment } from './api-comment';
-import { ApiSignatures } from './api-signatures';
-import { Heading } from './heading';
 import { ApiPageUtilities } from '../../api/api-page.utilities';
 import { ApiReferenceUtilities } from '../../api/api-reference.utilities';
 import { ApiToken } from '../../api/api-token.model';
 import { ApiTypeUtilities } from '../../api/api-type.utilities';
+import { ApiCode } from './api-code';
+import { ApiComment } from './api-comment';
+import { ApiSignatures } from './api-signatures';
+import { Heading } from './heading';
 
 type ApiMemberProps = {
     member: JSONOutput.DeclarationReflection

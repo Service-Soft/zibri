@@ -1,9 +1,9 @@
 import { Cached, Controller, errorToLoggedError, Get, HtmlResponse, HttpMethod, Log, LogLevel, Param, Response, TsxUtilities, UUIDUtilities } from 'zibri';
 
-import { StaticPagesCache } from './page.controller';
 import { LogEmail } from '../templates/emails/log';
 import { PasswordResetEmail } from '../templates/emails/password-reset';
 import { SocketIoTestPage } from '../templates/pages/socket-io-test';
+import { StaticPagesCache } from './page.controller';
 
 @Controller('/templates', { versions: 'all' })
 export class TemplateController {
@@ -11,16 +11,15 @@ export class TemplateController {
     @Cached(StaticPagesCache, () => StaticPagesCache.getPageKey('socket-io'))
     @Response.html()
     @Get('/socket')
-    // eslint-disable-next-line typescript/require-await
     async socketIo(): Promise<HtmlResponse> {
         const html: string = TsxUtilities.renderPage(SocketIoTestPage, { primary: '#0e456f', secondary: '#00b4d8' });
-        return HtmlResponse.fromString(html);
+        // a promise, which is what @Cached takes a method to return, of a page rendered at once
+        return Promise.resolve(HtmlResponse.fromString(html));
     }
 
     @Cached(StaticPagesCache, () => StaticPagesCache.getPageKey('password-reset-mail'))
     @Response.html()
     @Get('/password-reset-mail')
-    // eslint-disable-next-line typescript/require-await
     async getMailTemplate(): Promise<HtmlResponse> {
         const html: string = TsxUtilities.renderEmail(
             PasswordResetEmail,
@@ -34,7 +33,7 @@ export class TemplateController {
                 }
             }
         );
-        return HtmlResponse.fromString(html);
+        return Promise.resolve(HtmlResponse.fromString(html));
     }
 
     @Response.html()

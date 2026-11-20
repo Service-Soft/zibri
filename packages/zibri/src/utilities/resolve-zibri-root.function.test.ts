@@ -3,10 +3,10 @@ import os from 'node:os';
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
+import { testFileFolder } from '../__testing__/constants';
 import { FsPath, FsUtilities } from './fs.utilities';
 import { JsonUtilities } from './json.utilities';
 import { resolveZibriRoot } from './resolve-zibri-root.function';
-import { testFileFolder } from '../__testing__/constants';
 
 /**
  * Always fails, forcing resolveZibriRoot into its fallback directory walk.

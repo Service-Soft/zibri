@@ -3,7 +3,6 @@ import { Readable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource, RoundTripCounter } from 'zibri-testing';
 
-import { ValKeyDataSource } from './val-key-data-source.model';
 import { BackupDataOptionsTestUtilities } from '../../../__testing__/backup/backup-data-options-test.utilities';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -15,6 +14,7 @@ import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { Stamp } from '../../data-source-time.cases';
 import { MigrationEntity } from '../../migration/migration-entity.model';
 import { Repository } from '../../repository/repository';
+import { ValKeyDataSource } from './val-key-data-source.model';
 
 const roundTrips: RoundTripCounter = new RoundTripCounter();
 

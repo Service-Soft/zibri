@@ -1,8 +1,8 @@
-import { type ApiKeyServiceInterface } from './api-key-service.interface';
 import { CronExpression } from '../../../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../../../cron/cron-job.model';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
+import { type ApiKeyServiceInterface } from './api-key-service.interface';
 
 /**
  * Deletes the api keys that expired longer ago than `deleteExpiredAfterInMs` of `API_KEY_OPTIONS`.

@@ -1,5 +1,6 @@
 import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { type BaseEntity } from '../base-entity.model';
+import { PropertyMetadata, RelationMetadata } from '../decorators/property.decorator';
 import { BasePropertyMetadata } from './base-property-metadata.model';
 import { BooleanPropertyMetadataInput } from './boolean-property-metadata.model';
 import { DatePropertyMetadataInput } from './date-property-metadata.model';
@@ -9,7 +10,6 @@ import { ObjectPropertyMetadataInput } from './object-property-metadata.model';
 import { type OneOfPropertyMetadataInput, type OneOfShapesMetadataInput } from './one-of-property-metadata.model';
 import { StringPropertyMetadataInput } from './string-property-metadata.model';
 import { UnknownPropertyMetadataInput } from './unknown-property-metadata.model';
-import { PropertyMetadata, RelationMetadata } from '../decorators/property.decorator';
 
 /**
  * Metadata for array properties.

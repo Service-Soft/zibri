@@ -1,12 +1,12 @@
 import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 
-import { EmailRateLimiter } from './email.rate-limiter';
-import { EmailConfigInput } from './models/email-config.model';
 import { initDiContainer } from '../di/init-di-container.function';
 import { InternalError } from '../error-handling/internal-error.model';
 import { GlobalRegistry } from '../global/global-registry';
 import { RateLimitResult } from '../rate-limiting/rate-limit-result.model';
 import { Ms } from '../utilities/ms';
+import { EmailRateLimiter } from './email.rate-limiter';
+import { EmailConfigInput } from './models/email-config.model';
 
 function makeConfig(maxEmailsPerHour: number): EmailConfigInput {
     return {

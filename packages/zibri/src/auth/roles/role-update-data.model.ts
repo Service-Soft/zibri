@@ -1,5 +1,5 @@
-import { BaseRole } from './base-role.model';
 import { OmitStrict } from '../../types/omit-strict.type';
+import { BaseRole } from './base-role.model';
 
 /**
  * What changes about a role. Not its name, level or tenant, which its holders depend on.

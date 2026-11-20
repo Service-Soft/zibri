@@ -3,9 +3,6 @@ import { setTimeout as wait } from 'node:timers/promises';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { JwtAuthOptionsInput } from './jwt-auth-options.model';
-import { JwtRefreshToken } from './jwt-refresh-token.model';
-import { JwtAuthStrategy } from './jwt.auth-strategy';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
@@ -25,6 +22,9 @@ import { type LoggerInterface } from '../../../logging/logger.interface';
 import { JsonUtilities } from '../../../utilities/json.utilities';
 import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../authenticators/password/password-credentials.model';
+import { JwtAuthOptionsInput } from './jwt-auth-options.model';
+import { JwtRefreshToken } from './jwt-refresh-token.model';
+import { JwtAuthStrategy } from './jwt.auth-strategy';
 
 const PASSWORD: string = 'correct horse battery staple';
 const GRACE_IN_MS: number = 1000;

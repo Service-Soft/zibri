@@ -1,5 +1,5 @@
-import { CurrentUserMembership } from './current-user-membership.model';
 import { Property } from '../../entity/decorators/property.decorator';
+import { CurrentUserMembership } from './current-user-membership.model';
 
 /**
  * What `GET /me` of the `AuthController` answers: the logged in user, and what they may do in every

@@ -1,10 +1,10 @@
 import ts from 'typescript';
 import { AccessShape, SETUP_RUNTIME_PARAM } from 'zibri-tsx/internal';
 
-import { attributeExpression, attributesOf, CapturedVariable, capturedVariables, isComponentName, isEventHandlerName, isPropPassThrough, JsxElementLike, PropScope, propScope, ScopeFrame, scopeFrameFor, tagNameOf, visitComponentBody } from './handlers';
-import { regionExpressions } from './regions';
 import { ComponentFunction } from '../../semantics/component';
 import { childrenOf, unwrapTypeSyntax, walk } from '../../semantics/walk';
+import { attributeExpression, attributesOf, CapturedVariable, capturedVariables, isComponentName, isEventHandlerName, isPropPassThrough, JsxElementLike, PropScope, propScope, ScopeFrame, scopeFrameFor, tagNameOf, visitComponentBody } from './handlers';
+import { regionExpressions } from './regions';
 
 /**
  * A function passed as a plain (non event-handler) prop to a nested component, e.g.

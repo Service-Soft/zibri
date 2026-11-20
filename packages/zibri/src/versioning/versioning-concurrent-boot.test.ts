@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { VersionFile } from './version.model';
-import { VersioningService } from './versioning.service';
 import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -16,6 +14,8 @@ import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
+import { VersionFile } from './version.model';
+import { VersioningService } from './versioning.service';
 
 const sharedVersionsDir: FsPath = FsUtilities.getPath(testFileFolder, 'versions-concurrent-boot');
 

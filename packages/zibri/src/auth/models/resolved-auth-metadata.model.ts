@@ -1,9 +1,10 @@
+import { type Permission } from '../roles/permission.type';
+import { type PlatformPermission } from '../roles/platform-permission.type';
+import { HasAnyLevelPermissionMetadata } from './has-any-level-permission-metadata.model';
 import { HasPermissionMetadata } from './has-permission-metadata.model';
 import { IsLoggedInMetadata } from './is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata } from './is-not-logged-in-metadata.model';
 import { Require2faMetadata } from './require-2fa-metadata.model';
-import { type Permission } from '../roles/permission.type';
-import { type PlatformPermission } from '../roles/platform-permission.type';
 
 // Resolving them costs nothing but is not free of side effects - the resolvers are where the
 // "Useless @Auth.x.skip" warnings come from - so whoever asks for them passes them on rather than
@@ -28,6 +29,13 @@ export type ResolvedAuthMetadata = {
      * The resolved \@Auth.hasPlatformPermission metadata, if the route requires a permission of the user's own.
      */
     hasPlatformPermission: HasPermissionMetadata<PlatformPermission> | undefined,
+    // TODO 4.0: required, like the checks above. Optional while a route auth service of an application's own may
+    // answer without it
+    /**
+     * The resolved \@Auth.hasAnyLevelPermission metadata, if the route requires either a permission in the request's
+     * tenant or one of the user's own.
+     */
+    hasAnyLevelPermission?: HasAnyLevelPermissionMetadata | undefined,
     /**
      * The resolved \@Auth.require2fa metadata, if the route requires a second factor.
      */

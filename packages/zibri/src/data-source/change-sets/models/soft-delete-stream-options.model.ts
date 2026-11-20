@@ -1,9 +1,9 @@
-import { SoftDeleteEntity } from './soft-delete-entity.model';
-import { SoftDeleteWhere } from './soft-delete-where.model';
-import { SoftDeletedRows } from './soft-deleted-rows.type';
 import { EntitySelection } from '../../../entity/models/entity-selection.model';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { StreamOptions } from '../../models/options/stream-options.model';
+import { SoftDeleteEntity } from './soft-delete-entity.model';
+import { SoftDeleteWhere } from './soft-delete-where.model';
+import { SoftDeletedRows } from './soft-deleted-rows.type';
 
 /**
  * Options for streaming soft delete entities.

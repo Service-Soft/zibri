@@ -1,8 +1,8 @@
-import { InvoiceConformance } from './conformance/invoice-conformance-service.interface';
 import { PdfDocument, PdfPageSize } from '../../../document/pdf.utilities';
 import { LocaleCode } from '../../../localization/models/locale-code.model';
 import { Timezone } from '../../../localization/models/timezone.model';
 import { Invoice as BaseInvoice } from '../models/invoice.model';
+import { InvoiceConformance } from './conformance/invoice-conformance-service.interface';
 
 /**
  * Handles generating pdf invoice files.

@@ -1,9 +1,5 @@
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
-import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
-import { PostgresPooler } from './postgres-pooler.model';
-import { PostgresColumnSettings, PostgresSchema } from './postgres-schema.model';
-import { PostgresColumn, PostgresTable } from './postgres-table.model';
 import { Company } from '../../../__testing__/mocks/entities/company.entity';
 import { Profile } from '../../../__testing__/mocks/entities/profile.entity';
 import { User } from '../../../__testing__/mocks/entities/user.entity';
@@ -34,6 +30,10 @@ import { Label, Organizer, Venue } from '../../tests/partial-nested-update.cases
 import { Genre, Playlist } from '../../tests/relation-allow-list.cases';
 import { CostGroup, CostItem } from '../../tests/repository-costs.cases';
 import { Account, Invoice, Project, Tag, Task } from '../../tests/scoped-relations.cases';
+import { PostgresDataSource, PostgresOptions } from './postgres-data-source.model';
+import { PostgresPooler } from './postgres-pooler.model';
+import { PostgresColumnSettings, PostgresSchema } from './postgres-schema.model';
+import { PostgresColumn, PostgresTable } from './postgres-table.model';
 
 /**
  * A column, as the tables typeorm built are described.

@@ -5,12 +5,6 @@ import { pipeline } from 'node:stream/promises';
 
 import type { Client, ConnectConfig, FileEntryWithStats, ReadStream, SFTPWrapper, Stats, WriteStream } from 'ssh2';
 
-import { BackupKeyAccessDeniedError } from './backup-key-access-denied.error';
-import { BackupKeyNotFoundError } from './backup-key-not-found.error';
-import { BackupTransportSessionInterface } from './backup-transport-session.interface';
-import { BaseBackupTransport } from './base.backup-transport';
-import { resolveBackupKeySegments } from './resolve-backup-key-segments.function';
-import { SftpBackupTransportOptions } from './sftp/sftp-backup-transport-options.model';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { InternalError } from '../../error-handling/internal-error.model';
@@ -18,6 +12,12 @@ import { LoggerInterface } from '../../logging/logger.interface';
 import { Ms } from '../../utilities/ms';
 import { optionalPeer } from '../../utilities/optional-peer.function';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { BackupKeyAccessDeniedError } from './backup-key-access-denied.error';
+import { BackupKeyNotFoundError } from './backup-key-not-found.error';
+import { BackupTransportSessionInterface } from './backup-transport-session.interface';
+import { BaseBackupTransport } from './base.backup-transport';
+import { resolveBackupKeySegments } from './resolve-backup-key-segments.function';
+import { SftpBackupTransportOptions } from './sftp/sftp-backup-transport-options.model';
 
 // what the listings leave out: the staging folder, and the files the transport of 3.0 wrote beside a name
 // until they were complete, which a connection ending left behind there

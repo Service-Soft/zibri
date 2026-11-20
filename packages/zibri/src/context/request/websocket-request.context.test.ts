@@ -1,9 +1,9 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
+import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
 import { HttpRequestContext } from './http-request.context';
 import { RequestContextToken } from './request-context-token.model';
 import { WebsocketRequestContext } from './websocket-request.context';
-import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
 
 function makeContext(): WebsocketRequestContext {
     return new WebsocketRequestContext(new WebsocketRequest(), undefined, undefined, undefined);

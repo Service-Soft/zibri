@@ -1,10 +1,10 @@
-import { DefaultDescriptor } from './default-descriptor';
-import { ModelRegistry } from './model.registry';
 import { AlsUtilities } from '../../context/als.utilities';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { AnyObject } from '../../entity/any-object.model';
 import { Newable } from '../../types/newable.type';
+import { DefaultDescriptor } from './default-descriptor';
+import { ModelRegistry } from './model.registry';
 
 /**
  * Sets the default value resolved from the given entityClass on the given data.

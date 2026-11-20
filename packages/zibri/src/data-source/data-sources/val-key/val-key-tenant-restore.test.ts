@@ -3,7 +3,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
-import { ValKeyDataSource } from './val-key-data-source.model';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { createTestDataSource } from '../../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../../__testing__/test-server/create-test-val-key-data-source.function';
@@ -24,6 +23,7 @@ import { MigrationEntity } from '../../migration/migration-entity.model';
 import { Repository } from '../../repository/repository';
 import { TENANT_ROWS_ENTITIES, TenantRowsFolder } from '../../tests/tenant-rows.cases';
 import { DataSourceInterface } from '../data-source.interface';
+import { ValKeyDataSource } from './val-key-data-source.model';
 
 /**
  * A restore of a tenant on valkey that takes many times as long as a lock of its transaction lives: what a

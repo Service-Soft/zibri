@@ -1,3 +1,6 @@
+import { version } from '../../package.json';
+import { FsUtilities, GitUtilities, InquirerUtilities } from '../encapsulation';
+import { exitWithError, getPath, Path } from '../utilities';
 import { FrameworkPackage } from './framework-package.model';
 import { CONTINUOUS_INTEGRATIONS,
     ContinuousIntegration,
@@ -11,9 +14,6 @@ import { SCAFFOLD_DEPENDENCIES,
     ScaffoldDependencies } from './scaffold-dependencies.model';
 import { SCAFFOLD_FEATURE_FILES, SCAFFOLD_FEATURE_REQUIREMENTS, SCAFFOLD_FEATURES, ScaffoldFeature } from './scaffold-feature.model';
 import { SCAFFOLD_MANIFEST_FILE, ScaffoldManifest } from './scaffold-manifest.model';
-import { version } from '../../package.json';
-import { FsUtilities, GitUtilities, InquirerUtilities } from '../encapsulation';
-import { exitWithError, getPath, Path } from '../utilities';
 
 /**
  * The manifest of a project's package, which `zi new` writes once and npm and the project own after.

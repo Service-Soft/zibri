@@ -1,6 +1,5 @@
 import ts from 'typescript';
 
-import { LAZY_PROPS, LazyChildren, printNode, SSR, StampSites } from './print';
 import { ComponentInfo } from '../../semantics/component';
 import { symbolOf } from '../../semantics/symbols';
 import { collectBindingSites } from '../client/bindings';
@@ -9,6 +8,7 @@ import { collectHandlerSites } from '../client/handlers';
 import { collectInputs } from '../client/inputs';
 import { collectRegions, RegionCollection } from '../client/regions';
 import { concatLines, emitLines, EmittedLines, resolveOrigin } from '../source-map';
+import { LAZY_PROPS, LazyChildren, printNode, SSR, StampSites } from './print';
 
 /**
  * The generated server render of a component: a function `(props) => Raw` (the component itself)

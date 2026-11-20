@@ -2,7 +2,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { PostgresDataSource } from './postgres-data-source.model';
 import { TestServerTimeouts, TestTimeouts } from '../../../__testing__/constants';
 import { queryPostgres } from '../../../__testing__/query-postgres.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -15,6 +14,7 @@ import { Property } from '../../../entity/decorators/property.decorator';
 import { Newable } from '../../../types/newable.type';
 import { Repository } from '../../repository/repository';
 import { Transaction } from '../../transaction/transaction.model';
+import { PostgresDataSource } from './postgres-data-source.model';
 
 /**
  * How long the database lets a transaction sit idle, as an operator may set it for every connection.

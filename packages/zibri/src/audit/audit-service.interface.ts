@@ -1,6 +1,6 @@
-import { AuditVerification } from './audit-verification.model';
 import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 import { AuditEvent } from '../logging/audit-event.model';
+import { AuditVerification } from './audit-verification.model';
 
 /**
  * Keeps the audit trail: the security relevant events, in a table of their own.

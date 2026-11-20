@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource, RoundTripCounter } from 'zibri-testing';
 
-import { type EventServiceInterface } from './event-service.interface';
-import { EventSubscriberRegistration } from './event-subscriber-registration.model';
-import { Event, EventCreateData } from './event.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -13,6 +10,9 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { Newable } from '../types/newable.type';
 import { Ms } from '../utilities/ms';
+import { type EventServiceInterface } from './event-service.interface';
+import { EventSubscriberRegistration } from './event-subscriber-registration.model';
+import { Event, EventCreateData } from './event.model';
 
 /**
  * What one pass of the dispatch poll costs, as calls on the store.

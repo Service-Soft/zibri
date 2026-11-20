@@ -1,8 +1,6 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import { parentPort, workerData } from 'node:worker_threads';
 
-import { reportCompletion, reportError } from './helpers';
-import { loadWorkerFile } from './load-worker-file.function';
 import { CacheStoreInterface } from '../../../caching/store/cache-store.interface';
 import { InMemoryCacheStore } from '../../../caching/store/in-memory.cache-store';
 import { InternalError } from '../../../error-handling/internal-error.model';
@@ -17,6 +15,8 @@ import type { ThreadJobMessage } from '../../models/thread-job-message.model';
 import type { ThreadJobStartMessage } from '../../models/thread-job-start-message.model';
 import { THREAD_JOB_TENANT_ID_KEY } from '../../models/thread-job-tenant-id-key.model';
 import { THREAD_JOB_TRACE_CONTEXT_KEY } from '../../models/thread-job-trace-context-key.model';
+import { reportCompletion, reportError } from './helpers';
+import { loadWorkerFile } from './load-worker-file.function';
 
 if (!parentPort) {
     throw new InternalError('Internal Error with the thread-job-worker: parentPort not available.');
@@ -144,9 +144,9 @@ function updateWorkerData(
     Object.defineProperty(current, THREAD_JOB_CHECKPOINT_KEY, { value: checkpoint, configurable: true, enumerable: false, writable: true });
 }
 
-async function importWorkerFile(workerData: BaseThreadJobWorkerData): Promise<void> {
+async function importWorkerFile(jobData: BaseThreadJobWorkerData): Promise<void> {
     try {
-        await loadWorkerFile(workerData.filePath);
+        await loadWorkerFile(jobData.filePath);
     }
     catch (error) {
         const err: Error = error instanceof Error ? error : new Error(`${error}`);

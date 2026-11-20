@@ -1,5 +1,3 @@
-import { type PaymentMethod } from './payment-method.model';
-import { PaymentStatus } from './payment-status.enum';
 import { AnyObject } from '../../../entity/any-object.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
@@ -7,6 +5,8 @@ import { Property } from '../../../entity/decorators/property.decorator';
 import { type CurrencyCode } from '../../../localization/models/currency-code.model';
 import { LoggedError } from '../../../logging/logged-error.model';
 import { BigNumber } from '../../../utilities/number.utilities';
+import { type PaymentMethod } from './payment-method.model';
+import { PaymentStatus } from './payment-status.enum';
 
 /**
  * Entity for an payment that has been made.

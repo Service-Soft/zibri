@@ -1,12 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { EmailServiceInterface } from './email-service.interface';
-import { CreateEmailData, QueueEmailData } from './models/create-email-data.model';
-import { EmailConfigInput } from './models/email-config.model';
-import { EmailStatus } from './models/email-status.enum';
-import { Email } from './models/email.model';
-import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -17,6 +11,12 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { Ms } from '../utilities/ms';
+import { EmailServiceInterface } from './email-service.interface';
+import { CreateEmailData, QueueEmailData } from './models/create-email-data.model';
+import { EmailConfigInput } from './models/email-config.model';
+import { EmailStatus } from './models/email-status.enum';
+import { Email } from './models/email.model';
+import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
 
 // in memory, so that what becomes of a mail whose send throws can be watched without a container
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({

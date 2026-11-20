@@ -4,7 +4,6 @@ import { pathToFileURL } from 'node:url';
 
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
-import { NewCommand } from './new.command';
 import { version } from '../../../package.json';
 import { BundlePart } from '../../__testing__/bundle-part.model';
 import { testFileFolder } from '../../__testing__/constants';
@@ -16,6 +15,7 @@ import { EVERY_FEATURE } from '../../__testing__/generated-file-paths';
 import { quietly } from '../../__testing__/quietly.function';
 import { CPUtilities, FsUtilities } from '../../encapsulation';
 import { getPath, Path } from '../../utilities';
+import { NewCommand } from './new.command';
 
 /**
  * Whether the Dockerfile "zi new" writes produces an image that actually serves the application.

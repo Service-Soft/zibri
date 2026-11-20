@@ -1,10 +1,3 @@
-import { BaseScimProvisioner } from './base-scim-provisioner';
-import { ScimBody } from './scim-body.model';
-import { ScimControllerClass } from './scim-controller-class.type';
-import { ScimControllerOptions } from './scim-controller-options.model';
-import { ScimEndpoint } from './scim-endpoint.model';
-import { ScimResourceResponse } from './scim-resource-response.model';
-import { type ScimServiceInterface } from './scim-service.interface';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { FileSize, fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
@@ -29,6 +22,13 @@ import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { Auth } from '../decorators/auth.decorator';
 import { ApiKeyAuthStrategy } from '../strategies/api-key/api-key.auth-strategy';
+import { BaseScimProvisioner } from './base-scim-provisioner';
+import { ScimBody } from './scim-body.model';
+import { ScimControllerClass } from './scim-controller-class.type';
+import { ScimControllerOptions } from './scim-controller-options.model';
+import { ScimEndpoint } from './scim-endpoint.model';
+import { ScimResourceResponse } from './scim-resource-response.model';
+import { type ScimServiceInterface } from './scim-service.interface';
 
 /**
  * What SCIM answers in: its own json type, and plain json for a client that asks for that.

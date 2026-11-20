@@ -1,10 +1,10 @@
-import { DescribedString, StringValueDescriptor } from './string-value-descriptor.model';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model';
 import { Relation } from '../../entity/models/relation.enum';
 import { StoredStringPropertyMetadata } from '../../entity/models/string-property-metadata.model';
 import { isNamedValue } from '../../parsing/functions/parse-one-of.function';
 import { ObjectUtilities } from '../../utilities/object.utilities';
+import { DescribedString, StringValueDescriptor } from './string-value-descriptor.model';
 
 /**
  * Finds and replaces the strings a property acts on - encrypts, decrypts, hashes - wherever its

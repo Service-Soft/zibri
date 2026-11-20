@@ -1,4 +1,3 @@
-import { type PropertyMetadata } from './property.decorator';
 // a leaf module on purpose: it reads metadata and imports the class it recognizes as a type only, so
 // asking whether an entity can be soft deleted does not pull the change set entities in - they are
 // decorated with @Entity themselves, which would evaluate this module from inside its own loading
@@ -24,6 +23,7 @@ import { type EntityScope } from '../models/entity-scope.model';
 import { type EntityTenant } from '../models/entity-tenant.model';
 import { type KeptWith } from '../models/kept-with.model';
 import { coversEveryRow, declaresUnique, KeyWhere, UniqueGroup, UniqueGroupInput } from '../models/unique-declaration.model';
+import { type PropertyMetadata } from './property.decorator';
 
 /**
  * Metadata for an Entity.

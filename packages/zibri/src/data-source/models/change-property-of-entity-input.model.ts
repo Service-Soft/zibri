@@ -1,9 +1,9 @@
+import { BaseEntity } from '../../entity/base-entity.model';
 import { CastablePropertyType } from './castable-property-type.type';
 import { EntityMigrationInput } from './entity-migration-input.model';
 import { MigrationPropertyMetadata } from './migration-property-metadata.model';
 import { PropertyConversion } from './property-conversion.model';
 import { ValueConversion } from './value-conversion.enum';
-import { BaseEntity } from '../../entity/base-entity.model';
 
 /**
  * Everything a migration says when it changes a property of an entity.

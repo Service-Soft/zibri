@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { ClientPropSite, collectClientPropSites } from './client-props';
 import { parseTemplateOk } from '../../__testing__/parse.helper';
 import { ComponentFunction, findComponents } from '../../semantics/component';
+import { ClientPropSite, collectClientPropSites } from './client-props';
 
 function componentOf(source: string): ComponentFunction {
     return findComponents(parseTemplateOk(source))[0].fn;

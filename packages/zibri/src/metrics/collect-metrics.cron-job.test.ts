@@ -1,8 +1,8 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
+import { LoggerInterface } from '../logging/logger.interface';
 import { CollectMetricsCronJob } from './collect-metrics.cron-job';
 import { MetricsServiceInterface } from './metrics-service.interface';
-import { LoggerInterface } from '../logging/logger.interface';
 
 function fakeMetricsService(): MetricsServiceInterface & { collect: jest.Mock<() => Promise<void>> } {
     return {

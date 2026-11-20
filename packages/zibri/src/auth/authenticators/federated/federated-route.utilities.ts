@@ -1,15 +1,5 @@
 import { Readable } from 'node:stream';
 
-import { FederatedAuthenticatorInterface, isFederatedAuthenticator } from './federated-authenticator.interface';
-import { FederatedCallbackForm } from './federated-callback-form.model';
-import { FederatedLoginFailure } from './federated-login-failure.enum';
-import { FederatedLoginError } from './federated-login.error';
-import { FederatedMetadata } from './federated-metadata.model';
-import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model';
-import { FederatedProviderLogout } from './federated-provider-logout.model';
-import { FederatedSessionMatch } from './federated-session-match.model';
-import { FederatedSoapLogout } from './federated-soap-logout.model';
-import { FederationOptions } from './federation-options.model';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../../context/request/request-context-token.model';
 import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
@@ -35,6 +25,16 @@ import { HtmlUtilities } from '../../../parsing/html/html.utilities';
 import { Newable } from '../../../types/newable.type';
 import { BaseUser } from '../../models/base-user.model';
 import { Authenticators } from '../authenticators.model';
+import { FederatedAuthenticatorInterface, isFederatedAuthenticator } from './federated-authenticator.interface';
+import { FederatedCallbackForm } from './federated-callback-form.model';
+import { FederatedLoginFailure } from './federated-login-failure.enum';
+import { FederatedLoginError } from './federated-login.error';
+import { FederatedMetadata } from './federated-metadata.model';
+import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model';
+import { FederatedProviderLogout } from './federated-provider-logout.model';
+import { FederatedSessionMatch } from './federated-session-match.model';
+import { FederatedSoapLogout } from './federated-soap-logout.model';
+import { FederationOptions } from './federation-options.model';
 
 /**
  * A class of an authenticator that logs users in at a provider.

@@ -1,11 +1,11 @@
 import { $ts, DocsUtilities, MdxHeading, TsxChildren, TsxComponent } from 'zibri';
 
+import { BasePage } from '../components/base-page';
 import { DocsOnThisPage } from './docs-on-this-page';
 import { DocsOnThisPageButton } from './docs-on-this-page-button';
 import { DocsSearchBox } from './docs-search-box';
 import { DocsSidebar } from './docs-sidebar';
 import { DOCS_SITE } from './docs-site';
-import { BasePage } from '../components/base-page';
 
 type DocsLayoutProps = {
     title: string,

@@ -6,13 +6,13 @@ import { buffer } from 'node:stream/consumers';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { utils } from 'ssh2';
 
+import { InProcessSftpRequest, InProcessSftpServer } from '../../__testing__/backup/in-process-sftp-server.model';
+import { BackupEntity } from '../backup-entity.model';
+import { BackupResourceEntity } from '../backup-resource-entity.model';
 import { BackupTransportSessionInterface } from './backup-transport-session.interface';
 import { BaseSftpBackupTransport } from './base-sftp.backup-transport';
 import { Format1BackupTransport } from './format-1.backup-transport';
 import { SftpBackupTransportOptions } from './sftp/sftp-backup-transport-options.model';
-import { InProcessSftpRequest, InProcessSftpServer } from '../../__testing__/backup/in-process-sftp-server.model';
-import { BackupEntity } from '../backup-entity.model';
-import { BackupResourceEntity } from '../backup-resource-entity.model';
 
 // a backup of 100 MB took 46 s to store over sftp and 5 s to fetch: ssh2's write stream keeps one
 // WRITE in flight, and sends several at once only of what buffered while one was pending, which its

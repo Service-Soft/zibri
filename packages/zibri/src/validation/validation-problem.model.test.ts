@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
+import { TestTimeouts } from '../__testing__/constants';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { MimeType } from '../http/mime-type.enum';
 import { IsRequiredValidationProblem,
     MaxFileSizeValidationProblem,
     MimeTypeMismatchValidationProblem,
     RelationsNotAllowedValidationProblem,
     TypeMismatchValidationProblem } from './validation-problem.model';
-import { TestTimeouts } from '../__testing__/constants';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { MimeType } from '../http/mime-type.enum';
 
 describe('validation problems', () => {
     let server: StartedTestServer;

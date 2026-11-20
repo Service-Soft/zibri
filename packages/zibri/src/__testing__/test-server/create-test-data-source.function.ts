@@ -1,8 +1,5 @@
 import { RoundTripCounter } from 'zibri-testing';
 
-import { DefaultTestServerMembershipRepository } from './membership-repository';
-import { DefaultTestServerRoleRepository } from './role-repository';
-import { DefaultTestServerUserRepository } from './user-repository';
 import { AuditCheckpoint } from '../../audit/audit-checkpoint.model';
 import { AuditEntry } from '../../audit/audit-entry.model';
 import { OtpCredentials } from '../../auth/2fa/methods/otp/otp-credentials.model';
@@ -44,6 +41,9 @@ import { WebsocketMessage } from '../../websocket/models/websocket-message.model
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { TestMembership } from '../mocks/entities/test-membership.entity';
 import { TestRole } from '../mocks/entities/test-role.entity';
+import { DefaultTestServerMembershipRepository } from './membership-repository';
+import { DefaultTestServerRoleRepository } from './role-repository';
+import { DefaultTestServerUserRepository } from './user-repository';
 
 export type CreateTestDataSourceOptions = {
     entities?: Newable<BaseEntity>[],

@@ -1,7 +1,7 @@
 import { randomFillSync } from 'node:crypto';
 
-import { TraceSpanContext } from './trace-span-context.model';
 import { KnownHeader } from '../http/known-header.enum';
+import { TraceSpanContext } from './trace-span-context.model';
 
 /**
  * Headers as they arrive, where one that was sent twice is an array.

@@ -1,6 +1,3 @@
-import { HashDescriptor, HashSettings } from './hash-descriptor';
-import { ModelRegistry } from './model.registry';
-import { StringValueUtilities } from './string-value.utilities';
 import { HashOptions, HashServiceInterface } from '../../auth/hash/hash-service.interface';
 import { AlsUtilities } from '../../context/als.utilities';
 import { HttpRequestContext } from '../../context/request/http-request.context';
@@ -8,6 +5,9 @@ import { WebsocketRequestContext } from '../../context/request/websocket-request
 import { AnyObject } from '../../entity/any-object.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
+import { HashDescriptor, HashSettings } from './hash-descriptor';
+import { ModelRegistry } from './model.registry';
+import { StringValueUtilities } from './string-value.utilities';
 
 /**
  * Hashes all properties defined with the hash flag based on a pre-built HashDescriptor.

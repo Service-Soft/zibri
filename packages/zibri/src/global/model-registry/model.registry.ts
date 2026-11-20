@@ -1,3 +1,4 @@
+import { Newable } from '../../types/newable.type';
 import { DefaultDescriptor } from './default-descriptor';
 import { EncryptionDescriptor } from './encryption-descriptor';
 import { ExcludeDescriptor } from './exclude-descriptor';
@@ -5,7 +6,6 @@ import { HashDescriptor } from './hash-descriptor';
 import { KeyDescriptor } from './key-descriptor';
 import { OptimisticLockDescriptor } from './optimistic-lock-descriptor';
 import { OrderDescriptor } from './order-descriptor';
-import { Newable } from '../../types/newable.type';
 
 /**
  * Data stored per entity class in the registry.

@@ -1,7 +1,3 @@
-import { PostgresParameters } from './postgres-parameters.model';
-import { PostgresSchema } from './postgres-schema.model';
-import { PostgresSqlUtilities } from './postgres-sql.utilities';
-import { PostgresColumn, PostgresRelationJoin } from './postgres-table.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { PropertyMetadata, RelationMetadata } from '../../../entity/decorators/property.decorator';
 import { denyAll, DenyAll } from '../../../entity/models/entity-scope.model';
@@ -26,6 +22,10 @@ import { RelatedNarrowingUtilities } from '../../scopes/related-narrowing.utilit
 import { ScopedWhere, ScopeWhereUtilities } from '../../scopes/scope-where.utilities';
 import { PropertyReferenceUtilities } from '../../where/property-reference.utilities';
 import { ParameterizedSql } from '../where-converter/parameterized-sql.model';
+import { PostgresParameters } from './postgres-parameters.model';
+import { PostgresSchema } from './postgres-schema.model';
+import { PostgresSqlUtilities } from './postgres-sql.utilities';
+import { PostgresColumn, PostgresRelationJoin } from './postgres-table.model';
 
 /**
  * What this server's trigram support answers for, as it was measured at boot.

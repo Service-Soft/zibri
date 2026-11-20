@@ -1,9 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
-import { generateSourceXlf } from './generate-source-xlf.function';
-import { ScannedTranslationOrigin } from './models/source-translation-origin.model';
 import { testFileFolder } from '../../__testing__/constants';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
+import { generateSourceXlf } from './generate-source-xlf.function';
+import { ScannedTranslationOrigin } from './models/source-translation-origin.model';
 
 describe('generateSourceXlf', () => {
     const workDir: FsPath = FsUtilities.getPath(testFileFolder, 'generate-source-xlf');

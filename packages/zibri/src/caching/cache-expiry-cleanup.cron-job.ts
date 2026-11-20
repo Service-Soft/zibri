@@ -1,8 +1,8 @@
-import { type CacheServiceInterface } from './cache-service.interface';
 import { CronExpression } from '../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
 import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { type CacheServiceInterface } from './cache-service.interface';
 
 // Deliberately `runsOn: 'everyInstance'`, for the same reason the invalidation job is: a local cache
 // lives in the memory of the process holding it, so every instance has its own to sweep. A shared

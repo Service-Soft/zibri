@@ -1,6 +1,15 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
+import { TestTimeouts } from '../../__testing__/constants';
+import { companyInfoProvider } from '../../__testing__/mocks/company-info-provider.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
+import { inject } from '../../di/inject.function';
+import { XmlUtilities } from '../../document/xml.utilities';
+import { type CurrencyCode } from '../../localization/models/currency-code.model';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { ZibriInvoicingPlugin } from './invoicing.plugin';
 import { ElectronicAddress } from './models/electronic-address.model';
 import { InvoiceItem } from './models/invoice-item.model';
@@ -13,15 +22,6 @@ import { CiiSchemedId } from './services/conformance/en16931/cii/cii-schemed-id.
 import { PeppolConformanceService } from './services/conformance/en16931/peppol-conformance.service';
 import { XRechnungConformanceService } from './services/conformance/en16931/x-rechnung-conformance.service';
 import { InvoicePdfService } from './services/invoice-pdf.service';
-import { TestTimeouts } from '../../__testing__/constants';
-import { companyInfoProvider } from '../../__testing__/mocks/company-info-provider.function';
-import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { inject } from '../../di/inject.function';
-import { XmlUtilities } from '../../document/xml.utilities';
-import { type CurrencyCode } from '../../localization/models/currency-code.model';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
 
 // the amounts an invoice states, in its pdf and in its electronic invoice, as EN 16931 calculates
 // them: each line rounded to the currency, the VAT of each group taxed once on the group's rounded

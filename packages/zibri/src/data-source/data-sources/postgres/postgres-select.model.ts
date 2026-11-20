@@ -1,5 +1,5 @@
-import { PostgresSqlUtilities } from './postgres-sql.utilities';
 import { ParameterizedSql } from '../where-converter/parameterized-sql.model';
+import { PostgresSqlUtilities } from './postgres-sql.utilities';
 
 /**
  * A select statement, built a clause at a time.

@@ -1,6 +1,5 @@
 import { afterAll, describe, expect, it } from '@jest/globals';
 
-import { RateLimitingServiceInterface } from './rate-limiting-service.interface';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -11,6 +10,7 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { DiProvider } from '../di/models/di-provider.model';
 import { DiVariants } from '../di/models/di-variant.model';
+import { RateLimitingServiceInterface } from './rate-limiting-service.interface';
 
 /**
  * Minimal stand-in that satisfies `isRateLimiter`'s structural check without

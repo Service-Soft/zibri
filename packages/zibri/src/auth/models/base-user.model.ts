@@ -1,4 +1,3 @@
-import { SoftDeletingUserEntityOptions } from './soft-deleting-user-entity-options.model';
 import type { ChangeSetEntity } from '../../data-source/change-sets/models/change-set-entity.model';
 import type { ChangeSetOnlyEntityClass } from '../../data-source/change-sets/models/change-set-only-entity-class.type';
 import { isSoftDeleteEntityNewable } from '../../data-source/change-sets/models/is-soft-delete-entity.function';
@@ -10,6 +9,7 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { UniqueDeclaration } from '../../entity/models/unique-declaration.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
+import { SoftDeletingUserEntityOptions } from './soft-deleting-user-entity-options.model';
 
 /**
  * Common properties shared by all users.

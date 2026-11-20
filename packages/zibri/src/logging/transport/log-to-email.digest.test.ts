@@ -1,7 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { EmailLoggerTransportConfig } from './log-to-email.function';
-import { LogEmailTemplate, LoggerTransport } from './logger-transport.model';
 import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function';
 import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -12,6 +10,8 @@ import { Email } from '../../email/models/email.model';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { LogLevel } from '../log-level.enum';
 import { Log } from '../log.model';
+import { EmailLoggerTransportConfig } from './log-to-email.function';
+import { LogEmailTemplate, LoggerTransport } from './logger-transport.model';
 
 /**
  * A log storm becoming a mail storm.

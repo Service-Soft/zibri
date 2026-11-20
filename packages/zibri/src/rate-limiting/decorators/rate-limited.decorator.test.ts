@@ -1,7 +1,5 @@
 import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 
-import { RateLimited } from './rate-limited.decorator';
-import { RateLimiter } from './rate-limiter.decorator';
 import { initDiContainer } from '../../di/init-di-container.function';
 import { inject } from '../../di/inject.function';
 import { TooManyRequestsError } from '../../error-handling/errors/too-many-requests.error';
@@ -9,6 +7,8 @@ import { GlobalRegistry } from '../../global/global-registry';
 import { Ms } from '../../utilities/ms';
 import { TokenBucketRateLimiter, TokenBucketState } from '../limiter/token-bucket.rate-limiter';
 import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store';
+import { RateLimited } from './rate-limited.decorator';
+import { RateLimiter } from './rate-limiter.decorator';
 
 @RateLimiter()
 class GenerousDecoratorTestLimiter extends TokenBucketRateLimiter {

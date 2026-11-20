@@ -67,7 +67,7 @@ A route registered directly on the router is in the document as well, unless it 
 
 An operation that requires a login lists every strategy under `security`. One that answers anonymous callers lists none. A route that says nothing follows `defaultAuth` here as it does when it is called, see [what an undecorated route requires](../auth/auth.md#what-an-undecorated-route-requires).
 
-A route behind a permission names it in `x-permission`, and one behind a permission of the platform in `x-platform-permission`, see [roles and permissions](../auth/roles-and-permissions.md).
+A route behind a permission names it in `x-permission`, and one behind a permission of the platform in `x-platform-permission`, see [roles and permissions](../auth/roles-and-permissions.md). A route either of two permissions opens names both, with `x-any-level-permission: true`.
 
 ## Trying a route out
 The explorer lists the routes by controller. Each one shows its parameters, its request body and its responses, with

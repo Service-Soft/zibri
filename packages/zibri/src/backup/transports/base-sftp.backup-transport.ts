@@ -1,8 +1,8 @@
+import { optionalPeer } from '../../utilities/optional-peer.function';
 import { BackupTransportSessionInterface } from './backup-transport-session.interface';
 import { BaseBackupTransport } from './base.backup-transport';
 import { SftpBackupTransportOptions } from './sftp/sftp-backup-transport-options.model';
 import { SftpBackupTransport } from './sftp.backup-transport';
-import { optionalPeer } from '../../utilities/optional-peer.function';
 
 /**
  * A transport that stores backups in a folder on a server reached over SFTP. Of both versions, used as `v2`.

@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
 
-import { dataSourceNow } from './models/data-source-now.function';
-import { Repository } from './repository/repository';
 import { runApplicationClockAhead } from '../__testing__/run-application-clock-ahead.function';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { Ms } from '../utilities/ms';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { dataSourceNow } from './models/data-source-now.function';
+import { Repository } from './repository/repository';
 
 /**
  * The cases every data source answers the same way about `dataSourceNow`: what it writes and what it

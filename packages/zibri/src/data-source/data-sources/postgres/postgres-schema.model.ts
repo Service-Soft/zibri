@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 
-import { PostgresColumn, PostgresForeignKey, PostgresKey, PostgresReferentialAction, PostgresRelationJoin, PostgresTable } from './postgres-table.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { EntityMetadata } from '../../../entity/decorators/entity.decorator';
 import { PropertyMetadata, RelationMetadata } from '../../../entity/decorators/property.decorator';
@@ -22,6 +21,7 @@ import { BigNumber } from '../../../utilities/number.utilities';
 import { ObjectUtilities } from '../../../utilities/object.utilities';
 import { readNumber } from '../../../utilities/read-number.function';
 import { literalToSql } from '../../literal-to-sql.function';
+import { PostgresColumn, PostgresForeignKey, PostgresKey, PostgresReferentialAction, PostgresRelationJoin, PostgresTable } from './postgres-table.model';
 
 /**
  * A property that is stored in a column of its own, rather than through a relation.

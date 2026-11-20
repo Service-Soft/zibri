@@ -1,15 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Body } from './decorators/body.decorator';
-import { Controller } from './decorators/controller.decorator';
-import { Delete } from './decorators/delete.decorator';
-import { Get } from './decorators/get.decorator';
-import { Param } from './decorators/param.decorator';
-import { Post } from './decorators/post.decorator';
-import { Put } from './decorators/put.decorator';
-import { type RouterInterface } from './router.interface';
-import { UndeclaredResultError } from './undeclared-result.error';
 import { TestTimeouts } from '../__testing__/constants';
 import { JwtTestAuthController } from '../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
@@ -41,6 +32,15 @@ import { HtmlResponse } from '../parsing/html/html-response.model';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { Body } from './decorators/body.decorator';
+import { Controller } from './decorators/controller.decorator';
+import { Delete } from './decorators/delete.decorator';
+import { Get } from './decorators/get.decorator';
+import { Param } from './decorators/param.decorator';
+import { Post } from './decorators/post.decorator';
+import { Put } from './decorators/put.decorator';
+import { type RouterInterface } from './router.interface';
+import { UndeclaredResultError } from './undeclared-result.error';
 
 class Greeting {
     @Property.string()

@@ -1,14 +1,14 @@
 import { beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { initDiContainer } from '../di/init-di-container.function';
+import { inject } from '../di/inject.function';
+import { ObjectUtilities } from '../utilities/object.utilities';
 import { defineDateFormat } from './define-date-format.function';
 import { FormatDateOptions, FormatPercentOptions, FormatPriceOptions } from './localize-service.interface';
 import { LocalizeService } from './localize.service';
 import { LocaleCode } from './models/locale-code.model';
 import { LocaleConfiguration, LocalizeOptions } from './models/localize-options.model';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { initDiContainer } from '../di/init-di-container.function';
-import { inject } from '../di/inject.function';
-import { ObjectUtilities } from '../utilities/object.utilities';
 
 type ResolutionCase = {
     readonly header: string,
