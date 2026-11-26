@@ -2,6 +2,11 @@
 
 What changed in each release of `zibri`, `zibri-contract`, `zibri-tsx`, `zibri-tsx-compiler`, `zibri-mdx`, `zibri-testing` and `zibri-cli`. They are released together, at one version.
 
+## 3.2.1
+
+### Fixed
+- **Security:** a route that declares its response, such as with `@Response.object`, `@Response.array` or `@Response.paginated`, no longer answers a property the class excludes with `exclude: true`, or with an `exclude` function that excluded it for the request. A row read through a repository holds such a property hidden, and the response copied it all the same, so a declared response answered, for example, the secret of a stored connection. A route that declares no response was not affected. Update if a class you answer with excludes a property.
+
 ## 3.2.0
 
 ### Tenants

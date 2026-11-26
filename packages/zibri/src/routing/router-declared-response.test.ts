@@ -7,6 +7,7 @@ import { StartedTestServer, startTestServer } from '../__testing__/test-server/s
 import { type PaginationResult } from '../data-source/models/pagination-result.model';
 import { Property } from '../entity/decorators/property.decorator';
 import { type OneOf } from '../entity/models/one-of.model';
+import { removeExcludeProperties } from '../global/model-registry/remove-exclude-properties.function';
 import { Response } from '../open-api/decorators/response.decorator';
 import { Controller } from './decorators/controller.decorator';
 import { Get } from './decorators/get.decorator';
@@ -52,6 +53,17 @@ class UserDto {
 
     @Property.oneOf({ shapes: { Cat: { type: 'object', cls: () => Cat }, Dog: { type: 'object', cls: () => Dog } } })
     pet!: OneOf<{ Cat: Cat, Dog: Dog }>;
+}
+
+/**
+ * An account whose password is declared, and excluded.
+ */
+class AccountDto {
+    @Property.string()
+    name!: string;
+
+    @Property.string({ exclude: true })
+    password!: string;
 }
 
 /**
@@ -132,6 +144,21 @@ class DeclaredUserController {
         const attributes: AnyAttributes = { ...storedUser('ada') };
         return attributes;
     }
+
+    // as a repository returns a row: its excluded properties not enumerable
+    @Response.object(AccountDto)
+    @Get('/account')
+    async findAccount(): Promise<AccountDto> {
+        const account: AccountDto = { name: 'Nextcloud', password: 'app-password' };
+        await removeExcludeProperties(account, AccountDto);
+        return account;
+    }
+
+    @Response.object(AccountDto)
+    @Get('/account-by-hand')
+    findAccountByHand(): AccountDto {
+        return { name: 'Nextcloud', password: 'app-password' };
+    }
 }
 
 /**
@@ -188,5 +215,10 @@ describe('Router - answering with what the response declares', () => {
 
         expect(await read('undeclared')).toEqual(returned);
         expect(await read('any')).toEqual(returned);
+    });
+
+    it('leaves out an excluded property its class declares, of a row as a repository reads it and of one built by hand', async () => {
+        expect(await read('account')).toEqual({ name: 'Nextcloud' });
+        expect(await read('account-by-hand')).toEqual({ name: 'Nextcloud' });
     });
 });
