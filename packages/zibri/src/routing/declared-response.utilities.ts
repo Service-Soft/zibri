@@ -42,8 +42,14 @@ export abstract class DeclaredResponseUtilities {
         }
         const res: Record<string, unknown> = keepsUndeclared ? { ...value } : {};
         for (const [key, metadata] of ObjectUtilities.entries(properties)) {
-            // `in` rather than own keys, so a value that is an instance answers its getters too
-            if (key in value) {
+            // `in` rather than own keys, so a value that is an instance answers its getters too. An excluded
+            // property stays on the server: a row read through a repository holds it as an own property that is
+            // not enumerable, which `in` finds all the same, and a value built by hand holds it as any other
+            if (DeclaredResponseUtilities.isExcluded(value, key, metadata)) {
+                // kept by a class that allows what it does not declare, for an object holding it
+                Reflect.deleteProperty(res, key);
+            }
+            else if (key in value) {
                 res[key] = DeclaredResponseUtilities.resolvePropertyValue(value[key], metadata);
             }
         }
@@ -109,6 +115,11 @@ export abstract class DeclaredResponseUtilities {
             }
         }
         return res;
+    }
+
+    // an `exclude` that is a function asks about the request, which the repository answered as it read the row
+    private static isExcluded(value: Record<string, unknown>, key: string, metadata: PropertyMetadata): boolean {
+        return metadata.exclude === true || Object.getOwnPropertyDescriptor(value, key)?.enumerable === false;
     }
 
     // a date, a bignumber and a buffer are values json writes whole, not objects to walk
