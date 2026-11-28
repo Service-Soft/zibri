@@ -12,6 +12,7 @@ import { isSoftDeleteEntityNewable } from '../change-sets/models/is-soft-delete-
 import { SoftDeleteEntity } from '../change-sets/models/soft-delete-entity.model';
 import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { Where, WhereFilter } from '../models/where/where-filter.model';
+import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
 import { resolveEntityScope } from './resolve-entity-scope.function';
 import { ScopedWhere, ScopeWhereUtilities } from './scope-where.utilities';
 
@@ -30,20 +31,22 @@ export abstract class RelatedNarrowingUtilities {
      * @param where - The filter of the call, with the entity's own scope applied.
      * @param relations - The relations the call resolves.
      * @param unscoped - Which scopes the call is exempt from, which its related rows are exempt from too.
+     * @param transaction - The transaction of the call, if any.
      * @returns The narrowing per entity reached. An entity whose rows are not narrowed is left out.
      */
     static async resolve<T extends BaseEntity>(
         entityClass: Newable<T>,
         where: Where<T> | undefined,
         relations: RelationTree,
-        unscoped: Unscoped | undefined
+        unscoped: Unscoped | undefined,
+        transaction: RepositoryTransaction | undefined
     ): Promise<RelatedNarrowing> {
         const res: Map<Newable<BaseEntity>, Where<BaseEntity> | DenyAll> = new Map();
         const seen: Set<Newable<BaseEntity>> = new Set();
         const pending: Newable<BaseEntity>[] = [];
         this.collectReached(entityClass, this.treeOf(entityClass, where, relations), seen, pending);
         for (let target: Newable<BaseEntity> | undefined = pending.shift(); target != undefined; target = pending.shift()) {
-            const narrowing: Where<BaseEntity> | DenyAll | undefined = await this.narrowingOf(target, unscoped);
+            const narrowing: Where<BaseEntity> | DenyAll | undefined = await this.narrowingOf(target, unscoped, transaction);
             if (narrowing == undefined) {
                 continue;
             }
@@ -202,18 +205,20 @@ export abstract class RelatedNarrowingUtilities {
      * What the rows of one entity reached through a relation are narrowed to.
      * @param target - The entity.
      * @param unscoped - Which scopes the call is exempt from.
+     * @param transaction - The transaction of the call, if any.
      * @returns The narrowing, or undefined when nothing narrows the rows.
      * @throws Whatever the entity's scope throws, which is how it refuses a caller outright.
      */
     private static async narrowingOf(
         target: Newable<BaseEntity>,
-        unscoped: Unscoped | undefined
+        unscoped: Unscoped | undefined,
+        transaction: RepositoryTransaction | undefined
     ): Promise<Where<BaseEntity> | DenyAll | undefined> {
         const metadata: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(target);
         if (!metadata) {
             throw new EntityMetadataMissingError(target);
         }
-        const scope: Where<BaseEntity> | DenyAll | undefined = await resolveEntityScope(target, metadata, unscoped);
+        const scope: Where<BaseEntity> | DenyAll | undefined = await resolveEntityScope(target, metadata, unscoped, transaction);
         if (scope === denyAll) {
             return denyAll;
         }

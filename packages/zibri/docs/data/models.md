@@ -67,7 +67,7 @@ Every property is required unless it says otherwise. These are the kinds a prope
 | `@Property.date` | A `Date`, optionally [bounded](../endpoints/validation.md#bounding-a-date) by `before` and `after` |
 | `@Property.object` | An instance of the class it names |
 | `@Property.array` | A list of items of one kind |
-| `@Property.file` | An uploaded file, see [handling file uploads](../endpoints/creating-endpoints.md#handling-file-uploads) |
+| `@Property.file` | An uploaded file, see [handling file uploads](../endpoints/creating-endpoints.md#handling-file-uploads). On an entity, its bytes, or with `store` the id of a file kept in a [file store](./files.md#keeping-the-files-of-an-entity-in-a-file-store), whose options are listed there |
 | `@Property.oneOf` | One of several shapes, see [below](#a-value-of-several-shapes) |
 | `@Property.unknown` | Whatever JSON holds |
 | `@Property.manyToOne` | The one entity this entity points to, among many that can point to it |

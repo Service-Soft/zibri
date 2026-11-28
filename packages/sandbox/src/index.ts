@@ -3,7 +3,7 @@ import { inject, LoggerInterface, ZIBRI_DI_TOKENS, ZibriApplication } from 'zibr
 import { applicationOptions } from './application-options';
 import { createDefaultData } from './create-default-data.function';
 import { DbDataSource } from './data-sources';
-import { requirePortEnv } from './env';
+import { env } from './env';
 
 export let logger: LoggerInterface;
 
@@ -20,7 +20,7 @@ async function start(): Promise<void> {
 
     await createDefaultData(DbDataSource);
 
-    await app.start(requirePortEnv('PORT'));
+    await app.start(env.port);
 }
 
 // eslint-disable-next-line promise/prefer-await-to-callbacks

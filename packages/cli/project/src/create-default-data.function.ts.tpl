@@ -1,7 +1,7 @@
 import { DataSourceInterface, inject, Newable, PasswordCredentials, PasswordCredentialsCreateData, Repository, repositoryTokenFor, RoleCreateData, TenantServiceInterface, Transaction, ZIBRI_DI_TOKENS } from 'zibri';
 
 import { logger } from '.';
-import { requireEnv } from './env';
+import { env } from './env';
 import { Permissions, PlatformPermissions, PlatformRoles, Role, Roles, Tenant, User } from './models';
 import { MembershipRepository, RoleRepository, UserRepository } from './repositories';
 
@@ -52,7 +52,7 @@ async function createDefaultAdmin(transaction: Transaction): Promise<void> {
     const credentialsRepository: Repository<PasswordCredentials, PasswordCredentialsCreateData>
         = inject(repositoryTokenFor(PasswordCredentials));
 
-    const email: string = requireEnv('DEFAULT_ADMIN_EMAIL');
+    const email: string = env.defaultAdmin.email;
 
     const defaultUser: User | undefined = await userRepository.findOne({ where: { email }, required: false, transaction });
     if (defaultUser) {
@@ -62,7 +62,7 @@ async function createDefaultAdmin(transaction: Transaction): Promise<void> {
     logger.info('  - default admin');
     const user: User = await userRepository.create({ name: 'root', email, roles: [PlatformRoles.ADMIN] }, { transaction });
     await credentialsRepository.create(
-        { password: requireEnv('DEFAULT_ADMIN_PASSWORD'), userId: user.id },
+        { password: env.defaultAdmin.password, userId: user.id },
         { transaction }
     );
     await createDefaultTenant(user, transaction);

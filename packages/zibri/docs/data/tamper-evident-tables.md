@@ -104,6 +104,8 @@ export async function deleteOldTaskViews(views: Repository<TaskView>): Promise<n
 
 For a chained entity, `prune` removes rows from the old end of each chain only, up to the first row the filter does not match. A `ChainAnchor` records where the chain starts from then on, so the check tells pruned rows apart from removed ones. The filter names neither the tenant nor `chainSequence`. `prune` resolves how many rows it removed, and throws for an entity that is neither append-only nor chained.
 
+The rows of an [archived entity](./archive.md) are chained as well, and deleted from anywhere in their chains once their retention ended, which a `ChainGap` records. The check steps over the rows a gap records. See [pruning the archive](./archive.md#pruning-the-archive).
+
 ## Requirements
 Your data source declares these entities:
 
@@ -116,5 +118,6 @@ How large each table grows, and what deletes its rows, is in [framework tables](
 
 ## See also
 - [Audit trail](./audit.md) — the trail of security events, kept tamper-evident
+- [Archiving documents](./archive.md) — chained rows kept unchanged for a retention period, with their files
 - [Data source](./data-source.md) — declaring entities and their repositories
 - [Encryption and hashing](./encryption-and-hashing.md#keeping-a-signing-key) — the signing key

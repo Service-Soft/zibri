@@ -1,4 +1,4 @@
-import { HttpMethod } from '../http/http-method.enum';
+import { HttpClientMethod } from './http-client-method.type';
 import { HttpClientError } from './http-client.error';
 
 /**
@@ -15,7 +15,7 @@ export class CircuitOpenError extends HttpClientError {
      */
     readonly reopensAt: Date;
 
-    constructor(origin: string, reopensAt: Date, method: HttpMethod, url: string) {
+    constructor(origin: string, reopensAt: Date, method: HttpClientMethod, url: string) {
         super(
             `Not sending ${method} ${url}: ${origin} failed too often in a row,`
             + ` the next request goes through at ${reopensAt.toISOString()}`,

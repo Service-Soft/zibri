@@ -86,7 +86,8 @@ class TwoWaysAuthController extends AuthController({
         authenticators: [PasswordAuthenticator, PinAuthenticator],
         twoFactorMethods: [OtpTwoFactorMethod],
         currentUserRoute: true,
-        twoFactorRegistrationsRoute: true
+        twoFactorRegistrationsRoute: true,
+        updateCurrentUserRoute: true
     }) {}
 
 // what an application of 3.0 wrote, before AuthController answered GET /me and listed the second factors
@@ -232,6 +233,15 @@ describe('AuthController — the routes it defines', () => {
             currentUserRoute: true
         });
         expect('getCurrentUser' in answeringWhoIsLoggedIn.prototype).toBe(true);
+        // asked for on its own, as an application can have a PATCH /me of its own beside a GET /me of zibri
+        expect('updateCurrentUser' in answeringWhoIsLoggedIn.prototype).toBe(false);
+        const changingThemselves: Newable<object> = AuthController({
+            strategies: [JwtAuthStrategy],
+            authenticators: [PasswordAuthenticator],
+            twoFactorMethods: [],
+            updateCurrentUserRoute: true
+        });
+        expect(['updateCurrentUser' in changingThemselves.prototype, 'getCurrentUser' in changingThemselves.prototype]).toEqual([true, false]);
 
         const listingSecondFactors: Newable<object> = AuthController({
             strategies: [JwtAuthStrategy],
@@ -429,9 +439,44 @@ describe('AuthController — a login of several strategies and authenticators', 
         const res: Response = await fetch(`${baseUrl}/auth/me`, { headers: { Authorization: `Bearer ${accessToken}` } });
 
         expect(res.status).toBe(200);
-        // the roles are left out, like on the CurrentUser of a handler: routes check permissions
-        expect(await res.json()).toEqual({ id: user.id, email: EMAIL, memberships: [], platformPermissions: expect.any(Array) });
+        // the roles are left out, like on the CurrentUser of a handler: routes check permissions. The locale is the
+        // one the user was created in, outside a request
+        expect(await res.json()).toEqual({
+            id: user.id,
+            email: EMAIL,
+            kind: 'person',
+            locale: 'en-US',
+            memberships: [],
+            platformPermissions: expect.any(Array)
+        });
         expect((await fetch(`${baseUrl}/auth/me`)).status).toBe(401);
+    });
+
+    it('changes the locale of who is logged in, back to the default with null, and refuses one the application lacks', async () => {
+        const accessToken: string = await logIn();
+        const patch: (body: unknown, loggedIn?: boolean) => Promise<Response> = async (body, loggedIn = true) => await fetch(`${baseUrl}/auth/me`, {
+            method: 'PATCH',
+            headers: { [KnownHeader.CONTENT_TYPE]: 'application/json', ...loggedIn ? { Authorization: `Bearer ${accessToken}` } : {} },
+            body: JsonUtilities.stringify(body)
+        });
+        const users: Repository<JwtUser> = inject(repositoryTokenFor(JwtUser));
+        const storedLocale: () => Promise<string | null | undefined> = async () => (await users.findById(user.id)).locale;
+
+        const cleared: Response = await patch({ locale: null });
+        expect(cleared.status).toBe(200);
+        expect(await cleared.json()).toEqual(expect.not.objectContaining({ locale: expect.anything() }));
+        expect(await storedLocale()).toBeNull();
+
+        const set: Response = await patch({ locale: 'en-US' });
+        expect(await set.json()).toEqual(expect.objectContaining({ id: user.id, email: EMAIL, locale: 'en-US' }));
+        expect(await storedLocale()).toBe('en-US');
+
+        // left out, it stays
+        expect(await (await patch({})).json()).toEqual(expect.objectContaining({ locale: 'en-US' }));
+        // one the application doesn't support, which no text of it is in
+        expect((await patch({ locale: 'fr' })).status).toBe(400);
+        expect(await storedLocale()).toBe('en-US');
+        expect((await patch({ locale: null }, false)).status).toBe(401);
     });
 
     it('enrols the first second factor on a recent login, lists it, and then asks for the factor itself', async () => {

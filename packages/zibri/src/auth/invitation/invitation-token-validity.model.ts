@@ -40,4 +40,13 @@ export class InvitationTokenValidity {
      */
     @Property.boolean()
     declinable!: boolean;
+
+    /**
+     * Whether the account the invitation creates gets no password: accepting takes none, and answers a login like
+     * the login route. False for a link that does not work, and where accepting needs a login. The invitation
+     * service of zibri always answers it. Undefined, from an invitation service of your own, means false.
+     */
+    // TODO 4.0: required. Optional until then, so that a resolveTokenValidity of 3.2 stays valid
+    @Property.boolean({ required: false })
+    withoutPassword?: boolean;
 }

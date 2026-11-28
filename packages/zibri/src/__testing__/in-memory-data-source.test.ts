@@ -2,7 +2,7 @@ import { Readable } from 'node:stream';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { InMemoryDataSource, InMemoryStore, InMemoryTransaction, resetInMemoryStore } from 'zibri-testing';
+import { InMemoryDataSource, InMemoryStore, inMemoryStoreFor, InMemoryTransaction, resetInMemoryStore } from 'zibri-testing';
 
 import { ZibriApplication } from '../application/application';
 import { IsolationLevel } from '../data-source/data-sources/data-source.interface';
@@ -403,6 +403,37 @@ describe('InMemoryDataSource', () => {
 
         // a find that does not ask for a relation does not resolve it
         expect((await users.findById(user.id)).profile).toBeUndefined();
+    });
+
+    it('resolves the relations a read asks for only on the rows it hands back', async () => {
+        const users: Repository<User> = started.dataSource.getRepository(User);
+        const roles: Repository<Role> = started.dataSource.getRepository(Role);
+        const admin: Role = await roles.create({ name: 'admin' });
+        const others: User[] = await users.createAll(Array.from({ length: 49 }, (_, i) => mockCreateUserData({ name: `User ${i}` })));
+        const target: User = await users.create(mockCreateUserData({ name: 'Ada' }));
+        await users.updateById(target.id, { roles: [admin] });
+
+        // every resolution of a user's roles reads that user's set once, so the reads count the rows
+        // the relation was resolved on
+        const joinReads: jest.Spied<InMemoryStore['readJoin']> = jest.spyOn(inMemoryStoreFor(TestInMemoryDataSource), 'readJoin');
+        const roleReads: () => number = () => joinReads.mock.calls.filter(([key]) => key.endsWith(':roles')).length;
+
+        const found: User = await users.findById(target.id, { relations: ['roles'] });
+        expect(found.roles.map(r => r.name)).toEqual(['admin']);
+        expect(roleReads()).toBe(1);
+
+        joinReads.mockClear();
+        const page: User[] = await users.findAll({ order: { name: 'ASC' }, limit: 5, relations: ['roles'] });
+        expect(page).toHaveLength(5);
+        expect(roleReads()).toBe(5);
+
+        // a filter through the relation is judged on every row, which then needs no second read
+        joinReads.mockClear();
+        const admins: User[] = await users.findAll({ where: { roles: { where: { name: 'admin' } } }, relations: ['roles'] });
+        expect(admins.map(u => u.id)).toEqual([target.id]);
+        expect(admins[0]?.roles.map(r => r.name)).toEqual(['admin']);
+        expect(roleReads()).toBe(others.length + 1);
+        joinReads.mockRestore();
     });
 
     it('enforces unique declarations', async () => {

@@ -140,6 +140,9 @@ export class InvitationController {
 | `createOn` | `'accept'` creates the account and the membership once the invitation is accepted, so nobody gets one they never agreed to. `'invite'` creates them at once, so an administrator manages them before the invited person reacts. Required |
 | `declinable` | Whether the invited person may decline it. Required |
 | `expiresInMs` | How long the invitation lasts, or `undefined` for one that lasts until it is answered or revoked. Required |
+| `locale` | The locale the invitation is mailed in, its link sent again included, and the account it creates gets. The `locale` of the account the email has by default, else the locale of the request inviting |
+| `withoutPassword` | Whether the account the invitation creates gets no password, see [accepting without a password](#accepting-without-a-password). `false` by default |
+| `rowShares` | Rows of the tenant shared with the invited person once they accept, each in a role its entity declares, see [sharing a row by email](../data/sharing.md#sharing-a-row-by-email). None by default |
 
 Tenant roles are handed out in the tenant the request acts in with `auth.assign_role` of the caller's membership, and in any tenant with `auth.assign_role_in_any_tenant.with_any_permission` of their own, such as by the support of your application. Platform roles need `auth.assign_platform_role`. A caller who may not is answered `403`, and nothing is stored. An email with an open invitation there, or a member of the tenant, is answered `409`.
 
@@ -150,13 +153,24 @@ The page at `acceptInvitationUrl` takes the token from its path:
 
 | Route | Takes | Who calls it |
 |---|---|---|
-| `POST /auth/verify-invitation-token` | `{ "token" }`. Answers `{ "isValid", "renewed", "email", "tenantId", "requiresLogin", "declinable" }` | anyone, with the link |
-| `POST /auth/accept-invitation` | `{ "token", "password" }` | anyone with the link, logged in as the account of the email when `requiresLogin` |
+| `POST /auth/verify-invitation-token` | `{ "token" }`. Answers `{ "isValid", "renewed", "email", "tenantId", "requiresLogin", "declinable", "withoutPassword" }` | anyone, with the link |
+| `POST /auth/accept-invitation` | `{ "token", "password", "locale" }`, the `locale` optional, and no `password` when `withoutPassword`. Answers `204`, or a login when `withoutPassword` | anyone with the link, logged in as the account of the email when `requiresLogin` |
 | `POST /auth/decline-invitation` | `{ "token" }` | anyone, with the link |
 
 `requiresLogin` is true for an email whose account existed before the invitation. That account accepts logged in, without a password, so a forwarded link adds no other account to the tenant: logged out it is answered `401`, as somebody else `403`. Otherwise accepting takes the password of the account it creates, or of the one `createOn: 'invite'` created, which `PasswordAuthenticator` stores. Accepting creates the membership with the roles, or gives the platform roles, marks the email as verified, since the link reached it, and deletes the invitation. A membership `createOn: 'invite'` created keeps the roles an administrator gave it since.
 
+The account an invitation creates gets the [locale](../templates/localization.md#the-locale-of-a-user) of the invitation. A `locale` sent with the acceptance, such as the language the user picked on the page, replaces it, and one your application does not support is answered `400`.
+
 A link that was used, revoked or sent again is answered `401`. Declining one that may not be declined is answered `403`, and so are inviting into and accepting an invitation to a [deactivated tenant](../data/tenancy.md#deactivating-a-tenant), whose link works again once it is reactivated.
+
+## Accepting without a password
+An invitation with `withoutPassword: true` creates its account without a password, for people who use your application rarely, such as customers looking at a shared project. Accepting it takes no `password`, and logs the new user in by the link the invitation came with, as a [login with a link](./login-links.md) does: it answers what `POST /auth/login` answers, with `?strategy=` naming the strategy when there are several, or the `401` of a login that waits for a [second factor](./two-factor.md#asking-for-a-second-factor-at-login). Later, the user logs in with a link sent by email. A `password` sent with it is answered `400`.
+
+While such a user has no second factor, their login by a link counts as a [recent login](./two-factor.md#accepting-a-recent-login-instead), since a link is all they confirm who they are with: a route with `@Auth.require2fa({ reauth: true })` lets them through for a while after it, and then asks them for a new link, see [the second factor](./login-links.md#the-second-factor).
+
+`POST /auth/verify-invitation-token` answers `withoutPassword: true` for such an invitation, so the page asks for no password. It answers `false` where accepting needs a login: an email with an account of its own accepts logged in, as for any invitation.
+
+Inviting without a password needs `LoginLinkAuthenticator` among the [authenticators](../glossary.md#authenticator), and is answered `400` otherwise. An `InvitationServiceInterface` of your own logs the account in by implementing `acceptForLogin`, which answers the id of the account to log in.
 
 ## Sending it again and revoking
 `resend` of the `InvitationService` mails a new link, and the previous one stops working. `revoke` withdraws the invitation. Both read it by id the way its repository reads it in the active tenant, so a tenant's administrators reach the invitations of their tenant only. `findInvitations` answers the open invitations of the active tenant, or those to the application only while no tenant is active.
@@ -182,4 +196,6 @@ Each is recorded in the tenant of the invitation, with the invited email as `sub
 - [Tenants](../data/tenancy.md) — memberships, and the tenant a request acts in
 - [Roles and permissions](./roles-and-permissions.md) — which roles a caller may hand out
 - [The auth routes](./auth-routes.md) — every route `AuthController` defines
+- [Logging in with a link](./login-links.md) — how an account without a password logs in
+- [Sharing rows with selected people](../data/sharing.md) — inviting a guest who sees only the rows shared with them
 - [Email](../templates/email.md) — the template an invitation is sent in

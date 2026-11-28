@@ -5,7 +5,7 @@
 // The shapes follow what a page that does show the file declares, and what `zi new` generates. What
 // the reader writes against a service of their own, such as a client of their mail provider, is only
 // declared.
-import { type AppCommand, AuditServiceInterface, BaseEntity, BaseGoogleAuthenticator, BaseMembershipEntity, BaseRateLimitState, BaseRoleEntity, BaseTenantEntity, BaseUserEntity, Cache, type CacheServiceInterface, type CompanyInfo, Controller, DataSource, DefinedPermissions, definePermissions, DefinedPlatformPermissions, definePlatformPermissions, DiProvider, EmailChangedEmailTemplate, EmailVerificationEmailTemplate, EncryptionString, Entity, File, FsPath, HtmlResponse, HttpRequestContext, inject, Inject, Injectable, InjectionToken, InMemoryCacheStore, InvitationEmailTemplate, LocaleCode, Log, type LoggerInterface, MailingListController, type MetricsServiceInterface, Migration, MimeType, Newable, OAuthClientAuthentication, OidcDiscoveryAtBoot, OmitClass, OmitStrict, OpenApiExplorerTemplate, PartialClass, PostgresDataSource, PostgresOptions, PostgresPooler, Property, RateLimiterInterface, Repository, RepositoryClass, S3Credentials, SchemaManagement, Timezone, TraceSpanContext, TraceSpanInterface, TsxChildren, TsxComponent, ValKeyDataSource, ValKeyOptions, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS, ZIBRI_PERMISSIONS, ZIBRI_PLATFORM_PERMISSIONS, ZibriApplicationOptions } from '../../index';
+import { type AppCommand, type ApprovalAction, AuditServiceInterface, BaseEntity, BaseGoogleAuthenticator, BaseInvitationEntity, BaseMembershipEntity, BaseRateLimitState, BaseRoleEntity, BaseTenantEntity, BaseUserEntity, Cache, type CacheServiceInterface, type CompanyInfo, Controller, DataSource, DefinedPermissions, definePermissions, DefinedPlatformPermissions, definePlatformPermissions, DiProvider, EmailChangedEmailTemplate, EmailVerificationEmailTemplate, EncryptionString, Entity, File, FsPath, HtmlResponse, HttpRequestContext, inject, Inject, Injectable, InjectionToken, InMemoryCacheStore, InvitationEmailTemplate, LocaleCode, LoginLinkEmailTemplate, Log, type LoggerInterface, MailingListController, type MetricsServiceInterface, Migration, MimeType, Newable, OAuthClientAuthentication, OidcDiscoveryAtBoot, OmitClass, OmitStrict, OpenApiExplorerTemplate, PartialClass, PostgresDataSource, PostgresOptions, PostgresPooler, Property, RateLimiterInterface, Repository, RepositoryClass, S3Credentials, SchemaManagement, Timezone, TraceSpanContext, TraceSpanInterface, TsxChildren, TsxComponent, ValKeyDataSource, ValKeyOptions, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS, ZIBRI_PERMISSIONS, ZIBRI_PLATFORM_PERMISSIONS, ZIBRI_SERVICE_ACCOUNT_PLATFORM_PERMISSIONS, ZibriApplicationOptions } from '../../index';
 
 // src/models: the running example of the docs, a task tracker for teams
 
@@ -17,7 +17,8 @@ export enum Roles {
 export enum MemberRoles {
     USER = 'member',
     ACCOUNTANT = 'accountant',
-    ADMIN = 'owner'
+    ADMIN = 'owner',
+    GUEST = 'guest'
 }
 
 type AppPermissions = readonly [
@@ -25,13 +26,17 @@ type AppPermissions = readonly [
     'invoices.read',
     'invoices.export',
     'documents.read-all',
-    'scim.provision'
+    'scim.provision',
+    'tasks.read',
+    'tasks.close',
+    'tasks.propose',
+    'projects.read'
 ];
 
 type AppPlatformPermissions = readonly [
     ...typeof ZIBRI_PLATFORM_PERMISSIONS,
+    ...typeof ZIBRI_SERVICE_ACCOUNT_PLATFORM_PERMISSIONS,
     'tenants.manage',
-    'service-accounts.manage',
     'tokens.introspect',
     'api-docs.read'
 ];
@@ -41,12 +46,16 @@ const PERMISSIONS: AppPermissions = [
     'invoices.read',
     'invoices.export',
     'documents.read-all',
-    'scim.provision'
+    'scim.provision',
+    'tasks.read',
+    'tasks.close',
+    'tasks.propose',
+    'projects.read'
 ] as const;
 const PLATFORM_PERMISSIONS: AppPlatformPermissions = [
     ...ZIBRI_PLATFORM_PERMISSIONS,
+    ...ZIBRI_SERVICE_ACCOUNT_PLATFORM_PERMISSIONS,
     'tenants.manage',
-    'service-accounts.manage',
     'tokens.introspect',
     'api-docs.read'
 ] as const;
@@ -75,6 +84,12 @@ export class Role extends BaseRoleEntity {
 
 @Entity({ uniques: [['userId']] })
 export class Membership extends BaseMembershipEntity() {}
+
+@Entity({ uniques: [['email']], expiresBy: 'expiresAt' })
+export class Invitation extends BaseInvitationEntity() {
+    @Property.string()
+    name!: string;
+}
 
 @Entity()
 export class Task extends BaseTenantEntity() {
@@ -139,6 +154,9 @@ export class Invoice extends BaseTenantEntity() {
 export class Report extends BaseTenantEntity() {
     @Property.string()
     title!: string;
+
+    @Property.string({ format: 'uuid', required: false })
+    exportConnectionId?: string | null;
 }
 
 @Entity()
@@ -208,6 +226,10 @@ export class CacheDbDataSource extends ValKeyDataSource {
 }
 
 export declare const userRepository: Repository<User>;
+
+// src/approvals: the action the page on approving actions declares
+
+export declare const closeTaskAction: ApprovalAction<{ taskId: string }, Task>;
 
 // src/auth
 
@@ -334,6 +356,7 @@ export declare const NetworkChart: TsxComponent<{ primary: string, secondary: st
 export declare const VerifyEmailEmail: EmailVerificationEmailTemplate;
 export declare const EmailChangedEmail: EmailChangedEmailTemplate;
 export declare const InvitationEmail: InvitationEmailTemplate;
+export declare const LoginLinkEmail: LoginLinkEmailTemplate;
 
 // src: configuration
 
@@ -341,7 +364,13 @@ export declare const version: string;
 export declare const providers: DiProvider<unknown>[];
 export declare const sharedProviders: DiProvider<unknown>[];
 export declare const applicationOptions: ZibriApplicationOptions;
-export declare function requireEnv(key: string): string;
+// src/env.ts: the variables of `zi new` a page reads, and those a page adds of its own
+type Env = {
+    readonly masterKey: string,
+    readonly collectorUrl: string,
+    readonly collectorToken: string
+};
+export declare const env: Env;
 // src/commands: what `zi new` writes
 export declare const resetAdminCommand: AppCommand;
 export declare const environment: {
@@ -357,7 +386,9 @@ export declare const secrets: {
     refreshTokenSecret: string,
     s3AccessKeyId: string,
     s3SecretAccessKey: string,
-    sftpPrivateKey: string
+    sftpPrivateKey: string,
+    webDavPassword: string,
+    nextcloudAppPassword: string
 };
 export declare const clientCert: string;
 export declare const clientKey: string;

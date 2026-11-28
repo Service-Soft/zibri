@@ -69,13 +69,23 @@ export type WrittenRows = EntityWrite & {
 };
 
 /**
- * Checks every write to an entity before it is made, and follows it once it is committed, however the
- * repository above the store got to it.
+ * A write once it is made, with the rows it changed and the transaction it is made in, before it is committed.
+ */
+export type MadeWrite = WrittenRows & {
+    /**
+     * The transaction of the write, if any.
+     */
+    transaction: RepositoryTransaction | undefined
+};
+
+/**
+ * Checks every write to an entity before it is made, completes it in its transaction once it is made, and follows
+ * it once it is committed, however the repository above the store got to it.
  */
 export type EntityWriteObserver = {
     /**
      * The properties of the rows as they were that it needs of a write to every row a filter matches,
-     * or of a removal, which are read as these rather than as whole rows.
+     * or of a removal. Only these properties of such rows are read.
      */
     properties: string[],
     /**
@@ -84,9 +94,23 @@ export type EntityWriteObserver = {
      */
     followsBefore?: (write: EntityWrite) => boolean,
     /**
+     * Whether a write needs a transaction, such as one it writes rows of another entity with that roll back with
+     * it. A write without a transaction that an observer needs one for runs, with every observer, in a transaction
+     * of the data source of its entity, started for it and committed once the write is made. A row the observer
+     * writes into another data source is in none of it, so such an observer validates at startup that the
+     * entities it writes are in the data source of the entity. No transaction is started when absent.
+     */
+    requiresTransaction?: (write: EntityWrite) => boolean,
+    /**
      * Refuses a write before anything is written, by throwing.
      */
     validateWrite?: (write: ObservedWrite) => Promise<void>,
+    /**
+     * Completes a write once it is made, in its transaction, such as by writing the rows that belong with the rows it
+     * wrote, which need their ids. What it throws fails the write, which its transaction then rolls back, so an
+     * observer completing a write declares it with `requiresTransaction`.
+     */
+    completeWrite?: (write: MadeWrite) => Promise<void>,
     /**
      * Follows a write once it is committed, or once it is made when it runs in no transaction. What
      * it throws is logged, since the write stands either way.

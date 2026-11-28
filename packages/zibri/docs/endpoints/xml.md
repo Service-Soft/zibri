@@ -269,6 +269,8 @@ Elements are written in the order their properties are declared in, and a proper
 
 The document is written on one line. With `{ indent: true }`, an element holding only other elements puts each of them on a line of its own, indented by two spaces. Text, and an element holding text, is written exactly as it is.
 
+With `doctypeSystemId`, the document names the file of its document type definition after the xml declaration: `{ doctypeSystemId: 'order.dtd' }` writes `<!DOCTYPE Order SYSTEM "order.dtd">`, by the name of the root element.
+
 The example also reads the response as xml: a `responseBody` with `type: MimeType.XML` is read and validated like a request body. See [the http client](./http-client.md#body).
 
 The http client sends an `XmlString` as an xml body. A document you write some other way becomes one with `XmlUtilities.resolveXmlString`, which throws an `InternalError` for text that is not a well formed xml document.

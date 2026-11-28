@@ -55,5 +55,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=20s CMD \
 
 # the exec form rather than a shell, so that the signal a stop sends arrives at node itself
 # and the application shuts down in the orderly way it knows how to. --enable-source-maps is what
-# makes a stack trace name src/env.ts:34 rather than a line of the bundle
+# makes a stack trace name src/env.ts:319 rather than a line of the bundle
 CMD ["node", "--enable-source-maps", "dist/bundle.js"]

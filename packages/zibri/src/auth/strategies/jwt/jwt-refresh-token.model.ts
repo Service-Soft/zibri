@@ -1,3 +1,4 @@
+import { FrameworkColumnRegistry } from '../../../data-source/migration/framework-column.registry';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
@@ -125,7 +126,17 @@ export class JwtRefreshToken extends BaseEntity {
      */
     @Property.unknown({ required: false })
     providerAuthentication: ProviderAuthentication | undefined | null;
+
+    /**
+     * False for a login that does not count as a recent login, such as one by a link sent by email. Null for
+     * one that does. Every token of one family carries the same value.
+     */
+    @Property.boolean({ required: false })
+    countsAsRecentLogin?: boolean | null;
 }
+
+// added by the data source to a table that lacks it, so that the tokens of 3.2 take no migration of the application's
+FrameworkColumnRegistry.register({ entity: JwtRefreshToken, property: 'countsAsRecentLogin', meansAbsent: value => value === true });
 
 /**
  * Data for creating a new jwt refresh token.

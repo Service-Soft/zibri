@@ -1,3 +1,4 @@
+import { FrameworkColumnUtilities } from '../../data-source/migration/framework-column.utilities';
 import { Repository } from '../../data-source/repository/repository';
 import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { EntityWriteObserverRegistry } from '../../data-source/write-observers/entity-write-observer.registry';
@@ -12,16 +13,21 @@ import { DiProvider } from '../../di/models/di-provider.model';
 import { DiVariants } from '../../di/models/di-variant.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { ErrorUtilities } from '../../error-handling/error.utilities';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { FrameworkEventNames } from '../../event/framework-event-names.model';
 import { OnAppInit } from '../../global/on-app-init.interface';
+import { type LocaleCode } from '../../localization/models/locale-code.model';
 import { $ts } from '../../localization/translate.function';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { Newable } from '../../types/newable.type';
+import { ObjectUtilities } from '../../utilities/object.utilities';
 import { BaseUser } from '../models/base-user.model';
 import { RoleUtilities } from '../roles/role.utilities';
+import { type ServiceAccountCreateData } from './service-account-create-data.model';
 import { UserEventWriteObserver } from './user-event.write-observer';
+import { UserKindWriteObserver } from './user-kind.write-observer';
 import { isUserRepository, UserRepositoryInterface } from './user-repository.interface';
 import { FindUserOptions, UserServiceInterface } from './user-service.interface';
 import { UserWriteObserver } from './user.write-observer';
@@ -46,6 +52,11 @@ class NoUserRepositoriesProvidedError extends InternalError {
         this.name = 'NoUserRepositoriesProvidedError';
     }
 }
+
+/**
+ * What the name of a service account is made of: the local part of its address.
+ */
+const SERVICE_ACCOUNT_NAME: RegExp = /^[\da-z]+(?:-[\da-z]+)*$/;
 
 /**
  * Default user service implementation of Zibri.
@@ -86,6 +97,7 @@ export class UserService implements UserServiceInterface, OnAppInit {
             this.userEntityRepositories.push(repo);
             // given the role service here rather than resolving it per write
             inject(EntityWriteObserverRegistry).register(repo.entityClass, new UserWriteObserver(inject(ZIBRI_DI_TOKENS.ROLE_SERVICE)));
+            inject(EntityWriteObserverRegistry).register(repo.entityClass, new UserKindWriteObserver());
             // only when the application named one, since each costs the writes of its kind an event
             if (names.userDeleted != undefined || names.userDeactivated != undefined || names.userReactivated != undefined) {
                 inject(EntityWriteObserverRegistry).register(repo.entityClass, new UserEventWriteObserver(names));
@@ -193,6 +205,26 @@ export class UserService implements UserServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async updateLocale(id: string, locale: LocaleCode | null, transaction: RepositoryTransaction | undefined): Promise<void> {
+        // exactly one of them rather than one matched to it: what the user chose is what they read back
+        const supported: LocaleCode[] = ObjectUtilities.keys(inject(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS).supportedLocales);
+        if (locale != undefined && !supported.includes(locale)) {
+            throw new BadRequestError($ts`The locale needs to be one of ${supported.join(', ')}.`);
+        }
+        // a table without the column, of a schema the data source does not manage, would drop it without a word
+        for (const repository of this.userEntityRepositories) {
+            FrameworkColumnUtilities.validatePresent('Changing the locale of a user', repository.entityClass, 'locale');
+        }
+        // written by every repository in the transaction, for the reason updateDeactivatedAt gives: the one
+        // holding the user writes a row, the others none
+        const written: number[] = await Promise.all(this.userEntityRepositories
+            .map(async repository => await repository.updateAll({ id }, { locale }, { transaction })));
+        if (!written.some(count => count > 0)) {
+            throw new NotFoundError($ts`Could not find user with id "${id}".`);
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     isUserEntity(entityClass: Newable<BaseEntity>): boolean {
         return this.userEntityRepositories.some(repository => repository.entityClass === entityClass);
     }
@@ -253,6 +285,37 @@ export class UserService implements UserServiceInterface, OnAppInit {
             throw new NotFoundError($ts`Could not find user with id "${id}".`);
         }
         await holder.deleteById(id, { transaction });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async createServiceAccount<UserType extends BaseUser<string>>(
+        entity: Newable<UserType>,
+        data: ServiceAccountCreateData<UserType>,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<UserType> {
+        const { name, ...rest } = data;
+        // the name becomes the local part of an address, which stays one of the reserved top level domain .invalid
+        // (RFC 2606): whatever mails it, such as code of the application's own, reaches nobody
+        if (!SERVICE_ACCOUNT_NAME.test(name)) {
+            throw new BadRequestError($ts`The name of a service account needs to be lowercase letters, digits and hyphens between them.`);
+        }
+        const repository: Repository<BaseUser<string>> | undefined = this.userEntityRepositories.find(r => r.entityClass === entity);
+        if (repository == undefined) {
+            throw new BadRequestError($ts`The entity "${entity.name}" is not one a user repository reads.`);
+        }
+        FrameworkColumnUtilities.validatePresent('Creating a service account', entity, 'kind');
+        // the repository holds rows of exactly this entity, so what it creates is one of it
+        return await repository.create(
+            { ...rest, email: `${name}@service-accounts.invalid`, kind: 'service', emailVerifiedAt: null },
+            { transaction }
+        ) as UserType;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findServiceAccounts(transaction: RepositoryTransaction | undefined): Promise<BaseUser<string>[]> {
+        const found: BaseUser<string>[][] = await Promise.all(this.userEntityRepositories
+            .map(async repository => await repository.findAll({ where: { kind: 'service' }, unscoped: true, limit: 'all', transaction })));
+        return found.flat().sort((a, b) => a.email.localeCompare(b.email));
     }
 
     /**

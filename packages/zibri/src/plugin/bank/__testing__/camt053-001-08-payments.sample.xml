@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- the first statement of one account: payments of invoices, whole, in parts and of two at once, one without an invoice number, and a transfer paid. Written for the tests -->
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+    <BkToCstmrStmt>
+        <GrpHdr>
+            <MsgId>MSG-2026-11-PAYMENTS</MsgId>
+            <CreDtTm>2026-11-14T22:00:00+01:00</CreDtTm>
+        </GrpHdr>
+        <Stmt>
+            <Id>S-2026-PAYMENTS</Id>
+            <ElctrncSeqNb>1</ElctrncSeqNb>
+            <CreDtTm>2026-11-14T22:00:00+01:00</CreDtTm>
+            <FrToDt>
+                <FrDtTm>2026-11-10T00:00:00+01:00</FrDtTm>
+                <ToDtTm>2026-11-14T23:59:59+01:00</ToDtTm>
+            </FrToDt>
+            <Acct>
+                <Id>
+                    <IBAN>DE89370400440532013000</IBAN>
+                </Id>
+                <Ccy>EUR</Ccy>
+            </Acct>
+            <Bal>
+                <Tp>
+                    <CdOrPrtry>
+                        <Cd>OPBD</Cd>
+                    </CdOrPrtry>
+                </Tp>
+                <Amt Ccy="EUR">1000.00</Amt>
+                <CdtDbtInd>CRDT</CdtDbtInd>
+                <Dt>
+                    <Dt>2026-11-10</Dt>
+                </Dt>
+            </Bal>
+            <Bal>
+                <Tp>
+                    <CdOrPrtry>
+                        <Cd>CLBD</Cd>
+                    </CdOrPrtry>
+                </Tp>
+                <Amt Ccy="EUR">1813.00</Amt>
+                <CdtDbtInd>CRDT</CdtDbtInd>
+                <Dt>
+                    <Dt>2026-11-14</Dt>
+                </Dt>
+            </Bal>
+            <Ntry>
+                <Amt Ccy="EUR">238.00</Amt>
+                <CdtDbtInd>CRDT</CdtDbtInd>
+                <Sts>
+                    <Cd>BOOK</Cd>
+                </Sts>
+                <BookgDt>
+                    <Dt>2026-11-10</Dt>
+                </BookgDt>
+                <AcctSvcrRef>REF-PAY-1</AcctSvcrRef>
+                <NtryDtls>
+                    <TxDtls>
+                        <Amt Ccy="EUR">238.00</Amt>
+                        <CdtDbtInd>CRDT</CdtDbtInd>
+                        <RltdPties>
+                            <Dbtr>
+                                <Pty>
+                                    <Nm>SIEMENS AG</Nm>
+                                </Pty>
+                            </Dbtr>
+                            <DbtrAcct>
+                                <Id>
+                                    <IBAN>DE02120300000000202051</IBAN>
+                                </Id>
+                            </DbtrAcct>
+                        </RltdPties>
+                        <RmtInf>
+                            <Ustrd>Invoice 2026-SIEMEN-0001</Ustrd>
+                        </RmtInf>
+                    </TxDtls>
+                </NtryDtls>
+            </Ntry>
+            <Ntry>
+                <Amt Ccy="EUR">50.00</Amt>
+                <CdtDbtInd>CRDT</CdtDbtInd>
+                <Sts>
+                    <Cd>BOOK</Cd>
+                </Sts>
+                <BookgDt>
+                    <Dt>2026-11-11</Dt>
+                </BookgDt>
+                <AcctSvcrRef>REF-PAY-2</AcctSvcrRef>
+                <NtryDtls>
+                    <TxDtls>
+                        <Amt Ccy="EUR">50.00</Amt>
+                        <CdtDbtInd>CRDT</CdtDbtInd>
+                        <RltdPties>
+                            <Dbtr>
+                                <Pty>
+                                    <Nm>SIEMENS AG</Nm>
+                                </Pty>
+                            </Dbtr>
+                            <DbtrAcct>
+                                <Id>
+                                    <IBAN>DE02120300000000202051</IBAN>
+                                </Id>
+                            </DbtrAcct>
+                        </RltdPties>
+                        <RmtInf>
+                            <Ustrd>2026 SIEMEN 0002 part payment</Ustrd>
+                        </RmtInf>
+                    </TxDtls>
+                </NtryDtls>
+            </Ntry>
+            <Ntry>
+                <Amt Ccy="EUR">357.00</Amt>
+                <CdtDbtInd>CRDT</CdtDbtInd>
+                <Sts>
+                    <Cd>BOOK</Cd>
+                </Sts>
+                <BookgDt>
+                    <Dt>2026-11-12</Dt>
+                </BookgDt>
+                <AcctSvcrRef>REF-PAY-3</AcctSvcrRef>
+                <NtryDtls>
+                    <TxDtls>
+                        <Amt Ccy="EUR">357.00</Amt>
+                        <CdtDbtInd>CRDT</CdtDbtInd>
+                        <RltdPties>
+                            <Dbtr>
+                                <Pty>
+                                    <Nm>Small Shop</Nm>
+                                </Pty>
+                            </Dbtr>
+                            <DbtrAcct>
+                                <Id>
+                                    <IBAN>DE27100777770209299700</IBAN>
+                                </Id>
+                            </DbtrAcct>
+                        </RltdPties>
+                        <RmtInf>
+                            <Ustrd>2026-SMALLS-0001, 2026-SMALLS-0002</Ustrd>
+                        </RmtInf>
+                    </TxDtls>
+                </NtryDtls>
+            </Ntry>
+            <Ntry>
+                <Amt Ccy="EUR">69.00</Amt>
+                <CdtDbtInd>CRDT</CdtDbtInd>
+                <Sts>
+                    <Cd>BOOK</Cd>
+                </Sts>
+                <BookgDt>
+                    <Dt>2026-11-13</Dt>
+                </BookgDt>
+                <AcctSvcrRef>REF-PAY-4</AcctSvcrRef>
+                <NtryDtls>
+                    <TxDtls>
+                        <Amt Ccy="EUR">69.00</Amt>
+                        <CdtDbtInd>CRDT</CdtDbtInd>
+                        <RltdPties>
+                            <Dbtr>
+                                <Pty>
+                                    <Nm>SIEMENS AG</Nm>
+                                </Pty>
+                            </Dbtr>
+                            <DbtrAcct>
+                                <Id>
+                                    <IBAN>DE02120300000000202051</IBAN>
+                                </Id>
+                            </DbtrAcct>
+                        </RltdPties>
+                        <RmtInf>
+                            <Ustrd>Rest 2026SIEMEN0002</Ustrd>
+                        </RmtInf>
+                    </TxDtls>
+                </NtryDtls>
+            </Ntry>
+            <Ntry>
+                <Amt Ccy="EUR">119.00</Amt>
+                <CdtDbtInd>CRDT</CdtDbtInd>
+                <Sts>
+                    <Cd>BOOK</Cd>
+                </Sts>
+                <BookgDt>
+                    <Dt>2026-11-14</Dt>
+                </BookgDt>
+                <AcctSvcrRef>REF-PAY-5</AcctSvcrRef>
+                <NtryDtls>
+                    <TxDtls>
+                        <Amt Ccy="EUR">119.00</Amt>
+                        <CdtDbtInd>CRDT</CdtDbtInd>
+                        <RltdPties>
+                            <Dbtr>
+                                <Pty>
+                                    <Nm>Max Mustermann</Nm>
+                                </Pty>
+                            </Dbtr>
+                            <DbtrAcct>
+                                <Id>
+                                    <IBAN>DE44500105175407324931</IBAN>
+                                </Id>
+                            </DbtrAcct>
+                        </RltdPties>
+                        <RmtInf>
+                            <Ustrd>Thank you for the garden work</Ustrd>
+                        </RmtInf>
+                    </TxDtls>
+                </NtryDtls>
+            </Ntry>
+            <Ntry>
+                <Amt Ccy="EUR">20.00</Amt>
+                <CdtDbtInd>DBIT</CdtDbtInd>
+                <Sts>
+                    <Cd>BOOK</Cd>
+                </Sts>
+                <BookgDt>
+                    <Dt>2026-11-14</Dt>
+                </BookgDt>
+                <AcctSvcrRef>REF-PAY-6</AcctSvcrRef>
+                <NtryDtls>
+                    <TxDtls>
+                        <Amt Ccy="EUR">20.00</Amt>
+                        <CdtDbtInd>DBIT</CdtDbtInd>
+                        <RltdPties>
+                            <Cdtr>
+                                <Pty>
+                                    <Nm>Hosting Inc</Nm>
+                                </Pty>
+                            </Cdtr>
+                        </RltdPties>
+                        <RmtInf>
+                            <Ustrd>2026-SIEMEN-0001 hosting</Ustrd>
+                        </RmtInf>
+                    </TxDtls>
+                </NtryDtls>
+            </Ntry>
+        </Stmt>
+    </BkToCstmrStmt>
+</Document>

@@ -1,6 +1,10 @@
 import { ZibriApplication } from '../application/application';
 import { DefaultAuth } from '../application/application-options.model';
 import { Inject } from '../di/decorators/inject.decorator';
+import { type BaseEntity } from '../entity/base-entity.model';
+import { EntityMetadata } from '../entity/decorators/entity.decorator';
+import { PropertyMetadata } from '../entity/decorators/property.decorator';
+import { isRelationMetadata } from '../entity/models/is-relation-metadata.function';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
@@ -17,6 +21,7 @@ import { HasPermissionMetadata } from './models/has-permission-metadata.model';
 import { IsLoggedInMetadata } from './models/is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model';
 import { Require2faMetadata } from './models/require-2fa-metadata.model';
+import { RequireShareRoleMetadata } from './models/require-share-role-metadata.model';
 import { ResolvedAuthMetadata, ResolvedRouteAuth } from './models/resolved-auth-metadata.model';
 import { RouteAuthConfiguration } from './models/route-auth-configuration.model';
 import { SkipAuthMetadata, SkipMetadata } from './models/skip-auth-metadata.model';
@@ -33,6 +38,7 @@ const AUTH_HAS_PERMISSION_LABEL: string = '@Auth.hasPermission';
 const AUTH_HAS_PLATFORM_PERMISSION_LABEL: string = '@Auth.hasPlatformPermission';
 const AUTH_HAS_ANY_LEVEL_PERMISSION_LABEL: string = '@Auth.hasAnyLevelPermission';
 const AUTH_REQUIRE_2FA_LABEL: string = '@Auth.require2fa';
+const AUTH_REQUIRE_SHARE_ROLE_LABEL: string = '@Auth.requireShareRole';
 const PERMISSIONS_TOKEN: string = 'ZIBRI_DI_TOKENS.PERMISSIONS';
 
 /**
@@ -81,7 +87,8 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
             hasPermission: this.resolveHasPermissionMetadata(controllerClass, controllerMethod),
             hasPlatformPermission: this.resolveHasPlatformPermissionMetadata(controllerClass, controllerMethod),
             hasAnyLevelPermission: this.resolveHasAnyLevelPermissionMetadata(controllerClass, controllerMethod),
-            require2fa: this.resolveRequire2faMetadata(controllerClass, controllerMethod)
+            require2fa: this.resolveRequire2faMetadata(controllerClass, controllerMethod),
+            requireShareRole: this.resolveRequireShareRoleMetadata(controllerClass, controllerMethod)
         };
         this.validateAnyLevelPermissionStandsAlone(metadata, `${controllerClass.name}.${controllerMethod}`, {
             anyLevel: AUTH_HAS_ANY_LEVEL_PERMISSION_LABEL,
@@ -111,7 +118,8 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
             hasPermission: auth?.hasPermission,
             hasPlatformPermission: auth?.hasPlatformPermission,
             hasAnyLevelPermission: auth?.hasAnyLevelPermission,
-            require2fa: auth?.require2fa
+            require2fa: auth?.require2fa,
+            requireShareRole: auth?.requireShareRole
         };
         return { metadata, requiresLogin: this.requiresLoginGiven(metadata, this.defaultAuth === 'isLoggedIn' && auth?.skip !== true) };
     }
@@ -131,6 +139,7 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
         this.validateRoutePermissionIsDeclared('tenant', auth?.hasPermission, route, 'auth.hasPermission');
         this.validateRoutePermissionIsDeclared('platform', auth?.hasPlatformPermission, route, 'auth.hasPlatformPermission');
         this.validateAnyLevelPermissionIsDeclared(auth?.hasAnyLevelPermission, route, 'auth.hasAnyLevelPermission');
+        this.validateShareRoleIsDeclared(auth?.requireShareRole, route, 'auth.requireShareRole');
         const resolved: ResolvedRouteAuth = this.resolveManualRouteAuth(auth);
         this.validateAnyLevelPermissionStandsAlone(resolved.metadata, route, {
             anyLevel: 'auth.hasAnyLevelPermission',
@@ -325,6 +334,65 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
     }
 
     /**
+     * Resolves the role on a row a route requires, declared on it or on its controller.
+     * @param controllerClass - The controller the route is on.
+     * @param controllerMethod - The route to resolve.
+     * @returns What the route requires, or undefined when it requires no role.
+     * @throws When the entity is not shared, or does not declare the role.
+     */
+    private resolveRequireShareRoleMetadata(controllerClass: Newable<unknown>, controllerMethod: string): RequireShareRoleMetadata | undefined {
+        const metadata: RequireShareRoleMetadata | undefined = this.resolveCheckMetadata(
+            controllerClass,
+            controllerMethod,
+            AUTH_REQUIRE_SHARE_ROLE_LABEL,
+            {
+                controller: MetadataUtilities.getControllerRequireShareRole(controllerClass),
+                route: MetadataUtilities.getRouteRequireShareRole(controllerClass, controllerMethod),
+                controllerSkip: undefined,
+                routeSkip: undefined
+            },
+            false
+        );
+        this.validateShareRoleIsDeclared(metadata, `${controllerClass.name}.${controllerMethod}`, AUTH_REQUIRE_SHARE_ROLE_LABEL);
+        return metadata;
+    }
+
+    /**
+     * Refuses a route requiring a role on the row of an entity that is not shared, or a role it does not declare.
+     * @param metadata - What the route requires, if it requires a role.
+     * @param route - How to name the route in the error.
+     * @param label - How to name the declaration in the error.
+     * @throws When the entity, or the one it is shared through, declares no such role.
+     */
+    private validateShareRoleIsDeclared(metadata: RequireShareRoleMetadata | undefined, route: string, label: string): void {
+        if (metadata == undefined) {
+            return;
+        }
+        // read off the entities rather than the share service, which starts after the routes are registered
+        const seen: Newable<BaseEntity>[] = [];
+        let current: Newable<BaseEntity> = metadata.entityClass;
+        let roles: readonly string[] | undefined;
+        while (roles == undefined && !seen.includes(current)) {
+            seen.push(current);
+            const entity: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(current);
+            roles = entity?.shareable?.roles;
+            const through: PropertyMetadata | undefined = entity?.sharedThrough == undefined
+                ? undefined
+                : MetadataUtilities.getModelProperties(current)[entity.sharedThrough];
+            if (roles != undefined || !isRelationMetadata(through)) {
+                break;
+            }
+            current = through.target();
+        }
+        if (roles == undefined) {
+            throw new InternalError(`${route} in ${label} names ${metadata.entityClass.name}, which is neither shareable nor shared through a relation.`);
+        }
+        if (!roles.includes(metadata.role)) {
+            throw new InternalError(`${route} in ${label} names the role '${metadata.role}', which is none of ${roles.join(', ')}.`);
+        }
+    }
+
+    /**
      * Resolves what a check declared on a route and its controller means, with the skips applied -
      * the same for a login, no login, a permission and a second factor.
      * @param controllerClass - The controller the route is on.
@@ -473,6 +541,7 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
             || MetadataUtilities.getControllerHasPlatformPermission(controllerClass)
             || MetadataUtilities.getControllerHasAnyLevelPermission(controllerClass)
             || MetadataUtilities.getControllerRequire2fa(controllerClass)
+            || MetadataUtilities.getControllerRequireShareRole(controllerClass)
         ) {
             return;
         }
@@ -528,6 +597,7 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
             || metadata.hasPlatformPermission != undefined
             || metadata.hasAnyLevelPermission != undefined
             || metadata.require2fa != undefined
+            || metadata.requireShareRole != undefined
             // the default, unless it says the opposite, and says it itself - a route only reachable
             // while logged out is not one the default requirement applies to
             || (metadata.isNotLoggedIn == undefined && defaultApplies);

@@ -46,6 +46,12 @@ export interface BackupTransportSessionInterface {
      */
     delete: (keys: string[]) => Promise<void>,
     /**
+     * Deletes what puts that ended part way, such as with a process that went down, left on the transport under names
+     * no listing shows, once it is old enough that no put still runs on it. Each garbage collection calls it once, while
+     * no resource is being stored. A transport whose puts leave nothing behind, or that removes it on its own, has none.
+     */
+    deleteAbandonedUploads?: () => Promise<void>,
+    /**
      * Ends the session.
      */
     close: () => Promise<void>

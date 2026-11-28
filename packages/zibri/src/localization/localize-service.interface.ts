@@ -21,7 +21,8 @@ export type FormatPriceOptions = {
     locale?: LocaleCode
 } | {
     /**
-     * The currency code to use.
+     * The currency code to use. Defaults to the currency of `locale`, or with `priceCurrency: 'defaultLocale'` of
+     * the localize options to the one of the default locale.
      */
     currency?: CurrencyCode,
     /**
@@ -60,9 +61,20 @@ export type FormatPercentOptions = {
  */
 export interface LocalizeServiceInterface {
     /**
-     * Resolves a supported locale from the given context. Falls back to the default locale.
+     * Resolves the locale to translate and format in: the one of `runInLocale` while inside it, else the one the
+     * given request asks for. Falls back to the default locale.
      */
     resolveSupportedLocale: (context: HttpRequestContext | WebsocketRequestContext | undefined) => LocaleCode,
+    /**
+     * Runs the given function in a locale: `$ts`, `$f`, the formatting methods and every template rendered inside
+     * it, every await included, use it in place of the locale of the request. The locale is matched to a supported
+     * one, so `de-AT` runs in `de`. One that matches none, null and undefined run in the default locale. A locale
+     * set inside another replaces it for as long as the inner function runs.
+     *
+     * Optional until 4.0: call it through the function `runInLocale`, which runs the function as it is for a
+     * localize service without it.
+     */
+    runInLocale?: <T>(locale: LocaleCode | null | undefined, fn: () => T) => T,
     /**
      * Resolves a supported locale from the given accept language header string.
      */
@@ -84,7 +96,9 @@ export interface LocalizeServiceInterface {
      */
     getCurrencyMinorUnits: (currency: CurrencyCode) => number,
     /**
-     * Formats the given price, with the minor units of its currency.
+     * Formats the given price, with the minor units of its currency. Without a currency, the price is in the
+     * currency of the locale it is formatted in, or with `priceCurrency: 'defaultLocale'` of the localize options
+     * in the one of the default locale, whichever locale it is formatted in.
      */
     formatPrice: (price: AnyNumber, options: FormatPriceOptions) => string,
     /**

@@ -1,4 +1,5 @@
 import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
+import { TranslatedString } from '../../localization/models/translated-string.model';
 import { $ts } from '../../localization/translate.function';
 
 /**
@@ -8,8 +9,9 @@ import { $ts } from '../../localization/translate.function';
  * Answers 401, like a missing second factor, and tells the client to have the user log in again.
  */
 export class ReauthenticationRequiredError extends UnauthorizedError {
-    constructor(options?: ErrorOptions) {
-        super($ts`Log in again to access this route.`, options);
+    // the message second, so that an error created with its options alone stays as it was
+    constructor(options?: ErrorOptions, message: TranslatedString = $ts`Log in again to access this route.`) {
+        super(message, options);
         this.name = 'ReauthenticationRequiredError';
     }
 }

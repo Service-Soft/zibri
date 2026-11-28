@@ -7,10 +7,17 @@ import { repositoryTokenFor } from '../../di/decorators/inject-repository.decora
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { EntityOrder } from '../../entity/models/entity-order.model';
+import { FilePropertyUtilities, StoredFileProperty } from '../../file/file-property.utilities';
 import { HttpStatus } from '../../http/http-status.enum';
+import { MimeType } from '../../http/mime-type.enum';
 import { Response } from '../../open-api/decorators/response.decorator';
+import { FileResponse } from '../../parsing/form-data/file-response.model';
+import { FormData } from '../../parsing/form-data/form-data.model';
 import { DeepPartial } from '../../types/deep-partial.type';
+import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { BodyMetadataInput, StreamBodyMetadataInput } from '../decorators/body-metadata.model';
 import { Body } from '../decorators/body.decorator';
 import { Delete } from '../decorators/delete.decorator';
 import { Get } from '../decorators/get.decorator';
@@ -18,6 +25,7 @@ import { Param } from '../decorators/param.decorator';
 import { Patch } from '../decorators/patch.decorator';
 import { Post } from '../decorators/post.decorator';
 import { FilterUtilities } from '../filter/filter.utilities';
+import { CrudControllerFileUtilities } from './crud-controller-file.utilities';
 import { CrudControllerOptions } from './crud-controller-options.model';
 import { CrudControllerOrderUtilities } from './crud-controller-order.utilities';
 
@@ -53,7 +61,12 @@ export interface CrudControllerInterface<
     /**
      * Deletes the entity with the given id.
      */
-    deleteById: (id: T['id']) => Promise<void>
+    deleteById: (id: T['id']) => Promise<void>,
+    /**
+     * Downloads a file of the entity with the given id kept in a file store: the property, followed by the index for
+     * an item of an array, such as `attachments.2`. A route only of an entity with such files.
+     */
+    findFile?: (id: T['id'], file: string) => Promise<FileResponse>
 }
 
 // TODO 4.0: CrudController(entityClass, options?), the classes of the bodies among the options as
@@ -87,6 +100,12 @@ export function CrudController<
     const orderClass: Newable<object> | undefined = options.order === false
         ? undefined
         : CrudControllerOrderUtilities.resolveOrderClass(entityClass, options.order);
+    // an entity keeping files in a file store is written with multipart bodies, which carry the files, and serves
+    // them at a route of their own
+    const fileProperties: StoredFileProperty[] = FilePropertyUtilities.resolveStoredFileProperties(entityClass);
+    const bodyOptions: ExcludeStrict<BodyMetadataInput, StreamBodyMetadataInput> = fileProperties.length
+        ? { type: MimeType.FORM_DATA }
+        : {};
     // eslint-disable-next-line jsdoc/require-jsdoc
     class Temp implements CrudControllerInterface<T, CreateData, UpdateData> {
         // a getter, as a class built from this one with OmitClass, PickClass or IntersectionClass runs
@@ -100,10 +119,12 @@ export function CrudController<
         @Response.object(entityClass)
         @Post()
         async create(
-            @Body(createDataClass)
-            data: CreateData
+            @Body(createDataClass, bodyOptions)
+            data: CreateData | FormData<CreateData>
         ): Promise<T> {
-            return await this.repo.create(data);
+            return data instanceof FormData
+                ? await CrudControllerFileUtilities.create(this.repo, fileProperties, data)
+                : await this.repo.create(data);
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
@@ -145,10 +166,12 @@ export function CrudController<
         async updateById(
             @Param.path('id', { type: 'string', format: 'uuid' })
             id: T['id'],
-            @Body(updateDataClass)
-            data: UpdateData
+            @Body(updateDataClass, bodyOptions)
+            data: UpdateData | FormData<UpdateData>
         ): Promise<T> {
-            return await this.repo.updateById(id, data);
+            return data instanceof FormData
+                ? await CrudControllerFileUtilities.updateById(this.repo, id, fileProperties, data)
+                : await this.repo.updateById(id, data);
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
@@ -161,6 +184,31 @@ export function CrudController<
         ): Promise<void> {
             await this.repo.deleteById(id);
         }
+
+        // a route only of an entity keeping files in a file store, see below
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Response.error(HttpStatus.NOT_FOUND)
+        @Response.file()
+        async findFile(
+            @Param.path('id', { type: 'string', format: 'uuid' })
+            id: T['id'],
+            @Param.path('file', { type: 'string' })
+            file: string
+        ): Promise<FileResponse> {
+            // read through findById, so that a row the caller may not read is not found
+            return await CrudControllerFileUtilities.resolveDownload(await this.findById(id), fileProperties, file);
+        }
+    }
+    if (fileProperties.length) {
+        const descriptor: PropertyDescriptor = Object.getOwnPropertyDescriptor(Temp.prototype, 'findFile') ?? {};
+        Get('/:id/files/:file')(Temp.prototype, 'findFile', descriptor);
+        // with the access rules of findById, and as the route the url of each file of a response points to. The bodies
+        // are checked at start for a file they would hand to a column holding bytes
+        MetadataUtilities.setRouteServedFiles(
+            Temp,
+            { entityClass, accessOf: 'findById', bodyClasses: [createDataClass, updateDataClass] },
+            'findFile'
+        );
     }
     // a parameter decorator can't be left out inside a class body, so these are applied the way the class body
     // would, after it: a list that can't be filtered or ordered doesn't name the parameter, also in its OpenAPI.

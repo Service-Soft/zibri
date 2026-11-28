@@ -1,10 +1,12 @@
+import { type TenantSftpTransportSecretModel } from 'zibri-contract';
+
 import { Property } from '../../entity/decorators/property.decorator';
 
 /**
  * The secret a tenant's SFTP server is logged in to with: a password, or a private key in OpenSSH format,
  * exactly one of them.
  */
-export class TenantSftpTransportSecret {
+export class TenantSftpTransportSecret implements TenantSftpTransportSecretModel {
     /**
      * The password of the user.
      */

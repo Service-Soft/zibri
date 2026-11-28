@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs';
 
-import type PdfPrinter from 'pdfmake';
 import type { TDocumentDefinitions, Column, Content, Size, ImageDefinition, BufferOptions, PageSize } from 'pdfmake/interfaces';
 
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -8,9 +7,10 @@ import { getAllRegisteredTokens } from '../di/get-all-registered-tokens.function
 import { inject } from '../di/inject.function';
 import { InternalError } from '../error-handling/internal-error.model';
 import { FsPath } from '../utilities/fs.utilities';
-import { optionalPeer, optionalPeerDependency } from '../utilities/optional-peer.function';
+import { PdfAccessOptions } from './pdf-access-options.model';
 import { PdfFontFallbackUtilities, PdfGlyphCoverage } from './pdf-font-fallback.utilities';
 import { PdfFontFamily, PdfFontFile, PdfFontOptions } from './pdf-font-options.model';
+import { PdfmakeFontDescriptors, PdfmakeFontkit, PdfmakePrinter, PdfmakeUtilities } from './pdfmake.utilities';
 
 /**
  * Complete definition of a PDF document.
@@ -78,19 +78,13 @@ export type PdfBufferOptions = BufferOptions;
 export type PdfDocument = PDFKit.PDFDocument;
 
 /**
- * What fontkit is used for: reading which characters a font can draw.
- */
-type Fontkit = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    create: (buffer: Buffer) => Partial<PdfGlyphCoverage>
-};
-
-/**
  * A printer, and what each of its families can draw.
  */
 type PdfFontSetup = {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    printer: PdfPrinter,
+    pdfmake: string,
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    printer: PdfmakePrinter,
     // eslint-disable-next-line jsdoc/require-jsdoc
     coverage: ReadonlyMap<string, PdfGlyphCoverage>
 };
@@ -102,9 +96,9 @@ type PdfFontSetup = {
 const ROBOTO_ALONE: PdfFontOptions = { families: {}, fallbacks: [] };
 
 /**
- * The font descriptors a pdfmake printer is built with.
+ * What a pdf made outside an application may read besides its definition: nothing.
  */
-type PdfKitFontDescriptors = Record<string, Record<'normal' | 'bold' | 'italics' | 'bolditalics', PdfFontFile>>;
+const NOTHING_ALLOWED: PdfAccessOptions = { allowedFolders: [] };
 
 /**
  * Provides functionality around dealing with pdf files.
@@ -117,7 +111,7 @@ export abstract class PdfUtilities {
     private static readonly setups: WeakMap<PdfFontOptions, PdfFontSetup> = new WeakMap();
 
     /**
-     * Creates a pdf from the provided definition.
+     * Creates a pdf from the provided definition, with pdfmake 0.2 or 0.3.
      *
      * Each character of a text the font of the text cannot draw is set in the first of the
      * `fallbacks` of the fonts that can.
@@ -125,7 +119,39 @@ export abstract class PdfUtilities {
      * @param options - Additional options regarding the buffer.
      * @param fonts - The fonts the pdf may be set in. The application's, from `ZIBRI_DI_TOKENS.PDF_FONT_OPTIONS`,
      * by default, and Roboto alone outside an application.
+     * @param access - The files and URLs the pdf may read, with pdfmake 0.3. The application's, from
+     * `ZIBRI_DI_TOKENS.PDF_ACCESS_OPTIONS`, by default, and none outside an application.
      * @returns A readable of the newly created pdf.
+     * @throws InternalError with pdfmake 0.3, when the definition names a file or a URL the access options do not
+     * allow.
+     */
+    static async resolve(
+        documentDefinition: PdfDocumentDefinition,
+        options?: PdfBufferOptions,
+        fonts: PdfFontOptions = this.resolveFontOptions(),
+        access: PdfAccessOptions = this.resolveAccessOptions()
+    ): Promise<PdfDocument> {
+        const setup: PdfFontSetup = this.resolveSetup(fonts);
+        const { attachments, ...definition }: PdfDocumentDefinition = this.applyFallbacks(documentDefinition, fonts, setup);
+        const doc: PdfDocument = setup.printer.createsAsynchronously
+            ? await setup.printer.create(definition, options, access)
+            : setup.printer.create(definition, options);
+        this.attach(doc, attachments);
+        return doc;
+    }
+
+    /**
+     * Creates a pdf from the provided definition, with pdfmake 0.2.
+     *
+     * Each character of a text the font of the text cannot draw is set in the first of the
+     * `fallbacks` of the fonts that can.
+     * @deprecated Use {@link PdfUtilities.resolve}, which works with pdfmake 0.2 and 0.3. Removed in 4.0.
+     * @param documentDefinition - The definition to create the pdf from.
+     * @param options - Additional options regarding the buffer.
+     * @param fonts - The fonts the pdf may be set in. The application's, from `ZIBRI_DI_TOKENS.PDF_FONT_OPTIONS`,
+     * by default, and Roboto alone outside an application.
+     * @returns A readable of the newly created pdf.
+     * @throws InternalError with pdfmake 0.3, which creates a pdf asynchronously.
      */
     static create(
         documentDefinition: PdfDocumentDefinition,
@@ -133,19 +159,50 @@ export abstract class PdfUtilities {
         fonts: PdfFontOptions = this.resolveFontOptions()
     ): PdfDocument {
         const setup: PdfFontSetup = this.resolveSetup(fonts);
+        if (setup.printer.createsAsynchronously) {
+            throw new InternalError(
+                'pdfmake 0.3 creates a pdf asynchronously, which PdfUtilities.create cannot wait for. Use PdfUtilities.resolve.'
+            );
+        }
+        const { attachments, ...definition }: PdfDocumentDefinition = this.applyFallbacks(documentDefinition, fonts, setup);
+        const doc: PdfDocument = setup.printer.create(definition, options);
+        this.attach(doc, attachments);
+        return doc;
+    }
+
+    /**
+     * Sets each character a text's font cannot draw in the first of the fallbacks that can.
+     * @param documentDefinition - The definition.
+     * @param fonts - The fonts.
+     * @param setup - What each family can draw.
+     * @returns The definition with its texts split. The same definition when no fallback is registered.
+     */
+    private static applyFallbacks(
+        documentDefinition: PdfDocumentDefinition,
+        fonts: PdfFontOptions,
+        setup: PdfFontSetup
+    ): PdfDocumentDefinition {
         // nothing to look at when nothing stands in, which is every application that registered no fallback
-        const definition: PdfDocumentDefinition = fonts.fallbacks.length === 0
+        return fonts.fallbacks.length === 0
             ? documentDefinition
             : PdfFontFallbackUtilities.apply(documentDefinition, {
                 coverage: setup.coverage,
                 fallbacks: fonts.fallbacks,
                 styles: undefined
             });
-        const doc: PdfDocument = setup.printer.createPdfKitDocument(definition, options);
-        for (const attachment of documentDefinition.attachments) {
+    }
+
+    /**
+     * Adds the attachments of a definition to its pdf.
+     * @param doc - The pdf.
+     * @param attachments - The attachments.
+     */
+    private static attach(doc: PdfDocument, attachments: PdfAttachmentDefinition[]): void {
+        // added here rather than handed to pdfmake, which 0.2 does not attach and 0.3 reads as the files a
+        // content element links to by their name. With 0.3, a path is read only inside the allowed folders
+        for (const attachment of attachments) {
             doc.file(attachment.src, attachment.options);
         }
-        return doc;
     }
 
     /**
@@ -156,6 +213,16 @@ export abstract class PdfUtilities {
         return getAllRegisteredTokens().includes(ZIBRI_DI_TOKENS.PDF_FONT_OPTIONS)
             ? inject(ZIBRI_DI_TOKENS.PDF_FONT_OPTIONS)
             : ROBOTO_ALONE;
+    }
+
+    /**
+     * What the pdfs of the running application may read.
+     * @returns Its access options, or nothing allowed when no application has registered any, such as in a script.
+     */
+    private static resolveAccessOptions(): PdfAccessOptions {
+        return getAllRegisteredTokens().includes(ZIBRI_DI_TOKENS.PDF_ACCESS_OPTIONS)
+            ? inject(ZIBRI_DI_TOKENS.PDF_ACCESS_OPTIONS)
+            : NOTHING_ALLOWED;
     }
 
     /**
@@ -170,23 +237,12 @@ export abstract class PdfUtilities {
      */
     private static resolveSetup(fonts: PdfFontOptions): PdfFontSetup {
         const existing: PdfFontSetup | undefined = this.setups.get(fonts);
-        if (existing != undefined) {
+        // a printer is one of the pdfmake that built it, and the tests switch between 0.2 and 0.3
+        if (existing?.pdfmake === PdfmakeUtilities.packageName) {
             return existing;
         }
-        // the module is the constructor - pdfmake sets `module.exports` to it, so there is no
-        // `default` to reach through the way an esm style import would suggest
-        const Printer: typeof PdfPrinter = optionalPeer<typeof PdfPrinter>('pdfmake', 'Creating a pdf');
-        // the static cuts of Roboto that pdfmake ships with its browser build, base64 by file name.
-        // Static ones, because pdfkit draws a variable font at its default weight only, so bold text
-        // set in one comes out regular
-        const shipped: Record<string, string> = optionalPeer<Record<string, string>>('pdfmake/build/vfs_fonts', 'Creating a pdf');
         const families: Record<string, PdfFontFamily> = {
-            Roboto: {
-                normal: this.resolveShippedFont(shipped, 'Roboto-Regular.ttf'),
-                bold: this.resolveShippedFont(shipped, 'Roboto-Medium.ttf'),
-                italics: this.resolveShippedFont(shipped, 'Roboto-Italic.ttf'),
-                bolditalics: this.resolveShippedFont(shipped, 'Roboto-MediumItalic.ttf')
-            },
+            Roboto: PdfmakeUtilities.resolveRoboto(),
             ...fonts.families
         };
         const unknown: string[] = fonts.fallbacks.filter(name => families[name] == undefined);
@@ -194,7 +250,7 @@ export abstract class PdfUtilities {
             throw new InternalError(`The pdf font fallbacks name families that are not registered: ${unknown.join(', ')}.`);
         }
 
-        const descriptors: PdfKitFontDescriptors = {};
+        const descriptors: PdfmakeFontDescriptors = {};
         for (const [name, family] of Object.entries(families)) {
             descriptors[name] = {
                 normal: family.normal,
@@ -204,7 +260,8 @@ export abstract class PdfUtilities {
             };
         }
         const setup: PdfFontSetup = {
-            printer: new Printer(descriptors),
+            pdfmake: PdfmakeUtilities.packageName,
+            printer: PdfmakeUtilities.resolvePrinter(descriptors),
             // only what the fallbacks need: which characters each family can draw is read when a
             // text is looked at, and nothing is looked at without fallbacks
             coverage: fonts.fallbacks.length === 0 ? new Map() : this.resolveCoverage(families)
@@ -220,12 +277,7 @@ export abstract class PdfUtilities {
      * @throws InternalError when a file is a collection of fonts, such as a `.ttc` file.
      */
     private static resolveCoverage(families: Record<string, PdfFontFamily>): ReadonlyMap<string, PdfGlyphCoverage> {
-        // the fontkit pdfmake draws with, so the characters a family is said to have are the ones it draws
-        const fontkit: Fontkit = optionalPeerDependency<Fontkit>(
-            ['pdfmake', '@foliojs-fork/pdfkit'],
-            '@foliojs-fork/fontkit',
-            'Font fallbacks in a pdf'
-        );
+        const fontkit: PdfmakeFontkit = PdfmakeUtilities.resolveFontkit();
         const coverage: Map<string, PdfGlyphCoverage> = new Map();
         for (const [name, family] of Object.entries(families)) {
             const file: PdfFontFile = family.normal;
@@ -239,20 +291,5 @@ export abstract class PdfUtilities {
             coverage.set(name, { hasGlyphForCodePoint });
         }
         return coverage;
-    }
-
-    /**
-     * Reads one of the fonts pdfmake ships.
-     * @param fonts - The fonts, base64 by file name.
-     * @param file - The file name of the font.
-     * @returns The font.
-     * @throws InternalError when the installed pdfmake does not ship the font.
-     */
-    private static resolveShippedFont(fonts: Record<string, string>, file: string): Buffer {
-        const font: string | undefined = fonts[file];
-        if (font == undefined) {
-            throw new InternalError(`The installed pdfmake ships no font "${file}".`);
-        }
-        return Buffer.from(font, 'base64');
     }
 }

@@ -71,7 +71,12 @@ describe('what a write resolves from the container', () => {
         expect(await resolveTokensResolvedBy(async () => await notes.deleteAll({ text: 'bulk' }))).toEqual([]);
     });
 
-    it('resolves nothing for a write to users, whose roles are checked', async () => {
-        expect(await resolveTokensResolvedBy(async () => await users.create({ email: 'ada@example.com', roles: [Roles.USER] }))).toEqual([]);
+    // a new user gets the locale of the request creating them, the default of its locale, which is all it resolves
+    it('resolves only the locale of the request for a new user, whose roles are checked, and nothing for a change', async () => {
+        const created: string[] = await resolveTokensResolvedBy(async () => await users.create({ email: 'ada@example.com', roles: [Roles.USER] }));
+        expect(created).toEqual(['zi.localize_service', 'zi.current_request_context']);
+
+        const user: { id: string } = await users.findOne({ where: { email: 'ada@example.com' } });
+        expect(await resolveTokensResolvedBy(async () => await users.updateById(user.id, { roles: [Roles.ADMIN] }))).toEqual([]);
     });
 });

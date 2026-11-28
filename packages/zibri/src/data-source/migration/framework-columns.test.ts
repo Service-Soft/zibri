@@ -1,13 +1,20 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { TestTimeouts } from '../../__testing__/constants';
+import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
+import { TestInvitation } from '../../__testing__/mocks/entities/test-invitation.entity';
 import { queryPostgres } from '../../__testing__/query-postgres.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestServerInvitationRepository } from '../../__testing__/test-server/invitation-repository';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
+import { AuditEntry } from '../../audit/audit-entry.model';
+import { LoginTicket } from '../../auth/models/login-ticket.model';
+import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
 import { BackupEntity } from '../../backup/backup-entity.model';
 import { BackupResourceEntity } from '../../backup/backup-resource-entity.model';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { inject } from '../../di/inject.function';
+import { Email } from '../../email/models/email.model';
 import { GlobalRegistry } from '../../global/global-registry';
 import { Log } from '../../logging/log.model';
 import { Newable } from '../../types/newable.type';
@@ -20,6 +27,12 @@ import { Migration } from './migration.model';
 
 const LOGS: string = MigratedEntityUtilities.resolveTableName(Log);
 const RESOURCES: string = MigratedEntityUtilities.resolveTableName(BackupResourceEntity);
+const EMAILS: string = MigratedEntityUtilities.resolveTableName(Email);
+const USERS: string = MigratedEntityUtilities.resolveTableName(JwtUser);
+const INVITATIONS: string = MigratedEntityUtilities.resolveTableName(TestInvitation);
+const REFRESH_TOKENS: string = MigratedEntityUtilities.resolveTableName(JwtRefreshToken);
+const LOGIN_TICKETS: string = MigratedEntityUtilities.resolveTableName(LoginTicket);
+const AUDIT_ENTRIES: string = MigratedEntityUtilities.resolveTableName(AuditEntry);
 
 /**
  * The migrations of an application of 3.0: every table as 3.0 stored it, without the columns the framework added
@@ -35,12 +48,25 @@ class SchemaOfThreeMigration extends Migration {
 
     override async up(transaction: Transaction): Promise<void> {
         // the migration table is the one the data source creates itself, before any migration runs
-        for (const entity of [...defaultTestServerEntities.filter(e => e !== MigrationEntity), BackupEntity, BackupResourceEntity]) {
+        // the invitations as 3.2 stored them, the first release with them
+        for (const entity of [...defaultTestServerEntities.filter(e => e !== MigrationEntity), BackupEntity, BackupResourceEntity, TestInvitation]) {
             await this.dataSource.createEntity({ entity, properties: 'resolveFromEntity', transaction });
         }
+        await this.dataSource.removePropertyFromEntity({ entity: JwtUser, propertyKey: 'locale', transaction });
+        await this.dataSource.removePropertyFromEntity({ entity: JwtUser, propertyKey: 'kind', transaction });
+        for (const propertyKey of ['userKind', 'approvalRequestId']) {
+            await this.dataSource.removePropertyFromEntity({ entity: AuditEntry, propertyKey, transaction });
+        }
+        await this.dataSource.removePropertyFromEntity({ entity: TestInvitation, propertyKey: 'locale', transaction });
         await this.dataSource.removePropertyFromEntity({ entity: Log, propertyKey: 'application', transaction });
         for (const propertyKey of ['stagedSize', 'baseBackupId', 'readCursor']) {
             await this.dataSource.removePropertyFromEntity({ entity: BackupResourceEntity, propertyKey, transaction });
+        }
+        await this.dataSource.removePropertyFromEntity({ entity: Email, propertyKey: 'replyTo', transaction });
+        await this.dataSource.removePropertyFromEntity({ entity: TestInvitation, propertyKey: 'withoutPassword', transaction });
+        await this.dataSource.removePropertyFromEntity({ entity: JwtRefreshToken, propertyKey: 'countsAsRecentLogin', transaction });
+        for (const propertyKey of ['excludedTwoFactorMethods', 'countsAsRecentLogin']) {
+            await this.dataSource.removePropertyFromEntity({ entity: LoginTicket, propertyKey, transaction });
         }
         const dataSource: PostgresDataSource = inject(getDataSourceClass());
         await queryPostgres(
@@ -58,8 +84,8 @@ class SchemaOfThreeMigration extends Migration {
 }
 
 const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-    entities: [...defaultTestServerEntities, BackupEntity, BackupResourceEntity],
-    repositories: defaultTestServerRepositories,
+    entities: [...defaultTestServerEntities, BackupEntity, BackupResourceEntity, TestInvitation],
+    repositories: [...defaultTestServerRepositories, TestServerInvitationRepository],
     schemaManagement: 'migrations',
     migrations: [SchemaOfThreeMigration]
 });
@@ -105,6 +131,14 @@ describe('a data source whose migrations manage the schema, migrated as 3.0 stor
 
         expect(logColumns).toContain('application');
         expect(resourceColumns).toEqual(expect.arrayContaining(['stagedSize', 'baseBackupId', 'readCursor']));
+        expect((await findColumns(EMAILS)).map(c => String(c['name']))).toContain('replyTo');
+        // of the classes the application extends from a factory of the framework, whose tables are its own
+        expect((await findColumns(USERS)).map(c => String(c['name']))).toEqual(expect.arrayContaining(['locale', 'kind']));
+        expect((await findColumns(AUDIT_ENTRIES)).map(c => String(c['name']))).toEqual(expect.arrayContaining(['userKind', 'approvalRequestId']));
+        expect((await findColumns(INVITATIONS)).map(c => String(c['name']))).toEqual(expect.arrayContaining(['locale', 'withoutPassword']));
+        expect((await findColumns(REFRESH_TOKENS)).map(c => String(c['name']))).toContain('countsAsRecentLogin');
+        expect((await findColumns(LOGIN_TICKETS)).map(c => String(c['name'])))
+            .toEqual(expect.arrayContaining(['excludedTwoFactorMethods', 'countsAsRecentLogin']));
     });
 
     it('gives the logs stored before the name of the application, and leaves the column without a default', async () => {

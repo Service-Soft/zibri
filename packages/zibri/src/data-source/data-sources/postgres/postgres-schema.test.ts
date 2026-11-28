@@ -128,16 +128,22 @@ function withRelated(entities: Newable<BaseEntity>[]): Newable<BaseEntity>[] {
  * the upgrade guide tells an application to add. The recording stays what typeorm built.
  */
 const COLUMNS_ADDED_SINCE_RECORDING: Record<string, string[]> = {
-    audit_entry: ['mac', 'recordedAt'],
+    // and two columns of the framework: the kind of user an entry is about, and the approval it records
+    audit_entry: ['mac', 'recordedAt', 'userKind', 'approvalRequestId'],
     // 3.1, a migration of its own: the tenant a backup is of, and what a backup reading only what changed builds on
     backup_entity: ['tenantId'],
     // and what each resource took as staged, which says what restoring it takes
     backup_resource_entity: ['baseBackupId', 'readCursor', 'stagedSize'],
-    jwt_refresh_token: ['authenticatedAt', 'ipAddress', 'issuedAt', 'userAgent'],
-    jwt_user: ['emailVerifiedAt'],
+    // a column of the framework, which the data source adds itself: where an answer to the mail goes
+    email: ['replyTo'],
+    // and a column of the framework: whether the login counts as a recent one
+    jwt_refresh_token: ['authenticatedAt', 'ipAddress', 'issuedAt', 'userAgent', 'countsAsRecentLogin'],
+    // and columns of the framework: the locale the user is mailed in, and whether they are a person
+    jwt_user: ['emailVerifiedAt', 'locale', 'kind'],
     // 3.1, a migration of its own: the application that logged an entry
     log: ['application'],
-    login_ticket: ['passwordChangeRequired', 'purpose'],
+    // and columns of the framework: what a login waiting for its second factor says of itself
+    login_ticket: ['passwordChangeRequired', 'purpose', 'excludedTwoFactorMethods', 'countsAsRecentLogin'],
     password_credentials: ['changeRequired'],
     thread_job_entity: ['checkpoint', 'instanceId']
 };

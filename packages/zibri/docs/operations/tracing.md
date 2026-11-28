@@ -86,19 +86,21 @@ Register an exporter, and every finished span is sent there in batches, as well 
 // src/providers.ts
 import { defineProvider, DiProvider, InMemoryTraceBuffer, otlpTraceExporter, ZIBRI_DI_TOKENS } from 'zibri';
 
-import { requireEnv } from './env';
+import { env } from './env';
 
 export const providers: DiProvider<unknown>[] = [
     defineProvider({ token: ZIBRI_DI_TOKENS.TRACE_BUFFER, useFactory: () => new InMemoryTraceBuffer(5000) }),
     defineProvider({
         token: ZIBRI_DI_TOKENS.TRACE_EXPORTER,
         useFactory: () => otlpTraceExporter({
-            url: `${requireEnv('COLLECTOR_URL')}/v1/traces`,
-            headers: { authorization: `Api-Token ${requireEnv('COLLECTOR_TOKEN')}` }
+            url: `${env.collectorUrl}/v1/traces`,
+            headers: { authorization: `Api-Token ${env.collectorToken}` }
         })
     })
 ];
 ```
+
+`collectorUrl` and `collectorToken` are variables of your own, read from `COLLECTOR_URL` and `COLLECTOR_TOKEN`, see [configuration](./deployment.md#configuration).
 
 `otlpTraceExporter` speaks OTLP, the protocol every tracing backend reads, and needs two more packages:
 

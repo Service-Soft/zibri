@@ -7,7 +7,12 @@ import vm from 'node:vm';
 // lets ts-jest down-compile "import"/"export" to CommonJS for Jest's runtime. The framework's optionalPeer goes through
 // it too: inside a test, the require createRequire hands back is Jest's own. Asked the way jest asks
 const loadsEsModules = typeof vm.SourceTextModule?.prototype?.hasAsyncGraph === 'function';
-const esmPackages = '@faker-js/faker|jose|openid-client|oauth4webapi';
+// pdfmake 0.3.15 stands on pdfkit 0.21, which requires fontkit 3 and linebreak, ESM-only like brotli, dfa,
+// unicode-properties and unicode-trie that fontkit is built on, and pdfmake itself requires the ESM-only @noble/hashes.
+// Node requires them as es modules, jest without --experimental-vm-modules does not. createJestConfig of zibri-testing
+// compiles the same for an application, and this file cannot import it: zibri-testing is built after zibri, from
+// zibri's build, while this suite runs against the sources
+const esmPackages = '@faker-js/faker|jose|openid-client|oauth4webapi|fontkit|linebreak|brotli|dfa|unicode-properties|unicode-trie|@noble/hashes';
 
 /** @type {import('ts-jest').JestConfigWithTsJest} **/
 const config = {
@@ -29,7 +34,9 @@ const config = {
                 ]
             }
     },
-    transformIgnorePatterns: loadsEsModules ? ['/node_modules/'] : [`/node_modules/(?!(${esmPackages})/)`],
+    // also where npm installs one of them below another package, such as fontkit 3 below pdfmake-0.3: a path is
+    // ignored when the pattern matches at any of its node_modules, so the first one checks the ones below it too
+    transformIgnorePatterns: loadsEsModules ? ['/node_modules/'] : [`/node_modules/(?!(.*/node_modules/)?(${esmPackages})/)`],
     // The harness is a package of its own, and this suite is its consumer - but it is also the
     // framework the harness imports. Both names resolve to the sources beside this file rather than
     // to a built `dist`: one physical copy of the framework in the process (two would be refused at
@@ -38,7 +45,11 @@ const config = {
         '^zibri$': '<rootDir>/index.ts',
         '^zibri/internal$': '<rootDir>/internal.ts',
         '^zibri-testing$': '<rootDir>/../../testing/src/index.ts',
-        '^zibri-contract$': '<rootDir>/../../contract/src/index.ts'
+        '^zibri-contract$': '<rootDir>/../../contract/src/index.ts',
+        // the module unicode-properties reads its data with in node finds the file by import.meta.url, which commonjs
+        // does not have: its variant for browsers holds the same data inline. Resolved from the file importing it, so
+        // wherever unicode-properties is installed
+        ...loadsEsModules ? {} : { '^#binary-trie$': './binaryTrie.browser.js' }
     },
     globalSetup: '<rootDir>/jest.global-setup.ts',
     setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],

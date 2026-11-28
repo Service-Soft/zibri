@@ -41,22 +41,42 @@ and refuses to start on a version it does not record, see [versioning](../endpoi
 ## Configuration
 
 Everything that differs between one machine and the next is read from the environment. `.env.example`
-is the committed list of what a deployment sets, and `src/env.ts` reads it:
+is the committed list of what a deployment sets, and `src/env.ts` reads it. The rest of the application
+reads each variable through `env`, typed by `Env`, such as `env.baseUrl`, `env.db.host` or
+`env.smtp.port`. `src/env.ts` is the one file that names a variable, so a mistyped name is a type error.
 
-- `requireEnv` stops the application at startup when a variable is unset, naming the one that is
-  missing.
-- `requireBooleanEnv` does the same, and also when a variable holds anything but `true` or `false`.
-- `requireOneOfEnv` does the same, and also when a variable holds none of the values it may hold.
-- `requirePortEnv` does the same, and also when a variable holds no port from 1 to 65535.
-- `requireUrlEnv` does the same, and also when a variable holds no absolute HTTP or HTTPS URL.
-- `optionalEnv` answers with an empty string, for what the application runs without.
+Each property of `env` reads its variable when it is used, with the reader for its kind of value:
 
-A variable of another kind gets a reader of its own in `src/env.ts`, which checks the value and stops
-the application naming the variable:
+- `resolveEnv` stops the application when a variable is unset, naming the one that is missing.
+- `resolveBooleanEnv` does the same, and also when a variable holds anything but `true` or `false`.
+- `resolveOneOfEnv` does the same, and also when a variable holds none of the values it may hold.
+- `resolvePortEnv` does the same, and also when a variable holds no port from 1 to 65535.
+- `resolveUrlEnv` does the same, and also when a variable holds no absolute HTTP or HTTPS URL.
+- `getOptionalEnv` answers with an empty string, for what the application runs without.
+
+`src/env.ts` also exports `requireEnv`, `requireBooleanEnv`, `requireOneOfEnv`, `requirePortEnv`,
+`requireUrlEnv` and `optionalEnv`, which read a variable by its name. They are deprecated: read the
+variable through `env` instead.
+
+A variable of your own gets a property in `Env`, a getter in `env` and a line in `.env.example`. A
+variable of another kind gets a reader of its own at the end of `src/env.ts`, which checks the value
+and stops the application naming the variable:
 
 ```ts
 // src/env.ts
-export function requireBatchSizeEnv(key: string): number {
+export type Env = {
+    // the variables the project reads already
+    readonly importBatchSize: number
+};
+
+export const env: Env = {
+    // the variables the project reads already
+    get importBatchSize(): number {
+        return resolveBatchSizeEnv('IMPORT_BATCH_SIZE');
+    }
+};
+
+function resolveBatchSizeEnv(key: string): number {
     const value: string = process.env[key] ?? '';
     const size: number = Number(value);
     if (!Number.isInteger(size) || size < 1 || size > 100) {

@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
 import { type AuditServiceInterface } from '../../audit/audit-service.interface';
+import { FrameworkColumnUtilities } from '../../data-source/migration/framework-column.utilities';
 import { Repository } from '../../data-source/repository/repository';
 import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -19,21 +20,26 @@ import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { OnAppInit } from '../../global/on-app-init.interface';
+import { runInLocale } from '../../localization/run-in-locale.function';
 import { $ts } from '../../localization/translate.function';
 import { AuditAction, AuditOutcome } from '../../logging/audit-event.model';
 import { AuditUtilities } from '../../logging/audit.utilities';
 import { type BaseMembership } from '../../tenancy/membership/base-membership.model';
 import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
+import { type PendingRowShare } from '../../sharing/pending-row-share.model';
+import { type RowShareGrant } from '../../sharing/row-share-grant.model';
 import { type BaseTenantDefinition } from '../../tenancy/tenant-definition/base-tenant-definition.model';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { TsxUtilities } from '../../tsx/tsx.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { type AuthServiceInterface } from '../auth-service.interface';
+import { LoginLinkAuthenticator } from '../authenticators/login-link/login-link.authenticator';
 import { type CurrentUser } from '../decorators/current-user.decorator';
 import { type HashString } from '../hash/hash.utilities';
 import { Sha256HashStrategy } from '../hash/strategies/sha256.hash-strategy';
 import { BaseUser } from '../models/base-user.model';
 import { type RoleServiceInterface } from '../roles/role-service.interface';
+import { UserKindUtilities } from '../user/user-kind.utilities';
 import { type UserServiceInterface } from '../user/user-service.interface';
 import { BaseInvitation } from './base-invitation.model';
 import { InvitationAcceptance } from './invitation-acceptance.model';
@@ -72,6 +78,20 @@ function isInvitationEntityRepository(value: unknown): value is InvitationReposi
  * Where a link of an invitation stands.
  */
 type TokenState = 'valid' | 'expired' | 'renewed' | 'refused';
+
+/**
+ * The account accepting an invitation.
+ */
+type AcceptingUser = {
+    /**
+     * The account.
+     */
+    user: BaseUser<string>,
+    /**
+     * Whether accepting logs it in, as the invitation created it without a password.
+     */
+    logsIn: boolean
+};
 
 /**
  * Default invitation service implementation of Zibri, keeping the invitations in the one invitation repository, such
@@ -184,8 +204,19 @@ export class InvitationService implements InvitationServiceInterface, OnAppInit 
         transaction: RepositoryTransaction | undefined
     ): Promise<T> {
         const repository: InvitationRepository = this.getRepository();
-        const { email, tenantId, roles, createOn, declinable, expiresInMs, ...own } = data;
+        const { email, tenantId, roles, createOn, declinable, expiresInMs, locale, withoutPassword = false, rowShares = [], ...own } = data;
         return await this.audited(AuditAction.INVITATION_CREATED, tenantId, email, caller.id, transaction, async () => {
+            // the account it creates has no other way in than a link
+            if (withoutPassword && !this.authService.authenticators.some(a => a === LoginLinkAuthenticator || a.prototype instanceof LoginLinkAuthenticator)) {
+                throw new BadRequestError(
+                    $ts`An invitation without a password logs its account in by a link, which needs LoginLinkAuthenticator among the authenticators of the application.`
+                );
+            }
+            // a locale given, which a table without the column, of a schema the data source does not manage, would drop.
+            // One that is not given is the one of the request, which an invitation of 3.2 was sent in as well
+            if (locale != undefined) {
+                FrameworkColumnUtilities.validatePresent('Inviting in a locale', repository.entityClass, 'locale');
+            }
             await this.tenantService.validateNotDeactivated?.(tenantId);
             if (this.roleService.validateMayAssign == undefined) {
                 throw new InternalError(
@@ -194,12 +225,18 @@ export class InvitationService implements InvitationServiceInterface, OnAppInit 
             }
             await this.roleService.validateMayAssign(caller, roles, tenantId, transaction);
             const user: BaseUser<string> | undefined = await this.userService.findByEmail(email, { required: false, transaction });
+            // an invitation is accepted by a person, who logs in or sets a password to: the memberships of a service
+            // account are given to it directly
+            if (user != undefined) {
+                UserKindUtilities.validatePerson(user);
+            }
             if (tenantId != undefined && user != undefined && await this.findMembership(user.id, tenantId, transaction) != undefined) {
                 throw new ConflictError($ts`The user is a member of the tenant already.`);
             }
             if (await this.findOpenInvitation(email, tenantId, transaction) != undefined) {
                 throw new ConflictError($ts`The email has an open invitation there already.`);
             }
+            const pendingShares: PendingRowShare[] = await this.resolvePendingShares(tenantId, rowShares, transaction);
 
             const token: string = this.generateToken();
             const now: number = Date.now();
@@ -214,7 +251,12 @@ export class InvitationService implements InvitationServiceInterface, OnAppInit 
                 token,
                 tokenExpiresAt: new Date(now + this.getOptions().tokenExpiresInMs),
                 expiresAt: expiresInMs == undefined ? null : new Date(now + expiresInMs),
-                createdUserId: null
+                createdUserId: null,
+                // the language of the account the email has before the one of the inviter's request. Kept rather than
+                // read again, as the link is mailed again and followed outside this request
+                locale: locale ?? user?.locale ?? inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).resolveSupportedLocale(undefined),
+                withoutPassword,
+                rowShares: pendingShares.length ? pendingShares : null
             }, { transaction, acrossTenants: true });
 
             const invitation: BaseInvitation = createOn === 'invite'
@@ -298,22 +340,33 @@ export class InvitationService implements InvitationServiceInterface, OnAppInit 
         const invitation: BaseInvitation | undefined = await this.findByToken(token, undefined);
         const state: TokenState | undefined = invitation == undefined ? undefined : await this.resolveTokenState(invitation);
         if (invitation == undefined || state !== 'valid') {
-            return { isValid: false, renewed: state === 'renewed', requiresLogin: false, declinable: false };
+            return { isValid: false, renewed: state === 'renewed', requiresLogin: false, declinable: false, withoutPassword: false };
         }
+        const requiresLogin: boolean = await this.findAccountToLogInAs(invitation, undefined) != undefined;
         return {
             isValid: true,
             renewed: false,
             email: invitation.email,
             tenantId: invitation.tenantId ?? undefined,
-            requiresLogin: await this.findAccountToLogInAs(invitation, undefined) != undefined,
-            declinable: invitation.declinable
+            requiresLogin,
+            declinable: invitation.declinable,
+            withoutPassword: !requiresLogin && invitation.withoutPassword === true
         };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async accept(token: string, acceptance: InvitationAcceptance, transaction: RepositoryTransaction | undefined): Promise<void> {
+        await this.acceptForLogin(token, acceptance, transaction);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async acceptForLogin(
+        token: string,
+        acceptance: InvitationAcceptance,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<string | undefined> {
         const invitation: BaseInvitation = await this.findWorkingInvitation(token, transaction);
-        await this.audited(
+        return await this.audited(
             AuditAction.INVITATION_ACCEPTED,
             invitation.tenantId ?? undefined,
             invitation.email,
@@ -322,24 +375,29 @@ export class InvitationService implements InvitationServiceInterface, OnAppInit 
             async () => {
                 // a link stays valid while its tenant is deactivated, and works once it is reactivated
                 await this.tenantService.validateNotDeactivated?.(invitation.tenantId ?? undefined);
-                const user: BaseUser<string> = await this.resolveAcceptingUser(invitation, acceptance, transaction);
+                const accepting: AcceptingUser = await this.resolveAcceptingUser(invitation, acceptance, transaction);
+                const user: BaseUser<string> = accepting.user;
+                // again on accepting: the email may have become the one of a service account since the invitation
+                UserKindUtilities.validatePerson(user);
                 await this.giveRoles(invitation, user, transaction);
+                await this.createPendingShares(invitation, user, transaction);
                 // the link reached the address, which is what verifying it proves
                 if (user.emailVerifiedAt == undefined && user.email === invitation.email) {
                     await this.userService.updateEmail(user.id, user.email, new Date(), transaction);
                 }
                 await this.claim(invitation, transaction);
+                return accepting.logsIn ? user.id : undefined;
             }
         );
     }
 
     /**
      * Resolves the account accepting an invitation: the one the email has, which has to be logged in, or the one
-     * the invitation created or creates now, which sets its password.
+     * the invitation created or creates now, which sets its password, or is logged in by the link without one.
      * @param invitation - The invitation.
      * @param acceptance - Who accepts, and with what.
      * @param transaction - The transaction to write in, if any.
-     * @returns The account.
+     * @returns The account, and whether accepting logs it in.
      * @throws An UnauthorizedError while nobody is logged in as an account the email has, a ForbiddenError while
      * somebody else is, a BadRequestError for a password missing or given where it is not taken.
      */
@@ -347,7 +405,7 @@ export class InvitationService implements InvitationServiceInterface, OnAppInit 
         invitation: BaseInvitation,
         acceptance: InvitationAcceptance,
         transaction: RepositoryTransaction | undefined
-    ): Promise<BaseUser<string>> {
+    ): Promise<AcceptingUser> {
         const existing: BaseUser<string> | undefined = await this.findAccountToLogInAs(invitation, transaction);
         if (existing != undefined) {
             // a link forwarded to somebody else adds no account but the one of the email to the tenant
@@ -360,18 +418,37 @@ export class InvitationService implements InvitationServiceInterface, OnAppInit 
             if (acceptance.password != undefined) {
                 throw new BadRequestError($ts`The account has a password already, so accepting takes none.`);
             }
-            return existing;
+            return { user: existing, logsIn: false };
         }
-        if (acceptance.password == undefined) {
+        const withoutPassword: boolean = invitation.withoutPassword === true;
+        const password: string | undefined = acceptance.password;
+        const setPassword: AuthServiceInterface['setPassword'] = this.authService.setPassword?.bind(this.authService);
+        if (withoutPassword && password != undefined) {
+            throw new BadRequestError($ts`The invitation creates its account without a password, so accepting takes none.`);
+        }
+        if (!withoutPassword && password == undefined) {
             throw new BadRequestError($ts`A password is required for the account the invitation creates.`);
         }
-        if (this.authService.setPassword == undefined) {
+        if (!withoutPassword && setPassword == undefined) {
             throw new InternalError('Accepting an invitation needs setPassword of the AuthService, to set the password of its account.');
         }
         const user: BaseUser<string> = await this.findUserOf(invitation, transaction)
             ?? await this.createInvitedUser(invitation, transaction);
-        await this.authService.setPassword(user.id, { password: acceptance.password, requireChange: false }, transaction);
-        return user;
+        // the locale the person accepting chose replaces the one of the invitation, which the account was created
+        // in, and one the application does not support refuses the acceptance, in its transaction
+        if (acceptance.locale != undefined) {
+            if (this.userService.updateLocale == undefined) {
+                throw new InternalError('Accepting an invitation in a locale needs updateLocale of the UserService.');
+            }
+            await this.userService.updateLocale(user.id, acceptance.locale, transaction);
+        }
+        // only an invitation without a password gets here without both: the link it came with is how its account gets
+        // in, now and as often as it asks for one
+        if (password == undefined || setPassword == undefined) {
+            return { user, logsIn: true };
+        }
+        await setPassword(user.id, { password, requireChange: false }, transaction);
+        return { user, logsIn: false };
     }
 
     /**
@@ -404,6 +481,53 @@ export class InvitationService implements InvitationServiceInterface, OnAppInit 
             invitation.tenantId,
             [...new Set([...membership.roles, ...invitation.roles])],
             transaction
+        );
+    }
+
+    /**
+     * Validates the rows an invitation shares, as it is sent, in the tenant it is to.
+     * @param tenantId - The tenant of the invitation, undefined for one to the application.
+     * @param grants - The rows it shares.
+     * @param transaction - The transaction to read in, if any.
+     * @returns The shares, as the invitation stores them.
+     * @throws A BadRequestError for shares of an invitation to no tenant, and what the share service throws.
+     */
+    private async resolvePendingShares(
+        tenantId: string | undefined,
+        grants: RowShareGrant[],
+        transaction: RepositoryTransaction | undefined
+    ): Promise<PendingRowShare[]> {
+        if (!grants.length) {
+            return [];
+        }
+        if (tenantId == undefined) {
+            throw new BadRequestError($ts`An invitation sharing rows needs to be to a tenant.`);
+        }
+        return await this.tenantService.runAs(
+            tenantId,
+            async () => await inject(ZIBRI_DI_TOKENS.SHARE_SERVICE).resolvePendingShares(grants, transaction)
+        );
+    }
+
+    /**
+     * Creates the shares an invitation carries for the account accepting it, in the transaction of the acceptance.
+     * @param invitation - The invitation.
+     * @param user - The account accepting it.
+     * @param transaction - The transaction to write in, if any.
+     */
+    private async createPendingShares(
+        invitation: BaseInvitation,
+        user: BaseUser<string>,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<void> {
+        const pending: PendingRowShare[] = invitation.rowShares ?? [];
+        const tenantId: string | null | undefined = invitation.tenantId;
+        if (!pending.length || tenantId == undefined) {
+            return;
+        }
+        await this.tenantService.runAs(
+            tenantId,
+            async () => await inject(ZIBRI_DI_TOKENS.SHARE_SERVICE).createPendingShares(user.id, pending, invitation.invitedBy, transaction)
         );
     }
 
@@ -603,7 +727,12 @@ export class InvitationService implements InvitationServiceInterface, OnAppInit 
      * @returns The account.
      */
     private async createInvitedUser(invitation: BaseInvitation, transaction: RepositoryTransaction | undefined): Promise<BaseUser<string>> {
-        const user: BaseUser<string> = await this.getRepository().createInvitedUser(invitation, transaction);
+        // in the locale of the invitation, which a user created without one gets, rather than in the one of the
+        // request: that is the inviter's when the account is created as the invitation is sent
+        const user: BaseUser<string> = await runInLocale(
+            invitation.locale,
+            async () => await this.getRepository().createInvitedUser(invitation, transaction)
+        );
         if (invitation.tenantId == undefined && invitation.roles.length) {
             const roles: string[] = [...new Set([...user.roles, ...invitation.roles])];
             await this.userService.updateRoles(user.id, roles, transaction);
@@ -624,14 +753,21 @@ export class InvitationService implements InvitationServiceInterface, OnAppInit 
         const tenant: BaseTenantDefinition | undefined = invitation.tenantId == undefined
             ? undefined
             : await this.tenantService.findTenant?.(invitation.tenantId);
-        await this.inTenantOf(invitation.tenantId ?? undefined, async () => await inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE).queue({
-            recipients: [invitation.email],
-            subject: $ts`Invitation`,
-            html: TsxUtilities.renderEmail(options.invitationEmail, { link, invitation, tenant }),
-            priority: EmailPriority.HIGH,
-            // the body carries the token in the clear, for the reason the password reset mail gives
-            persist: false
-        }));
+        // in the locale the invitation was sent in, whoever renews its link
+        await runInLocale(
+            invitation.locale,
+            async () => await this.inTenantOf(
+                invitation.tenantId ?? undefined,
+                async () => await inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE).queue({
+                    recipients: [invitation.email],
+                    subject: $ts`Invitation`,
+                    html: TsxUtilities.renderEmail(options.invitationEmail, { link, invitation, tenant }),
+                    priority: EmailPriority.HIGH,
+                    // the body carries the token in the clear, for the reason the password reset mail gives
+                    persist: false
+                })
+            )
+        );
     }
 
     /**

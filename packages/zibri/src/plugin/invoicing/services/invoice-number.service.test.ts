@@ -65,7 +65,14 @@ const invoicingOptions: InvoicingOptions = {
     numberOfDigits: 4,
     separator: '-',
     numberCompanyAbbreviationCharacters: 6,
-    numberPrivateCustomerAbbreviationCharacters: 3
+    numberPrivateCustomerAbbreviationCharacters: 3,
+    creditNoteHeadline: 'Credit note',
+    creditNoteNumberLabel: 'Credit note no.',
+    precedingInvoiceLabel: 'Preceding invoice',
+    numberFormat: '{year}-{recipient}-{counter}',
+    creditNoteNumberFormat: '{invoice}-C{counter}',
+    creditNoteNumberOfDigits: 1,
+    issuedInvoicesReadOnly: false
 };
 
 const companyInfo: CompanyInfo = {
@@ -319,5 +326,17 @@ describe('generateInvoiceNumber', () => {
         const numbers: string[] = await inTenant(async () => await Promise.all([issueNumber(), issueNumber(), issueNumber()]));
 
         expect(new Set(numbers).size).toBe(numbers.length);
+    });
+
+    // the counter is drawn in the caller's transaction, so an invoice abandoned with it leaves no gap
+    it('draws the number of an invoice whose transaction was rolled back again', async () => {
+        const first: string = await inTenant(async () => await invoiceNumberService.generateInvoiceNumber('rolled-back-recipient', companyData, undefined, 'ROLLED'));
+
+        const transaction: Transaction = await invoiceRepo.dataSource.startTransaction();
+        const abandoned: string = await inTenant(async () => await invoiceNumberService.generateInvoiceNumber('rolled-back-recipient', companyData, transaction, 'ROLLED'));
+        await transaction.rollback();
+        const next: string = await inTenant(async () => await invoiceNumberService.generateInvoiceNumber('rolled-back-recipient', companyData, undefined, 'ROLLED'));
+
+        expect([first, abandoned, next]).toEqual([`${currentYear}-ROLLED-0001`, `${currentYear}-ROLLED-0002`, `${currentYear}-ROLLED-0002`]);
     });
 });

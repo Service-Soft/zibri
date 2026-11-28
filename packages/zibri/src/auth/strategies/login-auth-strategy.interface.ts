@@ -24,6 +24,7 @@ export interface LoginAuthStrategyInterface<
      *
      * The login keeps `authenticatedAt` for as long as it lasts, which is what
      * `resolveAuthenticatedAt` answers, and `federatedSession`, which `endFederatedLogins` finds it by.
+     * A login whose `countsAsRecentLogin` is false answers undefined from `resolveAuthenticatedAt`.
      */
     startLogin: (authentication: Authentication<UserType>, transaction: RepositoryTransaction | undefined) => Promise<AuthDataType>,
     /**

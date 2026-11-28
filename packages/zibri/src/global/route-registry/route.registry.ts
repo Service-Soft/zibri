@@ -4,6 +4,7 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { resolveRouteParamMetadata, RouteParamMetadata } from '../../routing/route-param-metadata.model';
 import { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 
 /**
  * Data stored per route in the registry.
@@ -68,13 +69,28 @@ export abstract class RouteRegistry {
      * @returns What the route declared.
      */
     private static build(controllerClass: Newable<unknown>, controllerMethod: string): RouteRegistryData {
-        const routeAuthService: RouteAuthServiceInterface = inject(ZIBRI_DI_TOKENS.ROUTE_AUTH_SERVICE);
         const data: RouteRegistryData = {
             params: resolveRouteParamMetadata(controllerClass, controllerMethod),
-            auth: routeAuthService.resolveRouteAuth(controllerClass, controllerMethod)
+            auth: this.resolveAuth(controllerClass, controllerMethod)
         };
         this.routesOf(controllerClass).set(controllerMethod, data);
         return data;
+    }
+
+    /**
+     * Resolves what the \@Auth decorators of a route mean. A route serving the files of a row has those of the route
+     * reading the row, as long as its controller has that one: a caller refused the row is refused its files.
+     * @param controllerClass - The controller the route is on.
+     * @param controllerMethod - The method that handles the route.
+     * @returns What the decorators mean for a caller.
+     */
+    private static resolveAuth(controllerClass: Newable<unknown>, controllerMethod: string): ResolvedRouteAuth {
+        const accessOf: string | undefined = MetadataUtilities.getRouteServedFiles(controllerClass, controllerMethod)?.accessOf;
+        if (accessOf != undefined && MetadataUtilities.getControllerRoutes(controllerClass).some(r => r.controllerMethod === accessOf)) {
+            return this.get(controllerClass, accessOf).auth;
+        }
+        const routeAuthService: RouteAuthServiceInterface = inject(ZIBRI_DI_TOKENS.ROUTE_AUTH_SERVICE);
+        return routeAuthService.resolveRouteAuth(controllerClass, controllerMethod);
     }
 
     /**

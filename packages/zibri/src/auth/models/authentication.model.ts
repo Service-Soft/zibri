@@ -31,5 +31,20 @@ export type Authentication<UserType extends BaseUser<string>> = {
      * Whether the user chooses a new password before the login starts, as an authenticator checking a
      * password says. Asked for after the second factor, when the login asks for one.
      */
-    passwordChangeRequired?: boolean
+    passwordChangeRequired?: boolean,
+    /**
+     * Whether the login is complete without the second factor `twoFactorAtLogin` asks for, as an
+     * authenticator whose proof stands on its own says. False unless set.
+     */
+    completesWithoutSecondFactor?: boolean,
+    /**
+     * The names of the two factor methods that do not count as the second factor of the login, such as
+     * codes by email after a login by a link sent by email, which proves the same mailbox. None unless set.
+     */
+    excludedTwoFactorMethods?: string[],
+    /**
+     * Whether the login counts as a recent login, where a route accepts one in place of a second
+     * factor. A strategy keeps it for the whole login, refreshes included. True unless set to false.
+     */
+    countsAsRecentLogin?: boolean
 };

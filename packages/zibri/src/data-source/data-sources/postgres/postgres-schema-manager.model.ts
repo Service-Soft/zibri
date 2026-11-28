@@ -14,6 +14,7 @@ import { CheckConstraintViolationError } from '../../check-constraint-violation.
 import { indexName, trigramIndexName, TRIGRAM_INDEX_PREFIX } from '../../index-name.function';
 import { literalToSql } from '../../literal-to-sql.function';
 import { FrameworkColumnRegistry } from '../../migration/framework-column.registry';
+import { type MissingFrameworkColumn } from '../../migration/missing-framework-column.model';
 import { MigratedEntityUtilities, MovedEntity } from '../../migration/migrated-entity.utilities';
 import { ConversionRefusal } from '../../models/conversion-refusal.enum';
 import { MigrationPropertyMetadata } from '../../models/migration-property-metadata.model';
@@ -253,6 +254,10 @@ const TRAILING_CAST_PATTERN: RegExp = /::[a-z][ a-z]*(\(\d+(,\d+)?\))?(\[])?$/i;
  * A column the framework added to one of its entities, which a table of the data source is to have.
  */
 type WantedFrameworkColumn = {
+    /**
+     * The entity stored in the table.
+     */
+    entity: Newable<BaseEntity>,
     /**
      * The table.
      */
@@ -1283,16 +1288,7 @@ export class PostgresSchemaManager {
      * @returns The columns added, as `table.column`.
      */
     async addFrameworkColumns(run: PostgresRun): Promise<string[]> {
-        const wanted: WantedFrameworkColumn[] = FrameworkColumnRegistry.getAll().flatMap(framework => {
-            const declared: Newable<BaseEntity> = framework.entity;
-            return this.entities
-                .filter(e => e === declared || e.prototype instanceof declared)
-                .flatMap(entity => {
-                    const table: PostgresTable = this.schema.getTable(entity);
-                    const column: PostgresColumn | undefined = table.columns.find(c => c.property === framework.property);
-                    return column == undefined ? [] : [{ table: table.name, column, storedValue: framework.storedValue?.() }];
-                });
-        });
+        const wanted: WantedFrameworkColumn[] = this.resolveWantedFrameworkColumns();
         if (!wanted.length) {
             return [];
         }
@@ -1320,6 +1316,73 @@ export class PostgresSchemaManager {
             added.push(`${table}.${column.name}`);
         }
         return added;
+    }
+
+    /**
+     * Finds the columns the framework added to its entities since 3.0 that the tables of this data source lack, for a
+     * schema this data source does not manage. A table that is not there is left to the first statement reading it.
+     * @param run - Runs a statement.
+     * @returns The columns missing, each with the statements that add it.
+     */
+    async findMissingFrameworkColumns(run: PostgresRun): Promise<MissingFrameworkColumn[]> {
+        const tables: string[] = [...new Set(this.resolveWantedFrameworkColumns().map(w => w.table))];
+        if (!tables.length) {
+            return [];
+        }
+        return this.resolveMissingFrameworkColumnsIn(await run(STORED_COLUMNS_SQL, [tables]));
+    }
+
+    /**
+     * Resolves which columns the framework added to its entities since 3.0 the tables lack, as the columns stored in
+     * the database say, and the statements that add each as the framework creates it.
+     * @param stored - The columns of the tables, as `table` and `name`.
+     * @returns The columns missing, each with the statements that add it.
+     */
+    resolveMissingFrameworkColumnsIn(stored: readonly Record<string, unknown>[]): MissingFrameworkColumn[] {
+        return this.resolveWantedFrameworkColumns()
+            .filter(({ table, column }) => {
+                const columnsOfTable: Record<string, unknown>[] = stored.filter(c => c['table'] === table);
+                return columnsOfTable.length > 0 && !columnsOfTable.some(c => c['name'] === column.name);
+            })
+            .map(({ entity, table, column, storedValue }) => {
+                const quoted: string = this.escape(table);
+                const property: string = column.property ?? column.name;
+                // the uniques and indexes that cover it as well, such as the unique of the scope of a counter: what
+                // keeps its rows apart once it is there
+                const keys: string[] = this.resolveDeclaredKeys(entity)
+                    .filter(key => key.properties.includes(property))
+                    .flatMap(key => [key.build, ...key.constrain == undefined ? [] : [key.constrain]]);
+                return {
+                    entity,
+                    property,
+                    table,
+                    column: column.name,
+                    statements: [
+                        `ALTER TABLE ${quoted} ADD COLUMN ${this.columnSql({ ...column, nullable: true })}`,
+                        ...storedValue == undefined
+                            ? []
+                            : [`UPDATE ${quoted} SET ${this.escape(column.name)} = ${literalToSql(storedValue)} WHERE ${this.escape(column.name)} IS NULL`],
+                        ...keys
+                    ]
+                };
+            });
+    }
+
+    /**
+     * Resolves the columns the framework added to its entities since 3.0 that the entities of this data source have.
+     * @returns The columns, by table.
+     */
+    private resolveWantedFrameworkColumns(): WantedFrameworkColumn[] {
+        return FrameworkColumnRegistry.getAll().flatMap(framework => {
+            const declared: Newable<BaseEntity> = framework.entity;
+            return this.entities
+                .filter(e => e === declared || e.prototype instanceof declared)
+                .flatMap(entity => {
+                    const table: PostgresTable = this.schema.getTable(entity);
+                    const column: PostgresColumn | undefined = table.columns.find(c => c.property === framework.property);
+                    return column == undefined ? [] : [{ entity, table: table.name, column, storedValue: framework.storedValue?.() }];
+                });
+        });
     }
 
     private async findExistingTables(run: PostgresRun, names: string[]): Promise<Set<string>> {

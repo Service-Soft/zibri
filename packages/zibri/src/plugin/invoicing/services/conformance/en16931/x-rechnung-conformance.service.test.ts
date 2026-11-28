@@ -57,7 +57,14 @@ const invoicingOptions: InvoicingOptions = {
     numberOfDigits: 4,
     separator: '-',
     numberCompanyAbbreviationCharacters: 6,
-    numberPrivateCustomerAbbreviationCharacters: 3
+    numberPrivateCustomerAbbreviationCharacters: 3,
+    creditNoteHeadline: 'Credit note',
+    creditNoteNumberLabel: 'Credit note no.',
+    precedingInvoiceLabel: 'Preceding invoice',
+    numberFormat: '{year}-{recipient}-{counter}',
+    creditNoteNumberFormat: '{invoice}-C{counter}',
+    creditNoteNumberOfDigits: 1,
+    issuedInvoicesReadOnly: false
 };
 
 const companyInfo: CompanyInfo = {

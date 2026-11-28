@@ -43,15 +43,19 @@
         "../../CONTRIBUTING.md",
         "./LICENSE"
     ],
+    "translations": {
+        "de": "./translations/de.xlf"
+    },
     "engines": {
         "node": ">=24"
     },
     "scripts": {
-        "test": "npm run test:normal && npm run test:heavy && npm run test:cluster && npm run test:benchmark",
+        "test": "npm run test:normal && npm run test:heavy && npm run test:cluster && npm run test:nextcloud && npm run test:benchmark",
         "test:ci": "npm run test:coverage && npm run test:cluster",
         "test:heavy": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand --testPathPatterns=\"(multithreading\\.service\\.performance\\.test\\.ts|pay-pal\\.payment-provider\\.test\\.ts|base-keycloak\\.authenticator\\.test\\.ts|\\.heavy\\.test\\.ts)\"",
-        "test:normal": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --testPathPatterns=\"^(?!.*(multithreading\\.service\\.performance\\.test\\.ts|pay-pal\\.payment-provider\\.test\\.ts|base-keycloak\\.authenticator\\.test\\.ts|\\.heavy\\.test\\.ts|\\.cluster\\.test\\.ts|\\.benchmark\\.test\\.ts)).*\"",
+        "test:normal": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --testPathPatterns=\"^(?!.*(multithreading\\.service\\.performance\\.test\\.ts|pay-pal\\.payment-provider\\.test\\.ts|base-keycloak\\.authenticator\\.test\\.ts|\\.heavy\\.test\\.ts|\\.cluster\\.test\\.ts|\\.nextcloud\\.test\\.ts|\\.benchmark\\.test\\.ts)).*\"",
         "test:cluster": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand --testPathPatterns=\"\\.cluster\\.test\\.ts$\"",
+        "test:nextcloud": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand --testPathPatterns=\"\\.nextcloud\\.test\\.ts$\"",
         "test:benchmark": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand --testPathPatterns=\"\\.benchmark\\.test\\.ts$\"",
         "test:benchmark:compare": "node scripts/compare-benchmarks.mjs test:benchmark",
         "test:benchmark:perf": "node scripts/profile-benchmarks.mjs",
@@ -98,7 +102,7 @@
         "nodemailer": "^10.0.13",
         "openid-client": "^6.8.8",
         "otpauth": "^9.5.1",
-        "pdfmake": "^0.2.23",
+        "pdfmake": "^0.2.23 || ^0.3.15",
         "pg": "^8.21.0",
         "pg-query-stream": "^4.10.3",
         "rxjs": "^7.8.2",
@@ -247,6 +251,7 @@
         "openid-client": "^6.8.8",
         "otpauth": "^9.5.1",
         "pdfmake": "^0.2.23",
+        "pdfmake-0.3": "npm:pdfmake@^0.3.15",
         "pg": "^8.21.0",
         "pg-query-stream": "^4.10.3",
         "playwright": "^1.61.1",

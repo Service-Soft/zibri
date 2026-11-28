@@ -1,5 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
+import { type ArchiveData } from '../../archive/archive-service.interface';
+import { type BaseArchivedEntity } from '../../archive/base-archived-entity.model';
 import { type AuthServiceInterface } from '../../auth/auth-service.interface';
 import { type UserServiceInterface } from '../../auth/user/user-service.interface';
 import { AlsUtilities } from '../../context/als.utilities';
@@ -18,6 +20,7 @@ import { EntityRelationsUtilities } from '../../entity/models/entity-relations.u
 import { denyAll, type DenyAll } from '../../entity/models/entity-scope.model';
 import { EntitySelection, Projected } from '../../entity/models/entity-selection.model';
 import { EntitySelectionUtilities, SelectionTree } from '../../entity/models/entity-selection.utilities';
+import { ArchivedEntityUtilities } from '../../entity/utilities/archived-entity.utilities';
 import { ConflictError } from '../../error-handling/errors/conflict.error';
 import { ForbiddenError } from '../../error-handling/errors/forbidden.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
@@ -27,6 +30,7 @@ import { ModelRegistry } from '../../global/model-registry/model.registry';
 import { $ts } from '../../localization/translate.function';
 import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model';
 import { LoggerInterface } from '../../logging/logger.interface';
+import { type ShareServiceInterface } from '../../sharing/share-service.interface';
 import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
@@ -414,7 +418,13 @@ export class Repository<
                 entityClass,
                 this._dataSource
             );
-            this.driver = new DeadlineAwareRepositoryDriver(new WriteObservingRepositoryDriver(spanning, entityClass, this.logger));
+            // a write an observer needs a transaction for, made without one, starts one of this data source
+            this.driver = new DeadlineAwareRepositoryDriver(new WriteObservingRepositoryDriver<T, RepositoryTransaction>(
+                spanning,
+                entityClass,
+                this.logger,
+                async () => await this._dataSource.startTransaction()
+            ));
         }
         ModelRegistry.get(this.entityClass);
         const metadata: EntityMetadata<T> | undefined = MetadataUtilities.getEntityMetadata(this.entityClass);
@@ -613,7 +623,8 @@ export class Repository<
             this.entityClass,
             where,
             EntityRelationsUtilities.resolveTree(relations),
-            options?.unscoped
+            options?.unscoped,
+            options?.transaction
         );
         return related.size ? related : undefined;
     }
@@ -785,7 +796,8 @@ export class Repository<
         const scope: Where<T> | DenyAll | undefined = await resolveEntityScope(
             this.entityClass,
             this.entityMetadata,
-            options?.unscoped
+            options?.unscoped,
+            options?.transaction
         );
         if (tenant == undefined || scope === denyAll) {
             return scope;
@@ -1304,8 +1316,13 @@ export class Repository<
                         transaction,
                         `${entityClass.name} is chained, and a row of a chain cannot be restored`
                     );
-                    const links: ChainLink[] = await chainService.resolveLinks(entityClass, rows, transaction);
-                    const res: T[] = await this.driver.insert(rows.map((row, i) => ({ ...row, ...links[i] })), transaction);
+                    // filled in before the links, which hash it. Inside the transaction, which the copies of
+                    // the files of an archived row are stored in, so that a write tried again copies them anew
+                    const archived: DeepPartial<T>[] = ArchivedEntityUtilities.isArchived(entityClass)
+                        ? await this.resolveArchivedRows(entityClass, rows, transaction)
+                        : rows;
+                    const links: ChainLink[] = await chainService.resolveLinks(entityClass, archived, transaction);
+                    const res: T[] = await this.driver.insert(archived.map((row, i) => ({ ...row, ...links[i] })), transaction);
                     this.recordWrittenRows(res, transaction);
                     return res;
                 });
@@ -1317,6 +1334,23 @@ export class Repository<
                 }
             }
         }
+    }
+
+    /**
+     * Fills in what the archive keeps of rows of an archived entity about to be created: when the
+     * retention of each ends, and its files.
+     * @param entityClass - The entity, which is archived.
+     * @param rows - The rows.
+     * @param transaction - The transaction they are written in, if any.
+     * @returns The rows, with what the archive keeps of them.
+     */
+    private async resolveArchivedRows(
+        entityClass: Newable<BaseArchivedEntity>,
+        rows: DeepPartial<T>[],
+        transaction: Transaction | undefined
+    ): Promise<DeepPartial<T>[]> {
+        const data: ArchiveData[] = await inject(ZIBRI_DI_TOKENS.ARCHIVE_SERVICE).resolveArchiveData(entityClass, rows, transaction);
+        return rows.map((row, i) => ({ ...row, ...data[i] }));
     }
 
     /**
@@ -3037,6 +3071,11 @@ export class Repository<
                 await membershipService.deleteMemberships(ids, transaction);
                 const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
                 await authService.deleteUserRows(ids, transaction);
+                const shareService: ShareServiceInterface = inject(ZIBRI_DI_TOKENS.SHARE_SERVICE);
+                // only an application with a shareable entity declares the shares
+                if (shareService.isEnabled) {
+                    await shareService.deleteUserRows(ids, transaction);
+                }
             }
             return removed;
         });

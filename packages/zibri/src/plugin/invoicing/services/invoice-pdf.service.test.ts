@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { testFileFolder, TestTimeouts } from '../../../__testing__/constants';
 import { companyInfoProvider } from '../../../__testing__/mocks/company-info-provider.function';
+import { PdfmakeTestUtilities } from '../../../__testing__/pdfmake-test.utilities';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
@@ -60,7 +61,14 @@ const invoicingOptions: InvoicingOptions = {
     numberOfDigits: 4,
     separator: '-',
     numberCompanyAbbreviationCharacters: 6,
-    numberPrivateCustomerAbbreviationCharacters: 3
+    numberPrivateCustomerAbbreviationCharacters: 3,
+    creditNoteHeadline: 'Credit note',
+    creditNoteNumberLabel: 'Credit note no.',
+    precedingInvoiceLabel: 'Preceding invoice',
+    numberFormat: '{year}-{recipient}-{counter}',
+    creditNoteNumberFormat: '{invoice}-C{counter}',
+    creditNoteNumberOfDigits: 1,
+    issuedInvoicesReadOnly: false
 };
 
 const companyInfo: CompanyInfo = {
@@ -108,68 +116,70 @@ describe('createInvoicePdf', () => {
         await server.shutdown();
     }, TestTimeouts.postgres.shutdown);
 
-    it('should create the expected result', async () => {
-        const tenants: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
-        const invoice: Invoice = await tenants.runAs(UUIDUtilities.generate(), async () => await repo.create({
-            // eslint-disable-next-line cspell/spellchecker
-            number: `${new Date().getFullYear()}-GREATC-0001`,
-            currency: 'EUR',
-            items: [
-                {
-                    name: 'Testing',
-                    amount: 4,
-                    amountUnit: {
-                        displayName: 'Hours',
-                        code: 'HUR'
-                    },
-                    vat: {
-                        categoryCode: 'E',
-                        rate: 0,
-                        exemptionReason: '§19 small business'
-                    },
-                    price: 90
-                }
-            ],
-            date: new Date(),
-            performanceDate: new Date(),
-            dueDate: new Date(Date.now() + (Ms.WEEK * 2)),
-            customerAddressData: {
-                formOfAddress: '',
-                firstName: '',
-                lastName: '',
-                street: 'Great Street',
-                number: '42',
-                postcode: '12345',
-                city: 'Great City',
-                company: true,
-                companyName: 'Great Company LLC',
-                countryId: 'DE',
-                email: 'info@great-company-llc.com'
-            },
-            textBeforeItems: [''],
-            textAfterItems: ['Unless otherwise stated, the date of delivery/service corresponds to the date of invoice.']
-        }));
+    PdfmakeTestUtilities.describeOnEvery('the pdf of an invoice', installedAs => {
+        it('should create the expected result', async () => {
+            const tenants: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
+            const invoice: Invoice = await tenants.runAs(UUIDUtilities.generate(), async () => await repo.create({
+                // eslint-disable-next-line cspell/spellchecker
+                number: `${new Date().getFullYear()}-GREATC-0001`,
+                currency: 'EUR',
+                items: [
+                    {
+                        name: 'Testing',
+                        amount: 4,
+                        amountUnit: {
+                            displayName: 'Hours',
+                            code: 'HUR'
+                        },
+                        vat: {
+                            categoryCode: 'E',
+                            rate: 0,
+                            exemptionReason: '§19 small business'
+                        },
+                        price: 90
+                    }
+                ],
+                date: new Date(),
+                performanceDate: new Date(),
+                dueDate: new Date(Date.now() + (Ms.WEEK * 2)),
+                customerAddressData: {
+                    formOfAddress: '',
+                    firstName: '',
+                    lastName: '',
+                    street: 'Great Street',
+                    number: '42',
+                    postcode: '12345',
+                    city: 'Great City',
+                    company: true,
+                    companyName: 'Great Company LLC',
+                    countryId: 'DE',
+                    email: 'info@great-company-llc.com'
+                },
+                textBeforeItems: [''],
+                textAfterItems: ['Unless otherwise stated, the date of delivery/service corresponds to the date of invoice.']
+            }));
 
-        const pdf: PdfDocument = await invoicePdfService.generateInvoicePdf(invoice, 'en-US', 'UTC', 'x-rechnung');
+            const pdf: PdfDocument = await invoicePdfService.generateInvoicePdf(invoice, 'en-US', 'UTC', 'x-rechnung');
 
-        const path1: FsPath = FsUtilities.getPath(testFileFolder, `${invoice.number}-stream-1.pdf`);
-        const path2: FsPath = FsUtilities.getPath(testFileFolder, `${invoice.number}-stream-2.pdf`);
-        const out1: WriteStream = FsUtilities.createWriteStream(path1);
-        const out2: WriteStream = FsUtilities.createWriteStream(path2);
+            const path1: FsPath = FsUtilities.getPath(testFileFolder, `${invoice.number}-${installedAs}-stream-1.pdf`);
+            const path2: FsPath = FsUtilities.getPath(testFileFolder, `${invoice.number}-${installedAs}-stream-2.pdf`);
+            const out1: WriteStream = FsUtilities.createWriteStream(path1);
+            const out2: WriteStream = FsUtilities.createWriteStream(path2);
 
-        pdf.pipe(out1);
-        pdf.pipe(out2);
-        pdf.end();
+            pdf.pipe(out1);
+            pdf.pipe(out2);
+            pdf.end();
 
-        await new Promise<void>((resolve, reject) => {
-            out1.on('finish', resolve);
-            out1.on('error', reject);
+            await new Promise<void>((resolve, reject) => {
+                out1.on('finish', resolve);
+                out1.on('error', reject);
+            });
+
+            const stats: Stats = await FsUtilities.stat(path1);
+            expect(stats.size).toBeGreaterThan(0);
+
+            const header: string = (await FsUtilities.readFile(path1)).slice(0, 5);
+            expect(header).toBe('%PDF-');
         });
-
-        const stats: Stats = await FsUtilities.stat(path1);
-        expect(stats.size).toBeGreaterThan(0);
-
-        const header: string = (await FsUtilities.readFile(path1)).slice(0, 5);
-        expect(header).toBe('%PDF-');
     });
 });

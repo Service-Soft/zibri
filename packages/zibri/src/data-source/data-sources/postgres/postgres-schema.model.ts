@@ -21,6 +21,8 @@ import { BigNumber } from '../../../utilities/number.utilities';
 import { ObjectUtilities } from '../../../utilities/object.utilities';
 import { readNumber } from '../../../utilities/read-number.function';
 import { literalToSql } from '../../literal-to-sql.function';
+import { MissingFrameworkColumnError } from '../../migration/missing-framework-column.error';
+import { type MissingFrameworkColumn } from '../../migration/missing-framework-column.model';
 import { PostgresColumn, PostgresForeignKey, PostgresKey, PostgresReferentialAction, PostgresRelationJoin, PostgresTable } from './postgres-table.model';
 
 /**
@@ -75,6 +77,8 @@ export class PostgresSchema {
     private readonly entityTables: Map<Newable<BaseEntity>, PostgresTable> = new Map();
 
     private readonly joins: Map<Newable<BaseEntity>, Map<string, PostgresRelationJoin>> = new Map();
+
+    private readonly missingColumns: Map<Newable<BaseEntity>, MissingFrameworkColumn[]> = new Map();
 
     /**
      * Every table, those of the entities and their join tables.
@@ -135,9 +139,38 @@ export class PostgresSchema {
     getColumn(entityClass: Newable<BaseEntity>, property: string): PostgresColumn {
         const column: PostgresColumn | undefined = this.getTable(entityClass).columns.find(c => c.property === property);
         if (column == undefined) {
+            const missing: MissingFrameworkColumn | undefined = this.getMissingColumns(entityClass).find(c => c.property === property);
+            if (missing != undefined) {
+                throw new MissingFrameworkColumnError(`Reading or writing "${entityClass.name}" by "${property}"`, [missing]);
+            }
             throw new InternalError(`"${entityClass.name}" stores no column for "${property}".`);
         }
         return column;
+    }
+
+    /**
+     * Leaves the columns the database lacks out of their tables, so that no statement names them: every row is read
+     * and written without them, as a release before them did. For a schema the data source does not manage.
+     * @param missing - The columns the database lacks.
+     */
+    removeMissingColumns(missing: readonly MissingFrameworkColumn[]): void {
+        for (const column of missing) {
+            const table: PostgresTable = this.getTable(column.entity);
+            const index: number = table.columns.findIndex(c => c.name === column.column);
+            if (index >= 0) {
+                table.columns.splice(index, 1);
+            }
+            this.missingColumns.set(column.entity, [...this.getMissingColumns(column.entity), column]);
+        }
+    }
+
+    /**
+     * Gets the columns the table of an entity lacks in the database, which {@link removeMissingColumns} left out.
+     * @param entityClass - The entity.
+     * @returns The columns, none for a table that has them all.
+     */
+    getMissingColumns(entityClass: Newable<BaseEntity>): readonly MissingFrameworkColumn[] {
+        return this.missingColumns.get(entityClass) ?? [];
     }
 
     /**
@@ -332,6 +365,11 @@ export class PostgresSchema {
      * @returns The type.
      */
     private resolveTypeName(metadata: ColumnPropertyMetadata | ArrayPropertyItemMetadata): string {
+        // a file kept in a file store is held as the id of its row. Read off the declaration rather than through
+        // FilePropertyUtilities, which the data layer does not import
+        if (metadata.type === 'file' && metadata.store != undefined) {
+            return 'uuid';
+        }
         const type: string = this.settings.resolveType(metadata);
         return TYPE_NAMES.get(type) ?? type;
     }

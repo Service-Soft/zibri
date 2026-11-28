@@ -1,0 +1,31 @@
+name: E-Bilanz taxonomies
+
+# on a schedule, because a version of the HGB taxonomy is published while the code does not change: the books of a
+# fiscal year that no version shipped applies to cannot be filed, whether or not anybody pushed. And on demand
+on:
+    schedule:
+        - cron: '0 4 * * 1'
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    # fails when XBRL Deutschland publishes a version the package does not ship, or a fiscal year has none
+    check:
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                node-version: '24'
+                cache: npm
+            - run: npm ci
+            # the versions shipped are read from the package as it is built
+            - run: npm run build -w zibri-contract
+            - run: npm run build -w zibri-tsx
+            - run: npm run build -w zibri-tsx-compiler
+            - run: npm run build -w zibri-mdx
+            - run: npm run build -w zibri
+            - run: node .github/scripts/e-bilanz-taxonomy-versions.mjs

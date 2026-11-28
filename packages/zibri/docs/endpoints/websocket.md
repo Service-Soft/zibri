@@ -29,6 +29,7 @@ A websocket server is started for an application that declares websockets: one t
 | `WebsocketResponseHandler` | type | Handles the answer to a message, passed as `responseHandler` |
 | `WebsocketChannel` | entity | Entity used to create and join/leave channels |
 | `WebsocketMessage` | entity | A sent message, kept to replay what a reconnecting client missed |
+| `SentWebsocketMessage` | type | A message as a client receives it: a stored one with its `seq`, one that is not stored without, see [reconnecting](#reconnecting) |
 | `WebsocketRecipientType` | enum | Whom a message was sent to: all connections, a user or a channel |
 | `WebsocketMessageSequence` | entity | The seq the last message was given |
 | `WebsocketMessageCleanupCronJob` | cron job | Deletes the messages older than `messageRetentionInMs` |
@@ -232,18 +233,18 @@ A connection joins or leaves a channel through the methods of the websocket serv
 in user connects again, the connection is put back into the channels of that user.
 
 ## Reconnecting
-Every stored message has a `seq`, one higher than the message before it. Keep the `seq` of the last message your client received, and send it as `offset` when it connects. `auth` is a function, so every reconnect sends the `seq` the client has reached:
+Every stored message has a `seq`, one higher than the message before it. Keep the `seq` of the last stored message your client received, and send it as `offset` when it connects. `auth` is a function, so every reconnect sends the `seq` the client has reached:
 
 ```ts
 // src/chat.ts, in the browser
 import { io } from 'socket.io-client';
-import type { WebsocketMessage } from 'zibri';
+import type { SentWebsocketMessage } from 'zibri';
 
 let lastSeq: number | undefined;
 
 const socket = io('https://api.example.com', { auth: callback => callback(lastSeq == undefined ? {} : { offset: lastSeq }) });
-socket.on('chat message', (message: WebsocketMessage) => {
-    lastSeq = message.seq;
+socket.on('chat message', (message: SentWebsocketMessage) => {
+    lastSeq = message.seq ?? lastSeq;
 });
 ```
 
@@ -251,7 +252,7 @@ A connecting client is sent every message after its `offset` that it would have 
 
 A message is kept for `messageRetentionInMs`. A client that missed more than `maxReplayedMessages`, missed a message older than `messageRetentionInMs`, or sends an `offset` past the newest message, such as after a [restore](../data/backup.md#creating-and-restoring-backups), is sent none of them. It is sent one `ws:replay-incomplete` instead, whose `data` is a `WebsocketReplayIncomplete`: reload your state, and continue from its `seq`.
 
-A message sent with `persist: false` is not stored, and is not sent again.
+A message sent with `persist: false` is not stored, and is not sent again. It carries no `seq`, and neither does the answer to a message of the client, so they leave the `offset` of the client where it is.
 
 ## Tenants
 A channel belongs to the [tenant](../data/tenancy.md#work-outside-a-request) it was created in, and its
@@ -277,6 +278,30 @@ A connection receives as the user its handshake's credential resolves to, for as
 with that credential would be accepted. It is closed when its login ends: a logout, ended logins, a
 deactivated user, a revoked token or [API key](../glossary.md#api-key), or a session its provider ended. It is closed when the
 credential expires, too. The other logins of the same user stay connected.
+
+The handshake carries the credential in its headers, such as `authorization`, or in the `headers` of its `auth`. A
+browser sends headers only with the requests of long polling, and a connection that is a websocket from the start goes
+without them, so a client in a browser sends them in `auth`:
+
+```ts
+// src/socket.ts, in the browser
+import { io, Socket } from 'socket.io-client';
+
+export function connect(accessToken: string, tenantId: string): Socket {
+    return io('https://api.example.com', {
+        auth: callback => callback({ headers: { authorization: `Bearer ${accessToken}`, 'x-tenant-id': tenantId } })
+    });
+}
+```
+
+Of the `headers` of `auth`, `authorization` and the tenant header, `x-tenant-id`, are read, whatever their case. A header the
+handshake carries itself is taken over the same one of `auth`. `headers` that are not an object of strings refuse the
+connection with a 400.
+
+> [!NOTE]
+> An access token bound to a [DPoP](../glossary.md#dpop) key does not log a connection in. A proof is for the method and
+> URL of one HTTP request, and the credential of a connection is checked again long after its handshake, when its proof
+> is spent.
 
 A login ends however its rows are written: a refresh token your code deletes through its repository
 closes the connections of its login as a logout does, see [writing a strategy of your own](../auth/auth.md#writing-a-strategy-of-your-own).

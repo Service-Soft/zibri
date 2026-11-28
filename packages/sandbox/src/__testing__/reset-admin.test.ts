@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { AuthServiceInterface, inject, JsonUtilities, PasswordCredentials, PasswordCredentialsCreateData, Repository, repositoryTokenFor, ZIBRI_DI_TOKENS } from 'zibri';
 import { StartedTestServer, startTestServer, TestCommandRun } from 'zibri-testing';
 
-import { requireEnv } from '../env';
+import { env } from '../env';
 import { PlatformRoles, User } from '../models';
 import { RoleRepository, UserRepository } from '../repositories';
 import { testApplicationOptions } from './test-application-options';
@@ -43,7 +43,7 @@ afterAll(async () => {
 describe('reset-admin', () => {
 
     it('lets a locked out default admin in again, with a password they replace at once', async () => {
-        const email: string = requireEnv('DEFAULT_ADMIN_EMAIL');
+        const email: string = env.defaultAdmin.email;
         // what starting the application creates, before it creates the default admin
         await inject(RoleRepository).create({ name: PlatformRoles.ADMIN, level: 'platform', permissions: [], description: 'Administers the application' });
         // an admin nobody can get in as any more: their password forgotten, their role taken away,
@@ -62,7 +62,7 @@ describe('reset-admin', () => {
         const reset: User = await inject(UserRepository).findById(admin.id);
         expect(reset.roles).toContain(PlatformRoles.ADMIN);
         // the password from the environment logs in once, to choose one of the admin's own
-        const pending: Response = await login(email, requireEnv('DEFAULT_ADMIN_PASSWORD'));
+        const pending: Response = await login(email, env.defaultAdmin.password);
         const body: PendingLoginBody = await pending.json() as PendingLoginBody;
         expect([pending.status, body.name]).toEqual([401, 'PasswordChangeRequiredError']);
         const changed: Response = await fetch(`${baseUrl}/auth/login/change-password`, {

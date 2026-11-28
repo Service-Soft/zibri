@@ -172,6 +172,13 @@ A request naming no tenant, sent with a credential bound to one, such as an
 reaches only what every tenant shares, such as logging in. A request naming a tenant that is not a
 uuid answers `400`, also when your own `resolveTenant` reads it.
 
+A route reached without a tenant, such as one the support of your application reads every tenant's
+rows through, does its work in a tenant with `runAs`. Its response is written in that tenant, so a
+[file of a row](./files.md#keeping-the-files-of-an-entity-in-a-file-store) it answers links with it. A
+handler that does its work in several tenants with `runAs`, such as one reading a row of each, has its
+response written outside every tenant. A link names one tenant, so such a response links no file: one
+holding a file of a row answers `500`, with an error in the log naming the route.
+
 To read the tenant from somewhere else, provide a `TenantService` of your own that overrides
 `resolveTenant`, and `resolveTenantUrl` beside it so that links name the tenant the same way.
 `resolveTenant` gets the http request or the websocket message, so it says for both where their
@@ -533,5 +540,6 @@ Your data source declares these entities:
 - [Authentication & authorization](../auth/auth.md) — users, and the logins their requests carry
 - [API keys](../auth/api-keys.md) — keys bound to one tenant
 - [Inviting people](../auth/invitations.md) — adding somebody to a tenant by email
+- [Sharing rows with selected people](./sharing.md) — members who see only the rows shared with them
 - [FAQ](../faq.md#why-does-every-entity-have-a-tenant) — why every entity has a tenant
 - [Glossary](../glossary.md) — what tenant, membership and scope mean

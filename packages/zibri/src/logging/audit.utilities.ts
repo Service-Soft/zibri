@@ -4,6 +4,7 @@ import { CredentialClonedError } from '../error-handling/errors/credential-clone
 import { CredentialReusedError } from '../error-handling/errors/credential-reused.error';
 import { EmailNotVerifiedError } from '../error-handling/errors/email-not-verified.error';
 import { PasswordLockedError } from '../error-handling/errors/password-locked.error';
+import { ServiceAccountRefusedError } from '../error-handling/errors/service-account-refused.error';
 import { AuditReason } from './audit-event.model';
 
 /**
@@ -29,6 +30,9 @@ export abstract class AuditUtilities {
         }
         if (error instanceof AccountDeactivatedError) {
             return AuditReason.DEACTIVATED;
+        }
+        if (error instanceof ServiceAccountRefusedError) {
+            return AuditReason.SERVICE_ACCOUNT;
         }
         if (error instanceof PasswordLockedError) {
             return AuditReason.LOCKED;

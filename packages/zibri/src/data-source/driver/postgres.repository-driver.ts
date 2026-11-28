@@ -23,6 +23,8 @@ import { PostgresSqlUtilities } from '../data-sources/postgres/postgres-sql.util
 import { PostgresColumn, PostgresRelationJoin, PostgresTable } from '../data-sources/postgres/postgres-table.model';
 import { PostgresWhereFilterConverter } from '../data-sources/postgres/postgres-where-filter.converter';
 import { ParameterizedSql } from '../data-sources/where-converter/parameterized-sql.model';
+import { FrameworkColumnRegistry } from '../migration/framework-column.registry';
+import { MissingFrameworkColumnError } from '../migration/missing-framework-column.error';
 import { AggregateRow } from '../models/aggregate.model';
 import { FindAllOptions } from '../models/options/find-all-options.model';
 import { PaginationResult } from '../models/pagination-result.model';
@@ -1278,6 +1280,13 @@ export class PostgresRepositoryDriver<T extends BaseEntity> implements Repositor
      * @returns The values, by column, each as the column is handed it.
      */
     private resolveColumnValues(row: object): ColumnValues {
+        // a column the database lacks is no column of the table, so a value saying what a row without it says is left
+        // out, and any other refused rather than lost: a login of a link that counts as no recent login, a service account
+        for (const missing of this.schema.getMissingColumns(this.entityClass)) {
+            if (!FrameworkColumnRegistry.meansAbsent(this.entityClass, missing.property, Reflect.get(row, missing.property))) {
+                throw new MissingFrameworkColumnError(`Storing "${missing.property}" of a ${this.entityClass.name}`, [missing]);
+            }
+        }
         const res: ColumnValues = new Map();
         for (const column of this.table.columns) {
             if (column.property == undefined) {

@@ -231,7 +231,7 @@ export function resolveWebpackConfiguration(options: WebpackConfigurationOptions
             clean: true
         },
         // the sources are two thirds of the map, and node reads only the mappings: the image is
-        // served without them, and a trace still names src/env.ts:34
+        // served without them, and a trace still names src/env.ts:319
         devtool: sourceMap === 'with-sources' ? 'source-map' : 'nosources-source-map',
         // what the framework's dependencies reach for only when a feature asks, or never on node: the
         // optional native add-ons, the pdf stack. Bundled, a package that is not installed fails the

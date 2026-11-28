@@ -19,6 +19,7 @@ import { ZibriInvoicingPlugin } from '../../../invoicing.plugin';
 import { ElectronicAddress } from '../../../models/electronic-address.model';
 import { InvoiceItem } from '../../../models/invoice-item.model';
 import { InvoiceRecipientAbbreviation } from '../../../models/invoice-recipient-abbreviation.model';
+import { InvoiceType } from '../../../models/invoice-type.enum';
 import { Invoice } from '../../../models/invoice.model';
 import { NumberInvoices } from '../../../models/number-invoices.model';
 import { PeppolConformanceService } from './peppol-conformance.service';
@@ -228,6 +229,15 @@ function getInvoices(buyerElectronicAddress: ElectronicAddress | undefined, yenP
         ),
         'tax-exempt': invoiceOf([itemOf(90, { categoryCode: 'E', rate: 0, exemptionReason: '§19 small business' }, 4)], buyerElectronicAddress),
         'credit-line': invoiceOf([itemOf(100), itemOf(-50, { categoryCode: 'S', rate: 7 })], buyerElectronicAddress),
+        // positive amounts, which type code 381 says are credited, and the invoice it corrects
+        'credit-note': {
+            ...invoiceOf([itemOf(100), itemOf(50, { categoryCode: 'S', rate: 7 })], buyerElectronicAddress),
+            // eslint-disable-next-line cspell/spellchecker
+            number: '2026-GREATC-0001-C1',
+            type: InvoiceType.CREDIT_NOTE,
+            // eslint-disable-next-line cspell/spellchecker
+            precedingInvoices: [{ number: '2026-GREATC-0001', date: new Date(Date.UTC(2026, 9, 1)) }]
+        },
         yen: invoiceOf([itemOf(yenPrice)], buyerElectronicAddress, 'JPY')
     };
 }

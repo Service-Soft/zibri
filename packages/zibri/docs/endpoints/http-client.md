@@ -35,6 +35,7 @@ The HTTP client sends requests to other APIs. It validates the response body and
 | `MimeType` | enum | Known mime types, used to select a non-default response body format |
 | `KnownHeader` | enum | Known header names, used to define expected response headers |
 | `FormData` | class | Response body wrapper for `multipart/form-data` responses |
+| `WebDavMethod`, `HttpClientMethod` | enum, type | The methods of WebDAV `request` sends, such as `PROPFIND`, and every method it sends |
 
 ## Making a request
 Nothing below declares what the body looks like, so `body` is `undefined` and the unvalidated response is in `rawBody`:
@@ -50,6 +51,8 @@ export async function listProjects(): Promise<HttpClientResponse> {
 ```
 
 `post`, `put`, `patch`, `delete`, `head` and `options` send the other methods. A `head` response has headers and no body, so `head` takes `responseHeaders` and no `responseBody`.
+
+`request` takes the method as its first argument, an `HttpMethod` or a `WebDavMethod`: `PROPFIND`, `MKCOL`, `COPY`, `MOVE`, `REPORT` and `SEARCH`. The methods of WebDAV are a type of their own, which a route and the open api do not take. For the files and folders of a WebDAV server, use the [WebDAV client](./web-dav.md).
 
 ## Setting request body, query and header params
 Pass the request body as the second argument of a method that takes one. `get` takes none. For a `post` to an endpoint that expects no body, pass `undefined`.
@@ -115,7 +118,7 @@ It fails with the same `GatewayTimeoutError` the caller was answered with. See [
 
 A request is tried again after a connection that failed, a timeout, or a `408`, `429`, `500`, `502`, `503` or `504`. Any other status is the server's answer to this request, and asking again gets the same answer: a `400` is still malformed, a `409` is still a conflict, a `403` is still forbidden.
 
-`GET`, `HEAD`, `OPTIONS`, `PUT` and `DELETE` are safe to repeat. Sending one of them twice leaves the same result as sending it once.
+`GET`, `HEAD`, `OPTIONS`, `PUT` and `DELETE` are safe to repeat, and of WebDAV `PROPFIND`, `REPORT` and `SEARCH`. Sending one of them twice leaves the same result as sending it once. `MKCOL`, `COPY` and `MOVE` are repeated like a `POST`: a second one fails on what the first one did.
 
 `POST` and `PATCH` are repeated only after a `429` or a `503`, which say the server has not looked at the request yet. After a connection error or a timeout the request may have been carried out with only the reply lost, so these two methods are not repeated then, unless the request carries an [idempotency key](#idempotency-keys).
 

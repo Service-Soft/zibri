@@ -18,8 +18,9 @@ import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
+import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
 import { EmailConfigInput } from '../../email/models/email-config.model';
+import { ServiceAccountRefusedError } from '../../error-handling/errors/service-account-refused.error';
 import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model';
 import { Log } from '../../logging/log.model';
 import { type LoggerInterface } from '../../logging/logger.interface';
@@ -29,12 +30,16 @@ import { Newable } from '../../types/newable.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { OtpTwoFactorMethod } from '../2fa/methods/otp/otp.two-factor-method';
 import { AuthController } from '../auth-controller/auth-controller.model';
+import { LoginLinkEmailTemplate } from '../authenticators/login-link/login-link-email-template.model';
+import { LoginLinkOptions } from '../authenticators/login-link/login-link-options.model';
+import { LoginLinkAuthenticator } from '../authenticators/login-link/login-link.authenticator';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../authenticators/password/password-credentials.model';
 import { PasswordAuthenticator } from '../authenticators/password/password.authenticator';
 import { CurrentUser } from '../decorators/current-user.decorator';
 import { definePermissions, definePlatformPermissions } from '../roles/define-permissions.function';
 import { ZIBRI_PERMISSIONS, ZIBRI_PLATFORM_PERMISSIONS } from '../roles/zibri-permissions.model';
 import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy';
+import { type UserServiceInterface } from '../user/user-service.interface';
 import { InvitationCreateData } from './invitation-create-data.model';
 import { InvitationEmailTemplate } from './invitation-email-template.model';
 import { InvitationOptions } from './invitation-options.model';
@@ -70,6 +75,22 @@ class InvitationTestAuthController extends AuthController({
     }) {}
 
 /**
+ * The same routes, logging the account of an invitation without a password in by its link.
+ */
+@Controller('/auth', { allowOrphan: true, versions: 'all' })
+class LoginLinkInvitationTestAuthController extends AuthController({
+        strategies: [JwtAuthStrategy],
+        authenticators: [PasswordAuthenticator, LoginLinkAuthenticator],
+        twoFactorMethods: [OtpTwoFactorMethod],
+        invitationRoutes: true
+    }) {}
+
+const loginLinkOptions: LoginLinkOptions = {
+    loginLinkUrl: 'https://app.example.com/login-link',
+    loginLinkEmail: compileTsxTemplate<LoginLinkEmailTemplate>('export const Email = ({ loginLink }) => <a href={loginLink}></a>;')
+};
+
+/**
  * Describes inviting people, accepting and declining invitations on the given data sources.
  * @param dataSourceName - The name of the data sources, for the suite.
  * @param dataSources - The data sources, which declare `TestInvitation` and list its repository.
@@ -95,6 +116,23 @@ export function describeInvitations(
         };
         let server: StartedTestServer | undefined;
         let baseUrl: string;
+        const providers: DiProvider<unknown>[] = [
+            ...defaultTestServerProviders,
+            ...rolesAndPermissionsProviders(
+                { permissions: Object.values(Permissions), platformPermissions: Object.values(PlatformPermissions) },
+                roles
+            ),
+            defineProvider({ token: ZIBRI_DI_TOKENS.INVITATION_OPTIONS, useValue: options }),
+            defineProvider({
+                token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,
+                useFactory: (): EmailConfigInput => ({
+                    maxEmailsPerHour: 1000,
+                    defaultSender: 'Ada',
+                    failedRetentionInMs: 'forever'
+                })
+            }),
+            defineProvider({ token: ZIBRI_DI_TOKENS.EMAIL_TRANSPORT, useValue: transport })
+        ];
 
         beforeAll(async () => {
             server = await startTestServer({
@@ -103,23 +141,7 @@ export function describeInvitations(
                 authenticators: [PasswordAuthenticator],
                 twoFactorMethods: [OtpTwoFactorMethod],
                 controllers: [InvitationTestAuthController],
-                providers: [
-                    ...defaultTestServerProviders,
-                    ...rolesAndPermissionsProviders(
-                        { permissions: Object.values(Permissions), platformPermissions: Object.values(PlatformPermissions) },
-                        roles
-                    ),
-                    defineProvider({ token: ZIBRI_DI_TOKENS.INVITATION_OPTIONS, useValue: options }),
-                    defineProvider({
-                        token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,
-                        useFactory: (): EmailConfigInput => ({
-                            maxEmailsPerHour: 1000,
-                            defaultSender: 'Ada',
-                            failedRetentionInMs: 'forever'
-                        })
-                    }),
-                    defineProvider({ token: ZIBRI_DI_TOKENS.EMAIL_TRANSPORT, useValue: transport })
-                ]
+                providers
             });
             baseUrl = await server.start();
         }, startTimeoutInMs);
@@ -185,6 +207,19 @@ export function describeInvitations(
         }
 
         /**
+         * Creates a service account through the user service.
+         * @param name - The name of the service account.
+         * @returns The service account.
+         */
+        async function createServiceAccount(name: string): Promise<JwtUser> {
+            const userService: UserServiceInterface = inject(ZIBRI_DI_TOKENS.USER_SERVICE);
+            if (userService.createServiceAccount == undefined) {
+                throw new Error('The user service of the test server creates service accounts.');
+            }
+            return await userService.createServiceAccount(JwtUser, { name, roles: [Roles.USER] }, undefined);
+        }
+
+        /**
          * Invites somebody, and reads the token off the mail that was sent.
          * @param caller - Who invites.
          * @param data - What differs from an invitation to a new tenant as a member, created once it is accepted.
@@ -246,7 +281,8 @@ export function describeInvitations(
         }
 
         async function logIn(email: string): Promise<string> {
-            const res: Response = await post('/login', { email, password: PASSWORD });
+            // named, for the cases with an authenticator beside it
+            const res: Response = await post('/login?authenticator=password', { email, password: PASSWORD });
             expect(res.status).toBe(200);
             return (await res.json() as { accessToken: { value: string } }).accessToken.value;
         }
@@ -306,7 +342,8 @@ export function describeInvitations(
                     email: invitation.email,
                     tenantId,
                     requiresLogin: false,
-                    declinable: true
+                    declinable: true,
+                    withoutPassword: false
                 });
                 // eslint-disable-next-line sonar/no-duplicate-string
                 expect((await post('/accept-invitation', { token, password: PASSWORD })).status).toBe(204);
@@ -482,6 +519,21 @@ export function describeInvitations(
                 await expect(invite(operator, { email: open.email, tenantId: open.tenantId ?? undefined }))
                     .rejects.toThrow('The email has an open invitation there already.');
             });
+
+            it('refuses the email of a service account, when inviting and when accepting', async () => {
+                const operator: CurrentUser = await createOperator();
+                const service: JwtUser = await createServiceAccount(`billing-${Date.now()}`);
+
+                await expect(invite(operator, { email: service.email })).rejects.toThrow(ServiceAccountRefusedError);
+
+                // invited while nobody held the email, which a service account was created with since
+                const name: string = `reporting-${Date.now()}`;
+                const { invitation, token } = await invite(operator, { email: `${name}@service-accounts.invalid` });
+                const later: JwtUser = await createServiceAccount(name);
+                await expect(invitations().accept(token, { password: undefined, loggedInUserId: later.id }, undefined))
+                    .rejects.toThrow(ServiceAccountRefusedError);
+                expect(await findMembership(later.id, invitation.tenantId ?? '')).toBeUndefined();
+            });
         });
 
         describe('the roles of an invitation', () => {
@@ -593,6 +645,71 @@ export function describeInvitations(
                 expect(invitation.expiresAt).toBeNull();
                 await runCleanup();
                 expect(await findInvitation(invitation.id)).toBeDefined();
+            });
+        });
+
+        // last, as it builds the application again with what logs in by a link
+        describe('without a password', () => {
+            it('is refused while no authenticator logs its account in by a link', async () => {
+                await expect(invite(await createOperator(), { withoutPassword: true })).rejects.toMatchObject({ status: 400 });
+            });
+
+            describe('with LoginLinkAuthenticator', () => {
+                beforeAll(async () => {
+                    if (server == undefined) {
+                        throw new Error('The server of the suite did not start.');
+                    }
+                    await server.reInit({
+                        authenticators: [PasswordAuthenticator, LoginLinkAuthenticator],
+                        controllers: [LoginLinkInvitationTestAuthController],
+                        providers: [...providers, defineProvider({ token: ZIBRI_DI_TOKENS.LOGIN_LINK_OPTIONS, useValue: loginLinkOptions })]
+                    });
+                    baseUrl = await server.start();
+                }, startTimeoutInMs);
+
+                it('creates the account without a password on accepting, and logs it in by the link', async () => {
+                    const { invitation, token } = await invite(await createOperator(), { withoutPassword: true });
+                    expect(invitation.withoutPassword).toBe(true);
+                    expect(await verify(token)).toMatchObject({ isValid: true, requiresLogin: false, withoutPassword: true });
+
+                    const res: Response = await post('/accept-invitation', { token });
+
+                    expect(res.status).toBe(200);
+                    expect((await res.json() as { accessToken: { value: string } }).accessToken.value).toEqual(expect.any(String));
+                    const user: JwtUser = await users().findOne({ where: { email: invitation.email } });
+                    expect(user.emailVerifiedAt).toBeInstanceOf(Date);
+                    expect((await findMembership(user.id, invitation.tenantId ?? ''))?.roles).toEqual([MemberRoles.USER]);
+                    expect(await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
+                        .findOne({ where: { userId: user.id }, required: false })).toBeUndefined();
+                    expect(await auditEvents()).toEqual(expect.arrayContaining([
+                        expect.objectContaining({ action: AuditAction.INVITATION_ACCEPTED, outcome: AuditOutcome.SUCCESS, subject: invitation.email }),
+                        expect.objectContaining({ action: AuditAction.LOGIN_LINK_USED, outcome: AuditOutcome.SUCCESS, userId: user.id }),
+                        expect.objectContaining({ action: AuditAction.LOGIN, outcome: AuditOutcome.SUCCESS, userId: user.id })
+                    ]));
+                    expect((await post('/accept-invitation', { token })).status).toBe(401);
+                });
+
+                it('creates the account when it is sent, and logs it in on accepting', async () => {
+                    const { invitation, token } = await invite(await createOperator(), { withoutPassword: true, createOn: 'invite' });
+
+                    expect((await post('/accept-invitation', { token })).status).toBe(200);
+                    expect(await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
+                        .findOne({ where: { userId: invitation.createdUserId ?? '' }, required: false })).toBeUndefined();
+                });
+
+                it('refuses a password for the account it creates', async () => {
+                    const { token } = await invite(await createOperator(), { withoutPassword: true });
+
+                    expect((await post('/accept-invitation', { token, password: PASSWORD })).status).toBe(400);
+                });
+
+                it('is accepted by an email with an account of its own as any other invitation is', async () => {
+                    const existing: JwtUser = await createUserWithPassword();
+                    const { token } = await invite(await createOperator(), { email: existing.email, withoutPassword: true });
+
+                    expect(await verify(token)).toMatchObject({ requiresLogin: true, withoutPassword: false });
+                    expect((await post('/accept-invitation', { token }, await logIn(existing.email))).status).toBe(204);
+                });
             });
         });
     });

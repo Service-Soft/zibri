@@ -201,6 +201,10 @@ export async function queueTaskAssignedEmail(): Promise<void> {
 
 A mail without a `priority` is queued as `NORMAL`. A [Handlebars template](./templating.md#rendering-a-handlebars-template) renders html for a mail as well.
 
+An answer to a mail goes to its sender. `replyTo` names another address, like the one of a visitor who sent a contact form, so that answering the mail answers them. `SmtpEmailTransport` sends it as the `Reply-To` header, and a transport of your own sends it as well.
+
+A mail is rendered in the locale of the request queueing it, and outside a request in the `defaultLocale`. Render and queue it inside [`runInLocale`](./localization.md#running-work-in-the-locale-of-a-user) with the `locale` of its recipient to send it in their language, its `$ts` subject included. The mails of the framework, such as an invitation or a password reset, reach their recipient in their locale.
+
 ## Attaching files
 An attachment carries the content of its file, base64 encoded, and the name the recipient sees. The extension of `filename` decides the content type.
 

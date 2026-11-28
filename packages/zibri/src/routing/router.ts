@@ -6,7 +6,7 @@ import { match } from 'path-to-regexp';
 import { ZibriApplication } from '../application/application';
 import type { AuthServiceInterface } from '../auth/auth-service.interface';
 import type { RouteAuthServiceInterface } from '../auth/route-auth-service.interface';
-import { AlsUtilities } from '../context/als.utilities';
+import { AlsUtilities, RecordedTenantsResult } from '../context/als.utilities';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -22,6 +22,7 @@ import { MethodNotAllowedError } from '../error-handling/errors/method-not-allow
 import { NotAcceptableError } from '../error-handling/errors/not-acceptable.error';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { InternalError } from '../error-handling/internal-error.model';
+import { FileRouteRegistry } from '../file/file-route.registry';
 import { GlobalRegistry } from '../global/global-registry';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { OnAppStart } from '../global/on-app-start.interface';
@@ -163,6 +164,8 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         this.logger.info(`registers ${app.options.controllers.length} controllers:`);
+        // the controllers serving files are those of this application, not of one started before it in the process
+        FileRouteRegistry.clear();
         for (const controller of app.options.controllers) {
             const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(controller);
             this.logger.info(`  - ${controller.name} (${routes.length} routes)`);
@@ -672,21 +675,24 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
                 this.validateAcceptable(context.request, producible);
                 // parsed onto the request, which is what the handler reads them from
                 await RouteParamUtilities.resolveValues(params, paramCount, context);
-                const result: unknown = await RequestDeadlineUtilities.resolveWithinDeadline(
-                    context,
-                    route.timeoutInMs ?? this.handlerTimeout,
-                    // eslint-disable-next-line typescript/no-explicit-any
-                    async () => await route.handler(context.request as HttpRequest<any, any, any, any>, context.response, next)
+                const { result, tenantIds }: RecordedTenantsResult<unknown> = await AlsUtilities.runRecordingTenants(
+                    async () => await RequestDeadlineUtilities.resolveWithinDeadline(
+                        context,
+                        route.timeoutInMs ?? this.handlerTimeout,
+                        // eslint-disable-next-line typescript/no-explicit-any
+                        async () => await route.handler(context.request as HttpRequest<any, any, any, any>, context.response, next)
+                    )
                 );
                 await this.writeCacheControl(context);
-                await ResponseWriterUtilities.write(
+                await this.runInWorkTenant(tenantIds, async inSeveralTenants => await ResponseWriterUtilities.write(
                     context.request,
                     context.response,
                     result,
                     next,
                     [],
-                    `${route.httpMethod} ${route.route}`
-                );
+                    `${route.httpMethod} ${route.route}`,
+                    inSeveralTenants
+                ));
             }
             catch (error) {
                 next(error);
@@ -757,6 +763,8 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         }
         this.allBaseRoutes.push({ key: controllerData.baseRoute, versions: controllerData.versions });
         const routes: ControllerRouteConfiguration[] = MetadataUtilities.getControllerRoutes(controllerClass);
+        // the url a file of a row is written with in a response points to the controller serving it
+        FileRouteRegistry.register(controllerClass);
 
         for (const route of routes) {
             const finalRoute: string = controllerData.baseRoute === '/' ? route.route : `${controllerData.baseRoute}${route.route}`;
@@ -902,26 +910,52 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
                     ((controller as any)[route.controllerMethod] as Function).length,
                     context
                 );
-                const result: unknown = await RequestDeadlineUtilities.resolveWithinDeadline(
-                    context,
-                    timeoutInMs ?? this.handlerTimeout,
-                    // eslint-disable-next-line typescript/no-unsafe-call, typescript/no-explicit-any, typescript/no-unsafe-member-access
-                    async (): Promise<unknown> => await ((controller as any)[route.controllerMethod] as Function)(...params)
+                const { result, tenantIds }: RecordedTenantsResult<unknown> = await AlsUtilities.runRecordingTenants(
+                    async () => await RequestDeadlineUtilities.resolveWithinDeadline(
+                        context,
+                        timeoutInMs ?? this.handlerTimeout,
+                        // eslint-disable-next-line typescript/no-unsafe-call, typescript/no-explicit-any, typescript/no-unsafe-member-access
+                        async (): Promise<unknown> => await ((controller as any)[route.controllerMethod] as Function)(...params)
+                    )
                 );
                 await this.writeCacheControl(context);
-                await ResponseWriterUtilities.write(
+                await this.runInWorkTenant(tenantIds, async inSeveralTenants => await ResponseWriterUtilities.write(
                     context.request,
                     context.response,
                     result,
                     next,
                     responses,
-                    `${controllerClass.name}.${route.controllerMethod}`
-                );
+                    `${controllerClass.name}.${route.controllerMethod}`,
+                    inSeveralTenants
+                ));
             }
             catch (error) {
                 next(error);
             }
         };
+    }
+
+    /**
+     * Writes the response of a handler in the tenant its work ran in.
+     *
+     * That is the tenant of the request, or, for a request naming none, the one tenant the handler did its work in with
+     * `runAs`: what it returned is of that tenant, and a file of it is read there and linked with it. A handler that
+     * entered several tenants leaves none to pick, and its response is written outside every tenant, told so, as it
+     * cannot link a file.
+     * @param tenantIds - The tenants the handler entered while no tenant was active.
+     * @param write - Writes the response, told whether the handler worked in several tenants.
+     */
+    private async runInWorkTenant(tenantIds: string[], write: (inSeveralTenants: boolean) => Promise<void>): Promise<void> {
+        const [tenantId] = tenantIds;
+        if (tenantId == undefined || this.tenantService.getActiveTenantId() != undefined) {
+            await write(false);
+            return;
+        }
+        if (tenantIds.length > 1) {
+            await write(true);
+            return;
+        }
+        await this.tenantService.runAs(tenantId, async () => await write(false));
     }
 
     /**

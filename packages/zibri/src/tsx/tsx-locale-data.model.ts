@@ -7,6 +7,7 @@ import { inject } from '../di/inject.function';
 import { LocalizeServiceInterface } from '../localization/localize-service.interface';
 import { CurrencyCode } from '../localization/models/currency-code.model';
 import { LocaleCode } from '../localization/models/locale-code.model';
+import { LocalizeOptions } from '../localization/models/localize-options.model';
 import { TranslationRegistry } from '../localization/translation.registry';
 
 /**
@@ -30,7 +31,8 @@ type LocaleFormatOptions = {
      */
     dateTimeFormat: string,
     /**
-     * The default currency for the active locale.
+     * The currency a price without one is in: the one of the active locale, or with `priceCurrency:
+     * 'defaultLocale'` of the localize options the one of the default locale.
      */
     currencyCode: CurrencyCode
 };
@@ -76,6 +78,7 @@ export class TsxLocaleData implements LocaleData {
      */
     get formatOptions(): LocaleFormatOptions {
         const localizeService: LocalizeServiceInterface = inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE);
+        const localizeOptions: LocalizeOptions = inject(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS);
         const locale: LocaleCode = this.currentLocale();
 
         return {
@@ -83,7 +86,10 @@ export class TsxLocaleData implements LocaleData {
             dateFormat: localizeService.resolveDateFormatForLocale(locale, 'date'),
             timeFormat: localizeService.resolveDateFormatForLocale(locale, 'time'),
             dateTimeFormat: localizeService.resolveDateFormatForLocale(locale, 'date-time'),
-            currencyCode: localizeService.resolveCurrencyCodeForLocale(locale)
+            // the one formatPrice takes on the server
+            currencyCode: localizeService.resolveCurrencyCodeForLocale(
+                localizeOptions.priceCurrency === 'defaultLocale' ? localizeOptions.defaultLocale : locale
+            )
         };
     }
 

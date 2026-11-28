@@ -94,6 +94,7 @@ export function resolveApplicationOptions(
         stackTraceLimit: options.stackTraceLimit ?? base.stackTraceLimit,
         cronJobs: options.cronJobs ?? base.cronJobs ?? [],
         backupTransports: options.backupTransports ?? base.backupTransports ?? [],
+        fileStores: options.fileStores ?? base.fileStores ?? [],
         commands: options.commands ?? base.commands ?? [],
         additionalLifecycleServices: options.additionalLifecycleServices
             ?? base.additionalLifecycleServices

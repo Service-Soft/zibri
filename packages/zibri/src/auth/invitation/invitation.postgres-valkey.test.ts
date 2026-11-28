@@ -7,17 +7,18 @@ import { PostgresDataSource } from '../../data-source/data-sources/postgres/post
 import { ValKeyDataSource } from '../../data-source/data-sources/val-key/val-key-data-source.model';
 import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
 import { Newable } from '../../types/newable.type';
+import { LoginLinkToken } from '../authenticators/login-link/login-link-token.model';
 import { describeInvitations } from './invitation.cases';
 
 // each handed to one of the two servers below, so each is declared without the other using it
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-    entities: [...defaultTestServerEntities, TestInvitation],
+    entities: [...defaultTestServerEntities, TestInvitation, LoginLinkToken],
     repositories: [...defaultTestServerRepositories, TestServerInvitationRepository],
     allowOrphan: true
 });
 
 const postgresWithoutInvitationsDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-    entities: defaultTestServerEntities,
+    entities: [...defaultTestServerEntities, LoginLinkToken],
     repositories: defaultTestServerRepositories,
     allowOrphan: true
 });

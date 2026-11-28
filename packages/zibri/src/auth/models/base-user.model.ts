@@ -2,14 +2,20 @@ import type { ChangeSetEntity } from '../../data-source/change-sets/models/chang
 import type { ChangeSetOnlyEntityClass } from '../../data-source/change-sets/models/change-set-only-entity-class.type';
 import { isSoftDeleteEntityNewable } from '../../data-source/change-sets/models/is-soft-delete-entity.function';
 import type { SoftDeleteEntity } from '../../data-source/change-sets/models/soft-delete-entity.model';
+import { FrameworkColumnRegistry } from '../../data-source/migration/framework-column.registry';
 import { whereFor } from '../../data-source/models/where/where-for.function';
 import { USER_ENTITY } from '../../data-source/repository/repository-kind.model';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Property } from '../../entity/decorators/property.decorator';
 import { UniqueDeclaration } from '../../entity/models/unique-declaration.model';
 import { InternalError } from '../../error-handling/internal-error.model';
+import { type LocaleCode } from '../../localization/models/locale-code.model';
 import { Newable } from '../../types/newable.type';
 import { SoftDeletingUserEntityOptions } from './soft-deleting-user-entity-options.model';
+import { UserKindUtilities } from '../user/user-kind.utilities';
+import { type UserKind } from './user-kind.type';
 
 /**
  * Common properties shared by all users.
@@ -33,7 +39,18 @@ export type BaseUser<Role extends string> = BaseEntity & {
      * When the user proved that `email` is theirs, by a link mailed to it. Undefined or null while
      * they have not.
      */
-    emailVerifiedAt?: Date | null
+    emailVerifiedAt?: Date | null,
+    /**
+     * The locale the mails of the framework reach the user in, one the application supports. A user created
+     * without one gets the locale of the request creating them. Undefined or null for the default locale.
+     */
+    locale?: LocaleCode | null,
+    /**
+     * Whether the user is a person, who logs in, or a service account, which acts through its API keys only and
+     * never logs in. Set when the user is created, `'person'` by default, and never changed. Undefined or null for
+     * a user stored before users had a kind, who is a person.
+     */
+    kind?: UserKind | null
 };
 
 /**
@@ -96,7 +113,24 @@ export function BaseUserEntity<Role extends string = string>(
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Property.date({ required: false })
         emailVerifiedAt?: Date | null;
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Property.string({
+            required: false,
+            // whatever route of the application creates the user: a sign up, an invitation, an administrator
+            default: (_, context) => inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).resolveSupportedLocale(context)
+        })
+        locale?: LocaleCode | null;
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Property.string({ enum: UserKindUtilities.KINDS, required: false, default: 'person' })
+        kind?: UserKind | null;
     }
+    // added by the data source to a table that lacks them, so that a user entity of 3.2 takes no migration of the
+    // application's. Every user stored before users had a kind is a person. Without the column, a locale a user is
+    // created with by default is left out, as a user of 3.2 had none, and updateLocale refuses one given
+    FrameworkColumnRegistry.register(
+        { entity: Temp, property: 'locale', meansAbsent: () => true },
+        { entity: Temp, property: 'kind', storedValue: () => 'person', meansAbsent: value => value === 'person' }
+    );
 
     return Temp;
 }

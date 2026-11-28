@@ -1,6 +1,7 @@
 import { ZibriApplication } from '../../application/application';
 import { StartTransactionOptions } from '../../data-source/data-sources/data-source.interface';
 import { SpanningTransaction } from '../../data-source/transaction/spanning-transaction.model';
+import { TransactionUtilities } from '../../data-source/transaction/transaction.utilities';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
@@ -142,16 +143,7 @@ export abstract class AuthControllerUtilities {
     ): Promise<T> {
         // spanning, since the routes hand it to the strategies, authenticators and two factor methods
         // of the application, each writing wherever it keeps its rows
-        const transaction: SpanningTransaction = new SpanningTransaction(options);
-        try {
-            const result: T = await run(transaction);
-            await transaction.commit();
-            return result;
-        }
-        catch (error) {
-            await transaction.rollback();
-            throw error;
-        }
+        return await TransactionUtilities.runAndCommit(new SpanningTransaction(options), run);
     }
 
     /**

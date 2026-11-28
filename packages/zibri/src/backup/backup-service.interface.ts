@@ -8,7 +8,7 @@ import { BackupResourceEntity } from './backup-resource-entity.model';
 import { BackupResourceInterface } from './backup-resource.interface';
 import { BackupRetention } from './backup-retention.model';
 import { RestoreOptions } from './restore-options.model';
-import { TenantBackupTransport, TenantBackupTransportCreateData } from './tenant/tenant-backup-transport.model';
+import { TenantBackupTransport, TenantBackupTransportChangeData, TenantBackupTransportCreateData } from './tenant/tenant-backup-transport.model';
 import { TenantExportFormat } from './tenant-export-format.type';
 import { BackupTransportInterface } from './transports/backup-transport.interface';
 
@@ -97,12 +97,25 @@ export interface BackupServiceInterface {
     /**
      * Finds the transports of a tenant.
      * @param tenantId - The tenant.
-     * @returns The transports.
+     * @returns The transports, by name.
      */
     findTenantBackupTransports?: (tenantId: string) => Promise<TenantBackupTransport[]>,
     // TODO 4.0: required
     /**
-     * Deletes a transport of a tenant.
+     * Changes a transport of a tenant: its name, its settings or its secret, each replaced as a whole where given.
+     * Changed settings or a changed secret are checked as they are when the transport is added, and a small object is
+     * written and deleted with them first. The settings change only while no backup is stored on it.
+     * @param tenantId - The tenant.
+     * @param id - The transport.
+     * @param change - What changes.
+     * @returns The transport, changed.
+     * @throws A BadRequestError when the change is not one the application allows, or cannot be written to with.
+     * @throws A ConflictError when it changes the settings while a backup is stored on the transport.
+     */
+    updateTenantBackupTransport?: (tenantId: string, id: string, change: TenantBackupTransportChangeData) => Promise<TenantBackupTransport>,
+    // TODO 4.0: required
+    /**
+     * Deletes a transport of a tenant, and nothing of what it stores.
      * @param tenantId - The tenant.
      * @param id - The transport.
      * @throws A ConflictError while a backup is stored on it.

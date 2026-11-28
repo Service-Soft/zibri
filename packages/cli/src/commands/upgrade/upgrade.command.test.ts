@@ -27,6 +27,23 @@ import { UpgradeCommand } from './upgrade.command';
 
 const BUILD_STAGE: string = 'FROM node:24-slim AS build';
 
+/**
+ * What an earlier release generated of `src/providers.ts` where this one reads a variable through `env`, as
+ * `[now, then]`: each read named the variable by a string.
+ */
+const PROVIDER_READS_BY_NAME: [string, string][] = [
+    ['import { env } from \'./env\';', 'import { optionalEnv, requireEnv, requirePortEnv, requireUrlEnv } from \'./env\';'],
+    ['env.masterKey', 'requireEnv(\'MASTER_KEY\')'],
+    ['env.jwt.accessSecret', 'requireEnv(\'JWT_ACCESS_SECRET\')'],
+    ['env.jwt.refreshSecret', 'requireEnv(\'JWT_REFRESH_SECRET\')'],
+    ['env.emailDefaultSender', 'optionalEnv(\'EMAIL_DEFAULT_SENDER\')'],
+    ['env.smtp.host', 'requireEnv(\'SMTP_HOST\')'],
+    ['env.smtp.port', 'requirePortEnv(\'SMTP_PORT\')'],
+    ['env.smtp.user', 'optionalEnv(\'SMTP_USER\')'],
+    ['env.smtp.password', 'optionalEnv(\'SMTP_PASSWORD\')'],
+    ['env.confirmPasswordResetUrl', 'requireUrlEnv(\'CONFIRM_PASSWORD_RESET_URL\')']
+];
+
 let workDir: Path;
 let appDir: Path;
 let execSpy: jest.SpiedFunction<typeof CPUtilities.exec>;
@@ -214,6 +231,23 @@ describe('UpgradeCommand', () => {
         expect(await read('Dockerfile')).toBe(current.replace('EXPOSE 3000', 'EXPOSE 8080'));
     });
 
+    it('brings what an earlier release read by the name of each variable to env, in a file the project changed elsewhere too', async () => {
+        const providers: string = await read('src/providers.ts');
+        const index: string = await read('src/index.ts');
+        await writeAsGenerated('src/providers.ts', PROVIDER_READS_BY_NAME.reduce((content, [now, then]) => content.replaceAll(now, then), providers));
+        await writeAsGenerated('src/index.ts', index
+            .replace('import { env } from \'./env\';', 'import { requirePortEnv } from \'./env\';')
+            .replace('env.port', 'requirePortEnv(\'PORT\')'));
+        commitAll('zi new, an older one');
+        await write('src/providers.ts', (await read('src/providers.ts')).replace('Ms.DAY * 365', 'Ms.DAY * 30'));
+        commitAll('a shorter audit trail');
+
+        await upgrade();
+
+        expect(await read('src/index.ts')).toBe(index);
+        expect(await read('src/providers.ts')).toBe(providers.replace('Ms.DAY * 365', 'Ms.DAY * 30'));
+    });
+
     it('marks both versions where the project and the generator changed the same lines', async () => {
         const current: string = await read('Dockerfile');
         await writeAsGenerated('Dockerfile', current.replace(BUILD_STAGE, 'FROM node:22-slim AS build'));
@@ -260,7 +294,7 @@ describe('UpgradeCommand', () => {
 
     it('merges a file it merged once at this release again, generating what the manifest records', async () => {
         const current: string = await read('src/application-options.base.ts');
-        const changed: string = current.replace('requireEnv(\'BASE_URL\')', 'requireEnv(\'PUBLIC_URL\')');
+        const changed: string = current.replace('env.baseUrl', 'env.publicUrl');
         await write('src/application-options.base.ts', changed);
         commitAll('another variable');
         await upgrade('none', 'public');

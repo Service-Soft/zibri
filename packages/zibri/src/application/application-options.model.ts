@@ -8,6 +8,7 @@ import { BackupTransportSupporting } from '../backup/transports/backup-transport
 import { CronJob } from '../cron/cron-job.model';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { DiProvider } from '../di/models/di-provider.model';
+import { FileStoreInterface } from '../file/stores/file-store.interface';
 import { CorsOptions } from '../http/cors.middleware';
 import { KnownHeader } from '../http/known-header.enum';
 import { AnyBodyParser } from '../parsing/body-parser.interface';
@@ -230,6 +231,10 @@ export type ZibriApplicationOptions = {
      */
     // TODO 4.0: transports supporting v2 only
     backupTransports?: Newable<BackupTransportSupporting>[],
+    /**
+     * The file stores of the app, each a class decorated with `@FileStore()`.
+     */
+    fileStores?: Newable<FileStoreInterface>[],
     /**
      * The commands of the app, which `runCommand` runs in place of starting it, beside the migration
      * commands.

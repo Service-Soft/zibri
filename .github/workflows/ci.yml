@@ -169,6 +169,25 @@ jobs:
             - run: npm run build:prod -w zibri
             - run: npm run build -w zibri-testing
             - run: npm run test:cluster -w zibri
+    # what Nextcloud does that the WebDAV client depends on, against Nextcloud in a container. One job on one node
+    # line: the server is what this tests, and its image is half a gigabyte that installs itself on every start
+    test-zibri-nextcloud:
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                node-version: '24'
+                cache: npm
+            - run: npm ci
+            - run: npm run build -w zibri-contract
+            - run: npm run build -w zibri-tsx
+            - run: npm run build -w zibri-tsx-compiler
+            - run: npm run build -w zibri-mdx
+            - run: npm run build:prod -w zibri
+            - run: npm run build -w zibri-testing
+            - run: npm run test:nextcloud -w zibri
     test-tsx:
         needs: node-versions
         strategy:
@@ -427,6 +446,7 @@ jobs:
             - test-zibri
             - test-zibri-heavy
             - test-zibri-cluster
+            - test-zibri-nextcloud
             - test-tsx
             - test-browser
             - test-docs-site

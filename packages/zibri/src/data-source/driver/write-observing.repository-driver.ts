@@ -12,6 +12,7 @@ import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
 import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
 import { Transaction } from '../transaction/transaction.model';
+import { TransactionUtilities } from '../transaction/transaction.utilities';
 import { EntityWrite, EntityWriteObserver, RowWrite, WriteOperation, WrittenRows } from '../write-observers/entity-write-observer.model';
 import { EntityWriteObserverRegistry } from '../write-observers/entity-write-observer.registry';
 import { findUpsertRowOf, findUpsertTargets } from './find-upsert-targets.function';
@@ -50,6 +51,11 @@ type Write<R, X extends RepositoryTransaction> = {
 };
 
 /**
+ * Builds a write in a transaction: the one it was called with, or the one started for an observer that needs one.
+ */
+type WriteBuilder<R, X extends RepositoryTransaction> = (transaction: X | undefined) => Write<R, X>;
+
+/**
  * What a write does to each row, once it is read, which happens once per write.
  */
 type RowWritesRead = {
@@ -60,12 +66,14 @@ type RowWritesRead = {
 };
 
 /**
- * Hands every write to the observers of its entity: each checks it before it is made, and follows it
- * once it is committed.
+ * Hands every write to the observers of its entity: each checks it before it is made, completes it in
+ * its transaction once it is made, and follows it once it is committed.
  *
  * Every way a row is written reaches the store through this seam, however the repository above it got
  * there. The rows a write changes are read once, before it, for every observer that needs them; a
- * write to an entity nobody observes reads nothing. Every read forwards.
+ * write to an entity nobody observes reads nothing. A write without a transaction that an observer
+ * needs one for runs, with its observers, in a transaction of the data source of the entity, started
+ * and ended here. Every read forwards.
  */
 export class WriteObservingRepositoryDriver<T extends BaseEntity, X extends RepositoryTransaction = Transaction>
     extends ForwardingRepositoryDriver<T, X> {
@@ -77,36 +85,38 @@ export class WriteObservingRepositoryDriver<T extends BaseEntity, X extends Repo
     constructor(
         inner: RepositoryDriverInterface<T, X>,
         private readonly entityClass: Newable<T>,
-        private readonly logger: LoggerInterface
+        private readonly logger: LoggerInterface,
+        // a transaction of the data source of the entity, never a spanning one, which a chained entity refuses
+        private readonly startTransaction?: () => Promise<X>
     ) {
         super(inner);
     }
 
     override async save(data: DeepPartial<T>[], transaction: X | undefined, reload: boolean): Promise<T[]> {
-        return await this.observe({
+        return await this.observe(transaction, tx => ({
             operation: 'save',
             data,
-            transaction,
+            transaction: tx,
             readRowWrites: async () => {
                 const ids: string[] = data.flatMap(row => typeof row.id === 'string' ? [row.id] : []);
-                const existing: T[] = ids.length ? await this.inner.find({ where: this.whereIdIn(ids), transaction }) : [];
+                const existing: T[] = ids.length ? await this.inner.find({ where: this.whereIdIn(ids), transaction: tx }) : [];
                 return data.map(row => ({ data: row, existing: existing.find(stored => stored.id === row.id) }));
             },
-            run: async () => await super.save(data, transaction, reload),
+            run: async () => await super.save(data, tx, reload),
             resolveWritten: (saved, rowWrites) => ({ before: this.existingOf(rowWrites), after: saved })
-        });
+        }));
     }
 
     override async insert(data: DeepPartial<T>[], transaction: X | undefined): Promise<T[]> {
-        return await this.observe({
+        return await this.observe(transaction, tx => ({
             operation: 'insert',
             data,
-            transaction,
+            transaction: tx,
             // eslint-disable-next-line typescript/require-await
             readRowWrites: async () => data.map(row => ({ data: row, existing: undefined })),
-            run: async () => await super.insert(data, transaction),
+            run: async () => await super.insert(data, tx),
             resolveWritten: inserted => ({ before: [], after: inserted })
-        });
+        }));
     }
 
     override async updateEach(
@@ -115,34 +125,34 @@ export class WriteObservingRepositoryDriver<T extends BaseEntity, X extends Repo
         transaction: X | undefined,
         related?: RelatedNarrowing
     ): Promise<T[]> {
-        return await this.observe({
+        return await this.observe(transaction, tx => ({
             operation: 'updateEach',
             data: rows,
-            transaction,
-            readRowWrites: async () => (await this.inner.find({ where, related, transaction })).map(stored => ({
+            transaction: tx,
+            readRowWrites: async () => (await this.inner.find({ where, related, transaction: tx })).map(stored => ({
                 // a row naming an id writes that row only, any other the rows the write matched
                 data: rows
                     .filter(row => row.id == undefined || row.id === stored.id)
                     .reduce<object>((merged, row) => ({ ...merged, ...row }), {}),
                 existing: stored
             })),
-            run: async () => await super.updateEach(rows, where, transaction, related),
+            run: async () => await super.updateEach(rows, where, tx, related),
             resolveWritten: (updated, rowWrites) => ({ before: this.existingOf(rowWrites), after: updated })
-        });
+        }));
     }
 
     override async remove(ids: string[], reach: RemovalReach<T> | undefined, transaction: X | undefined): Promise<string[]> {
-        return await this.observe({
+        return await this.observe(transaction, tx => ({
             operation: 'remove',
             data: [],
-            transaction,
+            transaction: tx,
             // read first: a remove is handed ids, and what it removes is only on the rows
             readRowWrites: async observers => ids.length
-                ? await this.readRemovedRows(observers, this.whereIdIn(ids), undefined, transaction)
+                ? await this.readRemovedRows(observers, this.whereIdIn(ids), undefined, tx)
                 : [],
-            run: async () => await super.remove(ids, reach, transaction),
+            run: async () => await super.remove(ids, reach, tx),
             resolveWritten: (removed, rowWrites) => this.resolveRemoved(removed, rowWrites)
-        });
+        }));
     }
 
     override async removeMatching(
@@ -150,14 +160,14 @@ export class WriteObservingRepositoryDriver<T extends BaseEntity, X extends Repo
         related: RelatedNarrowing | undefined,
         transaction: X | undefined
     ): Promise<string[]> {
-        return await this.observe({
+        return await this.observe(transaction, tx => ({
             operation: 'remove',
             data: [],
-            transaction,
-            readRowWrites: async observers => await this.readRemovedRows(observers, where, related, transaction),
-            run: async () => await super.removeMatching(where, related, transaction),
+            transaction: tx,
+            readRowWrites: async observers => await this.readRemovedRows(observers, where, related, tx),
+            run: async () => await super.removeMatching(where, related, tx),
             resolveWritten: (removed, rowWrites) => this.resolveRemoved(removed, rowWrites)
-        });
+        }));
     }
 
     /**
@@ -198,30 +208,30 @@ export class WriteObservingRepositoryDriver<T extends BaseEntity, X extends Repo
     }
 
     override async updateAll<R extends boolean = false>(options: DriverUpdateAllOptions<T, R, X>): Promise<R extends true ? T[] : number> {
-        return await this.observe({
+        return await this.observe(options.transaction, tx => ({
             operation: 'updateAll',
             data: [options.data],
-            transaction: options.transaction,
+            transaction: tx,
             // as the distinct values the observers need rather than as rows, since a filter can match
             // every row of a table
             readRowWrites: async observers => {
                 const groups: AggregateRow[] = await this.inner.aggregate({
                     where: options.where,
                     related: options.related,
-                    transaction: options.transaction,
+                    transaction: tx,
                     fn: 'count',
                     property: undefined,
                     groupBy: [...new Set(observers.flatMap(observer => observer.properties))]
                 });
                 return groups.map(group => ({ data: options.data, existing: group.group }));
             },
-            run: async () => await super.updateAll(options),
+            run: async () => await super.updateAll({ ...options, transaction: tx }),
             // an update hands back how many rows it changed rather than which
             resolveWritten: (_, rowWrites) => ({
                 before: this.existingOf(rowWrites),
                 after: this.existingOf(rowWrites).map(row => ({ ...row, ...options.data }))
             })
-        });
+        }));
     }
 
     override async upsert(
@@ -231,34 +241,56 @@ export class WriteObservingRepositoryDriver<T extends BaseEntity, X extends Repo
         reachable: Where<T> | undefined,
         related?: RelatedNarrowing
     ): Promise<T[]> {
-        return await this.observe({
+        return await this.observe(transaction, tx => ({
             operation: 'upsert',
             // what a row is inserted with, and what it is set to when it is already there
             data: rows.flatMap(row => [row.create, this.resolveSetOnConflict(row)]),
-            transaction,
+            transaction: tx,
             readRowWrites: async () => {
-                const targets: T[] = await findUpsertTargets(this.inner, identity, rows, transaction);
+                const targets: T[] = await findUpsertTargets(this.inner, identity, rows, tx);
                 return rows.map(row => {
                     const existing: T | undefined = targets.find(stored => findUpsertRowOf(identity, rows, stored) === row);
                     return existing == undefined ? { data: row.create, existing } : { data: this.resolveSetOnConflict(row), existing };
                 });
             },
-            run: async () => await super.upsert(identity, rows, transaction, reachable, related),
+            run: async () => await super.upsert(identity, rows, tx, reachable, related),
             resolveWritten: (written, rowWrites) => ({ before: this.existingOf(rowWrites), after: written })
-        });
+        }));
     }
 
     /**
      * Makes a write, checked by every observer of the entity before, and followed by them once it is
-     * committed.
-     * @param write - The write.
+     * committed. A write without a transaction that an observer needs one for runs in one started for it.
+     * @param transaction - The transaction the write was called with, if any.
+     * @param build - Builds the write in a transaction.
      * @returns What the write answers.
      */
-    private async observe<R>(write: Write<R, X>): Promise<R> {
+    private async observe<R>(transaction: X | undefined, build: WriteBuilder<R, X>): Promise<R> {
         const observers: EntityWriteObserver[] = this.resolveObservers();
+        const write: Write<R, X> = build(transaction);
         if (!observers.length) {
             return await write.run();
         }
+        // only a write without one, and only for an observer asking: every other write makes no round trip more
+        if (transaction == undefined && this.startTransaction != undefined) {
+            const entityWrite: EntityWrite = { operation: write.operation, data: write.data };
+            if (observers.some(observer => observer.requiresTransaction?.(entityWrite) === true)) {
+                return await TransactionUtilities.runAndCommit(
+                    await this.startTransaction(),
+                    async started => await this.observeWrite(build(started), observers)
+                );
+            }
+        }
+        return await this.observeWrite(write, observers);
+    }
+
+    /**
+     * Makes a write, checked by the observers before, and followed by them once it is committed.
+     * @param write - The write.
+     * @param observers - The observers of the entity, at least one.
+     * @returns What the write answers.
+     */
+    private async observeWrite<R>(write: Write<R, X>, observers: EntityWriteObserver[]): Promise<R> {
         const read: RowWritesRead = {};
         const resolveRowWrites: () => Promise<RowWrite[]> = async () => {
             read.rowWrites ??= write.readRowWrites(observers);
@@ -272,18 +304,27 @@ export class WriteObservingRepositoryDriver<T extends BaseEntity, X extends Repo
                 transaction: write.transaction
             });
         }
+        const completing: EntityWriteObserver[] = observers.filter(observer => observer.completeWrite != undefined);
         const following: EntityWriteObserver[] = observers.filter(observer => observer.handleWritten != undefined);
-        if (!following.length) {
+        if (!completing.length && !following.length) {
             return await write.run();
         }
         const entityWrite: EntityWrite = { operation: write.operation, data: write.data };
         // before the write, which changes them, when one of them follows them or a check read them
-        const rowWrites: RowWrite[] = following.some(observer => observer.followsBefore?.(entityWrite) === true)
+        const rowWrites: RowWrite[] = [...completing, ...following].some(observer => observer.followsBefore?.(entityWrite) === true)
             || read.rowWrites != undefined
             ? await resolveRowWrites()
             : [];
         const result: R = await write.run();
         const written: WrittenRows = { ...entityWrite, ...write.resolveWritten(result, rowWrites) };
+        // in the transaction of the write, before it is committed, so that what they write is committed or rolled back
+        // with it, and what they throw fails it
+        for (const observer of completing) {
+            await observer.completeWrite?.({ ...written, transaction: write.transaction });
+        }
+        if (!following.length) {
+            return result;
+        }
         const handle: () => Promise<void> = async () => {
             for (const observer of following) {
                 try {

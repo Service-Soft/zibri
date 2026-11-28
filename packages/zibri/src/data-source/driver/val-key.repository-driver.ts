@@ -3074,8 +3074,9 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
                 return parseNumber(value, metadata.format);
             }
             case 'file': {
+                // a file kept in a file store is held as the id of its row
                 // eslint-disable-next-line typescript/no-base-to-string
-                return Buffer.from(String(value), 'base64');
+                return metadata.store == undefined ? Buffer.from(String(value), 'base64') : value;
             }
             case 'object': {
                 return parseObject(value, metadata.cls());

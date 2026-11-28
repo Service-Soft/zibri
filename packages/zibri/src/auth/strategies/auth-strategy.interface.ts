@@ -63,7 +63,8 @@ export interface AuthStrategyInterface<RoleType extends string, UserType extends
      * second factor.
      *
      * Answer undefined when the strategy cannot say, for example for a key that is never logged in
-     * with. A caller without a time never counts as having logged in recently.
+     * with, and for a login whose `countsAsRecentLogin` was false. A caller without a time never counts
+     * as having logged in recently.
      */
     resolveAuthenticatedAt: (context: HttpRequestContext | WebsocketRequestContext) => Promise<Date | undefined>,
     /**

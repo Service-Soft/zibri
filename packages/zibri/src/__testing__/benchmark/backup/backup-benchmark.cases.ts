@@ -832,6 +832,9 @@ function resolveTransportBeside(transport: MeasuredTransportConfig): MeasuredTra
         case 'sftp': {
             return { ...transport, options: { ...transport.options, path: `${transport.options.path}-again` } };
         }
+        case 'web-dav': {
+            return { ...transport, options: { ...transport.options, folder: `${transport.options.folder}-again` } };
+        }
     }
 }
 

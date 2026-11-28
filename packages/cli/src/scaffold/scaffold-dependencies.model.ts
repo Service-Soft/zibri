@@ -38,7 +38,9 @@ export const SCAFFOLD_DEV_DEPENDENCIES: string[] = [
     'ts-loader@^9.5.4',
     // the build generates the entities by loading src/models/generated/providers.ts, through ts-node
     'ts-node@^10.9.2',
-    'typescript@^5.9.3',
+    // the one Angular installs as well, so a workspace of both builds everything with one version: with an older one
+    // here, the build of the api took whichever the root of the workspace held
+    'typescript@^6.0.2',
     'webpack@^5.105.3',
     'webpack-cli@^6.0.1'
 ];

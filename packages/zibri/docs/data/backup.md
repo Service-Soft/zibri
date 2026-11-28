@@ -1,9 +1,9 @@
 ---
-keywords: [backups, restore, dump, disaster recovery, deduplication, gc, scrub, incremental backup, logical decoding, replication slot, downtime, blocking, locks, memory, point in time recovery, pitr, physical backup, pgbackrest]
+keywords: [backups, restore, dump, disaster recovery, deduplication, gc, scrub, incremental backup, logical decoding, replication slot, downtime, blocking, locks, memory, point in time recovery, pitr, physical backup, pgbackrest, webdav, nextcloud, trash bin]
 ---
 
 # Backup
-A backup copies the data of a resource, such as a data source, to one or more transports: a folder, an S3 bucket or an SFTP server. You take backups with the backup service, and restore your application from one later.
+A backup copies the data of a resource, such as a data source, to one or more transports: a folder, an S3 bucket, an SFTP server or a folder of a WebDAV server such as Nextcloud. You take backups with the backup service, and restore your application from one later.
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -17,15 +17,19 @@ A backup copies the data of a resource, such as a data source, to one or more tr
 | `FsBackupTransport` | class | Keeps the backups in a folder of this instance's own disk |
 | `S3BackupTransport` | class | Stores the backups in a bucket of an S3 compatible object storage |
 | `SftpBackupTransport` | class | Stores the backups in a folder on a server reached over SFTP |
+| `WebDavBackupTransport` | class | Stores the backups in a [folder of a WebDAV server](#storing-backups-on-a-webdav-server) |
+| `NextcloudBackupTransport` | class | Stores the backups in a [folder of a Nextcloud](#storing-backups-on-nextcloud) that only it writes to, shares the folder to read, and empties the trash bin of what it deletes |
 | `BackupTransportInterface`, `isBackupTransport` | type, function | What a transport implements, of the versions it names: `BackupTransportInterface<'v2'>` [opens sessions](#writing-a-transport-of-your-own). Without a version it is a transport of `v1`, which is deprecated. And the check whether a value supports a version |
 | `PostgresBackupScope` | type | What a backup of a Postgres data source covers: `'schema'` or `'entity-tables'`. Required with `@Backup` |
 | `ValKeyBackupMode` | type | How a backup of a Valkey data source is taken, its `backupMode`: `'snapshot'` or `'walk'`. Required with `@Backup` |
 | `ValKeyRestoreMode` | type | How a restore of a Valkey data source writes the backup, its `restoreMode`: `'staged'` or `'direct'`. Set it with `@Backup` |
-| `S3BackupTransportOptions` | interface | Where and how `S3BackupTransport` stores backups |
+| `S3BackupTransportOptions` | type | Where and how `S3BackupTransport` stores backups: the [`S3StorageOptions`](./files.md#keeping-files-in-an-s3-compatible-bucket) an `S3FileStore` takes too |
 | `S3Credentials` | type | What requests to the bucket are signed with: an access key and its secret |
 | `S3ServerSideEncryption` | type | How the storage encrypts the backups it holds: `'bucket-default'`, `AES256` or `aws:kms` |
-| `SftpBackupTransportOptions` | interface | Where and how `SftpBackupTransport` stores backups |
+| `SftpBackupTransportOptions` | type | Where and how `SftpBackupTransport` stores backups: the [`SftpStorageOptions`](./files.md#keeping-files-on-an-sftp-server) an `SftpFileStore` takes too |
 | `SftpAuthentication` | type | How `SftpBackupTransport` logs in: a password, or a private key |
+| `WebDavBackupTransportOptions` | type | Where and how `WebDavBackupTransport` stores backups: the `connection`, the `folder` below it, the `network`, `timeoutInMs` and `attempts` |
+| `NextcloudBackupTransportOptions`, `NextcloudBackupReaders` | type, type | Where and how `NextcloudBackupTransport` stores backups, as `WebDavBackupTransportOptions` say, and who its folder is `sharedWith` to read: `users` and `groups`. Required |
 | `BackupTransportVersion`, `BackupTransportVersionMembers` | type, type | The versions of `BackupTransportInterface`, `'v1'` and `'v2'`, and what each has a transport implement |
 | `BackupTransportSupporting` | type | A transport supporting a version, or one of several, such as what `backupTransports` takes |
 | `BackupTransportSessionInterface` | interface | A session of a transport: `put`, `get`, `findKeys`, `findNames`, `delete` and `close` |
@@ -66,13 +70,21 @@ A backup copies the data of a resource, such as a data source, to one or more tr
 | `BackupRetention` | type | Which completed backups are kept: `daily`, `weekly`, `monthly` and the other rules, counted in a `timeZone`, and how often a backup reading only what changed reads in full, `fullRead` |
 | `BackupPeriod` | type | A period a retention counts in: `'hourly'`, `'daily'`, `'weekly'`, `'monthly'`, `'quarterly'` or `'yearly'` |
 | `IncrementalBackupResourceInterface`, `isIncrementalBackupResource` | interface, function | What a resource [reading only what changed](#reading-only-what-changed) implements beside `BackupResourceInterface`, and the check whether a value does |
-| `TenantBackupTransport`, `TenantBackupTransportCreateData` | entity, type | Storage a [tenant](../glossary.md#tenant) [keeps its backups on](#letting-a-tenant-back-up-to-its-own-storage), of a kind the application lists, and what adds one |
+| `TenantBackupTransport`, `TenantBackupTransportCreateData`, `TenantBackupTransportChangeData` | entity, type, type | Storage a [tenant](../glossary.md#tenant) [keeps its backups on](#letting-a-tenant-back-up-to-its-own-storage), of a kind the application lists, what adds one and what changes one |
+| `TenantBackupTransportController` | class | The routes a tenant [manages its transports](#letting-tenants-manage-their-transports) with, for a controller of yours to extend |
+| `NewTenantBackupTransport`, `TenantBackupTransportChange`, `OfferedTenantBackupTransportKind` | class, class, class | What adding and changing a transport take through the routes, and a kind the tenant may add, as `GET /kinds` answers it |
+| `ZIBRI_BACKUP_TRANSPORT_PERMISSIONS`, `ZibriBackupTransportPermissions`, `ZIBRI_BACKUP_TRANSPORT_LIMITS` | constant, constant, constant | The tenant permissions of the routes of the transports, to spread into yours, and the longest name they take |
 | `TenantBackupTransportKindInterface`, `AnyTenantBackupTransportKind`, `TenantTransportNetwork` | interface, type, type | A [kind of storage](#offering-tenants-a-kind-of-storage-of-your-own) tenants may keep their backups on, any of them, and what every host it reaches is checked by |
 | `S3TenantBackupTransportKind`, `SftpTenantBackupTransportKind` | class, class | A bucket of an S3 compatible storage, and an SFTP server, as kinds tenants may configure |
 | `TenantS3TransportSettings`, `TenantS3TransportSecret`, `TenantSftpTransportSettings`, `TenantSftpTransportSecret` | class, class, class, class | Where a tenant's bucket or SFTP server is, and the secret it logs in with |
+| `WebDavTenantBackupTransportKind`, `NextcloudTenantBackupTransportKind` | class, class | A folder of a WebDAV server, and of a Nextcloud, as kinds tenants may configure, [through their connections](#letting-a-tenant-back-up-to-its-webdav-server) |
+| `TenantWebDavTransportSettings`, `TenantNextcloudTransportSettings`, `TenantWebDavTransportSecret` | class, class, class | Which connection of a tenant its backups are kept through, the folder, who a folder of a Nextcloud is shared with, and the secret, `{}` |
+| `WebDavBackupTransportUsageFinder` | class | Keeps a WebDAV connection of a tenant from being deleted while a transport is kept through it. Registered for you as `ZIBRI_DI_TOKENS.BACKUP_WEB_DAV_CONNECTION_USAGE_FINDER` |
 | `TenantBackupTransportOptions` | type | What tenants may configure as transports: `kinds`, `allowedHosts` and `allowPrivateNetworks` |
 | `ZIBRI_DI_TOKENS.BACKUP_TENANT_TRANSPORT_OPTIONS` | DI token | The `TenantBackupTransportOptions`. Defaults to S3 and SFTP at public addresses |
 | `TenantBackupSettings`, `TenantBackupRetention` | entity, class | The retention a tenant keeps its backups by, as it is stored |
+| `KeptRowCheckInterface`, `KEPT_ROW_CHECK_DI_VARIANT` | interface, DI variant | A check of the rows a [tenant restore keeps](#rows-a-tenant-restore-keeps) that do not match the rows it brought back, which the backup service finds by its variant |
+| `KeptRowDivergence`, `KeptRowDivergenceReason` | type, enum | A kept row that does not match: its `entity` and `id`, the `sourceEntity` and `sourceId` it was written from, the `reason`, `SOURCE_MISSING`, `SOURCE_DRAFT` or `SOURCE_CHANGED`, and a `message` |
 | `TenantExportFormat` | type | How [an export](#exporting-a-tenant) of a tenant writes its rows: `'json-lines'` or `'csv'` |
 | `IncrementalBackupData` | type | What `createIncrementalBackupData` hands a backup: the `data`, whether it is `full`, and the `cursor` the next backup reads on from |
 | `ZIBRI_DI_TOKENS.BACKUP_RETENTION` | DI token | The `BackupRetention` applied each time a backup completes. Defaults to none, which keeps every backup |
@@ -182,6 +194,9 @@ The Valkey server sets `maxmemory`, and `maxmemory-policy` to `noeviction`. A ba
 Either way, a restore builds the ids, indexes and uniques of every entity again from the rows it restored.
 
 A backup reads the keys in the order of their names, so that keys that did not change are stored once. It sorts the names in the staging folder, encrypted, beside the data, holding about 4 MiB of them in memory and at most 64 files open at once, however many keys there are. A set of more than 1 000 members, such as the ids of a table, is read and restored 250 members at a time. A walk reads such a set from a copy of it alone, made at one moment, so the server needs room for a copy of the largest one, and a backup fails when it lacks it.
+
+## Backing up a file store
+A [file store](./files.md) marked with `@Backup` is a resource of its own, beside the data source holding the rows of its files: a backup holds the bytes of the files those rows name, and a restore puts them back, see [backing up a file store](./files.md#backing-up-a-file-store). Within one backup, the store is stored once the data source holding `FileRecord` is. A restore takes no snapshot of a store, since it only adds the bytes the store lacks, and `deleteFirst` leaves a store as it is.
 
 ## Keeping rows across a restore
 
@@ -413,6 +428,101 @@ When the server presents a different key, the error names the key it presented, 
 
 A transfer takes as long as it needs while the server keeps answering. When the server answers nothing for 60 seconds while the transport waits for an answer, the transport ends the connection, and the backup or restore fails with an error naming what it waited for. `requestTimeoutInMs` sets another limit, in milliseconds. Connecting, logging in and opening the SFTP session after it take 20 seconds at most each, and `connectTimeoutInMs` sets another limit for them. A server that closes the connection before the login completed fails the backup or restore at once, with an error naming the server.
 
+## Storing backups on a WebDAV server
+`WebDavBackupTransport` stores backups in a folder of any [WebDAV](../endpoints/web-dav.md) server, such as ownCloud, a NAS or Apache with `mod_dav`. It needs the `saxes` package, see [requirements](#requirements):
+
+```bash
+npm i saxes
+```
+
+```ts
+// src/backup/cloud.backup-transport.ts
+import { BackupTransport, WebDavBackupTransport } from 'zibri';
+
+import { secrets } from './secrets';
+
+@BackupTransport()
+export class CloudBackupTransport extends WebDavBackupTransport {
+    constructor() {
+        super('web-dav-backup-transport', {
+            connection: {
+                url: 'https://storage.example.com/dav/', // your own server
+                username: 'my-app',
+                password: secrets.webDavPassword
+            },
+            folder: 'Backups/production',
+            network: undefined
+        });
+    }
+}
+```
+
+`folder` is relative to the url of the connection, and `''` for the folder of the connection itself. It is created, with the folders above it, when the first backup is stored. `network` is `undefined` for a server your application configures, see [connecting to a folder](../endpoints/web-dav.md#connecting-to-a-folder).
+
+Each key is a file below the folder, its segments the folders leading to it, and a folder a delete emptied is deleted as well. A folder is listed one level at a time, since many servers refuse a listing of every level at once.
+
+A file is uploaded under a name of its own beside its key, starting with `.zibri-upload-`, and moved onto the key once it arrived whole, so no backup or restore reads part of one. An upload that fails is deleted again. One a process left behind when it ended between the upload and the move stays in the folder, out of every listing, until the [garbage collection](#freeing-the-space-of-deleted-backups) deletes it, once a day has passed since it was written by the time the server names, with the folders it alone kept. Each collection lists every folder below `folder` for them, one level at a time.
+
+Each file is held in memory while it is uploaded, and sent in one request with its length: a chunk of a backup is 1 MiB on average and 4 MiB at most. `timeoutInMs` is how long one request may take, five minutes by default. A request the server answers with a server error or `429` is sent again, `attempts` times in all, 3 by default, when sending it again cannot change its outcome.
+
+> [!WARNING]
+> A server with a trash bin, such as Nextcloud or ownCloud, keeps what the transport deletes there, where it takes up space until the server expires it. The [garbage collection](#freeing-the-space-of-deleted-backups) then frees nothing at once. On a Nextcloud, use [`NextcloudBackupTransport`](#storing-backups-on-nextcloud), which empties the trash bin of what it deletes.
+
+## Storing backups on Nextcloud
+`NextcloudBackupTransport` stores backups in a folder of a [Nextcloud](../endpoints/nextcloud.md) as `WebDavBackupTransport` does, and keeps the folder read-only for everyone but your application. Shared with the users who keep the backups, it is synced to their devices by the Nextcloud desktop clients, so every backup has copies beyond the server.
+
+> [!WARNING]
+> Anyone who can write into the folder can change or delete backups, and a device syncing a folder it may write to writes what changed on it back. Keep the folder owned by a user of its own, which nobody logs in as.
+
+Set it up in three steps:
+
+1. Create a user for the backups in the users settings of Nextcloud, such as `backup`. Nobody else logs in as it.
+2. Log in as that user once, and create an app password under Settings, Security, Devices and sessions. Your application alone uses it.
+3. Configure the transport with the files of that user, the folder, and the users and groups who keep the backups:
+
+```ts
+// src/backup/nextcloud.backup-transport.ts
+import { BackupTransport, NextcloudBackupTransport } from 'zibri';
+
+import { secrets } from './secrets';
+
+@BackupTransport()
+export class OfficeNextcloudBackupTransport extends NextcloudBackupTransport {
+    constructor() {
+        super('nextcloud-backup-transport', {
+            connection: {
+                url: 'https://cloud.example.com/remote.php/dav/files/backup/', // your own server
+                username: 'backup',
+                password: secrets.nextcloudAppPassword
+            },
+            folder: 'Backups',
+            network: undefined,
+            sharedWith: { users: ['ada'], groups: ['admin'] }
+        });
+    }
+}
+```
+
+The url of the connection is below `/remote.php/dav/files/<user>/` of the user owning the folder. `sharedWith` is required, with empty lists for a folder shared with nobody.
+
+Before a session writes, such as for each resource of a backup, the transport checks every share of the folder:
+
+| Share of the folder | What the transport does |
+|---|---|
+| With a user or a group of `sharedWith`, to read | Leaves it |
+| With a user or a group `sharedWith` does not name, to read | Leaves it, and logs a warning naming them |
+| With a user or a group, allowing more than reading | Makes it read-only again, and logs an error naming the share |
+| By link, by email, or with another server | Deletes it, and logs an error naming the share |
+| None, for a user or a group of `sharedWith` | Creates one, to read |
+
+A share to read lets its user change nothing and share nothing on. Their desktop clients sync the folder, thousands of files of about 1 MiB each for a large backup. A file deleted or changed on a device is restored from the server by the next sync. A share of a folder above the backup folder is not checked: keep the folder at the top of the files of its user, or in a folder shared with nobody.
+
+The copies on the devices are as safe as the backups are: one taken with [`encrypt`](#encrypting-backups) is unreadable without the master key, and a restore [checks every chunk](#what-a-restore-checks-first) against what was stored, so a copy that changed is refused rather than restored.
+
+Nextcloud keeps a file that is deleted in the trash bin of its user. The transport deletes what it deleted from the trash bin as well, an upload a process left behind included, found by where each file was, so the [garbage collection](#freeing-the-space-of-deleted-backups) frees space at once. What anyone else deleted from the folder stays in the trash bin. When deleting from the trash bin fails, the transport logs a warning, and Nextcloud expires the files by its `trashbin_retention_obligation`.
+
+Nextcloud also keeps an older version of a file that is replaced. A key is uploaded under a name of its own and moved into place, so a version is kept only where a key held something already: a resource stored again after a failed attempt, or a repository key encrypted again after the master key changed. Nextcloud expires versions by its `versions_retention_obligation`.
+
 ## Writing a transport of your own
 A transport implements `BackupTransportInterface<'v2'>`: a `name`, the `versions` it supports, `['v2']`, and `openSession`, which connects to wherever the data is kept. One session serves everything one resource of a backup or a restore does, and is closed after it.
 
@@ -423,6 +533,7 @@ A transport implements `BackupTransportInterface<'v2'>`: a `name`, the `versions
 | `findKeys(prefix)` | Hands back every key starting with the prefix, a page at a time, in any order. A put still running is not among them |
 | `findNames(path)` | Hands back the next segment of every key below a path, such as `backups` and `chunks` below `.zibri-repository`, each once, a page at a time. `''` is the top. A transport keeping folders may name an empty one as well |
 | `delete(keys)` | Deletes the keys. A key that holds nothing is no error |
+| `deleteAbandonedUploads()` | Optional. Deletes what puts that ended part way left under names no listing shows, once no put can still be running on it. Each [garbage collection](#freeing-the-space-of-deleted-backups) calls it once, while no resource is being stored |
 | `close()` | Ends the session. A stream `get` handed back is read to its end first |
 
 A key is segments separated by `/`, such as `.zibri-repository/chunks/3f/3f9a…`. A transport that keeps what its keys hold as files checks each key with `resolveBackupKeySegments`, which refuses one that could lead outside its folder.
@@ -570,6 +681,8 @@ export async function freeBackupSpace(): Promise<void> {
 
 `collectGarbage` is optional on `BackupServiceInterface` until 4.0, for a backup service of your own. While garbage is collected, a resource waits a few seconds at a time to be stored, and a restore goes on. One instance collects at a time.
 
+On a server that keeps what is deleted in a trash bin, the space is freed once the trash bin lets go of it: see [storing backups on a WebDAV server](#storing-backups-on-a-webdav-server), and [on Nextcloud](#storing-backups-on-nextcloud), whose transport empties the trash bin of what it deletes.
+
 Every backup a transport holds needs to be recorded in the database. A transport holding one that is not, such as a backup of a release this one cannot read, keeps its garbage until that backup is synced or deleted, and `collectGarbage` fails naming it.
 
 The garbage collection also checks what each transport holds. A chunk recorded as stored that the transport does not hold is forgotten, so that the next backup stores it again. A backup naming a chunk that is missing is logged as an error, naming the resource and the transport it cannot be restored from.
@@ -660,7 +773,7 @@ A backup holding a migration of a newer release is refused, and the error names 
 it with a build of that version or a newer one.
 
 ## Backing up a tenant
-`queueBackup({ tenantId })` backs up the rows of one [tenant](./tenancy.md) in every data source marked with `@Backup` that holds rows of tenants, to [the tenant's own storage](#letting-a-tenant-back-up-to-its-own-storage), and `restore` of that backup puts back exactly those rows while every other tenant goes on working:
+`queueBackup({ tenantId })` backs up the rows of one [tenant](./tenancy.md) in every data source marked with `@Backup` that holds rows of tenants, and the bytes of its files in every [file store](#backing-up-a-file-store) marked with `@Backup`, to [the tenant's own storage](#letting-a-tenant-back-up-to-its-own-storage), and `restore` of that backup puts back exactly those rows and files while every other tenant goes on working:
 
 ```ts
 // src/services/tenant-backup.service.ts
@@ -694,12 +807,50 @@ The application logs a warning naming each kept row and the properties that gave
 > [!NOTE]
 > A restore fails and changes nothing when a kept row holds a value of a unique that the backup gives to another row, and none of the properties of that unique takes a stand-in, such as a required enum or a required relation.
 
+### Rows a tenant restore keeps
+A restore of a tenant resets every row the backup holds to the backup, and keeps the rows of append-only and chained entities as they are now, as the law asks of an invoice issued or an entry posted. A kept row can be written from a row the restore resets, such as the entry posted of an invoice issued after the backup was taken, which the restore takes away again. The [write observers](./write-observers.md#when-an-observer-runs) of Zibri and its plugins leave the writes of a restore as they are, so it posts, archives and issues nothing of its own, and changes no kept row either.
+
+Once a restore of a tenant succeeded, the backup service asks every check registered with the variant `KEPT_ROW_CHECK_DI_VARIANT` for the kept rows that do not match the rows it brought back. It records each one in the tenant's [audit trail](./audit.md) as `backup.tenant.restore-divergence`, with the outcome `failure`, the reason `diverged` and the entity and id of the kept row as `subject`, and logs a warning listing them. A check that fails is logged, and fails neither the restore nor the other checks. `restore` answers none of them.
+
+The plugins register these checks:
+
+| Plugin | Kept row | Reported when |
+|---|---|---|
+| [Bookkeeping](../plugins/bookkeeping-plugin.md#restoring-a-tenant-that-keeps-books) | `JournalEntry` standing, not reversed | Its invoice, credit note, expense or bank match is gone or a draft again, or posts other amounts or another day now |
+| [Bookkeeping](../plugins/bookkeeping-plugin.md#restoring-a-tenant-that-keeps-books) | `ExpenseReceipt` | No expense names it |
+| [Bookkeeping](../plugins/bookkeeping-plugin.md#restoring-a-tenant-that-keeps-books) | `BankMatch` of an expense, standing | Its expense is gone or a draft again |
+| [Invoicing](../plugins/invoicing-plugin.md#archiving-issued-invoices) | `InvoiceDocument` | Its invoice is gone or a draft again |
+| [Bank](../plugins/bank-plugin.md#matching-transactions-with-invoices) | `BankMatch` of an invoice, standing | Its invoice is gone or a draft again |
+
+Nothing is changed for you: how each is resolved is a decision of the books, see [restoring a tenant that keeps books](../plugins/bookkeeping-plugin.md#restoring-a-tenant-that-keeps-books). A check of your own implements `KeptRowCheckInterface`, whose `resolveKeptRowDivergences` reads the current tenant, and is registered with the variant:
+
+```ts
+// src/contract-kept-row-check.provider.ts
+import { defineProvider, DiProvider, KEPT_ROW_CHECK_DI_VARIANT, KeptRowCheckInterface, KeptRowDivergence } from 'zibri';
+
+export class ContractKeptRowCheck implements KeptRowCheckInterface {
+    async resolveKeptRowDivergences(): Promise<KeptRowDivergence[]> {
+        // the signed contracts of the current tenant whose customer the restore took away
+        return await Promise.resolve([]);
+    }
+}
+
+export const contractKeptRowCheck: DiProvider<KeptRowCheckInterface> = defineProvider({
+    token: ContractKeptRowCheck,
+    useClass: ContractKeptRowCheck,
+    variants: [KEPT_ROW_CHECK_DI_VARIANT]
+});
+```
+
+The same checks answer outside a restore, such as `resolveKeptRowDivergences` of `ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.POSTING_SERVICE` beside [checking the books](../plugins/bookkeeping-plugin.md#checking-the-books).
+
+### Holding the data sources
 A tenant restore holds the data sources it replaces rows in, as a restore of the application does. The [retention](#deleting-old-backups) counts the backups of each tenant on their own, apart from those of the application.
 
 Whether a caller may back up or restore a tenant is a permission of your application, see [roles and permissions](../auth/roles-and-permissions.md).
 
 ## Letting a tenant back up to its own storage
-A tenant can keep its backups on storage of its own, such as a bucket or an SFTP server. Declare `TenantBackupTransport` beside `BackupEntity`, and add the tenant's transport through the backup service:
+A tenant can keep its backups on storage of its own, such as a bucket, an SFTP server or a [WebDAV server](#letting-a-tenant-back-up-to-its-webdav-server). Declare `TenantBackupTransport` beside `BackupEntity`, and add the tenant's transport through the backup service:
 
 ```ts
 // src/services/tenant-bucket.service.ts
@@ -716,7 +867,7 @@ export async function addTenantBucket(tenantId: string, secretAccessKey: string)
 }
 ```
 
-A transport is of one of the kinds the application lists, with the settings and the secret of that kind, which are checked against the kind's models as a request body is. Of a bucket over https, `'s3'`, they are a `TenantS3TransportSettings` and the secret of the access key; of an SFTP server, `'sftp'`, a `TenantSftpTransportSettings` and the password or the private key. The secret is stored encrypted and bound to its row. Adding a transport writes and deletes a small object on it, so a wrong address, bucket or secret is refused with a `400` at once. `findTenantBackupTransports` lists a tenant's transports, and `deleteTenantBackupTransport` deletes one, refused with a `409` while a backup is stored on it.
+A transport is of one of the kinds the application lists, with the settings and the secret of that kind, which are checked against the kind's models as a request body is. Of a bucket over https, `'s3'`, they are a `TenantS3TransportSettings` and the secret of the access key; of an SFTP server, `'sftp'`, a `TenantSftpTransportSettings` and the password or the private key. The secret is stored encrypted and bound to its row. Adding a transport writes and deletes a small object on it, so a wrong address, bucket or secret is refused with a `400` at once. `findTenantBackupTransports` lists a tenant's transports, `updateTenantBackupTransport` changes one, and `deleteTenantBackupTransport` deletes one, refused with a `409` while a backup is stored on it. Tenants manage their transports themselves through [the routes of a controller](#letting-tenants-manage-their-transports).
 
 A backup of a tenant goes to the tenant's own transports alone, and `queueBackup` refuses one for a tenant without any with a `400`. The garbage collection goes through the tenants' transports too.
 
@@ -730,6 +881,88 @@ A transport a tenant names reaches public addresses only: a host leading to this
 
 > [!WARNING]
 > With `allowPrivateNetworks`, a tenant can make your application connect to any host inside its network, such as a database or a metadata service. Turn it on only when every tenant is trusted as much as the network is.
+
+### Letting a tenant back up to its WebDAV server
+A tenant keeps its backups on a WebDAV server or a Nextcloud of its own through a [connection it manages](../endpoints/web-dav.md#connecting-to-the-server-of-a-tenant), which keeps the password encrypted. Declare `TenantWebDavConnection` beside `TenantBackupTransport`, and list the kinds in `kinds`, which leaves them out by default:
+
+```ts
+// src/providers.ts
+import { defineProvider, NextcloudTenantBackupTransportKind, S3TenantBackupTransportKind, WebDavTenantBackupTransportKind, ZIBRI_DI_TOKENS } from 'zibri';
+
+defineProvider({
+    token: ZIBRI_DI_TOKENS.BACKUP_TENANT_TRANSPORT_OPTIONS,
+    useValue: {
+        kinds: [new S3TenantBackupTransportKind(), new WebDavTenantBackupTransportKind(), new NextcloudTenantBackupTransportKind()],
+        allowedHosts: undefined,
+        allowPrivateNetworks: false
+    }
+});
+```
+
+A transport names the connection by its id:
+
+```ts
+// src/services/tenant-nextcloud.service.ts
+import { BackupServiceInterface, inject, TenantBackupTransport, ZIBRI_DI_TOKENS } from 'zibri';
+
+export async function addTenantNextcloud(tenantId: string, connectionId: string): Promise<TenantBackupTransport | undefined> {
+    const backupService: BackupServiceInterface = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
+    return await backupService.createTenantBackupTransport?.(tenantId, {
+        name: 'Our Nextcloud',
+        kind: 'nextcloud',
+        settings: { connectionId, folder: 'Backups', sharedWithUsers: ['ada'], sharedWithGroups: [] },
+        secret: {}
+    });
+}
+```
+
+| Kind | Settings | Stores like |
+|---|---|---|
+| `'web-dav'` | `TenantWebDavTransportSettings`: the `connectionId` of a connection of the kind `WEB_DAV`, and the `folder` | [`WebDavBackupTransport`](#storing-backups-on-a-webdav-server) |
+| `'nextcloud'` | `TenantNextcloudTransportSettings`: the `connectionId` of a connection of the kind `NEXTCLOUD`, logged in as the user owning the folder, the `folder`, and the `sharedWithUsers` and `sharedWithGroups` it is shared with to read | [`NextcloudBackupTransport`](#storing-backups-on-nextcloud) |
+
+The secret is `{}`: the transport logs in with the password of the connection, read before every session, so a password changed on the connection is the one it uses. A connection of the other kind, or of another tenant, is refused with a `400` when the transport is added, and so is a folder with an empty segment, a `.` or a `..`. The host of the connection, and every address a redirect leads to, is checked as every host of a tenant's transport is, by `BACKUP_TENANT_TRANSPORT_OPTIONS`.
+
+A connection a transport is kept through is not deleted: `deleteConnection` is refused with a `409` naming the transports, see [keeping a connection that is in use](../endpoints/web-dav.md#keeping-a-connection-that-is-in-use). Delete the transports first, which is refused while a backup is stored on them.
+
+### Letting tenants manage their transports
+`TenantBackupTransportController` holds the routes a tenant lists, adds, changes and deletes its transports with, of every kind `kinds` lists, [your own](#offering-tenants-a-kind-of-storage-of-your-own) included. Extend it with a `@Controller` of your own, at the path you choose, and add it to the `controllers` of your application:
+
+```ts
+// src/controllers/backup-transports.controller.ts
+import { Controller, TenantBackupTransportController } from 'zibri';
+
+@Controller('/backup-transports')
+export class BackupTransportsController extends TenantBackupTransportController {}
+```
+
+| Route | What it does |
+|---|---|
+| `GET /` | The transports of the tenant, by name: their `id`, `name`, `kind` and `settings` |
+| `GET /kinds` | The kinds the tenant may add, `{ "name" }` each, in the order of `kinds` |
+| `POST /` | Adds a transport, `{ "name", "kind", "settings", "secret" }`, once a small object was written to it and deleted |
+| `PATCH /:transportId` | Changes the `name`, `settings` or `secret` of a transport, each replaced as a whole. Changed settings or a changed secret are tested first. The kind stays |
+| `DELETE /:transportId` | Deletes a transport no backup is stored on, and answers `204`. What it stores stays on the storage |
+
+The settings and the secret are those of the kind, checked against its models, such as a `TenantSftpTransportSettings` and a `TenantSftpTransportSecret` for `'sftp'`. For a frontend, `zibri-contract` describes the settings and the secrets of the kinds Zibri ships, such as `TenantSftpTransportSettingsModel`, and their names in `ZIBRI_BACKUP_TRANSPORT_KINDS`. The secret is taken, and never answered, so a form changing a transport sends one only to replace it. Spread `ZIBRI_BACKUP_TRANSPORT_PERMISSIONS` into your tenant permissions, see [declaring permissions](../auth/roles-and-permissions.md#declaring-permissions):
+
+```ts
+// src/models/permissions.ts
+import { DefinedPermissions, definePermissions, ZIBRI_BACKUP_TRANSPORT_PERMISSIONS, ZIBRI_PERMISSIONS } from 'zibri';
+
+const PERMISSIONS = [...ZIBRI_PERMISSIONS, ...ZIBRI_BACKUP_TRANSPORT_PERMISSIONS] as const;
+
+export const Permissions: DefinedPermissions<typeof PERMISSIONS> = definePermissions(PERMISSIONS);
+```
+
+| Permission | Lets a member |
+|---|---|
+| `backup-transports.read` | List the transports of the tenant and the kinds it may add |
+| `backup-transports.manage` | Add, change and delete them |
+
+A transport its kind refuses, one of a kind `kinds` does not list, and one that cannot be written to are refused with a `400` that says why. A name another transport of the tenant has is refused with a `409`.
+
+The backups stored on a transport are reached through its settings, so changing the settings of a transport a backup is stored on is refused with a `409` naming the backups, as deleting it is. Delete those backups first. The name and the secret change at any time, such as to rotate an access key.
 
 ### Offering tenants a kind of storage of your own
 
@@ -777,7 +1010,7 @@ defineProvider({
 });
 ```
 
-`validateSettings` refuses settings beyond what their models say, such as a bucket over plain http, with a `400`.
+`validateSettings` refuses settings beyond what their models say, such as a bucket over plain http, with a `400`. `createTransport` is handed the id of the tenant as its fifth argument, for a kind whose settings name a row of the tenant, as the WebDAV kinds name a connection.
 
 > [!WARNING]
 > What the application lets tenants reach holds only of the hosts a kind resolves through `network.resolveAddress`. A kind connects to every host it reaches, a redirect included, at the address `resolveAddress` answers for it, and to no other.
@@ -910,7 +1143,7 @@ Size the servers before the first restore is needed. A backup and a restore take
 | The disk of a Postgres server | With `incrementalRead`, the WAL since the backup before, up to `max_slot_wal_keep_size` | The tables it replaces twice, until the restore is done, and the WAL of writing them |
 | The memory of a Valkey server | With `'snapshot'`, a copy of every key until it is read. With `'walk'`, a copy of each key written meanwhile | With `'staged'`, the store twice until the swap. With `'direct'`, about the store once |
 
-Compressed, a Postgres dump takes about a third of its data, which is mostly text. What Valkey takes depends on its values, between a third and all of them. Each backup records what each resource took as `stagedSize` of `BackupResourceEntity`, which a restore of it takes about as well.
+Compressed, a Postgres dump takes about a third of its data, which is mostly text. What Valkey takes depends on its values, between a third and all of them. A file store takes about what its files take, since documents and images compress little, and a restore of it takes no copy. Each backup records what each resource took as `stagedSize` of `BackupResourceEntity`, which a restore of it takes about as well.
 
 For an application with 100 GB in Postgres and 50 GB in Valkey on one machine, whose Valkey values compress to 40%:
 
@@ -996,6 +1229,7 @@ shape.
 | Package | Used for |
 |---|---|
 | `ssh2` | Reaching an SFTP server, with `SftpBackupTransport`. You install it |
+| `saxes` | Reading the listings of a WebDAV server, with `WebDavBackupTransport` and `NextcloudBackupTransport`. You install it |
 
 Your data source declares these entities:
 
@@ -1004,6 +1238,7 @@ Your data source declares these entities:
 | `BackupEntity`, `BackupResourceEntity` | A backup resource is registered |
 | `BackupChunkEntity` | A backup resource is registered. Without it, each backup lists the chunks its transports hold first |
 | `TenantBackupTransport` | Tenants [keep backups on storage of their own](#letting-a-tenant-back-up-to-its-own-storage) |
+| `TenantWebDavConnection` | Tenants keep backups [on WebDAV servers of their own](#letting-a-tenant-back-up-to-its-webdav-server) |
 | `TenantBackupSettings` | Tenants keep their backups by a retention of their own |
 | `Lease` | `ZIBRI_DI_TOKENS.BACKUP_RETENTION` is set |
 
@@ -1012,3 +1247,5 @@ How large each table grows, and what deletes its rows, is in [framework tables](
 ## See also
 - [Data sources](./data-source.md) — `PostgresDataSource` and other data sources that back up automatically
 - [Encryption and hashing](./encryption-and-hashing.md#setting-the-master-key) — the master key encrypted backups are restored with
+- [WebDAV](../endpoints/web-dav.md) — the client the WebDAV transports send through, and the connections of tenants
+- [Nextcloud](../endpoints/nextcloud.md) — the shares and the trash bin the Nextcloud transport manages

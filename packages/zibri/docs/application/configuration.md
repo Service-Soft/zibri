@@ -6,7 +6,8 @@ keywords: [config, configuration, options, environment variables, env, providers
 Everything the framework reads that your application can change is a token of `ZIBRI_DI_TOKENS`:
 every lifetime, limit, header name, template, secret and replaceable service. Every token is listed
 below with its type, what it is and its default, and links to the page that explains it. The
-built-in plugins have tokens of their own, listed on the page of each: [issuing invoices](../plugins/invoicing-plugin.md#configuring-the-plugin),
+built-in plugins have tokens of their own, listed on the page of each: [counting page views and visits](../plugins/analytics-plugin.md#configuring-the-plugin),
+[issuing invoices](../plugins/invoicing-plugin.md#configuring-the-plugin),
 [running mailing lists](../plugins/mailing-list-plugin.md#configuring-the-plugin) and [taking payments](../plugins/payment-plugin.md#configuring-the-plugin).
 
 ## Providing a token
@@ -92,6 +93,7 @@ These have no default either. An application using the feature provides them.
 | [`INVITATION_OPTIONS`](../auth/invitations.md#setting-it-up) | `InvitationOptions \| undefined` | How invitations are sent. Required once an invitation repository is listed |
 | [`EMAIL_VERIFICATION_SERVICE`](../auth/email-verification.md) | `EmailVerificationServiceInterface` | Mails the links verifying and changing addresses, and confirms them |
 | [`PASSKEY_OPTIONS`](../auth/passkeys.md) | `PasskeyOptions` | The domain passkeys are bound to and the pages that use them. Required by `PasskeyAuthenticator` |
+| [`LOGIN_LINK_OPTIONS`](../auth/login-links.md#setting-it-up) | `LoginLinkOptions \| undefined` | The page a link to log in with opens, the mail it is sent in, how long it works and whether it is bound to a browser. Required by `LoginLinkAuthenticator` |
 | [`FEDERATION_OPTIONS`](../auth/login-through-a-provider.md) | `FederationOptions` | What every provider a user logs in at shares. Required by an [authenticator](../glossary.md#authenticator) of a provider |
 | [`SMS_SERVICE`](../auth/two-factor.md) | `SmsServiceInterface` | What sends a text message. Required by `SmsTwoFactorMethod` |
 | [`SMS_CODE_LIMITS`](../auth/two-factor.md) | `SmsCodeLimits` | What text messages may cost: how many an hour, how many to one number a day, and to which countries. Required by `SmsTwoFactorMethod` |
@@ -221,6 +223,8 @@ These have no default either. An application using the feature provides them.
 | [`BACKUP_CHUNKING_OPTIONS`](../data/backup.md#storing-unchanged-data-once) | `BackupChunkingOptions` | How the data of a resource is cut into chunks and compressed. Chunks of 256 KiB to 4 MiB, about 1 MiB on average, at level 3 by default |
 | [`BACKUP_SCRUB_OPTIONS`](../data/backup.md#checking-the-stored-chunks) | `BackupScrubOptions \| undefined` | In how many days the garbage collection reads every stored chunk back once to check it. None by default, which reads no chunk back |
 | [`BACKUP_TENANT_TRANSPORT_OPTIONS`](../data/backup.md#letting-a-tenant-back-up-to-its-own-storage) | `TenantBackupTransportOptions` | What [tenants](../glossary.md#tenant) may configure as transports of their own backups. S3 and SFTP at public addresses by default |
+| [`FILE_STAGING_FOLDER`](../data/files.md#storing-and-reading-a-file) | `FsPath` | Where a file stored from a stream is written while it is hashed. `.zibri/files` in the application's root by default |
+| [`FILE_TENANT_STORE_OPTIONS`](../data/files.md#letting-a-tenant-keep-its-files-in-its-own-storage) | `TenantFileStoreOptions` | What tenants may configure as file stores of their own. S3 and SFTP at public addresses by default |
 
 ## Configuring pages, translations and outgoing requests
 
@@ -235,8 +239,10 @@ These have no default either. An application using the feature provides them.
 | [`ASSETS_PATH`](../endpoints/assets.md) | `FsPath` | Where assets are read from. `assets` beside the bundle by default |
 | [`PUBLIC_ASSETS_MAX_AGE_IN_MS`](../endpoints/assets.md#letting-browsers-keep-assets) | `number` | How long a browser may keep an asset without asking whether it changed. 0 by default |
 | [`PDF_FONT_OPTIONS`](../templates/document.md#setting-the-fonts) | `PdfFontOptions` | The font families a PDF may be set in besides Roboto, and the ones a character its font lacks is set in. None by default |
+| [`PDF_ACCESS_OPTIONS`](../templates/document.md#reading-files-and-urls) | `PdfAccessOptions` | The folders a PDF reads files from and the URLs it fetches, with pdfmake 0.3. None by default |
 | `HANDLEBAR_OPTIONS` | `HandlebarOptions` | The Handlebars instance and the folder of the components a Handlebars template uses. None by default |
 | [`HTTP_CLIENT_OPTIONS_INPUT`](../endpoints/http-client.md) | `HttpClientOptionsInput` | The timeout, response size limits, circuit breaker and redirects of outgoing requests. Five seconds, ten megabytes, 100 kilobytes for a declared response body or ten megabytes for a stream, open for 30 seconds after 5 failures, and following redirects except from https to http, by default |
+| [`WEB_DAV_TENANT_CONNECTION_OPTIONS`](../endpoints/web-dav.md#connecting-to-the-server-of-a-tenant) | `WebDavTenantConnectionOptions` | What the WebDAV connections of tenants may reach. Public addresses over https by default |
 | [`TRACE_BUFFER`](../operations/tracing.md) | `TraceBufferInterface` | Where recorded spans are kept. An `InMemoryTraceBuffer` of a thousand spans by default |
 | [`TRACE_EXPORTER`](../operations/tracing.md) | `OpenTelemetrySpanExporter` | Where finished spans are sent. Nowhere by default |
 
@@ -250,9 +256,11 @@ token to replace it.
 | [`LOGGER`](../operations/logging.md) | `LoggerInterface` | Writes log entries. `Logger` by default |
 | [`AUDIT_SERVICE`](../data/audit.md) | `AuditServiceInterface` | Records and reads audit entries. `AuditService` by default |
 | [`CHAIN_SERVICE`](../data/tamper-evident-tables.md) | `ChainServiceInterface` | Links the rows of chained entities, checks and prunes their chains. `ChainService` by default |
+| [`ARCHIVE_SERVICE`](../data/archive.md) | `ArchiveServiceInterface` | Checks the archive, finds and prunes the rows whose retention ended, and reads archived files. `ArchiveService` by default |
 | [`METRICS_SERVICE`](../operations/metrics.md) | `MetricsServiceInterface` | Collects metrics. `PrometheusMetricsService` by default |
 | [`ASSET_SERVICE`](../endpoints/assets.md) | `AssetServiceInterface` | Serves and reads assets. `AssetService` by default |
 | [`BACKUP_SERVICE`](../data/backup.md) | `BackupServiceInterface` | Writes and restores backups. `BackupService` by default |
+| [`FILE_SERVICE`](../data/files.md) | `FileServiceInterface` | Stores, reads and deletes files in the file stores. `FileService` by default |
 | [`GLOBAL_ERROR_HANDLER`](./error-handling.md) | `GlobalErrorHandler` | Answers a request whose handler threw. The built-in handler by default |
 | [`OPEN_API_SERVICE`](../endpoints/open-api.md) | `OpenApiServiceInterface` | Builds the OpenAPI documents and serves the explorer. `OpenApiService` by default |
 | [`ASYNC_API_SERVICE`](../endpoints/async-api.md#changing-the-document) | `AsyncApiServiceInterface` | Builds the AsyncAPI documents of the websocket events. `AsyncApiService` by default |
@@ -272,6 +280,7 @@ token to replace it.
 | [`TENANT_SERVICE`](../data/tenancy.md) | `TenantServiceInterface` | Creates and reads [tenants](../glossary.md#tenant). `TenantService` by default |
 | [`MEMBERSHIP_SERVICE`](../data/tenancy.md) | `MembershipServiceInterface` | Adds users to tenants and removes them. `MembershipService` by default |
 | [`INVITATION_SERVICE`](../auth/invitations.md) | `InvitationServiceInterface` | Invites people to the application or a tenant, and answers their invitations. `InvitationService` by default |
+| [`SHARE_SERVICE`](../data/sharing.md) | `ShareServiceInterface` | Shares rows with selected people, and answers what a caller sees of them. `ShareService` by default |
 | [`JWT_SERVICE`](../auth/auth.md) | `JwtServiceInterface` | Signs and verifies access tokens. `JwtService` by default |
 | [`DPOP_SERVICE`](../auth/dpop.md) | `DpopServiceInterface` | Checks DPoP proofs. `DpopService` by default |
 | [`PASSKEY_SERVICE`](../auth/passkeys.md) | `PasskeyServiceInterface` | Creates and checks passkeys. `PasskeyService` by default |
@@ -290,6 +299,12 @@ token to replace it.
 | [`ENCRYPTION_SERVICE`](../data/encryption-and-hashing.md) | `EncryptionServiceInterface` | Encrypts and decrypts values, and keeps the keys. `EncryptionService` by default |
 | `ENCRYPTION_KEY_CACHE` | `WriteThroughReadThroughCache` | Keeps the encryption keys a process has read |
 | [`CACHE_SERVICE`](../data/caching.md) | `CacheServiceInterface` | Keeps and invalidates the caches. `CacheService` by default |
+| [`TENANT_WEB_DAV_CONNECTION_SERVICE`](../endpoints/web-dav.md#letting-tenants-manage-their-connections) | `TenantWebDavConnectionServiceInterface` | Lists, tests, adds, changes and deletes the WebDAV connections of a tenant. `TenantWebDavConnectionService` by default |
+| [`CALENDAR_SYNC_SERVICE`](../endpoints/calendar-sync.md) | `CalendarSyncServiceInterface` | Writes entries into calendars and removes them. `CalendarSyncService` by default |
+| [`CALENDAR_ENTRY_LINK_USAGE_CLEANER`](../endpoints/web-dav.md#keeping-a-connection-that-is-in-use) | `TenantWebDavConnectionUsageCleanerInterface` | Removes the links to the events written through a WebDAV connection that is deleted. `CalendarEntryLinkUsageCleaner` by default |
+| [`FILE_MIRROR_SERVICE`](../endpoints/file-mirror.md) | `FileMirrorServiceInterface` | Mirrors files into folders of WebDAV servers, and shares folders of a Nextcloud by link. `FileMirrorService` by default |
+| [`FILE_MIRROR_USAGE_CLEANER`](../endpoints/file-mirror.md#deleting-a-connection) | `TenantWebDavConnectionUsageCleanerInterface` | Removes the mirrored files, the files queued and the share links of a WebDAV connection that is deleted. `FileMirrorUsageCleaner` by default |
+| [`BACKUP_WEB_DAV_CONNECTION_USAGE_FINDER`](../data/backup.md#letting-a-tenant-back-up-to-its-webdav-server) | `TenantWebDavConnectionUsageFinderInterface` | Keeps a WebDAV connection of a tenant from being deleted while a backup transport of the tenant is kept through it. `WebDavBackupTransportUsageFinder` by default |
 | `VERSIONING_SERVICE` | `VersioningServiceInterface` | Finds the version a request asks for, and records the routes of each version. `VersioningService` by default |
 | [`LOCALIZE_SERVICE`](../templates/localization.md) | `LocalizeServiceInterface` | Finds the locale of a request, and translates and formats. `LocalizeService` by default |
 | [`RATE_LIMITING_SERVICE`](../endpoints/rate-limiting.md) | `RateLimitingServiceInterface` | Runs the rate limiters. `RateLimitingService` by default |

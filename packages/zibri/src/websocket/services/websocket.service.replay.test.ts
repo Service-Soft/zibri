@@ -209,6 +209,33 @@ describe('replaying what a reconnecting client missed', () => {
         expect(await reconnected).toBe('connected');
     }, TestTimeouts.inMemory.start);
 
+    // a message that is not stored is not sent again, so it says nothing about where a client stands. It carried the
+    // seq 1, and a client whose first message it was reconnected with the offset 1 and was sent everything kept
+    it('sends a message that is not stored, and the answer to a message of the client, without a seq', async () => {
+        const socket: Socket = io(baseUrl, { autoConnect: false, reconnection: false });
+        sockets.push(socket);
+        await new Promise<void>((resolve, reject) => {
+            socket.once('connect', () => resolve());
+            socket.once('connect_error', reject);
+            socket.connect();
+        });
+        const noted: Promise<Record<string, unknown>> = new Promise(resolve => socket.once(noteEvent, resolve));
+        await wsService.sendToAll({
+            event: noteEvent,
+            message: { ok: true, data: {}, senderUserId: undefined, senderConnectionId: undefined },
+            expectResponse: false,
+            persist: false
+        });
+
+        const note: Record<string, unknown> = await noted;
+        const answer: Record<string, unknown> = await socket.emitWithAck('replay:ping', {});
+
+        expect(note).toMatchObject({ ok: true, event: noteEvent });
+        expect(note).not.toHaveProperty('seq');
+        expect(answer).toMatchObject({ ok: true, data: 'pong' });
+        expect(answer).not.toHaveProperty('seq');
+    }, 15000);
+
     it('sends every missed message in order, without waiting for the client to answer each', async () => {
         const offset: number = await resolveNewestSeq();
         for (let i: number = 0; i < maxReplayedMessages; i++) {

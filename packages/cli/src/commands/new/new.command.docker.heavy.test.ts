@@ -713,7 +713,7 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
 
         expect(output).toContain('The environment variable "ENVIRONMENT" is not set.');
         // node prints the file url the map holds as a path
-        expect(output).toMatch(/at requireEnv \(\/app\/src\/env\.ts:\d+:\d+\)/);
+        expect(output).toMatch(/at resolveEnv \(\/app\/src\/env\.ts:\d+:\d+\)/);
         // the stylesheet's entry and the stylesheet get a map of a few kilobytes each beside the bundle's
         expect(run(`docker exec ${APPLICATION_CONTAINER} find /app/dist -name '*.map'`)).toContain('/app/dist/bundle.js.map');
         expect(run(`docker exec ${APPLICATION_CONTAINER} grep -rl sourcesContent /app/dist --include='*.map' || true`).trim()).toBe('');

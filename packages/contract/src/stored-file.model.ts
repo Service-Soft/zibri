@@ -1,6 +1,7 @@
 /**
  * A file the backend stored, like an attachment or a picture, as its routes answer with it. Where and how it is stored
  * is up to the backend, the url is where a browser loads it from.
+ * @deprecated Use `FileReference`, what zibri answers for a file of an entity kept in a file store. Removed in zibri 4.
  */
 export type StoredFile = {
     /**

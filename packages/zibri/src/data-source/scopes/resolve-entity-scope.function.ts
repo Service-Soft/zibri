@@ -1,71 +1,52 @@
-import { type AuthServiceInterface } from '../../auth/auth-service.interface';
-import { type CurrentUser } from '../../auth/decorators/current-user.decorator';
-import { AlsUtilities } from '../../context/als.utilities';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { EntityMetadata } from '../../entity/decorators/entity.decorator';
-import { type DenyAll, type EntityScopeContext, isUnscoped, type RestrictedToScope, type Unscoped } from '../../entity/models/entity-scope.model';
-import { type CurrentMembership } from '../../tenancy/membership/current-membership.model';
-import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
+import { denyAll, type DenyAll, type EntityScopeContext, isUnscoped, type RestrictedToScope, type Unscoped } from '../../entity/models/entity-scope.model';
 import { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { Where } from '../models/where/where-filter.model';
+import { type RepositoryTransaction } from '../transaction/repository-transaction.type';
+import { resolveEntityScopeContext } from './resolve-entity-scope-context.function';
+import { ScopedWhere, ScopeWhereUtilities } from './scope-where.utilities';
 
 /**
- * Asks an entity's scope what the caller running right now may see.
+ * Asks an entity's scopes what the caller running right now may see: its own `restrictedTo`, and the rows shared with
+ * the caller of an entity that is shareable or shared through a relation. Both apply.
  *
  * Undefined means the entity declares no scope, the call is exempt from it, or the scope decided not
  * to restrict this caller. Returning `denyAll` means no row can satisfy it.
  * @param entityClass - The entity being read or written.
  * @param metadata - Its entity metadata, which carries the declared scope.
  * @param unscoped - Which scopes this call asked to be exempt from.
+ * @param transaction - The transaction of the call, which what is shared is read in.
  * @returns The filter to narrow the call by, or the note that nothing may be seen.
  * @throws Whatever the scope itself throws, which is how it refuses a caller outright.
  */
 export async function resolveEntityScope<T extends BaseEntity>(
     entityClass: Newable<T>,
     metadata: EntityMetadata,
-    unscoped: Unscoped | undefined
+    unscoped: Unscoped | undefined,
+    transaction: RepositoryTransaction | undefined
 ): Promise<Where<T> | DenyAll | undefined> {
-    const restrictedTo: RestrictedToScope | undefined = metadata.scope?.restrictedTo;
-    if (!restrictedTo || isUnscoped('restrictedTo', unscoped)) {
+    const restrictedTo: RestrictedToScope | undefined = isUnscoped('restrictedTo', unscoped) ? undefined : metadata.scope?.restrictedTo;
+    // named by no scope of its own: what is shared is lifted with every scope at once, by `unscoped: true`
+    const shared: boolean = (metadata.shareable != undefined || metadata.sharedThrough != undefined) && unscoped !== true;
+    if (!restrictedTo && !shared) {
         return undefined;
     }
-
-    const context: HttpRequestContext | WebsocketRequestContext | undefined = AlsUtilities.getCurrentRequestContext();
-    const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
-    // memoized per request, so a handler that also takes @CurrentUser or sits behind an @Auth check
-    // shares the single lookup those already did. Undefined outside a request entirely, which the
-    // scope is told about rather than being refused on its behalf
-    const currentUser: CurrentUser | undefined = context
-        ? await authService.resolveCurrentUser(context, authService.strategies, false)
-        : undefined;
-    const currentMembership: CurrentMembership | undefined = context
-        ? await authService.resolveCurrentMembership(context, authService.strategies, false)
-        : undefined;
-    const tenantService: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
-
-    const scopeContext: EntityScopeContext = {
-        currentUser,
-        tenantId: tenantService.getActiveTenantId(),
-        currentMembership,
-        // the same answer the permissions of the user above hold, asked of the auth service so that a
-        // permission nobody declared is warned about, as it is for a check from anywhere else
-        hasPermission: async permission => context != undefined
-            && await authService.hasPermission(context, authService.strategies, permission),
-        hasPlatformPermission: async permission => context != undefined
-            && await authService.hasPlatformPermission(context, authService.strategies, permission),
-        // the two checks of the interface rather than its optional third, which an auth service of the
-        // application's own may leave out: either of them is what the third answers
-        hasAnyLevelPermission: async permissions => context != undefined
-            && (await authService.hasPermission(context, authService.strategies, permissions.permission)
-                || await authService.hasPlatformPermission(context, authService.strategies, permissions.platformPermission)),
-        requestContext: context,
-        entityClass
-    };
-    const result: Where<T> | DenyAll | undefined = await restrictedTo(scopeContext) as Where<T> | DenyAll | undefined;
-
-    return result;
+    const scopeContext: EntityScopeContext = await resolveEntityScopeContext(entityClass);
+    // the scope's answer typed by the entity it was declared for, which `scopeFor` checked
+    const own: Where<T> | DenyAll | undefined = restrictedTo ? await restrictedTo(scopeContext) as Where<T> | DenyAll | undefined : undefined;
+    if (!shared || own === denyAll) {
+        return own;
+    }
+    // a filter over the entity it was asked for, which the interface answers for any entity
+    const sharedWhere: Where<T> | DenyAll | undefined = await inject(ZIBRI_DI_TOKENS.SHARE_SERVICE)
+        .resolveRestriction(entityClass, scopeContext, transaction) as Where<T> | DenyAll | undefined;
+    if (own == undefined || sharedWhere == undefined || sharedWhere === denyAll) {
+        return sharedWhere ?? own;
+    }
+    const combined: ScopedWhere<T> = ScopeWhereUtilities.applyToWhere(own, sharedWhere, MetadataUtilities.getModelProperties(entityClass));
+    return combined.matchesNothing ? denyAll : combined.where;
 }

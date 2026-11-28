@@ -1,14 +1,14 @@
 {{#mailingList}}
-import { OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOptions, ZibriMailingListPlugin } from 'zibri';
+import { OmitStrict, SemVerUtilities, ZibriApplicationOptions, ZibriMailingListPlugin } from 'zibri';
 {{/mailingList}}
 {{^mailingList}}
-import { OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOptions } from 'zibri';
+import { OmitStrict, SemVerUtilities, ZibriApplicationOptions } from 'zibri';
 {{/mailingList}}
 
 import { version } from '../package.json';
 import { endEveryLoginCommand, resetAdminCommand } from './commands';
 import { AppAuthController{{#mailingList}}, AppMailingListController{{/mailingList}}{{#docs}}, DocsController{{/docs}}, HealthController{{#pages}}, PageController{{/pages}} } from './controllers';
-import { requireOneOfEnv, requireUrlEnv } from './env';
+import { env } from './env';
 import { providers } from './providers';
 
 if (!SemVerUtilities.isSemVerVersion(version)) {
@@ -25,14 +25,14 @@ if (!SemVerUtilities.isSemVerVersion(version)) {
  */
 export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSources'> = {
     name: '{{name}}',
-    baseUrl: requireUrlEnv('BASE_URL'),
+    baseUrl: env.baseUrl,
     plugins: [{{#mailingList}}new ZibriMailingListPlugin(){{/mailingList}}],
     controllers: [HealthController{{#pages}}, PageController{{/pages}}{{#docs}}, DocsController{{/docs}}{{#mailingList}}, AppMailingListController{{/mailingList}}, AppAuthController],
     websocketControllers: [],
     cronJobs: [],
     commands: [resetAdminCommand, endEveryLoginCommand],
     version,
-    environment: requireOneOfEnv('ENVIRONMENT', ZIBRI_ENVIRONMENTS),
+    environment: env.environment,
 {{#publicByDefault}}
     // what an endpoint with no @Auth decorator requires. Switch to 'isLoggedIn' to have
     // a forgotten decorator answer 401 instead of serving anyone, and mark the endpoints

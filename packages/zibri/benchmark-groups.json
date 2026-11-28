@@ -14,6 +14,11 @@
         "rounds": 2,
         "suites": ["src/backup/backup.sftp.benchmark.test.ts"]
     },
+    "backup-web-dav": {
+        "narrowed": { "env": { "ZIBRI_BACKUP_CONTAINERS_BENCHMARK_SIZES_MB": "10" }, "rounds": 2 },
+        "rounds": 2,
+        "suites": ["src/backup/backup.web-dav.benchmark.test.ts"]
+    },
     "postgres": {
         "narrowed": { "env": { "ZIBRI_BACKUP_CONTAINERS_BENCHMARK_SIZES_MB": "10" }, "rounds": 2 },
         "rounds": 2,

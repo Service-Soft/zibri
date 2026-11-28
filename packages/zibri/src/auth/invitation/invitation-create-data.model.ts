@@ -1,3 +1,5 @@
+import { type LocaleCode } from '../../localization/models/locale-code.model';
+import { type RowShareGrant } from '../../sharing/row-share-grant.model';
 import { BaseInvitation } from './base-invitation.model';
 import { type InvitationCreateOn } from './invitation-create-on.type';
 
@@ -28,5 +30,21 @@ export type InvitationCreateData<T extends BaseInvitation = BaseInvitation> = Om
     /**
      * How long the invitation lasts, or undefined for one that lasts until it is answered or revoked.
      */
-    expiresInMs: number | undefined
+    expiresInMs: number | undefined,
+    /**
+     * The locale the invitation is mailed in, and the account it creates gets. Defaults to the locale of the request
+     * inviting.
+     */
+    locale?: LocaleCode,
+    /**
+     * Whether the account the invitation creates gets no password: accepting takes none, and logs the person
+     * accepting in by the link, as `LoginLinkAuthenticator` does. Needs it among the authenticators. False by
+     * default.
+     */
+    withoutPassword?: boolean,
+    /**
+     * Rows of the tenant to share with the invited person once they accept, each in a role its entity declares. None
+     * by default.
+     */
+    rowShares?: RowShareGrant[]
 };

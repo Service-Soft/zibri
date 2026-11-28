@@ -7,6 +7,7 @@ import ts from 'typescript';
 import { InMemoryDataSource } from 'zibri-testing';
 
 import { testFileFolder, TestTimeouts } from '../../__testing__/constants';
+import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
@@ -218,6 +219,21 @@ describe('generating a migration', () => {
         const migration: GeneratedMigration | undefined = generateBetween(previous, withOwnColumn);
         expect(migration?.code).toContain('name: \'team\'');
         expect(migration?.code).not.toContain('name: \'application\'');
+    });
+
+    // registered on the class BaseUserEntity() defines, which has no table: the one extending it has
+    it('leaves out a column the framework added to the base of an entity of the application, and writes one of that name elsewhere', () => {
+        const table: string = MigratedEntityUtilities.resolveTableName(JwtUser);
+        const current: EntitySnapshot = EntitySnapshotUtilities.resolveSnapshot('ShelfDataSource', [JwtUser]);
+        const users: EntitySnapshot['entities'][string] | undefined = current.entities[table];
+        assert(users);
+        const { locale, ...asOfThreeTwo } = users.properties;
+        const previous: EntitySnapshot = { ...current, entities: { [table]: { ...users, properties: asOfThreeTwo } } };
+
+        expect(locale).toBeDefined();
+        expect(generateBetween(previous, current)).toBeUndefined();
+        const migration: GeneratedMigration | undefined = generateBetween(shelfWith({}), shelfWith({ locale: { type: 'string', required: false } }));
+        expect(migration?.code).toContain('name: \'locale\'');
     });
 
     it('writes nothing when nothing changed, and an empty migration only when asked for one', () => {

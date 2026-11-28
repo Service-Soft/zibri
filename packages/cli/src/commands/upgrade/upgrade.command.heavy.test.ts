@@ -147,7 +147,7 @@ const PROVIDER_CHANGES: [string, string][] = [
         ''
     ],
     // 3.0 handed the master key over as the string it was read as, which aes-256-gcm cannot use
-    ['value: Buffer.from(requireEnv(\'MASTER_KEY\'), \'base64url\')', 'value: requireEnv(\'MASTER_KEY\')']
+    ['value: Buffer.from(env.masterKey, \'base64url\')', 'value: requireEnv(\'MASTER_KEY\')']
 ];
 
 /**

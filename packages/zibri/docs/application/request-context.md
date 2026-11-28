@@ -23,6 +23,7 @@ The request context holds what belongs to the request being handled: the incomin
 | `ZIBRI_DI_TOKENS.CURRENT_CACHE_CONTEXT` | DI token | Injects the stack of currently active `CacheContext[]`, or `undefined` |
 | `OperationLimit` | type | How long the work running here may take: the `timeoutInMs` of one statement, and the `signal` that fires when the work or its request runs out of time. Read with `AlsUtilities.findCurrentOperationLimit` |
 | `LeaseScopeResult` | type | What `AlsUtilities.runInLeaseScope` returns: the result of the function, and the transactions written to while it ran |
+| `RecordedTenantsResult` | type | What `AlsUtilities.runRecordingTenants` returns: the result of the function, and the [tenants](../glossary.md#tenant) it entered while no tenant was active |
 
 ## Reading request-scoped data from a service
 Inject `ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT` wherever you need it, such as in a cache key function, a validator or a logger transport. It is `undefined` outside a request (such as in a cron job or during startup), so guard it with `?.`.
@@ -66,7 +67,7 @@ Pass one of `ZIBRI_REQUEST_CONTEXT_TOKENS` to `.get()`/`.has()`. Each token's va
 | `IS_LOGGED_IN` | `boolean` | Runs the route's configured auth strategies |
 | `HAS_2FA` | `boolean` | Whether this request presented a valid [second factor](../glossary.md#second-factor) for the current user; `false` when there is no current user |
 | `CURRENT_VERSION` | `Version` | Resolved via `VERSIONING_SERVICE` |
-| `CURRENT_LOCALE` | `LocaleCode` | Resolved via `LOCALIZE_SERVICE` |
+| `CURRENT_LOCALE` | `LocaleCode` | The locale the request asks for, resolved via `LOCALIZE_SERVICE`, inside `runInLocale` too |
 
 ## Defining your own token
 Create a `RequestContextToken` with a unique key and a resolver function. The resolver receives the context and can itself `inject()` services or call `ctx.get()` on other tokens:
@@ -100,6 +101,8 @@ There is nothing to configure. The contexts are created for you:
 - `HttpRequestContext` is entered with `AlsUtilities.runWithHttpRequestContext()` at the start of routing, before version matching or any controller code runs.
 - `WebsocketRequestContext` is entered with `AlsUtilities.runWithWebsocketRequestContext()` at the start of handling an incoming websocket message.
 - `CacheContext` is pushed with `AlsUtilities.runWithCacheContext()` around each cache operation.
+
+`AlsUtilities.runOutsideRequest()` runs a function outside the HTTP or websocket request it is called in: it finds no request context, and what it writes records no user of a request, such as in its [change sets](../glossary.md#change-set). A policy approving an [approval request](../plugins/approval-plugin.md#approving-automatically) runs its action this way.
 
 The contexts have no `.set()`. To add state to a request, define a `RequestContextToken`. Its value is computed once per request and reused for the rest of it.
 

@@ -6,13 +6,14 @@ import { BackupTransportSupporting } from '../backup/transports/backup-transport
 import { CronJob } from '../cron/cron-job.model';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { DiProvider } from '../di/models/di-provider.model';
+import { FileStoreInterface } from '../file/stores/file-store.interface';
 import { AnyBodyParser } from '../parsing/body-parser.interface';
 import { Newable } from '../types/newable.type';
 
 /**
  * A bundle of what an application is built from: providers, controllers, websocket controllers, data
  * sources, cron jobs, body parsers, auth strategies, authenticators, two factor methods, backup
- * transports and lifecycle services.
+ * transports, file stores and lifecycle services.
  */
 export abstract class ZibriPlugin {
     /**
@@ -63,6 +64,10 @@ export abstract class ZibriPlugin {
      * The backup transports to register.
      */
     backupTransports: Newable<BackupTransportSupporting>[] = [];
+    /**
+     * The file stores to register.
+     */
+    fileStores: Newable<FileStoreInterface>[] = [];
     /**
      * The services to build at startup for their lifecycle hooks, such as `OnAppInit`.
      */

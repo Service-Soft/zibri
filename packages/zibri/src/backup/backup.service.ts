@@ -5,6 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { setTimeout } from 'node:timers/promises';
+import { isDeepStrictEqual } from 'node:util';
 
 import { BehaviorSubject, first, firstValueFrom } from 'rxjs';
 
@@ -35,13 +36,16 @@ import { DiVariants } from '../di/models/di-variant.model';
 import { BadRequestError } from '../error-handling/errors/bad-request.error';
 import { ConflictError } from '../error-handling/errors/conflict.error';
 import { InternalError } from '../error-handling/internal-error.model';
+import { FileRecord } from '../file/file-record.model';
+import { FileStoreBackupResource } from '../file/file-store.backup-resource';
+import { isFileStore } from '../file/stores/file-store.interface';
 import { AfterAppInit } from '../global/after-app-init.interface';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { OnAppShutdown } from '../global/on-app-shutdown.interface';
 import { MimeType } from '../http/mime-type.enum';
 import { type LeaseServiceInterface } from '../leases/lease-service.interface';
 import { $ts } from '../localization/translate.function';
-import { AuditAction, AuditOutcome } from '../logging/audit-event.model';
+import { AuditAction, AuditOutcome, AuditReason } from '../logging/audit-event.model';
 import { AuditUtilities } from '../logging/audit.utilities';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { parseObject } from '../parsing/functions/parse-object.function';
@@ -98,6 +102,9 @@ import { Format2BackupLayout } from './repository/format-2.backup-layout';
 import { RetrievedBackupResource } from './repository/retrieved-backup-resource.model';
 import { RestoreJournalEntry } from './restore-journal-entry.model';
 import { RestoreJournal } from './restore-journal.model';
+import { KEPT_ROW_CHECK_DI_VARIANT, type KeptRowCheckInterface } from './kept-row-check.interface';
+import { type KeptRowDivergence } from './kept-row-divergence.model';
+import { RestoreContextUtilities } from './restore-context.utilities';
 import { RestoreJournalUtilities } from './restore-journal.utilities';
 import { RestoreNotUndoneError } from './restore-not-undone.error';
 import { RestoreOptions } from './restore-options.model';
@@ -111,7 +118,7 @@ import { StagingUtilities } from './staging.utilities';
 import { TenantBackupSettings } from './tenant/tenant-backup-settings.model';
 import { AnyTenantBackupTransportKind } from './tenant/tenant-backup-transport-kind.interface';
 import { TenantBackupTransportOptions } from './tenant/tenant-backup-transport-options.model';
-import { TenantBackupTransport, TenantBackupTransportCreateData } from './tenant/tenant-backup-transport.model';
+import { TenantBackupTransport, TenantBackupTransportChangeData, TenantBackupTransportCreateData } from './tenant/tenant-backup-transport.model';
 import { TENANT_TRANSPORT_NAME_PREFIX, TenantRowBackupTransport } from './tenant/tenant-row.backup-transport';
 import { TenantExportFormat } from './tenant-export-format.type';
 import { TenantExportUtilities } from './tenant-export.utilities';
@@ -296,7 +303,7 @@ type UserRowsAcrossRestore = {
 type SnapshottedResource = StagedResource & {
     /**
      * What the snapshot held when it was written, or undefined when none was, for a resource whose restore
-     * changes everything or nothing by itself.
+     * changes everything or nothing by itself, and for a file store, which a restore only adds to.
      */
     snapshotDigest: BackupDigest | undefined
 };
@@ -329,8 +336,9 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
     private tenantTransportsDeclared: boolean = false;
     private tenantSettingsDeclared: boolean = false;
     // the same transport each time for a tenant's transport, by the id of its row: the record is stored
-    // once per transport a backup went to, which is told apart by identity
-    private readonly tenantTransports: Map<string, BackupTransportInterface> = new Map();
+    // once per transport a backup went to, which is told apart by identity. Kept with the row it was built from, as
+    // another instance may change the row
+    private readonly tenantTransports: Map<string, [TenantBackupTransport, BackupTransportInterface]> = new Map();
     // when the last window of a garbage collection on this instance ended, which the next one waits a pause after
     private garbageCollectionWindowEndedAt: number = 0;
     // the sync of the transports of tenants that the start leaves running, and what stops it before its next tenant
@@ -505,7 +513,9 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
      * @throws {InitBackupServiceError} When the provider is no backup resource, or names no transport.
      */
     private async registerBackupResource(provider: DiProvider<unknown>, retention: BackupRetention | undefined): Promise<void> {
-        const resource: unknown = inject(provider.token);
+        const injected: unknown = inject(provider.token);
+        // a file store knows nothing of backups: the bytes of its files are backed up through the resource standing for it
+        const resource: unknown = isFileStore(injected) && !isBackupResource(injected) ? new FileStoreBackupResource(injected) : injected;
         if (!isBackupResource(resource)) {
             throw new InitBackupServiceError(
                 `Invalid resource marked with @Backup: ${getDiTokenName(provider.token)} needs to implement BackupResourceInterface`
@@ -525,10 +535,19 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
                 + 'retention names no fullRead. Set fullRead of ZIBRI_DI_TOKENS.BACKUP_RETENTION to say how often.'
             );
         }
-        if (!MetadataUtilities.getBackupResourceMetadata(resource)?.transports.length) {
+        if (!this.getResourceMetadata(resource)?.transports.length) {
             throw new InitBackupServiceError('Needs to have at least one transport defined');
         }
         this.logger.info(`  - ${getDiTokenName(provider.token)}`);
+    }
+
+    /**
+     * The metadata `@Backup` gave a resource: of a file store, the store's own.
+     * @param resource - The resource.
+     * @returns The metadata, or undefined for a resource not marked with `@Backup`.
+     */
+    private getResourceMetadata(resource: BackupResourceInterface): BackupResourceMetadata | undefined {
+        return MetadataUtilities.getBackupResourceMetadata(resource instanceof FileStoreBackupResource ? resource.store : resource);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -538,7 +557,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         // own onAppInit - one that may well run after this service's
         // put back first, because what a half finished restore of the database left there is what the
         // sync would otherwise read
-        await this.putBackInterruptedRestores();
+        await RestoreContextUtilities.run(async () => await this.putBackInterruptedRestores());
         await this.syncBackupEntitiesFrom('skip');
         // not waited for: the transports of tenants are reached elsewhere, and a slow one would hold back the start
         this.tenantSyncAtStart = this.syncUnnamedTenantTransportsAtStart();
@@ -1066,11 +1085,14 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         if (tenantId != undefined && !UUIDUtilities.isUuid(tenantId)) {
             throw new BadRequestError($ts`The tenant of a backup needs to be a uuid.`);
         }
-        // of a tenant, the data sources holding rows of tenants, each read for the tenant alone
+        // of a tenant, the data sources holding rows of tenants and the file stores, each read for the tenant alone
         const backed: BackupResourceInterface[] = tenantId == undefined
             ? this.backupResources
-            : this.backupResources.filter(r => isDataSource(r) && TenantRowsBackupResource.holdsTenantRows(r));
-        if (!backed.length) {
+            : this.backupResources.filter(
+                r => (isDataSource(r) && TenantRowsBackupResource.holdsTenantRows(r)) || r instanceof FileStoreBackupResource
+            );
+        // the files of a tenant without its rows would be bytes no row names
+        if (!backed.length || (tenantId != undefined && backed.every(r => r instanceof FileStoreBackupResource))) {
             throw new BadRequestError(
                 $ts`No data source marked with @Backup holds rows of tenants, so there is nothing to back up of a tenant.`
             );
@@ -1084,7 +1106,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         }
         const resourceEntities: BackupResourceEntityCreateData[] = [];
         for (const backupResource of backed) {
-            const metadata: BackupResourceMetadata | undefined = MetadataUtilities.getBackupResourceMetadata(backupResource);
+            const metadata: BackupResourceMetadata | undefined = this.getResourceMetadata(backupResource);
             if (!metadata) {
                 throw new BackupTransportNotFoundError(backupResource);
             }
@@ -1215,8 +1237,33 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         // build queued in a format this one does not write: stored in an older format, a restore would read the
         // layout of the format the backup records, and find nothing there. The formats this build writes are the
         // ones it reads
-        return resources.filter(r => this.findBackupResource(r.name) != undefined
-            && READABLE_BACKUP_FORMAT_VERSIONS.includes(r.backup.formatVersion));
+        return await this.resolveWithFilesAfterTheirRows(resources.filter(r => this.findBackupResource(r.name) != undefined
+            && READABLE_BACKUP_FORMAT_VERSIONS.includes(r.backup.formatVersion)));
+    }
+
+    /**
+     * Leaves out each file store of a backup that has not stored the data source holding `FileRecord` yet.
+     *
+     * Stored after the rows, a backup of a file store holds the bytes of every row the backup of the rows holds,
+     * but those of the files deleted in between. Stored before, it would lack every file stored in between.
+     * @param due - The resources due.
+     * @returns Those of them that are stored now.
+     */
+    private async resolveWithFilesAfterTheirRows(due: BackupResourceEntity[]): Promise<BackupResourceEntity[]> {
+        const rows: BackupResourceInterface | undefined = this.backupResources.find(
+            r => isDataSource(r) && r.entities.includes(FileRecord)
+        );
+        const rowsName: string | undefined = rows == undefined ? undefined : this.getResourceMetadata(rows)?.name;
+        const files: BackupResourceEntity[] = due.filter(r => this.findBackupResource(r.name) instanceof FileStoreBackupResource);
+        if (rowsName == undefined || !files.length) {
+            return due;
+        }
+        // read apart from those due: one waiting to be tried again is not due, and not stored either
+        const notStored: BackupResourceEntity[] = await this.backupResourceRepository.findAll({
+            where: { name: rowsName, completed: false, backupId: { oneOf: [...new Set(files.map(f => f.backupId))] } },
+            limit: 'all'
+        });
+        return due.filter(r => !files.includes(r) || !notStored.some(u => u.backupId === r.backupId));
     }
 
     /**
@@ -1589,7 +1636,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         if (whole && backed.includes(keys.dataSource)) {
             return { masterKeys: keys.masterKeys, dataKeyIds: [] };
         }
-        const encrypts: boolean = backed.some(r => MetadataUtilities.getBackupResourceMetadata(r)?.encrypt === true);
+        const encrypts: boolean = backed.some(r => this.getResourceMetadata(r)?.encrypt === true);
         return { masterKeys: encrypts ? [keys.currentMasterKey] : [], dataKeyIds: keys.dataKeyIds };
     }
 
@@ -1605,7 +1652,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         if (!resource) {
             throw new InternalError(`Could not find the backup resource "${r.name}" of backup "${backup.name}".`);
         }
-        const metadata: BackupResourceMetadata | undefined = MetadataUtilities.getBackupResourceMetadata(resource);
+        const metadata: BackupResourceMetadata | undefined = this.getResourceMetadata(resource);
         if (!metadata) {
             throw new BackupTransportNotFoundError(resource);
         }
@@ -1651,11 +1698,11 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
 
     /**
      * The resource a backup reads and restores: the registered one, or for a backup of a tenant the rows
-     * that tenant holds in that data source.
+     * that tenant holds in that data source, or the files it keeps in that file store.
      * @param backup - The backup.
      * @param resource - The resource as registered.
      * @returns The resource.
-     * @throws When the backup is of a tenant and the resource is no data source.
+     * @throws When the backup is of a tenant and the resource is neither a data source nor a file store.
      */
     private resolveScopedResource(
         backup: Pick<BackupEntity, 'tenantId' | 'name'>,
@@ -1663,6 +1710,9 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
     ): BackupResourceInterface {
         if (backup.tenantId == undefined) {
             return resource;
+        }
+        if (resource instanceof FileStoreBackupResource) {
+            return resource.forTenant(backup.tenantId);
         }
         if (!isDataSource(resource)) {
             throw new InternalError(`The backup "${backup.name}" is of a tenant, and holds a resource that is no data source.`);
@@ -1876,10 +1926,38 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
                 );
             }
             await TracingUtilities.trace('restore', { root: true }, async () => await this.restoreWithAudit(selected, options));
+            // while the resources are held, so that no other restore changes what is checked
+            await this.warnAboutMissingFiles(selected);
             return true;
         });
         if (restored == undefined) {
             throw this.resolveResourcesBusyError(selected.resources);
+        }
+    }
+
+    /**
+     * Warns about the files without bytes in each file store marked with `@Backup` once a restore replaced their rows
+     * or put back the bytes of the store, such as after a restore of the rows alone.
+     * @param backup - The backup restored, holding the resources restored.
+     */
+    private async warnAboutMissingFiles(backup: BackupEntity): Promise<void> {
+        const restored: BackupResourceInterface[] = backup.resources.flatMap(r => this.resolveBackupResource(r) ?? []);
+        const rowsRestored: boolean = restored.some(r => isDataSource(r) && r.entities.includes(FileRecord));
+        for (const resource of this.backupResources) {
+            if (!(resource instanceof FileStoreBackupResource) || (!rowsRestored && !restored.includes(resource))) {
+                continue;
+            }
+            const checked: FileStoreBackupResource = backup.tenantId == undefined ? resource : resource.forTenant(backup.tenantId);
+            try {
+                await checked.warnAboutMissingFiles(backup.name, this.getResourceMetadata(resource)?.name ?? resource.store.name);
+            }
+            catch (error) {
+                // the restore is done either way, and this is what it is about
+                this.logger.warn(
+                    `Could not check whether the files of the file store "${resource.store.name}" have their bytes after the `
+                    + `restore of backup "${backup.name}": ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
         }
     }
 
@@ -1914,8 +1992,12 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         if (backup.tenantId != undefined) {
             throw new BadRequestError($ts`A restore of a tenant replaces the tenant's rows alone, and deletes nothing first.`);
         }
+        // a file store deletes nothing first: a restore of it adds to what it holds, and replaces nothing that was right
         const unable: string[] = backup.resources
-            .filter(r => this.resolveBackupResource(r)?.deleteBackedUpData == undefined)
+            .filter(r => {
+                const resource: BackupResourceInterface | undefined = this.resolveBackupResource(r);
+                return resource?.deleteBackedUpData == undefined && !(resource instanceof FileStoreBackupResource);
+            })
             .map(r => r.name);
         if (unable.length) {
             throw new BadRequestError($ts`The resources ${unable.join(', ')} cannot delete what they hold before a restore.`);
@@ -1946,7 +2028,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
             resources.push({
                 name: resource.name,
                 fetchedBytes,
-                snapshotBytes: options.putBack === false || restoresAlone ? 0 : fetchedBytes,
+                snapshotBytes: options.putBack === false || restoresAlone || !this.needsSnapshot(resource) ? 0 : fetchedBytes,
                 atMost: chain.some(link => link.resource.stagedSize == undefined)
             });
         }
@@ -1971,7 +2053,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
                 [s.data, ...s.increments].map(async f => (await FsUtilities.stat(f.path)).size)
             );
             const fetchedBytes: number = sizes.reduce((sum, size) => sum + size, 0);
-            return { name: s.entity.name, fetchedBytes, snapshotBytes: fetchedBytes, atMost: false };
+            return { name: s.entity.name, fetchedBytes, snapshotBytes: this.needsSnapshot(s.entity) ? fetchedBytes : 0, atMost: false };
         }));
         const freeBytes: number = await FsUtilities.resolveFreeBytes(this.stagingFolder);
         return {
@@ -2029,15 +2111,18 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
      */
     private async restoreWithAudit(backup: BackupEntity, options: RestoreOptions): Promise<void> {
         const tenantId: string | null | undefined = backup.tenantId;
+        // every write of the restore, and of putting back what it applied when it fails, is one a write observer
+        // leaves as it is: the rows come back as they were stored, with what they had recorded
         if (tenantId == undefined) {
-            await this.restoreWithin(backup, options);
+            await RestoreContextUtilities.run(async () => await this.restoreWithin(backup, options));
             return;
         }
         const audit: () => AuditServiceInterface = () => inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE);
         await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(tenantId, async () => {
             try {
-                await this.restoreWithin(backup, options);
+                await RestoreContextUtilities.run(async () => await this.restoreWithin(backup, options));
                 audit().record({ action: AuditAction.TENANT_RESTORED, outcome: AuditOutcome.SUCCESS, subject: backup.name });
+                await this.reportKeptRowDivergences(backup);
             }
             catch (error) {
                 audit().record({
@@ -2049,6 +2134,50 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
                 throw error;
             }
         });
+    }
+
+    /**
+     * Asks every check of `KEPT_ROW_CHECK_DI_VARIANT` which rows of the tenant restored, kept as they were written,
+     * no longer match the rows the restore brought back or took away, records each in the audit trail of the tenant
+     * and logs them. Changes nothing, and fails nothing: the restore is done.
+     * @param backup - The backup of the tenant restored, in whose tenant this runs.
+     * @returns The rows found.
+     */
+    protected async reportKeptRowDivergences(backup: BackupEntity): Promise<KeptRowDivergence[]> {
+        const res: KeptRowDivergence[] = [];
+        for (const provider of getRegisteredProvidersOfVariant(KEPT_ROW_CHECK_DI_VARIANT)) {
+            try {
+                const check: unknown = inject(provider.token);
+                if (!this.isKeptRowCheck(check)) {
+                    throw new InternalError(`${getDiTokenName(provider.token)} is provided as a kept row check, and needs to be one.`);
+                }
+                // one after the other, as each reads every row of its kind of the tenant
+                res.push(...await check.resolveKeptRowDivergences());
+            }
+            catch (error) {
+                this.logger.error(new InternalError(`Could not check the rows kept by restoring backup "${backup.name}".`, { cause: error }));
+            }
+        }
+        for (const divergence of res) {
+            inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({
+                action: AuditAction.TENANT_RESTORE_DIVERGENCE,
+                outcome: AuditOutcome.FAILURE,
+                reason: AuditReason.DIVERGED,
+                subject: `${divergence.entity} ${divergence.id}`
+            });
+        }
+        if (res.length) {
+            this.logger.warn([
+                `Restoring backup "${backup.name}" kept ${res.length} rows that no longer match the rows it brought back or took away:`,
+                ...res.map(d => `- ${d.message}`)
+            ].join('\n'));
+        }
+        return res;
+    }
+
+    private isKeptRowCheck(value: unknown): value is KeptRowCheckInterface {
+        return typeof value === 'object' && value != undefined
+            && 'resolveKeptRowDivergences' in value && typeof value.resolveKeptRowDivergences === 'function';
     }
 
     /**
@@ -2201,7 +2330,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
             limit: 'all'
         });
         const registered: string[] = this.backupResources.flatMap(
-            r => MetadataUtilities.getBackupResourceMetadata(r)?.name ?? []
+            r => this.getResourceMetadata(r)?.name ?? []
         );
         return [...new Set([...registered, ...running.map(r => r.name)])];
     }
@@ -2276,6 +2405,9 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
             // what every resource holds right now, taken before any of them changes, so that one failing
             // to apply can be undone by putting the others back
             const snapshotted: SnapshottedResource[] = await Promise.all(staged.map(async (s): Promise<SnapshottedResource> => {
+                if (!this.needsSnapshot(s.entity)) {
+                    return { ...s, snapshotDigest: undefined };
+                }
                 // kept on this instance's disk in one piece, until the restore is done
                 const current: Readable = await s.resource.createBackupData(
                     backup,
@@ -2656,6 +2788,17 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
     }
 
     /**
+     * Whether a restore keeps a copy of what a resource holds, to put it back from when the restore fails: of every
+     * resource but a file store. A restore of one puts back bytes under keys that name them by their SHA-256, so it
+     * replaces nothing that was right, and a copy of a store would take as much disk again as its files.
+     * @param resource - The resource as the backup records it.
+     * @returns Whether it does.
+     */
+    private needsSnapshot(resource: BackupResourceEntity): boolean {
+        return !(this.resolveBackupResource(resource) instanceof FileStoreBackupResource);
+    }
+
+    /**
      * Whether a staged resource's restore changes everything or nothing by itself, as the resource says of
      * the data it applies.
      * @param s - The resource.
@@ -2731,6 +2874,9 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         }
         const notUndone: StagedResource[] = [];
         for (const t of [...touched].reverse()) {
+            if (!this.needsSnapshot(t.entity)) {
+                continue;
+            }
             if (t.snapshotDigest == undefined) {
                 // restored alone, all or nothing by itself: its data went in whole or not at all, and only
                 // what runs after it, such as bringing its uniques in line, can have failed with it in place
@@ -2869,7 +3015,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         }
         // a resource whose data is encrypted is so on this instance's disk as well: what was fetched of it, and
         // the snapshot of what it holds now
-        const encrypt: boolean = MetadataUtilities.getBackupResourceMetadata(r)?.encrypt === true
+        const encrypt: boolean = this.getResourceMetadata(r)?.encrypt === true
             || chain.some(link => link.resource.encryptedKey != undefined);
         const paths: FsPath[] = [];
         const files: (StagedFile | StagedChunksFile)[] = [];
@@ -3258,7 +3404,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
     private findBackupResource(name: string): BackupResourceInterface | undefined {
         // by the name the decorator settled on, which is what a backup records: a resource given a name
         // of its own was never found by its class name
-        return this.backupResources.find(r => MetadataUtilities.getBackupResourceMetadata(r)?.name === name);
+        return this.backupResources.find(r => this.getResourceMetadata(r)?.name === name);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -3267,7 +3413,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         if (!resourceClass) {
             return;
         }
-        const metadata: BackupResourceMetadata | undefined = MetadataUtilities.getBackupResourceMetadata(resourceClass);
+        const metadata: BackupResourceMetadata | undefined = this.getResourceMetadata(resourceClass);
         if (!metadata) {
             return;
         }
@@ -3318,19 +3464,20 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
 
     /**
      * What a tenant's transport is stored through: its sessions under the layout every backup uses, the
-     * same one each time for the same row.
+     * same one each time for the same row, and a new one once its settings or secret changed.
      * @param transport - The tenant's transport, its secret decrypted.
      * @returns The transport.
      */
     private toTenantTransport(transport: TenantBackupTransport): BackupTransportInterface {
-        const known: BackupTransportInterface | undefined = this.tenantTransports.get(transport.id);
-        if (known != undefined) {
-            return known;
+        const known: [TenantBackupTransport, BackupTransportInterface] | undefined = this.tenantTransports.get(transport.id);
+        // compared rather than dropped where this instance changes a row: another instance may have changed it
+        if (known != undefined && known[0].secret === transport.secret && isDeepStrictEqual(known[0].settings, transport.settings)) {
+            return known[1];
         }
         const created: BackupTransportInterface = new Format1BackupTransport(
             new TenantRowBackupTransport(transport, inject(ZIBRI_DI_TOKENS.BACKUP_TENANT_TRANSPORT_OPTIONS))
         );
-        this.tenantTransports.set(transport.id, created);
+        this.tenantTransports.set(transport.id, [transport, created]);
         return created;
     }
 
@@ -3350,10 +3497,111 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
             });
             return await this.tenantTransportRepository.findById(row.id);
         });
-        // written and deleted at once, so that a wrong address, bucket or secret fails here rather than at the
-        // first backup, whose failing nobody may be watching
+        try {
+            await this.validateTenantTransportWritable(created);
+        }
+        catch (error) {
+            await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
+                tenantId,
+                async () => await this.tenantTransportRepository.deleteById(created.id)
+            );
+            throw error;
+        }
+        return created;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findTenantBackupTransports(tenantId: string): Promise<TenantBackupTransport[]> {
+        this.validateTenantTransportsDeclared();
+        return await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
+            tenantId,
+            async () => await this.tenantTransportRepository.findAll({ order: { name: 'ASC', id: 'ASC' }, limit: 'all' })
+        );
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async updateTenantBackupTransport(tenantId: string, id: string, change: TenantBackupTransportChangeData): Promise<TenantBackupTransport> {
+        this.validateTenantTransportsDeclared();
+        const stored: TenantBackupTransport = await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
+            tenantId,
+            async () => await this.tenantTransportRepository.findById(id)
+        );
+        // compared rather than taken as changed: a form sending every setting back changes nothing by it
+        const settingsChanged: boolean = change.settings != undefined && !isDeepStrictEqual(change.settings, stored.settings);
+        if (settingsChanged) {
+            // other settings reach other storage, which holds none of the backups stored on this one: changed, they
+            // would be lost as with the transport deleted. A secret logs in to the same storage
+            const backupNames: string[] = await this.findBackupsStoredOnTenantTransport(id);
+            if (backupNames.length) {
+                throw new ConflictError(
+                    $ts`The settings of the transport are kept while backups are stored on it: ${backupNames.join(', ')}. Delete those first.`
+                );
+            }
+        }
+        if (settingsChanged || change.secret != undefined) {
+            const settings: Record<string, unknown> = change.settings ?? stored.settings;
+            const secret: Record<string, unknown> = change.secret ?? TenantRowBackupTransport.resolveSecret(stored);
+            await this.validateTenantTransport({ name: change.name ?? stored.name, kind: stored.kind, settings, secret });
+            await this.validateTenantTransportWritable({ ...stored, name: change.name ?? stored.name, settings, secret: JsonUtilities.stringify(secret) });
+        }
+        const data: Partial<Pick<TenantBackupTransport, 'name' | 'settings' | 'secret'>> = {
+            ...change.name === undefined ? {} : { name: change.name },
+            ...settingsChanged ? { settings: change.settings } : {},
+            ...change.secret === undefined ? {} : { secret: JsonUtilities.stringify(change.secret) }
+        };
+        if (!Object.keys(data).length) {
+            return stored;
+        }
+        return await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
+            tenantId,
+            async () => await this.tenantTransportRepository.updateById(id, data)
+        );
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteTenantBackupTransport(tenantId: string, id: string): Promise<void> {
+        this.validateTenantTransportsDeclared();
+        // the tenant's own first: the backups stored on a transport of another tenant are none of its business
+        await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
+            tenantId,
+            async () => await this.tenantTransportRepository.findById(id)
+        );
+        // a backup on it would lose the one place it is stored, and with its record the way to it
+        const backupNames: string[] = await this.findBackupsStoredOnTenantTransport(id);
+        if (backupNames.length) {
+            throw new ConflictError($ts`The transport is stored on by backups: ${backupNames.join(', ')}. Delete those first.`);
+        }
+        await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
+            tenantId,
+            async () => await this.tenantTransportRepository.deleteById(id)
+        );
+        this.tenantTransports.delete(id);
+    }
+
+    /**
+     * Finds the backups stored on a tenant's transport that did not fail.
+     * @param id - The id of the transport.
+     * @returns The names of the backups, each once.
+     */
+    private async findBackupsStoredOnTenantTransport(id: string): Promise<string[]> {
+        const storing: BackupResourceEntity[] = (await this.backupResourceRepository.findAll({
+            where: { transportNames: { includes: [`${TENANT_TRANSPORT_NAME_PREFIX}${id}`] } },
+            relations: ['backup'],
+            limit: 'all'
+        })).filter(r => r.backup.status !== BackupStatus.FAILED);
+        return [...new Set(storing.map(r => r.backup.name))];
+    }
+
+    /**
+     * Validates that a tenant's transport can be written to, by writing and deleting a small object on it, so that a
+     * wrong address, bucket or secret fails when it is configured rather than at the first backup, whose failing nobody
+     * may be watching.
+     * @param transport - The transport, its secret as JSON.
+     * @throws {BadRequestError} When it cannot be written to, saying why.
+     */
+    private async validateTenantTransportWritable(transport: TenantBackupTransport): Promise<void> {
         const store: TenantRowBackupTransport = new TenantRowBackupTransport(
-            created,
+            transport,
             inject(ZIBRI_DI_TOKENS.BACKUP_TENANT_TRANSPORT_OPTIONS)
         );
         try {
@@ -3368,50 +3616,10 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
             }
         }
         catch (error) {
-            await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
-                tenantId,
-                async () => await this.tenantTransportRepository.deleteById(created.id)
-            );
             throw new BadRequestError(
-                $ts`The transport ${data.name} could not be written to: ${error instanceof Error ? error.message : String(error)}`
+                $ts`The transport ${transport.name} could not be written to: ${error instanceof Error ? error.message : String(error)}`
             );
         }
-        return created;
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async findTenantBackupTransports(tenantId: string): Promise<TenantBackupTransport[]> {
-        this.validateTenantTransportsDeclared();
-        return await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
-            tenantId,
-            async () => await this.tenantTransportRepository.findAll({ limit: 'all' })
-        );
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async deleteTenantBackupTransport(tenantId: string, id: string): Promise<void> {
-        this.validateTenantTransportsDeclared();
-        // the tenant's own first: the backups stored on a transport of another tenant are none of its business
-        await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
-            tenantId,
-            async () => await this.tenantTransportRepository.findById(id)
-        );
-        const name: string = `${TENANT_TRANSPORT_NAME_PREFIX}${id}`;
-        // a backup on it would lose the one place it is stored, and with its record the way to it
-        const storing: BackupResourceEntity[] = (await this.backupResourceRepository.findAll({
-            where: { transportNames: { includes: [name] } },
-            relations: ['backup'],
-            limit: 'all'
-        })).filter(r => r.backup.status !== BackupStatus.FAILED);
-        if (storing.length) {
-            const backupNames: string = [...new Set(storing.map(r => r.backup.name))].join(', ');
-            throw new ConflictError($ts`The transport is stored on by backups: ${backupNames}. Delete those first.`);
-        }
-        await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
-            tenantId,
-            async () => await this.tenantTransportRepository.deleteById(id)
-        );
-        this.tenantTransports.delete(id);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

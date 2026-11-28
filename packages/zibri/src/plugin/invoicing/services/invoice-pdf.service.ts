@@ -10,6 +10,7 @@ import { BigNumber } from '../../../utilities/number.utilities';
 import { optionalPeer } from '../../../utilities/optional-peer.function';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
 import { CompanyInfo } from '../models/company-info.model';
+import { InvoiceType } from '../models/invoice-type.enum';
 import { Invoice } from '../models/invoice.model';
 import { type InvoicingOptions } from '../models/invoicing-options.model';
 import { Vat } from '../models/vat.model';
@@ -58,7 +59,7 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
             timezone,
             pageSize ?? this.options.pageSize
         );
-        const doc: PdfDocument = PdfUtilities.create(documentDefinition, undefined);
+        const doc: PdfDocument = await PdfUtilities.resolve(documentDefinition);
         return doc;
     }
 
@@ -97,7 +98,8 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
             content: [
                 this.getLetterhead(invoice, company),
                 {
-                    text: this.options.headline,
+                    // the defaults for options written out whole for 3.2, which have none
+                    text: invoice.type === InvoiceType.CREDIT_NOTE ? this.options.creditNoteHeadline ?? 'Credit note' : this.options.headline,
                     fontSize: this.options.headlineFontSize,
                     margin: [0, 10, 0, 10],
                     bold: true
@@ -328,11 +330,19 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
      * @returns The content containing the invoice number and the date, performance date and due date.
      */
     protected getNumberAndDates(invoice: Invoice, locale: LocaleCode, timezone: Timezone): PdfContentDefinition {
+        const numberLabel: string = invoice.type === InvoiceType.CREDIT_NOTE
+            // the defaults for options written out whole for 3.2, which have none
+            ? this.options.creditNoteNumberLabel ?? 'Credit note no.'
+            : this.options.invoiceNumberLabel;
         const invoiceNumberColumn: PdfColumnDefinition = [
             {
-                text: `${this.options.invoiceNumberLabel}: ${invoice.number}`,
+                text: `${numberLabel}: ${invoice.number}`,
                 alignment: 'left'
             },
+            ...(invoice.precedingInvoices ?? []).map((reference): PdfContentDefinition => {
+                const date: string = this.localizeService.formatDate(reference.date, 'date', { locale, timezone });
+                return { text: `${this.options.precedingInvoiceLabel ?? 'Preceding invoice'}: ${reference.number}, ${date}`, alignment: 'left' };
+            }),
             {
                 text: this.options.invoiceNumberNotice,
                 fontSize: 8,

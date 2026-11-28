@@ -1,6 +1,9 @@
+import { FrameworkColumnRegistry } from '../../data-source/migration/framework-column.registry';
 import { INVITATION_ENTITY } from '../../data-source/repository/repository-kind.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Property } from '../../entity/decorators/property.decorator';
+import { type LocaleCode } from '../../localization/models/locale-code.model';
+import { PendingRowShare } from '../../sharing/pending-row-share.model';
 import { Newable } from '../../types/newable.type';
 import type { HashString } from '../hash/hash.utilities';
 import { Sha256HashStrategy } from '../hash/strategies/sha256.hash-strategy';
@@ -57,7 +60,21 @@ export type BaseInvitation = BaseEntity & {
      * The account the invitation created when it was sent, with `createOn` `'invite'`, or null when the account
      * existed or is created once it is accepted.
      */
-    createdUserId?: string | null
+    createdUserId?: string | null,
+    /**
+     * The locale the invitation is mailed in, and the account it creates gets. Null for the default locale.
+     */
+    locale?: LocaleCode | null,
+    /**
+     * Whether the account the invitation creates gets no password: accepting takes none, and logs the person
+     * accepting in by the link. Null for an invitation that takes a password.
+     */
+    withoutPassword?: boolean | null,
+    /**
+     * The rows shared with the invited person once they accept, see `ShareServiceInterface`. Null for an invitation
+     * sharing nothing.
+     */
+    rowShares?: PendingRowShare[] | null
 };
 
 // eslint-disable-next-line jsdoc/require-returns
@@ -100,7 +117,24 @@ export function BaseInvitationEntity(): Newable<BaseInvitation> {
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Property.string({ format: 'uuid', required: false })
         createdUserId?: string | null;
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Property.string({ required: false })
+        locale?: LocaleCode | null;
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Property.boolean({ required: false })
+        withoutPassword?: boolean | null;
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Property.array({ items: { type: 'object', cls: () => PendingRowShare }, required: false })
+        rowShares?: PendingRowShare[] | null;
     }
+    // added by the data source to a table that lacks them, so that an invitation entity of 3.2 takes no migration of
+    // the application's. Without the column, the locale an invitation is sent in by default is left out, as one of
+    // 3.2 had none, and invite refuses one given
+    FrameworkColumnRegistry.register(
+        { entity: InvitationEntity, property: 'locale', meansAbsent: () => true },
+        { entity: InvitationEntity, property: 'withoutPassword', meansAbsent: value => value === false },
+        { entity: InvitationEntity, property: 'rowShares', meansAbsent: value => Array.isArray(value) && value.length === 0 }
+    );
 
     return InvitationEntity;
 }

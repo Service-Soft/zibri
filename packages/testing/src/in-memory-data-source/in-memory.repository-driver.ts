@@ -214,13 +214,20 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
     async findAndCount(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
+        const scope: InMemoryScope = this.scope(options.transaction);
         const counting: DriverFindOptions<T> = {
             ...options,
             where: options.totalWhere ?? options.where,
             offset: undefined,
             limit: undefined
         };
-        const counted: T[] = this.selectRows(counting, this.scope(options.transaction));
+        // with what the window's own filter reaches through as well, since that is judged on the
+        // counted rows below rather than on rows read again
+        const judging: RelationTree = EntityRelationsUtilities.mergeTrees(
+            this.relationsForJudging(counting),
+            EntityRelationsUtilities.resolveFilterTree(options.where, this.properties)
+        );
+        const counted: T[] = this.judgeRows(counting, judging, scope);
         // the window is a narrowing of what was just counted, so it is taken out of that rather than
         // read again - which is what keeps the two halves describing the same moment. The relations a
         // filter reaches through are still on the rows here: taken off, a filter through one of them
@@ -231,7 +238,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
 
         const offset: number = options.offset ?? 0;
         const window: T[] = options.limit == undefined ? matching.slice(offset) : matching.slice(offset, offset + options.limit);
-        this.keepOnlyRequested(window, counting);
+        this.answerRows(window, options, judging, scope);
         return { items: window, totalAmount: counted.length };
     }
 
@@ -239,46 +246,66 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * Loads every row of the table, filters it and applies the order and window.
      * @param options - The resolved find options.
      * @param scope - What to read through.
-     * @returns The matching entities.
+     * @returns The matching entities, with the relations the options ask for.
      */
     private findRows(options: DriverFindOptions<T>, scope: InMemoryScope): T[] {
-        const window: T[] = this.selectRows(options, scope);
-        // after the window rather than before it, so that nothing is taken off a row that is about to
-        // be thrown away
-        this.keepOnlyRequested(window, options);
+        const judging: RelationTree = this.relationsForJudging(options);
+        const ordered: T[] = this.judgeRows(options, judging, scope);
+
+        const offset: number = options.offset ?? 0;
+        const window: T[] = options.limit == undefined ? ordered.slice(offset) : ordered.slice(offset, offset + options.limit);
+        // after the window rather than before the filter: resolved on every row of the table, the
+        // relations a caller asked for were read for each row a lookup by id passed over, which a
+        // relation reaching a few levels down made take seconds over a table of a hundred rows
+        this.answerRows(window, options, judging, scope);
         return window;
     }
 
     /**
-     * Loads every row of the table, filters it and applies the order and window, with every relation
-     * the filter and the order read still on the rows.
-     * @param options - The resolved find options.
+     * Loads every row of the table, filters it and orders it, with only the given relations resolved
+     * on the rows.
+     * @param options - The resolved find options, whose window is not applied.
+     * @param judging - The relations the filter and the order read.
      * @param scope - What to read through.
-     * @returns The matching entities.
+     * @returns The matching entities, in order.
      */
-    private selectRows(options: DriverFindOptions<T>, scope: InMemoryScope): T[] {
-        const entities: T[] = this.loadRows(scope.ids(this.tableName), options, scope);
-
+    private judgeRows(options: DriverFindOptions<T>, judging: RelationTree, scope: InMemoryScope): T[] {
+        const entities: T[] = this.loadRows(scope.ids(this.tableName), { ...options, relations: judging }, scope);
         const filtered: T[] = options.where
             ? entities.filter(e => this.evaluator.matches(e, options.where as Where<T>, this.entityClass))
             : entities;
-        const ordered: T[] = this.applyOrder(filtered, options.order);
-
-        const offset: number = options.offset ?? 0;
-        return options.limit == undefined ? ordered.slice(offset) : ordered.slice(offset, offset + options.limit);
+        return this.applyOrder(filtered, options.order);
     }
 
     /**
-     * Takes the relations a read loaded only for its filter and order off the rows it hands out.
-     * @param rows - The rows.
-     * @param options - The read they were loaded for.
+     * Resolves the relations a read asks for on the rows it hands out, and takes off the ones it
+     * resolved only to filter and order them by.
+     * @param rows - The rows handed out, changed in place.
+     * @param options - The read.
+     * @param judging - The relations already resolved on the rows, for the filter and the order.
+     * @param scope - What to read through.
      */
-    private keepOnlyRequested(rows: T[], options: DriverFindOptions<T>): void {
-        EntityRelationsUtilities.keepOnlyRequested(
-            rows,
-            this.relationsToResolve(options),
-            EntityRelationsUtilities.resolveTree(options.relations)
-        );
+    private answerRows(rows: T[], options: DriverFindOptions<T>, judging: RelationTree, scope: InMemoryScope): void {
+        const requested: RelationTree = EntityRelationsUtilities.resolveTree(options.relations);
+        // a relation the filter or the order already read as deep as asked is left as it is rather
+        // than read a second time
+        const missing: RelationTree = new Map([...requested].filter(([key, below]) => !this.covers(judging.get(key), below)));
+        if (missing.size) {
+            for (const row of rows) {
+                this.resolveRelationsOn(row, missing, scope, options.related);
+            }
+        }
+        EntityRelationsUtilities.keepOnlyRequested(rows, EntityRelationsUtilities.mergeTrees(requested, judging), requested);
+    }
+
+    /**
+     * Whether a resolved relation reaches every relation below it that a read asks for.
+     * @param resolved - What was resolved below the relation, if it was resolved at all.
+     * @param requested - What the read asks for below it.
+     * @returns True when nothing of the request is missing.
+     */
+    private covers(resolved: RelationTree | undefined, requested: RelationTree): boolean {
+        return resolved != undefined && [...requested].every(([key, below]) => this.covers(resolved.get(key), below));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
@@ -297,16 +324,13 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
 
         // without the order, which is decided already, so no row carries a relation it was only ordered by
         const reading: DriverStreamOptions<T> = { ...options, order: undefined };
+        const judging: RelationTree = this.relationsForJudging(reading);
         for (let i: number = 0; i < ids.length; i += STREAM_BATCH_SIZE) {
-            const entities: T[] = this.loadRows(ids.slice(i, i + STREAM_BATCH_SIZE), reading, scope);
+            const entities: T[] = this.loadRows(ids.slice(i, i + STREAM_BATCH_SIZE), { ...reading, relations: judging }, scope);
             const where: Where<T> | undefined = options.where;
             const matching: T[] = where ? entities.filter(e => this.evaluator.matches(e, where, this.entityClass)) : entities;
             // nor one it was only filtered by, as a find hands its rows back
-            EntityRelationsUtilities.keepOnlyRequested(
-                matching,
-                this.relationsToResolve(reading),
-                EntityRelationsUtilities.resolveTree(options.relations)
-            );
+            this.answerRows(matching, reading, judging, scope);
             yield* matching;
         }
     }
@@ -872,15 +896,19 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * @returns The relations to resolve, and the relations to resolve below each of those.
      */
     private relationsToResolve(options: DriverFindOptions<T>): RelationTree {
+        return EntityRelationsUtilities.mergeTrees(EntityRelationsUtilities.resolveTree(options.relations), this.relationsForJudging(options));
+    }
+
+    /**
+     * The relations a filter or an order cannot be answered without, which every row they look at
+     * needs resolved before it can be judged.
+     * @param options - The find options.
+     * @returns Those relations.
+     */
+    private relationsForJudging(options: DriverFindOptions<T>): RelationTree {
         // as deep as the filter reaches, which a filter naming a relation of a relation needs
         const forFilter: RelationTree = EntityRelationsUtilities.resolveFilterTree(options.where, this.properties);
-        return EntityRelationsUtilities.mergeTrees(
-            EntityRelationsUtilities.mergeTrees(
-                EntityRelationsUtilities.resolveTree(options.relations),
-                EntityOrderUtilities.resolveRelations(options.order, this.entityClass)
-            ),
-            forFilter
-        );
+        return EntityRelationsUtilities.mergeTrees(EntityOrderUtilities.resolveRelations(options.order, this.entityClass), forFilter);
     }
 
     /**
@@ -1233,8 +1261,9 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
                 return parseNumber(value, metadata.format);
             }
             case 'file': {
+                // a file kept in a file store is held as the id of its row
                 // eslint-disable-next-line typescript/no-base-to-string
-                return Buffer.from(String(value), 'base64');
+                return metadata.store == undefined ? Buffer.from(String(value), 'base64') : value;
             }
             case 'object': {
                 return parseObject(value, metadata.cls());

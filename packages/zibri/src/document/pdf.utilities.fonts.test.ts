@@ -1,6 +1,12 @@
-import { describe, expect, it } from '@jest/globals';
+import { writeFile } from 'node:fs/promises';
 
+import { afterAll, beforeAll, expect, it } from '@jest/globals';
+
+import { testFileFolder } from '../__testing__/constants';
 import { createFakeFont } from '../__testing__/fake-font.function';
+import { PdfmakeTestUtilities } from '../__testing__/pdfmake-test.utilities';
+import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { UUIDUtilities } from '../utilities/uuid.utilities';
 import { PdfFontOptions } from './pdf-font-options.model';
 import { PdfDocument, PdfDocumentDefinition, PdfUtilities } from './pdf.utilities';
 
@@ -39,11 +45,23 @@ function embeddedFontsOf(pdf: string): string[] {
 
 const definition: PdfDocumentDefinition = { attachments: [], content: ['Invoice for 山田太郎'] };
 
-describe('the fonts of a pdf', () => {
+PdfmakeTestUtilities.describeOnEvery('the fonts of a pdf', () => {
+    const folder: FsPath = FsUtilities.getPath(testFileFolder, `pdf-fonts-${UUIDUtilities.generate()}`);
+    const brandFile: FsPath = FsUtilities.getPath(folder, 'FakeBrand.ttf');
+
+    beforeAll(async () => {
+        await FsUtilities.mkdir(folder);
+        await writeFile(brandFile, BRAND_FONT);
+    });
+
+    afterAll(async () => {
+        await FsUtilities.rm(folder);
+    });
+
     it('set a character its font lacks in the fallback that has it', async () => {
         const fonts: PdfFontOptions = { families: { Cjk: { normal: CJK_FONT } }, fallbacks: ['Cjk'] };
 
-        const pdf: string = await bytesOf(PdfUtilities.create(definition, undefined, fonts));
+        const pdf: string = await bytesOf(await PdfUtilities.resolve(definition, undefined, fonts));
 
         expect(embeddedFontsOf(pdf)).toEqual(['FakeCjkSans', 'Roboto-Regular']);
     });
@@ -51,7 +69,7 @@ describe('the fonts of a pdf', () => {
     it('leave the characters blank in Roboto when no fallback is named', async () => {
         const fonts: PdfFontOptions = { families: { Cjk: { normal: CJK_FONT } }, fallbacks: [] };
 
-        const pdf: string = await bytesOf(PdfUtilities.create(definition, undefined, fonts));
+        const pdf: string = await bytesOf(await PdfUtilities.resolve(definition, undefined, fonts));
 
         expect(embeddedFontsOf(pdf)).toEqual(['Roboto-Regular']);
     });
@@ -64,14 +82,24 @@ describe('the fonts of a pdf', () => {
             content: [{ text: 'Invoice 42', bold: true }, 'For 山田太郎']
         };
 
-        const pdf: string = await bytesOf(PdfUtilities.create(branded, undefined, fonts));
+        const pdf: string = await bytesOf(await PdfUtilities.resolve(branded, undefined, fonts));
 
         expect(embeddedFontsOf(pdf)).toEqual(['FakeBrand', 'FakeCjkSans']);
     });
 
-    it('refuse a fallback that names no registered family', () => {
+    // the fonts are the application's, so reading them is not something the access options of a pdf decide
+    it('set a document in a family given by the path of its file, with no folder allowed', async () => {
+        const fonts: PdfFontOptions = { families: { Brand: { normal: brandFile } }, fallbacks: [] };
+        const branded: PdfDocumentDefinition = { attachments: [], defaultStyle: { font: 'Brand' }, content: ['Invoice 42'] };
+
+        const pdf: string = await bytesOf(await PdfUtilities.resolve(branded, undefined, fonts, { allowedFolders: [] }));
+
+        expect(embeddedFontsOf(pdf)).toEqual(['FakeBrand']);
+    });
+
+    it('refuse a fallback that names no registered family', async () => {
         const fonts: PdfFontOptions = { families: {}, fallbacks: ['Cjk'] };
 
-        expect(() => PdfUtilities.create(definition, undefined, fonts)).toThrow(/Cjk/);
+        await expect(PdfUtilities.resolve(definition, undefined, fonts)).rejects.toThrow(/Cjk/);
     });
 });

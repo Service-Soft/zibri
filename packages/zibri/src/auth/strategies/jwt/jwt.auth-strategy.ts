@@ -237,6 +237,7 @@ implements AuthControllerStrategyInterface<
         transaction: RepositoryTransaction | undefined
     ): Promise<JwtAuthData<RoleType>> {
         const { user, authenticatedAt, federatedSession, providerAuthentication } = authentication;
+        const countsAsRecentLogin: boolean = authentication.countsAsRecentLogin !== false;
         // every token of this login carries the time from here on, refreshes included, and so does
         // the family its refresh tokens share, which the access tokens name as the login
         const authTime: number = Math.floor(authenticatedAt.getTime() / Ms.SECOND);
@@ -254,7 +255,8 @@ implements AuthControllerStrategyInterface<
             authTime,
             familyId,
             dpopKeyThumbprint,
-            providerAuthentication
+            providerAuthentication,
+            countsAsRecentLogin
         );
         const refreshTokenValue: string = await this.generateRefreshToken(user, authTime);
         await this.createRefreshToken(
@@ -265,6 +267,7 @@ implements AuthControllerStrategyInterface<
             FederatedSessionUtilities.toColumns(federatedSession),
             dpopKeyThumbprint,
             providerAuthentication,
+            countsAsRecentLogin,
             transaction
         );
 
@@ -326,6 +329,7 @@ implements AuthControllerStrategyInterface<
         federatedSession: FederatedSessionColumns,
         dpopKeyThumbprint: string | undefined,
         providerAuthentication: ProviderAuthentication | undefined,
+        countsAsRecentLogin: boolean,
         transaction: RepositoryTransaction | undefined
     ): Promise<JwtRefreshToken> {
         const data: JwtRefreshTokenCreateDto = {
@@ -341,6 +345,8 @@ implements AuthControllerStrategyInterface<
             ...resolveLoginDevice(),
             dpopKeyThumbprint,
             providerAuthentication,
+            // null for a login that counts, as every login before the column did
+            countsAsRecentLogin: countsAsRecentLogin ? null : false,
             ...federatedSession
         };
         return await this.refreshTokenRepository.create(data, { transaction });
@@ -396,7 +402,8 @@ implements AuthControllerStrategyInterface<
             rotated.authTime,
             rotated.refreshToken.familyId,
             rotated.refreshToken.dpopKeyThumbprint ?? undefined,
-            rotated.refreshToken.providerAuthentication ?? undefined
+            rotated.refreshToken.providerAuthentication ?? undefined,
+            rotated.refreshToken.countsAsRecentLogin !== false
         );
 
         return {
@@ -506,6 +513,7 @@ implements AuthControllerStrategyInterface<
                 FederatedSessionUtilities.toColumns(FederatedSessionUtilities.fromColumns(refreshToken)),
                 refreshToken.dpopKeyThumbprint ?? undefined,
                 refreshToken.providerAuthentication ?? undefined,
+                refreshToken.countsAsRecentLogin !== false,
                 transaction
             ),
             value: refreshTokenValue,
@@ -584,7 +592,10 @@ implements AuthControllerStrategyInterface<
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveAuthenticatedAt(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
         const token: LoginAccessToken<RoleType> | undefined = await this.findRequestLoginToken(context);
-        return token == undefined ? undefined : new Date(token.payload.auth_time * Ms.SECOND);
+        // a login that does not count as a recent one says no time, as a strategy that cannot tell does
+        return token == undefined || token.payload.counts_as_recent_login === false
+            ? undefined
+            : new Date(token.payload.auth_time * Ms.SECOND);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -762,7 +773,8 @@ implements AuthControllerStrategyInterface<
         authTime: number,
         familyId: string,
         dpopKeyThumbprint: string | undefined,
-        providerAuthentication: ProviderAuthentication | undefined
+        providerAuthentication: ProviderAuthentication | undefined,
+        countsAsRecentLogin: boolean
     ): Promise<string> {
         // only while checks trust the credential: a check in a tenant reads these in place of the
         // membership then, and otherwise they would only make every token longer. As stale as the
@@ -780,7 +792,8 @@ implements AuthControllerStrategyInterface<
             // under the claims OpenID Connect gives them, so whatever reads the token by the published
             // keys finds them where the standard puts them
             ...providerAuthentication == undefined ? {} : { amr: providerAuthentication.methods },
-            ...providerAuthentication?.contextClass == undefined ? {} : { acr: providerAuthentication.contextClass }
+            ...providerAuthentication?.contextClass == undefined ? {} : { acr: providerAuthentication.contextClass },
+            ...countsAsRecentLogin ? {} : { counts_as_recent_login: false }
         };
 
         try {

@@ -1,3 +1,4 @@
+import { FrameworkColumnRegistry } from '../../data-source/migration/framework-column.registry';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
@@ -85,7 +86,25 @@ export class LoginTicket extends BaseEntity {
      */
     @Property.date()
     expirationDate!: Date;
+
+    /**
+     * The names of the two factor methods that do not count as the second factor of the login. Null for none.
+     */
+    @Property.array({ items: { type: 'string' }, required: false })
+    excludedTwoFactorMethods?: string[] | null;
+
+    /**
+     * Whether the login counts as a recent login once it starts. Null for a login that does.
+     */
+    @Property.boolean({ required: false })
+    countsAsRecentLogin?: boolean | null;
 }
+
+// added by the data source to a table that lacks them, so that the tickets of 3.2 take no migration of the application's
+FrameworkColumnRegistry.register(
+    { entity: LoginTicket, property: 'excludedTwoFactorMethods', meansAbsent: value => Array.isArray(value) && value.length === 0 },
+    { entity: LoginTicket, property: 'countsAsRecentLogin', meansAbsent: value => value === true }
+);
 
 /**
  * The data to create a login ticket.

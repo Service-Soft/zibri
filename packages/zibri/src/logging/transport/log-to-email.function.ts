@@ -4,6 +4,7 @@ import { EmailServiceInterface } from '../../email/email-service.interface';
 import { EmailPriority } from '../../email/models/email-priority.enum';
 import { Email } from '../../email/models/email.model';
 import { GlobalRegistry } from '../../global/global-registry';
+import { runInLocale } from '../../localization/run-in-locale.function';
 import { TsxUtilities } from '../../tsx/tsx.utilities';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { Ms } from '../../utilities/ms';
@@ -88,8 +89,15 @@ export function createLogToEmail(): LoggerTransportSend<EmailLoggerTransportConf
 
         const emailService: EmailServiceInterface = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
         const included: Log[] = logs.slice(0, config.maxEntriesPerEmail ?? 20);
-        const subject: string = (config.subject ?? (() => defaultSubject(logs, suppressedSinceLast)))(logs);
-        const html: string = TsxUtilities.renderEmail(config.emailTemplate, { logs: included });
+        // in the default locale: the request whose work logged an entry is nobody who reads the mail
+        const subject: string = runInLocale(
+            undefined,
+            () => (config.subject ?? (() => defaultSubject(logs, suppressedSinceLast)))(logs)
+        );
+        const html: string = runInLocale(
+            undefined,
+            () => TsxUtilities.renderEmail(config.emailTemplate, { logs: included })
+        );
 
         await emailService.queue({
             recipients: config.recipients(logs),

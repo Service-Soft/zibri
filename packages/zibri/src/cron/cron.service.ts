@@ -316,7 +316,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         }
         if (data.name !== foundJob.name && this.cronJobs.filter(j => j.name === data.name).length) {
             throw new BadRequestError([
-                $ts`cannot not change the cron jobs name from "${foundJob.name}" to "${data.name}":`,
+                $ts`cannot change the cron jobs name from "${foundJob.name}" to "${data.name}":`,
                 $ts`name is already taken`
             ]);
         }

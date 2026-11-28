@@ -135,6 +135,7 @@ export class SmtpEmailTransport implements EmailTransportInterface {
             to: email.recipients,
             bcc: email.bcc ?? undefined,
             cc: email.cc ?? undefined,
+            replyTo: email.replyTo ?? undefined,
             attachments: email.attachments?.map(a => ({ filename: a.filename, content: a.base64Content, encoding: 'base64' })),
             // named by the mail rather than generated per send, so a send retried after the server
             // took the first one carries the same id, which receiving servers drop duplicates by

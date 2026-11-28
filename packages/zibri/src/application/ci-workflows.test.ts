@@ -1165,6 +1165,68 @@ describe('the release workflow', () => {
 
 });
 
+// a version of the HGB taxonomy is published once a year while the repository may not change at all, and a fiscal
+// year without one cannot be filed: the check has to run on a schedule, against what the package ships
+describe('the check of the E-Bilanz taxonomies', () => {
+    const scriptPath: string = path.join(repoRoot, '.github', 'scripts', 'e-bilanz-taxonomy-versions.mjs');
+
+    it('runs every week and on demand, without a push', () => {
+        const content: string = workflow('e-bilanz-taxonomies.yml');
+        const trigger: string = content.slice(0, content.indexOf('permissions:'));
+
+        expect(trigger).toMatch(/schedule:\n\s+- cron: '[^']+'/);
+        expect(trigger).toContain('workflow_dispatch:');
+        expect(trigger).not.toContain('push:');
+    });
+
+    it('builds the package before reading the versions it ships', () => {
+        const job: string | undefined = jobsOf(workflow('e-bilanz-taxonomies.yml'))['check'];
+        assert(job != undefined, 'the workflow has no check job');
+        const built: number = job.indexOf('npm run build -w zibri\n');
+        const checked: number = job.indexOf('node .github/scripts/e-bilanz-taxonomy-versions.mjs');
+
+        expect(built).toBeGreaterThan(-1);
+        expect(built).toBeLessThan(checked);
+    });
+
+    it('reads the versions published from the pages of XBRL Deutschland', () => {
+        const res: { pages: string[], versions: unknown[] } = inResolverProcess(`
+            const { parseTaxonomyPages, parsePublishedVersions } = await import('${pathToFileURL(scriptPath).href}');
+            console.log(JSON.stringify({
+                pages: parseTaxonomyPages('<a href="https://de.xbrl.org/taxonomien/e-bilanz-taxonomie-6-10/">6.10</a> <a href="https://de.xbrl.org/news/x/">x</a>'),
+                versions: parsePublishedVersions('<a href="https://www.xbrl.de/german-gaap-taxonomy-v6.10-2026-04-01.zip">zip</a>')
+            }));
+        `);
+
+        expect(res).toStrictEqual({
+            pages: ['https://de.xbrl.org/taxonomien/e-bilanz-taxonomie-6-10/'],
+            versions: [{ version: '6.10', date: '2026-04-01' }]
+        });
+    });
+
+    it('fails on a version published and not shipped, and on a fiscal year no version shipped applies to', () => {
+        const shipped: { version: string, mandatoryFrom: string }[] = [{ version: '6.9', mandatoryFrom: '2026-01-01' }, { version: '6.10', mandatoryFrom: '2027-01-01' }];
+        const res: Record<string, string[]> = inResolverProcess(`
+            const { findTaxonomyProblems } = await import('${pathToFileURL(scriptPath).href}');
+            const shipped = ${JsonUtilities.stringify(shipped)};
+            const published = [{ version: '6.9', date: '2025-04-01' }, { version: '6.10', date: '2026-04-01' }, { version: '6.8', date: '2024-04-01' }];
+            console.log(JSON.stringify({
+                current: findTaxonomyProblems(published, shipped, '2027-06-01'),
+                newVersion: findTaxonomyProblems([...published, { version: '7.0', date: '2027-07-01' }], shipped, '2027-07-06'),
+                nextYearInOctober: findTaxonomyProblems(published, shipped, '2027-10-04'),
+                thisYear: findTaxonomyProblems(published.slice(0, 1), shipped.slice(0, 1), '2027-01-04')
+            }));
+        `);
+
+        expect(res['current']).toStrictEqual([]);
+        expect(res['newVersion']).toHaveLength(1);
+        expect(res['newVersion']?.[0]).toContain('7.0');
+        expect(res['nextYearInOctober']).toStrictEqual(['The fiscal year 2028 has no version of the HGB taxonomy it needs to be stated in.']);
+        // 6.9 is mandatory from 2026, and 2027 needs a version of its own
+        expect(res['thisYear']).toStrictEqual(['The fiscal year 2027 has no version of the HGB taxonomy it needs to be stated in.']);
+    });
+});
+
 // typedoc checks what the entry point exports, and the documentation site in packages/docs-site renders what it read
 describe('the docs build', () => {
     const zibriDir: string = path.join(repoRoot, 'packages', 'zibri');

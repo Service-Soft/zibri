@@ -382,7 +382,21 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
                 const filename: string = this.getTempFileName(mimetype);
                 const destination: FsPath = FsUtilities.getPath(tempFolder, filename);
                 const writeStream: WriteStream = FsUtilities.createWriteStream(destination);
-                let size: number = 0;
+                const meta: File = {
+                    fieldname,
+                    filename,
+                    destination: tempFolder,
+                    originalname,
+                    mimetype,
+                    size: 0,
+                    path: destination
+                };
+                // listed as the part arrives rather than once it is written, so that the files of a field keep the
+                // order they were sent in, which the index of an item of an array names. The parse waits for every
+                // write before it answers
+                const files: File[] = filesMap.get(fieldname) ?? [];
+                files.push(meta);
+                filesMap.set(fieldname, files);
 
                 fileStream.on('data', (chunk: Buffer) => {
                     if (aborted) {
@@ -396,7 +410,7 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
                         return;
                     }
 
-                    size += chunk.length;
+                    meta.size += chunk.length;
                 });
 
                 fileStream.on('error', (err) => {
@@ -411,24 +425,6 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
                     if (!aborted) {
                         reject(err);
                     }
-                });
-
-                writeStream.on('finish', () => {
-                    if (aborted) {
-                        return;
-                    }
-                    const meta: File = {
-                        fieldname,
-                        filename,
-                        destination: tempFolder,
-                        originalname,
-                        mimetype,
-                        size,
-                        path: destination
-                    };
-                    const files: File[] = filesMap.get(fieldname) ?? [];
-                    files.push(meta);
-                    filesMap.set(fieldname, files);
                 });
 
                 filePromises.push(pipeline(fileStream, writeStream).catch(error => {

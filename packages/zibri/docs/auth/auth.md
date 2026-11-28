@@ -37,6 +37,7 @@ Logging users in, and deciding what each request may do. An [authenticator](../g
 | `RefreshResolvingAuthenticatorInterface`, `isRefreshResolvingAuthenticator` | interface, function | Contract for an authenticator that has a say in every refresh of a login, such as a [directory](./login-through-a-directory.md#a-disabled-entry), and tells one apart |
 | `AuthController` | function | Defines the routes a client logs in, refreshes, logs out, resets a password and enrolls a [second factor](../glossary.md#second-factor) with. See [the auth routes](./auth-routes.md) |
 | `PasskeyAuthenticator` | class | Builtin authenticator logging users in with a [passkey](../glossary.md#passkey). See [passkeys](./passkeys.md) |
+| `LoginLinkAuthenticator` | class | Builtin authenticator logging users in with a link sent by email. See [logging in with a link](./login-links.md) |
 | `BaseLdapAuthenticator`, `BaseActiveDirectoryAuthenticator` | class | Authenticators to extend, checking a password against a directory. See [login through a directory](./login-through-a-directory.md) |
 | `PasswordCredentials` | class | Entity storing the passwords `PasswordAuthenticator` checks |
 | `PasswordCredentialsCreateData` | class | What a password is stored with: the user's id and the password, hashed as it is stored |
@@ -51,7 +52,7 @@ Logging users in, and deciding what each request may do. An [authenticator](../g
 | `PasswordRefusedError` | error | Thrown when a password written is shorter or longer than the policy says. Answers `400` |
 | `PasswordChangeRequiredError` | error | What a login answers when the user [chooses a new password](#requiring-a-new-password) first: `401`, with the [ticket](../glossary.md#ticket) the new password is set with |
 | `ChangePasswordAtLoginInput` | class | What setting that new password takes, besides the ticket: the new password |
-| `Authentication` | type | Who an authenticator authenticated, and when |
+| `Authentication` | type | Who an authenticator authenticated, and when, and what of the login it says: whether it completes without the second factor `twoFactorAtLogin` asks for, the two factor methods that do not count for it, and whether it counts as a [recent login](./two-factor.md#accepting-a-recent-login-instead) |
 | `IsLoggedInFn`, `IsNotLoggedInFn` | interface, interface | The types of `@Auth.isLoggedIn` and `@Auth.isNotLoggedIn`, with their `skip` |
 | `IsLoggedInMetadata`, `IsNotLoggedInMetadata`, `SkipAuthMetadata` | type, type, type | What `@Auth.isLoggedIn`, `@Auth.isNotLoggedIn` and `@Auth.skip` declare: the strategies allowed, and whether a skip with nothing to skip is allowed |
 | `ResolvedAuthMetadata`, `ResolvedRouteAuth` | type, type | The checks the `@Auth` decorators of a route and its controller resolve to, and whether the route requires a login once `defaultAuth` applies |
@@ -105,7 +106,7 @@ Logging users in, and deciding what each request may do. An [authenticator](../g
 ## Registering strategies and authenticators
 The auth system has two parts.
 
-An **authenticator** proves who someone is. `PasswordAuthenticator` checks an email and a password, and resets a forgotten password by email. A user can also [log in through a provider](./login-through-a-provider.md) such as Google or your company's Keycloak, [through a directory](./login-through-a-directory.md) such as Active Directory, or [with a passkey](./passkeys.md).
+An **authenticator** proves who someone is. `PasswordAuthenticator` checks an email and a password, and resets a forgotten password by email. A user can also [log in through a provider](./login-through-a-provider.md) such as Google or your company's Keycloak, [through a directory](./login-through-a-directory.md) such as Active Directory, [with a passkey](./passkeys.md), or [with a link sent by email](./login-links.md).
 
 An **auth strategy** says who a request is from. `JwtAuthStrategy` and `CookieAuthStrategy` carry a login from one request to the next. They
 - resolve the user of a request
@@ -484,7 +485,7 @@ defineProvider({ token: ZIBRI_DI_TOKENS.ACCESS_TOKEN_REVOCATION, useValue: 'imme
 > With `ACCESS_TOKEN_REVOCATION` at its default `'onExpiry'`, a logout, a password reset and ending a user's logins leave the access tokens already issued working until they expire, an hour by default. Set it to `'immediately'` where a logout has to end access at once.
 
 ## How often a caller may try
-The builtin auth endpoints that take a secret or start a login are rate limited per caller: logging in, continuing a login with a second factor or a new password, changing a password, the three password reset routes, confirming an email address or its change, the passkey challenge and registration, and the routes of a login at a provider. They share one budget of 20 attempts per 10 minutes. A caller is an IPv4 address or an IPv6 /64, the block one subscriber holds. A login or a password change that succeeds costs nothing of the budget, so the budget counts wrong passwords, whichever accounts they were for. Exceeding it answers `429`.
+The builtin auth endpoints that take a secret or start a login are rate limited per caller: logging in, continuing a login with a second factor or a new password, changing a password, the three password reset routes, confirming an email address or its change, asking for a [link to log in with](./login-links.md), the passkey challenge and registration, and the routes of a login at a provider. They share one budget of 20 attempts per 10 minutes. A caller is an IPv4 address or an IPv6 /64, the block one subscriber holds. A login or a password change that succeeds costs nothing of the budget, so the budget counts wrong passwords, whichever accounts they were for. Exceeding it answers `429`.
 
 Tune the numbers without replacing anything:
 
@@ -650,12 +651,14 @@ subsystem records its own events in the [audit trail](../data/audit.md) instead:
 
 | `action` | `outcome` | Carries |
 |---|---|---|
-| `auth.login` | success / failure | `subject` (the email, or the username of a [directory](./login-through-a-directory.md), as submitted), `userId` on success, `reason: credential-cloned` when a [passkey](./passkeys.md#what-gets-recorded) comes from a copied device, `reason: deactivated` for a [deactivated user](#deactivating-a-user), `reason: locked` for a [locked account](#locking-an-account-after-too-many-wrong-passwords) |
+| `auth.login` | success / failure | `subject` (the email, or the username of a [directory](./login-through-a-directory.md), as submitted), `userId` on success, `reason: credential-cloned` when a [passkey](./passkeys.md#what-gets-recorded) comes from a copied device, `reason: deactivated` for a [deactivated user](#deactivating-a-user), `reason: locked` for a [locked account](#locking-an-account-after-too-many-wrong-passwords), `reason: service-account` and `userKind: 'service'` for a [service account](./api-keys.md#service-accounts) |
 | `auth.login.pending` | success | `subject`, `userId`, see [asking for a second factor at login](./two-factor.md#asking-for-a-second-factor-at-login) and [requiring a new password](#requiring-a-new-password) |
 | `auth.refresh-login` | success / failure | `userId` on success, `reason: token-reused` when a spent credential comes back, `reason: deactivated` when the user's [entry in a directory](./login-through-a-directory.md#a-disabled-entry) was disabled |
 | `auth.logout` | success / failure | `userId` on success, `reason: refused` when what was presented names no login, `reason: error` when the login could not be ended and is still live |
 | `auth.password-reset.requested` | success / failure | `subject`, `userId` when a reset actually went out |
 | `auth.password-reset.confirmed` | success / failure | Nothing else |
+| `auth.login-link.requested` | success / failure | `subject`, `userId` when a link went out, see [logging in with a link](./login-links.md#what-gets-recorded) |
+| `auth.login-link.used` | success | `userId` |
 | `auth.password.locked` | success | `userId`, see [locking an account](#locking-an-account-after-too-many-wrong-passwords) |
 | `auth.password.changed` | success / failure | `userId`, `reason: refused` for a wrong current password, see [changing a password](#changing-a-password). A new password set with a login ticket too |
 | `auth.password.change-required` | success | `userId`, see [requiring a new password](#requiring-a-new-password) |
@@ -670,16 +673,22 @@ subsystem records its own events in the [audit trail](../data/audit.md) instead:
 | `auth.identity.login-revoked` | success / failure | `userId`, see [logging in and api access apart](./login-through-a-provider.md#logging-in-and-api-access-apart) |
 | `auth.provider-access.granted` | success | `userId`, and the `scopes` of the provider's apis, see [calling a provider's apis](./login-through-a-provider.md#calling-a-providers-apis) |
 | `auth.provider-access.revoked` | success / failure | `userId`, and the `scopes` on success |
-| `auth.api-key.created` | success / failure | `userId`, see [api keys](./api-keys.md) |
+| `auth.api-key.created` | success / failure | `userId`, and its `userKind` on success, see [api keys](./api-keys.md) |
 | `auth.api-key.revoked` | success / failure | `userId` |
-| `auth.token.issued` | success / failure | `subject` (the client id), `userId` on success, see [issuing tokens to services](./authorization-server.md#what-gets-recorded) |
+| `auth.token.issued` | success / failure | `subject` (the client id), `userId` and its `userKind` on success, see [issuing tokens to services](./authorization-server.md#what-gets-recorded) |
 | `auth.token.revoked` | success | `userId` |
 | `auth.user.deactivated` | success / failure | `userId`, see [deactivating a user](#deactivating-a-user) |
 | `auth.user.reactivated` | success / failure | `userId` |
 | `auth.access.ended` | success / failure | `userId`, see [deactivating a user](#deactivating-a-user) |
 | `auth.membership.deactivated`, `auth.membership.reactivated`, `auth.membership.deleted` | success / failure | `userId` of the member, in the tenant of the membership, see [members and their roles](../data/tenancy.md#members-and-their-roles) |
 | `backup.tenant.restored` | success / failure | The name of the backup as `subject`, in the tenant restored, see [backing up a tenant](../data/backup.md#backing-up-a-tenant) |
-| `authz.check` | failure | `userId`, and which check said no |
+| `backup.tenant.restore-divergence` | failure | `reason: diverged`, the entity and id of a row the restore kept that does not match the rows it brought back as `subject`, one per row, in the tenant restored, see [rows a tenant restore keeps](../data/backup.md#rows-a-tenant-restore-keeps) |
+| `bookkeeping.verification` | failure | `reason: tampered`, the entry or line that does not hold as `subject`, in the tenant checked, see [checking the books](../plugins/bookkeeping-plugin.md#checking-the-books) |
+| `bookkeeping.fiscal-year.reopened` | success | The fiscal year as `subject`, `userId`, in its tenant, see [reopening a fiscal year](../plugins/bookkeeping-plugin.md#reopening-a-fiscal-year) |
+| `mcp.tool.called` | success / failure | The tool as `subject`, `userId`, `userKind`, and the `approvalRequestId` a write tool proposed, see [the MCP server](../plugins/mcp-plugin.md#what-gets-recorded) |
+| `authz.check` | failure | `userId`, its `userKind` when the check read the account, and which check said no |
+
+`userKind` says whether `userId` is a person or a [service account](./api-keys.md#service-accounts), on the entries above that name it. A password reset, a login link, a second factor, a password set and an identity linked are refused for a service account with `reason: service-account`.
 
 A failed login records the submitted address in the clear, so one client trying many accounts and many clients trying one account both show. A recorded subject says what was submitted, not that the account exists.
 
@@ -702,6 +711,7 @@ The lifetimes, and where to set them:
 | Cookie session | 1 day | `COOKIE_AUTH_SESSION_EXPIRES_IN_MS` |
 | Cookie refresh session | 30 days | `COOKIE_AUTH_REFRESH_SESSION_EXPIRES_IN_MS` |
 | Password reset token | 5 minutes | `PASSWORD_RESET_TOKEN_EXPIRES_IN_MS` |
+| Login link | 15 minutes | `tokenExpiresInMs` on `LOGIN_LINK_OPTIONS` |
 
 A refresh credential is a live login for its whole lifetime, so its length is how long a stolen one stays useful. 30 days is the usual "stay logged in" window. Shorten it for anything administrative:
 
@@ -886,6 +896,7 @@ Your data source declares these entities:
 |---|---|
 | `PasswordCredentials`, `PasswordResetToken`, `LoginTicket` | `PasswordAuthenticator` is registered |
 | `PasswordFailureStreak` | `PasswordAuthenticator` is registered and `passwordFailureLimit` is not `false` |
+| `LoginLinkToken` | `LoginLinkAuthenticator` is registered |
 | `JwtRefreshToken` | `JwtAuthStrategy` is registered |
 | `CookieAuthSession`, `CookieAuthRefreshSession` | `CookieAuthStrategy` is registered |
 
@@ -897,6 +908,7 @@ How large each table grows, and what deletes its rows, is in [framework tables](
 - [Accepting a provider's tokens](./provider-tokens.md) — mobile apps and services calling your api with a token of your identity provider
 - [Login through a directory](./login-through-a-directory.md) — Active Directory, OpenLDAP and other LDAP directories
 - [Passkeys](./passkeys.md) — logging in with a passkey, and a passkey as the second factor
+- [Logging in with a link](./login-links.md) — logging in without a password, by a link sent by email
 - [Api keys](./api-keys.md) — scripts, services and integrations calling your api
 - [Client certificates](./client-certificates.md) — services calling your api with mutual TLS
 - [Issuing tokens to services](./authorization-server.md) — OAuth2 client credentials, introspection and revocation

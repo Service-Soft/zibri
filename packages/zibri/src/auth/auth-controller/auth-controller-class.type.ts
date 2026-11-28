@@ -2,7 +2,7 @@ import { Newable } from '../../types/newable.type';
 import { TwoFactorMethods } from '../2fa/two-factor-methods.model';
 import { AuthControllerAuthenticatorClass } from './auth-controller-authenticator-class.type';
 import { AuthControllerOptions } from './auth-controller-options.model';
-import { AuthControllerConfirmEmailRoutes, AuthControllerCsrfTokenRoutes, AuthControllerCurrentUserRoutes, AuthControllerEmailVerificationRoutes, AuthControllerFederatedRoutes, AuthControllerIdentityRoutes, AuthControllerInvitationRoutes, AuthControllerLinkIdentityConfirmingRoutes, AuthControllerLinkIdentityRoutes, AuthControllerLoginListingRoutes, AuthControllerLoginRoutes, AuthControllerPasswordChangeRoutes, AuthControllerPasswordResetRoutes, AuthControllerLoginOptionsRoutes, AuthControllerRegistrationRoutes, AuthControllerTwoFactorRegistrationsRoutes, AuthControllerTwoFactorRoutes } from './auth-controller-routes.model';
+import { AuthControllerUpdateCurrentUserRoutes, AuthControllerConfirmEmailRoutes, AuthControllerCsrfTokenRoutes, AuthControllerCurrentUserRoutes, AuthControllerEmailVerificationRoutes, AuthControllerFederatedRoutes, AuthControllerIdentityRoutes, AuthControllerInvitationRoutes, AuthControllerLinkIdentityConfirmingRoutes, AuthControllerLinkIdentityRoutes, AuthControllerLoginListingRoutes, AuthControllerLoginRoutes, AuthControllerPasswordChangeRoutes, AuthControllerPasswordResetRoutes, AuthControllerLoginOptionsRoutes, AuthControllerRegistrationRoutes, AuthControllerTwoFactorRegistrationsRoutes, AuthControllerTwoFactorRoutes, AuthControllerLoginLinkRoutes, AuthControllerLoginMethodsRoutes } from './auth-controller-routes.model';
 import { AuthControllerStrategyClass } from './auth-controller-strategy-class.type';
 
 /**
@@ -43,15 +43,20 @@ export type AuthControllerRoutes<
     CurrentUserRoute extends boolean = false,
     ConfirmEmailRoute extends boolean = false,
     TwoFactorRegistrationsRoute extends boolean = false,
-    InvitationRoutes extends boolean = false
+    InvitationRoutes extends boolean = false,
+    UpdateCurrentUserRoute extends boolean = false,
+    LoginMethodsRoute extends boolean = false
 > = AuthControllerLoginRoutes
     & EmailRoutes<EmailVerification, ConfirmEmailRoute>
     & ([CurrentUserRoute] extends [true] ? AuthControllerCurrentUserRoutes : unknown)
+    & ([UpdateCurrentUserRoute] extends [true] ? AuthControllerUpdateCurrentUserRoutes : unknown)
     & ([InvitationRoutes] extends [true] ? AuthControllerInvitationRoutes : unknown)
+    & ([LoginMethodsRoute] extends [true] ? AuthControllerLoginMethodsRoutes : unknown)
     & RoutesIf<InstanceType<Strategies[number]>, 'resolveCsrfToken', AuthControllerCsrfTokenRoutes>
     & RoutesIf<InstanceType<Strategies[number]>, 'findLogins', AuthControllerLoginListingRoutes>
     & RoutesIf<InstanceType<Authenticators[number]>, 'confirmPasswordReset', AuthControllerPasswordResetRoutes>
     & RoutesIf<InstanceType<Authenticators[number]>, 'changePassword', AuthControllerPasswordChangeRoutes>
+    & RoutesIf<InstanceType<Authenticators[number]>, 'requestLoginLink', AuthControllerLoginLinkRoutes>
     & RoutesIf<InstanceType<Authenticators[number]>, 'resolveLoginOptions', AuthControllerLoginOptionsRoutes>
     & RoutesIf<InstanceType<Authenticators[number]>, 'confirmRegistration', AuthControllerRegistrationRoutes>
     & RoutesIf<InstanceType<Authenticators[number]>, 'confirmProviderLogin', AuthControllerFederatedRoutes>
@@ -71,7 +76,9 @@ export type AuthControllerClass<
     CurrentUserRoute extends boolean = boolean,
     ConfirmEmailRoute extends boolean = boolean,
     TwoFactorRegistrationsRoute extends boolean = boolean,
-    InvitationRoutes extends boolean = boolean
+    InvitationRoutes extends boolean = boolean,
+    UpdateCurrentUserRoute extends boolean = boolean,
+    LoginMethodsRoute extends boolean = boolean
 > = Newable<AuthControllerRoutes<
     Strategies,
     Authenticators,
@@ -80,7 +87,9 @@ export type AuthControllerClass<
     CurrentUserRoute,
     ConfirmEmailRoute,
     TwoFactorRegistrationsRoute,
-    InvitationRoutes
+    InvitationRoutes,
+    UpdateCurrentUserRoute,
+    LoginMethodsRoute
 >> & {
     /**
      * What the routes were built from.
@@ -93,6 +102,8 @@ export type AuthControllerClass<
         CurrentUserRoute,
         ConfirmEmailRoute,
         TwoFactorRegistrationsRoute,
-        InvitationRoutes
+        InvitationRoutes,
+        UpdateCurrentUserRoute,
+        LoginMethodsRoute
     >
 };

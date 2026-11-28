@@ -10,6 +10,7 @@ import { InternalError } from '../../error-handling/internal-error.model';
 import { RouteRegistry } from '../../global/route-registry/route.registry';
 import { TraceContextUtilities } from '../../tracing/trace-context.utilities';
 import { TraceSpanContext } from '../../tracing/trace-span-context.model';
+import { AlsUtilities } from '../als.utilities';
 import { HttpRequestContext } from './http-request.context';
 import { WebsocketRequestContext } from './websocket-request.context';
 
@@ -111,8 +112,12 @@ export const ZIBRI_REQUEST_CONTEXT_TOKENS = {
         'current_version',
         async ctx => await inject(ZIBRI_DI_TOKENS.VERSIONING_SERVICE).resolveVersion(ctx)
     ),
+    /**
+     * The locale the request asks for. Read outside any locale scope, as it is kept for the rest of the
+     * request: a mail rendered for its recipient while it is first read leaves it the request's own.
+     */
     CURRENT_LOCALE: new RequestContextToken(
         'current_locale',
-        ctx => inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).resolveSupportedLocale(ctx)
+        ctx => AlsUtilities.runOutsideLocale(() => inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).resolveSupportedLocale(ctx))
     )
 } as const satisfies Record<string, RequestContextToken<unknown>>;

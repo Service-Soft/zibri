@@ -1,9 +1,10 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { TestTimeouts } from '../../../__testing__/constants';
 import { createFakeFont } from '../../../__testing__/fake-font.function';
 import { companyInfoProvider } from '../../../__testing__/mocks/company-info-provider.function';
+import { PdfmakeTestUtilities } from '../../../__testing__/pdfmake-test.utilities';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
@@ -119,7 +120,7 @@ async function embeddedFontsOf(pdf: PdfDocument): Promise<string[]> {
     return [...new Set([...bytes.matchAll(/\/BaseFont \/[A-Z]{6}\+([\w-]+)/g)].map(match => match[1] ?? ''))].sort();
 }
 
-describe('the fonts of an invoice pdf', () => {
+PdfmakeTestUtilities.describeOnEvery('the fonts of an invoice pdf', () => {
     it('are the one the invoicing options name, and the fallback for a name it cannot draw', async () => {
         const japanese: Invoice = {
             ...invoice,
@@ -132,7 +133,7 @@ describe('the fonts of an invoice pdf', () => {
     });
 });
 
-describe('the page size of an invoice pdf', () => {
+PdfmakeTestUtilities.describeOnEvery('the page size of an invoice pdf', () => {
     it('is the one the invoicing options name', async () => {
         const pdf: PdfDocument = await inject(InvoicePdfService).generateInvoicePdf(invoice, 'en-US', 'UTC');
 

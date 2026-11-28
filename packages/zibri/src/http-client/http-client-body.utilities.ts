@@ -2,13 +2,12 @@ import { Readable } from 'node:stream';
 import { ReadableStream as NodeReadableStream } from 'node:stream/web';
 
 import { ContentTooLargeError } from '../error-handling/errors/content-too-large.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { HttpMethod } from '../http/http-method.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
 import { BodyMetadata } from '../routing/decorators/body-metadata.model';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { BigNumber, NumberUtilities } from '../utilities/number.utilities';
+import { HttpClientMethod } from './http-client-method.type';
 import { HttpClientError, HttpClientErrorOptions } from './http-client.error';
 import { HttpClientHeaderValue } from './http-client.interface';
 
@@ -64,7 +63,7 @@ export abstract class HttpClientBodyUtilities {
         response: Response,
         metadata: BodyMetadata | undefined,
         maxSize: BigNumber,
-        method: HttpMethod,
+        method: HttpClientMethod,
         url: string,
         requestBody: unknown,
         requestHeaders?: Record<string, HttpClientHeaderValue>
@@ -130,7 +129,7 @@ export abstract class HttpClientBodyUtilities {
      */
     static buildReadError(
         response: Response,
-        method: HttpMethod,
+        method: HttpClientMethod,
         url: string,
         requestBody: unknown,
         requestHeaders: Record<string, HttpClientHeaderValue> | undefined,
@@ -165,7 +164,7 @@ export abstract class HttpClientBodyUtilities {
     static async buildResponseError(
         response: Response,
         maxSize: BigNumber,
-        method: HttpMethod,
+        method: HttpClientMethod,
         url: string,
         requestBody: unknown,
         requestHeaders?: Record<string, HttpClientHeaderValue>,
@@ -235,7 +234,7 @@ export abstract class HttpClientBodyUtilities {
         response: Response,
         reader: ResponseType,
         maxSize: BigNumber,
-        method: HttpMethod,
+        method: HttpClientMethod,
         url: string,
         requestBody: unknown,
         requestHeaders?: Record<string, HttpClientHeaderValue>
@@ -264,8 +263,10 @@ export abstract class HttpClientBodyUtilities {
                 return text.length ? text : undefined;
             }
             case 'stream': {
+                // an answer such as a 204 has no body at all, which is the same as a body of no bytes to
+                // whoever reads it
                 if (!response.body) {
-                    throw new InternalError('Response has no body stream');
+                    return Readable.from([]);
                 }
                 return Readable.fromWeb(response.body as NodeReadableStream);
             }

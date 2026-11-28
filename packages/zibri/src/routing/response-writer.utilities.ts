@@ -9,6 +9,7 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { XmlWriterUtilities } from '../document/xml-writer.utilities';
 import { InternalError } from '../error-handling/internal-error.model';
+import { FileReferenceUtilities, PendingFileReference } from '../file/file-reference.utilities';
 import { resolveContentDisposition } from '../http/content-disposition.function';
 import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
@@ -56,8 +57,11 @@ export abstract class ResponseWriterUtilities {
      * @param next - The error handler, for a stream that fails while its head is unsent.
      * @param responses - What the route declares it can answer with.
      * @param route - The route, for the error when the result is none of what it declares.
+     * @param inSeveralTenants - Whether the handler worked in several tenants of a request naming none, whose response
+     * cannot link a file, as a link names one tenant.
      * @param chosenStatus - The status the result named itself, if it did.
      * @throws An `UndeclaredResultError` when the result is of a kind the route does not declare.
+     * @throws An `InternalError` when the result holds a file to link and the handler worked in several tenants.
      */
     static async write(
         req: HttpRequest,
@@ -66,6 +70,7 @@ export abstract class ResponseWriterUtilities {
         next: NextFunction,
         responses: OpenApiResponse[],
         route: string,
+        inSeveralTenants: boolean,
         chosenStatus: HttpStatus | undefined = undefined
     ): Promise<void> {
         if (res.headersSent) {
@@ -80,7 +85,7 @@ export abstract class ResponseWriterUtilities {
                     res.set(name, value);
                 }
             }
-            await this.write(req, res, result.body, next, responses, route, result.status);
+            await this.write(req, res, result.body, next, responses, route, inSeveralTenants, result.status);
             return;
         }
 
@@ -122,20 +127,27 @@ export abstract class ResponseWriterUtilities {
         // a parsed copy of a string the framework had already produced meant three passes over the
         // whole graph - and the middle one allocated a second copy of it to throw away.
         res.type(format.mimeType === MimeType.XML ? MimeType.JSON : format.mimeType)
-            .send(JsonUtilities.stringify(this.resolveDeclaredBody(responses, result)));
+            .send(JsonUtilities.stringify(await this.resolveDeclaredBody(responses, result, route, inSeveralTenants)));
     }
 
     /**
      * What a JSON result is written with: what the declaration answering for it names. A handler
      * returning a stored row under a declaration of what may leave the server would otherwise send
      * every column the row holds, and the type of the method cannot say so - the row is assignable to
-     * the narrower class.
+     * the narrower class. A file the row keeps in a file store is written as its `FileReference`.
      * @param responses - What the route declares it can answer with.
      * @param result - What the handler returned.
+     * @param route - The route, for the error when its files cannot be linked.
+     * @param inSeveralTenants - Whether the handler worked in several tenants of a request naming none.
      * @returns The result, without what its declaration does not name; the result itself when no
      * declaration with a class answers for it.
      */
-    private static resolveDeclaredBody(responses: OpenApiResponse[], result: unknown): unknown {
+    private static async resolveDeclaredBody(
+        responses: OpenApiResponse[],
+        result: unknown,
+        route: string,
+        inSeveralTenants: boolean
+    ): Promise<unknown> {
         const candidates: JsonOpenApiResponse[] = responses
             .filter((r): r is JsonOpenApiResponse => r.type === 'json' && this.canAnswerWith(r, result));
         const exact: JsonOpenApiResponse[] = candidates.filter(r => {
@@ -149,9 +161,22 @@ export abstract class ResponseWriterUtilities {
             return result;
         }
         const declared: Newable<unknown>[] = classes.filter(cls => cls != undefined);
-        return Array.isArray(result)
-            ? result.map(item => DeclaredResponseUtilities.resolveDeclaredValue(item, declared))
-            : DeclaredResponseUtilities.resolveDeclaredValue(result, declared);
+        const files: PendingFileReference[] = [];
+        const body: unknown = Array.isArray(result)
+            ? result.map(item => DeclaredResponseUtilities.resolveDeclaredValue(item, declared, files))
+            : DeclaredResponseUtilities.resolveDeclaredValue(result, declared, files);
+        // written outside every tenant, where reading a file record would fail with the 400 of a request naming no
+        // tenant, which blames the caller for what the route did. A response without files keeps working
+        if (files.length && inSeveralTenants) {
+            throw new InternalError([
+                `The response of "${route}" holds files to link, and its handler worked in several tenants with runAs.`,
+                'The response of a route working in several tenants cannot link files, as a link names one tenant.',
+                'Answer the rows of one tenant per request, or declare a response that leaves the files out.'
+            ]);
+        }
+        // every file of the body read in one go, a page of rows included
+        await FileReferenceUtilities.resolveReferences(files);
+        return body;
     }
 
     /**

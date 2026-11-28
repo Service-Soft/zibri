@@ -3,8 +3,9 @@ import { describe, expect, it } from '@jest/globals';
 import { CacheOperation } from '../caching/cache/cache-operation.enum';
 import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
+import { UUIDUtilities } from '../utilities/uuid.utilities';
 import { WebsocketRequest } from '../websocket/models/websocket-request.model';
-import { AlsUtilities } from './als.utilities';
+import { AlsUtilities, RecordedTenantsResult } from './als.utilities';
 import { CacheContext } from './cache/cache.context';
 import { HttpRequestContext } from './request/http-request.context';
 import { WebsocketRequestContext } from './request/websocket-request.context';
@@ -100,6 +101,34 @@ describe('AlsUtilities', () => {
 
             expect(outerArrayDuringNestedCall?.map(c => c.cache)).toEqual(['outer']);
             expect(outerSeenAfterNested?.map(c => c.cache)).toEqual(['outer']);
+        });
+    });
+
+    describe('runRecordingTenants', () => {
+        const first: string = UUIDUtilities.generate();
+        const second: string = UUIDUtilities.generate();
+        const third: string = UUIDUtilities.generate();
+
+        it('records each tenant entered while no tenant is active, once, and none entered inside another', async () => {
+            const recorded: RecordedTenantsResult<string> = await AlsUtilities.runRecordingTenants(async () => {
+                await AlsUtilities.runInTenant(first, async () => await AlsUtilities.runInTenant(second, () => Promise.resolve()));
+                await AlsUtilities.runInTenant(first, () => Promise.resolve());
+                return 'done';
+            });
+
+            expect(recorded).toStrictEqual({ result: 'done', tenantIds: [first] });
+        });
+
+        it('records a tenant entered after leaving every tenant, and nothing a recording inside it records', async () => {
+            let inner: string[] = [];
+            const recorded: RecordedTenantsResult<void> = await AlsUtilities.runRecordingTenants(async () => {
+                await AlsUtilities.runInTenant(first, async () => await AlsUtilities.runOutsideTenant(
+                    async () => await AlsUtilities.runInTenant(second, () => Promise.resolve())
+                ));
+                inner = (await AlsUtilities.runRecordingTenants(async () => await AlsUtilities.runInTenant(third, () => Promise.resolve()))).tenantIds;
+            });
+
+            expect([recorded.tenantIds, inner]).toStrictEqual([[first, second], [third]]);
         });
     });
 });

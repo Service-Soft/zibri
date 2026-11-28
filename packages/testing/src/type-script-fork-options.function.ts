@@ -67,7 +67,7 @@ function resolveCachedTsNode(): FsPath {
 
 /**
  * What a child process is forked with to run TypeScript the way the parent does: through ts-node,
- * loading the same copy of `zibri`, `zibri/internal` and `zibri-testing` as the parent.
+ * loading the same copy of `zibri`, `zibri/internal`, `zibri-testing` and `zibri-contract` as the parent.
  *
  * What each file transpiles to is kept in `node_modules/.cache/zibri-testing`, so a process after the
  * first loads the framework without compiling it again. A worker thread the child starts runs

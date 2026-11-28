@@ -26,5 +26,12 @@ export type InvitationTokenValidity = {
     /**
      * Whether the invited person may decline it.
      */
-    declinable: boolean
+    declinable: boolean,
+    /**
+     * Whether the account the invitation creates gets no password: accepting takes none, and answers a login like
+     * the login route, or the refusal of a login that waits for a second factor. False where accepting needs a
+     * login. Undefined, from an application whose invitation service predates it, means false.
+     */
+    // TODO 4.0: required. Optional until then, so that a validity built for 3.2 stays one
+    withoutPassword?: boolean
 };

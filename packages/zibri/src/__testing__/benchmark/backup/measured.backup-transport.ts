@@ -6,6 +6,7 @@ import { BackupTransportInterface, BackupTransportSupporting } from '../../../ba
 import { FsBackupTransport } from '../../../backup/transports/fs.backup-transport';
 import { S3BackupTransport } from '../../../backup/transports/s3.backup-transport';
 import { SftpBackupTransport } from '../../../backup/transports/sftp.backup-transport';
+import { WebDavBackupTransport } from '../../../backup/transports/web-dav.backup-transport';
 import { FsUtilities } from '../../../utilities/fs.utilities';
 import { BackupTransportSessionTestUtilities } from '../../backup/backup-transport-session-test.utilities';
 import { MeasuredTransportConfig, TransportMeasurement } from './backup-measurement.model';
@@ -26,6 +27,9 @@ function createTransport(config: MeasuredTransportConfig): BackupTransportSuppor
         }
         case 'sftp': {
             return new SftpBackupTransport('measured-sftp-backup-transport', config.options);
+        }
+        case 'web-dav': {
+            return new WebDavBackupTransport('measured-web-dav-backup-transport', { ...config.options, network: undefined });
         }
     }
 }

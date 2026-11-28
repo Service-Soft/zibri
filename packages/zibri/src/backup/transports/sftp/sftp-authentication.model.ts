@@ -1,5 +1,5 @@
 /**
- * How an SFTP backup transport logs in: with a password, or with a private key in OpenSSH format.
+ * How an SFTP backup transport or file store logs in: with a password, or with a private key in OpenSSH format.
  */
 export type SftpAuthentication = {
     /**

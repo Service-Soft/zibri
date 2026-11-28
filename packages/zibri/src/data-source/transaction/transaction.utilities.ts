@@ -7,6 +7,7 @@ import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { BaseRepositoryOptions } from '../models/options/base-repository-options.model';
 import { type RepositoryTransaction } from './repository-transaction.type';
 import { RunInTransactionOptions } from './run-in-transaction-options.model';
+import { type SpanningTransaction } from './spanning-transaction.model';
 import { TransactionConflictError } from './transaction-conflict.error';
 import { Transaction } from './transaction.model';
 
@@ -62,6 +63,30 @@ export abstract class TransactionUtilities {
         // checked above, which is what the conditional type cannot see for an entity it does not know:
         // only a chained one takes nothing but a transaction of its data source
         return transaction as RepositoryTransaction<T> | undefined;
+    }
+
+    /**
+     * Runs work in a transaction that was just started, and commits it, or rolls it back when the work
+     * or the commit fails. The work runs once.
+     * @param transaction - The transaction, such as a `new SpanningTransaction()` across every data source
+     * the work writes to.
+     * @param work - The work, which writes through the transaction and neither commits nor rolls it back.
+     * @returns What the work returned, once the transaction is committed.
+     * @throws What the work or the commit failed with, after rolling back.
+     */
+    static async runAndCommit<T extends Transaction | SpanningTransaction, R>(
+        transaction: T,
+        work: (transaction: T) => Promise<R>
+    ): Promise<R> {
+        try {
+            const result: R = await work(transaction);
+            await transaction.commit();
+            return result;
+        }
+        catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
     }
 
     /**

@@ -21,7 +21,7 @@ export interface ChainServiceInterface {
     resolveLinks: (entityClass: Newable<BaseChainedEntity>, rows: object[], transaction: Transaction | undefined) => Promise<ChainLink[]>,
     /**
      * Resolves whether the chain of a tenant, or of the rows of no tenant, holds: every row as it was
-     * written, in an unbroken run from the oldest row kept.
+     * written, in an unbroken run from the oldest row kept, past the rows recorded as removed.
      */
     resolveChainVerification: (entityClass: Newable<BaseChainedEntity>, tenantId: string | undefined) => Promise<ChainVerification>,
     /**
@@ -31,5 +31,14 @@ export interface ChainServiceInterface {
      *
      * The filter names neither the tenant nor `chainSequence`.
      */
-    pruneChains: (entityClass: Newable<BaseChainedEntity>, where: Where<BaseChainedEntity>) => Promise<number>
+    pruneChains: (entityClass: Newable<BaseChainedEntity>, where: Where<BaseChainedEntity>) => Promise<number>,
+    /**
+     * Records rows about to be removed from anywhere in their chains, so that the check steps over them
+     * and doesn't report them missing: a chain whose oldest rows they are starts after them, and every
+     * other one leaves a `ChainGap`. The archive calls it for the rows whose retention ended, before they
+     * are removed, and refuses to remove them without it.
+     *
+     * Each row holds its `chainSequence`, its `chainHash` and the tenant property of its entity.
+     */
+    recordRemovedRows?: (entityClass: Newable<BaseChainedEntity>, rows: object[], transaction: Transaction | undefined) => Promise<void>
 }

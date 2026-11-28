@@ -24,6 +24,7 @@ side.
 | `PostgresOptions` | type | How a `PostgresDataSource` connects to its server |
 | `PostgresPooler`, `PostgresTransactionPooler`, `PostgresDirectConnection` | type, type, type | What stands between a Postgres data source and its server, a pooler in transaction mode, and where the server itself is behind one. Required |
 | `SchemaManagement` | type | Who makes the database match the entities of a SQL data source: `'synchronize'`, `'migrations'` or `'external'`. Required |
+| `MissingFrameworkColumnError`, `MissingFrameworkColumn`, `FrameworkColumnUtilities` | class, type, class | What needs a column of the framework a schema with `'external'` lacks throws, the column with the statements that add it, and the check whether a table has one, see [the columns of the framework in a schema of your own](#the-columns-of-the-framework-in-a-schema-of-your-own) |
 | `ValKeyDataSource` | class | Predefined data source for Valkey, extend from this instead of implementing `DataSourceInterface` directly |
 | `ValKeyOptions` | interface | Connection/config options for `ValKeyDataSource` |
 | `RepositoryDriverInterface` | interface | The storage specific part of a repository, implemented once per data source type |
@@ -217,6 +218,36 @@ because no value is safe everywhere:
 
 `'migrations'` needs at least one migration. Use `'external'` for a schema that something else
 creates. [Handling migrations](#handling-migrations) describes the migrations a data source lists.
+
+### The columns of the framework in a schema of your own
+The entities of the framework gain columns in a minor release, such as the `kind` of a user or the
+`issuedAt` of an invoice, each nullable. With `'migrations'` and `'synchronize'`, the data source
+adds them itself. With `'external'`, it adds none: on every start it looks up which of them the
+database lacks, reads and writes the rows without those, and warns once, listing them by table with
+the statements that add them as the framework creates them:
+
+```text
+The database of "DbDataSource" lacks columns the framework added to its entities, ...
+  - user: locale, kind
+  - number_invoices: scope
+Add them, and start the application again:
+  ALTER TABLE "user" ADD COLUMN "locale" character varying ...;
+  ALTER TABLE "user" ADD COLUMN "kind" character varying ...;
+  UPDATE "user" SET "kind" = 'person' WHERE "kind" IS NULL;
+  ALTER TABLE "number_invoices" ADD COLUMN "scope" character varying ...;
+  CREATE UNIQUE INDEX CONCURRENTLY "..." ON "number_invoices" ("tenantId", "scope");
+  ...
+```
+
+Run them as they are listed: a unique is built concurrently, outside a transaction.
+
+Without a column, the rows read as the release before it had them: a user is a person, an invoice
+is an invoice that no final number issues, and a counter of invoice numbers counts by year and
+recipient. What needs the column throws a `MissingFrameworkColumnError` naming it and the statements,
+such as creating a service account, changing the locale of a user, a credit note, a mail with a
+`replyTo` or a filter on the column, and so does a write storing a value only the column can hold.
+A start finding the columns uses them, and warns no more. `FrameworkColumnUtilities.hasColumns`
+tells code of your own whether a table has them.
 
 `pooler` says what stands between a Postgres data source and its server, see
 [connecting through a pooler](#connecting-through-a-pooler). `'none'` when it connects to the server
@@ -1752,6 +1783,10 @@ out of their reach since the delete read it stays. When the rows were handed ove
 `beforeDelete` or back to the caller with `returnDeleted`, or rows of theirs go with them, the delete
 fails with a `ConflictError` and removes none of them, as `updateById` does for a row that changed.
 A `deleteAll` that only counts leaves that row out of its count.
+
+To show single rows to chosen members of a tenant, such as one project to a customer, declare the entity `shareable`
+rather than writing the scope yourself, see [sharing rows with selected people](./sharing.md). It narrows the rows the
+same way, beside the scope of the entity's own.
 
 ### What a scope is told
 The function is handed an `EntityScopeContext`:

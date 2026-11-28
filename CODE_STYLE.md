@@ -130,6 +130,13 @@ security or policy choice: whichever value the framework picks silently, "you fo
 indistinguishable from "you said this". A required option asks once, in the one place it can be
 answered, and the compiler asks it rather than a startup warning nobody reads.
 
+**A released controller gains no route by itself.** An application exposes a controller's routes by
+extending it, so a route added to a controller that has been released is served by every application
+the moment it upgrades. Such a route is off until the application turns it on, through an option of
+the controller as `updateCurrentUserRoute` of the auth controller does, and the CHANGELOG names it.
+The routes a controller has in its first release are on, as the application chose them by extending
+it.
+
 **Touch only what your change needs.** Do not reformat, rename or improve adjacent code. Remove
 imports and variables *your* change orphaned; leave pre-existing dead code alone and mention it.
 
@@ -207,13 +214,15 @@ that is never red is not a suite that is passing. Leave it red and report it.
 |---|---|
 | `test:normal` | Everything except the below |
 | `test:cluster` | `*.cluster.test.ts`, in band |
+| `test:nextcloud` | `*.nextcloud.test.ts`, in band: what Nextcloud does, against Nextcloud in a container |
 | `test:benchmark` | `*.benchmark.test.ts`, in band: timings reported against a `*.baseline.json` beside each suite, never failing |
 | `test:benchmark:compare` | `test:benchmark` on your checkout and on `release`, in turns; fails on an operation that got slower |
 | `test:heavy` | Long-running suites, in band |
 | `test:browser` | `*.browser.test.ts` of `zibri-tsx` and the sandbox, in Chromium: run `npx playwright install chromium` once |
 
 CI runs every one of them: `test:ci` runs all but the benchmarks, which jobs of their own run through
-`test:benchmark:compare`, one per group of `packages/zibri/benchmark-groups.json`.
+`test:benchmark:compare`, one per group of `packages/zibri/benchmark-groups.json`, and `test:nextcloud`, which a job
+of its own runs.
 
 **A slower operation fails the build, measured against the release.** `test:benchmark:compare`
 builds `origin/release` in a worktree beside your checkout and runs the benchmarks on both, four

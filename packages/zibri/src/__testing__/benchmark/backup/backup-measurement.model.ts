@@ -1,6 +1,7 @@
 import { S3BackupTransportOptions } from '../../../backup/transports/s3/s3-backup-transport-options.model';
 import { S3Credentials } from '../../../backup/transports/s3/s3-credentials.model';
 import { SftpBackupTransportOptions } from '../../../backup/transports/sftp/sftp-backup-transport-options.model';
+import { WebDavBackupTransportOptions } from '../../../backup/transports/web-dav/web-dav-backup-transport-options.model';
 import { ValKeyBackupMode } from '../../../data-source/data-sources/val-key/val-key-backup-mode.model';
 import { ValKeyRestoreMode } from '../../../data-source/data-sources/val-key/val-key-restore-mode.model';
 import { OmitStrict } from '../../../types/omit-strict.type';
@@ -85,6 +86,15 @@ export type MeasuredTransportConfig = {
      * Its options.
      */
     options: SftpBackupTransportOptions
+} | {
+    /**
+     * The WebDAV transport.
+     */
+    kind: 'web-dav',
+    /**
+     * Its options, of a server the measurement configures itself.
+     */
+    options: OmitStrict<WebDavBackupTransportOptions, 'network'>
 };
 
 /**
