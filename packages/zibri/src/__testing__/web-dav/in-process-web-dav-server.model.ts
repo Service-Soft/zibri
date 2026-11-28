@@ -10,6 +10,11 @@ import { WebDavConnection } from '../../web-dav/web-dav-connection.model';
 const DAV_PATH: string = '/remote.php/dav/';
 
 /**
+ * The content type of an answer in xml, as Nextcloud names it.
+ */
+const XML_CONTENT_TYPE: string = 'application/xml; charset=utf-8';
+
+/**
  * The path of the share api, as Nextcloud's.
  */
 const SHARES_PATH: string = '/ocs/v2.php/apps/files_sharing/api/v1/shares';
@@ -194,6 +199,12 @@ export class InProcessWebDavServer {
      * that fails.
      */
     refusedMoves: number = 0;
+
+    /**
+     * How many of the next moves the server refuses as a folder another request holds locked, moving nothing: with a
+     * `500` naming `OCP\Lock\LockedException`, as Nextcloud answers a move rather than with a `423`.
+     */
+    lockedMoves: number = 0;
 
     /**
      * The folders, by their paths below `remote.php/dav/` without a slash at the end, with the ids they keep. The
@@ -452,6 +463,15 @@ export class InProcessWebDavServer {
                     this.answer(response, 500);
                     return;
                 }
+                if (this.lockedMoves > 0) {
+                    this.lockedMoves--;
+                    response.writeHead(500, { 'content-type': XML_CONTENT_TYPE });
+                    response.end('<?xml version="1.0" encoding="utf-8"?>\n'
+                        + '<d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">'
+                        + '<s:exception>OCP\\Lock\\LockedException</s:exception>'
+                        + `<s:message>"${path}" is locked, existing lock on file: none</s:message></d:error>`);
+                    return;
+                }
                 this.moveTo(response, path, header('destination'), header('overwrite') !== 'F');
                 return;
             }
@@ -555,7 +575,7 @@ export class InProcessWebDavServer {
                         + PROPSTAT_OK_END;
                 })
             ].join('');
-            response.writeHead(207, { 'content-type': 'application/xml; charset=utf-8' });
+            response.writeHead(207, { 'content-type': XML_CONTENT_TYPE });
             response.end(`<?xml version="1.0"?>\n<d:multistatus xmlns:d="DAV:" xmlns:nc="http://nextcloud.org/ns">${responses}</d:multistatus>`);
             return;
         }
@@ -635,7 +655,7 @@ export class InProcessWebDavServer {
             return `<d:response><d:href>${href}</d:href><d:propstat><d:prop>${props}</d:prop>`
                 + PROPSTAT_OK_END;
         }).join('');
-        response.writeHead(207, { 'content-type': 'application/xml; charset=utf-8' });
+        response.writeHead(207, { 'content-type': XML_CONTENT_TYPE });
         response.end(`<?xml version="1.0"?>\n<d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">${responses}</d:multistatus>`);
     }
 

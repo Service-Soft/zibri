@@ -2,6 +2,7 @@ import { afterAll, beforeAll } from '@jest/globals';
 
 import { BackupScenario, describeBackupCosts } from '../__testing__/benchmark/backup/backup-benchmark.cases';
 import { resolveSeriesScenarios, resolveSlug } from '../__testing__/benchmark/backup/backup-containers-benchmark.cases';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedWebDavTestServer, WebDavTestServerUtilities } from '../__testing__/web-dav/web-dav-test-server.utilities';
 import { FsUtilities } from '../utilities/fs.utilities';
 import { Ms } from '../utilities/ms';
@@ -19,11 +20,11 @@ let webDav: StartedWebDavTestServer | undefined;
 
 beforeAll(async () => {
     webDav = await WebDavTestServerUtilities.startApache({ username: 'zibri', password: 'zibri-test-password' });
-}, 60000);
+}, TestTimeouts.apache.start);
 
 afterAll(async () => {
     await webDav?.stop();
-}, 30000);
+}, TestTimeouts.apache.stop);
 
 /**
  * Every measurement of the suite.

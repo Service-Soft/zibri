@@ -103,6 +103,12 @@ exports. Put the entry points first and the steps they are built from below as `
 standalone `.function.ts` is for something that genuinely belongs to no group — and when a second one
 appears next to it, they become a class.
 
+**A use case is a plugin, a building block is the framework.** Something goes into a plugin when it answers a
+concrete use case, one you can say as "As a company, I want to deal with invoices": issuing invoices, keeping the
+books, running a mailing list. What serves any number of such cases stays in the framework, however specialised it
+looks: the WebDAV client, the file mirror, which mirrors any kind of file, the archive, calendar sync. A plugin has
+an entry point of its own, `zibri/plugin/<name>`, so an application that does not use it does not bundle it.
+
 **A service is a provider behind an interface.** A service the framework ships comes with an
 `XServiceInterface`, and a `ZIBRI_DI_TOKENS` token whose default provider is the class. Everything
 reaches it through the token, never by its class, so an application can replace it.

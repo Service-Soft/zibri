@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedWebDavTestServer, WebDavTestServerUtilities } from '../../__testing__/web-dav/web-dav-test-server.utilities';
 import { GlobalRegistry } from '../../global/global-registry';
 import { Ms } from '../../utilities/ms';
@@ -57,11 +58,11 @@ beforeAll(async () => {
     GlobalRegistry.markAppAsCreated();
     WebDavTestServerUtilities.initContainer();
     server = await WebDavTestServerUtilities.startNextcloud({ username: ADMIN, password: 'Lovelace-1815-Analytical' });
-}, Ms.MINUTE * 6);
+}, TestTimeouts.nextcloud.start);
 
 afterAll(async () => {
     await server?.stop();
-});
+}, TestTimeouts.nextcloud.stop);
 
 describe('NextcloudClient against Nextcloud', () => {
     it('finds a file by its id after it is moved, with the ETag it had, and nothing once it is in the trash bin', async () => {

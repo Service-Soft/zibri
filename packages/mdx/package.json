@@ -63,6 +63,6 @@
         "@types/mdast": "^4.0.4",
         "@types/node": "^24.0.0",
         "eslint": "^9.36.0",
-        "typescript": "^5.9.2"
+        "typescript": "^6.0.3"
     }
 }

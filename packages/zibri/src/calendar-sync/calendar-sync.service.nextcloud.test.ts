@@ -48,12 +48,12 @@ beforeAll(async () => {
         ]
     });
     await testServer.start();
-}, Ms.MINUTE * 6);
+}, TestTimeouts.nextcloud.start + TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await testServer?.shutdown();
     await server?.stop();
-}, TestTimeouts.inMemory.shutdown);
+}, TestTimeouts.inMemory.shutdown + TestTimeouts.nextcloud.stop);
 
 describeCalendarSync('Nextcloud', () => {
     if (server == undefined) {

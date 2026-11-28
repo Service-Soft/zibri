@@ -54,12 +54,12 @@ beforeAll(async () => {
         kind: WebDavConnectionKind.NEXTCLOUD,
         ...started.connection
     })).id);
-}, Ms.MINUTE * 6);
+}, TestTimeouts.nextcloud.start + TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await testServer?.shutdown();
     await server?.stop();
-}, TestTimeouts.inMemory.shutdown);
+}, TestTimeouts.inMemory.shutdown + TestTimeouts.nextcloud.stop);
 
 describeFileMirror('Nextcloud', () => {
     if (server == undefined) {

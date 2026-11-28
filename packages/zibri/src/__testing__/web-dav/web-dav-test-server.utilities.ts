@@ -35,7 +35,7 @@ import { WebDavTenantConnectionOptions } from '../../web-dav/web-dav-tenant-conn
 const APACHE_TEST_IMAGE: string = 'httpd:2.4.70@sha256:f243c844139c880ddfe575049499ee5f0bf74ebacef7ef6ebbdeefeebd94917e';
 
 /**
- * The Nextcloud the suites of its own behaviour run against, installed as it is run: on Postgres, with its file locks
+ * The Nextcloud the suites of its own behavior run against, installed as it is run: on Postgres, with its file locks
  * in Valkey. On SQLite, which takes one write at a time, and with its locks in that database as well, every request
  * waited for the others, and a case putting a thousand keys fifty at a time did not finish in two minutes.
  */

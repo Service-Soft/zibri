@@ -1,4 +1,3 @@
-/* eslint-disable cspell/spellchecker */
 /* eslint-disable sonar/no-duplicate-string -- the days, amounts and position ids are the figures of the cases */
 import { type Readable } from 'node:stream';
 import { buffer } from 'node:stream/consumers';

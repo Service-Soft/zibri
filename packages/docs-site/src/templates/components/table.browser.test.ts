@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
@@ -20,6 +20,25 @@ const TIMEOUT: number = 30000;
 function resolveKeyExportsRows(file: string): number {
     const section: string = readFileSync(path.join(DOCS_DIR, file), 'utf8').split(/^## Key exports$/m)[1]?.split(/^## /m)[0] ?? '';
     return section.split('\n').filter(line => line.startsWith('|')).length - 2;
+}
+
+/**
+ * Finds a page whose table of key exports has the given number of rows, so that the tests of where a table starts to
+ * collapse follow the pages rather than name one.
+ * @param rows - The rows of the table.
+ * @returns The path of the first such page below `/zibri/`, such as `plugins/mailing-list-plugin`.
+ * @throws An Error when no page has a table of that many rows.
+ */
+function findPageWithKeyExportsRows(rows: number): string {
+    const file: string | undefined = readdirSync(DOCS_DIR, { recursive: true, encoding: 'utf8' })
+        .filter(name => name.endsWith('.md'))
+        .sort()
+        .find(name => resolveKeyExportsRows(name) === rows);
+    if (file == undefined) {
+        throw new Error(`No page of the documentation has a table of key exports of ${rows} rows.`);
+    }
+    return file.replace(/\.md$/, '').split(path.sep)
+        .join('/');
 }
 
 const DATA_SOURCE_EXPORTS: number = resolveKeyExportsRows('data/data-source.md');
@@ -82,10 +101,17 @@ describe('a table of a page, in a browser', () => {
     }, TIMEOUT);
 
     it('shows a table of key exports of 12 rows whole', async () => {
-        await open('auth/api-keys');
+        await open(findPageWithKeyExportsRows(12));
 
         expect(await page.locator('#key-exports-table tbody tr:visible').count()).toBe(12);
         expect(await page.locator('#key-exports-toggle').count()).toBe(0);
+    }, TIMEOUT);
+
+    it('shows the first rows of a table of key exports of 13', async () => {
+        await open(findPageWithKeyExportsRows(13));
+
+        expect(await page.locator('#key-exports-table tbody tr:visible').count()).toBe(8);
+        expect(await page.locator('#key-exports-toggle').textContent()).toBe('Show all 13 exports');
     }, TIMEOUT);
 
     it('shows a long table under another heading whole', async () => {

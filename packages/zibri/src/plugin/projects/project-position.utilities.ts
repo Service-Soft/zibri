@@ -48,7 +48,7 @@ export abstract class ProjectPositionUtilities {
         options: TaskPlacementOptions
     ): Promise<PositionPlacement> {
         const tasks: Repository<Task> = inject(repositoryTokenFor(Task));
-        // the positions of the column, which a move reads in full rather than its two neighbours: the same read is
+        // the positions of the column, which a move reads in full rather than its two neighbors: the same read is
         // what spreads them out again when they ran out of precision, and a row of two values is little to read
         const others: PositionedRow[] = await tasks.findAll({
             where: taskId == undefined ? { columnId } : { columnId, id: { notOneOf: [taskId] } },
@@ -105,7 +105,7 @@ export abstract class ProjectPositionUtilities {
     }
 
     /**
-     * Resolves a place between two neighbours: after the last row when nothing follows, before the first when nothing
+     * Resolves a place between two neighbors: after the last row when nothing follows, before the first when nothing
      * precedes, and halfway between two rows otherwise.
      * @param before - The place of the row to follow, undefined to put it first.
      * @param after - The place of the row to precede, undefined to put it last.
@@ -140,7 +140,7 @@ export abstract class ProjectPositionUtilities {
      * @returns What the work answered.
      */
     static async withPlacementLease<T>(key: string, work: () => Promise<T>): Promise<T> {
-        // two moves into one column at once would each read the same neighbours and write the same position. In turn,
+        // two moves into one column at once would each read the same neighbors and write the same position. In turn,
         // the second reads what the first wrote, so no two rows share a position, and only one spreads them out again
         const res: LeasedPlacement<T> | undefined = await inject(ZIBRI_DI_TOKENS.LEASE_SERVICE).withLease(
             { key: `zi.projects.positions:${key}`, leaseInMs: Ms.MINUTE, mode: 'wait', acquireTimeoutInMs: Ms.SECOND * 30 },

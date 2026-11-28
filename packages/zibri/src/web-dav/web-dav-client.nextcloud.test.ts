@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedWebDavTestServer, WebDavTestServerUtilities } from '../__testing__/web-dav/web-dav-test-server.utilities';
 import { GlobalRegistry } from '../global/global-registry';
 import { HttpStatus } from '../http/http-status.enum';
@@ -66,11 +67,11 @@ beforeAll(async () => {
     GlobalRegistry.markAppAsCreated();
     WebDavTestServerUtilities.initContainer();
     server = await WebDavTestServerUtilities.startNextcloud({ username: ADMIN, password: ADMIN_PASSWORD });
-}, Ms.MINUTE * 6);
+}, TestTimeouts.nextcloud.start);
 
 afterAll(async () => {
     await server?.stop();
-});
+}, TestTimeouts.nextcloud.stop);
 
 describeWebDavClient('Nextcloud', createClient, 'per-second');
 

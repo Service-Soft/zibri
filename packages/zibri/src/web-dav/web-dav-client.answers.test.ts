@@ -60,7 +60,12 @@ type Answer = {
     /**
      * The body.
      */
-    body?: string
+    body?: string,
+    /**
+     * Whether the connection is closed instead, without an answer, as a server closes one it keeps alive just as a
+     * request arrives on it.
+     */
+    hangUp?: boolean
 };
 
 /**
@@ -133,6 +138,7 @@ const NEXTCLOUD_LISTING: string = '<?xml version="1.0"?>\n'
     + '<d:getlastmodified>Wed, 25 Nov 2026 10:00:00 GMT</d:getlastmodified><oc:fileid>12</oc:fileid></d:prop>'
     + '<d:status>HTTP/1.1 200 OK</d:status></d:propstat>'
     + '<d:propstat><d:prop><d:getcontentlength/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response>'
+    // eslint-disable-next-line cspell/spellchecker
     + `<d:response><d:href>${FILES_PATH}Invoices/R%C3%BCckerstattung%20%231.pdf</d:href>`
     + '<d:propstat><d:prop><d:resourcetype/><d:getcontentlength>2048</d:getcontentlength><d:getetag>&quot;6745a2&quot;</d:getetag>'
     + '<d:getlastmodified>Thu, 26 Nov 2026 08:30:00 GMT</d:getlastmodified><oc:fileid>13</oc:fileid></d:prop>'
@@ -210,6 +216,10 @@ function handle(request: IncomingMessage, response: ServerResponse): void {
         };
         received.push(receivedRequest);
         const answer: Answer = answering(receivedRequest);
+        if (answer.hangUp === true) {
+            request.socket.destroy();
+            return;
+        }
         response.writeHead(answer.status, answer.headers);
         response.end(answer.body);
     });
@@ -704,6 +714,106 @@ describe('WebDavClient, creating a folder', () => {
 
         expect(await failureOf(createClient().createFolder('Invoices'))).toBeInstanceOf(WebDavConflictError);
         expect(received).toHaveLength(1);
+    });
+});
+
+// Nextcloud answers a write a 423 while another request holds the folder it is in, such as the MKCOL of a folder beside
+// it: the puts of a backup into new folders, at once, failed with it
+describe('WebDavClient, while the server holds a folder locked', () => {
+    it('writes a file once the lock is gone, under its condition', async () => {
+        let locked: number = 2;
+        answering = () => locked-- > 0 ? { status: HttpStatus.LOCKED } : { status: HttpStatus.CREATED, headers: { etag: '"e2"' } };
+
+        const etag: string | undefined = await createClient().put(
+            'Invoices/2026-001.pdf',
+            Buffer.from('%PDF-1.7'),
+            { contentType: 'application/pdf', ifMatch: '"e1"' }
+        );
+
+        expect(etag).toBe('"e2"');
+        expect(received.map(request => [request.method, request.headers['if-match']])).toEqual([
+            ['PUT', '"e1"'],
+            ['PUT', '"e1"'],
+            ['PUT', '"e1"']
+        ]);
+    });
+
+    it('moves a file once the lock is gone', async () => {
+        let locked: number = 2;
+        answering = () => locked-- > 0 ? { status: HttpStatus.LOCKED } : { status: HttpStatus.CREATED };
+
+        await createClient().move('Invoices/.upload', 'Invoices/2026-001.pdf', { overwrite: true });
+
+        expect(received.map(request => request.method)).toEqual(['MOVE', 'MOVE', 'MOVE']);
+    });
+
+    it('deletes a file once the lock is gone', async () => {
+        let locked: number = 2;
+        answering = () => locked-- > 0 ? { status: HttpStatus.LOCKED } : { status: HttpStatus.NO_CONTENT };
+
+        await createClient().delete('Invoices/2026-001.pdf');
+
+        expect(received.map(request => request.method)).toEqual(['DELETE', 'DELETE', 'DELETE']);
+    });
+
+    it('throws the 423 of a file the server holds locked for good, after a few attempts', async () => {
+        answering = () => ({ status: HttpStatus.LOCKED });
+
+        const refused: unknown = await failureOf(createClient().put('Invoices/2026-001.pdf', 'text', { contentType: 'text/plain', overwrite: true }));
+
+        expect(refused).toBeInstanceOf(HttpClientError);
+        expect(refused).toMatchObject({ responseData: { status: HttpStatus.LOCKED } });
+        expect(received.map(request => request.method)).toEqual(['PUT', 'PUT', 'PUT', 'PUT', 'PUT']);
+    });
+});
+
+// Apache closed a connection it kept alive as a MOVE arrived on it, among the puts of a backup at once. The http client
+// repeats no MOVE, as one repeated after its answer got lost fails on what the first one did, so what is at both paths
+// says whether it was carried out
+describe('WebDavClient, moving without an answer', () => {
+    const SOURCE: string = 'Invoices/.upload-1';
+    const DESTINATION: string = 'Invoices/2026-001.pdf';
+
+    /**
+     * Answers a PROPFIND of one path as Nextcloud does, with a file there or with nothing.
+     * @param request - The request.
+     * @param present - The paths a file is at.
+     * @returns The answer.
+     */
+    function propfindOf(request: ReceivedRequest, present: string[]): Answer {
+        const path: string | undefined = present.find(candidate => request.url === `${FILES_PATH}${candidate}`);
+        return path == undefined
+            ? { status: HttpStatus.NOT_FOUND }
+            : { status: 207, headers: XML_HEADERS, body: NEXTCLOUD_FILE.replace('Invoices/2026-001.pdf', path) };
+    }
+
+    it('sends the move again where the file is still at its source', async () => {
+        let moves: number = 0;
+        answering = request => request.method === 'MOVE'
+            ? moves++ === 0 ? { status: HttpStatus.CREATED, hangUp: true } : { status: HttpStatus.CREATED }
+            : propfindOf(request, [SOURCE]);
+
+        await createClient().move(SOURCE, DESTINATION, { overwrite: true });
+
+        expect(received.map(request => request.method)).toEqual(['MOVE', 'PROPFIND', 'MOVE']);
+    });
+
+    it('takes the move as done where the file is at its destination and gone from its source', async () => {
+        answering = request => request.method === 'MOVE' ? { status: HttpStatus.CREATED, hangUp: true } : propfindOf(request, [DESTINATION]);
+
+        await createClient().move(SOURCE, DESTINATION, { overwrite: true });
+
+        expect(received.map(request => request.method)).toEqual(['MOVE', 'PROPFIND', 'PROPFIND']);
+    });
+
+    it('throws that it got no answer where the file is at neither path', async () => {
+        answering = request => request.method === 'MOVE' ? { status: HttpStatus.CREATED, hangUp: true } : propfindOf(request, []);
+
+        const refused: unknown = await failureOf(createClient().move(SOURCE, DESTINATION, { overwrite: true }));
+
+        expect(refused).toBeInstanceOf(HttpClientError);
+        expect(refused).toMatchObject({ responseData: undefined });
+        expect(received.map(request => request.method)).toEqual(['MOVE', 'PROPFIND', 'PROPFIND']);
     });
 });
 

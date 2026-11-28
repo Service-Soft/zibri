@@ -162,9 +162,10 @@ export function describeWebDavClient(name: string, resolveClient: () => WebDavCl
                 '%PDF-1.7 as issued',
                 { contentType: MimeType.PDF, ifNoneMatch: '*' }
             );
+            // read before anybody else writes, as the mirror does for a server whose answer names none, such as Apache
+            const etag: string | undefined = written ?? (await client.findEntry(`${folder}/mirrored.pdf`))?.etag;
             await waitForNextVersion();
             await client.put(`${folder}/mirrored.pdf`, '%PDF-1.7 signed by the customer', { contentType: MimeType.PDF, overwrite: true });
-            const etag: string | undefined = written ?? (await client.findEntry(`${folder}/mirrored.pdf`))?.etag;
             // whether the server itself names the file by another ETag once it was overwritten, which a client could
             // compare with before it writes
             const listed: string | undefined = (await client.findEntry(`${folder}/mirrored.pdf`))?.etag;

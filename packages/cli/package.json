@@ -64,6 +64,6 @@
         "jest": "^30.4.2",
         "jest-diff": "^30.4.1",
         "ts-jest": "^29.4.11",
-        "typescript": "^5.9.2"
+        "typescript": "^6.0.3"
     }
 }

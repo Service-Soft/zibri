@@ -252,7 +252,7 @@ export class InMemoryStore implements InMemoryScope {
      */
     writeRow(tableName: string, id: string, row: StoredRow): void {
         const rows: Map<string, StoredRow> = this.rowsOf(tableName);
-        this.reindex(tableName, id, rows.get(id), row);
+        this.reIndex(tableName, id, rows.get(id), row);
         rows.set(id, row);
     }
 
@@ -263,7 +263,7 @@ export class InMemoryStore implements InMemoryScope {
      */
     deleteRow(tableName: string, id: string): void {
         const rows: Map<string, StoredRow> = this.rowsOf(tableName);
-        this.reindex(tableName, id, rows.get(id), undefined);
+        this.reIndex(tableName, id, rows.get(id), undefined);
         rows.delete(id);
     }
 
@@ -295,7 +295,7 @@ export class InMemoryStore implements InMemoryScope {
         }
         const created: KeptInMemoryIndex = { entryOf: index.entryOf, ids: new Map() };
         for (const [id, row] of this.rowsOf(tableName)) {
-            this.reindexIn(created, id, undefined, row);
+            this.reIndexIn(created, id, undefined, row);
         }
         byName.set(index.name, created);
         return created;
@@ -308,13 +308,13 @@ export class InMemoryStore implements InMemoryScope {
      * @param previous - The row as it was stored, undefined for one that was not.
      * @param next - The row as it is stored now, undefined for one that is removed.
      */
-    private reindex(tableName: string, id: string, previous: StoredRow | undefined, next: StoredRow | undefined): void {
+    private reIndex(tableName: string, id: string, previous: StoredRow | undefined, next: StoredRow | undefined): void {
         for (const kept of this.indexes.get(tableName)?.values() ?? []) {
-            this.reindexIn(kept, id, previous, next);
+            this.reIndexIn(kept, id, previous, next);
         }
     }
 
-    private reindexIn(kept: KeptInMemoryIndex, id: string, previous: StoredRow | undefined, next: StoredRow | undefined): void {
+    private reIndexIn(kept: KeptInMemoryIndex, id: string, previous: StoredRow | undefined, next: StoredRow | undefined): void {
         const before: string | undefined = previous == undefined ? undefined : kept.entryOf(previous);
         const after: string | undefined = next == undefined ? undefined : kept.entryOf(next);
         if (before === after) {

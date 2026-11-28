@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
+import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { StartedWebDavTestServer, WebDavTestServerUtilities } from '../../__testing__/web-dav/web-dav-test-server.utilities';
@@ -138,12 +139,12 @@ beforeAll(async () => {
     backupConnection = await WebDavTestServerUtilities.createNextcloudUser(nextcloud, { username: BACKUP_USER, password: 'Backup-User-1815-Engine' }, []);
     readerConnection = await WebDavTestServerUtilities.createNextcloudUser(nextcloud, { username: READER, password: READER_PASSWORD }, [READERS_GROUP]);
     server = await startTestServer({ dataSources: [NotesDataSource] });
-}, Ms.MINUTE * 6);
+}, TestTimeouts.nextcloud.start + TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server?.shutdown();
     await nextcloud?.stop();
-}, Ms.SECOND * 30);
+}, TestTimeouts.inMemory.shutdown + TestTimeouts.nextcloud.stop);
 
 describeBackupTransport('NextcloudBackupTransport', () => createTransport('cases', { users: [], groups: [] }));
 
@@ -180,6 +181,7 @@ describe('NextcloudBackupTransport against Nextcloud', () => {
         const folder: string = `Backups-${UUIDUtilities.generate()}`;
         const transport: NextcloudBackupTransport = createTransport(folder, { users: [], groups: [] });
         await putThrough(transport, 'chunks/ab/abcdef');
+        // eslint-disable-next-line cspell/spellchecker
         await putThrough(transport, 'chunks/cd/cdef01');
 
         const session: BackupTransportSessionInterface = await transport.openSession();

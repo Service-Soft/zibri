@@ -1,4 +1,3 @@
-/* eslint-disable cspell/spellchecker */
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { TestTimeouts } from '../../__testing__/constants';

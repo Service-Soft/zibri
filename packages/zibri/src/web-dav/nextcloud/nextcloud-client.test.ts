@@ -56,6 +56,47 @@ describe('NextcloudClient', () => {
         expect(create('https://cloud.example.com/nextcloud/remote.php/dav/files/ada/')).toBeInstanceOf(NextcloudClient);
     });
 
+    // the puts of a backup into new folders at once: Nextcloud answered the move of one with a 500 naming its
+    // LockedException while another request held the folder, where it answers a put with a 423
+    it('moves a file once the folder another request holds locked is free again', async () => {
+        const folder: string = `files/ada/${UUIDUtilities.generate()}`;
+        server.createFolder(folder);
+        server.edit(`${folder}/.upload`, '%PDF-1.7 invoice');
+        server.lockedMoves = 2;
+
+        await createClient(`${folder}/`).move('.upload', '2026-001.pdf', { overwrite: true });
+
+        expect(server.lockedMoves).toBe(0);
+        expect(server.files.get(`${folder}/2026-001.pdf`)?.content.toString()).toBe('%PDF-1.7 invoice');
+    });
+
+    // Nextcloud answered the move of one of many puts into new folders at once with a 500 of its database, a
+    // transaction Postgres had aborted, and moved nothing
+    it('moves a file again where a move failed on the server and left it where it was', async () => {
+        const folder: string = `files/ada/${UUIDUtilities.generate()}`;
+        server.createFolder(folder);
+        server.edit(`${folder}/.upload`, '%PDF-1.7 invoice');
+        server.refusedMoves = 1;
+
+        await createClient(`${folder}/`).move('.upload', '2026-001.pdf', { overwrite: true });
+
+        expect(server.refusedMoves).toBe(0);
+        expect(server.files.get(`${folder}/2026-001.pdf`)?.content.toString()).toBe('%PDF-1.7 invoice');
+        expect(server.files.has(`${folder}/.upload`)).toBe(false);
+    });
+
+    it('throws what a move failed with on the server where it fails again', async () => {
+        const folder: string = `files/ada/${UUIDUtilities.generate()}`;
+        server.createFolder(folder);
+        server.edit(`${folder}/.upload`, '%PDF-1.7 invoice');
+        server.refusedMoves = 2;
+
+        const refused: unknown = await failureOf(createClient(`${folder}/`).move('.upload', '2026-001.pdf', { overwrite: true }));
+
+        expect(refused).toMatchObject({ responseData: { status: 500 } });
+        expect(server.files.get(`${folder}/.upload`)?.content.toString()).toBe('%PDF-1.7 invoice');
+    });
+
     it('finds a file by its id where somebody moved it, through the WebDAV root and through a folder of the user', async () => {
         const folder: string = `files/ada/${UUIDUtilities.generate()}`;
         server.createFolder(`${folder}/Archive`);

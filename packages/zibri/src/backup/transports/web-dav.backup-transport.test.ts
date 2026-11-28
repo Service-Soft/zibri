@@ -186,6 +186,7 @@ describe('WebDavBackupTransport, when an upload fails', () => {
         failing.refusedMoves = 1;
 
         const keys: string[] = await withSession(transport, async session => {
+            // eslint-disable-next-line cspell/spellchecker
             await expect(session.put('chunks/cd/cdef01', Readable.from([Buffer.from('a chunk')]))).rejects.toThrow();
             return await findAllKeys(session, '');
         });

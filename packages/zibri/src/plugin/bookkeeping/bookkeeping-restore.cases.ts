@@ -1,4 +1,3 @@
-/* eslint-disable cspell/spellchecker */
 import assert from 'node:assert';
 
 import { describe, expect, it } from '@jest/globals';

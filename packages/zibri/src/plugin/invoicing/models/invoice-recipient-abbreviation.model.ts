@@ -1,4 +1,3 @@
-/* eslint-disable cspell/spellchecker */
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';

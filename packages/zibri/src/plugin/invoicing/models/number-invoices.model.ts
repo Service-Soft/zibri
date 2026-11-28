@@ -1,4 +1,3 @@
-/* eslint-disable cspell/spellchecker */
 import { FrameworkColumnRegistry } from '../../../data-source/migration/framework-column.registry';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';

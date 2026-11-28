@@ -183,6 +183,7 @@ describe('NextcloudBackupTransport, deleting', () => {
         const transport: NextcloudBackupTransport = createTransport(folder, { users: [], groups: [] });
         await withSession(transport, async session => {
             await session.put('chunks/ab/abcdef', Readable.from([Buffer.from('a chunk')]));
+            // eslint-disable-next-line cspell/spellchecker
             await session.put('chunks/cd/cdef01', Readable.from([Buffer.from('another chunk')]));
         });
         // what somebody else deleted from the folder, theirs to bring back
@@ -193,6 +194,7 @@ describe('NextcloudBackupTransport, deleting', () => {
         expect([...server.trashBin.values()].filter(entry => entry.originalLocation.startsWith(`${folder}/`)).map(entry => entry.originalLocation))
             .toEqual([`${folder}/notes.txt`]);
         expect(server.findFolderPaths(`files/${USER}/${folder}`)).toEqual([`files/${USER}/${folder}/chunks`, `files/${USER}/${folder}/chunks/cd`]);
+        // eslint-disable-next-line cspell/spellchecker
         expect(server.findFilePaths(`files/${USER}/${folder}`)).toEqual([`files/${USER}/${folder}/chunks/cd/cdef01`]);
     });
 

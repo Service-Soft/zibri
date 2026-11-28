@@ -1,10 +1,12 @@
 import { XmlUtilities } from '../../document/xml.utilities';
 import { FileSize } from '../../entity/models/file-property-metadata.model';
 import { InternalError } from '../../error-handling/internal-error.model';
+import { HttpStatus } from '../../http/http-status.enum';
 import { KnownHeader } from '../../http/known-header.enum';
 import { MimeType } from '../../http/mime-type.enum';
 import { HttpClientBufferedBody } from '../../http-client/http-client-buffered-body.model';
 import { HttpClientResponse } from '../../http-client/http-client-response.model';
+import { HttpClientError } from '../../http-client/http-client.error';
 import { WebDavMethod } from '../../http-client/web-dav-method.enum';
 import { HtmlUtilities } from '../../parsing/html/html.utilities';
 import { StorageUtilities } from '../../storage/storage.utilities';
@@ -31,6 +33,11 @@ import { NextcloudOcsShare } from './ocs/nextcloud-ocs-share.model';
  * The segments of the path of the WebDAV root of Nextcloud, below the folder it is installed in.
  */
 const DAV_ROOT_SEGMENTS: [string, string] = ['remote.php', 'dav'];
+
+/**
+ * The exception Nextcloud names in the `500` it answers a move with while another request holds the folder.
+ */
+const LOCKED_EXCEPTION: string = 'OCP\\Lock\\LockedException';
 
 /**
  * The header a put names the checksum of what it writes in, which Nextcloud keeps with the file.
@@ -557,6 +564,34 @@ export class NextcloudClient extends WebDavClient {
      */
     protected resolveOcsHeaders(options: WebDavRequestOptions): Record<string, string> {
         return { ...options.headers, 'ocs-apirequest': 'true', [KnownHeader.ACCEPT]: MimeType.JSON };
+    }
+
+    /**
+     * Whether a move failed in a way that leaves open whether it was carried out: without an answer, or with a `5xx`,
+     * as Nextcloud answers a move its storage or its database failed part way.
+     * @param error - What the move failed with.
+     * @returns Whether the move may or may not have been carried out.
+     */
+    protected override isUndecidedMove(error: unknown): error is HttpClientError {
+        // such as a database error of a transaction Postgres aborted, under many writes into new folders at once
+        return super.isUndecidedMove(error)
+            || (error instanceof HttpClientError && (error.responseData?.status ?? 0) >= HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    /**
+     * Whether a request was refused as something it writes is locked: with a `423`, or for a move with a `500` naming
+     * Nextcloud's `LockedException`.
+     * @param error - What the request failed with.
+     * @returns Whether it was refused as locked.
+     */
+    protected override isLockRefusal(error: unknown): boolean {
+        // a put into a folder another request holds is answered with a 423, a move with a 500 naming the exception
+        return super.isLockRefusal(error) || (
+            error instanceof HttpClientError
+            && error.responseData?.status === HttpStatus.INTERNAL_SERVER_ERROR
+            && typeof error.responseData.body === 'string'
+            && error.responseData.body.includes(LOCKED_EXCEPTION)
+        );
     }
 
     /**

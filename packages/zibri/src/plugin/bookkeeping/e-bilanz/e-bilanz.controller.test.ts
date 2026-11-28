@@ -83,6 +83,7 @@ const roles: TestServerRole[] = [
     { name: MemberRoles.ADMIN, level: 'tenant', permissions: PERMISSIONS, description: undefined }
 ];
 
+// eslint-disable-next-line cspell/spellchecker
 const OTP_SECRET: string = 'JBSWY3DPEHPK3PXPJBSWY3DP';
 
 // the exporter an application registers to download the XBRL

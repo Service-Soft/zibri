@@ -1,5 +1,6 @@
 import { afterAll, beforeAll } from '@jest/globals';
 
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedWebDavTestServer, WebDavTestServerUtilities } from '../__testing__/web-dav/web-dav-test-server.utilities';
 import { GlobalRegistry } from '../global/global-registry';
 import { Ms } from '../utilities/ms';
@@ -17,11 +18,11 @@ beforeAll(async () => {
     GlobalRegistry.markAppAsCreated();
     WebDavTestServerUtilities.initContainer();
     server = await WebDavTestServerUtilities.startApache({ username: 'ada', password: 'Lovelace-1815' });
-}, Ms.MINUTE * 2);
+}, TestTimeouts.apache.start);
 
 afterAll(async () => {
     await server?.stop();
-});
+}, TestTimeouts.apache.stop);
 
 describeWebDavClient('Apache', () => {
     if (server == undefined) {

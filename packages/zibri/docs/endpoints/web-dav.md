@@ -150,7 +150,7 @@ A further property is read as its text, and is `undefined` where the server does
 `findEntries` fails with a `WebDavNotFoundError` for a folder that does not exist, and with an `InternalError` for a path that is a file. A listing is one answer, without pages, of at most 32 MB, some ten thousand entries.
 
 ## Creating folders
-`createFolder` creates a folder, with the folders above it that do not exist. A folder that exists is left as it is, one another call creates at the same time included, and a file where the folder would be fails with a `WebDavConflictError`. A folder whose parent exists takes one request, and each folder above that is missing two more. Calls of one client creating the same folder at once share those requests. A folder the server answers as locked with a `423`, as Nextcloud does while another instance creates it, is tried again for about a second and a half before the `423` is thrown.
+`createFolder` creates a folder, with the folders above it that do not exist. A folder that exists is left as it is, one another call creates at the same time included, and a file where the folder would be fails with a `WebDavConflictError`. A folder whose parent exists takes one request, and each folder above that is missing two more. Calls of one client creating the same folder at once share those requests. A folder the server answers as locked is tried again, see [handling a refused request](#handling-a-refused-request).
 
 A put into a folder that does not exist fails with a `WebDavConflictError`. A file that usually goes into a folder that exists can be put first, and the folders created only for that error.
 
@@ -169,6 +169,8 @@ export async function uploadExport(folder: WebDavClient, name: string, content: 
 
 Nextcloud refuses a name ending in `.part`, which it keeps for uploads of its own.
 
+A move the server answers nothing for, such as on a connection it closes as the move arrives, is judged by what is there: with nothing left at `from` and something at `to` it is done, with the file still at `from` it is sent once more, and with nothing at either path the `HttpClientError` of the missing answer is thrown. `NextcloudClient` judges a move Nextcloud answers with a `5xx` the same way, as Nextcloud answers one its storage or its database failed part way.
+
 `delete` deletes a file, or a folder with everything in it. Both fail with a `WebDavNotFoundError` for a path that holds nothing.
 
 ## Handling a refused request
@@ -184,6 +186,8 @@ A request the server refuses throws an error of the status it answered with. Eac
 Any other status, such as a `401` for a wrong password or a `507` for a full storage, throws the `HttpClientError` itself.
 
 A server answering a folder or a move with another status, such as Apache with a `403` for a folder that exists or a `500` for a move into a folder that does not exist, is answered by what it holds: the client reads the path once more, and throws the error of the table for what it finds. A put answered with a `404`, as Nextcloud answers one into a folder that does not exist, throws a `WebDavConflictError` too.
+
+A put, a move, a delete or a folder the server answers as locked with a `423`, as Nextcloud does while another request writes in the same folder, is tried again for about a second and a half, a put under its condition included, before the `423` is thrown. `NextcloudClient` also tries a move again that Nextcloud answers with a `500` naming its `LockedException`, as it answers a move into a folder another request holds.
 
 ## Using Nextcloud
 Log in with an app password rather than the password of the user. A user creates one under Settings, Security, Devices and sessions. It works with two factor authentication turned on, and is revoked on its own.

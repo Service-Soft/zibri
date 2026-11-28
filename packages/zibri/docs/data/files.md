@@ -275,7 +275,7 @@ export class StorageBoxFileStore extends SftpFileStore {
 }
 ```
 
-Each call of the store connects on its own, and a stream it hands back holds its connection until it is read.
+Calls of the store at the same time share one connection, the calls of a store of a tenant included, and it closes 2 seconds after the last of them. A stream it hands back holds the connection until it is read.
 
 ## Letting a tenant keep its files in its own storage
 A tenant can keep its files in storage of its own, such as a bucket or an SFTP server. Declare `TenantFileStore` beside `FileRecord`, and add the tenant's store through the file service, named like the store it stands in for:

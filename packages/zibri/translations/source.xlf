@@ -100,11 +100,11 @@
       </trans-unit>
       <trans-unit id="A journal entry needs to have at least 2 lines." xml:space="preserve">
         <source>A journal entry needs to have at least 2 lines.</source>
-        <note>src/plugin/bookkeeping/journal-entry.utilities.ts:51</note>
+        <note>src/plugin/bookkeeping/journal-entry.utilities.ts:42</note>
       </trans-unit>
       <trans-unit id="A journal entry needs to have at most {$1} lines." xml:space="preserve">
         <source>A journal entry needs to have at most <x id="$1" equiv-text="{$1}"/> lines.</source>
-        <note>src/plugin/bookkeeping/journal-entry.utilities.ts:54</note>
+        <note>src/plugin/bookkeeping/journal-entry.utilities.ts:45</note>
       </trans-unit>
       <trans-unit id="A login is bound to a DPoP key, which the request carries no proof of." xml:space="preserve">
         <source>A login is bound to a DPoP key, which the request carries no proof of.</source>
@@ -816,7 +816,7 @@
       </trans-unit>
       <trans-unit id="Line {$1} needs to have either a debit or a credit." xml:space="preserve">
         <source>Line <x id="$1" equiv-text="{$1}"/> needs to have either a debit or a credit.</source>
-        <note>src/plugin/bookkeeping/journal-entry.utilities.ts:60</note>
+        <note>src/plugin/bookkeeping/journal-entry.utilities.ts:51</note>
       </trans-unit>
       <trans-unit id="Line {$1} needs to name an account of the books, and &#x22;{$2}&#x22; is none." xml:space="preserve">
         <source>Line <x id="$1" equiv-text="{$1}"/> needs to name an account of the books, and "<x id="$2" equiv-text="{$2}"/>" is none.</source>
@@ -1400,7 +1400,7 @@
       </trans-unit>
       <trans-unit id="The {$1} needs to be a day without a time, such as 2026-03-31." xml:space="preserve">
         <source>The <x id="$1" equiv-text="{$1}"/> needs to be a day without a time, such as 2026-03-31.</source>
-        <note>src/plugin/projects/recurrence.utilities.ts:109, src/plugin/bookkeeping/bookkeeping-day.utilities.ts:31</note>
+        <note>src/plugin/projects/recurrence.utilities.ts:110, src/plugin/bookkeeping/bookkeeping-day.utilities.ts:32</note>
       </trans-unit>
       <trans-unit id="The {$1} of the posting rules need to name each one once, and name {$2} twice." xml:space="preserve">
         <source>The <x id="$1" equiv-text="{$1}"/> of the posting rules need to name each one once, and name <x id="$2" equiv-text="{$2}"/> twice.</source>
@@ -1508,11 +1508,11 @@
       </trans-unit>
       <trans-unit id="The amount of line {$1} needs to be above 0." xml:space="preserve">
         <source>The amount of line <x id="$1" equiv-text="{$1}"/> needs to be above 0.</source>
-        <note>src/plugin/bookkeeping/journal-entry.utilities.ts:63</note>
+        <note>src/plugin/bookkeeping/journal-entry.utilities.ts:54</note>
       </trans-unit>
       <trans-unit id="The amount of line {$1} needs to have at most {$2} decimals, the minor units of {$3}." xml:space="preserve">
         <source>The amount of line <x id="$1" equiv-text="{$1}"/> needs to have at most <x id="$2" equiv-text="{$2}"/> decimals, the minor units of <x id="$3" equiv-text="{$3}"/>.</source>
-        <note>src/plugin/bookkeeping/journal-entry.utilities.ts:67</note>
+        <note>src/plugin/bookkeeping/journal-entry.utilities.ts:58</note>
       </trans-unit>
       <trans-unit id="The amount of the transaction, negative for money paid." xml:space="preserve">
         <source>The amount of the transaction, negative for money paid.</source>
@@ -1764,7 +1764,7 @@
       </trans-unit>
       <trans-unit id="The dayOfMonth of a recurrence needs to be 1 to 31 or -1, and goes with the unit month or year." xml:space="preserve">
         <source>The dayOfMonth of a recurrence needs to be 1 to 31 or -1, and goes with the unit month or year.</source>
-        <note>src/plugin/projects/recurrence.utilities.ts:94</note>
+        <note>src/plugin/projects/recurrence.utilities.ts:95</note>
       </trans-unit>
       <trans-unit id="The debits of the entry, {$1}, do not add up to its credits, {$2}." xml:space="preserve">
         <source>The debits of the entry, <x id="$1" equiv-text="{$1}"/>, do not add up to its credits, <x id="$2" equiv-text="{$2}"/>.</source>
@@ -1772,7 +1772,7 @@
       </trans-unit>
       <trans-unit id="The debits of the entry, {$1}, need to add up to its credits, {$2}." xml:space="preserve">
         <source>The debits of the entry, <x id="$1" equiv-text="{$1}"/>, need to add up to its credits, <x id="$2" equiv-text="{$2}"/>.</source>
-        <note>src/plugin/bookkeeping/journal-entry.utilities.ts:75</note>
+        <note>src/plugin/bookkeeping/journal-entry.utilities.ts:66</note>
       </trans-unit>
       <trans-unit id="The DNS records of '{$1}' could not be read. Try again later." xml:space="preserve">
         <source>The DNS records of '<x id="$1" equiv-text="{$1}"/>' could not be read. Try again later.</source>
@@ -1784,11 +1784,11 @@
       </trans-unit>
       <trans-unit id="The domain '{$1}' is verified by another site already." xml:space="preserve">
         <source>The domain '<x id="$1" equiv-text="{$1}"/>' is verified by another site already.</source>
-        <note>src/plugin/analytics/services/analytics.service.ts:668</note>
+        <note>src/plugin/analytics/services/analytics.service.ts:669</note>
       </trans-unit>
       <trans-unit id="The domain '{$1}' needs a TXT record with the value '{$2}'." xml:space="preserve">
         <source>The domain '<x id="$1" equiv-text="{$1}"/>' needs a TXT record with the value '<x id="$2" equiv-text="{$2}"/>'.</source>
-        <note>src/plugin/analytics/services/analytics.service.ts:340</note>
+        <note>src/plugin/analytics/services/analytics.service.ts:341</note>
       </trans-unit>
       <trans-unit id="The DPoP proof carries no nonce the application issued." xml:space="preserve">
         <source>The DPoP proof carries no nonce the application issued.</source>
@@ -2060,7 +2060,7 @@
       </trans-unit>
       <trans-unit id="The generated invoice-number {$1} already exists!" xml:space="preserve">
         <source>The generated invoice-number <x id="$1" equiv-text="{$1}"/> already exists!</source>
-        <note>src/plugin/invoicing/services/invoice-number.service.ts:495</note>
+        <note>src/plugin/invoicing/services/invoice-number.service.ts:496</note>
       </trans-unit>
       <trans-unit id="The given refresh session has already been used." xml:space="preserve">
         <source>The given refresh session has already been used.</source>
@@ -2360,11 +2360,11 @@
       </trans-unit>
       <trans-unit id="The month of a recurrence goes with the unit year." xml:space="preserve">
         <source>The month of a recurrence goes with the unit year.</source>
-        <note>src/plugin/projects/recurrence.utilities.ts:97</note>
+        <note>src/plugin/projects/recurrence.utilities.ts:98</note>
       </trans-unit>
       <trans-unit id="The name abbreviation {$1} is already used by another recipient." xml:space="preserve">
         <source>The name abbreviation <x id="$1" equiv-text="{$1}"/> is already used by another recipient.</source>
-        <note>src/plugin/invoicing/services/invoice-number.service.ts:448</note>
+        <note>src/plugin/invoicing/services/invoice-number.service.ts:449</note>
       </trans-unit>
       <trans-unit id="The name of a backup needs to be one segment of a path: not empty, &#x22;.&#x22; or &#x22;..&#x22;, and without a slash." xml:space="preserve">
         <source>The name of a backup needs to be one segment of a path: not empty, "." or "..", and without a slash.</source>
@@ -2840,7 +2840,7 @@
       </trans-unit>
       <trans-unit id="The tenant '{$1}' does not exist." xml:space="preserve">
         <source>The tenant '<x id="$1" equiv-text="{$1}"/>' does not exist.</source>
-        <note>src/plugin/analytics/services/analytics.service.ts:683</note>
+        <note>src/plugin/analytics/services/analytics.service.ts:684</note>
       </trans-unit>
       <trans-unit id="The tenant &#x22;{$1}&#x22; is deactivated." xml:space="preserve">
         <source>The tenant "<x id="$1" equiv-text="{$1}"/>" is deactivated.</source>
@@ -2860,7 +2860,7 @@
       </trans-unit>
       <trans-unit id="The tenant has a site of the domain '{$1}' already." xml:space="preserve">
         <source>The tenant has a site of the domain '<x id="$1" equiv-text="{$1}"/>' already.</source>
-        <note>src/plugin/analytics/services/analytics.service.ts:323</note>
+        <note>src/plugin/analytics/services/analytics.service.ts:324</note>
       </trans-unit>
       <trans-unit id="The tenant keeps no books, as it has no bookkeeping settings." xml:space="preserve">
         <source>The tenant keeps no books, as it has no bookkeeping settings.</source>
@@ -2952,7 +2952,7 @@
       </trans-unit>
       <trans-unit id="The until of a recurrence needs to be on or after its startsOn." xml:space="preserve">
         <source>The until of a recurrence needs to be on or after its startsOn.</source>
-        <note>src/plugin/projects/recurrence.utilities.ts:84</note>
+        <note>src/plugin/projects/recurrence.utilities.ts:85</note>
       </trans-unit>
       <trans-unit id="The url of a Nextcloud connection needs to be below /remote.php/dav/ of the server, such as https://cloud.example.com/remote.php/dav/." xml:space="preserve">
         <source>The url of a Nextcloud connection needs to be below /remote.php/dav/ of the server, such as https://cloud.example.com/remote.php/dav/.</source>
@@ -3052,7 +3052,7 @@
       </trans-unit>
       <trans-unit id="The weekdays of a recurrence need to be at least one, and go with the unit week." xml:space="preserve">
         <source>The weekdays of a recurrence need to be at least one, and go with the unit week.</source>
-        <note>src/plugin/projects/recurrence.utilities.ts:88</note>
+        <note>src/plugin/projects/recurrence.utilities.ts:89</note>
       </trans-unit>
       <trans-unit id="The year needs to be a whole number, such as 2026." xml:space="preserve">
         <source>The year needs to be a whole number, such as 2026.</source>

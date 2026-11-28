@@ -12,7 +12,7 @@ describe('the compiler', () => {
             .map(range => /^\^(\d+)\./.exec(range.trim())?.[1]);
 
         // the compiler runs on the application's own TypeScript, and this suite runs once per major
-        // (jest.typescript-6.config.mjs). A major it passes on and the range refuses is an application
+        // (jest.typescript-5.config.mjs). A major it passes on and the range refuses is an application
         // npm will not install beside it
         expect(majors).toContain(ts.version.split('.')[0]);
     });

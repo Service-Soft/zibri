@@ -68,6 +68,7 @@ class AppBookkeepingController extends BookkeepingController {}
 
 const PERMISSIONS: Permission[] = Object.values(ZibriBookkeepingPermissions);
 
+// eslint-disable-next-line cspell/spellchecker
 const OTP_SECRET: string = 'JBSWY3DPEHPK3PXPJBSWY3DP';
 const PLATFORM_PERMISSIONS: PlatformPermission[] = Object.values(ZibriBookkeepingPlatformPermissions);
 

@@ -35,6 +35,21 @@ export type TestServerTimeouts = {
 };
 
 /**
+ * How long jest gives the hooks that start and stop a server in a container a test reaches beside its test server,
+ * such as a WebDAV server.
+ */
+export type TestContainerTimeouts = {
+    /**
+     * For the hook that starts it.
+     */
+    start: number,
+    /**
+     * For the hook that stops it.
+     */
+    stop: number
+};
+
+/**
  * A kind of data source a test server starts, as {@link TestTimeouts} knows it.
  */
 export type TestDataSourceKind = 'postgres' | 'inMemory' | 'valKey';
@@ -59,6 +74,17 @@ export abstract class TestTimeouts {
      * A server on Valkey.
      */
     static readonly valKey: TestServerTimeouts = { start: 30 * Ms.SECOND, shutdown: 15 * Ms.SECOND, restart: 15 * Ms.SECOND };
+
+    /**
+     * Apache's httpd serving WebDAV, in a container of its own.
+     */
+    static readonly apache: TestContainerTimeouts = { start: 2 * Ms.MINUTE, stop: 30 * Ms.SECOND };
+
+    /**
+     * Nextcloud, with the Postgres and the Valkey it runs on.
+     */
+    // stopped one after the other, each given the seconds docker waits before it kills a container
+    static readonly nextcloud: TestContainerTimeouts = { start: 6 * Ms.MINUTE, stop: Ms.MINUTE };
 
     /**
      * The timeouts of a server that starts several kinds of data source: each one's, added up.

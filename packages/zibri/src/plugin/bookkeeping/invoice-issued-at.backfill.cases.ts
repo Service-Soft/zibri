@@ -1,4 +1,3 @@
-/* eslint-disable cspell/spellchecker */
 import { describe, expect, it } from '@jest/globals';
 
 import { Repository } from '../../data-source/repository/repository';

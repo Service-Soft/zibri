@@ -134,6 +134,14 @@ export class SftpStorageSession implements StorageSessionInterface {
     }
 
     /**
+     * Whether the connection ended, after which the session answers nothing any more.
+     * @returns True once it ended.
+     */
+    get isEnded(): boolean {
+        return this.ended != undefined;
+    }
+
+    /**
      * Connects to the server, logs in, and opens the SFTP session.
      * @param naming - How the errors name the store.
      * @param options - Where the server is, how to log in, and the folder the blobs are kept in.

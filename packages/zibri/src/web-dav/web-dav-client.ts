@@ -52,9 +52,10 @@ const MAX_LISTING_SIZE: FileSize = '32mb';
 const MAX_IGNORED_BODY_SIZE: FileSize = '1mb';
 
 /**
- * How long a folder is waited for between the attempts to create one that is locked, before what is there is read.
+ * How long is waited between the attempts of a write the server answers with a 423, as the folder it writes in is
+ * locked.
  */
-const LOCKED_FOLDER_RETRY_DELAYS_IN_MS: readonly number[] = [100, 200, 400, 800];
+const LOCKED_RETRY_DELAYS_IN_MS: readonly number[] = [100, 200, 400, 800];
 
 // the status line of a group of properties the server found, such as `HTTP/1.1 200 OK`
 const SUCCESS_STATUS_LINE: RegExp = /^HTTP\/\S+ 2\d\d\b/;
@@ -238,7 +239,7 @@ export class WebDavClient {
             ...options.ifNoneMatch == undefined ? {} : { [KnownHeader.IF_NONE_MATCH]: options.ifNoneMatch }
         };
         try {
-            return await this.sendPut(url, content, requestOptions, conditions, headers, options);
+            return await this.sendWhileLocked(async () => await this.sendPut(url, content, requestOptions, conditions, headers, options));
         }
         catch (error) {
             // a put needs nothing at its own path, so a 404 is of the folder it is in: Nextcloud answers a folder that
@@ -294,7 +295,10 @@ export class WebDavClient {
      */
     async delete(path: string): Promise<void> {
         const url: string = this.resolveUrl(path, false);
-        await this.sendMappingErrors(path, async () => await this.sendIgnoringBody(HttpMethod.DELETE, url, {}));
+        await this.sendMappingErrors(
+            path,
+            async () => await this.sendWhileLocked(async () => await this.sendIgnoringBody(HttpMethod.DELETE, url, {}))
+        );
     }
 
     /**
@@ -309,30 +313,94 @@ export class WebDavClient {
     async move(from: string, to: string, options: WebDavMoveOptions): Promise<void> {
         const source: string = this.resolveUrl(from, false);
         const destination: string = this.resolveUrl(to, false);
-        try {
-            await this.sendIgnoringBody(WebDavMethod.MOVE, source, {
+        const send: () => Promise<void> = async () => await this.sendWhileLocked(
+            async () => await this.sendIgnoringBody(WebDavMethod.MOVE, source, {
                 // absolute, which RFC 4918 allows a path for, and which some servers insist on
                 [DESTINATION_HEADER]: destination,
                 [OVERWRITE_HEADER]: options.overwrite ? 'T' : 'F'
-            });
+            })
+        );
+        try {
+            await send();
         }
         catch (error) {
-            const status: HttpStatus | undefined = WebDavClient.findStatus(error);
-            // a 404 is about what is moved, every other refusal about where it goes
-            if (status === HttpStatus.NOT_FOUND) {
-                throw WebDavClient.resolveError(from, error);
+            if (!this.isUndecidedMove(error)) {
+                throw await this.resolveMoveError(from, to, error);
             }
-            // a server need not answer a folder that is not there with the 409 of RFC 4918: Apache renames, and
-            // answers a 500. So a refusal saying nothing of its own is judged by whether the folder is there
-            if (
-                error instanceof HttpClientError && status != undefined
-                && status !== HttpStatus.PRECONDITION_FAILED && status !== HttpStatus.CONFLICT
-                && await this.isMissingFolderOf(to)
-            ) {
-                throw new WebDavConflictError(to, error);
+            // the http client sends no MOVE again: one repeated after its answer got lost fails on what the first one
+            // did. So, as a server such as Apache closes a connection it keeps alive just as a request arrives on it,
+            // what is at both paths says whether it was carried out
+            if (await this.isMovedAfterUndecidedMove(from, to, error)) {
+                return;
             }
-            throw WebDavClient.resolveError(to, error);
+            try {
+                await send();
+            }
+            catch (error_) {
+                throw await this.resolveMoveError(from, to, error_);
+            }
         }
+    }
+
+    /**
+     * Whether a move failed in a way that leaves open whether it was carried out, so that what is at both paths
+     * decides: without an answer. For a class building on this one whose server answers a move it failed part way,
+     * such as Nextcloud.
+     * @param error - What the move failed with.
+     * @returns Whether the move may or may not have been carried out.
+     */
+    protected isUndecidedMove(error: unknown): error is HttpClientError {
+        return WebDavClient.isUnanswered(error);
+    }
+
+    /**
+     * Finds out whether a move that failed without saying whether it was carried out was carried out.
+     * @param from - The path moved from.
+     * @param to - The path moved to.
+     * @param failure - What the move failed with.
+     * @returns True where nothing is left at `from` and something is at `to`, false where it is still at `from`.
+     * @throws The error the move failed with, where nothing is at either path, or neither can be read.
+     */
+    private async isMovedAfterUndecidedMove(from: string, to: string, failure: HttpClientError): Promise<boolean> {
+        if (await this.findEntryAfterRefusal(from, failure) != undefined) {
+            return false;
+        }
+        if (await this.findEntryAfterRefusal(to, failure) != undefined) {
+            return true;
+        }
+        throw failure.responseData == undefined ? failure : await this.resolveMoveError(from, to, failure);
+    }
+
+    /**
+     * Resolves the error of a move the server refused.
+     * @param from - The path moved from.
+     * @param to - The path moved to.
+     * @param error - What the move failed with.
+     * @returns The typed error of the refusal.
+     */
+    private async resolveMoveError(from: string, to: string, error: unknown): Promise<unknown> {
+        const status: HttpStatus | undefined = WebDavClient.findStatus(error);
+        // a 404 is about what is moved, every other refusal about where it goes
+        if (status === HttpStatus.NOT_FOUND) {
+            return WebDavClient.resolveError(from, error);
+        }
+        // a server need not answer a folder that is not there with the 409 of RFC 4918: Apache renames, and
+        // answers a 500. So a refusal saying nothing of its own is judged by whether the folder is there
+        return error instanceof HttpClientError && status != undefined
+            && status !== HttpStatus.PRECONDITION_FAILED && status !== HttpStatus.CONFLICT
+            && await this.isMissingFolderOf(to)
+            ? new WebDavConflictError(to, error)
+            : WebDavClient.resolveError(to, error);
+    }
+
+    /**
+     * Whether a request failed without an answer of the server, such as on a connection the server closed.
+     * @param error - What the request failed with.
+     * @returns Whether it is an error of the http client that carries no answer.
+     */
+    private static isUnanswered(error: unknown): error is HttpClientError {
+        // a circuit that is open sent nothing at all, and is no answer that got lost
+        return error instanceof HttpClientError && !(error instanceof CircuitOpenError) && error.responseData == undefined;
     }
 
     /**
@@ -761,18 +829,41 @@ export class WebDavClient {
      * @throws The error of the last attempt, a 423 among them once the attempts are used up.
      */
     private async sendFolderCreation(segments: string[]): Promise<void> {
-        for (const delayInMs of [...LOCKED_FOLDER_RETRY_DELAYS_IN_MS, undefined]) {
+        await this.sendWhileLocked(async () => await this.sendIgnoringBody(WebDavMethod.MKCOL, this.resolveUrlOf(segments, true), {}));
+    }
+
+    /**
+     * Sends a write, again while the server refuses it as locked: the folder it writes in is locked by another request
+     * writing there, such as the MKCOL of a folder beside it, which a server such as Nextcloud holds the folder for.
+     * @param send - Sends the write.
+     * @returns What the write resolves to.
+     * @throws The error of the last attempt, the refusal among them once the attempts are used up.
+     */
+    // again under a condition as well: a lock refuses the write before anything is written, so nothing changed the
+    // ETag the condition names
+    private async sendWhileLocked<T>(send: () => Promise<T>): Promise<T> {
+        for (const delayInMs of LOCKED_RETRY_DELAYS_IN_MS) {
             try {
-                await this.sendIgnoringBody(WebDavMethod.MKCOL, this.resolveUrlOf(segments, true), {});
-                return;
+                return await send();
             }
             catch (error) {
-                if (delayInMs == undefined || WebDavClient.findStatus(error) !== HttpStatus.LOCKED) {
+                if (!this.isLockRefusal(error)) {
                     throw error;
                 }
                 await sleep(delayInMs);
             }
         }
+        return await send();
+    }
+
+    /**
+     * Whether a request was refused as something it writes is locked, which the server is free of again shortly. For a
+     * class building on this one whose server says so in another way, such as Nextcloud.
+     * @param error - What the request failed with.
+     * @returns Whether it was refused with a `423 Locked`.
+     */
+    protected isLockRefusal(error: unknown): boolean {
+        return WebDavClient.findStatus(error) === HttpStatus.LOCKED;
     }
 
     /**

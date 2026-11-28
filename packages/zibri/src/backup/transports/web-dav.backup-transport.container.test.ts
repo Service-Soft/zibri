@@ -4,6 +4,7 @@ import { buffer } from 'node:stream/consumers';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
+import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { StartedWebDavTestServer, WebDavTestServerUtilities } from '../../__testing__/web-dav/web-dav-test-server.utilities';
@@ -113,12 +114,12 @@ describe('WebDavBackupTransport against Apache', () => {
         webDav = await WebDavTestServerUtilities.startApache({ username: 'ada', password: 'Lovelace-1815' });
         connection = webDav.connection;
         server = await startTestServer({ dataSources: [DbDataSource] });
-    }, Ms.MINUTE * 2);
+    }, TestTimeouts.apache.start + TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
         await webDav?.stop();
-    }, Ms.SECOND * 30);
+    }, TestTimeouts.inMemory.shutdown + TestTimeouts.apache.stop);
 
     describeBackupTransport('WebDavBackupTransport', () => new WebDavBackupTransport('apache-backup-transport-cases', {
         connection: getConnection(),

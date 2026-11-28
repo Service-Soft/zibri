@@ -33,12 +33,12 @@ beforeAll(async () => {
         ]
     });
     await testServer.start();
-}, Ms.MINUTE * 2);
+}, TestTimeouts.apache.start + TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await testServer?.shutdown();
     await server?.stop();
-}, TestTimeouts.inMemory.shutdown);
+}, TestTimeouts.inMemory.shutdown + TestTimeouts.apache.stop);
 
 describeCalendarSync('Apache', () => {
     if (server == undefined) {

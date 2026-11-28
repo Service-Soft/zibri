@@ -380,13 +380,13 @@ describe('typescript', () => {
     });
 
     // the extractor runs on the application's own TypeScript, the one the templates are compiled with, so
-    // every major the compiler admits is one it reads the sources with. TypeScript 6 is installed here as
-    // `typescript-6`
+    // every major the compiler admits is one it reads the sources with. TypeScript 5 is installed here as
+    // `typescript-5`
     describe('on every major the compiler of the templates admits', () => {
         let extractions: Extraction[];
 
         beforeAll(() => {
-            extractions = ['typescript', 'typescript-6'].map(installedAs => extractingWith(installedAs));
+            extractions = ['typescript', 'typescript-5'].map(installedAs => extractingWith(installedAs));
         }, 240_000);
 
         it('is admitted by the compiler\'s peer range', () => {
