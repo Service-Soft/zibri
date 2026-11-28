@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { Page } from 'playwright';
-import { inject, MailingList, MailingListServiceInterface, MailingListSubscriber, Repository, repositoryTokenFor, TenantServiceInterface, UUIDUtilities, ZIBRI_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
+import { inject, Repository, repositoryTokenFor, TenantServiceInterface, UUIDUtilities, ZIBRI_DI_TOKENS } from 'zibri';
+import { MailingList, MailingListServiceInterface, MailingListSubscriber, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri/plugin/mailing-list';
 import { PageBrowser, startPageBrowser, StartedTestServer, startTestServer } from 'zibri-testing';
 
 import { testApplicationOptions } from '../../__testing__/test-application-options';

@@ -1,3 +1,5 @@
+import { type TenantBackupTransportModel } from 'zibri-contract';
+
 import { BaseTenantEntity } from '../../entity/base-tenant-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
@@ -5,11 +7,12 @@ import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
  * A transport a tenant configured for its own backups: storage of one of the kinds
- * `BACKUP_TENANT_TRANSPORT_OPTIONS` lists, such as a bucket or an SFTP server.
+ * `BACKUP_TENANT_TRANSPORT_OPTIONS` lists, such as a bucket or an SFTP server. Tenants manage theirs through the routes
+ * of a `TenantBackupTransportController`.
  */
 // declared only by an application whose tenants configure transports of their own
 @Entity({ uniques: [['name']], allowOrphan: true })
-export class TenantBackupTransport extends BaseTenantEntity() {
+export class TenantBackupTransport extends BaseTenantEntity() implements TenantBackupTransportModel {
     /**
      * What the tenant calls it, unique within the tenant.
      */
@@ -44,4 +47,15 @@ export type TenantBackupTransportCreateData = OmitStrict<TenantBackupTransport, 
      * The secret it logs in with, as the `secretModel` of its kind describes it.
      */
     secret: Record<string, unknown>
+};
+
+/**
+ * What changes of a tenant's transport, each unchanged when absent and replaced as a whole when given, its secret as it
+ * is. Its kind never changes.
+ */
+export type TenantBackupTransportChangeData = Partial<Pick<TenantBackupTransport, 'name' | 'settings'>> & {
+    /**
+     * The secret it logs in with, as the `secretModel` of its kind describes it.
+     */
+    secret?: Record<string, unknown>
 };

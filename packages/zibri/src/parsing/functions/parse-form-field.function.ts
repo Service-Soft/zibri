@@ -1,5 +1,6 @@
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { Relation } from '../../entity/models/relation.enum';
+import { FilePropertyUtilities } from '../../file/file-property.utilities';
 import { parseArray } from './parse-array.function';
 import { parseBoolean } from './parse-boolean.function';
 import { parseDate } from './parse-date.function';
@@ -38,6 +39,10 @@ export function parseFormField(value: string | string[], property: PropertyMetad
             return parseObject(value, property.cls());
         }
         case 'array': {
+            // an empty field in place of the files of an entity kept in a file store removes them all
+            if (value === '' && FilePropertyUtilities.isInStore(property.items)) {
+                return [];
+            }
             const parsed: unknown = parseArray(value, property.items);
             // a field sent once is a list of one item, which is how a form sends a list holding one
             return Array.isArray(parsed) ? parsed : [parseFormField(value, property.items)];
@@ -48,12 +53,15 @@ export function parseFormField(value: string | string[], property: PropertyMetad
         case 'oneOf': {
             return parseOneOf(value, property);
         }
+        case 'file': {
+            // an empty field in place of the file of an entity kept in a file store removes it
+            return value === '' && FilePropertyUtilities.isInStore(property) ? null : value;
+        }
         case Relation.HAS_ONE:
         case Relation.BELONGS_TO_ONE:
         case Relation.ONE_TO_MANY:
         case Relation.MANY_TO_ONE:
         case Relation.MANY_TO_MANY:
-        case 'file':
         case 'unknown': {
             return value;
         }

@@ -139,11 +139,14 @@ export abstract class EntitySnapshotUtilities {
                 }
                 return { type: 'oneOf', ...required, shapes };
             }
+            case 'file': {
+                // a file kept in a file store is stored as the id of its row
+                return metadata.store == undefined ? { type: 'file', ...required } : { type: 'string', ...required, format: 'uuid' };
+            }
             case 'boolean':
             case 'date':
             case 'object':
-            case 'unknown':
-            case 'file': {
+            case 'unknown': {
                 return { type: metadata.type, ...required };
             }
         }

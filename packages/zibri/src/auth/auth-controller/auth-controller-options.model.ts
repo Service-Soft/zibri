@@ -14,7 +14,9 @@ export type AuthControllerOptions<
     CurrentUserRoute extends boolean = false,
     ConfirmEmailRoute extends boolean = false,
     TwoFactorRegistrationsRoute extends boolean = false,
-    InvitationRoutes extends boolean = false
+    InvitationRoutes extends boolean = false,
+    UpdateCurrentUserRoute extends boolean = false,
+    LoginMethodsRoute extends boolean = false
 > = {
     /**
      * The auth strategies a login can be started with. A request names the one it logs in with by its
@@ -59,5 +61,17 @@ export type AuthControllerOptions<
      * Whether `POST /verify-invitation-token`, `POST /accept-invitation` and `POST /decline-invitation` are there,
      * which answer the link of an invitation. Needs an invitation repository. Not by default.
      */
-    invitationRoutes?: InvitationRoutes
+    invitationRoutes?: InvitationRoutes,
+    /**
+     * Whether `PATCH /me` is there, which changes the settings of the logged in user, their locale, and answers like
+     * `GET /me`. Needs `updateLocale` of the `UserService`. Not by default.
+     */
+    // asked for, as GET /me is: an application of 3.x can have a PATCH /me of its own
+    updateCurrentUserRoute?: UpdateCurrentUserRoute,
+    /**
+     * Whether `GET /login-methods` is there, which answers the ways the login route takes, a password and a link
+     * sent by email, from the `authenticators`. Not by default.
+     */
+    // asked for, as GET /me is: an application of 3.x can have a route of its own at that path
+    loginMethodsRoute?: LoginMethodsRoute
 };

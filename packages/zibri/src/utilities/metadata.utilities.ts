@@ -1,12 +1,14 @@
 /* eslint-disable jsdoc/require-jsdoc */
 // every import of a subsystem built on utilities is marked `type`: this file only names their
 // metadata shapes, and a value import would put utilities in a runtime cycle with each of them
+import { type ArchiveMetadata } from '../archive/archive-options.model';
 import { type CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
 import { type HasAnyLevelPermissionMetadata } from '../auth/models/has-any-level-permission-metadata.model';
 import { type HasPermissionMetadata, type SkipHasPermissionMetadata } from '../auth/models/has-permission-metadata.model';
 import { type IsLoggedInMetadata, type SkipIsLoggedInMetadata } from '../auth/models/is-logged-in-metadata.model';
 import { type IsNotLoggedInMetadata, type SkipIsNotLoggedInMetadata } from '../auth/models/is-not-logged-in-metadata.model';
 import { type Require2faMetadata, type SkipRequire2faMetadata } from '../auth/models/require-2fa-metadata.model';
+import { type RequireShareRoleMetadata } from '../auth/models/require-share-role-metadata.model';
 import { type SkipAuthMetadata } from '../auth/models/skip-auth-metadata.model';
 import { type Permission } from '../auth/roles/permission.type';
 import { type PlatformPermission } from '../auth/roles/platform-permission.type';
@@ -20,6 +22,8 @@ import { EntityMetadata } from '../entity/decorators/entity.decorator';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { type EntityCheck } from '../entity/models/entity-check.model';
 import { InvalidDecoratorCombinationError } from '../error-handling/errors/invalid-decorator-combination.error';
+import { type ServedFilesMetadata } from '../file/served-files-metadata.model';
+import { type FileStoreInterface } from '../file/stores/file-store.interface';
 import { type OpenApiResponse } from '../open-api/open-api.model';
 import { XmlPropertyMetadata } from '../parsing/xml/xml-property-metadata.model';
 import { XmlRootMetadata } from '../parsing/xml/xml-root-metadata.model';
@@ -394,6 +398,18 @@ export abstract class MetadataUtilities {
         );
     }
 
+    static setRouteServedFiles(controller: Function, data: ServedFilesMetadata, controllerMethod: string): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SERVED_FILES, data, controller, controllerMethod);
+    }
+
+    static getRouteServedFiles(controller: Function, controllerMethod: string): ServedFilesMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<ServedFilesMetadata>(
+            MetadataInjectionKeys.ROUTE_SERVED_FILES,
+            controller,
+            controllerMethod
+        );
+    }
+
     static setRouteCurrentUser(controller: Function, body: CurrentUserMetadata, controllerMethod: string): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_CURRENT_USER, body, controller, controllerMethod);
     }
@@ -654,6 +670,27 @@ export abstract class MetadataUtilities {
         return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_REQUIRE_2FA, controller);
     }
 
+    // ---------- require share role (method-level, inherit) ----------
+    static setRouteRequireShareRole(controller: Function, data: RequireShareRoleMetadata, controllerMethod: string): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_REQUIRE_SHARE_ROLE, data, controller, controllerMethod);
+    }
+
+    static getRouteRequireShareRole(controller: Function, controllerMethod: string): RequireShareRoleMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<RequireShareRoleMetadata>(
+            MetadataInjectionKeys.ROUTE_REQUIRE_SHARE_ROLE,
+            controller,
+            controllerMethod
+        );
+    }
+
+    static setControllerRequireShareRole(controller: Function, data: RequireShareRoleMetadata): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_REQUIRE_SHARE_ROLE, data, controller);
+    }
+
+    static getControllerRequireShareRole(controller: Function): RequireShareRoleMetadata | undefined {
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_REQUIRE_SHARE_ROLE, controller);
+    }
+
     // skip all auth.
 
     static setRouteSkipAuth(controller: Function, data: SkipAuthMetadata, controllerMethod: string): void {
@@ -748,6 +785,15 @@ export abstract class MetadataUtilities {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.ENTITY_METADATA, entity);
     }
 
+    // ---------- archive metadata ----------
+    static setArchiveMetadata(entity: Newable<unknown>, metadata: ArchiveMetadata): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ARCHIVE_METADATA, metadata, entity);
+    }
+
+    static getArchiveMetadata(entity: Newable<unknown>): ArchiveMetadata | undefined {
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.ARCHIVE_METADATA, entity);
+    }
+
     // ---------- repository for metadata (own only) ----------
     // own rather than inherited, so that a class extending a repository of an entity is not taken for
     // a second one of it
@@ -814,7 +860,7 @@ export abstract class MetadataUtilities {
     }
 
     static getBackupResourceMetadata(
-        entity: Newable<BackupResourceInterface> | BackupResourceInterface
+        entity: Newable<BackupResourceInterface> | BackupResourceInterface | FileStoreInterface
     ): BackupResourceMetadata | undefined {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.BACKUP_RESOURCE_METADATA, this.toNewable(entity));
     }

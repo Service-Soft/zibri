@@ -63,13 +63,13 @@ key, and the data keys are encrypted with a [master key](../glossary.md#master-k
 // src/providers.ts
 import { AesGcmEncryptionStrategy, defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
 
-import { requireEnv } from './env';
+import { env } from './env';
 
 defineProvider({
     token: ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS,
     useValue: {
         currentMasterStrategy: new AesGcmEncryptionStrategy(),
-        currentMasterKey: { id: 'k1', value: Buffer.from(requireEnv('MASTER_KEY'), 'base64url') }
+        currentMasterKey: { id: 'k1', value: Buffer.from(env.masterKey, 'base64url') }
     }
 })
 ```

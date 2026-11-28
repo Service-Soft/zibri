@@ -232,6 +232,14 @@ describe('AsyncApiService', () => {
         expect(described['data']).toEqual({ text: 'string' });
     }, 15000);
 
+    // neither is stored, so neither has a seq to send, and both are sent with a status
+    it('describes what the application sends of its own with the fields it is sent with', () => {
+        expect(Object.keys(exampleOf(operation('ws:tenant-deactivated').messages[0], 'response') as Record<string, unknown>).sort())
+            .toEqual(['data', 'ok', 'status']);
+        expect(Object.keys(exampleOf(operation('ws:replay-incomplete').messages[0], 'response') as Record<string, unknown>).sort())
+            .toEqual(['data', 'ok', 'status']);
+    });
+
     it('builds an example of a message with an xml body as the text of its document, which the route reads', async () => {
         const note: AsyncApiExplorerOperation = operation('chat:note');
         const example: unknown = exampleOf(note.messages[0], 'request');

@@ -154,11 +154,6 @@ const INCREMENT_OVERHEAD_RATIO: number = 2;
 const RECORD_SLACK_BYTES: number = MIB;
 
 /**
- * How much a duration may grow beyond the growth of the data, before it counts as worse than linear.
- */
-const LINEAR_SLACK_RATIO: number = 1.5;
-
-/**
  * How much slower than on the release the slowest answer of a Valkey server may be before the comparison with
  * the release counts it.
  */
@@ -763,24 +758,6 @@ function dataBytesOf(scenario: BackupScenario): number {
 }
 
 /**
- * The measurements of each series, from the least data to the most.
- * @param taken - Every measurement.
- * @returns The series, by name.
- */
-function resolveSeries(taken: TakenMeasurement[]): Map<string, TakenMeasurement[]> {
-    const series: Map<string, TakenMeasurement[]> = new Map();
-    for (const t of taken) {
-        if (t.scenario.series != undefined) {
-            series.set(t.scenario.series, [...series.get(t.scenario.series) ?? [], t]);
-        }
-    }
-    for (const measurements of series.values()) {
-        measurements.sort((a, b) => dataBytesOf(a.scenario) - dataBytesOf(b.scenario));
-    }
-    return series;
-}
-
-/**
  * A measurement as it is compared with another of its suite, with the scenario it was taken of.
  * @param t - The measurement.
  * @returns What it is compared by.
@@ -831,6 +808,9 @@ function resolveTransportBeside(transport: MeasuredTransportConfig): MeasuredTra
         }
         case 'sftp': {
             return { ...transport, options: { ...transport.options, path: `${transport.options.path}-again` } };
+        }
+        case 'web-dav': {
+            return { ...transport, options: { ...transport.options, folder: `${transport.options.folder}-again` } };
         }
     }
 }
@@ -1085,26 +1065,14 @@ export function describeBackupCosts(options: BackupBenchmarkOptions): void {
             await BenchmarkUtilities.writeFigureReport(measurements.flatMap(toFigures), figureReportPath);
         }, MEASURING_TIMEOUT_IN_MS);
 
-        it('takes at most linearly longer for more data', () => {
-            const backupMsOf: (t: TakenMeasurement) => number = t => medianOf(t.measurement.backups.map(b => b.durationMs));
-            const slower: string[] = [...resolveSeries(taken).values()].flatMap(series => {
-                const smallest: TakenMeasurement | undefined = series[0];
-                if (smallest == undefined) {
-                    return [];
-                }
-                return series.slice(1).flatMap(t => {
-                    const dataRatio: number = dataBytesOf(t.scenario) / dataBytesOf(smallest.scenario);
-                    const ratio: number = backupMsOf(t) / backupMsOf(smallest);
-                    return ratio <= dataRatio * LINEAR_SLACK_RATIO
-                        ? []
-                        : [
-                            `${t.measurement.name}: ${ratio.toFixed(1)}x as long as ${smallest.measurement.name}, `
-                            + `for ${dataRatio.toFixed(1)}x the data`
-                        ];
-                });
-            });
+        it('takes at most linearly longer for more data', async () => {
+            const slower: string[] = await BackupComparisonUtilities.findConfirmedNonLinearGrowth(
+                taken.map(toCompared),
+                async compared => toCompared(await measureAgain(compared.scenario))
+            );
+
             expect(slower).toStrictEqual([]);
-        });
+        }, MEASURING_TIMEOUT_IN_MS);
 
         it('takes no longer and stores no more than what each measurement is compared with', async () => {
             const violations: string[] = await BackupComparisonUtilities.findConfirmedViolations(

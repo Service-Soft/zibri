@@ -1,5 +1,5 @@
-import { HttpMethod } from '../http/http-method.enum';
 import { OmitStrict } from '../types/omit-strict.type';
+import { HttpClientMethod } from './http-client-method.type';
 import { HttpClientResponse } from './http-client-response.model';
 
 /**
@@ -9,7 +9,7 @@ export type HttpClientErrorRequestData = {
     /**
      * The request method.
      */
-    method: HttpMethod,
+    method: HttpClientMethod,
     /**
      * The body of the request.
      */

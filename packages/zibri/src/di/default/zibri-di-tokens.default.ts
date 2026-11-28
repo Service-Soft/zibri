@@ -1,3 +1,4 @@
+import { type ArchiveServiceInterface } from '../../archive/archive-service.interface';
 import { AssetServiceInterface } from '../../assets/asset-service.interface';
 import { AsyncApiServiceInterface } from '../../async-api/async-api-service.interface';
 import { AsyncApiServer } from '../../async-api/async-api.model';
@@ -11,6 +12,7 @@ import { TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.int
 import { AuthServiceInterface } from '../../auth/auth-service.interface';
 import { AuthRateLimitOptions } from '../../auth/auth.rate-limiter';
 import { FederationOptions } from '../../auth/authenticators/federated/federation-options.model';
+import { LoginLinkOptions } from '../../auth/authenticators/login-link/login-link-options.model';
 import { FidoMetadataServiceInterface } from '../../auth/authenticators/passkey/fido-metadata-service.interface';
 import { PasskeyOptions } from '../../auth/authenticators/passkey/passkey-options.model';
 import { PasskeyServiceInterface } from '../../auth/authenticators/passkey/passkey-service.interface';
@@ -50,6 +52,7 @@ import { BackupScrubOptions } from '../../backup/repository/backup-scrub-options
 import { TenantBackupTransportOptions } from '../../backup/tenant/tenant-backup-transport-options.model';
 import { WriteThroughReadThroughCache } from '../../caching/cache/read-through/write-through-read-through.cache';
 import { CacheServiceInterface } from '../../caching/cache-service.interface';
+import { type CalendarSyncServiceInterface } from '../../calendar-sync/calendar-sync-service.interface';
 import { CacheContext } from '../../context/cache/cache.context';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
@@ -57,6 +60,7 @@ import { CronServiceInterface } from '../../cron/cron-service.interface';
 import { type ChainServiceInterface } from '../../data-source/chain/chain-service.interface';
 import { DataSourceServiceInterface } from '../../data-source/data-source-service.interface';
 import { RepositoryHooks } from '../../data-source/hooks/repository-hooks.model';
+import { PdfAccessOptions } from '../../document/pdf-access-options.model';
 import { PdfFontOptions } from '../../document/pdf-font-options.model';
 import { EmailServiceInterface } from '../../email/email-service.interface';
 import { EmailConfigInput } from '../../email/models/email-config.model';
@@ -64,6 +68,9 @@ import { EmailTransportInterface } from '../../email/transports/email-transport.
 import { GlobalErrorHandler, ErrorPageTemplate } from '../../error-handling/error-handler.model';
 import { EventServiceInterface } from '../../event/event-service.interface';
 import { FrameworkEventNames } from '../../event/framework-event-names.model';
+import { FileServiceInterface } from '../../file/file-service.interface';
+import { TenantFileStoreOptions } from '../../file/tenant/tenant-file-store-options.model';
+import { type FileMirrorServiceInterface } from '../../file-mirror/file-mirror-service.interface';
 import { HandlebarOptions } from '../../handlebars/handlebar.utilities';
 import { CompressionOptions } from '../../http/compression.middleware';
 import { HttpServerLimits } from '../../http/http-server-limits.model';
@@ -88,6 +95,7 @@ import { WakeUpServiceInterface } from '../../polling/wake-up-service.interface'
 import { RateLimiterInterface } from '../../rate-limiting/limiter/rate-limiter.interface';
 import { RateLimitingServiceInterface } from '../../rate-limiting/rate-limiting-service.interface';
 import { RouterInterface } from '../../routing/router.interface';
+import { type ShareServiceInterface } from '../../sharing/share-service.interface';
 import { SmsServiceInterface } from '../../sms/sms-service.interface';
 import { MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
 import { TenantServiceInterface } from '../../tenancy/tenant-service.interface';
@@ -102,6 +110,10 @@ import { type RetentionInMs } from '../../types/retention-in-ms.type';
 import { FsPath } from '../../utilities/fs.utilities';
 import { ValidationServiceInterface } from '../../validation/validation-service.interface';
 import { VersioningServiceInterface } from '../../versioning/versioning-service.interface';
+import { type TenantWebDavConnectionServiceInterface } from '../../web-dav/tenant-web-dav-connection-service.interface';
+import { type TenantWebDavConnectionUsageCleanerInterface } from '../../web-dav/tenant-web-dav-connection-usage-cleaner.interface';
+import { type TenantWebDavConnectionUsageFinderInterface } from '../../web-dav/tenant-web-dav-connection-usage-finder.interface';
+import { WebDavTenantConnectionOptions } from '../../web-dav/web-dav-tenant-connection-options.model';
 import { WebsocketOptions, WebsocketOptionsInput } from '../../websocket/models/websocket-options.model';
 import { WebsocketServiceInterface } from '../../websocket/services/websocket-service.interface';
 import { TokenRecord } from '../models/di-token.model';
@@ -147,6 +159,7 @@ export const ZIBRI_DI_TOKENS = {
     AUDIT_INTEGRITY: ziToken<AuditIntegrity>('zi.audit_integrity'),
     AUDIT_SEAL_DELAY_IN_MS: ziToken<number>('zi.audit_seal_delay_in_ms'),
     CHAIN_SERVICE: ziToken<ChainServiceInterface>('zi.chain_service'),
+    ARCHIVE_SERVICE: ziToken<ArchiveServiceInterface>('zi.archive_service'),
     METRICS_SERVICE: ziToken<MetricsServiceInterface>('zi.metrics_service'),
     ASSET_SERVICE: ziToken<AssetServiceInterface>('zi.asset_service'),
     BACKUP_SERVICE: ziToken<BackupServiceInterface>('zi.backup_service'),
@@ -244,6 +257,7 @@ export const ZIBRI_DI_TOKENS = {
     METRICS_REQUEST_DURATION_BUCKETS_IN_MS: ziToken<number[]>('zi.metrics_request_duration_buckets_in_ms'),
     METRICS_DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS: ziToken<number>('zi.metrics_data_source_collector_interval_in_ms'),
     PDF_FONT_OPTIONS: ziToken<PdfFontOptions>('zi.pdf_font_options'),
+    PDF_ACCESS_OPTIONS: ziToken<PdfAccessOptions>('zi.pdf_access_options'),
     TENANT_SERVICE: ziToken<TenantServiceInterface>('zi.tenant_service'),
     MEMBERSHIP_SERVICE: ziToken<MembershipServiceInterface>('zi.membership_service'),
     /**
@@ -254,6 +268,10 @@ export const ZIBRI_DI_TOKENS = {
      * How invitations are sent. Required once the application lists an invitation repository.
      */
     INVITATION_OPTIONS: ziToken<InvitationOptions | undefined>('zi.invitation_options'),
+    /**
+     * Shares the rows of shareable entities with selected people, and answers what a caller sees of them.
+     */
+    SHARE_SERVICE: ziToken<ShareServiceInterface>('zi.share_service'),
     LEASE_DRAIN_TIMEOUT_IN_MS: ziToken<number>('zi.lease_drain_timeout_in_ms'),
     WAIT_REPORT_INTERVAL_IN_MS: ziToken<number>('zi.wait_report_interval_in_ms'),
     /**
@@ -299,6 +317,10 @@ export const ZIBRI_DI_TOKENS = {
     // eslint-disable-next-line typescript/no-explicit-any
     PASSWORD_RESET_EMAIL_TEMPLATE: ziToken<PasswordResetEmailTemplate<any, any> | undefined>('zi.password_reset_email_template'),
     FEDERATION_OPTIONS: ziToken<FederationOptions | undefined>('zi.federation_options'),
+    /**
+     * How links to log in with are sent and taken. Required with `LoginLinkAuthenticator`.
+     */
+    LOGIN_LINK_OPTIONS: ziToken<LoginLinkOptions | undefined>('zi.login_link_options'),
     PASSKEY_OPTIONS: ziToken<PasskeyOptions | undefined>('zi.passkey_options'),
     PASSKEY_SERVICE: ziToken<PasskeyServiceInterface>('zi.passkey_service'),
     FIDO_METADATA_SERVICE: ziToken<FidoMetadataServiceInterface>('zi.fido_metadata_service'),
@@ -318,6 +340,12 @@ export const ZIBRI_DI_TOKENS = {
     BACKUP_CHUNKING_OPTIONS: ziToken<BackupChunkingOptions>('zi.backup_chunking_options'),
     BACKUP_SCRUB_OPTIONS: ziToken<BackupScrubOptions | undefined>('zi.backup_scrub_options'),
     BACKUP_TENANT_TRANSPORT_OPTIONS: ziToken<TenantBackupTransportOptions>('zi.backup_tenant_transport_options'),
+    FILE_SERVICE: ziToken<FileServiceInterface>('zi.file_service'),
+    /**
+     * Where a file stored from a stream is written while it is hashed, before it goes to its store.
+     */
+    FILE_STAGING_FOLDER: ziToken<FsPath>('zi.file_staging_folder'),
+    FILE_TENANT_STORE_OPTIONS: ziToken<TenantFileStoreOptions>('zi.file_tenant_store_options'),
     VERSIONS_PATH: ziToken<FsPath>('zi.versions_path'),
     TRANSLATIONS_PATH: ziToken<FsPath>('zi.translations_path'),
     ASSETS_PATH: ziToken<FsPath>('zi.assets_path'),
@@ -342,6 +370,15 @@ export const ZIBRI_DI_TOKENS = {
     HTTP_CLIENT: ziToken<HttpClientInterface>('zi.http_client'),
     HTTP_CLIENT_OPTIONS_INPUT: ziToken<HttpClientOptionsInput>('zi.http_client_options_input'),
     HTTP_CLIENT_OPTIONS: ziToken<HttpClientOptions>('zi.http_client_options'),
+    WEB_DAV_TENANT_CONNECTION_OPTIONS: ziToken<WebDavTenantConnectionOptions>('zi.web_dav_tenant_connection_options'),
+    TENANT_WEB_DAV_CONNECTION_SERVICE: ziToken<TenantWebDavConnectionServiceInterface>('zi.tenant_web_dav_connection_service'),
+    CALENDAR_SYNC_SERVICE: ziToken<CalendarSyncServiceInterface>('zi.calendar_sync_service'),
+    CALENDAR_ENTRY_LINK_USAGE_CLEANER: ziToken<TenantWebDavConnectionUsageCleanerInterface>('zi.calendar_entry_link_usage_cleaner'),
+    FILE_MIRROR_SERVICE: ziToken<FileMirrorServiceInterface>('zi.file_mirror_service'),
+    FILE_MIRROR_USAGE_CLEANER: ziToken<TenantWebDavConnectionUsageCleanerInterface>('zi.file_mirror_usage_cleaner'),
+    BACKUP_WEB_DAV_CONNECTION_USAGE_FINDER: ziToken<TenantWebDavConnectionUsageFinderInterface>(
+        'zi.backup_web_dav_connection_usage_finder'
+    ),
     EVENT_SERVICE: ziToken<EventServiceInterface>('zi.event_service'),
     EVENT_EXECUTION_LEASE_IN_MS: ziToken<number>('zi.event_execution_lease_in_ms'),
     EVENT_SUBSCRIBER_REGISTRATION_TTL_IN_MS: ziToken<number>('zi.event_subscriber_registration_ttl_in_ms'),

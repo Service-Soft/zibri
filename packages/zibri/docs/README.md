@@ -51,9 +51,15 @@ Due to it's dependency injection system you can always swap things out if they a
 Some common concerns that are less technical and more use case specific can be bundled as plugins. Since these are just providers, controllers, cron jobs, body parsers and auth strategies bundled together, you can write and reuse your own really easily ([docs](https://service-soft.github.io/zibri/application/plugin/)).
 
 Zibri also provides some plugins out of the box, for things like:
+- first-party analytics, without keeping an address or a user agent ([docs](https://service-soft.github.io/zibri/plugins/analytics-plugin/))
+- approval requests: actions an AI assistant, a new employee or an integration proposes, which a person or a policy approves before they run ([docs](https://service-soft.github.io/zibri/plugins/approval-plugin/))
+- importing bank statements from CAMT.053 files ([docs](https://service-soft.github.io/zibri/plugins/bank-plugin/))
+- double-entry bookkeeping, with a journal that is never changed, reversals and the closing of fiscal years ([docs](https://service-soft.github.io/zibri/plugins/bookkeeping-plugin/))
 - invoicing, including XRechnung/Peppol e-invoicing ([docs](https://service-soft.github.io/zibri/plugins/invoicing-plugin/))
 - mailing-lists ([docs](https://service-soft.github.io/zibri/plugins/mailing-list-plugin/))
+- an MCP server, whose tools an AI assistant reads your data with and proposes approval requests through ([docs](https://service-soft.github.io/zibri/plugins/mcp-plugin/))
 - payments ([docs](https://service-soft.github.io/zibri/plugins/payment-plugin/))
+- projects with boards of tasks, shared with selected people such as a customer, and updated live ([docs](https://service-soft.github.io/zibri/plugins/projects-plugin/))
 
 ## ✨ Ease of use
 Zibri aims to be as easy to use as possible, with reasonable defaults and by the use of decorators and dependency injection.

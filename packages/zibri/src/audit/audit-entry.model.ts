@@ -1,3 +1,4 @@
+import { FrameworkColumnRegistry } from '../data-source/migration/framework-column.registry';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { OmitStrict } from '../types/omit-strict.type';
@@ -21,6 +22,14 @@ export class AuditEntry extends BaseAuditEntry {
     @Property.string()
     mac!: string;
 }
+
+// added by the data source to a table that lacks them, so that a trail of 3.2 takes no migration of the
+// application's. An entry stored before holds neither, and its hash, which leaves an added column holding nothing
+// out, stays what it was
+FrameworkColumnRegistry.register(
+    { entity: AuditEntry, property: 'userKind', meansAbsent: value => value === 'person' },
+    { entity: AuditEntry, property: 'approvalRequestId' }
+);
 
 /**
  * The data an audit entry is created with.

@@ -1,3 +1,4 @@
+import { FrameworkColumnRegistry } from '../../data-source/migration/framework-column.registry';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { QueuedWorkEntity } from '../../queue/queued-work-entity.model';
@@ -86,6 +87,13 @@ export class Email extends QueuedWorkEntity {
     bcc?: string[] | null;
 
     /**
+     * Where an answer to the email goes, like the address of the visitor who sent a contact form, or
+     * undefined for the sender.
+     */
+    @Property.string({ format: 'email', required: false })
+    replyTo?: string | null;
+
+    /**
      * The attachments of the email.
      */
     @Property.array({ items: { type: 'object', cls: () => EmailAttachment }, required: false })
@@ -114,3 +122,5 @@ export class Email extends QueuedWorkEntity {
     @Property.string({ enum: EmailPriority })
     priority!: EmailPriority;
 }
+
+FrameworkColumnRegistry.register({ entity: Email, property: 'replyTo' });

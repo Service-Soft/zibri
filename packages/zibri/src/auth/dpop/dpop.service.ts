@@ -96,7 +96,11 @@ export class DpopService implements DpopServiceInterface {
         context: HttpRequestContext | WebsocketRequestContext,
         accessToken: string | undefined
     ): Promise<string | undefined> {
-        // a websocket message carries headers its client wrote into it, and has no method or url
+        // a websocket message carries headers its client wrote into it, and has no method or url. Neither has the auth
+        // of a handshake, which arrives after the request that opened the connection, so a proof for it would name a
+        // method and url by a convention of its own. And the credential of a connection is checked again at its expiry
+        // and when logins end, long after a proof is too old and with one that was spent at the handshake: a token
+        // bound to a key would have to be taken as proven for as long as the connection lasts
         if (context.type !== 'http-request') {
             return undefined;
         }

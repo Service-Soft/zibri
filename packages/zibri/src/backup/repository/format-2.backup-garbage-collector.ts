@@ -135,8 +135,8 @@ export class Format2BackupGarbageCollector {
     }
 
     /**
-     * Deletes the chunks a store holds that no backup names, and what backups that never finished stored,
-     * forgets the chunks it no longer holds, and reports the backups naming a chunk that is missing or changed.
+     * Deletes the chunks a store holds that no backup names, what backups that never finished stored, and what
+     * puts that ended part way left behind where the store's sessions delete it, forgets the chunks it no longer holds, and reports the backups naming a chunk that is missing or changed.
      * @param store - The store.
      * @param withWindow - Runs work while no resource of the application is being stored.
      * @param scrub - How the chunks are read back and checked, or undefined to check none.
@@ -156,12 +156,12 @@ export class Format2BackupGarbageCollector {
             : await BackupChunkIndex.findRecorded(store.name, repository);
         const named: Map<string, NamedChunk> = new Map();
         const read: Set<string> = new Set();
-        const [marked, listed]: [BackupFolders, Set<string>] = await this.withSession(
+        const [marked, listed, leavesUploads]: [BackupFolders, Set<string>, boolean] = await this.withSession(
             store,
-            async (session): Promise<[BackupFolders, Set<string>]> => {
+            async (session): Promise<[BackupFolders, Set<string>, boolean]> => {
                 const folders: BackupFolders = await this.resolveFolders(store, session);
                 await this.readNeeded(store, session, folders.needed, named, read);
-                return [folders, await this.findListed(session)];
+                return [folders, await this.findListed(session), session.deleteAbandonedUploads != undefined];
             }
         );
 
@@ -181,8 +181,15 @@ export class Format2BackupGarbageCollector {
         let swept: number = 0;
         let freedBytes: number = 0;
         const orphans: Set<string> = new Set();
-        let pending: boolean = candidates.length > 0 || changedPending.length > 0 || marked.orphanKeys.length > 0;
+        // in the first window, as removing the folders the uploads emptied may not race a put into them
+        let uploadsPending: boolean = leavesUploads;
+        let pending: boolean = uploadsPending || candidates.length > 0 || changedPending.length > 0 || marked.orphanKeys.length > 0;
         const sweepWindow: (lost: AbortSignal) => Promise<void> = async lost => await this.withSession(store, async session => {
+            if (uploadsPending) {
+                lost.throwIfAborted();
+                await session.deleteAbandonedUploads?.();
+                uploadsPending = false;
+            }
             // what was stored since: a backup between two windows may have found a candidate stored and named it
             const folders: BackupFolders = await this.resolveFolders(store, session);
             await this.readNeeded(store, session, folders.needed, named, read);

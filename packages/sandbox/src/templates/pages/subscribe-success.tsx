@@ -1,4 +1,5 @@
-import { $ts, MailingListSubscribeSuccessPageTemplate, MaskUtilities } from 'zibri';
+import { $ts, MaskUtilities } from 'zibri';
+import { MailingListSubscribeSuccessPageTemplate } from 'zibri/plugin/mailing-list';
 
 import { Card } from '../components/card';
 import { EmptyPage } from '../components/empty-page';

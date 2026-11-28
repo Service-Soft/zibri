@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { EntryPointUtilities, PublishedComment, TESTING_ENTRY_POINT } from '../__testing__/entry-point.utilities';
+import { EntryPointUtilities, PUBLIC_ENTRY_POINTS, PublishedComment, TESTING_ENTRY_POINT } from '../__testing__/entry-point.utilities';
 
 // typedoc publishes the JSDoc of everything an entry point exports, for readers who have never seen
 // this repository. Why a thing is built the way it is, and any reference into the repository's
@@ -36,8 +36,8 @@ function findReasons(entryPoint: string): string[] {
 }
 
 describe('the published JSDoc', () => {
-    it('of zibri says what a thing does, not why it was built that way', () => {
-        expect(findReasons('index.ts')).toEqual([]);
+    it('of zibri and its plugins says what a thing does, not why it was built that way', () => {
+        expect(PUBLIC_ENTRY_POINTS.flatMap(entryPoint => findReasons(entryPoint))).toEqual([]);
     });
 
     it('of zibri-testing says what a thing does, not why it was built that way', () => {

@@ -198,3 +198,12 @@ export type CurrencyCode = (typeof currencyCodes)[number];
  * so a property that has to accept only real currency codes names this one.
  */
 export const currencyCodeEnum: AnyEnum<string> = Object.fromEntries(currencyCodes.map(c => [c, c]));
+
+/**
+ * Whether a value is one of the {@link currencyCodes}, such as the currency a bank names in a statement.
+ * @param value - The value.
+ * @returns True when it is a currency code of ISO 4217.
+ */
+export function isCurrencyCode(value: string): value is CurrencyCode {
+    return currencyCodes.some(code => code === value);
+}

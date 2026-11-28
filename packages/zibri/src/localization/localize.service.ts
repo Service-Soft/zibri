@@ -1,4 +1,5 @@
 
+import { AlsUtilities } from '../context/als.utilities';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
@@ -12,6 +13,7 @@ import { OnAppInit } from '../global/on-app-init.interface';
 import { KnownHeader } from '../http/known-header.enum';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { type FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 import { optionalPeer } from '../utilities/optional-peer.function';
 import { formatDate } from './format-date.function';
@@ -193,19 +195,40 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         for (const locale of supportedLocales) {
             this.logger.info(`  - ${locale}`);
 
+            // the framework's own first, so a translation of the application replaces it
+            const shippedFilePath: FsPath | undefined = await this.findShippedTranslationFile(locale);
             const translationFilePath: FsPath = FsUtilities.getPath(this.translationPath, `${locale}.xlf`);
-            if (!await FsUtilities.exists(translationFilePath)) {
-                continue;
-            }
-
-            const xml: string = await FsUtilities.readFile(translationFilePath);
-            const parsed: Record<string, string> = await parseTranslationXlf(xml);
-
-            TranslationRegistry.translations[locale] ??= {};
-            for (const [source, translation] of ObjectUtilities.entries(parsed)) {
-                TranslationRegistry.translations[locale][source] = translation;
+            for (const filePath of [shippedFilePath, translationFilePath]) {
+                if (filePath == undefined || !await FsUtilities.exists(filePath)) {
+                    continue;
+                }
+                const parsed: Record<string, string> = await parseTranslationXlf(await FsUtilities.readFile(filePath));
+                TranslationRegistry.translations[locale] ??= {};
+                for (const [source, translation] of ObjectUtilities.entries(parsed)) {
+                    TranslationRegistry.translations[locale][source] = translation;
+                }
             }
         }
+    }
+
+    /**
+     * Finds the translation zibri ships of its own strings for a locale, named in the "translations" of its
+     * package.json, like `"translations": { "de": "./translations/de.xlf" }`. A locale of a region takes the one of
+     * its language, so 'de-AT' takes 'de'.
+     * @param locale - The locale the application supports.
+     * @returns The path of the file, undefined when zibri ships none for the locale.
+     */
+    private async findShippedTranslationFile(locale: LocaleCode): Promise<FsPath | undefined> {
+        // injected here rather than in the constructor, so that a class of an application extending this one
+        // with the constructor of 3.2 gets it as well
+        const zibriRoot: FsPath = inject(ZIBRI_DI_TOKENS.ZIBRI_PACKAGE_ROOT);
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        const { translations } = JsonUtilities.parse<{ translations?: Partial<Record<LocaleCode, string>> }>(
+            await FsUtilities.readFile(FsUtilities.getPath(zibriRoot, 'package.json'))
+        );
+        const shipped: LocaleCode | undefined = resolveLocaleCode(locale, ObjectUtilities.keys(translations ?? {}));
+        const relativePath: string | undefined = shipped == undefined ? undefined : translations?.[shipped];
+        return relativePath == undefined ? undefined : FsUtilities.getPath(zibriRoot, relativePath);
     }
 
     private async resolveExtractedTranslationFromSourceXlf(sourceXlfPath: FsPath): Promise<ExtractedTranslationString[]> {
@@ -293,6 +316,12 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
     resolveSupportedLocale(
         context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT)
     ): LocaleCode {
+        // ahead of the request: a mail rendered for its recipient inside a request is in the recipient's
+        // language, not in the one of whoever made the request
+        const scoped: LocaleCode | undefined = AlsUtilities.findCurrentLocale();
+        if (scoped != undefined) {
+            return scoped;
+        }
         if (context?.has(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_LOCALE) === true) {
             return context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_LOCALE);
         }
@@ -312,6 +341,16 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
             ? this.resolveSupportedLocaleFromAcceptLanguageString(acceptLanguage)
             : undefined;
         return fromHeader ?? this.options.defaultLocale;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    runInLocale<T>(locale: LocaleCode | null | undefined, fn: () => T): T {
+        // matched rather than taken as given, so that a text is never in a language the application does
+        // not translate into: a stored locale outlives the supported locales it was chosen from
+        const supported: LocaleCode | undefined = locale == undefined
+            ? undefined
+            : resolveLocaleCode(locale, ObjectUtilities.keys(this.options.supportedLocales));
+        return AlsUtilities.runInLocale(supported ?? this.options.defaultLocale, fn);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -379,7 +418,11 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         // read rather than filled in: a caller passing one options object to every call would otherwise
         // format each later call in the locale of the first
         const locale: LocaleCode = options.locale ?? this.resolveSupportedLocale();
-        const currency: CurrencyCode = options.currency ?? this.resolveCurrencyCodeForLocale(locale);
+        // the default locale's with 'defaultLocale': an amount is in one currency, and a mail in another language
+        // turning 19.99 EUR into $19.99 would state a different price. The locale's by default, as in 3.2
+        const currency: CurrencyCode = options.currency ?? this.resolveCurrencyCodeForLocale(
+            this.options.priceCurrency === 'defaultLocale' ? this.options.defaultLocale : locale
+        );
 
         const v: number | bigint = typeof price === 'number' || typeof price === 'bigint' ? price : price.toNumber();
         // the minor units asked for rather than left to the runtime, so a price shows the decimals an

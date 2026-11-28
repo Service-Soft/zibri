@@ -27,6 +27,35 @@ export type StoredRowChange = {
 };
 
 /**
+ * An index a driver narrows the rows of a table by, which the store builds the first time it is read
+ * and keeps up to date with every write after that.
+ */
+export type InMemoryIndex = {
+    /**
+     * Names it within its table: two indexes of one table under the same name are the same index.
+     */
+    name: string,
+    /**
+     * The entry a row is kept under, or undefined for a row kept under none.
+     */
+    entryOf: (row: StoredRow) => string | undefined
+};
+
+/**
+ * An index the store keeps, with the ids of the rows under each of its entries.
+ */
+type KeptInMemoryIndex = {
+    /**
+     * The entry a row is kept under.
+     */
+    entryOf: (row: StoredRow) => string | undefined,
+    /**
+     * The ids of the rows, by entry.
+     */
+    ids: Map<string, Set<string>>
+};
+
+/**
  * The whole content of a store, in the shape a backup carries it.
  */
 export type InMemoryStoreSnapshot = {
@@ -63,6 +92,11 @@ export interface InMemoryScope {
      * Lists the ids the table holds.
      */
     ids: (tableName: string) => string[],
+    /**
+     * Finds the ids of the rows the index keeps under any of the entries, and possibly of others: the
+     * rows a transaction wrote are among them whatever they hold. Never misses a row that holds one.
+     */
+    findCandidateIds: (tableName: string, index: InMemoryIndex, entries: string[]) => string[],
     /**
      * Writes one row, replacing whatever the id held. The change, when given, is what the write did
      * to the row it replaces, for a transaction to do again to the row as it is once it commits.
@@ -116,6 +150,12 @@ export class InMemoryStore implements InMemoryScope {
      * The indexes and uniques each table was last booted with, written out, by table.
      */
     private readonly keyLists: Map<string, string> = new Map();
+
+    /**
+     * The indexes read so far, by table and then by name. Derived from the rows alone, so whatever
+     * replaces the rows without a write drops them, and the next read builds them again.
+     */
+    private readonly indexes: Map<string, Map<string, KeptInMemoryIndex>> = new Map();
 
     /**
      * Who listens on each channel, by channel. Not rows, so a transaction neither keeps nor restores
@@ -211,7 +251,9 @@ export class InMemoryStore implements InMemoryScope {
      * @param row - The values to store.
      */
     writeRow(tableName: string, id: string, row: StoredRow): void {
-        this.rowsOf(tableName).set(id, row);
+        const rows: Map<string, StoredRow> = this.rowsOf(tableName);
+        this.reIndex(tableName, id, rows.get(id), row);
+        rows.set(id, row);
     }
 
     /**
@@ -220,7 +262,72 @@ export class InMemoryStore implements InMemoryScope {
      * @param id - The id of the row.
      */
     deleteRow(tableName: string, id: string): void {
-        this.rowsOf(tableName).delete(id);
+        const rows: Map<string, StoredRow> = this.rowsOf(tableName);
+        this.reIndex(tableName, id, rows.get(id), undefined);
+        rows.delete(id);
+    }
+
+    /**
+     * Finds the ids of the rows an index keeps under any of the given entries, building the index from
+     * the rows the first time it is read.
+     * @param tableName - The table.
+     * @param index - The index.
+     * @param entries - The entries.
+     * @returns The ids, each once.
+     */
+    findCandidateIds(tableName: string, index: InMemoryIndex, entries: string[]): string[] {
+        const kept: KeptInMemoryIndex = this.resolveIndex(tableName, index);
+        return [...new Set(entries.flatMap(entry => [...kept.ids.get(entry) ?? []]))];
+    }
+
+    /**
+     * The index of a table under the given name, built from the rows when the store keeps none yet.
+     * @param tableName - The table.
+     * @param index - The index.
+     * @returns What the store keeps of it.
+     */
+    private resolveIndex(tableName: string, index: InMemoryIndex): KeptInMemoryIndex {
+        const byName: Map<string, KeptInMemoryIndex> = this.indexes.get(tableName) ?? new Map<string, KeptInMemoryIndex>();
+        this.indexes.set(tableName, byName);
+        const existing: KeptInMemoryIndex | undefined = byName.get(index.name);
+        if (existing != undefined) {
+            return existing;
+        }
+        const created: KeptInMemoryIndex = { entryOf: index.entryOf, ids: new Map() };
+        for (const [id, row] of this.rowsOf(tableName)) {
+            this.reIndexIn(created, id, undefined, row);
+        }
+        byName.set(index.name, created);
+        return created;
+    }
+
+    /**
+     * Moves a row between the entries of every index its table keeps.
+     * @param tableName - The table.
+     * @param id - The id of the row.
+     * @param previous - The row as it was stored, undefined for one that was not.
+     * @param next - The row as it is stored now, undefined for one that is removed.
+     */
+    private reIndex(tableName: string, id: string, previous: StoredRow | undefined, next: StoredRow | undefined): void {
+        for (const kept of this.indexes.get(tableName)?.values() ?? []) {
+            this.reIndexIn(kept, id, previous, next);
+        }
+    }
+
+    private reIndexIn(kept: KeptInMemoryIndex, id: string, previous: StoredRow | undefined, next: StoredRow | undefined): void {
+        const before: string | undefined = previous == undefined ? undefined : kept.entryOf(previous);
+        const after: string | undefined = next == undefined ? undefined : kept.entryOf(next);
+        if (before === after) {
+            return;
+        }
+        if (before != undefined) {
+            kept.ids.get(before)?.delete(id);
+        }
+        if (after != undefined) {
+            const ids: Set<string> = kept.ids.get(after) ?? new Set();
+            ids.add(id);
+            kept.ids.set(after, ids);
+        }
     }
 
     /**
@@ -286,7 +393,8 @@ export class InMemoryStore implements InMemoryScope {
      * Copies the rows and joins the store holds as they are now, for a transaction to read as of this moment.
      *
      * The copy shares the rows and the members of the joins with the store, which replaces a row or a join
-     * it writes and never changes one it holds.
+     * it writes and never changes one it holds. The indexes are not copied: the copy builds each from its own
+     * rows when it is first read.
      * @returns The copy.
      */
     copy(): InMemoryStore {
@@ -350,6 +458,7 @@ export class InMemoryStore implements InMemoryScope {
         for (const tableName of this.tables.keys()) {
             if (!kept.has(tableName)) {
                 this.tables.delete(tableName);
+                this.indexes.delete(tableName);
             }
         }
         this.joins.clear();
@@ -395,6 +504,8 @@ export class InMemoryStore implements InMemoryScope {
      * Drops everything the store holds.
      */
     clear(): void {
+        // restoring calls this before it puts the rows back past writeRow
+        this.indexes.clear();
         this.tables.clear();
         this.joins.clear();
         this.sequences.clear();

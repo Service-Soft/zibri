@@ -6,6 +6,8 @@ import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { EntityTenant } from '../../entity/models/entity-tenant.model';
+import { ArchivedEntityUtilities } from '../../entity/utilities/archived-entity.utilities';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
@@ -17,8 +19,9 @@ import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';
 import { BaseChainedEntity } from './base-chained-entity.model';
 import { ChainAnchor, ChainAnchorCreateData } from './chain-anchor.model';
+import { ChainGap, ChainGapCreateData } from './chain-gap.model';
 import { ChainLink, ChainServiceInterface } from './chain-service.interface';
-import { ChainVerification } from './chain-verification.model';
+import { BrokenChain, ChainVerification } from './chain-verification.model';
 import { ChainUtilities } from './chain.utilities';
 
 /**
@@ -46,13 +49,36 @@ type ChainHead = {
 };
 
 /**
+ * The transactions what a chain records of removed rows is written in.
+ */
+type ChainRecordTransactions = {
+    /**
+     * The transaction of the anchor, if any.
+     */
+    anchors: Transaction | undefined,
+    /**
+     * The transaction of the gaps, if any.
+     */
+    gaps: Transaction | undefined
+};
+
+/**
  * Default chain service implementation of Zibri.
  */
 @Injectable({ register: 'onUse' })
 export class ChainService implements ChainServiceInterface, OnAppInit {
+    /**
+     * Whether a data source declares `ChainGap`, without which no chain has a gap.
+     */
+    private gapsDeclared: boolean = false;
+
     // read when used, so that an application without the entity is told so by onAppInit
     private get anchorRepository(): Repository<ChainAnchor, ChainAnchorCreateData> {
         return inject(repositoryTokenFor(ChainAnchor));
+    }
+
+    private get gapRepository(): Repository<ChainGap, ChainGapCreateData> {
+        return inject(repositoryTokenFor(ChainGap));
     }
 
     constructor(
@@ -67,6 +93,7 @@ export class ChainService implements ChainServiceInterface, OnAppInit {
         if (declaresChained) {
             validateEntitiesRegistered(ChainService.name, app, ChainAnchor);
         }
+        this.gapsDeclared = app.options.dataSources.some(dataSource => inject(dataSource).entities.includes(ChainGap));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -112,34 +139,240 @@ export class ChainService implements ChainServiceInterface, OnAppInit {
             };
         }
         const repository: Repository<BaseChainedEntity> = inject(repositoryTokenFor(entityClass));
-        let expected: number = (anchor?.sequence ?? 0) + 1;
-        let previous: string = anchor?.hash ?? '';
+        let head: ChainHead = { sequence: anchor?.sequence ?? 0, hash: anchor?.hash ?? '' };
         for (;;) {
             const page: BaseChainedEntity[] = await repository.findAll({
-                where: { ...this.resolveChainFilter(entityClass, chain), chainSequence: { greaterThanEquals: expected } },
+                where: { ...this.resolveChainFilter(entityClass, chain), chainSequence: { greaterThan: head.sequence } },
                 order: { chainSequence: 'ASC' },
                 limit: PAGE_SIZE,
                 acrossTenants: true,
                 unscoped: true
             });
-            for (const row of page) {
-                if (row.chainSequence !== expected) {
-                    return {
-                        intact: false,
-                        brokenAtSequence: row.chainSequence,
-                        reason: `The rows from ${expected} to ${row.chainSequence - 1} are missing.`
-                    };
-                }
-                if (row.chainHash !== ChainUtilities.resolveRowHash(key, entityClass, chain, previous, row)) {
-                    return { intact: false, brokenAtSequence: row.chainSequence, reason: 'The row is not as it was written.' };
-                }
-                previous = row.chainHash;
-                expected++;
+            const checked: ChainHead | BrokenChain = await this.resolveRowsVerification(key, entityClass, chain, head, page);
+            if ('intact' in checked) {
+                return checked;
             }
+            head = checked;
             if (page.length < PAGE_SIZE) {
-                return { intact: true, newestSequence: expected - 1, newestHash: previous };
+                // the newest rows may have been removed as well, which leaves the chain ending at their gaps
+                const newest: ChainHead | BrokenChain | undefined
+                    = await this.findGapRun(key, entityClass, chain, head.sequence + 1, undefined);
+                if (newest != undefined && 'intact' in newest) {
+                    return newest;
+                }
+                const end: ChainHead = newest ?? head;
+                return { intact: true, newestSequence: end.sequence, newestHash: end.hash };
             }
         }
+    }
+
+    /**
+     * Resolves whether rows of a chain, in the order of their places, hold after where it reached.
+     * @param key - The signing key of the chains.
+     * @param entityClass - The chained entity.
+     * @param chain - The tenant of the chain, or an empty string for the rows of no tenant.
+     * @param start - Where the chain reached before the rows.
+     * @param rows - The rows.
+     * @returns Where the chain reaches after them, or the first row that does not hold.
+     */
+    private async resolveRowsVerification(
+        key: Buffer,
+        entityClass: Newable<BaseChainedEntity>,
+        chain: string,
+        start: ChainHead,
+        rows: BaseChainedEntity[]
+    ): Promise<ChainHead | BrokenChain> {
+        let head: ChainHead = start;
+        for (const row of rows) {
+            if (row.chainSequence !== head.sequence + 1) {
+                const gaps: ChainHead | BrokenChain
+                    = await this.resolveGapsBefore(key, entityClass, chain, head.sequence + 1, row.chainSequence);
+                if ('intact' in gaps) {
+                    return gaps;
+                }
+                head = gaps;
+            }
+            if (row.chainHash !== ChainUtilities.resolveRowHash(key, entityClass, chain, head.hash, row)) {
+                return { intact: false, brokenAtSequence: row.chainSequence, reason: 'The row is not as it was written.' };
+            }
+            head = { sequence: row.chainSequence, hash: row.chainHash };
+        }
+        return head;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async recordRemovedRows(entityClass: Newable<BaseChainedEntity>, rows: object[], transaction: Transaction | undefined): Promise<void> {
+        if (!rows.length) {
+            return;
+        }
+        const key: Buffer = await this.encryptionService.resolveSigningKey(SIGNING_KEY_NAME);
+        const repository: Repository<BaseChainedEntity> = inject(repositoryTokenFor(entityClass));
+        // only a transaction of the data source holding them, for the reason resolveHeads gives. Written
+        // before the rows are removed: a removal that fails after them leaves a row its gap or anchor
+        // names the hash of, which the check reads the same as the row
+        const transactions: ChainRecordTransactions = {
+            anchors: this.anchorRepository.dataSource === repository.dataSource ? transaction : undefined,
+            gaps: this.gapRepository.dataSource === repository.dataSource ? transaction : undefined
+        };
+        const byChain: Map<string, ChainHead[]> = new Map();
+        for (const row of rows) {
+            const chain: string = this.resolveChainOf(entityClass, row);
+            const sequence: unknown = Reflect.get(row, 'chainSequence');
+            const hash: unknown = Reflect.get(row, 'chainHash');
+            if (typeof sequence !== 'number' || typeof hash !== 'string') {
+                throw new InternalError(`A row of ${entityClass.name} about to be removed was read without its place in its chain.`);
+            }
+            byChain.set(chain, [...byChain.get(chain) ?? [], { sequence, hash }]);
+        }
+        for (const [chain, removed] of byChain) {
+            await this.recordRemovedRowsOf(key, entityClass, chain, removed, transactions);
+        }
+    }
+
+    /**
+     * Records rows about to be removed from one chain: the chain starts after the run of removed rows and
+     * gaps at its old end, and every other row leaves a gap, such as one kept for a shorter time than the
+     * row before it.
+     * @param key - The signing key of the chains.
+     * @param entityClass - The chained entity.
+     * @param chain - The tenant of the chain, or an empty string for the rows of no tenant.
+     * @param removed - The place and the hash of each row about to be removed.
+     * @param transactions - The transactions the anchor and the gaps are written in.
+     */
+    private async recordRemovedRowsOf(
+        key: Buffer,
+        entityClass: Newable<BaseChainedEntity>,
+        chain: string,
+        removed: ChainHead[],
+        transactions: ChainRecordTransactions
+    ): Promise<void> {
+        const tableName: string = ChainUtilities.getTableName(entityClass);
+        const anchor: ChainAnchor | undefined = await this.findAnchor(entityClass, chain, transactions.anchors);
+        const start: number = (anchor?.sequence ?? 0) + 1;
+        // a row at or before the anchor is no longer read as part of the chain
+        const pending: ChainHead[] = removed.filter(row => row.sequence >= start);
+        if (!pending.length) {
+            return;
+        }
+        const gaps: ChainGap[] = await this.gapRepository.findAll({
+            where: { tableName, chain, sequence: { greaterThanEquals: start } },
+            transaction: transactions.gaps,
+            limit: 'all'
+        });
+        const passable: Map<number, string> = new Map([
+            ...gaps.map((gap): [number, string] => [gap.sequence, gap.hash]),
+            ...pending.map((row): [number, string] => [row.sequence, row.hash])
+        ]);
+        let last: ChainHead | undefined;
+        for (let sequence: number = start; passable.has(sequence); sequence++) {
+            last = { sequence, hash: passable.get(sequence) ?? '' };
+        }
+        if (last != undefined) {
+            const seal: string = ChainUtilities.resolveAnchorSeal(key, entityClass, chain, last.sequence, last.hash);
+            await this.anchorRepository.upsert(
+                { tableName, chain },
+                { tableName, chain, sequence: last.sequence, hash: last.hash, seal },
+                { sequence: { set: last.sequence }, hash: { set: last.hash }, seal: { set: seal } },
+                { transaction: transactions.anchors }
+            );
+            const through: number = last.sequence;
+            if (gaps.some(gap => gap.sequence <= through)) {
+                await this.gapRepository.deleteAll(
+                    { tableName, chain, sequence: { lesserThanEquals: through } },
+                    { transaction: transactions.gaps }
+                );
+            }
+        }
+        const gapped: ChainHead[] = pending.filter(row => row.sequence > (last?.sequence ?? 0));
+        if (gapped.length) {
+            await this.gapRepository.upsertAll(
+                ['tableName', 'chain', 'sequence'],
+                gapped.map(row => {
+                    const seal: string = ChainUtilities.resolveGapSeal(key, entityClass, chain, row.sequence, row.hash);
+                    return {
+                        create: { tableName, chain, sequence: row.sequence, hash: row.hash, seal },
+                        onConflict: { hash: { set: row.hash }, seal: { set: seal } }
+                    };
+                }),
+                { transaction: transactions.gaps }
+            );
+        }
+    }
+
+    /**
+     * Resolves the rows recorded as removed between two places of a chain, the last of which the row after
+     * them is linked to.
+     * @param key - The signing key of the chains.
+     * @param entityClass - The chained entity.
+     * @param chain - The tenant of the chain, or an empty string for the rows of no tenant.
+     * @param from - The first place no row holds.
+     * @param next - The place of the row after them.
+     * @returns The last gap, or the broken chain when a row in between is missing or a gap was not
+     * written by this application.
+     */
+    private async resolveGapsBefore(
+        key: Buffer,
+        entityClass: Newable<BaseChainedEntity>,
+        chain: string,
+        from: number,
+        next: number
+    ): Promise<ChainHead | BrokenChain> {
+        const gaps: ChainHead | BrokenChain | undefined = await this.findGapRun(key, entityClass, chain, from, next - 1);
+        if (gaps != undefined && ('intact' in gaps || gaps.sequence === next - 1)) {
+            return gaps;
+        }
+        return {
+            intact: false,
+            brokenAtSequence: next,
+            reason: `The rows from ${(gaps?.sequence ?? from - 1) + 1} to ${next - 1} are missing.`
+        };
+    }
+
+    /**
+     * Finds the run of gaps of a chain from a place on: the rows recorded as removed there, one after the
+     * other.
+     * @param key - The signing key of the chains.
+     * @param entityClass - The chained entity.
+     * @param chain - The tenant of the chain, or an empty string for the rows of no tenant.
+     * @param from - The place the run starts at.
+     * @param to - The last place it may reach, or undefined for no end.
+     * @returns The last gap of the run, undefined when there is no gap at `from`, or the broken chain at a
+     * gap that was not written by this application.
+     */
+    private async findGapRun(
+        key: Buffer,
+        entityClass: Newable<BaseChainedEntity>,
+        chain: string,
+        from: number,
+        to: number | undefined
+    ): Promise<ChainHead | BrokenChain | undefined> {
+        if (!this.gapsDeclared) {
+            return undefined;
+        }
+        const gaps: ChainGap[] = await this.gapRepository.findAll({
+            where: {
+                tableName: ChainUtilities.getTableName(entityClass),
+                chain,
+                sequence: to == undefined ? { greaterThanEquals: from } : { greaterThanEquals: from, lesserThanEquals: to }
+            },
+            order: { sequence: 'ASC' },
+            limit: 'all'
+        });
+        let run: ChainHead | undefined;
+        for (const gap of gaps) {
+            if (gap.sequence !== (run?.sequence ?? from - 1) + 1) {
+                break;
+            }
+            if (gap.seal !== ChainUtilities.resolveGapSeal(key, entityClass, chain, gap.sequence, gap.hash)) {
+                return {
+                    intact: false,
+                    brokenAtSequence: gap.sequence,
+                    reason: 'The row recorded as removed was not recorded by this application.'
+                };
+            }
+            run = { sequence: gap.sequence, hash: gap.hash };
+        }
+        return run;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -290,7 +523,40 @@ export class ChainService implements ChainServiceInterface, OnAppInit {
                 heads.set(anchor.chain, { sequence: anchor.sequence, hash: anchor.hash });
             }
         }
+        // the newest row of an archived chain may have been removed after its retention, and the next row
+        // is linked after its gap rather than taking its place, where the gap names a row of its own. No
+        // other entity removes rows from inside its chains, so none other pays for the read
+        if (this.gapsDeclared && ArchivedEntityUtilities.isArchived(entityClass)) {
+            const sameDataSource: boolean = repository.dataSource === this.gapRepository.dataSource;
+            await this.moveHeadsPastGaps(entityClass, heads, chains, sameDataSource ? transaction : undefined);
+        }
         return heads;
+    }
+
+    /**
+     * Moves where each of some chains ends past the gaps of rows removed from its newest end.
+     * @param entityClass - The chained entity.
+     * @param heads - Where each chain ends, by chain, which is changed in place.
+     * @param chains - The tenants of the chains, with an empty string for the rows of no tenant.
+     * @param transaction - The transaction of the data source holding the gaps the rows are written in, if any.
+     */
+    private async moveHeadsPastGaps(
+        entityClass: Newable<BaseChainedEntity>,
+        heads: Map<string, ChainHead>,
+        chains: string[],
+        transaction: Transaction | undefined
+    ): Promise<void> {
+        const tableName: string = ChainUtilities.getTableName(entityClass);
+        const gaps: ChainGap[] = await this.gapRepository.findAll({
+            where: chains.map(chain => ({ tableName, chain, sequence: { greaterThan: heads.get(chain)?.sequence ?? 0 } })),
+            transaction,
+            limit: 'all'
+        });
+        for (const gap of gaps) {
+            if (gap.sequence > (heads.get(gap.chain)?.sequence ?? 0)) {
+                heads.set(gap.chain, { sequence: gap.sequence, hash: gap.hash });
+            }
+        }
     }
 
     /**

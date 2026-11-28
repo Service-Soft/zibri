@@ -1,9 +1,12 @@
+import { FrameworkColumnRegistry } from '../../../data-source/migration/framework-column.registry';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { type CurrencyCode } from '../../../localization/models/currency-code.model';
 import { InvoiceAddress } from './invoice-address.model';
 import { InvoiceItem } from './invoice-item.model';
+import { InvoiceReference } from './invoice-reference.model';
+import { InvoiceType } from './invoice-type.enum';
 
 /**
  * Contains information about an invoice.
@@ -64,4 +67,28 @@ export class Invoice extends BaseEntity {
      */
     @Property.string()
     currency!: CurrencyCode;
+    /**
+     * The kind of document: an invoice or a credit note. `INVOICE` by default.
+     */
+    @Property.string({ enum: InvoiceType, required: false, default: () => InvoiceType.INVOICE })
+    type?: InvoiceType | null;
+    /**
+     * The invoices this one references, such as the invoice a credit note corrects. None when null.
+     */
+    @Property.array({ items: { type: 'object', cls: () => InvoiceReference }, required: false })
+    precedingInvoices?: InvoiceReference[] | null;
+    /**
+     * When the invoice was issued: given its final number and sent. Null for a draft. With
+     * `issuedInvoicesReadOnly` of the invoicing options, an issued invoice cannot be changed or deleted.
+     */
+    @Property.date({ required: false })
+    issuedAt?: Date | null;
 }
+
+// the invoices stored before were all invoices, and none referenced another. When one was issued is
+// not known, so it stays a draft as far as `issuedInvoicesReadOnly` goes
+FrameworkColumnRegistry.register(
+    { entity: Invoice, property: 'type', storedValue: () => InvoiceType.INVOICE, meansAbsent: value => value === InvoiceType.INVOICE },
+    { entity: Invoice, property: 'precedingInvoices', meansAbsent: value => Array.isArray(value) && value.length === 0 },
+    { entity: Invoice, property: 'issuedAt' }
+);

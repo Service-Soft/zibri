@@ -200,6 +200,25 @@ export class InProcessSftpServer {
     }
 
     /**
+     * Answers an RMDIR, refusing a directory that holds anything, as a server does.
+     * @param request - The request.
+     * @param path - The directory.
+     */
+    protected answerRmdir(request: InProcessSftpRequest, path: string): void {
+        const below: string = `${path}/`;
+        if (!this.directories.has(path)) {
+            request.sftp.status(request.reqId, utils.sftp.STATUS_CODE.NO_SUCH_FILE);
+            return;
+        }
+        if ([...this.files.keys(), ...this.directories].some(entry => entry.startsWith(below))) {
+            request.sftp.status(request.reqId, utils.sftp.STATUS_CODE.FAILURE);
+            return;
+        }
+        this.directories.delete(path);
+        request.sftp.status(request.reqId, utils.sftp.STATUS_CODE.OK);
+    }
+
+    /**
      * Answers an OPEN with a handle. A file opened to be written is emptied, one opened to be read stays as it is.
      * @param request - The request.
      * @param path - The file.
@@ -362,6 +381,7 @@ export class InProcessSftpServer {
         const pathOf: (handle: Buffer) => string = handle => this.handles.get(handle.toString('hex')) ?? '';
         sftp.on('STAT', (reqId: number, path: string) => this.answerStat(request(reqId), path));
         sftp.on('MKDIR', (reqId: number, path: string) => this.answerMkdir(request(reqId), path));
+        sftp.on('RMDIR', (reqId: number, path: string) => this.answerRmdir(request(reqId), path));
         sftp.on('OPEN', (reqId: number, path: string, flags: number) => this.answerOpen(request(reqId), path, flags));
         sftp.on('READ', (reqId: number, handle: Buffer, offset: number, length: number) => {
             this.answerRead(request(reqId), pathOf(handle), offset, length);

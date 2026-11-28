@@ -3,7 +3,7 @@ keywords: [plugins, extension, extend, module, writing a plugin]
 ---
 
 # Plugin
-A plugin bundles what an application is built from, such as providers, controllers, websocket controllers, data sources and [auth strategies](../glossary.md#auth-strategy), so you can reuse them across projects. Built-in plugins cover invoicing, mailing lists and payments, and you can write your own.
+A plugin bundles what an application is built from, such as providers, controllers, websocket controllers, data sources and [auth strategies](../glossary.md#auth-strategy), so you can reuse them across projects. Built-in plugins cover analytics, invoicing, mailing lists and payments, and you can write your own.
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -20,7 +20,9 @@ Plugins are listed in the `plugins` option your application is built from:
 
 ```ts
 // src/application-options.base.ts
-import { OmitStrict, ZibriApplicationOptions, ZibriInvoicingPlugin, ZibriMailingListPlugin } from 'zibri';
+import { OmitStrict, ZibriApplicationOptions } from 'zibri';
+import { ZibriInvoicingPlugin } from 'zibri/plugin/invoicing';
+import { ZibriMailingListPlugin } from 'zibri/plugin/mailing-list';
 
 export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSources'> = {
     name: 'Task Tracker',
@@ -40,11 +42,17 @@ Everything a plugin lists is merged into your application, see [writing a custom
 Some plugins need configuration or controllers from you. The page of each built-in plugin says which.
 
 ## Using a built-in plugin
+Each built-in plugin has an entry point of its own, `zibri/plugin/<name>`, such as `zibri/plugin/invoicing`. You import the names of a plugin from it, so your application carries only the plugins it imports.
 
 | Plugin | Page |
 |---|---|
+| `ZibriAnalyticsPlugin` | [Counting page views and visits](../plugins/analytics-plugin.md) |
+| `ZibriApprovalPlugin` | [Approving actions](../plugins/approval-plugin.md) |
+| `ZibriBankPlugin` | [Importing bank statements](../plugins/bank-plugin.md) |
+| `ZibriBookkeepingPlugin` | [Keeping the books](../plugins/bookkeeping-plugin.md) |
 | `ZibriInvoicingPlugin` | [Issuing invoices](../plugins/invoicing-plugin.md) |
 | `ZibriMailingListPlugin` | [Running mailing lists](../plugins/mailing-list-plugin.md) |
+| `ZibriMcpPlugin` | [Serving AI assistants over MCP](../plugins/mcp-plugin.md) |
 | `ZibriPaymentPlugin` | [Taking payments](../plugins/payment-plugin.md) |
 
 ## Writing a custom plugin
@@ -93,6 +101,10 @@ These properties are merged into your application on startup, each into the appl
 For configuration without a default, define two tokens. An `OPTIONS_INPUT` token whose default provider throws, so the application has to provide it in its own `providers` array. And an `OPTIONS` token that merges `OPTIONS_INPUT` with the defaults. The built-in plugins follow this pattern.
 
 ## See also
+- [Counting page views and visits](../plugins/analytics-plugin.md) — the analytics plugin
+- [Approving actions](../plugins/approval-plugin.md) — the approval plugin
+- [Importing bank statements](../plugins/bank-plugin.md) — the bank plugin
+- [Keeping the books](../plugins/bookkeeping-plugin.md) — the bookkeeping plugin
 - [Issuing invoices](../plugins/invoicing-plugin.md) — the invoicing plugin
 - [Running mailing lists](../plugins/mailing-list-plugin.md) — the mailing list plugin
 - [Taking payments](../plugins/payment-plugin.md) — the payment plugin

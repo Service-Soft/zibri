@@ -1,6 +1,7 @@
 /**
  * What a transport of a tenant reaches the network through: the check of each host it connects to against
- * what `BACKUP_TENANT_TRANSPORT_OPTIONS` lets tenants reach.
+ * what `BACKUP_TENANT_TRANSPORT_OPTIONS` lets tenants reach. A file store of a tenant reaches it the same way, checked
+ * against `FILE_TENANT_STORE_OPTIONS`.
  */
 export type TenantTransportNetwork = {
     /**

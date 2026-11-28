@@ -380,12 +380,13 @@ export async function holdsMemberAdmin(userId: string, tenantId: string): Promis
 ```
 
 ## Checking permissions in a frontend
-`GET /me` of the [auth routes](./auth-routes.md#the-routes), there with `currentUserRoute: true` in the options of `AuthController`, answers a `CurrentUserProfile`: the logged in user's id and email, the `platformPermissions` that `@Auth.hasPlatformPermission` checks, and their active `memberships`. Each membership has its `tenantId` and the `permissions` that `@Auth.hasPermission` checks in a request for that tenant. A frontend keeps the profile, shows and hides its parts by the permissions of the tenant its user acts in, and switches tenants without asking again. The roles stay out, like on a `CurrentUser`.
+`GET /me` of the [auth routes](./auth-routes.md#the-routes), there with `currentUserRoute: true` in the options of `AuthController`, answers a `CurrentUserProfile`: the logged in user's id and email, their `kind`, which is `'person'`, or `'service'` for a [service account](./api-keys.md#service-accounts), the `platformPermissions` that `@Auth.hasPlatformPermission` checks, and their active `memberships`. Each membership has its `tenantId` and the `permissions` that `@Auth.hasPermission` checks in a request for that tenant. A frontend keeps the profile, shows and hides its parts by the permissions of the tenant its user acts in, and switches tenants without asking again. The roles stay out, like on a `CurrentUser`.
 
 ```json
 {
     "id": "8c0f…",
     "email": "ada@example.com",
+    "kind": "person",
     "platformPermissions": [],
     "memberships": [
         { "tenantId": "3e1a…", "permissions": ["invoices.read", "invoices.export"] },
@@ -404,4 +405,5 @@ An [api key](./api-keys.md#what-a-key-may-do) lists the permissions it may use, 
 - [Authentication & authorization](./auth.md) — users, auth strategies and authenticators
 - [Creating endpoints](../endpoints/creating-endpoints.md#securing-endpoints) — securing endpoints with the `@Auth` decorators
 - [API keys](./api-keys.md) — keys that use some of their user's permissions
+- [Sharing rows with selected people](../data/sharing.md) — a role on one row, for members without the permission that shows every row
 - [Issuing tokens to services](./authorization-server.md) — the permissions a token's scope names

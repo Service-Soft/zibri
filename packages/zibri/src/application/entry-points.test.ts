@@ -1,36 +1,156 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { describe, expect, it } from '@jest/globals';
 
-import { EntryPointUtilities, ExportedName } from '../__testing__/entry-point.utilities';
+import { EntryPointUtilities, ExportedName, PLUGIN_ENTRY_POINTS, PUBLIC_ENTRY_POINTS } from '../__testing__/entry-point.utilities';
+import { JsonUtilities } from '../utilities/json.utilities';
 
 /**
- * Whether `zibri` and `zibri/internal` together pass on everything the files behind them export.
+ * What typedoc.json says typedoc documents.
+ */
+type TypedocEntryPoints = {
+    /**
+     * The entry points, relative to the package, in the order typedoc reads them.
+     */
+    entryPoints: string[]
+};
+
+/**
+ * Whether `zibri`, `zibri/internal` and the entry points of the plugins together pass on everything the files behind
+ * them export.
  *
- * A file whose names are split between the two is re-exported by name rather than with `export *`,
- * so a name added to it later reaches neither entry point until somebody lists it. This is what
- * notices: such a name has to be put on one of them, `zibri` with a Key exports row or
- * `zibri/internal`.
+ * A file whose names are split between two of them is re-exported by name rather than with `export *`, so a name added
+ * to it later reaches none of them until somebody lists it. This is what notices: such a name has to be put on one of
+ * them, a public one with a Key exports row or `zibri/internal`.
  */
 
+/**
+ * What 3.2 exported from `zibri` of the plugins that `zibri/plugin/<name>` exports since.
+ */
+// TODO 4.0: remove with the forwarded names
+const PLUGIN_NAMES_OF_3_2: readonly string[] = [
+    'AllowedCancellationMethods',
+    'AllowedRefundMethods',
+    'AllowedReservationMethods',
+    'AmountUnit',
+    'AnyPaymentProviderInterface',
+    'CompanyInfo',
+    'CompanyInfoServiceInterface',
+    'DefaultPaymentProviderArray',
+    'EN16931ConformanceService',
+    'EN16931DocumentContextId',
+    'ElectronicAddress',
+    'Invoice',
+    'InvoiceAddress',
+    'InvoiceCalcService',
+    'InvoiceCalcServiceInterface',
+    'InvoiceConformance',
+    'InvoiceConformanceServiceInterface',
+    'InvoiceItem',
+    'InvoiceNumberService',
+    'InvoiceNumberServiceInterface',
+    'InvoicePdfService',
+    'InvoicePdfServiceInterface',
+    'InvoiceRecipientAbbreviation',
+    'InvoicingOptions',
+    'InvoicingOptionsInput',
+    'KnownPaymentMethod',
+    'MailingList',
+    'MailingListBaseEmailTemplate',
+    'MailingListBaseEmailTemplateProps',
+    'MailingListController',
+    'MailingListPreferencesPageTemplate',
+    'MailingListPreferencesPageTemplateProps',
+    'MailingListQueueEmailData',
+    'MailingListService',
+    'MailingListServiceInterface',
+    'MailingListSubscribeConfirmationEmailTemplate',
+    'MailingListSubscribeConfirmationEmailTemplateProps',
+    'MailingListSubscribeSuccessPageTemplate',
+    'MailingListSubscribeSuccessPageTemplateProps',
+    'MailingListSubscriber',
+    'MailingListSubscriberCreateData',
+    'MailingListSubscriptionConfirmationToken',
+    'MailingListTemplateData',
+    'MailingListUnsubscribeConfirmationPageTemplate',
+    'MailingListUnsubscribeConfirmationPageTemplateProps',
+    'MethodsCoveredByProviders',
+    'NumberInvoices',
+    'PayPalEnv',
+    'PayPalPaymentData',
+    'PayPalPaymentProvider',
+    'PayPalPaymentProviderOptions',
+    'PayPalPaymentProviderPaymentData',
+    'PayPalValidatedPaymentData',
+    'Payment',
+    'PaymentDataForMethod',
+    'PaymentForMethod',
+    'PaymentMethod',
+    'PaymentPluginOptions',
+    'PaymentPluginOptionsInput',
+    'PaymentProviderInterface',
+    'PaymentReconciliationCronJob',
+    'PaymentReservationForMethod',
+    'PaymentService',
+    'PaymentServiceInterface',
+    'PaymentStatus',
+    'PeppolConformanceService',
+    'UpdateMailingListPreferences',
+    'ValidatedPaymentDataForMethod',
+    'Vat',
+    'VatCategoryCode',
+    'XRechnungConformanceService',
+    'ZIBRI_INVOICING_PLUGIN_DI_TOKENS',
+    'ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS',
+    'ZIBRI_PAYMENT_PLUGIN_DI_TOKENS',
+    'ZibriInvoicingPlugin',
+    'ZibriMailingListPlugin',
+    'ZibriPaymentPlugin'
+];
+
 describe('the entry points', () => {
+    const entryPoints: string[] = ['index.ts', 'internal.ts', ...PLUGIN_ENTRY_POINTS];
 
     it('pass on every name the files behind them export, each on exactly one of them', () => {
-        const main: Set<string> = new Set(EntryPointUtilities.resolveNames('index.ts').map(exported => exported.name));
-        const internal: Set<string> = new Set(EntryPointUtilities.resolveNames('internal.ts').map(exported => exported.name));
-        // a name moved to `zibri` stays on `zibri/internal` as well, deprecated, until the next major
-        const movedToMain: Set<string> = new Set(EntryPointUtilities.resolveDeprecatedNames('internal.ts'));
-        const declared: ExportedName[] = [
-            ...EntryPointUtilities.resolveReexportedFileNames('index.ts'),
-            ...EntryPointUtilities.resolveReexportedFileNames('internal.ts')
-        ];
+        const names: Map<string, Set<string>> = new Map(entryPoints.map(entryPoint => [
+            entryPoint,
+            new Set(EntryPointUtilities.resolveNames(entryPoint).map(exported => exported.name))
+        ]));
+        // a name that moved stays where it was as well, deprecated, until the next major: from `zibri/internal` to
+        // `zibri`, and from `zibri` to the entry point of its plugin
+        const kept: Map<string, Set<string>> = new Map(entryPoints.map(entryPoint => [
+            entryPoint,
+            new Set(EntryPointUtilities.resolveDeprecatedNames(entryPoint))
+        ]));
+        const declared: ExportedName[] = entryPoints.flatMap(entryPoint => EntryPointUtilities.resolveReexportedFileNames(entryPoint));
 
-        const onBoth: string[] = [...main].filter(name => internal.has(name) && !movedToMain.has(name));
-        const onNeither: string[] = declared
-            .filter(exported => !main.has(exported.name) && !internal.has(exported.name))
+        const onSeveral: string[] = [...new Set(declared.map(exported => exported.name))]
+            .map(name => ({ name, on: entryPoints.filter(entryPoint => names.get(entryPoint)?.has(name) === true && kept.get(entryPoint)?.has(name) !== true) }))
+            .filter(found => found.on.length > 1)
+            .map(found => `${found.name} (${found.on.join(', ')})`);
+        const onNone: string[] = declared
+            .filter(exported => !entryPoints.some(entryPoint => names.get(entryPoint)?.has(exported.name) === true))
             .map(exported => `${exported.name} (${exported.file})`);
+        const keptButNotMoved: string[] = [...kept.get('index.ts') ?? []]
+            .filter(name => !PLUGIN_ENTRY_POINTS.some(entryPoint => names.get(entryPoint)?.has(name) === true));
 
-        // not vacuous: the files behind the two entry points declare well over a thousand names
+        // not vacuous: the files behind the entry points declare well over a thousand names, and every plugin has some
         expect(declared.length).toBeGreaterThan(1000);
-        expect({ onBoth, onNeither }).toEqual({ onBoth: [], onNeither: [] });
+        expect(PLUGIN_ENTRY_POINTS.filter(entryPoint => (names.get(entryPoint)?.size ?? 0) === 0)).toEqual([]);
+        expect({ onSeveral, onNone, keptButNotMoved }).toEqual({ onSeveral: [], onNone: [], keptButNotMoved: [] });
+    }, 120_000);
+
+    it('are each documented, the plugins before zibri, which owns what the first of them exports', () => {
+        const typedoc: TypedocEntryPoints = JsonUtilities.parse(readFileSync(path.join(__dirname, '..', '..', 'typedoc.json'), 'utf8'));
+        // typedoc documents a name under the first entry point it reads it on, and a plugin's name `zibri` keeps
+        // until the next major belongs to the plugin
+        expect(typedoc.entryPoints).toEqual([...[...PLUGIN_ENTRY_POINTS].sort(), 'index.ts'].map(entryPoint => `src/${entryPoint}`));
+    });
+
+    // TODO 4.0: remove with the forwarded names
+    it('keep on zibri what 3.2 exported there of its plugins, deprecated, and nothing a plugin added since', () => {
+        expect(EntryPointUtilities.resolveDeprecatedNames('index.ts').sort()).toEqual([...PLUGIN_NAMES_OF_3_2].sort());
     }, 120_000);
 
     // a developer guesses a name they have not read only when every subsystem spells it the same way,
@@ -44,7 +164,7 @@ describe('the entry points', () => {
             'auth/authenticators/passkey/passkey-creation-options.model.ts',
             'auth/authenticators/passkey/passkey-request-options.model.ts'
         ];
-        const names: ExportedName[] = EntryPointUtilities.resolveMemberNames('index.ts');
+        const names: ExportedName[] = PUBLIC_ENTRY_POINTS.flatMap(entryPoint => EntryPointUtilities.resolveMemberNames(entryPoint));
         const wrong: string[] = [
             ...new Set(names
                 .filter(exported => !namedByAStandard.includes(exported.file))
@@ -59,7 +179,7 @@ describe('the entry points', () => {
     }, 120_000);
 
     it('name a page by its limit and offset, as the http query does', () => {
-        const names: ExportedName[] = EntryPointUtilities.resolveMemberNames('index.ts');
+        const names: ExportedName[] = PUBLIC_ENTRY_POINTS.flatMap(entryPoint => EntryPointUtilities.resolveMemberNames(entryPoint));
         const findAllOptions: string[] = names
             .filter(exported => exported.file === 'data-source/models/options/find-all-options.model.ts')
             .map(exported => exported.name);

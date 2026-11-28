@@ -34,6 +34,18 @@ export interface InvoiceNumberServiceInterface<AddressData extends InvoiceAddres
         nameAbbreviation?: string
     ) => string | Promise<string>,
     /**
+     * Generates the number of a credit note, in the credit note number format of the company.
+     * Required by the invoice cancellation service.
+     * @param invoiceNumber - The number of the invoice the credit note corrects.
+     * @param transaction - An optional transaction from outside to make sure any changes only apply when the transaction is committed.
+     * @returns A promise of the new credit note number.
+     */
+    // TODO 4.0: required
+    generateCreditNoteNumber?: (
+        invoiceNumber: string,
+        transaction?: RepositoryTransaction
+    ) => string | Promise<string>,
+    /**
      * Suggests a name abbreviation for a recipient: the first letters and digits of a company name,
      * or the first letters of first and last name. Two recipients can get the same suggestion.
      * @param invoiceAddress - The address data of the recipient.

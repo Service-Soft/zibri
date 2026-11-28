@@ -1,3 +1,5 @@
+import { type UserKind } from '../auth/models/user-kind.type';
+
 /**
  * What a security relevant event was about.
  *
@@ -30,6 +32,14 @@ export enum AuditAction {
      * Setting a new password by presenting a reset token.
      */
     PASSWORD_RESET_CONFIRMED = 'auth.password-reset.confirmed',
+    /**
+     * Asking for a link to log in with by email.
+     */
+    LOGIN_LINK_REQUESTED = 'auth.login-link.requested',
+    /**
+     * Spending a link to log in with, which proved the mailbox it was sent to.
+     */
+    LOGIN_LINK_USED = 'auth.login-link.used',
     /**
      * Locking an account after too many wrong passwords in a row.
      */
@@ -200,6 +210,22 @@ export enum AuditAction {
      */
     TENANT_RESTORED = 'backup.tenant.restored',
     /**
+     * A row a restore of a tenant kept as it was written, such as a journal entry, that no longer matches the row it
+     * was written from, which the restore brought back or took away. Recorded in that tenant once the restore is done,
+     * one per row, with the entity and the id of the kept row as `subject`.
+     */
+    TENANT_RESTORE_DIVERGENCE = 'backup.tenant.restore-divergence',
+    /**
+     * Checking the books a tenant keeps with the bookkeeping plugin, recorded when an entry or a line is not as it
+     * was posted, or an entry does not balance. Recorded in that tenant, with the entry or the line as `subject`.
+     */
+    BOOKKEEPING_VERIFICATION = 'bookkeeping.verification',
+    /**
+     * Reopening a closed fiscal year of the bookkeeping plugin to correct its books. Recorded in its tenant, with the
+     * fiscal year as `subject` and the user who reopened it.
+     */
+    BOOKKEEPING_FISCAL_YEAR_REOPENED = 'bookkeeping.fiscal-year.reopened',
+    /**
      * A client asking the authorization server for an access token with its api key.
      */
     TOKEN_ISSUED = 'auth.token.issued',
@@ -244,6 +270,11 @@ export enum AuditAction {
      * An identity provider deleting a group it provisioned.
      */
     SCIM_GROUP_DELETED = 'scim.group.deleted',
+    /**
+     * An MCP client calling a tool of `ZibriMcpPlugin`, with the name of the tool as `subject`. A write tool records
+     * the approval request it proposed as `approvalRequestId`.
+     */
+    MCP_TOOL_CALLED = 'mcp.tool.called',
     /**
      * Deciding whether a caller may reach a route.
      */
@@ -299,6 +330,11 @@ export enum AuditReason {
      * The credentials were right, but the user is deactivated.
      */
     DEACTIVATED = 'deactivated',
+    /**
+     * The account is a service account, which acts through its API keys only: it does not log in, and gets no
+     * password, passkey, linked identity, login link, second factor or invitation.
+     */
+    SERVICE_ACCOUNT = 'service-account',
     /**
      * The password was right, but the account is locked after too many wrong ones in a row.
      *
@@ -361,6 +397,15 @@ export enum AuditReason {
      * What was asked for needs a verified email address, and the user's is not.
      */
     EMAIL_NOT_VERIFIED = 'email-not-verified',
+    /**
+     * Rows were found that are not as the application wrote them, such as a chained row changed past the
+     * repository.
+     */
+    TAMPERED = 'tampered',
+    /**
+     * A row kept as it was written no longer matches the row it was written from, such as after a restore.
+     */
+    DIVERGED = 'diverged',
     // kept apart from `REFUSED` on purpose: a user store that is down answers every request exactly
     // like a wrong password, and a log that cannot tell them apart turns an outage into what looks
     // like a credential stuffing run
@@ -399,6 +444,15 @@ export type AuditEvent = {
      * The id of the account, once the attempt got far enough to resolve one.
      */
     userId?: string,
+    /**
+     * Whether `userId` names a person or a service account, where the event knows it, such as a call of a key or
+     * the refusal of a request.
+     */
+    userKind?: UserKind,
+    /**
+     * The approval request the event proposed, such as the call of an MCP tool that writes.
+     */
+    approvalRequestId?: string,
     /**
      * The scopes of a provider's apis the access granted or revoked covers.
      */

@@ -1,6 +1,6 @@
 import { BaseEntity, DataSource, Migration, Newable, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
 
-import { requireBooleanEnv, requireEnv, requirePortEnv } from '../../env';
+import { env } from '../../env';
 import { entities } from './entities';
 import { migrations } from './migrations';
 import { repositories } from './repositories';
@@ -19,12 +19,12 @@ export class DbDataSource extends PostgresDataSource {
     readonly pooler: PostgresPooler = 'none';
 
     options: PostgresOptions = {
-        host: requireEnv('DB_HOST'),
-        port: requirePortEnv('DB_PORT'),
-        username: requireEnv('DB_USERNAME'),
-        password: requireEnv('DB_PASSWORD'),
-        database: requireEnv('DB_DATABASE'),
-        ssl: requireBooleanEnv('DB_SSL')
+        host: env.db.host,
+        port: env.db.port,
+        username: env.db.username,
+        password: env.db.password,
+        database: env.db.database,
+        ssl: env.db.ssl
     };
     entities: Newable<BaseEntity>[] = entities;
     repositories: RepositoryClass[] = repositories;

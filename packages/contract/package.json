@@ -48,6 +48,6 @@
     "devDependencies": {
         "@service-soft/eslint-config": "^2.2.0",
         "eslint": "^9.36.0",
-        "typescript": "^5.9.2"
+        "typescript": "^6.0.3"
     }
 }

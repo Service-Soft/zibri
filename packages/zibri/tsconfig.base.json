@@ -22,5 +22,19 @@
         "strict": true,
         "target": "ES2022"
     },
-    "files": ["src/index.ts", "src/internal.ts", "src/webpack/index.ts", "src/multithreading/services/worker/thread-job.worker.ts"]
+    "files": [
+        "src/index.ts",
+        "src/internal.ts",
+        "src/webpack/index.ts",
+        "src/multithreading/services/worker/thread-job.worker.ts",
+        "src/plugin/analytics/index.ts",
+        "src/plugin/approval/index.ts",
+        "src/plugin/bank/index.ts",
+        "src/plugin/bookkeeping/index.ts",
+        "src/plugin/invoicing/index.ts",
+        "src/plugin/mailing-list/index.ts",
+        "src/plugin/mcp/index.ts",
+        "src/plugin/payment/index.ts",
+        "src/plugin/projects/index.ts"
+    ]
 }

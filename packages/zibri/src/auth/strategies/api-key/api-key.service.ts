@@ -20,6 +20,7 @@ import { type AuthServiceInterface } from '../../auth-service.interface';
 import { type HashServiceInterface } from '../../hash/hash-service.interface';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
 import { BaseUser } from '../../models/base-user.model';
+import { UserKindUtilities } from '../../user/user-kind.utilities';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { JwtUtilities } from '../jwt/jwt.utilities';
 import { ApiKeyAuthenticationMethod } from './api-key-authentication-method.enum';
@@ -114,7 +115,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
         data: ApiKeyCreateData<undefined>,
         transaction: RepositoryTransaction | undefined
     ): Promise<CreatedApiKey> {
-        await this.validateApiKey(userId, data);
+        const user: BaseUser<string> = await this.resolveKeyUser(userId, data);
         // 256 random bits: nothing to guess, and no two keys alike. The prefix tells a key sent as a
         // bearer token apart from a jwt, and lets a secret scanner find one that leaked
         const key: string = `${this.getKeyPrefix()}${randomBytes(32).toString('base64url')}`;
@@ -127,6 +128,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
                 tenantId: data.tenantId,
                 expiresAt: data.expiresAt,
                 requireDpop: data.requireDpop,
+                userKind: UserKindUtilities.getKind(user),
                 ...SECRET_COLUMNS
             },
             { transaction }
@@ -140,7 +142,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
         data: ApiKeyCreateData<ApiKeyClientAuthentication>,
         transaction: RepositoryTransaction | undefined
     ): Promise<ApiKey> {
-        await this.validateApiKey(userId, data);
+        const user: BaseUser<string> = await this.resolveKeyUser(userId, data);
         return await this.apiKeyRepository.create(
             {
                 userId,
@@ -150,6 +152,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
                 tenantId: data.tenantId,
                 expiresAt: data.expiresAt,
                 requireDpop: data.requireDpop,
+                userKind: UserKindUtilities.getKind(user),
                 ...this.toClientColumns(data.clientAuthentication)
             },
             { transaction }
@@ -253,13 +256,14 @@ export class ApiKeyService implements ApiKeyServiceInterface {
     }
 
     /**
-     * Refuses an api key that cannot be created.
+     * Resolves the user a new api key acts as, refusing a key that cannot be created.
      * @param userId - The id of the user the key acts as.
      * @param data - The key.
+     * @returns The user.
      * @throws A BadRequestError when the name is empty, a permission is not declared or not carried by
      * a role of the user, the user is no member of the tenant, or the key would have expired already.
      */
-    private async validateApiKey(userId: string, data: ApiKeyCreateData): Promise<void> {
+    private async resolveKeyUser(userId: string, data: ApiKeyCreateData): Promise<BaseUser<string>> {
         if (!data.name.trim()) {
             throw new BadRequestError($ts`An api key needs a name.`);
         }
@@ -277,6 +281,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
         if (missing.length) {
             throw new BadRequestError($ts`The roles of the user do not carry the permissions ${missing.join(', ')}.`);
         }
+        return user;
     }
 
     /**

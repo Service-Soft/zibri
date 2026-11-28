@@ -5,8 +5,8 @@ import { Invoice } from '../models/invoice.model';
 import { type InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
 
 /**
- * Validates that the given invoice totals at least 0 before tax. One that totals less is a credit
- * note, which an invoice's pdf and electronic invoice cannot state.
+ * Validates that the given invoice totals at least 0 before tax. A credit is a credit note, which
+ * states positive amounts, so that there is one way to state it.
  * @param invoice - The invoice.
  * @param invoiceCalcService - The service calculating its total.
  * @param localizeService - The service knowing the minor units of its currency, for the message.

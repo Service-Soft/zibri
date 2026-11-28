@@ -24,7 +24,7 @@ import { InvoiceNumberService } from './invoice-number.service';
 
 // in memory, as the abbreviations are judged by the service alone, whichever store holds the counters.
 // A file of its own, because an application refuses a data source declared by another one the same
-// file booted, and invoice-number.service.test.ts boots the store of the test run
+// file booted, and invoice-number.service.container.test.ts boots the store of the test run
 
 const currentYear: string = new Date()
     .getFullYear()

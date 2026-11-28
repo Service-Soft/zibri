@@ -5,6 +5,8 @@ import { describe, expect, it } from '@jest/globals';
 import { defaultTestProviders } from 'zibri-testing';
 
 import { DOCS_DIR, DocsPagesUtilities } from '../../__testing__/docs-pages.utilities';
+import { ZIBRI_ANALYTICS_PLUGIN_DI_TOKENS } from '../../plugin/analytics/analytics.tokens';
+import { ZIBRI_APPROVAL_PLUGIN_DI_TOKENS } from '../../plugin/approval/approval.tokens';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../plugin/invoicing/invoicing.tokens';
 import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from '../../plugin/mailing-list/mailing-list.tokens';
 import { ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from '../../plugin/payment/payment.tokens';
@@ -28,6 +30,8 @@ type TokenPage = {
 
 const TOKEN_PAGES: TokenPage[] = [
     { page: 'application/configuration.md', record: ZIBRI_DI_TOKENS },
+    { page: 'plugins/analytics-plugin.md', record: ZIBRI_ANALYTICS_PLUGIN_DI_TOKENS },
+    { page: 'plugins/approval-plugin.md', record: ZIBRI_APPROVAL_PLUGIN_DI_TOKENS },
     { page: 'plugins/invoicing-plugin.md', record: ZIBRI_INVOICING_PLUGIN_DI_TOKENS },
     { page: 'plugins/mailing-list-plugin.md', record: ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS },
     { page: 'plugins/payment-plugin.md', record: ZIBRI_PAYMENT_PLUGIN_DI_TOKENS }

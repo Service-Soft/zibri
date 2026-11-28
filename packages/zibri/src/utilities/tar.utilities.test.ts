@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 
 import { afterAll, describe, expect, it } from '@jest/globals';
@@ -128,5 +128,73 @@ describe('TarUtilities', () => {
         expect(execFileSync('tar', ['-tf', archivePath]).toString()
             .trim()).toBe(path);
         expect(execFileSync('tar', ['-xOf', archivePath, path]).toString()).toBe('a line\n');
+    });
+
+    it('reads back the files of an archive it wrote, in small pieces, passing over what a handler leaves unread', async () => {
+        const path: string = `${'a'.repeat(36)}/3f/${'3f'.repeat(32)}`;
+        const archive: Buffer = await pack([
+            { name: 'first.bin', content: Buffer.alloc(700, 1) },
+            { name: path, content: Buffer.from('the second') },
+            { name: 'block.bin', content: Buffer.alloc(512, 7) },
+            { name: 'empty.txt', content: Buffer.alloc(0) }
+        ]);
+        // in pieces of 100 bytes, which cut through every header and every file
+        const pieces: Buffer[] = Array.from({ length: Math.ceil(archive.length / 100) }, (_, i) => archive.subarray(i * 100, (i + 1) * 100));
+        const read: { name: string, content: Buffer }[] = [];
+
+        await TarUtilities.unpack(Readable.from(pieces), async entry => {
+            const parts: Buffer[] = [];
+            for await (const piece of entry.content) {
+                parts.push(piece);
+                // the first file read part way alone
+                if (entry.name === 'first.bin') {
+                    break;
+                }
+            }
+            read.push({ name: entry.name, content: Buffer.concat(parts) });
+            expect(entry.modifiedAt).toStrictEqual(new Date('2026-11-12T10:00:00.000Z'));
+        });
+
+        expect(read.map(entry => entry.name)).toStrictEqual(['first.bin', path, 'block.bin', 'empty.txt']);
+        expect(read[0]?.content.length).toBeLessThan(700);
+        expect(read[0]?.content.every(byte => byte === 1)).toBe(true);
+        expect(read[1]?.content.toString()).toBe('the second');
+        expect(read[2]?.content).toStrictEqual(Buffer.alloc(512, 7));
+        expect(read[3]?.content).toStrictEqual(Buffer.alloc(0));
+    });
+
+    it('reads the files of an archive the system tar wrote', async () => {
+        const source: FsPath = FsUtilities.getPath(folder, 'system');
+        await FsUtilities.mkdir(FsUtilities.getPath(source, 'tasks'));
+        await writeFile(FsUtilities.getPath(source, 'tasks', 'task.jsonl'), 'a line\n');
+        const archivePath: FsPath = FsUtilities.getPath(folder, 'system.tar');
+        execFileSync('tar', ['--format=ustar', '-cf', archivePath, '-C', source, 'tasks']);
+        const read: Record<string, string> = {};
+
+        await TarUtilities.unpack(Readable.from([await readFile(archivePath)]), async entry => {
+            const parts: Buffer[] = [];
+            for await (const piece of entry.content) {
+                parts.push(piece);
+            }
+            read[entry.name] = Buffer.concat(parts).toString();
+        });
+
+        // the folder is passed over
+        expect(read).toStrictEqual({ 'tasks/task.jsonl': 'a line\n' });
+    });
+
+    it('refuses an archive cut short inside a file, and a header that is damaged', async () => {
+        const archive: Buffer = await pack([{ name: 'task.jsonl', content: Buffer.alloc(700, 1) }]);
+        const drain: (data: Buffer) => Promise<void> = async data => await TarUtilities.unpack(Readable.from([data]), async entry => {
+            for await (const piece of entry.content) {
+                void piece;
+            }
+        });
+        const damaged: Buffer = Buffer.from(archive);
+        damaged.write('x', 0, 'ascii');
+
+        await expect(drain(archive.subarray(0, 800))).rejects.toThrow('ends inside the file "task.jsonl"');
+        await expect(drain(archive.subarray(0, 300))).rejects.toThrow('cut short or damaged');
+        await expect(drain(damaged)).rejects.toThrow('cut short or damaged');
     });
 });

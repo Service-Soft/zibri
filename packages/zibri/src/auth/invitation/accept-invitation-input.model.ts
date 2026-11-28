@@ -1,4 +1,5 @@
 import { Property } from '../../entity/decorators/property.decorator';
+import { type LocaleCode } from '../../localization/models/locale-code.model';
 
 /**
  * What accepting an invitation is sent with.
@@ -16,4 +17,11 @@ export class AcceptInvitationInput {
      */
     @Property.string({ required: false })
     password?: string;
+
+    /**
+     * The locale of the account the invitation creates, one the application supports, such as the language the
+     * user picked on the page accepting it. Defaults to the locale the invitation was sent in.
+     */
+    @Property.string({ required: false })
+    locale?: LocaleCode;
 }

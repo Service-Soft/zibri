@@ -54,10 +54,29 @@ function validateTransformsInstalled(): void {
 }
 
 /**
- * The packages that ship as es modules only and that the framework loads while an application
- * starts: the default auth strategy loads jose.
+ * The packages that ship as es modules only and that the framework loads: jose, which the default auth strategy loads
+ * while an application starts, and what pdfmake 0.3 stands on, which a pdf loads. Pdfkit, which it draws with,
+ * requires fontkit and linebreak, fontkit is built on brotli, dfa, unicode-properties and unicode-trie, and pdfmake
+ * requires @noble/hashes itself.
  */
-const FRAMEWORK_ESM_PACKAGES: string[] = ['jose'];
+const FRAMEWORK_ESM_PACKAGES: string[] = [
+    'jose',
+    'fontkit',
+    'linebreak',
+    'brotli',
+    'dfa',
+    'unicode-properties',
+    'unicode-trie',
+    '@noble/hashes'
+];
+
+/**
+ * What jest maps a module to when it cannot load es modules as they are. The module unicode-properties reads its data
+ * with in node finds the file by `import.meta.url`, which commonjs does not have, and its variant for browsers holds
+ * the same data inline. Jest resolves the mapped path from the file importing it, wherever unicode-properties is
+ * installed.
+ */
+const COMMONJS_MODULE_NAME_MAPPER: Record<string, string> = { '^#binary-trie$': './binaryTrie.browser.js' };
 
 /**
  * Whether jest loads an es module that is required as it is: on node run with `--experimental-vm-modules`, as the test
@@ -116,7 +135,10 @@ export function createJestConfig({ esmPackages = [], ...config }: JestConfigOpti
         ...config,
         // jest takes the first pattern that matches, so the application's come first and win
         transform: { ...config.transform, ...transform, ...config.transform },
-        transformIgnorePatterns: loadsEsModules ? ['/node_modules/'] : [`/node_modules/(?!(?:${packages})/)`],
-        moduleNameMapper: { '^(.+)\\?client$': '$1', ...config.moduleNameMapper }
+        // a package is ignored when the pattern matches at any node_modules of its path, so the first one also checks
+        // the one below it: npm installs a package below another one, such as fontkit 3 below pdfmake 0.3, where the
+        // root holds another version
+        transformIgnorePatterns: loadsEsModules ? ['/node_modules/'] : [`/node_modules/(?!(?:.*/node_modules/)?(?:${packages})/)`],
+        moduleNameMapper: { '^(.+)\\?client$': '$1', ...loadsEsModules ? {} : COMMONJS_MODULE_NAME_MAPPER, ...config.moduleNameMapper }
     };
 }

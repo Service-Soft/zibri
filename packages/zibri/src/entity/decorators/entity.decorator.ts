@@ -20,8 +20,10 @@ import { type EntityCheck } from '../models/entity-check.model';
 import { type EntityOrder, type OrderDirection } from '../models/entity-order.model';
 import { type EntityRelations } from '../models/entity-relations.model';
 import { type EntityScope } from '../models/entity-scope.model';
+import { type EntityShareable } from '../models/entity-shareable.model';
 import { type EntityTenant } from '../models/entity-tenant.model';
 import { type KeptWith } from '../models/kept-with.model';
+import { Relation } from '../models/relation.enum';
 import { coversEveryRow, declaresUnique, KeyWhere, UniqueGroup, UniqueGroupInput } from '../models/unique-declaration.model';
 import { type PropertyMetadata } from './property.decorator';
 
@@ -134,6 +136,16 @@ export type EntityMetadata<T extends BaseEntity = BaseEntity> = {
      */
     scope?: EntityScope,
     /**
+     * Whether its rows are shared with selected people: a caller without `fullAccess` sees the rows shared with them
+     * and their descendants alone. Applied by the repository like a scope, beside the entity's own.
+     */
+    shareable?: EntityShareable,
+    /**
+     * The relation to a row whose shares decide which rows of this entity a caller sees, for the rows of a shared
+     * row, such as the tasks of a project. The entity it reaches is shareable, or shared through a relation in turn.
+     */
+    sharedThrough?: string,
+    /**
      * Which tenant the rows of this entity belong to.
      *
      * `'shared'` when its rows belong to no tenant, or the property holding the tenant of each row,
@@ -170,8 +182,21 @@ export type EntityMetadataInput<
     TUniqueKey extends string = never,
     TIndexKey extends string = never,
     TTenant extends EntityTenant = DefaultTenant,
-    TExpiresKey extends string = never
-> = OmitStrict<Partial<EntityMetadata>, 'defaultOrder' | 'defaultRelations' | 'uniques' | 'indexes' | 'checks' | 'tenant' | 'expiresBy'> & {
+    TExpiresKey extends string = never,
+    TParentKey extends string = never,
+    TSharedThroughKey extends string = never
+> = OmitStrict<
+    Partial<EntityMetadata>,
+    'defaultOrder' | 'defaultRelations' | 'uniques' | 'indexes' | 'checks' | 'tenant' | 'expiresBy' | 'shareable' | 'sharedThrough'
+> & {
+    /**
+     * Whether its rows are shared with selected people, see `EntityShareable`.
+     */
+    shareable?: EntityShareable<TParentKey>,
+    /**
+     * The `manyToOne` or `belongsToOne` relation to a row whose shares decide which rows of this entity a caller sees.
+     */
+    sharedThrough?: TSharedThroughKey,
     /**
      * Which tenant the rows of this entity belong to: `'shared'`, or the string property holding the
      * tenant of each row. Defaults to the property `tenantId`.
@@ -245,9 +270,11 @@ export function Entity<
     TUniqueKey extends string = never,
     TIndexKey extends string = never,
     const TTenant extends EntityTenant = DefaultTenant,
-    TExpiresKey extends string = never
+    TExpiresKey extends string = never,
+    TParentKey extends string = never,
+    TSharedThroughKey extends string = never
 >(
-    options: EntityMetadataInput<TOrderKey, TRelationKey, TUniqueKey, TIndexKey, TTenant, TExpiresKey> = {}
+    options: EntityMetadataInput<TOrderKey, TRelationKey, TUniqueKey, TIndexKey, TTenant, TExpiresKey, TParentKey, TSharedThroughKey> = {}
 ) {
     const {
         tableName,
@@ -257,6 +284,8 @@ export function Entity<
         indexes,
         checks,
         scope,
+        shareable,
+        sharedThrough,
         expiresBy,
         tenant = defaultTenant,
         allowOrphan = false,
@@ -271,10 +300,14 @@ export function Entity<
         ?.map(group => Array.isArray(group) ? { properties: group } : { properties: group.properties, where: group.where });
     const entityChecks: EntityCheck[] | undefined = checks
         ?.map(check => isEntityCheck(check) ? check : CheckConstraintViolationError.resolveFilterCheck(check));
-    return <T extends ConstrainKeys<T, TOrderKey | TRelationKey | TUniqueKey | TIndexKey | TenantKeyOf<TTenant> | TExpiresKey>>(
+    return <T extends ConstrainKeys<
+        T,
+        TOrderKey | TRelationKey | TUniqueKey | TIndexKey | TenantKeyOf<TTenant> | TExpiresKey | TParentKey | TSharedThroughKey
+    >>(
         target: Newable<T>
     ): void => {
         validateTenantProperty(target, tenant);
+        validateSharing(target, shareable, sharedThrough, tenant);
         if (expiresBy != undefined) {
             validateExpiresBy(target, expiresBy);
         }
@@ -314,6 +347,8 @@ export function Entity<
             indexes,
             checks: entityChecks,
             scope,
+            shareable,
+            sharedThrough,
             tenant
         };
         MetadataUtilities.setEntityMetadata(target, metadata);
@@ -420,6 +455,55 @@ function validateKeptWith(target: Newable<unknown>, keptWith: KeptWith): void {
         throw new InternalError([
             `${target.name}: A restore keeps a row with the row "${keptWith.by}" names, which is not a declared property.`,
             `"${keptWith.by}" needs to be a "@Property.string()" holding the id of that row.`
+        ]);
+    }
+}
+
+/**
+ * Refuses a declaration of sharing that cannot narrow the rows the way it says.
+ *
+ * What the relations reach is checked once the application starts, as their targets may be declared after this
+ * entity: here only what the class itself can say.
+ * @param target - The class being decorated.
+ * @param shareable - What it declares as `shareable`, if anything.
+ * @param sharedThrough - What it declares as `sharedThrough`, if anything.
+ * @param tenant - Which tenant its rows belong to.
+ * @throws When the rows belong to no tenant, the entity declares both, its roles are empty or repeat one, or a
+ * relation it names is no relation to one row.
+ */
+function validateSharing(
+    target: Newable<unknown>,
+    shareable: EntityShareable | undefined,
+    sharedThrough: string | undefined,
+    tenant: EntityTenant
+): void {
+    if (shareable == undefined && sharedThrough == undefined) {
+        return;
+    }
+    // a share is held through a membership, which is of a tenant
+    if (tenant === 'shared') {
+        throw new InternalError(`${target.name}: Rows are shared with the members of a tenant, and this entity belongs to no tenant.`);
+    }
+    if (shareable != undefined && sharedThrough != undefined) {
+        throw new InternalError([
+            `${target.name}: declares "shareable" and "sharedThrough".`,
+            'A row is shared on its own, or through the row it belongs to. Keep one of them.'
+        ]);
+    }
+    if (shareable != undefined && new Set(shareable.roles).size !== shareable.roles.length) {
+        throw new InternalError(`${target.name}: The roles of "shareable" name a role twice: ${shareable.roles.join(', ')}.`);
+    }
+    const relation: string | undefined = shareable?.parent ?? sharedThrough;
+    if (relation == undefined) {
+        return;
+    }
+    // to one row through a column of the row itself, which is what the rows are narrowed by
+    const metadata: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(target)[relation];
+    if (metadata?.type !== Relation.MANY_TO_ONE && metadata?.type !== Relation.BELONGS_TO_ONE) {
+        throw new InternalError([
+            `${target.name}: "${shareable == undefined ? 'sharedThrough' : 'parent'}" names "${relation}",`
+            + ' which is no "manyToOne" or "belongsToOne" relation.',
+            'The rows are narrowed by the column such a relation holds the related row in.'
         ]);
     }
 }

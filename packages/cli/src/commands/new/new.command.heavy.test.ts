@@ -116,6 +116,31 @@ describe('NewCommand (real npm install)', () => {
         expect(await FsUtilities.exists(path.join(appDir, 'node_modules', 'jest') as Path)).toBe(false);
         execSync('npm test', { cwd: appDir, stdio: 'pipe' });
     }, CI_WORKFLOW_TIMEOUT_MS);
+
+    // what Monux does: a workspace whose root was installed before the project is added. npm then ignores an
+    // install into a member it has not seen yet, without an error
+    it('keeps every install inside an npm workspace whose root is already installed', async () => {
+        await FsUtilities.createFile(
+            path.join(workDir, 'package.json') as Path,
+            JSON.stringify({ name: 'monorepo', private: true, workspaces: ['apps/*'] }),
+            true,
+            false
+        );
+        execSync('npm i', { cwd: workDir, stdio: 'pipe' });
+        const appsDir: Path = path.join(workDir, 'apps') as Path;
+        await FsUtilities.mkdir(appsDir, true, false);
+        CPUtilities['cwd'] = appsDir;
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', 'none']));
+        const appDir: Path = path.join(appsDir, 'api') as Path;
+
+        // eslint-disable-next-line typescript/no-unsafe-assignment
+        const packageJson: { devDependencies: Record<string, string> } = JSON.parse(
+            await FsUtilities.readFile(path.join(appDir, 'package.json') as Path)
+        );
+        expect(Object.keys(packageJson.devDependencies)).toEqual(expect.arrayContaining(['webpack', 'webpack-cli', 'zibri-testing']));
+        expect(await FsUtilities.exists(path.join(workDir, 'node_modules', 'webpack') as Path)).toBe(true);
+        execSync('npm run build', { cwd: appDir, stdio: 'pipe' });
+    }, CI_WORKFLOW_TIMEOUT_MS);
 });
 
 /**

@@ -37,5 +37,8 @@ export const DiVariants = {
     WEBSOCKET_CONTROLLER: new DiVariant('websocket-controller'),
     BACKUP_RESOURCE: new DiVariant('backup-resource'),
     BACKUP_TRANSPORT: new DiVariant('backup-transport'),
-    BODY_PARSER: new DiVariant('body-parser')
+    FILE_STORE: new DiVariant('file-store'),
+    BODY_PARSER: new DiVariant('body-parser'),
+    WEB_DAV_CONNECTION_USAGE_FINDER: new DiVariant('web-dav-connection-usage-finder'),
+    WEB_DAV_CONNECTION_USAGE_CLEANER: new DiVariant('web-dav-connection-usage-cleaner')
 } as const satisfies Record<string, DiVariant>;

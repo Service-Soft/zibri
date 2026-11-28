@@ -73,7 +73,7 @@ describe('EventService replaying failed runs', () => {
     }
 
     beforeAll(async () => {
-        // short, for the reason event.service.test.ts gives: an attempt keeps its grant until the
+        // short, for the reason event.service.container.test.ts gives: an attempt keeps its grant until the
         // lease lapses, so a replayed run is not run again before then
         server = await startTestServer({
             dataSources: [dataSourceClass],
@@ -93,7 +93,7 @@ describe('EventService replaying failed runs', () => {
         await server?.shutdown();
     }, TestTimeouts.inMemory.shutdown);
 
-    // for the reason event.service.test.ts gives: a registration outlives its subscription
+    // for the reason event.service.container.test.ts gives: a registration outlives its subscription
     beforeEach(async () => {
         await registrationRepo.deleteAll({});
     });

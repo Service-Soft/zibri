@@ -11,7 +11,7 @@ import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
-import { getZonedDate } from '../../localization/format-date.function';
+import { getZonedDate } from '../../localization/get-zoned-date.function';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';

@@ -23,6 +23,42 @@
             "types": "./dist/cjs/internal.d.ts",
             "default": "./dist/cjs/internal.js"
         },
+        "./plugin/analytics": {
+            "types": "./dist/cjs/plugin/analytics/index.d.ts",
+            "default": "./dist/cjs/plugin/analytics/index.js"
+        },
+        "./plugin/approval": {
+            "types": "./dist/cjs/plugin/approval/index.d.ts",
+            "default": "./dist/cjs/plugin/approval/index.js"
+        },
+        "./plugin/bank": {
+            "types": "./dist/cjs/plugin/bank/index.d.ts",
+            "default": "./dist/cjs/plugin/bank/index.js"
+        },
+        "./plugin/bookkeeping": {
+            "types": "./dist/cjs/plugin/bookkeeping/index.d.ts",
+            "default": "./dist/cjs/plugin/bookkeeping/index.js"
+        },
+        "./plugin/invoicing": {
+            "types": "./dist/cjs/plugin/invoicing/index.d.ts",
+            "default": "./dist/cjs/plugin/invoicing/index.js"
+        },
+        "./plugin/mailing-list": {
+            "types": "./dist/cjs/plugin/mailing-list/index.d.ts",
+            "default": "./dist/cjs/plugin/mailing-list/index.js"
+        },
+        "./plugin/mcp": {
+            "types": "./dist/cjs/plugin/mcp/index.d.ts",
+            "default": "./dist/cjs/plugin/mcp/index.js"
+        },
+        "./plugin/payment": {
+            "types": "./dist/cjs/plugin/payment/index.d.ts",
+            "default": "./dist/cjs/plugin/payment/index.js"
+        },
+        "./plugin/projects": {
+            "types": "./dist/cjs/plugin/projects/index.d.ts",
+            "default": "./dist/cjs/plugin/projects/index.js"
+        },
         "./tsconfig.application.json": "./tsconfig.application.json",
         "./package.json": "./package.json"
     },
@@ -43,22 +79,28 @@
         "../../CONTRIBUTING.md",
         "./LICENSE"
     ],
+    "translations": {
+        "de": "./translations/de.xlf"
+    },
     "engines": {
         "node": ">=24"
     },
     "scripts": {
-        "test": "npm run test:normal && npm run test:heavy && npm run test:cluster && npm run test:benchmark",
+        "test": "npm run test:normal && npm run test:container && npm run test:heavy && npm run test:cluster && npm run test:nextcloud && npm run test:benchmark",
         "test:ci": "npm run test:coverage && npm run test:cluster",
         "test:heavy": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand --testPathPatterns=\"(multithreading\\.service\\.performance\\.test\\.ts|pay-pal\\.payment-provider\\.test\\.ts|base-keycloak\\.authenticator\\.test\\.ts|\\.heavy\\.test\\.ts)\"",
-        "test:normal": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --testPathPatterns=\"^(?!.*(multithreading\\.service\\.performance\\.test\\.ts|pay-pal\\.payment-provider\\.test\\.ts|base-keycloak\\.authenticator\\.test\\.ts|\\.heavy\\.test\\.ts|\\.cluster\\.test\\.ts|\\.benchmark\\.test\\.ts)).*\"",
+        "test:normal": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --testPathPatterns=\"^(?!.*(multithreading\\.service\\.performance\\.test\\.ts|pay-pal\\.payment-provider\\.test\\.ts|base-keycloak\\.authenticator\\.test\\.ts|\\.container\\.test\\.ts|\\.heavy\\.test\\.ts|\\.cluster\\.test\\.ts|\\.nextcloud\\.test\\.ts|\\.benchmark\\.test\\.ts)).*\"",
+        "test:container": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --maxWorkers=75% --testPathPatterns=\"\\.container\\.test\\.ts$\"",
         "test:cluster": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand --testPathPatterns=\"\\.cluster\\.test\\.ts$\"",
+        "test:nextcloud": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand --testPathPatterns=\"\\.nextcloud\\.test\\.ts$\"",
         "test:benchmark": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand --testPathPatterns=\"\\.benchmark\\.test\\.ts$\"",
         "test:benchmark:compare": "node scripts/compare-benchmarks.mjs test:benchmark",
         "test:benchmark:perf": "node scripts/profile-benchmarks.mjs",
-        "test:coverage": "npm run test:coverage:normal && npm run test:coverage:heavy && npm run test:coverage:merge",
+        "test:coverage": "npm run test:coverage:normal && npm run test:coverage:container && npm run test:coverage:heavy && npm run test:coverage:merge",
         "test:coverage:normal": "npm run test:normal -- --coverage --coverageDirectory=__testing__/coverage/raw/normal --coverageReporters=json",
+        "test:coverage:container": "npm run test:container -- --coverage --coverageDirectory=__testing__/coverage/raw/container --coverageReporters=json",
         "test:coverage:heavy": "npm run test:heavy -- --coverage --coverageDirectory=__testing__/coverage/raw/heavy --coverageReporters=json",
-        "test:coverage:merge": "mkdir -p src/__testing__/coverage/merge-input && cp src/__testing__/coverage/raw/normal/coverage-final.json src/__testing__/coverage/merge-input/normal.json && cp src/__testing__/coverage/raw/heavy/coverage-final.json src/__testing__/coverage/merge-input/heavy.json && nyc merge src/__testing__/coverage/merge-input src/__testing__/coverage/coverage-final.json && nyc report --temp-dir=src/__testing__/coverage --report-dir=src/__testing__/coverage/report --reporter=lcov --reporter=text-summary --reporter=json-summary",
+        "test:coverage:merge": "mkdir -p src/__testing__/coverage/merge-input && cp src/__testing__/coverage/raw/normal/coverage-final.json src/__testing__/coverage/merge-input/normal.json && cp src/__testing__/coverage/raw/container/coverage-final.json src/__testing__/coverage/merge-input/container.json && cp src/__testing__/coverage/raw/heavy/coverage-final.json src/__testing__/coverage/merge-input/heavy.json && nyc merge src/__testing__/coverage/merge-input src/__testing__/coverage/coverage-final.json && nyc report --temp-dir=src/__testing__/coverage --report-dir=src/__testing__/coverage/report --reporter=lcov --reporter=text-summary --reporter=json-summary",
         "start": "npm run watch:cjs",
         "watch:cjs": "tsc -p tsconfig.cjs.json --watch",
         "build:prod": "npm run build && typedoc",
@@ -98,7 +140,7 @@
         "nodemailer": "^10.0.13",
         "openid-client": "^6.8.8",
         "otpauth": "^9.5.1",
-        "pdfmake": "^0.2.23",
+        "pdfmake": "^0.2.23 || ^0.3.15",
         "pg": "^8.21.0",
         "pg-query-stream": "^4.10.3",
         "rxjs": "^7.8.2",
@@ -247,6 +289,7 @@
         "openid-client": "^6.8.8",
         "otpauth": "^9.5.1",
         "pdfmake": "^0.2.23",
+        "pdfmake-0.3": "npm:pdfmake@^0.3.15",
         "pg": "^8.21.0",
         "pg-query-stream": "^4.10.3",
         "playwright": "^1.61.1",
@@ -260,8 +303,8 @@
         "ts-jest": "^29.4.11",
         "ts-node": "^10.9.2",
         "typedoc": "^0.28.19",
-        "typescript": "^5.9.2",
-        "typescript-6": "npm:typescript@^6.0.2",
+        "typescript": "^6.0.3",
+        "typescript-5": "npm:typescript@^5.9.2",
         "webpack": "^5.105.3",
         "zibri-mdx": "^3.2.1",
         "zibri-testing": "^3.2.1",

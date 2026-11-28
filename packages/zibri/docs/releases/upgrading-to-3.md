@@ -75,7 +75,10 @@ Every 2.x database needs the same changes to the entities Zibri ships. Copy thes
 // src/data-sources/db/migrations/upgrade-to-zibri-3.migration.ts
 import { readFile } from 'node:fs/promises';
 
-import { ArrayPropertyMetadataInput, AuditCheckpoint, AuditEntry, BackupEntity, BackupResourceEntity, BackupStatus, BaseEntity, CacheInvalidation, ChainAnchor, Change, ChangeSet, CookieAuthRefreshSession, CookieAuthSession, CronJobEntity, CronJobState, Email, EmailAttachment, EmailStatus, EncryptionRotationFailure, EncryptionRotationProgress, Event, EventSubscriberRegistration, EventSubscriberRun, EventSubscriberRunStatus, HashStrategyEntity, HashStrategyStatus, HttpStatus, Injectable, Invoice, InvoiceRecipientAbbreviation, JwtRefreshToken, Lease, Log, LOGIN_USER_AGENT_MAX_LENGTH, LoggedError, LogLevel, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MasterKeyReference, Migration, Newable, NumberInvoices, NumberPropertyMetadataInput, OtpCredentials, PasswordCredentials, PasswordResetToken, Payment, RateLimitStateEntity, Repository, RepositoryTypeForEntity, SemVerVersion, SigningKey, ThreadJobEntity, timezoneEnum, Transaction, TwoFactorFailureStreak, TwoFactorRecoveryCode, ValueConversion, WebsocketChannel, WebsocketMessage } from 'zibri';
+import { ArrayPropertyMetadataInput, AuditCheckpoint, AuditEntry, BackupEntity, BackupResourceEntity, BackupStatus, BaseEntity, CacheInvalidation, ChainAnchor, Change, ChangeSet, CookieAuthRefreshSession, CookieAuthSession, CronJobEntity, CronJobState, Email, EmailAttachment, EmailStatus, EncryptionRotationFailure, EncryptionRotationProgress, Event, EventSubscriberRegistration, EventSubscriberRun, EventSubscriberRunStatus, HashStrategyEntity, HashStrategyStatus, HttpStatus, Injectable, JwtRefreshToken, Lease, Log, LOGIN_USER_AGENT_MAX_LENGTH, LoggedError, LogLevel, MasterKeyReference, Migration, Newable, NumberPropertyMetadataInput, OtpCredentials, PasswordCredentials, PasswordResetToken, RateLimitStateEntity, Repository, RepositoryTypeForEntity, SemVerVersion, SigningKey, ThreadJobEntity, timezoneEnum, Transaction, TwoFactorFailureStreak, TwoFactorRecoveryCode, ValueConversion, WebsocketChannel, WebsocketMessage } from 'zibri';
+import { Invoice, InvoiceRecipientAbbreviation, NumberInvoices } from 'zibri/plugin/invoicing';
+import { MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken } from 'zibri/plugin/mailing-list';
+import { Payment } from 'zibri/plugin/payment';
 
 import { DbDataSource } from '../db.data-source';
 
@@ -811,7 +814,8 @@ export class EncryptOtpSecretsMigration extends Migration {
 // src/data-sources/db/migrations/add-mailing-list-secrets.migration.ts
 import { randomBytes } from 'node:crypto';
 
-import { Injectable, MailingListSubscriber, Migration, Repository, SemVerVersion, Transaction } from 'zibri';
+import { Injectable, Migration, Repository, SemVerVersion, Transaction } from 'zibri';
+import { MailingListSubscriber } from 'zibri/plugin/mailing-list';
 
 import { DbDataSource } from '../db.data-source';
 

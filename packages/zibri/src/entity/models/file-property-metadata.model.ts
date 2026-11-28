@@ -1,3 +1,4 @@
+import type { InjectionToken } from '../../di/models/injection-token.model';
 import type { MimeType } from '../../http/mime-type.enum';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
@@ -45,7 +46,13 @@ export type FilePropertyMetadata = BasePropertyMetadata & {
     /**
      * The maximum file size.
      */
-    maxSize: FileSize
+    maxSize: FileSize,
+    /**
+     * The name of the file store the file of an entity is kept in, such as `'documents'`, or a DI token providing
+     * the name, read once the application's providers exist. Its column then holds the id of the file's
+     * `FileRecord`, and a response answers a `FileReference`. Without one, the column holds the bytes.
+     */
+    store?: string | InjectionToken<string>
 };
 
 /**

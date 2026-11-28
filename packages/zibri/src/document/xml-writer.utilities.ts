@@ -118,7 +118,46 @@ export abstract class XmlWriterUtilities {
 
         const separator: string = options.indent === true ? '\n' : '';
         const document: string = XmlWriterUtilities.stringifyElement(element, namespaces, options.indent === true ? 0 : undefined);
-        return `<?xml version="1.0" encoding="UTF-8"?>${separator}${document}`;
+        const doctype: string = options.doctypeSystemId == undefined
+            ? ''
+            : `${XmlWriterUtilities.resolveDoctype(element, namespaces, options.doctypeSystemId)}${separator}`;
+        return `<?xml version="1.0" encoding="UTF-8"?>${separator}${doctype}${document}`;
+    }
+
+    /**
+     * Escapes a value as the text of an element, for a document written without a model.
+     * @param value - The value.
+     * @returns The value as text.
+     * @throws {InternalError} When the value holds a character xml cannot.
+     */
+    static escapeText(value: string): string {
+        return XmlWriterUtilities.escape(value, TEXT_SPECIAL_CHARACTERS);
+    }
+
+    /**
+     * Escapes a value as the value of an attribute in double quotes, for a document written without a model.
+     * @param value - The value.
+     * @returns The value as the value of an attribute.
+     * @throws {InternalError} When the value holds a character xml cannot.
+     */
+    static escapeAttributeValue(value: string): string {
+        return XmlWriterUtilities.escape(value, ATTRIBUTE_SPECIAL_CHARACTERS);
+    }
+
+    /**
+     * The document type declaration naming the root element and the file of its definition.
+     * @param root - The root element.
+     * @param namespaces - How the namespaces of the document are written.
+     * @param systemId - The file of the definition.
+     * @returns The declaration.
+     * @throws {InternalError} When the file has a character the declaration cannot hold.
+     */
+    private static resolveDoctype(root: XmlElementNode, namespaces: DocumentNamespaces, systemId: string): string {
+        // a system literal has no escapes: it ends at its quote
+        if (systemId.includes('"') || INVALID_CHARACTER.test(systemId)) {
+            throw new InternalError(`"${systemId}" contains a character a document type declaration cannot hold.`);
+        }
+        return `<!DOCTYPE ${XmlWriterUtilities.resolveQualifiedName(root, namespaces)} SYSTEM "${systemId}">`;
     }
 
     private static resolveDocumentNamespaces(root: XmlRootMetadata | undefined, cls: Newable<unknown>): DocumentNamespaces {

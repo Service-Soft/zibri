@@ -1,6 +1,7 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import os from 'node:os';
 
+import { ArchiveService } from '../../archive/archive.service';
 import { AssetService } from '../../assets/asset.service';
 import { AsyncApiService } from '../../async-api/async-api.service';
 import { AuditService } from '../../audit/audit.service';
@@ -31,18 +32,27 @@ import { UserService } from '../../auth/user/user.service';
 import { BackupService } from '../../backup/backup.service';
 import { S3TenantBackupTransportKind } from '../../backup/tenant/s3.tenant-backup-transport-kind';
 import { SftpTenantBackupTransportKind } from '../../backup/tenant/sftp.tenant-backup-transport-kind';
+import { WebDavBackupTransportUsageFinder } from '../../backup/tenant/web-dav-backup-transport-usage-finder.service';
 import { CacheService } from '../../caching/cache.service';
+import { CalendarEntryLinkUsageCleaner } from '../../calendar-sync/calendar-entry-link-usage-cleaner.service';
+import { CalendarSyncService } from '../../calendar-sync/calendar-sync.service';
 import { AlsUtilities } from '../../context/als.utilities';
 import { CronService } from '../../cron/cron.service';
 import { ChainService } from '../../data-source/chain/chain.service';
 import { DataSourceService } from '../../data-source/data-source.service';
 import { RepositoryHooks } from '../../data-source/hooks/repository-hooks.model';
+import { PdfAccessOptions } from '../../document/pdf-access-options.model';
 import { PdfFontOptions } from '../../document/pdf-font-options.model';
 import { EmailRateLimiter } from '../../email/email.rate-limiter';
 import { EmailService } from '../../email/email.service';
 import { LoggingEmailTransport } from '../../email/transports/logging.email-transport';
 import { errorHandler } from '../../error-handling/error-handler';
 import { EventService } from '../../event/event.service';
+import { FileService } from '../../file/file.service';
+import { S3TenantFileStoreKind } from '../../file/tenant/s3.tenant-file-store-kind';
+import { SftpTenantFileStoreKind } from '../../file/tenant/sftp.tenant-file-store-kind';
+import { FileMirrorUsageCleaner } from '../../file-mirror/file-mirror-usage-cleaner.service';
+import { FileMirrorService } from '../../file-mirror/file-mirror.service';
 import { GlobalRegistry } from '../../global/global-registry';
 import { BodySizeLimits } from '../../http/body-size-limits.model';
 import { CompressionOptions } from '../../http/compression.middleware';
@@ -66,6 +76,7 @@ import { WakeUpService } from '../../polling/wake-up.service';
 import { RateLimitStoreFailurePolicy } from '../../rate-limiting/limiter/rate-limiter-config.model';
 import { RateLimitingService } from '../../rate-limiting/rate-limiting.service';
 import { Router } from '../../routing/router';
+import { ShareService } from '../../sharing/share.service';
 import { MembershipService } from '../../tenancy/membership/membership.service';
 import { TenantService } from '../../tenancy/tenant.service';
 import { InMemoryTraceBuffer } from '../../tracing/in-memory.trace-buffer';
@@ -77,6 +88,7 @@ import { resolveAppRoot } from '../../utilities/resolve-app-root.function';
 import { resolveZibriRoot } from '../../utilities/resolve-zibri-root.function';
 import { ValidationService } from '../../validation/validation.service';
 import { VersioningService } from '../../versioning/versioning.service';
+import { TenantWebDavConnectionService } from '../../web-dav/tenant-web-dav-connection.service';
 import { WebsocketOptions, WebsocketOptionsInput } from '../../websocket/models/websocket-options.model';
 import { WebsocketService } from '../../websocket/services/websocket.service';
 import { inject } from '../inject.function';
@@ -131,6 +143,7 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // instance whose clock runs a little behind
     AUDIT_SEAL_DELAY_IN_MS: { useFactory: () => Ms.MINUTE * 5 },
     CHAIN_SERVICE: { useClass: ChainService },
+    ARCHIVE_SERVICE: { useClass: ArchiveService },
     LOGGER_CLEANUP_AFTER_IN_MS: {
         useFactory: () => ({
             [LogLevel.DEBUG]: Ms.WEEK * 2,
@@ -210,9 +223,11 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // every instance collects on its own, so this bounds what the metrics cost the shared data source
     METRICS_DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS: { useFactory: () => Ms.SECOND * 30 },
     PDF_FONT_OPTIONS: { useFactory: (): PdfFontOptions => ({ families: {}, fallbacks: [] }) },
+    PDF_ACCESS_OPTIONS: { useFactory: (): PdfAccessOptions => ({ allowedFolders: [] }) },
     TENANT_SERVICE: { useClass: TenantService },
     MEMBERSHIP_SERVICE: { useClass: MembershipService },
     INVITATION_SERVICE: { useClass: InvitationService },
+    SHARE_SERVICE: { useClass: ShareService },
     // none: how long a link works and what an expired one does are the application's to say, once it lists an
     // invitation repository
     INVITATION_OPTIONS: { useFactory: () => undefined },
@@ -361,6 +376,17 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
             allowPrivateNetworks: false
         })
     },
+    FILE_SERVICE: { useClass: FileService },
+    // on this instance's own disk, as what lives here is one store in progress, deleted once it is done
+    FILE_STAGING_FOLDER: { useFactory: () => FsUtilities.getPath(resolveAppRoot(), '.zibri', 'files') },
+    // in effect only for an application declaring TenantFileStore
+    FILE_TENANT_STORE_OPTIONS: {
+        useFactory: () => ({
+            kinds: [new S3TenantFileStoreKind(), new SftpTenantFileStoreKind()],
+            allowedHosts: undefined,
+            allowPrivateNetworks: false
+        })
+    },
     // the route history belongs to the deployment, so it is resolved from the application's root:
     // an installed copy of the framework is the one place it must not land, and that is where
     // resolving it from this file put it for an application that does not bundle.
@@ -383,6 +409,8 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: { useFactory: () => 300000 },
     CONFIRM_PASSWORD_RESET_URL: { useFactory: () => undefined },
     FEDERATION_OPTIONS: { useFactory: () => undefined },
+    // no default: the page a link opens and the mail it is sent in are the application's
+    LOGIN_LINK_OPTIONS: { useFactory: () => undefined },
     // no default: the site passkeys are bound to and the pages allowed to use them are the
     // deployment's, and a guess would bind every passkey to the wrong one
     PASSKEY_OPTIONS: { useFactory: () => undefined },
@@ -454,6 +482,22 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
                 ...input
             };
         }
+    },
+    // in effect only for an application whose tenants configure a TenantWebDavConnection
+    WEB_DAV_TENANT_CONNECTION_OPTIONS: { useFactory: () => ({ allowedHosts: undefined, allowPrivateNetworks: false }) },
+    // in effect only for an application whose tenants configure a TenantWebDavConnection
+    TENANT_WEB_DAV_CONNECTION_SERVICE: { useClass: TenantWebDavConnectionService },
+    // in effect only for an application that declares CalendarEntryLink
+    CALENDAR_SYNC_SERVICE: { useClass: CalendarSyncService },
+    CALENDAR_ENTRY_LINK_USAGE_CLEANER: { useClass: CalendarEntryLinkUsageCleaner, variants: [DiVariants.WEB_DAV_CONNECTION_USAGE_CLEANER] },
+    // in effect only for an application that declares FileMirrorRequest and MirroredFile
+    FILE_MIRROR_SERVICE: { useClass: FileMirrorService },
+    FILE_MIRROR_USAGE_CLEANER: { useClass: FileMirrorUsageCleaner, variants: [DiVariants.WEB_DAV_CONNECTION_USAGE_CLEANER] },
+    // in effect only for an application that declares TenantBackupTransport. A finder rather than a cleaner: a backup
+    // kept through a connection that is gone cannot be restored
+    BACKUP_WEB_DAV_CONNECTION_USAGE_FINDER: {
+        useClass: WebDavBackupTransportUsageFinder,
+        variants: [DiVariants.WEB_DAV_CONNECTION_USAGE_FINDER]
     },
     EVENT_SERVICE: { useClass: EventService },
     EVENT_EXECUTION_LEASE_IN_MS: { useFactory: () => Ms.MINUTE },

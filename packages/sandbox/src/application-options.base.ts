@@ -1,10 +1,12 @@
-import { OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOptions, ZibriInvoicingPlugin, ZibriMailingListPlugin } from 'zibri';
+import { OmitStrict, SemVerUtilities, ZibriApplicationOptions } from 'zibri';
+import { ZibriInvoicingPlugin } from 'zibri/plugin/invoicing';
+import { ZibriMailingListPlugin } from 'zibri/plugin/mailing-list';
 
 import { version } from '../package.json';
 import { endEveryLoginCommand, resetAdminCommand } from './commands';
 import { AppAuthController, AppMailingListController, CronController, DocsController, FileController, HealthController, MetricsController, PageController, TemplateController, TestController, TestCrudController, TestWebsocketController } from './controllers';
 import { StatusCronJob } from './cron';
-import { requireOneOfEnv, requireUrlEnv } from './env';
+import { env } from './env';
 import { providers } from './providers';
 
 if (!SemVerUtilities.isSemVerVersion(version)) {
@@ -21,7 +23,7 @@ if (!SemVerUtilities.isSemVerVersion(version)) {
  */
 export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSources'> = {
     name: 'Zibri Api',
-    baseUrl: requireUrlEnv('BASE_URL'),
+    baseUrl: env.baseUrl,
     plugins: [new ZibriInvoicingPlugin(), new ZibriMailingListPlugin()],
     controllers: [
         HealthController,
@@ -40,7 +42,7 @@ export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSo
     cronJobs: [StatusCronJob],
     commands: [resetAdminCommand, endEveryLoginCommand],
     version,
-    environment: requireOneOfEnv('ENVIRONMENT', ZIBRI_ENVIRONMENTS),
+    environment: env.environment,
     // what an endpoint with no @Auth decorator requires. Switch to 'isLoggedIn' to have
     // a forgotten decorator answer 401 instead of serving anyone, and mark the endpoints
     // that really are public with @Auth.skip(). See the auth docs.

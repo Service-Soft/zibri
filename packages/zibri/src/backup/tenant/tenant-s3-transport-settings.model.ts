@@ -1,3 +1,5 @@
+import { type TenantS3TransportSettingsModel } from 'zibri-contract';
+
 import { Property } from '../../entity/decorators/property.decorator';
 import { S3BackupTransportOptions } from '../transports/s3/s3-backup-transport-options.model';
 
@@ -5,7 +7,7 @@ import { S3BackupTransportOptions } from '../transports/s3/s3-backup-transport-o
  * Where a tenant's bucket is, and the key id it is reached with. The secret of the key is kept apart,
  * encrypted.
  */
-export class TenantS3TransportSettings {
+export class TenantS3TransportSettings implements TenantS3TransportSettingsModel {
     /**
      * The address of the storage, over https.
      */

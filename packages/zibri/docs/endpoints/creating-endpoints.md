@@ -69,14 +69,14 @@ An endpoint is a method of a controller class. Its decorators give it a route, r
 | `IntersectionClass` | function | Combines multiple classes into one |
 | `CrudController` | function | Base controller providing generic CRUD endpoints |
 | `CrudControllerOptions` | type | The options of `CrudController`: `maxLimit`, the largest page `findAll` reads, the `filter` it takes and the properties it may be `order`ed by |
-| `CrudControllerInterface` | interface | The endpoints of a `CrudController`: `create`, `findAll`, `findById`, `updateById` and `deleteById` |
+| `CrudControllerInterface` | interface | The endpoints of a `CrudController`: `create`, `findAll`, `findById`, `updateById` and `deleteById`, and `findFile` for an entity keeping files in a file store |
 | `FilterConfig` | type | How each property of a model filters a list, by property: a match, or the config of the properties inside |
 | `FilterValue`, `FilterRange` | type, type | The filter a list takes for a `FilterConfig`, and the `from` and `to` of a range in it |
 | `FilterMatch` | type | How a filter matches: `StringFilterMatch`, `RangeFilterMatch`, `BooleanFilterMatch` and `ArrayFilterMatch` by the type of the property |
 | `StringFilterMatch`, `RangeFilterMatch`, `BooleanFilterMatch`, `ArrayFilterMatch` | type, type, type, type | The matches of a string, of a number or a date, of a boolean and of an array of values |
 | `OrderConfig` | type | The properties a list may be ordered by: `true` for a property, or the config of the properties inside |
 | `OrderValue` | type | The order a list takes for an `OrderConfig`: `'ASC'` or `'DESC'` by property |
-| `FilterUtilities` | class | Validates a `FilterConfig` against an entity, and resolves the where of a repository from a filter, for a list of your own |
+| `FilterUtilities` | class | Validates a `FilterConfig` against an entity, resolves the where of a repository from a filter, for a list of your own, and escapes a search term for a `like` pattern |
 | `HttpStatus` | enum | HTTP status code constants |
 | `PaginationResult` | type | Shape of a paginated response |
 | `CompressionOptions` | type | Whether responses are compressed, and from what size on, via `ZIBRI_DI_TOKENS.COMPRESSION_OPTIONS`. Defaults to on, from one kilobyte |
@@ -182,6 +182,8 @@ This controller serves these endpoints:
 - `PATCH /tasks/:id`, from `CrudController`, updating a single `Task` with `TaskUpdateDTO`
 - `GET /tasks/dashboard`, from `MetricsController`, under the base route of the class that picked it
 
+The `CrudController` of an entity that keeps files in a [file store](../data/files.md#keeping-the-files-of-an-entity-in-a-file-store) takes multipart bodies for `POST` and `PATCH`, and serves each file at `GET /<route>/:id/files/:file`, see [uploading and downloading the files of an entity](../data/files.md#uploading-and-downloading-the-files-of-an-entity).
+
 A method two of the combined classes share is served from the last class naming it, under its route.
 
 A class built with `OmitClass`, `PickClass` or `IntersectionClass` runs none of the constructors of the classes it is built from. Such a class needs to set nothing up in its constructor, neither from constructor parameters nor in a field with a value. Read a service in a getter instead:
@@ -259,7 +261,7 @@ An object, the items of an array of objects and a related row are filtered by th
 
 `FilterValue<Task, typeof taskFilter>` and `OrderValue<Task, typeof taskOrder>` are the types of what a client sends, for a config declared `as const satisfies FilterConfig<Task>`. The package `zibri-contract` holds these types without the rest of the framework, so a frontend builds its requests from the same config.
 
-For a list route of your own, `FilterUtilities.resolveWhere(taskFilter, Task, filter)` turns a filter into the where of a repository, which [filtering data](../data/data-source.md#filtering-data) describes.
+For a list route of your own, `FilterUtilities.resolveWhere(taskFilter, Task, filter)` turns a filter into the where of a repository, which [filtering data](../data/data-source.md#filtering-data) describes. `FilterUtilities.escapeLike(term)` escapes the `%`, `_` and backslashes of a search term, so that `{ iLike: '%' + escaped + '%' }` finds the values containing it as it is written.
 
 ## Accessing request data
 
@@ -542,6 +544,8 @@ The `FormData` type is the one imported from `zibri`.
 
 Every file property says which files it accepts: `allowedMimeTypes` lists the mime types, or is
 `'all'` for any of them. A file of another type is answered with `400`.
+
+A file of an entity kept in a file store is stored for you by the `CrudController` of the entity, see [uploading and downloading the files of an entity](../data/files.md#uploading-and-downloading-the-files-of-an-entity).
 
 Uploads are written to disk while the request is handled. A cron job removes the ones nothing claimed. They go to `.zibri/uploads` in your application by default, beside the nearest `package.json` above the entry point, whichever directory the application was started from. A generated project's `.gitignore` covers it.
 

@@ -1,4 +1,4 @@
-import { InternalError } from '../../error-handling/internal-error.model';
+import { StorageUtilities } from '../../storage/storage.utilities';
 
 /**
  * The segments of a key of a backup transport, for a transport that keeps what its keys hold as files.
@@ -9,12 +9,5 @@ import { InternalError } from '../../error-handling/internal-error.model';
  * could lead the file outside the transport's folder.
  */
 export function resolveBackupKeySegments(transportName: string, key: string): string[] {
-    const segments: string[] = key.split('/');
-    if (segments.some(segment => segment === '' || segment === '.' || segment === '..' || /[\\\0]/.test(segment))) {
-        throw new InternalError(
-            `The key "${key}" of the backup transport "${transportName}" needs to be segments separated by "/", `
-            + 'none of them empty, "." or "..".'
-        );
-    }
-    return segments;
+    return StorageUtilities.resolveKeySegments(`backup transport "${transportName}"`, key);
 }

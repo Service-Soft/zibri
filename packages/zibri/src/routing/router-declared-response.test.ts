@@ -56,7 +56,7 @@ class UserDto {
 }
 
 /**
- * An account whose password is declared, and excluded.
+ * A connection whose password is declared, and excluded.
  */
 class AccountDto {
     @Property.string()

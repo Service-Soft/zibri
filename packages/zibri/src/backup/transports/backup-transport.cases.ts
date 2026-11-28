@@ -15,6 +15,13 @@ import { BackupTransportSupporting } from './backup-transport.interface';
 const MORE_THAN_A_PAGE: number = 1100;
 
 /**
+ * How many keys a case puts at once, as many as the storage session writes at once itself.
+ */
+// as a backup writes rather than more: fifty puts into new folders at once broke Nextcloud's own database, a
+// limit of the server rather than of the transport
+const PUTS_AT_ONCE: number = 8;
+
+/**
  * How long a case may take against a store across a network, a thousand keys put one by one included.
  */
 const CASE_TIMEOUT_IN_MS: number = 120_000;
@@ -147,9 +154,10 @@ export function describeBackupTransport(name: string, resolveTransport: () => Ba
                 (_, i) => `${folder}/inside/${String(i).padStart(4, '0')}`
             ).sort();
             const { keys: found, pages } = await withSession(async session => {
-                // a few at a time, which a store across a network keeps up with
-                for (let i: number = 0; i < keys.length; i += 50) {
-                    await Promise.all(keys.slice(i, i + 50).map(async key => await session.put(key, Readable.from([Buffer.from(key)]))));
+                for (let i: number = 0; i < keys.length; i += PUTS_AT_ONCE) {
+                    await Promise.all(
+                        keys.slice(i, i + PUTS_AT_ONCE).map(async key => await session.put(key, Readable.from([Buffer.from(key)])))
+                    );
                 }
                 await session.put(`${folder}/outside`, Readable.from([Buffer.from('outside')]));
                 return await findAll(session, `${folder}/inside/`);
@@ -163,9 +171,8 @@ export function describeBackupTransport(name: string, resolveTransport: () => Ba
             const folder: string = resolveFolder();
             const names: string[] = Array.from({ length: MORE_THAN_A_PAGE }, (_, i) => String(i).padStart(4, '0'));
             const [below, top] = await withSession(async session => {
-                // a few at a time, which a store across a network keeps up with
-                for (let i: number = 0; i < names.length; i += 50) {
-                    await Promise.all(names.slice(i, i + 50).map(async (n, j) => {
+                for (let i: number = 0; i < names.length; i += PUTS_AT_ONCE) {
+                    await Promise.all(names.slice(i, i + PUTS_AT_ONCE).map(async (n, j) => {
                         await session.put(`${folder}/names/${n}/first`, Readable.from([Buffer.from(n)]));
                         // a second key below the first few, which they are still named once for
                         if (i + j < 10) {

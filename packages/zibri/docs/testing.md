@@ -133,7 +133,8 @@ it keeps its data, and the same application as a test starts it:
 
 ```ts
 // src/application-options.base.ts
-import { OmitStrict, SemVerUtilities, ZibriApplicationOptions, ZibriMailingListPlugin } from 'zibri';
+import { OmitStrict, SemVerUtilities, ZibriApplicationOptions } from 'zibri';
+import { ZibriMailingListPlugin } from 'zibri/plugin/mailing-list';
 
 import { AppAuthController, AppMailingListController, PageController } from './controllers';
 import { version } from '../package.json';
@@ -215,8 +216,9 @@ the project rather than in the temp folder, which on many machines is held in me
 kept, `workerIdleMemoryLimit` and `cacheDirectory` included.
 
 Jest loads a package that ships as ES modules only when node runs it with `--experimental-vm-modules`, as the `test`
-script of a generated project does. Run without, such as by an editor, it cannot. Name such a package of yours in
-`esmPackages`, and it is then compiled like your code:
+script of a generated project does. Run without, such as by an editor, it cannot. The packages of this kind Zibri
+loads are compiled for you: jose, and what pdfmake 0.3 stands on, such as fontkit, so a test creating a PDF with
+pdfmake 0.3 runs either way. Name such a package of yours in `esmPackages`, and it is then compiled like your code:
 
 ```js
 // jest.config.mjs
@@ -395,7 +397,7 @@ const seededVersions: StartTestServerOptions = {
 ```
 
 The paths a test server redirects this way are `VERSIONS_PATH`, `TRANSLATIONS_PATH`,
-`FILE_UPLOAD_TEMP_FOLDER` and `BACKUP_TEMP_FOLDER`. The translations folder holds a `source.xlf`
+`FILE_UPLOAD_TEMP_FOLDER`, `BACKUP_TEMP_FOLDER` and `FILE_STAGING_FOLDER`. The translations folder holds a `source.xlf`
 with nothing to translate, so the application starts the way a deployment does. A test that serves its own fixtures names the folder they are in the same
 way, with the [`ASSETS_PATH`](./endpoints/assets.md) token.
 

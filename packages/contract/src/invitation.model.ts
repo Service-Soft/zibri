@@ -1,3 +1,6 @@
+import { LocaleCode } from './locale-code.type';
+import { PendingRowShareModel } from './pending-row-share.model';
+
 /**
  * An open invitation, as a route of the application answers it, without the hash of its token.
  */
@@ -41,5 +44,19 @@ export type Invitation = {
     /**
      * The account the invitation created when it was sent, or null.
      */
-    createdUserId?: string | null
+    createdUserId?: string | null,
+    /**
+     * The locale the invitation is mailed in, such as `de`, and the account it creates gets. Null for the default
+     * locale of the application.
+     */
+    locale?: LocaleCode | null,
+    /**
+     * Whether the account the invitation creates gets no password, and accepting logs the invited person in. Null for
+     * an invitation that takes a password.
+     */
+    withoutPassword?: boolean | null,
+    /**
+     * The rows shared with the invited person once they accept, or null for an invitation sharing nothing.
+     */
+    rowShares?: PendingRowShareModel[] | null
 };

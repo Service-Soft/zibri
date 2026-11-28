@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
@@ -106,10 +106,14 @@ async function logIn(user: JwtUser): Promise<LoggedIn> {
 /**
  * Opens a socket with the given headers, once the server has taken it in.
  * @param headers - The credential the socket connects with.
+ * @param authHeaders - The headers it sends in the auth of its handshake, if any.
  * @returns The connected socket.
  */
-async function connect(headers: Record<string, string>): Promise<Socket> {
-    const socket: Socket = io(baseUrl, { auth: { offset: 0 }, extraHeaders: headers, autoConnect: false, reconnection: false });
+async function connect(headers: Record<string, string>, authHeaders?: unknown): Promise<Socket> {
+    const socket: Socket = authHeaders === undefined
+        ? io(baseUrl, { auth: { offset: 0 }, extraHeaders: headers, autoConnect: false, reconnection: false })
+        // a websocket from the start, which is how a browser connects that sends no headers
+        : io(baseUrl, { auth: { offset: 0, headers: authHeaders }, extraHeaders: headers, transports: ['websocket'], autoConnect: false, reconnection: false });
     sockets.push(socket);
     await new Promise<void>((resolve, reject) => {
         socket.once('connect', () => resolve());
@@ -365,4 +369,85 @@ describe('a socket whose login has ended', () => {
         // nothing ends the login: the token simply stops being accepted, and nothing else would say so
         expect(await isClosedWithin(socket, accessTokenExpiresInMs + 3000)).toBe(true);
     }, 15000);
+
+    // an expiry read while the socket disconnected set its check after the disconnect had cleared the checks: it ran for
+    // a connection that was gone, and once its application had shut down, logged into a container that was empty
+    it('checks its credential no more once it has disconnected, however late the expiry was read', async () => {
+        const login: LoggedIn = await logIn(await createUser());
+        let release: (expiresAt: Date) => void = () => undefined;
+        const held: Promise<Date> = new Promise(resolve => {
+            release = resolve;
+        });
+        const reading: jest.SpiedFunction<AuthServiceInterface['resolveCredentialExpiry']> = jest
+            .spyOn(authService, 'resolveCredentialExpiry')
+            .mockImplementationOnce(async () => await held);
+        // read after the handshake, which asks for the user as well
+        let checking: jest.SpiedFunction<AuthServiceInterface['resolveCurrentUser']> | undefined;
+        try {
+            const socket: Socket = await connectAs(login);
+            await waitUntil(() => reading.mock.calls.length > 0);
+            checking = jest.spyOn(authService, 'resolveCurrentUser');
+            // the client forgets its id as it disconnects
+            const id: string | undefined = socket.id;
+            socket.disconnect();
+            await waitUntil(async () => !(await wsService.getConnections()).some(c => c.id === id));
+
+            release(new Date(Date.now() + 50));
+            await new Promise(resolve => setTimeout(resolve, quietPeriodInMs));
+
+            expect(checking).not.toHaveBeenCalled();
+        }
+        finally {
+            reading.mockRestore();
+            checking?.mockRestore();
+        }
+    });
+
+    // a browser sends headers only with the requests of long polling, and a websocket from the start goes without them
+    describe('logged in through the auth of its handshake', () => {
+        it('is the user of the authorization it sends there, and is closed when that login logs out', async () => {
+            const user: JwtUser = await createUser();
+            const login: LoggedIn = await logIn(user);
+            const otherLogin: LoggedIn = await logIn(user);
+            const socket: Socket = await connect({}, { Authorization: `Bearer ${login.authData.accessToken.value}` });
+
+            expect((await wsService.getConnections()).find(c => c.id === socket.id)?.userId).toBe(login.user.id);
+
+            // checked again with the credential of the auth, which the headers of the handshake don't carry: without it
+            // the socket would be taken for one whose login ended when any login of its user does
+            await authService.logout(JwtAuthStrategy, { refreshToken: otherLogin.authData.refreshToken.value });
+            expect(await isClosedWithin(socket, quietPeriodInMs)).toBe(false);
+
+            await authService.logout(JwtAuthStrategy, { refreshToken: login.authData.refreshToken.value });
+            expect(await isClosedWithin(socket, 2000)).toBe(true);
+        });
+
+        it('is the user of the headers of the handshake when it sends both', async () => {
+            const own: LoggedIn = await logIn(await createUser());
+            const other: LoggedIn = await logIn(await createUser());
+            const socket: Socket = await connect(
+                { authorization: `Bearer ${own.authData.accessToken.value}` },
+                { authorization: `Bearer ${other.authData.accessToken.value}` }
+            );
+
+            expect((await wsService.getConnections()).find(c => c.id === socket.id)?.userId).toBe(own.user.id);
+        });
+
+        it('logs in with no other header of the auth, such as an api key', async () => {
+            const user: JwtUser = await createUser();
+            const created: CreatedApiKey = await authService.createApiKey(
+                user.id,
+                { name: 'socket', permissions: [TestPlatformPermissions.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
+                undefined
+            );
+            const socket: Socket = await connect({}, { 'x-api-key': created.key });
+
+            expect((await wsService.getConnections()).find(c => c.id === socket.id)?.userId).toBeUndefined();
+        });
+
+        it('is refused for headers that are not an object of strings', async () => {
+            await expect(connect({}, { authorization: 42 })).rejects.toThrow('The headers need to be an object of strings.');
+            await expect(connect({}, 'Bearer token')).rejects.toThrow('The headers need to be an object of strings.');
+        });
+    });
 });

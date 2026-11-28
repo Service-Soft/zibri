@@ -47,6 +47,16 @@ export type CompanyInfo = {
      */
     readonly timezone: Timezone,
     /**
+     * The format the company numbers its invoices in, in place of `numberFormat` of the invoicing
+     * options.
+     */
+    readonly numberFormat?: string,
+    /**
+     * The format the company numbers its credit notes in, in place of `creditNoteNumberFormat` of the
+     * invoicing options.
+     */
+    readonly creditNoteNumberFormat?: string,
+    /**
      * The address the company receives electronic invoices at. A Peppol invoice requires it, an
      * XRechnung names the company by its email without it.
      */

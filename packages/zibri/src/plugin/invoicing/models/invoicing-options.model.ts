@@ -1,4 +1,5 @@
 import { PdfImageDefinition, PdfPageSize } from '../../../document/pdf.utilities';
+import { type InvoiceArchiveOptions } from './invoice-archive-options.model';
 
 /**
  * Options used throughout the plugin.
@@ -40,6 +41,12 @@ export type InvoicingOptions = {
      */
     readonly headline: string,
     /**
+     * The headline of a credit note.
+     * @default 'Credit note'
+     */
+    // TODO 4.0: required. Optional like every option 3.3 added, so that options written out whole for 3.2 stay valid
+    readonly creditNoteHeadline?: string,
+    /**
      * The font size of the headline.
      * @default 20
      */
@@ -50,10 +57,22 @@ export type InvoicingOptions = {
      */
     readonly invoiceNumberLabel: string,
     /**
+     * The label for the number on a credit note.
+     * @default 'Credit note no.'
+     */
+    // TODO 4.0: required, see creditNoteHeadline
+    readonly creditNoteNumberLabel?: string,
+    /**
      * The notice below the invoice number.
      * @default 'Please specify when making payments and invoicing!'
      */
     readonly invoiceNumberNotice: string,
+    /**
+     * The label for the invoices an invoice references, such as the one a credit note corrects.
+     * @default 'Preceding invoice'
+     */
+    // TODO 4.0: required, see creditNoteHeadline
+    readonly precedingInvoiceLabel?: string,
     /**
      * The label for the date on the invoice.
      * @default 'Date'
@@ -150,15 +169,52 @@ export type InvoicingOptions = {
      */
     readonly bicLabel: string,
     /**
-     * The number of digits used to generate the consecutive number.
+     * The format invoice numbers are drawn in, unless the `CompanyInfo` of the tenant names one:
+     * `{year}`, `{yy}`, `{month}`, `{recipient}` and `{counter}`, between any text. `{counter}` is
+     * required, and counts anew for every distinct value of the rest.
+     * @default '{year}-{recipient}-{counter}', with the `separator` between the parts
+     */
+    // TODO 4.0: required, see creditNoteHeadline
+    readonly numberFormat?: string,
+    /**
+     * The format credit note numbers are drawn in, unless the `CompanyInfo` of the tenant names one:
+     * `{invoice}`, the number of the invoice corrected, `{year}`, `{yy}`, `{month}` and `{counter}`,
+     * between any text. `{counter}` is required.
+     * @default '{invoice}-C{counter}'
+     */
+    // TODO 4.0: required, see creditNoteHeadline
+    readonly creditNoteNumberFormat?: string,
+    /**
+     * The number of digits the counter of an invoice number is padded to.
      * @default 4
      */
     readonly numberOfDigits: number,
     /**
-     * The separator for the parts of the invoice number.
+     * The number of digits the counter of a credit note number is padded to.
+     * @default 1
+     */
+    // TODO 4.0: required, see creditNoteHeadline
+    readonly creditNoteNumberOfDigits?: number,
+    /**
+     * The separator between `TEMP` and a temporary invoice number, and between the parts of the default
+     * `numberFormat`.
      * @default '-'
      */
     readonly separator: string,
+    /**
+     * Whether an invoice with an `issuedAt` can no longer be changed or deleted. A credit note
+     * corrects it instead.
+     * @default false
+     */
+    // TODO 4.0: true by default, and required, see creditNoteHeadline
+    readonly issuedInvoicesReadOnly?: boolean,
+    /**
+     * How the pdf and the electronic invoice of each invoice and credit note are archived once it is issued, or
+     * undefined to archive none.
+     * @default undefined
+     */
+    // optional rather than undefined by default, so that options written out whole before it stay valid
+    readonly archive?: InvoiceArchiveOptions,
     /**
      * How many characters of the company name should be used in the invoice number.
      * @default 6

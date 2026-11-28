@@ -1,3 +1,5 @@
+import { ZIBRI_BACKUP_TRANSPORT_KINDS } from 'zibri-contract';
+
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { $ts } from '../../localization/translate.function';
@@ -19,7 +21,7 @@ import { TenantTransportNetwork } from './tenant-transport-network.model';
  */
 export class S3TenantBackupTransportKind implements TenantBackupTransportKindInterface<TenantS3TransportSettings, TenantS3TransportSecret> {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly name: string = 's3';
+    readonly name: string = ZIBRI_BACKUP_TRANSPORT_KINDS.S3;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly settingsModel: Newable<TenantS3TransportSettings> = TenantS3TransportSettings;

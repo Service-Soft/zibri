@@ -75,6 +75,17 @@ export abstract class FilterUtilities {
         return conditions as Where<T> | undefined;
     }
 
+    /**
+     * Escapes a text for a `like` pattern, so that its `%`, `_` and backslashes are taken as they are, such as a search
+     * term an `iLike` finds the values containing, between two `%`.
+     * @param value - The text.
+     * @returns The text, each `%`, `_` and backslash preceded by a backslash.
+     */
+    // like patterns take % and _ as wildcards and a backslash to take them as they are, in every data source.
+    static escapeLike(value: string): string {
+        return value.replaceAll(/[\\%_]/g, character => `\\${character}`);
+    }
+
     private static resolveLevelClass(config: FilterConfigLevel, cls: Newable<object>, path: string): Newable<object> {
         // eslint-disable-next-line jsdoc/require-jsdoc
         class Filter {}
@@ -183,11 +194,6 @@ export abstract class FilterUtilities {
 
     private static isEmpty(value: unknown): boolean {
         return value === undefined || value === '' || (Array.isArray(value) && !value.length);
-    }
-
-    // like patterns take % and _ as wildcards and a backslash to take them as they are, in every data source.
-    private static escapeLike(value: string): string {
-        return value.replaceAll(/[\\%_]/g, character => `\\${character}`);
     }
 
     // the class whose properties a nested filter names: of an object, of the items of an array of objects, or the

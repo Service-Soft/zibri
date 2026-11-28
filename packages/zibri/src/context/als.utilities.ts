@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
+import { type LocaleCode } from '../localization/models/locale-code.model';
 import { type TraceSpanContext } from '../tracing/trace-span-context.model';
 import { type TraceSpanInterface } from '../tracing/trace-span.interface';
 import { CacheContext } from './cache/cache.context';
@@ -23,11 +24,28 @@ export type LeaseScopeResult<T> = {
 };
 
 /**
+ * What a function returned, together with the tenants it entered from outside every tenant while it ran.
+ */
+export type RecordedTenantsResult<T> = {
+    /**
+     * The result of the function.
+     */
+    result: T,
+    /**
+     * Each tenant the function entered while no tenant was active, once.
+     */
+    tenantIds: string[]
+};
+
+/**
  * Encapsulates functionality around async local storage.
  */
 export abstract class AlsUtilities {
-    private static readonly httpRequest: AsyncLocalStorage<HttpRequestContext> = new AsyncLocalStorage<HttpRequestContext>();
-    private static readonly websocketRequest: AsyncLocalStorage<WebsocketRequestContext> = new AsyncLocalStorage<WebsocketRequestContext>();
+    // undefined while running outside the request around it, for the reason the tenant gives
+    // eslint-disable-next-line stylistic/max-len
+    private static readonly httpRequest: AsyncLocalStorage<HttpRequestContext | undefined> = new AsyncLocalStorage<HttpRequestContext | undefined>();
+    // eslint-disable-next-line stylistic/max-len
+    private static readonly websocketRequest: AsyncLocalStorage<WebsocketRequestContext | undefined> = new AsyncLocalStorage<WebsocketRequestContext | undefined>();
     private static readonly cacheContext: AsyncLocalStorage<CacheContext[]> = new AsyncLocalStorage<CacheContext[]>();
     private static readonly leaseScope: AsyncLocalStorage<Set<RepositoryTransaction>> = new AsyncLocalStorage<Set<RepositoryTransaction>>();
     private static readonly asyncFactory: AsyncLocalStorage<string> = new AsyncLocalStorage<string>();
@@ -36,7 +54,10 @@ export abstract class AlsUtilities {
     private static readonly traceContext: AsyncLocalStorage<TraceSpanContext> = new AsyncLocalStorage<TraceSpanContext>();
     // undefined while running outside every tenant, which `exit` would do as well, though node marks it experimental
     private static readonly tenant: AsyncLocalStorage<string | undefined> = new AsyncLocalStorage<string | undefined>();
+    private static readonly enteredTenants: AsyncLocalStorage<Set<string>> = new AsyncLocalStorage<Set<string>>();
     private static readonly operationLimit: AsyncLocalStorage<OperationLimit> = new AsyncLocalStorage<OperationLimit>();
+    // undefined while running outside every locale scope, for the reason the tenant gives
+    private static readonly locale: AsyncLocalStorage<LocaleCode | undefined> = new AsyncLocalStorage<LocaleCode | undefined>();
 
     /**
      * Resolves the currently active request context from the async local storage.
@@ -98,6 +119,16 @@ export abstract class AlsUtilities {
      */
     static runWithHttpRequestContext<T>(context: HttpRequestContext, fn: () => T): T {
         return this.httpRequest.run(context, fn);
+    }
+
+    /**
+     * Runs the given function outside the http or websocket request it is called in, as work no request asked for:
+     * what it writes records no user of a request, and it finds no request context.
+     * @param fn - The function to run.
+     * @returns The result of the function.
+     */
+    static runOutsideRequest<T>(fn: () => T): T {
+        return this.httpRequest.run(undefined, () => this.websocketRequest.run(undefined, fn));
     }
 
     /**
@@ -271,7 +302,24 @@ export abstract class AlsUtilities {
      * @returns The result of the function.
      */
     static runInTenant<T>(tenantId: string, fn: () => T): T {
+        // a tenant entered inside another is work the outer one does, which is what a recording asks for
+        if (this.tenant.getStore() == undefined) {
+            this.enteredTenants.getStore()?.add(tenantId);
+        }
         return this.tenant.run(tenantId, fn);
+    }
+
+    /**
+     * Runs the given function while recording every tenant it enters with `runInTenant` while no tenant is active.
+     *
+     * A recording inside another gets its own, and the outer one does not see what the inner one records.
+     * @param fn - The function to run.
+     * @returns The result of the function, and the tenants it entered.
+     */
+    static async runRecordingTenants<T>(fn: () => Promise<T>): Promise<RecordedTenantsResult<T>> {
+        const entered: Set<string> = new Set();
+        const result: T = await this.enteredTenants.run(entered, fn);
+        return { result, tenantIds: [...entered] };
     }
 
     /**
@@ -289,5 +337,35 @@ export abstract class AlsUtilities {
      */
     static getCurrentTenant(): string | undefined {
         return this.tenant.getStore();
+    }
+
+    /**
+     * Runs the given function in the given locale.
+     *
+     * Everything inside it, every await included, translates and formats in that locale. A locale set
+     * inside another replaces it for as long as the inner function runs.
+     * @param locale - The locale, one the application supports.
+     * @param fn - The function to run.
+     * @returns The result of the function.
+     */
+    static runInLocale<T>(locale: LocaleCode, fn: () => T): T {
+        return this.locale.run(locale, fn);
+    }
+
+    /**
+     * Runs the given function outside every locale scope, whichever is active around it.
+     * @param fn - The function to run.
+     * @returns The result of the function.
+     */
+    static runOutsideLocale<T>(fn: () => T): T {
+        return this.locale.run(undefined, fn);
+    }
+
+    /**
+     * Finds the locale the work running here translates and formats in.
+     * @returns The locale, or undefined outside every locale scope.
+     */
+    static findCurrentLocale(): LocaleCode | undefined {
+        return this.locale.getStore();
     }
 }

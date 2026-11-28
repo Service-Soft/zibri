@@ -80,6 +80,7 @@ thing it is:
 | `.type.ts` | A standalone type alias |
 | `.test.ts` | Tests for the file of the same name |
 | `.browser.test.ts` | Tests of what the file of the same name does in a real browser |
+| `.container.test.ts` | Tests that start containers: Postgres, Valkey, or a server such as Apache. A word naming them goes before the suffix only where two would share a name, as `key-reconciliation.postgres.container.test.ts` and `key-reconciliation.valkey.container.test.ts` |
 | `.cases.ts` | Test cases shared by several `.test.ts` files |
 | `.instance-options.ts` | What every instance of the `.cluster.test.ts` beside it boots with |
 
@@ -101,6 +102,12 @@ moves off the main entry point stays there, `@deprecated`, until the next major.
 exports. Put the entry points first and the steps they are built from below as `private static`. A
 standalone `.function.ts` is for something that genuinely belongs to no group — and when a second one
 appears next to it, they become a class.
+
+**A use case is a plugin, a building block is the framework.** Something goes into a plugin when it answers a
+concrete use case, one you can say as "As a company, I want to deal with invoices": issuing invoices, keeping the
+books, running a mailing list. What serves any number of such cases stays in the framework, however specialised it
+looks: the WebDAV client, the file mirror, which mirrors any kind of file, the archive, calendar sync. A plugin has
+an entry point of its own, `zibri/plugin/<name>`, so an application that does not use it does not bundle it.
 
 **A service is a provider behind an interface.** A service the framework ships comes with an
 `XServiceInterface`, and a `ZIBRI_DI_TOKENS` token whose default provider is the class. Everything
@@ -129,6 +136,13 @@ maintain. If the real fix is out of scope, say so and leave the problem visible.
 security or policy choice: whichever value the framework picks silently, "you forgot to say" becomes
 indistinguishable from "you said this". A required option asks once, in the one place it can be
 answered, and the compiler asks it rather than a startup warning nobody reads.
+
+**A released controller gains no route by itself.** An application exposes a controller's routes by
+extending it, so a route added to a controller that has been released is served by every application
+the moment it upgrades. Such a route is off until the application turns it on, through an option of
+the controller as `updateCurrentUserRoute` of the auth controller does, and the CHANGELOG names it.
+The routes a controller has in its first release are on, as the application chose them by extending
+it.
 
 **Touch only what your change needs.** Do not reformat, rename or improve adjacent code. Remove
 imports and variables *your* change orphaned; leave pre-existing dead code alone and mention it.
@@ -206,14 +220,17 @@ that is never red is not a suite that is passing. Leave it red and report it.
 | Script | Covers |
 |---|---|
 | `test:normal` | Everything except the below |
+| `test:container` | `*.container.test.ts`, with half as many workers as the machine has cores: every suite starts containers of its own, and more of them at once starved each other into timeouts |
 | `test:cluster` | `*.cluster.test.ts`, in band |
+| `test:nextcloud` | `*.nextcloud.test.ts`, in band: what Nextcloud does, against Nextcloud in a container |
 | `test:benchmark` | `*.benchmark.test.ts`, in band: timings reported against a `*.baseline.json` beside each suite, never failing |
 | `test:benchmark:compare` | `test:benchmark` on your checkout and on `release`, in turns; fails on an operation that got slower |
 | `test:heavy` | Long-running suites, in band |
 | `test:browser` | `*.browser.test.ts` of `zibri-tsx` and the sandbox, in Chromium: run `npx playwright install chromium` once |
 
 CI runs every one of them: `test:ci` runs all but the benchmarks, which jobs of their own run through
-`test:benchmark:compare`, one per group of `packages/zibri/benchmark-groups.json`.
+`test:benchmark:compare`, one per group of `packages/zibri/benchmark-groups.json`, and `test:nextcloud`, which a job
+of its own runs.
 
 **A slower operation fails the build, measured against the release.** `test:benchmark:compare`
 builds `origin/release` in a worktree beside your checkout and runs the benchmarks on both, four
@@ -264,8 +281,10 @@ Finding an element by its role checks the role as a side effect, and whoever lat
 way removes a check they did not know was there. No line of a test checks something in passing while
 doing something else.
 
-**Most suites need a container runtime.** `startTestServer()` starts Postgres and ValKey through
-testcontainers, so they need Docker or Podman running.
+**A suite that starts containers is a `.container.test.ts`.** `startTestServer()` starts Postgres and
+ValKey through testcontainers for a data source that names them, which needs Docker or Podman running.
+Named otherwise, it runs in `test:normal` beside every other suite, and their containers starve each
+other there.
 
 **Share cases rather than copying them.** A behaviour that has to hold on several data sources goes
 in a `.cases.ts` file exporting a `describeX(name, () => repository)` function, and each data

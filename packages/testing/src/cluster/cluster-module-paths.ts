@@ -8,9 +8,27 @@ import { CLUSTER_MODULE_PATHS_ENV } from './cluster-message.model';
  * Both packages, rather than the framework alone: `zibri-testing` declares `ClusterMark`, and an
  * entity is identified by its class, so two copies of this package would leave the instance writing
  * rows the parent cannot read back. And `zibri/internal` as well as `zibri`, because the harness
- * imports from both, and the one left to `node_modules` loads a second copy of the framework.
+ * imports from both, and the one left to `node_modules` loads a second copy of the framework. And
+ * `zibri-contract`, which the framework re-exports enums and permissions of: left to `node_modules`, a
+ * parent running the sources gives its instance the built contract, which lacks what the sources added
+ * since the last build, and a re-export of it is undefined.
  */
-const SHARED_PACKAGES: string[] = ['zibri', 'zibri/internal', 'zibri-testing'];
+const SHARED_PACKAGES: string[] = [
+    'zibri',
+    'zibri/internal',
+    // each entry point of a plugin as well, which is a module of the same copy of the framework
+    'zibri/plugin/analytics',
+    'zibri/plugin/approval',
+    'zibri/plugin/bank',
+    'zibri/plugin/bookkeeping',
+    'zibri/plugin/invoicing',
+    'zibri/plugin/mailing-list',
+    'zibri/plugin/mcp',
+    'zibri/plugin/payment',
+    'zibri/plugin/projects',
+    'zibri-testing',
+    'zibri-contract'
+];
 
 /**
  * Where this process loaded the shared packages from.

@@ -261,7 +261,10 @@ export class CookieAuthStrategy<
         // login as reuse. A blacklisted row is therefore not refused here: inside this request it is
         // the one the rotation just replaced, and it carries the same login time as its successor
         const refreshSession: CookieAuthRefreshSession | undefined = (await this.resolveRefreshSession(context, undefined))?.refreshSession;
-        return !refreshSession || new Date(refreshSession.expirationDate).getTime() <= Date.now()
+        // a login that does not count as a recent one says no time, as a strategy that cannot tell does
+        return !refreshSession
+            || new Date(refreshSession.expirationDate).getTime() <= Date.now()
+            || refreshSession.countsAsRecentLogin === false
             ? undefined
             : new Date(refreshSession.authenticatedAt);
     }
@@ -300,7 +303,8 @@ export class CookieAuthStrategy<
             // rotation carries all three from here on
             authentication.authenticatedAt,
             FederatedSessionUtilities.toColumns(authentication.federatedSession),
-            authentication.providerAuthentication
+            authentication.providerAuthentication,
+            authentication.countsAsRecentLogin !== false
         );
         const sessionToken: string = this.generateToken();
         const session: CookieAuthSession = await this.createSession(refreshSession, sessionToken, transaction);
@@ -554,7 +558,8 @@ export class CookieAuthStrategy<
             // too, and how the user proved who they are there
             currentRefreshSession.authenticatedAt,
             FederatedSessionUtilities.toColumns(FederatedSessionUtilities.fromColumns(currentRefreshSession)),
-            currentRefreshSession.providerAuthentication ?? undefined
+            currentRefreshSession.providerAuthentication ?? undefined,
+            currentRefreshSession.countsAsRecentLogin !== false
         );
 
         // 3. create new access session
@@ -772,7 +777,8 @@ export class CookieAuthStrategy<
         token: string,
         authenticatedAt: Date,
         federatedSession: FederatedSessionColumns,
-        providerAuthentication: ProviderAuthentication | undefined
+        providerAuthentication: ProviderAuthentication | undefined,
+        countsAsRecentLogin: boolean
     ): Promise<CookieAuthRefreshSession> {
         return await this.refreshSessionRepository.create({
             token,
@@ -786,6 +792,8 @@ export class CookieAuthStrategy<
             // was last used from
             ...resolveLoginDevice(),
             providerAuthentication,
+            // null for a login that counts, as every login before the column did
+            countsAsRecentLogin: countsAsRecentLogin ? null : false,
             ...federatedSession
         }, { transaction });
     }

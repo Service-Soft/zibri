@@ -1,6 +1,8 @@
-import { AesGcmEncryptionStrategy, CompanyInfo, defineDateFormat, defineProvider, DiProvider, EmailConfigInput, GlobalRegistry, inject, JwtAuthOptionsInput, LoggerTransport, LoggingEmailTransport, LogLevel, Ms, repositoryTokenFor, SmtpEmailTransport, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
+import { AesGcmEncryptionStrategy, defineDateFormat, defineProvider, DiProvider, EmailConfigInput, GlobalRegistry, inject, JwtAuthOptionsInput, LoggerTransport, LoggingEmailTransport, LogLevel, Ms, repositoryTokenFor, SmtpEmailTransport, ZIBRI_DI_TOKENS } from 'zibri';
+import { CompanyInfo, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri/plugin/invoicing';
+import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri/plugin/mailing-list';
 
-import { optionalEnv, requireEnv, requirePortEnv, requireUrlEnv } from './env';
+import { env } from './env';
 import { permissions, Tenant } from './models';
 import { markdownComponents } from './templates/components/markdown-components';
 import { MailingListBaseEmail } from './templates/email-components/mailing-list-base-email';
@@ -36,7 +38,7 @@ export const providers: DiProvider<unknown>[] = [
             currentMasterStrategy: new AesGcmEncryptionStrategy(),
             currentMasterKey: {
                 id: 'k1',
-                value: Buffer.from(requireEnv('MASTER_KEY'), 'base64url')
+                value: Buffer.from(env.masterKey, 'base64url')
             }
         }
     }),
@@ -47,8 +49,8 @@ export const providers: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS_INPUT,
         useFactory: (): JwtAuthOptionsInput => ({
-            accessTokenKey: requireEnv('JWT_ACCESS_SECRET'),
-            refreshTokenSecret: requireEnv('JWT_REFRESH_SECRET')
+            accessTokenKey: env.jwt.accessSecret,
+            refreshTokenSecret: env.jwt.refreshSecret
         })
     }),
     defineProvider({
@@ -60,7 +62,7 @@ export const providers: DiProvider<unknown>[] = [
         useFactory: (): EmailConfigInput => {
             return {
                 maxEmailsPerHour: 0,
-                defaultSender: optionalEnv('EMAIL_DEFAULT_SENDER'),
+                defaultSender: env.emailDefaultSender,
                 failedRetentionInMs: 'forever'
             };
         }
@@ -71,11 +73,11 @@ export const providers: DiProvider<unknown>[] = [
         useFactory: () => GlobalRegistry.getAppData('environment') === 'development'
             ? new LoggingEmailTransport()
             : new SmtpEmailTransport({
-                host: requireEnv('SMTP_HOST'),
-                port: requirePortEnv('SMTP_PORT'),
+                host: env.smtp.host,
+                port: env.smtp.port,
                 auth: {
-                    user: optionalEnv('SMTP_USER'),
-                    pass: optionalEnv('SMTP_PASSWORD')
+                    user: env.smtp.user,
+                    pass: env.smtp.password
                 }
             })
     }),
@@ -93,7 +95,7 @@ export const providers: DiProvider<unknown>[] = [
     }),
     defineProvider({
         token: ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL,
-        useFactory: () => requireUrlEnv('CONFIRM_PASSWORD_RESET_URL')
+        useFactory: () => env.confirmPasswordResetUrl
     }),
     defineProvider({
         // long enough for a password that is the only factor, see the auth docs

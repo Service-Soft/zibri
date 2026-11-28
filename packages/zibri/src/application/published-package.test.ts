@@ -161,6 +161,13 @@ describe('the published package', () => {
         // what the sibling packages and data source drivers import, apart from the public api
         expect(files).toContain('dist/cjs/internal.js');
         expect(files).toContain('dist/cjs/internal.d.ts');
+        // and every other file an entry point names, such as `zibri/plugin/invoicing`, which the build emits only from
+        // the files tsconfig.base.json lists
+        const manifest: PackageManifest = JsonUtilities.parse(readFileSync(path.join(packageDir, 'package.json'), 'utf8'));
+        const advertised: string[] = [...JsonUtilities.stringify(manifest.exports ?? {}).matchAll(/"\.\/(dist\/[^"]+)"/g)]
+            .map(([, file = '']) => file);
+        expect(advertised.length).toBeGreaterThan(20);
+        expect(advertised.filter(file => !files.includes(file))).toEqual([]);
     });
 
     it('ships the sources its maps point at', () => {
@@ -234,11 +241,16 @@ describe('the published package', () => {
         // from 18.5 on 2026-11-13 at 18.92, and from 20 on 2026-11-17: the sources grew by 0.8MB since
         // 2026-11-10, of which 0.45 is `src/backup` (backups reading only what changed, backups of
         // tenants, the second repository layout and its garbage collection) and 0.24 the data sources
-        // those read through. What is left to save without giving up the sources or the maps is the
-        // 0.2MB of `__decorate`, `__metadata` and `__param` that tsc writes into each of 321 files, which
-        // `importHelpers` would take from tslib instead. The number this was first written against is
-        // 50MB.
-        expect(megabytes).toBeLessThan(21);
+        // those read through. Raised from 21 on 2026-11-28 at 29.18: the sources grew by at most 5.4MB,
+        // of which 1.34 is `src/plugin/bookkeeping` (the books, the E-Bilanz and its two taxonomies of
+        // 0.5MB), 0.79 `src/data-source`, 0.70 `src/auth` (service accounts), 0.29 `src/backup`, and the
+        // rest the bank, analytics, CalDAV and WebDAV plugins and the archive. Shipping the plugins as
+        // packages of their own is what would take that back, and is a break for a major release.
+        // What is left to save without giving up the sources or the maps is the `__decorate`,
+        // `__metadata` and `__param` that tsc writes into every file using decorators, 0.2MB over 321
+        // files on 2026-11-17, which `importHelpers` would take from tslib instead. The number this was
+        // first written against is 50MB.
+        expect(megabytes).toBeLessThan(30);
     });
 
     it('ships its comments once in the sources and the declarations, not in the code that runs', () => {

@@ -1,4 +1,4 @@
-import { createReadStream, createWriteStream } from 'node:fs';
+import { createReadStream, createWriteStream, Stats } from 'node:fs';
 import { createServer, IncomingMessage, Server, ServerResponse } from 'node:http';
 import { AddressInfo } from 'node:net';
 import { pipeline } from 'node:stream/promises';
@@ -103,6 +103,10 @@ export class S3StandIn {
                     return;
                 }
                 await this.answerObject(key, response);
+                return;
+            }
+            case 'HEAD': {
+                await this.answerObjectHead(key, response);
                 return;
             }
             case 'PUT': {
@@ -213,6 +217,21 @@ export class S3StandIn {
         }
         response.writeHead(200, { 'content-length': (await FsUtilities.stat(file)).size });
         await pipeline(createReadStream(file), response);
+    }
+
+    /**
+     * Answers with the headers of an object, its size and when it was written, as the service does.
+     * @param key - Its key.
+     * @param response - Where the answer goes.
+     */
+    private async answerObjectHead(key: string, response: ServerResponse): Promise<void> {
+        const file: FsPath = this.resolveObjectFile(key);
+        if (!await FsUtilities.exists(file)) {
+            response.writeHead(404).end();
+            return;
+        }
+        const stats: Stats = await FsUtilities.stat(file);
+        response.writeHead(200, { 'content-length': stats.size, 'last-modified': stats.mtime.toUTCString() }).end();
     }
 
     /**

@@ -279,7 +279,8 @@ describe('@Auth.hasAnyLevelPermission', () => {
             action: AuditAction.AUTHORIZATION,
             outcome: AuditOutcome.FAILURE,
             reason: AuditReason.MISSING_PERMISSION,
-            userId: neither.user.id
+            userId: neither.user.id,
+            userKind: 'person'
         });
     });
 

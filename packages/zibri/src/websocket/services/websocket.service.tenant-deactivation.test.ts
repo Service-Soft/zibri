@@ -22,6 +22,7 @@ import { repositoryTokenFor } from '../../di/decorators/inject-repository.decora
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
+import { HttpStatus } from '../../http/http-status.enum';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { Ms } from '../../utilities/ms';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
@@ -158,7 +159,8 @@ describe('WebsocketService - a deactivated tenant', () => {
         await tenants().deactivateTenant?.(tenantId);
         await waitUntil(() => Promise.resolve(client.received.has(WebsocketEvent.TENANT_DEACTIVATED)));
 
-        expect(client.received.get(WebsocketEvent.TENANT_DEACTIVATED)).toEqual([expect.objectContaining({ ok: true, data: { tenantId } })]);
+        // with a status, as every message the application sends has one, and its AsyncAPI document says so
+        expect(client.received.get(WebsocketEvent.TENANT_DEACTIVATED)).toEqual([expect.objectContaining({ ok: true, status: HttpStatus.OK, data: { tenantId } })]);
         expect(client.socket.connected).toBe(true);
         expect(await ping(client, tenantId, accessToken)).toMatchObject({ ok: false, status: 403 });
         await broadcastIn(tenantId, 'while-deactivated');

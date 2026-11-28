@@ -20,6 +20,15 @@ A script, a service or an integration calls your API with an [API key](../glossa
 | `ApiKeyCleanupCronJob` | cron job | Deletes the keys that expired longer ago than `deleteExpiredAfterInMs`. Registered for you |
 | `ZIBRI_DI_TOKENS.API_KEY_SERVICE`, `ApiKeyServiceInterface` | DI token, interface | The service keeping the keys, which `AuthService` and every reader of a key go through. Replaceable |
 | `ApiKeyService` | class | Keeps the API keys of the users. Replaceable through `ZIBRI_DI_TOKENS.API_KEY_SERVICE` |
+| `UserKind` | type | `'person'` or `'service'`: the `kind` of a user, see [service accounts](#service-accounts) |
+| `ServiceAccountCreateData` | type | What `createServiceAccount` of the user service takes: the `name` and the platform `roles` of the service account |
+| `ServiceAccountController` | class | The routes listing and creating service accounts, setting their roles, creating and revoking their keys and deleting them, see [letting administrators manage service accounts](#letting-administrators-manage-service-accounts) |
+| `ServiceAccount`, `ServiceAccountApiKey` | class | A service account with its roles and its keys, and a key without its secret, as the routes answer them |
+| `NewServiceAccount`, `ServiceAccountRoles`, `NewServiceAccountApiKey`, `CreatedServiceAccountApiKey` | class | What creating a service account, setting its roles and creating a key take, and what creating a key answers |
+| `ZIBRI_SERVICE_ACCOUNT_PLATFORM_PERMISSIONS`, `ZibriServiceAccountPlatformPermissions` | constant | `service-accounts.read` and `service-accounts.manage`, to spread into your platform permissions |
+| `ZIBRI_SERVICE_ACCOUNT_LIMITS` | constant | The longest name of a service account and of a key the routes take |
+| `ServiceAccountRefusedError` | error | What a login of a service account, and everything else only a person gets, is refused with |
+| `UserKindUtilities` | class | Reads the kind of a user with `getKind`, and refuses a service account with `validatePerson` |
 
 ## Setting it up
 Declare `ApiKey` in the data source your users live in, and register `ApiKeyAuthStrategy` next to the strategy your users log in with. Keys are created once something reads them: `ApiKeyAuthStrategy`, or the [authorization server](./authorization-server.md) for keys that are only exchanged for tokens.
@@ -165,7 +174,7 @@ export class ProfileController {
 A key never counts as a recent login.
 
 ## Listing and revoking
-`findApiKeys` lists the keys of a user with their name, permissions, expiry, last use and creation, oldest first. The key itself is never part of an answer.
+`findApiKeys` lists the keys of a user with their name, permissions, expiry, last use and creation, oldest first, and the `userKind` of their user, `'person'` or `'service'`. The key itself is never part of an answer.
 
 `lastUsedAt` is when the key was last used: sent with a request, exchanged at the [token endpoint](./authorization-server.md), or through an access token it was exchanged for, while [`ACCESS_TOKEN_REVOCATION`](./authorization-server.md#when-access-tokens-stop-working) is `'immediately'`. It is written down at most once an hour, so it tells a key nobody uses from one an integration depends on. A key never used has none.
 
@@ -188,32 +197,79 @@ defineProvider({
 The keys of a user are deleted with the user. A key of a soft deleted user stops working, and is kept until the user is restored or deleted for good.
 
 ## Service accounts
-A service that acts on its own, for no person, gets a user of its own: create a user without a password, with the roles the service needs, a membership in each tenant it works in, and a key for it listing the permissions it uses. Nobody can log in as that user, and its key names the service in your data and in the audit trail.
+A service that acts on its own, for no person, gets a service account: a user whose `kind` is `'service'`, which acts through its keys only. Every user has a `kind`, `'person'` unless it was created as a service account, and keeps it: a write changing the `kind` of a stored user answers `400`.
+
+`createServiceAccount` of `ZIBRI_DI_TOKENS.USER_SERVICE` creates one in the user entity you name, with the platform roles you give it, no password, and the email `<name>@service-accounts.invalid`, which no mail reaches. The name is lowercase letters, digits and hyphens between them, and a second service account of one name answers `409`. Give it a membership in each tenant it works in through the membership service, and a key listing the permissions it uses:
 
 ```ts
-// src/controllers/service-account.controller.ts
-import { Auth, AuthServiceInterface, Controller, CreatedApiKey, inject, Post, Repository, repositoryTokenFor, ZIBRI_DI_TOKENS } from 'zibri';
+// src/services/billing-service-account.function.ts
+import { AuthServiceInterface, CreatedApiKey, inject, InternalError, UserServiceInterface, ZIBRI_DI_TOKENS } from 'zibri';
 
-import { Permissions, PlatformPermissions } from '../models/permissions';
+import { Permissions } from '../models/permissions';
 import { Roles } from '../models/roles.enum';
 import { User } from '../models/user.model';
 
-@Auth.hasPlatformPermission(PlatformPermissions.SERVICE_ACCOUNTS_MANAGE)
-@Controller('/service-accounts')
-export class ServiceAccountController {
-    @Post('/billing')
-    async createBilling(): Promise<CreatedApiKey> {
-        const users: Repository<User> = inject(repositoryTokenFor(User));
-        const billing: User = await users.create({ email: 'billing@services.example.com', roles: [Roles.USER] });
-        const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
-        return await authService.createApiKey(
-            billing.id,
-            { name: 'billing', permissions: [Permissions.INVOICES_READ], tenantId: undefined, expiresAt: undefined, clientAuthentication: undefined, requireDpop: false },
-            undefined
-        );
+export async function createBillingServiceAccount(): Promise<CreatedApiKey> {
+    const userService: UserServiceInterface = inject(ZIBRI_DI_TOKENS.USER_SERVICE);
+    if (userService.createServiceAccount == undefined) {
+        throw new InternalError('The user service creates no service accounts.');
     }
+    const billing: User = await userService.createServiceAccount(User, { name: 'billing', roles: [Roles.USER] }, undefined);
+    const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
+    return await authService.createApiKey(
+        billing.id,
+        { name: 'billing', permissions: [Permissions.INVOICES_READ], tenantId: undefined, expiresAt: undefined, clientAuthentication: undefined, requireDpop: false },
+        undefined
+    );
 }
 ```
+
+Your administrators do the same through routes, see [letting administrators manage service accounts](#letting-administrators-manage-service-accounts).
+
+A service account acts through its API keys and the [access tokens](./authorization-server.md) they are exchanged for. Everything a person logs in or proves themselves with refuses it with a `403` and a `ServiceAccountRefusedError`:
+
+| Refused | How |
+|---|---|
+| Logging in by any [authenticator](../glossary.md#authenticator): a password, a [passkey](../glossary.md#passkey), a login link, a provider or a directory | The login route answers `403`, whatever credential the authenticator found the account by |
+| Setting a password, and asking for a password reset | `setPassword` answers `403`. A reset request answers as for any address, and mails nothing |
+| Asking for a [login link](./login-links.md) | Answered as for any address, and mails nothing |
+| Linking a passkey or an identity at a provider | `403` |
+| A route taking a [second factor](./two-factor.md) | Refused, whatever the request presents |
+| Being invited, and accepting an invitation | `invite` and accepting answer `403`. Give a service account its memberships directly |
+
+`UserKindUtilities.validatePerson` refuses a service account the same way, for a route of your own that only a person may use. A request of a service account, a key created for one and a refused login of one name it in the audit trail as `userKind: 'service'`, and `findApiKeys` lists its keys with `userKind: 'service'`.
+
+## Letting administrators manage service accounts
+Extend `ServiceAccountController` with a `@Controller` of your own, and name the user entity it creates service accounts in:
+
+```ts
+// src/controllers/service-account.controller.ts
+import { BaseUser, Controller, Newable, ServiceAccountController } from 'zibri';
+
+import { User } from '../models/user.model';
+
+@Controller('/service-accounts')
+export class AppServiceAccountController extends ServiceAccountController {
+    protected readonly userEntity: Newable<BaseUser<string>> = User;
+}
+```
+
+Add it to the `controllers` of your application, and spread `ZIBRI_SERVICE_ACCOUNT_PLATFORM_PERMISSIONS` into your platform permissions:
+
+| Route | Does | Needs |
+|---|---|---|
+| `GET /` | Lists every service account by name, with its platform `roles`, its `tenantRoles` in the tenant of the request and its keys, never with their secrets | `service-accounts.read` |
+| `POST /` | Creates one with its `name`, its platform `roles` and its `tenantRoles`, which it holds through a membership in the tenant of the request | `service-accounts.manage` |
+| `PUT /:serviceAccountId/roles` | Sets its platform `roles` and its `tenantRoles` in the tenant of the request | `service-accounts.manage` |
+| `POST /:serviceAccountId/api-keys` | Creates a key with its `name`, `permissions`, `tenantId`, `expiresAt` and `requireDpop`, and answers the key itself, which no route answers again | `service-accounts.manage`, and a [second factor](../glossary.md#second-factor) or a [recent login](./two-factor.md#accepting-a-recent-login-instead) |
+| `DELETE /:serviceAccountId/api-keys/:apiKeyId` | Revokes a key of the service account | `service-accounts.manage` |
+| `DELETE /:serviceAccountId` | Revokes every key of the service account, and deletes it | `service-accounts.manage` |
+
+Both permissions are platform permissions. Each role a request gives or takes is checked as `assignRole` and `unassignRole` of the [role service](./roles-and-permissions.md#managing-roles) check it: a role the caller may not hand out answers `403`, and a platform role among the `tenantRoles` or a tenant role among the `roles` answers `400`. The tenant roles are those of the tenant the request acts in, and a request with `tenantRoles` acting in no tenant answers `400`. A key is checked like any other, see [creating a key](#creating-a-key). The routes reach service accounts only, and answer `404` for the id of a person.
+
+A deleted service account loses its keys first, so a user entity that [soft deletes](../glossary.md#soft-delete) gives a restored service account no key back. The approval requests it proposed stay, for a person to approve or reject.
+
+`zibri-contract` has the models of the routes, `ServiceAccountModel`, `ServiceAccountApiKeyModel`, `NewServiceAccountModel`, `ServiceAccountRolesModel`, `NewServiceAccountApiKeyModel` and `CreatedServiceAccountApiKeyModel`, `ZIBRI_SERVICE_ACCOUNT_LIMITS` and the permissions. The MCP tools a service account can use are listed by a route of the [MCP plugin](../plugins/mcp-plugin.md#listing-the-tools-of-a-service-account).
 
 ## Clients without a secret
 A key is also a client of the [authorization server](./authorization-server.md): its id is the `client_id` and the key the `client_secret`, which a service exchanges for a short-lived access token. A key for a client can instead hold no secret at all, and prove itself at the token endpoint some other way. Pass that way as `clientAuthentication`:

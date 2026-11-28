@@ -3,6 +3,7 @@ import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { ArrayPropertyItemMetadata } from '../entity/models/array-property-metadata.model';
 import { BelongsToOnePropertyMetadata } from '../entity/models/belongs-to-one-property-metadata.model';
 import { BooleanPropertyMetadata } from '../entity/models/boolean-property-metadata.model';
+import { FilePropertyMetadata } from '../entity/models/file-property-metadata.model';
 import { HasOnePropertyMetadata } from '../entity/models/has-one-property-metadata.model';
 import { ManyToManyPropertyMetadata } from '../entity/models/many-to-many-property-metadata.model';
 import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property-metadata.model';
@@ -14,6 +15,7 @@ import { StringPropertyMetadata } from '../entity/models/string-property-metadat
 import { OmitClass } from '../entity/omit-class.model';
 import { isRequiredWhenGiven } from '../entity/required-when-given.function';
 import { InternalError } from '../error-handling/internal-error.model';
+import { FileReference } from '../file/file-reference.model';
 import { HttpStatus } from '../http/http-status.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
@@ -65,6 +67,7 @@ const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = 
     [HttpStatus.URI_TOO_LONG]: '',
     [HttpStatus.UNSUPPORTED_MEDIA_TYPE]: '',
     [HttpStatus.UNPROCESSABLE_ENTITY]: '',
+    [HttpStatus.LOCKED]: '',
     [HttpStatus.REQUEST_HEADER_FIELDS_TOO_LARGE]: '',
     [HttpStatus.NOT_IMPLEMENTED]: '',
     [HttpStatus.BAD_GATEWAY]: '',
@@ -148,6 +151,16 @@ export abstract class OpenApiSchemaUtilities {
         }
 
         return res;
+    }
+
+    /**
+     * Describes a model as a JSON Schema, which an open api document of version 3.1 holds its schemas as.
+     * @param cls - The model.
+     * @param context - Whether a value of it is sent, or answered with, which leaves out what the model excludes.
+     * @returns The schema of an object of the model.
+     */
+    static resolveModelSchema(cls: Newable<unknown>, context: 'request' | 'response'): OpenApiSchemaObject {
+        return this.buildOpenApiSchemaForProperties(MetadataUtilities.getModelProperties(cls), cls, context, new Set());
     }
 
     /**
@@ -550,7 +563,7 @@ export abstract class OpenApiSchemaUtilities {
                     continue;
                 }
                 case 'file': {
-                    properties[key] = { type: 'string', format: 'binary', description: meta.description };
+                    properties[key] = this.fileSchema(meta, context, visited);
                     continue;
                 }
                 case 'string': {
@@ -664,6 +677,31 @@ export abstract class OpenApiSchemaUtilities {
             // only include `required` if non-empty
             ...required.length ? { required } : {}
         };
+    }
+
+    /**
+     * The schema of a file: its bytes, or the `FileReference` a response answers for a file of an entity kept in a
+     * file store, which is uploaded as its bytes.
+     * @param meta - The file, or the items of an array of files.
+     * @param context - Whether the value is sent or answered with.
+     * @param visited - The classes above this one, for the cycle guard.
+     * @returns Its schema.
+     */
+    private static fileSchema(
+        meta: FilePropertyMetadata,
+        context: 'request' | 'response',
+        visited: Set<Newable<unknown>>
+    ): OpenApiSchemaObject {
+        if (context === 'request' || meta.store == undefined) {
+            return { type: 'string', format: 'binary', description: meta.description };
+        }
+        const reference: OpenApiSchemaObject = this.buildOpenApiSchemaForProperties(
+            MetadataUtilities.getModelProperties(FileReference),
+            FileReference,
+            context,
+            visited
+        );
+        return { ...reference, description: meta.description };
     }
 
     /**

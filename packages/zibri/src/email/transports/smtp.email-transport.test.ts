@@ -34,7 +34,7 @@ beforeEach(() => {
  * @param data - What the mail holds beyond its defaults.
  * @returns The mail.
  */
-function queuedEmail(data: Pick<Email, 'listUnsubscribeUrl' | 'attachments'>): Email {
+function queuedEmail(data: Pick<Email, 'listUnsubscribeUrl' | 'attachments' | 'replyTo'>): Email {
     return {
         id: UUIDUtilities.generate(),
         createdAt: new Date(),
@@ -97,6 +97,15 @@ describe('SmtpEmailTransport', () => {
 
         const headers: string[] = headersOf(smtp.messages[0]);
         expect(headers.some(h => h.toLowerCase().startsWith('list-unsubscribe'))).toBe(false);
+    });
+
+    // answering the mail of a contact form answered the sender address of the application
+    it('sends an answer to the address the mail names for it, and to the sender without one', async () => {
+        await transport.send(queuedEmail({ replyTo: 'visitor@example.org' }));
+        await transport.send(queuedEmail({}));
+
+        expect(headersOf(smtp.messages[0])).toContain('Reply-To: visitor@example.org');
+        expect(headersOf(smtp.messages[1]).some(h => h.toLowerCase().startsWith('reply-to'))).toBe(false);
     });
 
     it('sends an attachment with the content it was queued with', async () => {

@@ -17,6 +17,7 @@ import { HttpError } from '../../../error-handling/errors/http.error';
 import { PasswordLockedError } from '../../../error-handling/errors/password-locked.error';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
 import { InternalError } from '../../../error-handling/internal-error.model';
+import { runInLocale } from '../../../localization/run-in-locale.function';
 import { $ts } from '../../../localization/translate.function';
 import { AuditAction, AuditOutcome } from '../../../logging/audit-event.model';
 import { TsxUtilities } from '../../../tsx/tsx.utilities';
@@ -224,25 +225,28 @@ export class PasswordAuthenticator<
         };
         await this.passwordResetTokenRepository.create(resetTokenData, { transaction: data.transaction });
 
-        const html: string = TsxUtilities.renderEmail(
-            this.PasswordResetEmail,
-            {
-                user: data.user,
-                confirmPasswordResetLink: `${data.emailData?.confirmPasswordResetUrl ?? this.confirmPasswordResetUrl}/${tokenValue}`
-            }
-        );
+        // in the user's locale rather than in the one of the request, which anybody knowing the address can make
+        await runInLocale(data.user.locale, async () => {
+            const html: string = TsxUtilities.renderEmail(
+                this.PasswordResetEmail,
+                {
+                    user: data.user,
+                    confirmPasswordResetLink: `${data.emailData?.confirmPasswordResetUrl ?? this.confirmPasswordResetUrl}/${tokenValue}`
+                }
+            );
 
-        await this.emailService.queue({
-            recipients: [data.user.email],
-            subject: $ts`Password Reset`,
-            html,
-            priority: EmailPriority.HIGH,
-            ...data.emailData,
-            // after the spread, so an application cannot ask for this one to be kept. The mail body
-            // carries the token in the clear - that is what a reset link is - and the queue row is
-            // deleted once it is sent. Retaining it would put back exactly the readable token that
-            // hashing the stored value removed, and keep it long after the token itself expired.
-            persist: false
+            await this.emailService.queue({
+                recipients: [data.user.email],
+                subject: $ts`Password Reset`,
+                html,
+                priority: EmailPriority.HIGH,
+                ...data.emailData,
+                // after the spread, so an application cannot ask for this one to be kept. The mail body
+                // carries the token in the clear - that is what a reset link is - and the queue row is
+                // deleted once it is sent. Retaining it would put back exactly the readable token that
+                // hashing the stored value removed, and keep it long after the token itself expired.
+                persist: false
+            });
         });
     }
 

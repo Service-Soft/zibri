@@ -79,6 +79,10 @@ export function scratchProviders(scratchPath: FsPath): DiProvider<unknown>[] {
         defineProvider({
             token: ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER,
             useValue: path.join(scratchPath, 'backups') as FsPath
+        }),
+        defineProvider({
+            token: ZIBRI_DI_TOKENS.FILE_STAGING_FOLDER,
+            useValue: path.join(scratchPath, 'files') as FsPath
         })
     ];
 }

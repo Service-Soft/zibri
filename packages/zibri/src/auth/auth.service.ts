@@ -60,6 +60,7 @@ import { IdentityLinkingAuthenticatorInterface, isIdentityLinkingAuthenticator }
 import { IdentityLinkingAuthenticators } from './authenticators/identity-linking-authenticators.model';
 import { LinkIdentityConfirmingAuthenticatorInterface } from './authenticators/link-identity-confirming-authenticator.interface';
 import { LinkedIdentity } from './authenticators/linked-identity.model';
+import { LoginLinkAuthenticator } from './authenticators/login-link/login-link.authenticator';
 import { ChangePasswordData } from './authenticators/password/change-password-data.model';
 import { ConfirmPasswordResetData } from './authenticators/password/confirm-password-reset-data.model';
 import { PasswordChangeRequiredError } from './authenticators/password/password-change-required.error';
@@ -91,8 +92,10 @@ import { ProviderAuthentication } from './models/provider-authentication.model';
 import { Require2faMetadata } from './models/require-2fa-metadata.model';
 import type { Require2faProviderFactors } from './models/require-2fa-provider-factors.model';
 import type { Require2faReauth, Require2faReauthOptions } from './models/require-2fa-reauth.model';
+import { RequireShareRoleMetadata } from './models/require-share-role-metadata.model';
 import { ResolvedAuthMetadata, ResolvedRouteAuth } from './models/resolved-auth-metadata.model';
 import { RouteAuthConfiguration } from './models/route-auth-configuration.model';
+import { type UserKind } from './models/user-kind.type';
 import { UserLogin } from './models/user-login.model';
 import { type Permission } from './roles/permission.type';
 import { type PlatformPermission } from './roles/platform-permission.type';
@@ -109,6 +112,7 @@ import { AuthStrategyInterface } from './strategies/auth-strategy.interface';
 import { CredentialLimits } from './strategies/credential-limits.model';
 import { isLoginAuthStrategy, LoginAuthStrategyInterface } from './strategies/login-auth-strategy.interface';
 import { isLoginListingAuthStrategy, LoginListingAuthStrategyInterface } from './strategies/login-listing-auth-strategy.interface';
+import { UserKindUtilities } from './user/user-kind.utilities';
 import { type UserServiceInterface } from './user/user-service.interface';
 
 /**
@@ -158,7 +162,15 @@ type TicketedLogin = {
     /**
      * The session at a provider the login was started from, if any.
      */
-    federatedSession: FederatedSession | undefined
+    federatedSession: FederatedSession | undefined,
+    /**
+     * The names of the two factor methods that do not count as the second factor of the login, if any.
+     */
+    excludedTwoFactorMethods?: string[],
+    /**
+     * Whether the login counts as a recent login once it starts. True unless false.
+     */
+    countsAsRecentLogin?: boolean
 };
 
 const PERMISSIONS_TOKEN: string = 'ZIBRI_DI_TOKENS.PERMISSIONS';
@@ -396,6 +408,8 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
         // credentials an authenticator checked. Logging in at a provider, a one-time code, a
         // registration that has just created the user - each is a credential with an authenticator
         const subject: string | undefined = AuditUtilities.resolveSubject(credentials);
+        // known once the credentials named an account, for the refusal of one that is a service account
+        let userKind: UserKind | undefined;
         try {
             // the same transaction for both halves: a registration that has just linked an identity
             // inside it logs in with that identity, which nothing outside the transaction sees yet
@@ -405,6 +419,10 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             if (authentication.user.deactivatedAt != undefined) {
                 throw new AccountDeactivatedError();
             }
+            // here too rather than in each authenticator: a service account acts through its keys alone, whatever
+            // credential an authenticator found it by, such as an identity linked to it or a link to its address
+            userKind = UserKindUtilities.getKind(authentication.user);
+            UserKindUtilities.validatePerson(authentication.user);
             if (await this.twoFactorService.resolveLock(authentication.user) === 'account') {
                 throw new AccountLockedError();
             }
@@ -416,7 +434,8 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
                     userId: authentication.user.id,
                     subject,
                     authenticatedAt: authentication.authenticatedAt,
-                    federatedSession: authentication.federatedSession
+                    federatedSession: authentication.federatedSession,
+                    countsAsRecentLogin: authentication.countsAsRecentLogin
                 });
             }
             const authData: AuthDataType = await inject(strategy).startLogin(authentication, transaction);
@@ -437,7 +456,8 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
                     action: AuditAction.LOGIN,
                     outcome: AuditOutcome.FAILURE,
                     reason: AuditUtilities.resolveReason(error),
-                    subject
+                    subject,
+                    userKind
                 });
             }
             throw error;
@@ -455,6 +475,9 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     ): Promise<SecondFactorRequestType> {
         const found: LoginTicket = await this.resolveLoginTicket(ticket, LoginTicketPurpose.SECOND_FACTOR);
         const user: BaseUser<string> = await this.resolveTicketUser(found);
+        if (this.isExcluded(method.name, found)) {
+            throw new ForbiddenError($ts`This second factor does not count for this login. Present another one.`);
+        }
         return await this.twoFactorService.requestSecondFactor(user, method);
     }
 
@@ -473,7 +496,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
         >,
         data: TwoFactorRegistrationRequestData
     ): Promise<TwoFactorRegistrationRequestResult> {
-        const user: BaseUser<string> = await this.resolveEnrollingUser(ticket);
+        const user: BaseUser<string> = await this.resolveEnrollingUser(ticket, method.name);
         return await this.twoFactorService.requestTwoFactorRegistration(user, method, data);
     }
 
@@ -486,7 +509,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
         method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, unknown, unknown>,
         data: TwoFactorRegistrationConfirmData
     ): Promise<void> {
-        const user: BaseUser<string> = await this.resolveEnrollingUser(ticket);
+        const user: BaseUser<string> = await this.resolveEnrollingUser(ticket, method.name);
         await this.twoFactorService.confirmTwoFactorRegistration(user, method, data);
     }
 
@@ -513,7 +536,8 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             if (context == undefined) {
                 throw new InternalError('A login is completed inside the request that presents its second factor.');
             }
-            const methods: TwoFactorMethods = await this.twoFactorService.findRegisteredMethods(user);
+            // those that count for this login, such as no codes by email after a link sent by email
+            const methods: TwoFactorMethods = await this.resolveCountingMethods(user, found);
             if (!methods.length) {
                 throw new ForbiddenError($ts`Enroll a second factor to finish logging in.`);
             }
@@ -528,14 +552,20 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
                     userId: found.userId,
                     subject,
                     authenticatedAt: found.authenticatedAt,
-                    federatedSession: FederatedSessionUtilities.fromColumns(found)
+                    federatedSession: FederatedSessionUtilities.fromColumns(found),
+                    countsAsRecentLogin: found.countsAsRecentLogin ?? undefined
                 });
             }
             // inside the transaction, so that a strategy that cannot start the login leaves the
             // ticket for another try. The factor itself is spent either way
             await this.loginTicketRepository.updateById(found.id, { spent: true }, { transaction });
             const authData: AuthDataType = await inject(strategy).startLogin(
-                { user, authenticatedAt: found.authenticatedAt, federatedSession: FederatedSessionUtilities.fromColumns(found) },
+                {
+                    user,
+                    authenticatedAt: found.authenticatedAt,
+                    federatedSession: FederatedSessionUtilities.fromColumns(found),
+                    countsAsRecentLogin: found.countsAsRecentLogin ?? undefined
+                },
                 transaction
             );
             await this.endLoginsPastLimit(user.id, transaction);
@@ -584,7 +614,12 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             await this.endLogins(user.id, transaction);
             this.auditService.record({ action: AuditAction.PASSWORD_CHANGED, outcome: AuditOutcome.SUCCESS, userId }, transaction);
             const authData: AuthDataType = await inject(strategy).startLogin(
-                { user, authenticatedAt: found.authenticatedAt, federatedSession: FederatedSessionUtilities.fromColumns(found) },
+                {
+                    user,
+                    authenticatedAt: found.authenticatedAt,
+                    federatedSession: FederatedSessionUtilities.fromColumns(found),
+                    countsAsRecentLogin: found.countsAsRecentLogin ?? undefined
+                },
                 transaction
             );
             await this.endLoginsPastLimit(user.id, transaction);
@@ -607,7 +642,8 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     async setPassword(userId: string, data: SetPasswordData, transaction: RepositoryTransaction | undefined): Promise<void> {
         await this.auditUserChange(AuditAction.PASSWORD_SET, userId, transaction, async () => {
             // the user first, so that an id naming nobody is refused rather than given credentials
-            await this.userService.findById(userId, { transaction });
+            const user: BaseUser<string> = await this.userService.findById(userId, { transaction });
+            UserKindUtilities.validatePerson(user);
             await inject(PasswordAuthenticator).setPassword(userId, data, transaction);
             // whoever held the old password may hold a login of any strategy
             await this.endLogins(userId, transaction);
@@ -664,7 +700,10 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             purpose,
             passwordChangeRequired,
             spent: false,
-            expirationDate: new Date(Date.now() + this.loginTicketExpiresInMs)
+            expirationDate: new Date(Date.now() + this.loginTicketExpiresInMs),
+            // null for what most logins are, so the tickets of a login by password stay as they were
+            excludedTwoFactorMethods: login.excludedTwoFactorMethods?.length ? login.excludedTwoFactorMethods : null,
+            countsAsRecentLogin: login.countsAsRecentLogin === false ? false : null
         });
         return ticket;
     }
@@ -680,10 +719,14 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
         authentication: Authentication<BaseUser<string>>,
         subject: string | undefined
     ): Promise<void> {
-        if (this.twoFactorAtLogin === 'never') {
+        if (this.twoFactorAtLogin === 'never' || authentication.completesWithoutSecondFactor === true) {
             return;
         }
-        const methods: TwoFactorMethods = await this.twoFactorService.findRegisteredMethods(authentication.user);
+        // a method that proves what the credentials proved already is no second factor: a user whose only one it
+        // is counts as having none, and enrolls another where every login asks for one
+        const excluded: string[] = authentication.excludedTwoFactorMethods ?? [];
+        const methods: TwoFactorMethods = (await this.twoFactorService.findRegisteredMethods(authentication.user))
+            .filter(m => !excluded.includes(inject(m).name));
         if (this.twoFactorAtLogin === 'ifEnrolled' && !methods.length) {
             return;
         }
@@ -692,7 +735,9 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
                 userId: authentication.user.id,
                 subject,
                 authenticatedAt: authentication.authenticatedAt,
-                federatedSession: authentication.federatedSession
+                federatedSession: authentication.federatedSession,
+                excludedTwoFactorMethods: excluded,
+                countsAsRecentLogin: authentication.countsAsRecentLogin
             },
             LoginTicketPurpose.SECOND_FACTOR,
             authentication.passwordChangeRequired === true
@@ -753,18 +798,44 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     /**
      * The user a login ticket is for, when they enroll their first second factor with it.
      * @param ticket - The ticket as the login answered it.
+     * @param method - The name of the method they enroll.
      * @returns The user.
-     * @throws {ForbiddenError} When the user has a second factor already.
+     * @throws {ForbiddenError} When the user has a second factor that counts for the login already, or the
+     * method does not count for it.
      */
-    private async resolveEnrollingUser(ticket: string): Promise<BaseUser<string>> {
+    private async resolveEnrollingUser(ticket: string, method: string): Promise<BaseUser<string>> {
         const found: LoginTicket = await this.resolveLoginTicket(ticket, LoginTicketPurpose.SECOND_FACTOR);
         const user: BaseUser<string> = await this.resolveTicketUser(found);
         // the credentials alone must not be enough to add a factor of the caller's own to an account
-        // that has one, exactly as on the enrollment routes of a logged in user
-        if (await this.twoFactorService.isRegistered(user)) {
+        // that has one, exactly as on the enrollment routes of a logged in user. One that does not count for
+        // this login is not one it has, or a user whose only factor is the mailbox a link proved could never finish
+        if ((await this.resolveCountingMethods(user, found)).length) {
             throw new ForbiddenError($ts`This account has a second factor. Present it to log in.`);
         }
+        if (this.isExcluded(method, found)) {
+            throw new ForbiddenError($ts`This second factor does not count for this login. Enroll another one.`);
+        }
         return user;
+    }
+
+    /**
+     * The two factor methods a user has enrolled that count as the second factor of a login waiting on a ticket.
+     * @param user - The user.
+     * @param ticket - The ticket of the login.
+     * @returns The methods.
+     */
+    private async resolveCountingMethods(user: BaseUser<string>, ticket: LoginTicket): Promise<TwoFactorMethods> {
+        return (await this.twoFactorService.findRegisteredMethods(user)).filter(m => !this.isExcluded(inject(m).name, ticket));
+    }
+
+    /**
+     * Whether a two factor method does not count as the second factor of a login waiting on a ticket.
+     * @param method - The name of the method.
+     * @param ticket - The ticket of the login.
+     * @returns True when the login excludes it.
+     */
+    private isExcluded(method: string, ticket: LoginTicket): boolean {
+        return ticket.excludedTwoFactorMethods?.includes(method) === true;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -839,6 +910,8 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
         transaction: RepositoryTransaction | undefined
     ): Promise<void> {
         try {
+            // an identity is a way to log in, which a service account never gets
+            UserKindUtilities.validatePerson(await this.userService.findById(userId, { transaction }));
             await inject(authenticator).linkTicketIdentity(ticket, userId, transaction);
             this.auditService.record({ action: AuditAction.IDENTITY_LINKED, outcome: AuditOutcome.SUCCESS, userId }, transaction);
         }
@@ -878,6 +951,8 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             throw new UnauthorizedError($ts`Could not resolve the currently logged in user.`);
         }
         const user: CurrentUser<UserType> = await this.resolveCurrentUser<Role, UserType, true>(context, this.strategies, true);
+        // a passkey or an identity at a provider is a way to log in, which a service account never gets
+        UserKindUtilities.validatePerson(user);
         return await inject(authenticator).requestLinkIdentity(user.id, request);
     }
 
@@ -893,6 +968,7 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
         }
         const user: CurrentUser<UserType> = await this.resolveCurrentUser<Role, UserType, true>(context, this.strategies, true);
         try {
+            UserKindUtilities.validatePerson(user);
             await inject(authenticator).confirmLinkIdentity(user.id, answer);
             this.auditService.record({ action: AuditAction.IDENTITY_LINKED, outcome: AuditOutcome.SUCCESS, userId: user.id });
         }
@@ -1041,7 +1117,13 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
                 : await this.apiKeyService.createClient(userId, { ...data, clientAuthentication }, transaction);
             // a key is a way into the account for as long as it lives, including for whoever made it
             // after getting in some other way, which is why its creation is worth a line of its own
-            this.auditService.record({ action: AuditAction.API_KEY_CREATED, outcome: AuditOutcome.SUCCESS, userId }, transaction);
+            const apiKey: ApiKey = 'apiKey' in created ? created.apiKey : created;
+            this.auditService.record({
+                action: AuditAction.API_KEY_CREATED,
+                outcome: AuditOutcome.SUCCESS,
+                userId,
+                userKind: apiKey.userKind ?? undefined
+            }, transaction);
             return created;
         }
         catch (error) {
@@ -1291,6 +1373,8 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     private async requestPasswordResetInBackground(email: string, user: BaseUser<string> | undefined): Promise<void> {
         try {
             if (user) {
+                // no link, answered alike: a password is what a service account never gets
+                UserKindUtilities.validatePerson(user);
                 await this.leaseService.withLease(
                     {
                         // one reset per user at a time, on every instance. The request is answered
@@ -1321,7 +1405,8 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
                 outcome: AuditOutcome.FAILURE,
                 reason,
                 subject: email,
-                userId: user?.id
+                userId: user?.id,
+                userKind: user == undefined ? undefined : UserKindUtilities.getKind(user)
             });
             // a refusal, such as of an address that is not verified, is the trail's alone
             if (reason === AuditReason.ERROR) {
@@ -1646,6 +1731,42 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             // worded like the refusals above, for the reason given there
             throw new ForbiddenError($ts`You do not have permission to access this route.`);
         }
+
+        // requireShareRole - last, as it reads the row, which the checks above may have refused already
+        const requireShareRoleMetadata: RequireShareRoleMetadata | undefined = metadata.requireShareRole;
+        if (requireShareRoleMetadata) {
+            await this.validateShareRole(requireShareRoleMetadata, context);
+        }
+    }
+
+    /**
+     * Lets a request through \@Auth.requireShareRole: with the `fullAccess` of the entity, or with the role on the row
+     * its path parameter names.
+     * @param metadata - What the route requires.
+     * @param context - The request being checked.
+     * @throws A NotFoundError for a row the caller does not see, a ForbiddenError for a lower role.
+     */
+    private async validateShareRole(
+        metadata: RequireShareRoleMetadata,
+        context: HttpRequestContext | WebsocketRequestContext
+    ): Promise<void> {
+        const rowId: string | undefined = context.type === 'http-request' ? context.request.params[metadata.pathParam] : undefined;
+        if (rowId == undefined) {
+            throw new InternalError(
+                `@Auth.requireShareRole names the path parameter "${metadata.pathParam}", which the route has none of.`
+            );
+        }
+        try {
+            await inject(ZIBRI_DI_TOKENS.SHARE_SERVICE).validateRole(metadata.entityClass, rowId, metadata.role);
+        }
+        catch (error) {
+            // a row the caller does not see is not there for them, as a read of it answers: only a role too low is a
+            // refusal worth recording
+            if (error instanceof ForbiddenError) {
+                await this.auditDenied(context, this.strategies, AuditReason.MISSING_PERMISSION);
+            }
+            throw error;
+        }
     }
 
     /**
@@ -1692,7 +1813,27 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             await this.twoFactorService.validate2fa(user, context, metadata.allowedMethods);
             return;
         }
-        throw new ReauthenticationRequiredError();
+        throw await this.resolveReauthenticationRequiredError(user);
+    }
+
+    /**
+     * What a user who has to log in again is told: to ask for a new link, when a link is all they log in with.
+     * @param user - The user.
+     * @returns The error.
+     */
+    private async resolveReauthenticationRequiredError(user: BaseUser<string>): Promise<ReauthenticationRequiredError> {
+        const linkAuthenticators: LoginLinkAuthenticator<string>[] = this.authenticators
+            .map(a => inject(a))
+            .filter((a): a is LoginLinkAuthenticator<string> => a instanceof LoginLinkAuthenticator);
+        for (const authenticator of linkAuthenticators) {
+            if (await authenticator.resolveLogsInByLinkOnly(user, undefined)) {
+                return new ReauthenticationRequiredError(
+                    undefined,
+                    $ts`Ask for a new login link, and log in with it to access this route.`
+                );
+            }
+        }
+        return new ReauthenticationRequiredError();
     }
 
     /**
@@ -1761,7 +1902,9 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
             action: AuditAction.AUTHORIZATION,
             outcome: AuditOutcome.FAILURE,
             reason,
-            userId: principal?.id
+            userId: principal?.id,
+            // named by the account the checks read, and by no claim of a credential trusted in its place
+            userKind: UserKindUtilities.findKind(principal)
         });
     }
 

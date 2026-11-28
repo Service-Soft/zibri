@@ -446,8 +446,11 @@ export function createPostgresTestContainer({ username, password, database }: Po
     const { GenericContainer: Container, Wait } = optionalPeer<typeof import('testcontainers')>('testcontainers', CONTAINERS_FEATURE);
     return new Container(POSTGRES_TEST_IMAGE)
         .withEnvironment({ POSTGRES_USER: username, POSTGRES_PASSWORD: password, POSTGRES_DB: database })
-        // what a data source reading only what changed for its backups needs, `incrementalRead`
-        .withCommand(['postgres', '-c', 'wal_level=logical', '-c', 'max_slot_wal_keep_size=1GB'])
+        // what a data source reading only what changed for its backups needs, `incrementalRead`. And no flush
+        // to disk: every commit waited for one, which with the containers of a full run on one disk took
+        // seconds. What postgres writes, its WAL included, is the same, and a crash of postgres or its
+        // container keeps it all, as it stays with the machine
+        .withCommand(['postgres', '-c', 'wal_level=logical', '-c', 'max_slot_wal_keep_size=1GB', '-c', 'fsync=off'])
         .withExposedPorts(POSTGRES_PORT)
         // twice: once by the server that initializes the database, which accepts no connections over
         // the network, and once by the one that serves it

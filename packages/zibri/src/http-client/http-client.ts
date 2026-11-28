@@ -40,12 +40,14 @@ import { FetchForLibraryOptions } from './fetch-for-library-options.model';
 import { HttpClientBodyUtilities } from './http-client-body.utilities';
 import { HttpClientBufferedBody } from './http-client-buffered-body.model';
 import { HttpClientIdempotencyKey } from './http-client-idempotency-key.model';
+import { HttpClientMethod } from './http-client-method.type';
 import { type HttpClientDispatcher, type HttpClientOptions } from './http-client-options.model';
 import { HttpClientRedirect } from './http-client-redirect.model';
 import { HttpClientResponse, HttpClientResponseBodyInput } from './http-client-response.model';
 import { HttpClientResult } from './http-client-result.type';
 import { HttpClientError } from './http-client.error';
 import { HttpClientHeaderValue, HttpClientInterface, HttpOptionsInput, HttpClientRequestBody, HttpClientRequestBodyMimeType, HttpOptionsWithoutResponseBodyInput } from './http-client.interface';
+import { WebDavMethod } from './web-dav-method.enum';
 
 /**
  * A request that is on its way, and the means to end the deadline it was sent under.
@@ -149,7 +151,18 @@ function toUndiciFormData(form: FormData): FormData {
  * in the state the first attempt asked for, which is what idempotent means. POST and PATCH are not,
  * and are the reason this list exists at all - a second `POST /payments` is a second payment.
  */
-const idempotentMethods: HttpMethod[] = [HttpMethod.GET, HttpMethod.HEAD, HttpMethod.OPTIONS, HttpMethod.PUT, HttpMethod.DELETE];
+// of WebDAV only the three that read: a MOVE or MKCOL repeated after an answer that got lost fails on what
+// the first attempt did, as a 404 or a 405, and would report a failure for a request that succeeded
+const idempotentMethods: HttpClientMethod[] = [
+    HttpMethod.GET,
+    HttpMethod.HEAD,
+    HttpMethod.OPTIONS,
+    HttpMethod.PUT,
+    HttpMethod.DELETE,
+    WebDavMethod.PROPFIND,
+    WebDavMethod.REPORT,
+    WebDavMethod.SEARCH
+];
 
 /**
  * Statuses that describe a condition another attempt could find gone.
@@ -433,10 +446,10 @@ export class HttpClient implements HttpClientInterface {
         QueryParamsObject extends Record<string, unknown>,
         HeaderParamsObject extends Record<string, HttpClientHeaderValue>,
         ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput>,
-        IsArray extends boolean,
+        IsArray extends boolean = false,
         ResponseBody extends HttpClientResponseBodyInput<T, IsArray> = never
     >(
-        method: HttpMethod,
+        method: HttpClientMethod,
         url: string,
         requestBody: unknown,
         options: HttpOptionsInput<
@@ -559,7 +572,7 @@ export class HttpClient implements HttpClientInterface {
         IsArray extends boolean,
         ResponseBody extends HttpClientResponseBodyInput<T, IsArray> = never
     >(
-        method: HttpMethod,
+        method: HttpClientMethod,
         url: string,
         requestBody: unknown,
         options: HttpOptionsInput<
@@ -868,7 +881,7 @@ export class HttpClient implements HttpClientInterface {
     }
 
     private buildRequestInit(
-        method: HttpMethod,
+        method: HttpClientMethod,
         body: unknown,
         headers?: Record<string, HttpClientHeaderValue>,
         requestBodyType: HttpClientRequestBodyMimeType = this.resolveContentTypeHeader(headers, body)
@@ -990,7 +1003,7 @@ export class HttpClient implements HttpClientInterface {
      * @param attempt - Which attempt just failed, counting from one.
      * @returns The delay before the next attempt, or undefined to stop.
      */
-    private retryDelayFor(method: HttpMethod, hasIdempotencyKey: boolean, error: unknown, attempt: number): number | undefined {
+    private retryDelayFor(method: HttpClientMethod, hasIdempotencyKey: boolean, error: unknown, attempt: number): number | undefined {
         // not sent at all, and nothing changes before the circuit lets one through
         if (error instanceof CircuitOpenError) {
             return undefined;
@@ -1062,7 +1075,7 @@ export class HttpClient implements HttpClientInterface {
      * @throws An HttpClientError carrying the redirect, when one is refused.
      */
     private async sendFollowingRedirects(
-        method: HttpMethod,
+        method: HttpClientMethod,
         url: string,
         init: ClientRequestInit,
         redirect: RedirectMode,
@@ -1201,7 +1214,7 @@ export class HttpClient implements HttpClientInterface {
      * @throws A CircuitOpenError without sending anything while the origin's circuit is open.
      */
     private async sendRequest(
-        method: HttpMethod,
+        method: HttpClientMethod,
         url: string,
         init: ClientRequestInit,
         timeoutInMs: number,

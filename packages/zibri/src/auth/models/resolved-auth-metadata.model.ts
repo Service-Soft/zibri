@@ -5,6 +5,7 @@ import { HasPermissionMetadata } from './has-permission-metadata.model';
 import { IsLoggedInMetadata } from './is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata } from './is-not-logged-in-metadata.model';
 import { Require2faMetadata } from './require-2fa-metadata.model';
+import { RequireShareRoleMetadata } from './require-share-role-metadata.model';
 
 // Resolving them costs nothing but is not free of side effects - the resolvers are where the
 // "Useless @Auth.x.skip" warnings come from - so whoever asks for them passes them on rather than
@@ -39,7 +40,12 @@ export type ResolvedAuthMetadata = {
     /**
      * The resolved \@Auth.require2fa metadata, if the route requires a second factor.
      */
-    require2fa: Require2faMetadata | undefined
+    require2fa: Require2faMetadata | undefined,
+    // TODO 4.0: required, like the checks above, for the reason hasAnyLevelPermission gives
+    /**
+     * The resolved \@Auth.requireShareRole metadata, if the route requires a role on the row a path parameter names.
+     */
+    requireShareRole?: RequireShareRoleMetadata | undefined
 };
 
 /**

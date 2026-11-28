@@ -1,11 +1,17 @@
-import { AggregateRow, AggregateUtilities, BaseEntity, CheckConstraintViolationError, DeepPartial, DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, EntityMetadataMissingError, FindAllOptions, inject, InternalError, JsonUtilities, KeyWhere, Newable, NumberUtilities, ObjectUtilities, PaginationResult, RelatedNarrowing, RelationTree, RemovalReach, RepositoryDriverInterface, STREAM_BATCH_SIZE, Transaction, UnboundedReturnError, UniqueConstraintViolationError, UpsertRow, UUIDUtilities, Where, WriteDataUtilities, ZIBRI_DI_TOKENS } from 'zibri';
-import { coversEveryRow, EntityMetadata, EntityOrderUtilities, EntityRelationsUtilities, MetadataUtilities, ModelRegistry, OrderComparator, OrderKey, parseArray, parseNumber, parseObject, parseOneOf, PropertyMetadata, RelatedNarrowingUtilities, Relation, RelationMetadata, RelationTreeByRowId, ScopedWhere, UniqueGroup, UpsertIdentityUtilities, WhereFilterEvaluator } from 'zibri/internal';
+import { AggregateRow, AggregateUtilities, BaseEntity, BigNumber, CheckConstraintViolationError, DeepPartial, DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, EntityMetadataMissingError, FindAllOptions, inject, InternalError, JsonUtilities, KeyWhere, Newable, NumberUtilities, ObjectUtilities, PaginationResult, RelatedNarrowing, RelationTree, RemovalReach, RepositoryDriverInterface, STREAM_BATCH_SIZE, Transaction, UnboundedReturnError, UniqueConstraintViolationError, UpsertRow, UUIDUtilities, Where, WriteDataUtilities, ZIBRI_DI_TOKENS } from 'zibri';
+import { coversEveryRow, EntityMetadata, EntityOrderUtilities, EntityRelationsUtilities, IndexLookup, IndexLookupUtilities, MetadataUtilities, ModelRegistry, OrderComparator, OrderKey, parseArray, parseNumber, parseObject, parseOneOf, PropertyMetadata, RelatedNarrowingUtilities, Relation, RelationMetadata, RelationTreeByRowId, ScopedWhere, UniqueGroup, UpsertIdentityUtilities, WhereFilterEvaluator } from 'zibri/internal';
 
-import { InMemoryScope, InMemoryStore, StoredRow } from './in-memory-store';
+import { InMemoryIndex, InMemoryScope, InMemoryStore, StoredRow } from './in-memory-store';
 import { InMemoryTransaction } from './in-memory-transaction.model';
 
 // STREAM_BATCH_SIZE is the real drivers' own, so a test that streams here walks the same number of
 // batches it would against postgres, which is what makes a batch boundary bug reproducible in a test
+
+// a stored row is never changed in place - the store replaces it - so what it decodes to holds for as
+// long as it is stored. Kept by the entity, which says how a column reads back, rather than by the
+// driver, of which reading a relation builds a new one each time. Weak on both, so a row the store
+// replaced, or a suite's entity, takes its values with it
+const decodedRows: WeakMap<Newable<BaseEntity>, WeakMap<StoredRow, Map<string, unknown>>> = new WeakMap();
 
 /**
  * One property change of an upsert, as the driver reads it back off an `AtomicUpdate`.
@@ -37,9 +43,11 @@ type UpsertChange = { /** Adds the given amount to the stored value. */ incremen
  * for the scan to cost nothing, and it removes an index that could disagree with the rows it
  * describes. It also closes the gap the valkey driver documents, where a row written before its
  * index existed carries no entry: there is nothing here that can be out of date.
- * - **Filters are never pushed down.** Every row of the table is loaded and then filtered by the
- * {@link WhereFilterEvaluator}, with none of the shortcuts the valkey driver uses to avoid reading
- * everything. Same answers, and one code path.
+ * - **Filters are never pushed down.** Every row a read considers is judged by the
+ * {@link WhereFilterEvaluator}. A filter that names an index declaration of text properties in full,
+ * as the tenant of a tenant's entity does, considers only the rows the store keeps under the values
+ * it names, so a read in one tenant does not grow with the rows of every other. Those rows are still
+ * judged by the whole filter, so the index decides what a read costs and never what it answers.
  */
 export class InMemoryRepositoryDriver<T extends BaseEntity> implements RepositoryDriverInterface<T> {
 
@@ -62,6 +70,15 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      */
     private readonly checks: KeyWhere[];
 
+    /**
+     * The index declarations a read is narrowed by, longest first.
+     *
+     * Only declarations of text properties, compared exactly by the evaluator: a date or a number
+     * the evaluator takes as equal to a value spelled differently, and an entry holding one spelling
+     * would miss a row holding the other.
+     */
+    private readonly indexGroups: string[][];
+
     constructor(
         private readonly entityClass: Newable<T>,
         private readonly store: InMemoryStore
@@ -74,6 +91,60 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         this.checks = (metadata.checks ?? []).map(check => check.where);
         this.properties = MetadataUtilities.getModelProperties(entityClass);
         this.uniqueGroups = this.resolveUniqueGroups();
+        this.indexGroups = IndexLookupUtilities.resolveGroups(
+            ModelRegistry.get(entityClass).keyDescriptor.indexes,
+            ModelRegistry.get(entityClass).keyDescriptor.uniques,
+            this.properties
+        ).filter(group => group.every(key => this.properties[key]?.type === 'string'));
+    }
+
+    /**
+     * Reads the entry of an index declaration a stored row is kept under.
+     * @param group - The properties of the declaration, all of them text.
+     * @param row - The row as it is stored.
+     * @returns The entry, in the form {@link IndexLookupUtilities.findLookups} names one, or undefined
+     * when the row holds no text for one of the properties: a filter naming anything else is never
+     * answered from an index.
+     */
+    private indexEntryOf(group: string[], row: StoredRow): string | undefined {
+        const values: string[] = [];
+        for (const key of group) {
+            const raw: string | undefined = row[key];
+            const value: unknown = raw == undefined ? undefined : JSON.parse(raw);
+            if (typeof value !== 'string') {
+                return undefined;
+            }
+            // the value as it reads back rather than as it was written, so it is the one the
+            // evaluator compares
+            values.push(`${key}=${JSON.stringify(value)}`);
+        }
+        return values.join(':');
+    }
+
+    /**
+     * Resolves the ids of the rows a filter may match, in the order the table holds them, which is
+     * the order a read without an order hands them out in.
+     * @param where - The filter.
+     * @param scope - What to read through.
+     * @returns Every id of the table, or those an index declaration the filter names keeps under the
+     * values it names.
+     */
+    private resolveCandidateIds(where: Where<T> | undefined, scope: InMemoryScope): string[] {
+        const ids: string[] = scope.ids(this.tableName);
+        const lookups: IndexLookup[] | undefined = IndexLookupUtilities.findLookups(
+            where,
+            this.indexGroups,
+            (_key, value) => typeof value === 'string' ? JSON.stringify(value) : undefined
+        );
+        if (lookups == undefined) {
+            return ids;
+        }
+        const candidates: Set<string> = new Set(lookups.flatMap(lookup => {
+            // named by its properties, so that every driver of the entity reads the one index the store keeps
+            const index: InMemoryIndex = { name: lookup.group.join(','), entryOf: row => this.indexEntryOf(lookup.group, row) };
+            return scope.findCandidateIds(this.tableName, index, lookup.entries);
+        }));
+        return ids.filter(id => candidates.has(id));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
@@ -214,13 +285,20 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
     async findAndCount(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
+        const scope: InMemoryScope = this.scope(options.transaction);
         const counting: DriverFindOptions<T> = {
             ...options,
             where: options.totalWhere ?? options.where,
             offset: undefined,
             limit: undefined
         };
-        const counted: T[] = this.selectRows(counting, this.scope(options.transaction));
+        // with what the window's own filter reaches through as well, since that is judged on the
+        // counted rows below rather than on rows read again
+        const judging: RelationTree = EntityRelationsUtilities.mergeTrees(
+            this.relationsForJudging(counting),
+            EntityRelationsUtilities.resolveFilterTree(options.where, this.properties)
+        );
+        const counted: T[] = this.judgeRows(counting, judging, scope);
         // the window is a narrowing of what was just counted, so it is taken out of that rather than
         // read again - which is what keeps the two halves describing the same moment. The relations a
         // filter reaches through are still on the rows here: taken off, a filter through one of them
@@ -231,7 +309,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
 
         const offset: number = options.offset ?? 0;
         const window: T[] = options.limit == undefined ? matching.slice(offset) : matching.slice(offset, offset + options.limit);
-        this.keepOnlyRequested(window, counting);
+        this.answerRows(window, options, judging, scope);
         return { items: window, totalAmount: counted.length };
     }
 
@@ -239,46 +317,66 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * Loads every row of the table, filters it and applies the order and window.
      * @param options - The resolved find options.
      * @param scope - What to read through.
-     * @returns The matching entities.
+     * @returns The matching entities, with the relations the options ask for.
      */
     private findRows(options: DriverFindOptions<T>, scope: InMemoryScope): T[] {
-        const window: T[] = this.selectRows(options, scope);
-        // after the window rather than before it, so that nothing is taken off a row that is about to
-        // be thrown away
-        this.keepOnlyRequested(window, options);
+        const judging: RelationTree = this.relationsForJudging(options);
+        const ordered: T[] = this.judgeRows(options, judging, scope);
+
+        const offset: number = options.offset ?? 0;
+        const window: T[] = options.limit == undefined ? ordered.slice(offset) : ordered.slice(offset, offset + options.limit);
+        // after the window rather than before the filter: resolved on every row of the table, the
+        // relations a caller asked for were read for each row a lookup by id passed over, which a
+        // relation reaching a few levels down made take seconds over a table of a hundred rows
+        this.answerRows(window, options, judging, scope);
         return window;
     }
 
     /**
-     * Loads every row of the table, filters it and applies the order and window, with every relation
-     * the filter and the order read still on the rows.
-     * @param options - The resolved find options.
+     * Loads every row of the table, filters it and orders it, with only the given relations resolved
+     * on the rows.
+     * @param options - The resolved find options, whose window is not applied.
+     * @param judging - The relations the filter and the order read.
      * @param scope - What to read through.
-     * @returns The matching entities.
+     * @returns The matching entities, in order.
      */
-    private selectRows(options: DriverFindOptions<T>, scope: InMemoryScope): T[] {
-        const entities: T[] = this.loadRows(scope.ids(this.tableName), options, scope);
-
+    private judgeRows(options: DriverFindOptions<T>, judging: RelationTree, scope: InMemoryScope): T[] {
+        const entities: T[] = this.loadRows(this.resolveCandidateIds(options.where, scope), { ...options, relations: judging }, scope);
         const filtered: T[] = options.where
             ? entities.filter(e => this.evaluator.matches(e, options.where as Where<T>, this.entityClass))
             : entities;
-        const ordered: T[] = this.applyOrder(filtered, options.order);
-
-        const offset: number = options.offset ?? 0;
-        return options.limit == undefined ? ordered.slice(offset) : ordered.slice(offset, offset + options.limit);
+        return this.applyOrder(filtered, options.order);
     }
 
     /**
-     * Takes the relations a read loaded only for its filter and order off the rows it hands out.
-     * @param rows - The rows.
-     * @param options - The read they were loaded for.
+     * Resolves the relations a read asks for on the rows it hands out, and takes off the ones it
+     * resolved only to filter and order them by.
+     * @param rows - The rows handed out, changed in place.
+     * @param options - The read.
+     * @param judging - The relations already resolved on the rows, for the filter and the order.
+     * @param scope - What to read through.
      */
-    private keepOnlyRequested(rows: T[], options: DriverFindOptions<T>): void {
-        EntityRelationsUtilities.keepOnlyRequested(
-            rows,
-            this.relationsToResolve(options),
-            EntityRelationsUtilities.resolveTree(options.relations)
-        );
+    private answerRows(rows: T[], options: DriverFindOptions<T>, judging: RelationTree, scope: InMemoryScope): void {
+        const requested: RelationTree = EntityRelationsUtilities.resolveTree(options.relations);
+        // a relation the filter or the order already read as deep as asked is left as it is rather
+        // than read a second time
+        const missing: RelationTree = new Map([...requested].filter(([key, below]) => !this.covers(judging.get(key), below)));
+        if (missing.size) {
+            for (const row of rows) {
+                this.resolveRelationsOn(row, missing, scope, options.related);
+            }
+        }
+        EntityRelationsUtilities.keepOnlyRequested(rows, EntityRelationsUtilities.mergeTrees(requested, judging), requested);
+    }
+
+    /**
+     * Whether a resolved relation reaches every relation below it that a read asks for.
+     * @param resolved - What was resolved below the relation, if it was resolved at all.
+     * @param requested - What the read asks for below it.
+     * @returns True when nothing of the request is missing.
+     */
+    private covers(resolved: RelationTree | undefined, requested: RelationTree): boolean {
+        return resolved != undefined && [...requested].every(([key, below]) => this.covers(resolved.get(key), below));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
@@ -292,21 +390,18 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         // an order is decided over every match before the first row is handed out, and only the ids
         // are kept of it, as a store ordering in its own process keeps them
         const ids: string[] = options.order == undefined
-            ? scope.ids(this.tableName)
+            ? this.resolveCandidateIds(options.where, scope)
             : this.findRows({ where: options.where, related: options.related, order: options.order }, scope).map(row => String(row.id));
 
         // without the order, which is decided already, so no row carries a relation it was only ordered by
         const reading: DriverStreamOptions<T> = { ...options, order: undefined };
+        const judging: RelationTree = this.relationsForJudging(reading);
         for (let i: number = 0; i < ids.length; i += STREAM_BATCH_SIZE) {
-            const entities: T[] = this.loadRows(ids.slice(i, i + STREAM_BATCH_SIZE), reading, scope);
+            const entities: T[] = this.loadRows(ids.slice(i, i + STREAM_BATCH_SIZE), { ...reading, relations: judging }, scope);
             const where: Where<T> | undefined = options.where;
             const matching: T[] = where ? entities.filter(e => this.evaluator.matches(e, where, this.entityClass)) : entities;
             // nor one it was only filtered by, as a find hands its rows back
-            EntityRelationsUtilities.keepOnlyRequested(
-                matching,
-                this.relationsToResolve(reading),
-                EntityRelationsUtilities.resolveTree(options.relations)
-            );
+            this.answerRows(matching, reading, judging, scope);
             yield* matching;
         }
     }
@@ -872,15 +967,22 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * @returns The relations to resolve, and the relations to resolve below each of those.
      */
     private relationsToResolve(options: DriverFindOptions<T>): RelationTree {
+        return EntityRelationsUtilities.mergeTrees(
+            EntityRelationsUtilities.resolveTree(options.relations),
+            this.relationsForJudging(options)
+        );
+    }
+
+    /**
+     * The relations a filter or an order cannot be answered without, which every row they look at
+     * needs resolved before it can be judged.
+     * @param options - The find options.
+     * @returns Those relations.
+     */
+    private relationsForJudging(options: DriverFindOptions<T>): RelationTree {
         // as deep as the filter reaches, which a filter naming a relation of a relation needs
         const forFilter: RelationTree = EntityRelationsUtilities.resolveFilterTree(options.where, this.properties);
-        return EntityRelationsUtilities.mergeTrees(
-            EntityRelationsUtilities.mergeTrees(
-                EntityRelationsUtilities.resolveTree(options.relations),
-                EntityOrderUtilities.resolveRelations(options.order, this.entityClass)
-            ),
-            forFilter
-        );
+        return EntityRelationsUtilities.mergeTrees(EntityOrderUtilities.resolveRelations(options.order, this.entityClass), forFilter);
     }
 
     /**
@@ -1200,12 +1302,55 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
     private fromFields(row: StoredRow): T {
         const res: Record<string, unknown> = {};
 
-        for (const [key, raw] of ObjectUtilities.entries(row)) {
-            const metadata: PropertyMetadata | undefined = this.properties[key];
-            const parsed: unknown = JSON.parse(raw);
-            res[key] = metadata == undefined ? parsed : this.fromStorableValue(parsed, metadata);
+        for (const [key, value] of this.resolveDecodedRow(row)) {
+            // every entity its own copy of what can be changed in place, as every read of a real store
+            // hands out one: a test changing a date or an object of one entity changes no other
+            if (value instanceof Date) {
+                res[key] = new Date(value.getTime());
+                continue;
+            }
+            const raw: string | undefined = row[key];
+            res[key] = this.isShareable(value) || raw == undefined ? value : this.decodeField(key, raw);
         }
         return res as T;
+    }
+
+    /**
+     * Resolves the values of a stored row, decoded once for as long as the row is stored.
+     * @param row - The stored row.
+     * @returns The decoded values by column, shared by every read of the row.
+     */
+    private resolveDecodedRow(row: StoredRow): Map<string, unknown> {
+        const byRow: WeakMap<StoredRow, Map<string, unknown>> = decodedRows.get(this.entityClass) ?? new WeakMap();
+        decodedRows.set(this.entityClass, byRow);
+        const existing: Map<string, unknown> | undefined = byRow.get(row);
+        if (existing != undefined) {
+            return existing;
+        }
+        const decoded: Map<string, unknown> = new Map(ObjectUtilities.entries(row).map(([key, raw]) => [key, this.decodeField(key, raw)]));
+        byRow.set(row, decoded);
+        return decoded;
+    }
+
+    /**
+     * Decodes one stored column.
+     * @param key - The column.
+     * @param raw - What it stores, json encoded.
+     * @returns The value, as its property declares it.
+     */
+    private decodeField(key: string, raw: string): unknown {
+        const metadata: PropertyMetadata | undefined = this.properties[key];
+        const parsed: unknown = JSON.parse(raw);
+        return metadata == undefined ? parsed : this.fromStorableValue(parsed, metadata);
+    }
+
+    /**
+     * Whether a decoded value can be handed to every read of its row: nothing can change it in place.
+     * @param value - The decoded value.
+     * @returns True for a primitive and an exact decimal, whose instances never change.
+     */
+    private isShareable(value: unknown): boolean {
+        return value == undefined || typeof value !== 'object' || value instanceof BigNumber;
     }
 
     /**
@@ -1233,8 +1378,9 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
                 return parseNumber(value, metadata.format);
             }
             case 'file': {
+                // a file kept in a file store is held as the id of its row
                 // eslint-disable-next-line typescript/no-base-to-string
-                return Buffer.from(String(value), 'base64');
+                return metadata.store == undefined ? Buffer.from(String(value), 'base64') : value;
             }
             case 'object': {
                 return parseObject(value, metadata.cls());

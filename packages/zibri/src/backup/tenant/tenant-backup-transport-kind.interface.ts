@@ -37,13 +37,16 @@ export interface TenantBackupTransportKindInterface<TSettings extends object, TS
      * @param settings - What the tenant configured.
      * @param secret - The secret, decrypted.
      * @param network - What every host it connects to is checked by.
+     * @param tenantId - The tenant whose transport it is, for a kind whose settings name a row of the tenant, such as
+     * a `TenantWebDavConnection`.
      * @returns The transport.
      */
     createTransport: (
         name: string,
         settings: TSettings,
         secret: TSecret,
-        network: TenantTransportNetwork
+        network: TenantTransportNetwork,
+        tenantId: string
     ) => Promise<BackupTransportSupporting<'v2'>>
 }
 

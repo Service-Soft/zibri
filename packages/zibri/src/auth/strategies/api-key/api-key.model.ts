@@ -1,9 +1,12 @@
+import { FrameworkColumnRegistry } from '../../../data-source/migration/framework-column.registry';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitClass } from '../../../entity/omit-class.model';
 import type { HashString } from '../../hash/hash.utilities';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
+import { type UserKind } from '../../models/user-kind.type';
+import { UserKindUtilities } from '../../user/user-kind.utilities';
 import { ApiKeyAuthenticationMethod } from './api-key-authentication-method.enum';
 
 /**
@@ -102,7 +105,23 @@ export class ApiKey extends BaseEntity {
      */
     @Property.date({ default: () => new Date() })
     createdAt!: Date;
+
+    /**
+     * Whether the user of the key is a person or a service account, as the user was when the key was created: a
+     * user keeps their kind. Undefined or null for a key created before users had a kind, whose user is a person.
+     */
+    @Property.string({ enum: UserKindUtilities.KINDS, required: false })
+    userKind?: UserKind | null;
 }
+
+// added by the data source to a table that lacks it, so that the keys of 3.2 take no migration of the application's.
+// Every user of a key stored before users had a kind is a person
+FrameworkColumnRegistry.register({
+    entity: ApiKey,
+    property: 'userKind',
+    storedValue: () => 'person',
+    meansAbsent: value => value === 'person'
+});
 
 /**
  * Data for storing a new api key.

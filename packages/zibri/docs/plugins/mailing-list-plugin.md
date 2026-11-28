@@ -22,7 +22,7 @@ keywords: [newsletter, mailing list, subscribers, unsubscribe, campaigns]
 | `MailingListSubscribeSuccessPageTemplate`, `MailingListSubscribeSuccessPageTemplateProps` | type, type | What a subscriber sees after confirming, and its props |
 
 ## Setting it up
-Add `new ZibriMailingListPlugin()` to the `plugins` of your application, see [registering a plugin](../application/plugin.md#registering-a-plugin), and `MailingList`, `MailingListSubscriber` and `MailingListSubscriptionConfirmationToken` to the `entities` of your data source.
+Add `new ZibriMailingListPlugin()` to the `plugins` of your application, see [registering a plugin](../application/plugin.md#registering-a-plugin), and `MailingList`, `MailingListSubscriber` and `MailingListSubscriptionConfirmationToken` to the `entities` of your data source. You import the names of the plugin from `zibri/plugin/mailing-list`.
 
 You provide the email and page templates it uses, such as `SUBSCRIBE_CONFIRMATION_EMAIL_TEMPLATE` and `PREFERENCES_PAGE_TEMPLATE`, through the `ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS` tokens, see [configuring the plugin](#configuring-the-plugin).
 
@@ -30,7 +30,8 @@ Extend `MailingListController` with a `@Controller` of your own, at the path you
 
 ```ts
 // src/controllers/mailing-list.controller.ts
-import { Controller, MailingListController } from 'zibri';
+import { Controller } from 'zibri';
+import { MailingListController } from 'zibri/plugin/mailing-list';
 
 @Controller('/mailing-lists', { versions: 'all' })
 export class AppMailingListController extends MailingListController {}
@@ -40,7 +41,8 @@ Add it to the `controllers` of your application:
 
 ```ts
 // src/application-options.base.ts
-import { OmitStrict, ZibriApplicationOptions, ZibriMailingListPlugin } from 'zibri';
+import { OmitStrict, ZibriApplicationOptions } from 'zibri';
+import { ZibriMailingListPlugin } from 'zibri/plugin/mailing-list';
 
 import { AppMailingListController } from './controllers/mailing-list.controller';
 

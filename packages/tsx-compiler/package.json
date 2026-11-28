@@ -61,7 +61,7 @@
         "lint": "eslint . --max-warnings=0",
         "lint:fix": "eslint . --max-warnings=0 --fix",
         "prepublishOnly": "npm run build",
-        "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js && node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --config jest.typescript-6.config.mjs",
+        "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js && node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --config jest.typescript-5.config.mjs",
         "test:coverage": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --coverage"
     },
     "peerDependencies": {
@@ -76,8 +76,8 @@
         "jest": "^30.4.2",
         "ts-jest": "^29.4.11",
         "ts-loader": "^9.5.2",
-        "typescript": "^5.9.2",
-        "typescript-6": "npm:typescript@^6.0.2",
+        "typescript": "^6.0.3",
+        "typescript-5": "npm:typescript@^5.9.2",
         "webpack": "^5.105.3",
         "zibri-mdx": "^3.2.1"
     }

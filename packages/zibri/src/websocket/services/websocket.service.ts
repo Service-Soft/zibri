@@ -79,6 +79,7 @@ import { messageSizeLimitingWebSocketServerClass } from '../message-size/message
 import { PollingMessageSizeGuard } from '../message-size/polling-message-size.guard';
 import { WebsocketMessageRefusal } from '../message-size/websocket-message-size.scanner';
 import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model';
+import { SentWebsocketMessage } from '../models/sent-websocket-message.model';
 import { WebsocketAnswer } from '../models/websocket-answer.model';
 import { WebsocketChannel } from '../models/websocket-channel.model';
 import { WebsocketControllerRouteConfiguration } from '../models/websocket-controller-route-configuration.model';
@@ -167,7 +168,7 @@ type AnswersRequest = {
     /**
      * The message.
      */
-    message: WebsocketMessage
+    message: SentWebsocketMessage
 };
 
 /**
@@ -225,6 +226,16 @@ function isAnswersReply(value: unknown): value is AnswersReply {
     return typeof value === 'object' && value != undefined
         && 'requestId' in value && typeof value.requestId === 'string'
         && 'answers' in value && Array.isArray(value.answers);
+}
+
+/**
+ * Narrows the `headers` a client sent in the `auth` of its handshake.
+ * @param value - What arrived.
+ * @returns Whether it is none, or an object of strings.
+ */
+function isHandshakeHeaders(value: unknown): value is Record<string, string> | undefined {
+    return value === undefined || (typeof value === 'object' && value != undefined && !Array.isArray(value)
+        && Object.values(value).every(header => typeof header === 'string'));
 }
 
 /**
@@ -492,12 +503,11 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                     next(new BadRequestError($ts`The offset needs to be a whole number of at least 0.`));
                     return;
                 }
-                const request: WebsocketRequest = {
-                    headers: socket.handshake.headers as Partial<Record<KnownHeader, string | undefined>>,
-                    body: undefined,
-                    query: socket.handshake.query,
-                    params: {}
-                };
+                if (!isHandshakeHeaders(socket.handshake.auth['headers'])) {
+                    next(new BadRequestError($ts`The headers need to be an object of strings.`));
+                    return;
+                }
+                const request: WebsocketRequest = this.resolveHandshakeRequest(socket);
                 const context: WebsocketRequestContext = new WebsocketRequestContext(request, undefined, undefined, undefined);
 
                 const currentUser: CurrentUser | undefined = await this.authService.resolveCurrentUser(
@@ -613,10 +623,14 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async beforeAppShutdown(): Promise<void> {
-        if (this.socketServer == undefined) {
-            return;
+        if (this.socketServer != undefined) {
+            await this.socketServer.close();
         }
-        await this.socketServer.close();
+        // a check outliving its application would run against a container that is gone
+        for (const check of this.expiryChecks.values()) {
+            clearTimeout(check);
+        }
+        this.expiryChecks.clear();
     }
 
     private async onConnect(socket: Socket): Promise<void> {
@@ -636,7 +650,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             return;
         }
 
-        connection = new SocketIOWebsocketConnection(socket, currentUser?.id, resolvedVersion);
+        connection = new SocketIOWebsocketConnection(socket, currentUser?.id, resolvedVersion, this.resolveHandshakeRequest(socket));
         this.connections.set(connection.id, connection);
         // in the user's room before anything else is awaited, because the room is where an ended
         // login looks for the user's connections: joined later, a logout in between would miss it
@@ -728,6 +742,31 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         });
 
         await this.recoverConnection(connection, currentUser);
+    }
+
+    /**
+     * Resolves the request a connection is opened with: the headers and the query of its handshake, and the headers
+     * that log it in and name its tenant from the `headers` of the `auth` of its handshake, where the handshake carries
+     * none of its own.
+     * @param socket - The socket, whose `auth` was checked at the handshake.
+     * @returns The request.
+     */
+    private resolveHandshakeRequest(socket: Socket): WebsocketRequest {
+        // a browser sends headers only with the requests of long polling, which an upgrade to a websocket goes without,
+        // and the auth with every connection. Only these: a proxy in front of the application sets or removes headers of
+        // a request, such as the certificate or the address of the client, which an auth payload would pass by
+        const names: string[] = [KnownHeader.AUTHORIZATION, this.tenantService.getTenantHeader?.()].filter(name => name != undefined);
+        const sent: unknown = socket.handshake.auth['headers'];
+        const fromAuth: [string, string][] = isHandshakeHeaders(sent) && sent != undefined
+            ? Object.entries(sent).map(([name, value]): [string, string] => [name.toLowerCase(), value])
+                .filter(([name]) => names.includes(name) && socket.handshake.headers[name] == undefined)
+            : [];
+        return {
+            headers: { ...Object.fromEntries(fromAuth), ...socket.handshake.headers as Partial<Record<KnownHeader, string | undefined>> },
+            body: undefined,
+            query: socket.handshake.query,
+            params: {}
+        };
     }
 
     /**
@@ -877,7 +916,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     ): Promise<B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>> {
         data.expectResponse ??= true as B;
 
-        const message: WebsocketMessage = await this.createWebsocketMessage(
+        const message: SentWebsocketMessage = await this.createWebsocketMessage(
             data.persist ?? true,
             data.message.ok
                 ? {
@@ -925,7 +964,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     private async emitWithAckTo(
         connection: SocketIOWebsocketConnection,
         event: LooseWebsocketEvent,
-        message: WebsocketMessage
+        message: SentWebsocketMessage
     ): Promise<WebsocketRequestWithConnection<SocketIOWebsocketConnection>> {
         return {
             request: await connection.emitWithAck(event, message, this.options.timeoutInMs),
@@ -943,7 +982,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         const server: Server = this.server;
         const channel: WebsocketChannel = await this.channelRepository.findById(data.channelId);
 
-        const message: WebsocketMessage = await this.createWebsocketMessage(
+        const message: SentWebsocketMessage = await this.createWebsocketMessage(
             data.persist ?? true,
             data.message.ok
                 ? {
@@ -984,7 +1023,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         data.expectResponse ??= false as B;
         // for the same reason as in sendToChannel
         const server: Server = this.server;
-        const message: WebsocketMessage = await this.createWebsocketMessage(
+        const message: SentWebsocketMessage = await this.createWebsocketMessage(
             data.persist ?? true,
             data.message.ok
                 ? {
@@ -1035,7 +1074,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     private async collectAnswers(
         room: string | undefined,
         event: LooseWebsocketEvent,
-        message: WebsocketMessage
+        message: SentWebsocketMessage
     ): Promise<WebsocketAnswer[]> {
         // a server of one instance has nobody to ask, and its adapter refuses to try
         if (this.options.adapterDataSource == undefined) {
@@ -1058,7 +1097,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     private async collectLocalAnswers(
         room: string | undefined,
         event: LooseWebsocketEvent,
-        message: WebsocketMessage
+        message: SentWebsocketMessage
     ): Promise<WebsocketAnswer[]> {
         const recipients: SocketIOWebsocketConnection[] = room == undefined
             ? [...this.connections.values()]
@@ -1076,7 +1115,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     private async resolveAnswer(
         connection: SocketIOWebsocketConnection,
         event: LooseWebsocketEvent,
-        message: WebsocketMessage
+        message: SentWebsocketMessage
     ): Promise<WebsocketAnswer> {
         try {
             const request: WebsocketRequest = await connection.emitWithAck(event, message, this.options.timeoutInMs);
@@ -1108,7 +1147,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     private async askOtherInstances(
         room: string | undefined,
         event: LooseWebsocketEvent,
-        message: WebsocketMessage
+        message: SentWebsocketMessage
     ): Promise<WebsocketAnswer[]> {
         const server: Server = this.server;
         const otherInstances: number = await server.of('/').adapter.serverCount() - 1;
@@ -1246,7 +1285,10 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         const room: string = tenantRoomOf(tenantId);
         const data: WebsocketTenantDeactivated = { tenantId };
         // told while they are still in it, and nothing to replay, since nothing of the tenant reaches them afterwards
-        server.to(room).emit(WebsocketEvent.TENANT_DEACTIVATED, { ok: true, data, senderUserId: undefined, senderConnectionId: undefined });
+        server.to(room).emit(
+            WebsocketEvent.TENANT_DEACTIVATED,
+            { ok: true, status: HttpStatus.OK, data, senderUserId: undefined, senderConnectionId: undefined }
+        );
         // the connections stay, as they serve the other tenants of their users. Through the room, which reaches
         // them on every instance
         const ofTenant: WebsocketChannel[] = await this.channelRepository.findAll({ where: { tenantId }, acrossTenants: true });
@@ -1326,10 +1368,17 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         }
         const context: WebsocketRequestContext = new WebsocketRequestContext(connection.handshakeRequest, undefined, undefined, undefined);
         const expiresAt: Date | undefined = await this.authService.resolveCredentialExpiry(context);
+        // a connection that disconnected while its expiry was read had its checks cleared already: one set now would run
+        // for a connection that is gone, and after its application has shut down
+        if (this.connections.get(connection.id) !== connection) {
+            return;
+        }
         // a credential still accepted past the expiry it names would be checked again at once, forever
         if (expiresAt == undefined || expiresAt.getTime() <= Date.now()) {
             return;
         }
+        // another check set while this one read, such as of a connection recovered meanwhile
+        clearTimeout(this.expiryChecks.get(connection.id));
         const check: NodeJS.Timeout = setTimeout(
             // eslint-disable-next-line promise/prefer-await-to-then
             () => void this.closeIfLoginEnded(connection).catch(
@@ -1419,15 +1468,16 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     private async createWebsocketMessage(
         persist: boolean,
         messageData: CreateWebsocketMessageData | WebsocketMessage
-    ): Promise<WebsocketMessage> {
+    ): Promise<SentWebsocketMessage> {
         if ('id' in messageData) {
             return messageData;
         }
         return persist
             ? await this.messageRepository.create(messageData)
+            // without a seq, as it is not sent again: a client that took one for the seq it reached reconnected with
+            // an offset before every message that is kept, and was sent all of them again
             : {
                 ...messageData,
-                seq: 1,
                 id: UUIDUtilities.generate(),
                 createdAt: new Date(),
                 ok: messageData.status < 400

@@ -27,15 +27,17 @@ text.
 | `ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT` | DI token | Configures supported locales, default locale and locale resolution |
 | `LocalizeOptions`, `LocalizeOptionsInput`, `LocaleConfiguration` | type, type, type | The localize options in effect, the ones your application sets, and the currency and default formats of one locale |
 | `ZIBRI_DI_TOKENS.LOCALIZE_SERVICE` | DI token | Injects `LocalizeServiceInterface` |
-| `LocalizeServiceInterface` | interface | Contract for `formatPrice`, `getCurrencyMinorUnits`, `formatPercent` and `formatDate` |
+| `LocalizeServiceInterface` | interface | Contract for `runInLocale`, `formatPrice`, `getCurrencyMinorUnits`, `formatPercent` and `formatDate` |
 | `LocalizeService` | class | The default `LocalizeServiceInterface`. Replaceable through ZIBRI_DI_TOKENS.LOCALIZE_SERVICE |
+| `runInLocale` | function | Runs a function in a locale, such as the one of the user a mail is for |
 | `TEXT_COLLATOR_OPTIONS` | constant | The collator options text is ordered with, for ordering text in your own code the same way |
 | `FormatPriceOptions`, `FormatDateOptions`, `FormatPercentOptions` | type, type, type | The currency, locale, format and time zone `formatPrice`, `formatDate` and `formatPercent` use |
 | `LocaleCode` | type | Type of a supported locale code (such as `'en-US'`, `'de'`) |
 | `resolveLocaleCode` | function | Finds the best match for a locale among the available ones |
-| `currencyCodes`, `currencyCodeEnum`, `CurrencyCode` | constant, constant, type | The ISO 4217 currency codes as a list, as an enum shaped object for `@Property.string({ enum })`, and as a type |
+| `currencyCodes`, `currencyCodeEnum`, `CurrencyCode`, `isCurrencyCode` | constant, constant, type, function | The ISO 4217 currency codes as a list, as an enum shaped object for `@Property.string({ enum })`, and as a type, and whether a string is one of them, such as a currency to pass to `formatPrice` |
 | `Timezone` | type | Type of an IANA time zone name (such as `'UTC'`, `'Europe/Berlin'`) |
 | `timezones` | constant | Every name `Timezone` allows, as a list |
+| `getZonedDate`, `ZonedDate` | function, type | The year, month, day, weekday and time an instant falls on in a time zone |
 | `Month`, `monthLabels`, `Weekday`, `weekdayLabels` | enum, constant, enum, constant | The months and weekdays as a JavaScript `Date` numbers them, and a translatable label for each |
 
 ## Marking strings for translation
@@ -130,7 +132,8 @@ import { defineDateFormat, defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
 ```
 
 Each locale names its currency and its default date, date-time and time formats. `defaultLocale`
-names the locale used by default, `'en-US'` unless you set it.
+names the locale used by default, `'en-US'` unless you set it. Its currency is the one a price without a
+currency is in, in every locale, see [formatting](#formatting).
 
 ## Providing translations
 
@@ -163,6 +166,11 @@ A translation file is `translations/<locale>.xlf`. On startup, a warning names e
 `<trans-unit>` of `source.xlf` that has no `<target>` in a locale's file, and every `<target>` that
 leaves out a placeholder of its `<source>`.
 
+Zibri ships German for its own strings, such as validation errors and login errors, so your `de.xlf`
+needs no `<target>` for them. It is read before your `translations/<locale>.xlf`, and a `<target>`
+you write for one of those strings replaces it. A locale of a region takes the translation of its
+language: with `'de-AT'` supported, the German one is read for it.
+
 The `<source>` element and `<note>` are informational. Only the `<target>` is read at runtime.
 Standard XLIFF editors open these files directly.
 
@@ -191,8 +199,90 @@ A requested locale resolves to a supported locale of the same language. With `'e
 request for `'en'` or `'en-GB'` resolves to `'en-US'`. `TranslationToken.getValue` resolves the locale
 it is given the same way.
 
+Inside [`runInLocale`](#running-work-in-the-locale-of-a-user), its locale replaces the one of the request.
+`CURRENT_LOCALE` of the request context is the locale the request asks for, inside `runInLocale` too.
+
 `formatPrice` and `formatDate` take the locale you pass them as it is written. Pass a supported locale,
 or the locale of the request.
+
+## Running work in the locale of a user
+`runInLocale` runs a function in a locale, through `runInLocale` of the localize service. `$ts`, `$f`,
+`formatPrice`, `formatPercent`, `formatDate` and every template rendered inside it use that locale, after
+every `await` too, inside a request and outside one. Outside a request, such as in a cron job or a queue,
+work runs in the `defaultLocale` otherwise.
+
+This cron job mails each user in their language:
+
+```ts
+// src/cron/weekly-digest.cron-job.ts
+import { $ts, CronExpression, CronJob, EmailServiceInterface, InitialCronConfig, inject, Injectable, runInLocale, ZIBRI_DI_TOKENS } from 'zibri';
+
+import { User } from '../models';
+import { userRepository } from '../repositories';
+
+@Injectable()
+export class WeeklyDigestCronJob extends CronJob {
+    readonly initialConfig: InitialCronConfig = {
+        name: 'Weekly digest',
+        cron: CronExpression.daily().at(7, 'hours').build()
+    };
+
+    async onTick(): Promise<void> {
+        const emailService: EmailServiceInterface = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
+        const users: User[] = await userRepository.findAll({ limit: 'all' });
+        await Promise.all(users.map(async user => await runInLocale(user.locale, async () => {
+            await emailService.queue({
+                recipients: [user.email],
+                subject: $ts`Your week`,
+                html: `<p>${$ts`These are the tasks due this week.`}</p>`
+            });
+        })));
+    }
+}
+```
+
+The locale is matched to a supported one, as the locale of a request is: with `'de'` supported,
+`'de-AT'` runs in `'de'`. A locale that matches none, `null` and `undefined` run in the `defaultLocale`, so a
+text is always in a language your application translates into. Inside another `runInLocale`, the inner
+locale applies until its function returns.
+
+`runInLocale` of `LocalizeServiceInterface` is optional until zibri 4. With a localize service of your own
+that has none, `runInLocale` runs the function as it is, in the locale your service resolves, and the mails
+of the framework are in the locale of the request sending them.
+
+## The locale of a user
+A user entity extending `BaseUserEntity()` has a `locale`: the language the mails of the framework reach
+them in. A user created without one gets the locale of the request creating them, whichever route of
+yours creates them: a sign up, an invitation, an administrator. A user created outside a request gets the
+`defaultLocale`, and one created inside `runInLocale` its locale. `null` stands for the `defaultLocale`.
+`GET /me` of the [auth routes](../auth/auth-routes.md#the-routes) answers it.
+
+A user changes it themselves with `PATCH /me` of the [auth routes](../auth/auth-routes.md#the-routes), which
+`updateCurrentUserRoute: true` adds: `{ "locale": "de" }`, or `null` for the default locale.
+
+From code of your own, change it with `updateLocale` of `ZIBRI_DI_TOKENS.USER_SERVICE`. It takes one of the
+supported locales or `null`, and refuses any other with a `BadRequestError`:
+
+```ts
+// src/services/language.service.ts
+import { inject, LocaleCode, ZIBRI_DI_TOKENS } from 'zibri';
+
+export async function changeLanguage(userId: string, locale: LocaleCode): Promise<void> {
+    await inject(ZIBRI_DI_TOKENS.USER_SERVICE).updateLocale?.(userId, locale, undefined);
+}
+```
+
+The mails of the framework run in the locale of their recipient, their subject included:
+
+| Mail | Locale |
+|---|---|
+| Invitation | The `locale` of the invitation, see [inviting people](../auth/invitations.md) |
+| Verifying or changing an email address, password reset, code of a [second factor](../glossary.md#second-factor) | The `locale` of the user |
+| Logs mailed by the email transport of the logger | The `defaultLocale` |
+| A mail to a mailing list, and the confirmation of a subscription | The locale they are queued in |
+
+With `schemaManagement: 'migrations'`, the data source adds the `locale` column to the tables of your
+user entity and your invitation entity itself, without a migration of yours.
 
 ## Formatting
 The localize service formats dates, prices and percentages. Inject it with
@@ -209,9 +299,14 @@ class ReportService {
     ) {}
 
     formatValues(locale: LocaleCode): void {
-        // Format a price using the locale's configured currency
+        // Format a price in the currency of the locale, USD for en-US and EUR for de
         this.localizeService.formatPrice(19.99, { locale });
         // en-US → '$19.99'
+        // de    → '19,99 €'
+
+        // Format a price in a currency of its own
+        this.localizeService.formatPrice(19.99, { locale, currency: 'EUR' });
+        // en-US → '€19.99'
         // de    → '19,99 €'
 
         // How many decimals an amount in a currency has, which a price is formatted with
@@ -244,6 +339,13 @@ class ReportService {
     }
 }
 ```
+
+A price without a `currency` is in the `currencyCode` of the locale formatting it, so the same amount reads
+`$19.99` in `en-US` and `19,99 €` in `de`. When your amounts are in one currency, set `priceCurrency:
+'defaultLocale'` in `ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT`. A price without a `currency` is then in the
+currency of the `defaultLocale`, whichever locale formats it, inside `runInLocale` and in `$f.price` of a page
+too: with `en-US` the default, `19,99 $` in `de`. A language then changes how an amount reads, never the amount.
+Pass the `currency` of an amount in any other currency.
 
 ## Which zone a date is read in
 A `Date` is an instant. A time zone says which calendar day and hour that instant falls on: the same moment is `2024-01-01 02:30` in UTC and `2023-12-31 21:30` in New York.

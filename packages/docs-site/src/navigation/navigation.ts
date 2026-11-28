@@ -18,6 +18,7 @@ import * as clientCertificates from '../../../zibri/docs/auth/client-certificate
 import * as dpop from '../../../zibri/docs/auth/dpop.md';
 import * as emailVerification from '../../../zibri/docs/auth/email-verification.md';
 import * as invitations from '../../../zibri/docs/auth/invitations.md';
+import * as loginLinks from '../../../zibri/docs/auth/login-links.md';
 import * as loginThroughADirectory from '../../../zibri/docs/auth/login-through-a-directory.md';
 import * as loginThroughAProvider from '../../../zibri/docs/auth/login-through-a-provider.md';
 import * as passkeys from '../../../zibri/docs/auth/passkeys.md';
@@ -30,27 +31,35 @@ import * as cron from '../../../zibri/docs/background-work/cron.md';
 import * as events from '../../../zibri/docs/background-work/events.md';
 import * as multithreading from '../../../zibri/docs/background-work/multithreading.md';
 import * as troubleshooting from '../../../zibri/docs/background-work/troubleshooting.md';
+import * as archive from '../../../zibri/docs/data/archive.md';
 import * as audit from '../../../zibri/docs/data/audit.md';
 import * as backup from '../../../zibri/docs/data/backup.md';
 import * as caching from '../../../zibri/docs/data/caching.md';
 import * as costs from '../../../zibri/docs/data/costs.md';
 import * as dataSource from '../../../zibri/docs/data/data-source.md';
 import * as encryptionAndHashing from '../../../zibri/docs/data/encryption-and-hashing.md';
+import * as files from '../../../zibri/docs/data/files.md';
 import * as frameworkTables from '../../../zibri/docs/data/framework-tables.md';
 import * as leases from '../../../zibri/docs/data/leases.md';
 import * as models from '../../../zibri/docs/data/models.md';
 import * as replication from '../../../zibri/docs/data/replication.md';
+import * as sharing from '../../../zibri/docs/data/sharing.md';
 import * as tamperEvidentTables from '../../../zibri/docs/data/tamper-evident-tables.md';
 import * as tenancy from '../../../zibri/docs/data/tenancy.md';
+import * as writeObservers from '../../../zibri/docs/data/write-observers.md';
 import * as assets from '../../../zibri/docs/endpoints/assets.md';
 import * as asyncApi from '../../../zibri/docs/endpoints/async-api.md';
+import * as calendarSync from '../../../zibri/docs/endpoints/calendar-sync.md';
 import * as creatingEndpoints from '../../../zibri/docs/endpoints/creating-endpoints.md';
 import * as excludingProperties from '../../../zibri/docs/endpoints/excluding-properties.md';
+import * as fileMirror from '../../../zibri/docs/endpoints/file-mirror.md';
 import * as httpClient from '../../../zibri/docs/endpoints/http-client.md';
+import * as nextcloud from '../../../zibri/docs/endpoints/nextcloud.md';
 import * as openApi from '../../../zibri/docs/endpoints/open-api.md';
 import * as rateLimiting from '../../../zibri/docs/endpoints/rate-limiting.md';
 import * as validation from '../../../zibri/docs/endpoints/validation.md';
 import * as versioning from '../../../zibri/docs/endpoints/versioning.md';
+import * as webDav from '../../../zibri/docs/endpoints/web-dav.md';
 import * as websocket from '../../../zibri/docs/endpoints/websocket.md';
 import * as xml from '../../../zibri/docs/endpoints/xml.md';
 import * as faq from '../../../zibri/docs/faq.md';
@@ -61,9 +70,16 @@ import * as incidents from '../../../zibri/docs/operations/incidents.md';
 import * as logging from '../../../zibri/docs/operations/logging.md';
 import * as metrics from '../../../zibri/docs/operations/metrics.md';
 import * as tracing from '../../../zibri/docs/operations/tracing.md';
+import * as analyticsPlugin from '../../../zibri/docs/plugins/analytics-plugin.md';
+import * as approvalPlugin from '../../../zibri/docs/plugins/approval-plugin.md';
+import * as bankPlugin from '../../../zibri/docs/plugins/bank-plugin.md';
+import * as bookkeepingPlugin from '../../../zibri/docs/plugins/bookkeeping-plugin.md';
+import * as eBilanz from '../../../zibri/docs/plugins/e-bilanz.md';
 import * as invoicingPlugin from '../../../zibri/docs/plugins/invoicing-plugin.md';
 import * as mailingListPlugin from '../../../zibri/docs/plugins/mailing-list-plugin.md';
+import * as mcpPlugin from '../../../zibri/docs/plugins/mcp-plugin.md';
 import * as paymentPlugin from '../../../zibri/docs/plugins/payment-plugin.md';
+import * as projectsPlugin from '../../../zibri/docs/plugins/projects-plugin.md';
 import * as readme from '../../../zibri/docs/README.md';
 import * as changelog from '../../../zibri/docs/releases/CHANGELOG.md';
 import * as releases from '../../../zibri/docs/releases/releases.md';
@@ -108,7 +124,11 @@ export const navigation: DocsNavigationEntry[] = [
             { file: 'endpoints/websocket.md', module: websocket },
             { file: 'endpoints/xml.md', module: xml },
             { file: 'endpoints/assets.md', module: assets },
-            { file: 'endpoints/http-client.md', module: httpClient }
+            { file: 'endpoints/http-client.md', module: httpClient },
+            { file: 'endpoints/web-dav.md', module: webDav },
+            { file: 'endpoints/nextcloud.md', module: nextcloud },
+            { file: 'endpoints/calendar-sync.md', module: calendarSync },
+            { file: 'endpoints/file-mirror.md', module: fileMirror }
         ]
     },
     {
@@ -117,12 +137,16 @@ export const navigation: DocsNavigationEntry[] = [
             { file: 'data/data-source.md', module: dataSource },
             { file: 'data/models.md', module: models },
             { file: 'data/tenancy.md', module: tenancy },
+            { file: 'data/sharing.md', module: sharing },
+            { file: 'data/write-observers.md', module: writeObservers },
             { file: 'data/caching.md', module: caching },
             { file: 'data/leases.md', module: leases },
             { file: 'data/encryption-and-hashing.md', module: encryptionAndHashing },
             { file: 'data/audit.md', module: audit },
             { file: 'data/tamper-evident-tables.md', module: tamperEvidentTables },
             { file: 'data/backup.md', module: backup },
+            { file: 'data/files.md', module: files },
+            { file: 'data/archive.md', module: archive },
             { file: 'data/replication.md', module: replication },
             { file: 'data/framework-tables.md', module: frameworkTables },
             { file: 'data/costs.md', module: costs }
@@ -136,6 +160,7 @@ export const navigation: DocsNavigationEntry[] = [
             { file: 'auth/roles-and-permissions.md', module: rolesAndPermissions },
             { file: 'auth/two-factor.md', module: twoFactor },
             { file: 'auth/passkeys.md', module: passkeys },
+            { file: 'auth/login-links.md', module: loginLinks },
             { file: 'auth/email-verification.md', module: emailVerification },
             { file: 'auth/invitations.md', module: invitations },
             { file: 'auth/api-keys.md', module: apiKeys },
@@ -171,9 +196,16 @@ export const navigation: DocsNavigationEntry[] = [
     {
         title: 'Plugins',
         pages: [
+            { file: 'plugins/analytics-plugin.md', module: analyticsPlugin },
+            { file: 'plugins/approval-plugin.md', module: approvalPlugin },
+            { file: 'plugins/bank-plugin.md', module: bankPlugin },
+            { file: 'plugins/bookkeeping-plugin.md', module: bookkeepingPlugin },
+            { file: 'plugins/e-bilanz.md', module: eBilanz },
             { file: 'plugins/invoicing-plugin.md', module: invoicingPlugin },
             { file: 'plugins/mailing-list-plugin.md', module: mailingListPlugin },
-            { file: 'plugins/payment-plugin.md', module: paymentPlugin }
+            { file: 'plugins/mcp-plugin.md', module: mcpPlugin },
+            { file: 'plugins/payment-plugin.md', module: paymentPlugin },
+            { file: 'plugins/projects-plugin.md', module: projectsPlugin }
         ]
     },
     {

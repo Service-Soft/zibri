@@ -112,7 +112,7 @@
         "mjml": "^5.4.0",
         "playwright": "^1.61.1",
         "ts-jest": "^29.4.11",
-        "typescript": "^5.9.2",
+        "typescript": "^6.0.3",
         "zibri-tsx-compiler": "^3.2.1"
     }
 }

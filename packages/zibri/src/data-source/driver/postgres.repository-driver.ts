@@ -23,6 +23,10 @@ import { PostgresSqlUtilities } from '../data-sources/postgres/postgres-sql.util
 import { PostgresColumn, PostgresRelationJoin, PostgresTable } from '../data-sources/postgres/postgres-table.model';
 import { PostgresWhereFilterConverter } from '../data-sources/postgres/postgres-where-filter.converter';
 import { ParameterizedSql } from '../data-sources/where-converter/parameterized-sql.model';
+import { FrameworkColumnRegistry } from '../migration/framework-column.registry';
+import { MissingFrameworkColumnError } from '../migration/missing-framework-column.error';
+import { MissingUniqueError } from '../migration/missing-unique.error';
+import { type MissingUnique } from '../migration/missing-unique.model';
 import { AggregateRow } from '../models/aggregate.model';
 import { FindAllOptions } from '../models/options/find-all-options.model';
 import { PaginationResult } from '../models/pagination-result.model';
@@ -1149,14 +1153,27 @@ export class PostgresRepositoryDriver<T extends BaseEntity> implements Repositor
      * it was created with - built from the declaration the schema was built from, so neither drifts.
      * @param identity - The properties the caller identified the row by.
      * @returns The conflict target, as sql.
+     * @throws {MissingUniqueError} When the schema lacks the unique constraint of the identity.
      */
     private resolveConflictTarget(identity: string[]): string {
         const declared: UniqueGroup = UpsertIdentityUtilities.resolveUniqueGroup(this.entityClass, identity);
-        if (declared.where == undefined || coversEveryRow(declared.where)) {
-            return `ON CONSTRAINT ${this.escape(uniqueConstraintName(this.table.name, declared.properties))}`;
+        const everyRow: boolean = declared.where == undefined || coversEveryRow(declared.where);
+        const where: string | undefined = everyRow || declared.where == undefined
+            ? undefined
+            : keyWhereToSql(this.entityClass, declared.where);
+        const name: string = uniqueConstraintName(this.table.name, declared.properties, where);
+        // which a schema the data source does not manage can lack, and postgres names no better than a constraint
+        // that does not exist
+        const missing: MissingUnique | undefined = this.schema.findMissingUnique(name);
+        if (missing != undefined) {
+            const identityNames: string = identity.map(p => `"${p}"`).join(', ');
+            throw new MissingUniqueError(`Upserting "${this.entityClass.name}" by ${identityNames}`, missing);
+        }
+        if (where == undefined) {
+            return `ON CONSTRAINT ${this.escape(name)}`;
         }
         const columns: string = declared.properties.map(p => this.escape(this.schema.getColumn(this.entityClass, p).name)).join(', ');
-        return `(${columns}) WHERE ${keyWhereToSql(this.entityClass, declared.where)}`;
+        return `(${columns}) WHERE ${where}`;
     }
 
     /**
@@ -1278,6 +1295,7 @@ export class PostgresRepositoryDriver<T extends BaseEntity> implements Repositor
      * @returns The values, by column, each as the column is handed it.
      */
     private resolveColumnValues(row: object): ColumnValues {
+        this.validateMissingColumnsAbsent(row);
         const res: ColumnValues = new Map();
         for (const column of this.table.columns) {
             if (column.property == undefined) {
@@ -1305,6 +1323,21 @@ export class PostgresRepositoryDriver<T extends BaseEntity> implements Repositor
             }
         }
         return res;
+    }
+
+    /**
+     * Validates that a row gives the columns the database lacks no value but the one meaning the column is absent.
+     * @param row - The row.
+     * @throws {MissingFrameworkColumnError} When it gives one of them any other value.
+     */
+    private validateMissingColumnsAbsent(row: object): void {
+        // a column the database lacks is no column of the table, so a value saying what a row without it says is left
+        // out, and any other refused rather than lost: a login of a link that counts as no recent login, a service account
+        for (const missing of this.schema.getMissingColumns(this.entityClass)) {
+            if (!FrameworkColumnRegistry.meansAbsent(this.entityClass, missing.property, Reflect.get(row, missing.property))) {
+                throw new MissingFrameworkColumnError(`Storing "${missing.property}" of a ${this.entityClass.name}`, [missing]);
+            }
+        }
     }
 
     /**

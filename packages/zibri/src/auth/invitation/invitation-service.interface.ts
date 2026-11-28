@@ -22,7 +22,10 @@ export interface InvitationServiceInterface {
      * @param transaction - The transaction to write in, if any.
      * @returns The invitation.
      * @throws A ForbiddenError when the caller may not hand out the roles, a ConflictError when the email has an
-     * open invitation there or is a member of the tenant already.
+     * open invitation there or is a member of the tenant already, a BadRequestError for an invitation
+     * `withoutPassword` while `LoginLinkAuthenticator` is none of the authenticators, or one sharing rows that is to
+     * no tenant or names a role their entity does not declare, a NotFoundError for a row to share the tenant does not
+     * hold.
      */
     invite: <T extends BaseInvitation>(
         caller: CurrentUser,
@@ -69,6 +72,22 @@ export interface InvitationServiceInterface {
      * missing or given where it is not taken.
      */
     accept: (token: string, acceptance: InvitationAcceptance, transaction: RepositoryTransaction | undefined) => Promise<void>,
+    /**
+     * Accepts an invitation as `accept` does, and answers the account the person accepting is logged in as: the one an
+     * invitation `withoutPassword` created, which has no password to log in with. `POST /accept-invitation` accepts
+     * through it, and logs that account in by a link.
+     * @param token - The token of the link.
+     * @param acceptance - Who accepts, and with what.
+     * @param transaction - The transaction to write in, if any.
+     * @returns The id of the account, or undefined for an invitation that logs nobody in.
+     * @throws What `accept` throws, and a BadRequestError for a password given for an invitation without one.
+     */
+    // optional, as a service written against 3.2 has none: it creates no invitation without a password
+    acceptForLogin?: (
+        token: string,
+        acceptance: InvitationAcceptance,
+        transaction: RepositoryTransaction | undefined
+    ) => Promise<string | undefined>,
     /**
      * Declines an invitation, and undoes what it created like `revoke`.
      * @param token - The token of the link.

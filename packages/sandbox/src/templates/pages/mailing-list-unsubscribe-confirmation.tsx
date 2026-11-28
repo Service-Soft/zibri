@@ -1,4 +1,5 @@
-import { $ts, MailingListUnsubscribeConfirmationPageTemplate, MaskUtilities } from 'zibri';
+import { $ts, MaskUtilities } from 'zibri';
+import { MailingListUnsubscribeConfirmationPageTemplate } from 'zibri/plugin/mailing-list';
 
 import { Button } from '../components/button';
 import { Card } from '../components/card';

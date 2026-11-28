@@ -1,3 +1,5 @@
+import { type UserKind } from '../auth/models/user-kind.type';
+import { UserKindUtilities } from '../auth/user/user-kind.utilities';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Property } from '../entity/decorators/property.decorator';
 import { AuditAction, AuditOutcome, AuditReason } from '../logging/audit-event.model';
@@ -38,6 +40,16 @@ export abstract class BaseAuditEntry extends BaseEntity {
      */
     @Property.string({ required: false })
     userId?: string | null;
+    /**
+     * Whether `userId` names a person or a service account, where the event knew it.
+     */
+    @Property.string({ enum: UserKindUtilities.KINDS, required: false })
+    userKind?: UserKind | null;
+    /**
+     * The approval request the event proposed, such as the call of an MCP tool that writes.
+     */
+    @Property.string({ format: 'uuid', required: false })
+    approvalRequestId?: string | null;
     /**
      * The scopes of a provider's apis the access granted or revoked covers.
      */

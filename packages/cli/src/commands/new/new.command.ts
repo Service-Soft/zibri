@@ -100,7 +100,11 @@ export class NewCommand extends BaseCommand<ScaffoldAnswers> {
         }));
         const { dependencies, devDependencies, frameworkDevDependencies }: ScaffoldDependencies = ScaffoldUtilities
             .resolveDependencies(configuration.features);
-        // the path quoted, as one with a space in it is otherwise two arguments to `cd`
+        // Inside an npm workspace whose root is already installed, npm silently ignores an install into a member it
+        // has not seen yet: nothing is installed and nothing is saved, so the first install below would be lost.
+        // A plain install first adds the project to the tree of the workspace. Outside of a workspace it does nothing.
+        // The path quoted, as one with a space in it is otherwise two arguments to `cd`
+        await CPUtilities.exec(`cd "${appPath}" && npm i`);
         await CPUtilities.exec(`cd "${appPath}" && npm i -D ${devDependencies.join(' ')}`);
         const zibriDependency: string = ScaffoldUtilities.resolveFrameworkDependency('zibri', 'zibri');
         await CPUtilities.exec(`cd "${appPath}" && npm i ${[zibriDependency, ...dependencies].join(' ')}`);

@@ -13,9 +13,9 @@ import { EntityWriteObserver } from './entity-write-observer.model';
 @Injectable({ register: 'onUse' })
 export class EntityWriteObserverRegistry {
     // a provider of each application rather than a static registry: an observer belongs to the
-    // service instances of the application that registered it. Not behind a token: it is how the
-    // framework's subsystems follow each other's writes, and what an application hears of writes
-    // are the framework events it names
+    // service instances of the application that registered it. Not behind a token: the framework's
+    // subsystems and an application's services register into the same one, which a replacement
+    // would leave without theirs
     private readonly observers: Map<Newable<BaseEntity>, EntityWriteObserver[]> = new Map();
 
     /**

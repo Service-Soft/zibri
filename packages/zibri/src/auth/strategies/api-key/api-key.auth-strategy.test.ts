@@ -578,7 +578,7 @@ describe('ApiKeyAuthStrategy', () => {
 
         const events: unknown[] = await auditEvents();
 
-        expect(events).toContainEqual({ action: AuditAction.API_KEY_CREATED, outcome: AuditOutcome.SUCCESS, userId: user.id });
+        expect(events).toContainEqual({ action: AuditAction.API_KEY_CREATED, outcome: AuditOutcome.SUCCESS, userId: user.id, userKind: 'person' });
         expect(events).toContainEqual({ action: AuditAction.API_KEY_CREATED, outcome: AuditOutcome.FAILURE, reason: AuditReason.REFUSED, userId: user.id });
         expect(events).toContainEqual({ action: AuditAction.API_KEY_REVOKED, outcome: AuditOutcome.SUCCESS, userId: user.id });
         expect(events).toContainEqual({ action: AuditAction.API_KEY_REVOKED, outcome: AuditOutcome.FAILURE, reason: AuditReason.REFUSED, userId: user.id });

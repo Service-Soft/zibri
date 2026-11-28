@@ -18,5 +18,11 @@ export type FrameworkColumn = {
      * What the rows stored before the column hold, once it is added. Empty without it, or when it resolves to
      * undefined.
      */
-    storedValue?: () => string | undefined
+    storedValue?: () => string | undefined,
+    /**
+     * Whether a value says what a row without the column says, such as `'person'` for the kind of a user. A table
+     * lacking the column, with `schemaManagement: 'external'`, takes such a value as written and stores nothing,
+     * and refuses any other. Undefined and null alone without it.
+     */
+    meansAbsent?: (value: unknown) => boolean
 };

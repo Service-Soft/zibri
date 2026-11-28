@@ -1,5 +1,8 @@
 import { Property } from '../../entity/decorators/property.decorator';
+import { type LocaleCode } from '../../localization/models/locale-code.model';
+import { UserKindUtilities } from '../user/user-kind.utilities';
 import { CurrentUserMembership } from './current-user-membership.model';
+import { type UserKind } from './user-kind.type';
 
 /**
  * What `GET /me` of the `AuthController` answers: the logged in user, and what they may do in every
@@ -20,10 +23,24 @@ export class CurrentUserProfile {
     email!: string;
 
     /**
+     * Whether the user is a person or a service account, which calls with an API key. The `AuthController`
+     * always answers it. Undefined, in a profile an application answers itself, means `'person'`.
+     */
+    // TODO 4.0: required. Optional until then, so that a profile a route of 3.2 builds itself stays one
+    @Property.string({ enum: UserKindUtilities.KINDS, required: false })
+    kind?: UserKind;
+
+    /**
      * When the user proved that `email` is theirs. Undefined while they have not.
      */
     @Property.date({ required: false })
     emailVerifiedAt?: Date;
+
+    /**
+     * The locale the mails of the framework reach the user in. Undefined for the default locale.
+     */
+    @Property.string({ required: false })
+    locale?: LocaleCode;
 
     /**
      * The active memberships of the user, each with the permissions its roles carry in its tenant,

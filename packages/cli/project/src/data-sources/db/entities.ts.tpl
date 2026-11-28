@@ -1,4 +1,7 @@
-import { AuditCheckpoint, AuditEntry, BaseEntity, BackupEntity, BackupResourceEntity, CacheInvalidation, ChainAnchor, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionRotationFailure, EncryptionRotationProgress, EncryptionStrategyEntity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, JwtRefreshToken, Lease, Log, LoginTicket, {{#mailingList}}MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, {{/mailingList}}MigrationEntity, Newable, OtpCredentials, PasswordCredentials, PasswordResetToken, SigningKey, ThreadJobEntity, TwoFactorFailureStreak, WebsocketChannel, WebsocketMessage, WebsocketMessageSequence } from 'zibri';
+import { AuditCheckpoint, AuditEntry, BaseEntity, BackupEntity, BackupResourceEntity, CacheInvalidation, ChainAnchor, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionRotationFailure, EncryptionRotationProgress, EncryptionStrategyEntity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, JwtRefreshToken, Lease, Log, LoginTicket, MigrationEntity, Newable, OtpCredentials, PasswordCredentials, PasswordResetToken, SigningKey, ThreadJobEntity, TwoFactorFailureStreak, WebsocketChannel, WebsocketMessage, WebsocketMessageSequence } from 'zibri';
+{{#mailingList}}
+import { MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken } from 'zibri/plugin/mailing-list';
+{{/mailingList}}
 
 import { Membership, Role, Tenant, User } from '../../models';
 

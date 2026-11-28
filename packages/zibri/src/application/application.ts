@@ -4,6 +4,7 @@ import { Duplex } from 'node:stream';
 
 import express, { ErrorRequestHandler, RequestHandler } from 'express';
 
+import { ArchiveWriteObserver } from '../archive/archive.write-observer';
 import { OtpTwoFactorMethod } from '../auth/2fa/methods/otp/otp.two-factor-method';
 import { isTwoFactorMethod } from '../auth/2fa/methods/two-factor-method.interface';
 import { PasswordAuthenticator } from '../auth/authenticators/password/password.authenticator';
@@ -27,6 +28,8 @@ import { errorHandler } from '../error-handling/error-handler';
 import { GlobalErrorHandler } from '../error-handling/error-handler.model';
 import { UnmatchedRouteError } from '../error-handling/errors/unmatched-route.error';
 import { InternalError } from '../error-handling/internal-error.model';
+import { StoredFileWriteObserver } from '../file/stored-file.write-observer';
+import { validateStoredFileProperties } from '../file/validate-stored-file-properties.function';
 import { implementsAfterAppInit } from '../global/after-app-init.interface';
 import { AfterAppShutdownError, implementsAfterAppShutdown } from '../global/after-app-shutdown.interface';
 import { implementsAfterAppStart } from '../global/after-app-start.interface';
@@ -36,6 +39,7 @@ import { BeforeAppShutdownError, implementsBeforeAppShutdown } from '../global/b
 import { declaresLifecycleHook } from '../global/declares-lifecycle-hook.function';
 import { GlobalRegistry } from '../global/global-registry';
 import { LifecyclePhase } from '../global/lifecycle-phase.enum';
+import { ModelRegistry } from '../global/model-registry/model.registry';
 import { implementsOnAppInit } from '../global/on-app-init.interface';
 import { implementsOnAppShutdown, OnAppShutdownError } from '../global/on-app-shutdown.interface';
 import { implementsOnAppStart } from '../global/on-app-start.interface';
@@ -405,6 +409,12 @@ export class ZibriApplication {
 
         const injectables: unknown[] = tokens.map(t => inject(t));
         this.validateInjectables(injectables);
+        // here rather than in the file service, which an application may replace. Registered before onAppInit, which
+        // may write rows already
+        validateStoredFileProperties(this);
+        StoredFileWriteObserver.registerFor(this);
+        // here rather than in the archive service for the same reason: the retention holds whatever service counts it
+        ArchiveWriteObserver.registerFor(this);
 
         await this.onAppInit(injectables);
 
@@ -755,6 +765,8 @@ export class ZibriApplication {
         GlobalRegistry.markAppAsOffline();
         await this.flushLogs();
         DiContainer.reset();
+        // built from the providers of this application as well, such as the class of a property naming its class by one
+        ModelRegistry.reset();
     }
 
     /**
@@ -1238,6 +1250,7 @@ export class ZibriApplication {
             providers: [...this.providedOptions.providers ?? []],
             cronJobs: [...this.providedOptions.cronJobs ?? []],
             backupTransports: [...this.providedOptions.backupTransports ?? []],
+            fileStores: [...this.providedOptions.fileStores ?? []],
             commands: [...this.providedOptions.commands ?? []],
             controllers: [...this.providedOptions.controllers],
             websocketControllers: [...this.providedOptions.websocketControllers],
@@ -1274,6 +1287,7 @@ export class ZibriApplication {
             res.dataSources = [...plugin.dataSources, ...res.dataSources];
             res.twoFactorMethods = [...plugin.twoFactorMethods, ...res.twoFactorMethods];
             res.backupTransports = [...plugin.backupTransports, ...res.backupTransports];
+            res.fileStores = [...plugin.fileStores, ...res.fileStores];
             res.additionalLifecycleServices = [...plugin.additionalLifecycleServices, ...res.additionalLifecycleServices];
         }
 

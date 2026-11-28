@@ -56,7 +56,8 @@ export abstract class StoredRowUtilities {
         }
         for (const [key, property] of ObjectUtilities.entries(MetadataUtilities.getModelProperties(entityClass))) {
             const value: unknown = Reflect.get(parsed, key);
-            if (property.type === 'file' && typeof value === 'string') {
+            // a file kept in a file store is the id of its row, which a line holds as it is
+            if (property.type === 'file' && property.store == undefined && typeof value === 'string') {
                 Reflect.set(parsed, key, Buffer.from(value, 'base64'));
             }
         }

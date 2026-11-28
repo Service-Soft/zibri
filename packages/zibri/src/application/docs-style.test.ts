@@ -4,12 +4,23 @@ import path from 'node:path';
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
 import { DOCS_DIR, DocsPagesUtilities } from '../__testing__/docs-pages.utilities';
-import { EntryPointUtilities, TESTING_ENTRY_POINT } from '../__testing__/entry-point.utilities';
+import { EntryPointUtilities, PLUGIN_ENTRY_POINTS, PUBLIC_ENTRY_POINTS, TESTING_ENTRY_POINT } from '../__testing__/entry-point.utilities';
 import { PACKAGES_LEFT_TO_THE_APPLICATION } from '../__testing__/packages-left-to-the-application';
 import { GlobalRegistry } from '../global/global-registry';
-// the barrel, for the entities it declares on GlobalRegistry as it loads
-// eslint-disable-next-line eslintImport/no-unassigned-import
+// the barrel and every plugin, for the entities they declare on GlobalRegistry as they load: a plugin has an entry
+// point of its own, which the barrel does not load
+/* eslint-disable eslintImport/no-unassigned-import */
 import '../index';
+import '../plugin/analytics';
+import '../plugin/approval';
+import '../plugin/bank';
+import '../plugin/bookkeeping';
+import '../plugin/invoicing';
+import '../plugin/mailing-list';
+import '../plugin/mcp';
+import '../plugin/payment';
+import '../plugin/projects';
+/* eslint-enable eslintImport/no-unassigned-import */
 
 /**
  * Whether every page in `docs/` follows the rules of `DOCS_STYLE.md` that a word gives away.
@@ -23,7 +34,7 @@ import '../index';
 /**
  * A single line named import from one of the zibri packages, which is the form every page uses.
  */
-const ZIBRI_IMPORT: RegExp = /^import\s+(?:type\s+)?{([^}]*)}\s+from\s+'zibri(?:-testing|-tsx)?';$/;
+const ZIBRI_IMPORT: RegExp = /^import\s+(?:type\s+)?{([^}]*)}\s+from\s+'(zibri(?:-testing|-tsx|\/plugin\/[a-z-]+)?)';$/;
 
 /**
  * The header of the table of packages under `## Requirements`.
@@ -487,6 +498,13 @@ describe('the pages in docs/', () => {
         }
     });
 
+    it('loads every plugin, for the entities the checks below read', () => {
+        // the imports at the top of this file, which a plugin added later has to be added to
+        const loaded: string[] = [...readFileSync(__filename, 'utf8').matchAll(/^import '\.\.\/(plugin\/[a-z-]+)';$/gm)]
+            .map(match => `${match[1] ?? ''}/index.ts`);
+        expect(loaded.sort()).toEqual([...PLUGIN_ENTRY_POINTS].sort());
+    });
+
     it('finds pages to read', () => {
         // a guard on the reading rather than on the docs: a page this stops finding would make every
         // rule below pass by having nothing left to say
@@ -540,6 +558,8 @@ describe('the pages in docs/', () => {
         // one page is enough: the owner lists it, and a page using `inject` in passing does not
         // repeat it. What this catches is a name no table has, typically one added without a row
         const listed: Set<string> = resolveKeyExportNames(pages);
+        // what `zibri` keeps of a plugin until the next major, which an example imports from the plugin instead
+        const deprecatedOnMain: Set<string> = new Set(EntryPointUtilities.resolveDeprecatedNames('index.ts'));
         const missing: Set<string> = new Set();
         for (const page of pages) {
             for (const block of page.blocks) {
@@ -550,32 +570,39 @@ describe('the pages in docs/', () => {
                         const exported: string | undefined = entry.trim()
                             .replace(/^type\s+/, '')
                             .split(/\s+/)[0];
-                        if (exported != undefined && exported !== '' && !listed.has(exported)) {
+                        if (exported == undefined || exported === '') {
+                            continue;
+                        }
+                        if (!listed.has(exported)) {
                             missing.add(`${exported}, imported on ${page.name}:${block.line}`);
+                        }
+                        if (imported?.[2] === 'zibri' && deprecatedOnMain.has(exported)) {
+                            missing.add(`${exported}, imported from zibri rather than its plugin on ${page.name}:${block.line}`);
                         }
                     }
                 }
             }
         }
         expect([...missing]).toEqual([]);
-    });
+    }, 120_000);
 
-    it('lists every name the zibri entry point exports in the Key exports of some page', () => {
-        // the entry point is the public api releases.md promises to keep, so a name on it without a
-        // row is a promise nobody wrote down. What is there for the sibling packages or for a driver
+    it('lists every name the zibri entry points export in the Key exports of some page', () => {
+        // the entry points of zibri and its plugins are the public api releases.md promises to keep, so a name on
+        // one without a row is a promise nobody wrote down. What is there for the sibling packages or for a driver
         // goes to `zibri/internal`, which promises nothing
         const listed: Set<string> = resolveKeyExportNames(pages);
 
-        const unlisted: string[] = EntryPointUtilities.resolveNames('index.ts')
+        const unlisted: string[] = PUBLIC_ENTRY_POINTS.flatMap(entryPoint => EntryPointUtilities.resolveNames(entryPoint))
             .filter(exported => !listed.has(exported.name))
             .map(exported => `${exported.name} (${exported.file})`);
 
-        expect(unlisted).toEqual([]);
+        expect([...new Set(unlisted)]).toEqual([]);
     }, 120_000);
 
-    it('lists only names that zibri or zibri-testing export in the Key exports', () => {
+    it('lists only names that zibri, its plugins or zibri-testing export in the Key exports', () => {
         // the other way round: a row outliving its export sends a reader to an import that fails
-        const exported: Set<string> = new Set([...EntryPointUtilities.resolveNames('index.ts'), ...EntryPointUtilities.resolveNames(TESTING_ENTRY_POINT)]
+        const exported: Set<string> = new Set([...PUBLIC_ENTRY_POINTS, TESTING_ENTRY_POINT]
+            .flatMap(entryPoint => EntryPointUtilities.resolveNames(entryPoint))
             .map(entry => entry.name));
 
         const stale: string[] = pages.flatMap(page => [...page.keyExports.entries()]

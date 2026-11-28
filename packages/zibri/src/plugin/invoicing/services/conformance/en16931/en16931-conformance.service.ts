@@ -5,14 +5,17 @@ import { XmlString } from '../../../../../document/xml-string.type';
 import { XmlUtilities } from '../../../../../document/xml.utilities';
 import { InternalError } from '../../../../../error-handling/internal-error.model';
 import { MimeType } from '../../../../../http/mime-type.enum';
-import { getZonedDate, ZonedDate } from '../../../../../localization/format-date.function';
+import { getZonedDate } from '../../../../../localization/get-zoned-date.function';
 import { type LocalizeServiceInterface } from '../../../../../localization/localize-service.interface';
 import { type Timezone } from '../../../../../localization/models/timezone.model';
+import { ZonedDate } from '../../../../../localization/models/zoned-date.model';
 import { BigNumber, NumberUtilities } from '../../../../../utilities/number.utilities';
 import { optionalPeer } from '../../../../../utilities/optional-peer.function';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../../invoicing.tokens';
 import { CompanyInfo } from '../../../models/company-info.model';
 import { ElectronicAddress } from '../../../models/electronic-address.model';
+import { InvoiceReference } from '../../../models/invoice-reference.model';
+import { InvoiceType } from '../../../models/invoice-type.enum';
 import { Invoice } from '../../../models/invoice.model';
 import { type InvoicingOptions } from '../../../models/invoicing-options.model';
 import { Vat } from '../../../models/vat.model';
@@ -23,6 +26,7 @@ import { InvoiceConformance, InvoiceConformanceServiceInterface } from '../invoi
 import { CiiCrossIndustryInvoice } from './cii/cii-cross-industry-invoice.model';
 import { CiiDateTime } from './cii/cii-date-time.model';
 import { CiiHeaderTradeSettlement } from './cii/cii-header-trade-settlement.model';
+import { CiiReferencedDocument } from './cii/cii-referenced-document.model';
 import { CiiSchemedId } from './cii/cii-schemed-id.model';
 import { CiiTaxRegistration } from './cii/cii-tax-registration.model';
 import { CiiTradeLineItem } from './cii/cii-trade-line-item.model';
@@ -112,6 +116,13 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
         if (minorUnits > 2) {
             throw new InternalError(`EN 16931 allows amounts of at most two decimals, and ${invoice.currency} has ${minorUnits}.`);
         }
+        // EN 16931 has any number of them, its CII syntax one
+        if ((invoice.precedingInvoices?.length ?? 0) > 1) {
+            throw new InternalError(
+                `A Cross Industry Invoice states one preceding invoice, and ${invoice.number} `
+                + `references ${invoice.precedingInvoices?.length}.`
+            );
+        }
         await validateInvoiceTotal(invoice, this.invoiceCalcService, this.localizeService);
     }
 
@@ -159,7 +170,8 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
             },
             exchangedDocument: {
                 id: invoice.number,
-                typeCode: '380', // 380 = Commercial invoice
+                // a credit note states positive amounts, which its type code says are credited
+                typeCode: invoice.type === InvoiceType.CREDIT_NOTE ? '381' : '380',
                 issueDateTime: this.resolveDateTime(invoice.date, timezone)
             },
             supplyChainTradeTransaction: {
@@ -221,7 +233,19 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
                 grandTotalAmount: totalAfterTax,
                 // TotalPrepaidAmount
                 duePayableAmount: totalAfterTax
-            }
+            },
+            invoiceReference: this.resolveInvoiceReference(invoice, timezone)
+        };
+    }
+
+    private resolveInvoiceReference(invoice: Invoice, timezone: Timezone): CiiReferencedDocument | undefined {
+        const reference: InvoiceReference | undefined = invoice.precedingInvoices?.[0];
+        if (reference == undefined) {
+            return undefined;
+        }
+        return {
+            issuerAssignedId: reference.number,
+            formattedIssueDateTime: { dateTimeString: { format: '102', value: this.dateTo102(reference.date, timezone) } }
         };
     }
 

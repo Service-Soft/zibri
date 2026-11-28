@@ -9,7 +9,7 @@ keywords: [pdf, documents, reports, report generation, export]
 | Export | Kind | Purpose |
 |---|---|---|
 | `PdfUtilities` | class | Creates a PDF document from a definition |
-| `PdfDocument` | type | The stream returned by `PdfUtilities.create` (a `PDFKit.PDFDocument`) |
+| `PdfDocument` | type | The stream returned by `PdfUtilities.resolve` (a `PDFKit.PDFDocument`) |
 | `PdfDocumentDefinition` | type | Full pdfmake document definition, plus `attachments` |
 | `PdfAttachmentDefinition` | type | A single file attachment embedded into the PDF |
 | `PdfContentDefinition` | type | Any pdfmake content element (text, table, image, columns, ...) |
@@ -21,16 +21,18 @@ keywords: [pdf, documents, reports, report generation, export]
 | `PdfPageSize` | type | The size of the pages: a standard size such as `'A4'` or `'LETTER'`, or a width and a height in points |
 | `PdfFontOptions`, `PdfFontFamily`, `PdfFontFile` | type, type, type | The font families a PDF may be set in and the fallbacks among them, the files of one family, and one file, via `ZIBRI_DI_TOKENS.PDF_FONT_OPTIONS` |
 | `ZIBRI_DI_TOKENS.PDF_FONT_OPTIONS` | DI token | The fonts besides Roboto, and the fallbacks. Defaults to none |
+| `PdfAccessOptions` | type | The folders a PDF reads files from and the URLs it fetches, with pdfmake 0.3, via `ZIBRI_DI_TOKENS.PDF_ACCESS_OPTIONS` |
+| `ZIBRI_DI_TOKENS.PDF_ACCESS_OPTIONS` | DI token | What a PDF reads besides its definition, with pdfmake 0.3. Defaults to no folder and no URL |
 
 ## Generating a PDF
-`PdfUtilities.create` takes a `PdfDocumentDefinition` and returns a `PdfDocument`, which is a readable stream. Pipe it to one or more writable destinations, then call `.end()` to flush it:
+`PdfUtilities.resolve` takes a `PdfDocumentDefinition` and returns a `PdfDocument`, which is a readable stream. Pipe it to one or more writable destinations, then call `.end()` to flush it:
 
 ```ts
 // src/reports/report-pdf.function.ts
 import { createWriteStream, WriteStream } from 'fs';
 import { PdfDocument, PdfDocumentDefinition, PdfUtilities } from 'zibri';
 
-export function createReportPdf(): PdfDocument {
+export async function createReportPdf(): Promise<PdfDocument> {
     const definition: PdfDocumentDefinition = {
         attachments: [],
         content: [
@@ -49,7 +51,7 @@ export function createReportPdf(): PdfDocument {
         ]
     };
 
-    const doc: PdfDocument = PdfUtilities.create(definition, undefined);
+    const doc: PdfDocument = await PdfUtilities.resolve(definition);
     const out: WriteStream = createWriteStream('report.pdf');
     doc.pipe(out);
     doc.end();
@@ -58,6 +60,8 @@ export function createReportPdf(): PdfDocument {
 ```
 
 `content` takes the full pdfmake DSL: `PdfContentDefinition` is pdfmake's `Content` type. A definition takes everything pdfmake takes, plus `attachments`.
+
+`PdfUtilities.create` creates the same PDF synchronously, with pdfmake 0.2 alone. It is deprecated: use `PdfUtilities.resolve`, which works with 0.2 and 0.3, see [choosing the pdfmake version](#choosing-the-pdfmake-version).
 
 An endpoint returns a `PdfDocument` with `FileResponse.fromStream`, see [creating endpoints](../endpoints/creating-endpoints.md#returning-files):
 
@@ -70,7 +74,7 @@ export class ReportController {
     @Response.file()
     @Get('/monthly.pdf')
     async getMonthlyReport(): Promise<FileResponse> {
-        const doc: PdfDocument = PdfUtilities.create({ attachments: [], content: ['Hello world'] }, undefined);
+        const doc: PdfDocument = await PdfUtilities.resolve({ attachments: [], content: ['Hello world'] });
         doc.end();
         return FileResponse.fromStream({ stream: doc, filename: 'monthly.pdf' });
     }
@@ -118,10 +122,48 @@ export const invoiceDefinition: PdfDocumentDefinition = {
 };
 ```
 
+With pdfmake 0.3, an attachment given by its path is read only from an allowed folder, see [reading files and URLs](#reading-files-and-urls).
+
+## Choosing the pdfmake version
+A PDF is created with pdfmake 0.2 or 0.3, whichever your application installs. `PdfUtilities.resolve` and the [invoicing plugin](../plugins/invoicing-plugin.md) work with both, and a definition gives the same PDF with each.
+
+| With pdfmake 0.3 | What to do |
+|---|---|
+| A PDF is created asynchronously, and `PdfUtilities.create` throws | Create it with `await PdfUtilities.resolve(...)` |
+| A PDF reads no file and fetches no URL its definition names, such as an image by its path | Allow the folders and URLs it reads, see [reading files and URLs](#reading-files-and-urls) |
+
+The types of a definition are those of pdfmake 0.2, which 0.3 takes as well.
+
+## Reading files and URLs
+A definition can name a file, such as an image or an attachment by its path, or with pdfmake 0.3 a URL, such as an image in `images`. With pdfmake 0.3, a PDF reads such a file or URL only when `ZIBRI_DI_TOKENS.PDF_ACCESS_OPTIONS` allows it, and otherwise throws:
+
+```ts
+// src/providers.ts
+import { defineProvider, FsUtilities, ZIBRI_DI_TOKENS } from 'zibri';
+
+defineProvider({
+    token: ZIBRI_DI_TOKENS.PDF_ACCESS_OPTIONS,
+    useValue: {
+        allowedFolders: [FsUtilities.getPath('assets', 'pdf')],
+        allowUrl: (url: string) => url.startsWith('https://cdn.example.com/')
+    }
+})
+```
+
+| Option | What it is |
+|---|---|
+| `allowedFolders` | The folders a PDF reads files from. A path inside one of them is read, any other is refused. Required |
+| `allowUrl` | Whether a PDF fetches a URL. No URL is fetched by default |
+
+Content given in the definition is always read, such as an image as a data URL or an attachment as a `Buffer`. So are the fonts of `ZIBRI_DI_TOKENS.PDF_FONT_OPTIONS`.
+
+> [!WARNING]
+> With pdfmake 0.2, `PDF_ACCESS_OPTIONS` has no effect: a PDF reads every path its definition names. Give a definition built from a request the content of a file, never a path the request names.
+
 ## Requirements
 | Package | Used for |
 |---|---|
-| `pdfmake` | Laying out and writing PDF documents. You install it |
+| `pdfmake` | Laying out and writing PDF documents, in version 0.2 or 0.3. You install it |
 | `@types/pdfmake` | The types of the document definitions |
 
 ## See also

@@ -46,10 +46,13 @@ export default [
     },
     {
         // the entry points only re-export: the JSDoc of every name sits where it is declared, and the
-        // shared config's ExportNamedDeclaration context also matches `export { X } from` lines
-        files: ['src/index.ts', 'src/internal.ts'],
+        // shared config's ExportNamedDeclaration context also matches `export { X } from` lines. A name `zibri`
+        // keeps of a plugin carries only its `@deprecated` tag, on the specifier, where a description before the tag
+        // would leave it a word of the description rather than a tag
+        files: ['src/index.ts', 'src/internal.ts', 'src/plugin/*/index.ts'],
         rules: {
-            'jsdoc/require-jsdoc': 'off'
+            'jsdoc/require-jsdoc': 'off',
+            'jsdoc/require-description': 'off'
         }
     },
     {

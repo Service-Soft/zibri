@@ -1,31 +1,10 @@
-/**
- * The locale language code, like eg. 'en' or 'de'.
- */
-type LocaleCodeLanguage = 'de' | 'en' | Lowercase<string>;
+import { type LocaleCode } from 'zibri-contract';
 
+// declared by the contract, as the locale of a user is part of what a frontend reads and sends
 /**
- * The locale script code.
+ * Codes for the different locales of the world, such as 'de' or 'en-US'.
  */
-type LocaleCodeScript = Capitalize<Lowercase<string>> & {};
-
-/**
- * The locale region code like eg. 'US' or 'DE'.
- */
-type LocaleCodeRegion = 'DE' | 'US' | Uppercase<string> & {};
-
-/**
- * Codes for the different locales of the world.
- * Is loosely typed to support custom string values.
- * The format is either:
- * - '{language}'
- * - '{language}-{region}'
- * - '{language}-{script}'.
- * - '{language}-{script}-{region}'.
- */
-export type LocaleCode = LocaleCodeLanguage
-    | `${LocaleCodeLanguage}-${LocaleCodeRegion}`
-    | `${LocaleCodeLanguage}-${LocaleCodeScript}`
-    | `${LocaleCodeLanguage}-${LocaleCodeScript}-${LocaleCodeRegion}`;
+export { type LocaleCode } from 'zibri-contract';
 
 /**
  * Searches for the best match of the requested locale inside the given available locales.

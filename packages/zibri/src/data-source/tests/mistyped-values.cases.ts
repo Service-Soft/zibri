@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it } from '@jest/globals';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
-import { Where } from '../models/where/where-filter.model';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { Where, WhereFilter } from '../models/where/where-filter.model';
 import { Repository } from '../repository/repository';
 import { StoredValueTypeMismatchError } from '../stored-value-type-mismatch.error';
 
@@ -50,6 +51,13 @@ export class GaugeReading {
 @Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true })
 export class Gauge extends BaseEntity {
     /**
+     * Groups the gauges of one case, so a case reads none of another's: seeding that ran on past a hook that
+     * timed out left its gauges beside the next case's.
+     */
+    @Property.string({ format: 'uuid' })
+    batch!: string;
+
+    /**
      * Which gauge, to tell the rows apart.
      */
     @Property.string()
@@ -83,28 +91,43 @@ export type MistypedValueFixture = {
 };
 
 /**
- * Seeds a gauge holding sensible values everywhere, one whose reading is then overwritten with values
- * of the wrong type, and one without a reading.
- * @param fixture - What to seed through.
- * @returns The id of the gauge holding the wrong types.
+ * The gauges of one case.
  */
-async function seedGauges(fixture: MistypedValueFixture): Promise<string> {
+type SeededGauges = {
+    /**
+     * The batch they are in.
+     */
+    batch: string,
+    /**
+     * The id of the gauge the case writes values of the wrong type into.
+     */
+    mistypedId: string
+};
+
+/**
+ * Seeds a batch of a gauge holding sensible values everywhere, one whose reading is then overwritten with
+ * values of the wrong type, and one without a reading.
+ * @param fixture - What to seed through.
+ * @returns The batch, and the id of the gauge for the wrong types.
+ */
+async function seedGauges(fixture: MistypedValueFixture): Promise<SeededGauges> {
     const reading: GaugeReading = { value: 5, takenAt: new Date('2024-03-01T10:00:00.000Z'), calibrated: true, note: 'ok' };
-    await fixture.repository.deleteAll({});
-    await fixture.repository.create({ name: 'fine', level: 1, reading });
-    await fixture.repository.create({ name: 'no-reading', level: 1, reading: null });
-    const mistyped: Gauge = await fixture.repository.create({ name: 'mistyped', level: 1, reading });
-    return mistyped.id;
+    const batch: string = UUIDUtilities.generate();
+    await fixture.repository.create({ batch, name: 'fine', level: 1, reading });
+    await fixture.repository.create({ batch, name: 'no-reading', level: 1, reading: null });
+    const mistyped: Gauge = await fixture.repository.create({ batch, name: 'mistyped', level: 1, reading });
+    return { batch, mistypedId: mistyped.id };
 }
 
 /**
- * The names of the gauges a filter finds, sorted.
+ * The names of the gauges of a batch a filter finds, sorted.
  * @param repository - The gauges.
+ * @param batch - The batch.
  * @param where - The filter.
  * @returns The names.
  */
-async function findNames(repository: Repository<Gauge>, where: Where<Gauge>): Promise<string[]> {
-    const found: Gauge[] = await repository.findAll({ where });
+async function findNames(repository: Repository<Gauge>, batch: string, where: WhereFilter<Gauge>): Promise<string[]> {
+    const found: Gauge[] = await repository.findAll({ where: { ...where, batch } });
     return found.map(g => g.name).sort();
 }
 
@@ -115,10 +138,11 @@ async function findNames(repository: Repository<Gauge>, where: Where<Gauge>): Pr
  */
 export function describeMistypedValues(dataSourceName: string, fixtureOf: () => MistypedValueFixture): void {
     describe(`a stored value of another type than its property declares, on ${dataSourceName}`, () => {
+        let batch: string;
         let mistypedId: string;
 
         beforeEach(async () => {
-            mistypedId = await seedGauges(fixtureOf());
+            ({ batch, mistypedId } = await seedGauges(fixtureOf()));
             await fixtureOf().overwrite(
                 mistypedId,
                 'reading',
@@ -128,7 +152,7 @@ export function describeMistypedValues(dataSourceName: string, fixtureOf: () => 
 
         it('names the property, the type it declares and the value that was found', async () => {
             const found: Promise<Gauge[]> = fixtureOf().repository.findAll({
-                where: { reading: { where: { value: { greaterThan: 1 } } } }
+                where: { batch, reading: { where: { value: { greaterThan: 1 } } } }
             });
 
             await expect(found).rejects.toThrow(StoredValueTypeMismatchError);
@@ -144,31 +168,31 @@ export function describeMistypedValues(dataSourceName: string, fixtureOf: () => 
         ])('refuses a comparison through %s', async (_name, where) => {
             // each of these reads the value as a number to answer, so none of them can say whether
             // the row matches - a quiet "no" would leave the row out of one answer and in the other
-            await expect(fixtureOf().repository.findAll({ where: { reading: { where } } }))
+            await expect(fixtureOf().repository.findAll({ where: { batch, reading: { where } } }))
                 .rejects.toThrow(StoredValueTypeMismatchError);
         }, 30000);
 
         it('names a date and a boolean the same way', async () => {
             await expect(fixtureOf().repository.findAll({
-                where: { reading: { where: { takenAt: { after: new Date(0) } } } }
+                where: { batch, reading: { where: { takenAt: { after: new Date(0) } } } }
             })).rejects.toThrow('Gauge.reading.takenAt is declared as a date, but a row holds "not-a-date"');
             await expect(fixtureOf().repository.findAll({
-                where: { reading: { where: { calibrated: true } } }
+                where: { batch, reading: { where: { calibrated: true } } }
             })).rejects.toThrow('Gauge.reading.calibrated is declared as a boolean, but a row holds "maybe"');
         }, 30000);
 
         it('answers whether there is a value without comparing it', async () => {
             // a value of any type is a value, so asking for one - or for none - has an answer
-            expect(await findNames(fixtureOf().repository, { reading: { where: { value: { not: null } } } }))
+            expect(await findNames(fixtureOf().repository, batch, { reading: { where: { value: { not: null } } } }))
                 .toEqual(['fine', 'mistyped']);
-            expect(await findNames(fixtureOf().repository, { reading: { where: { value: null } } }))
+            expect(await findNames(fixtureOf().repository, batch, { reading: { where: { value: null } } }))
                 .toEqual([]);
         }, 30000);
 
         it('leaves a filter that does not compare the mistyped property alone', async () => {
             // the row is only unreadable through the question that has to read that value, so a
             // filter on a property beside it still answers for every row including that one
-            expect(await findNames(fixtureOf().repository, { reading: { where: { note: 'ok' } } }))
+            expect(await findNames(fixtureOf().repository, batch, { reading: { where: { note: 'ok' } } }))
                 .toEqual(['fine', 'mistyped']);
         }, 30000);
 
@@ -192,15 +216,16 @@ export function describeMistypedValues(dataSourceName: string, fixtureOf: () => 
  */
 export function describeMistypedColumnValues(dataSourceName: string, fixtureOf: () => MistypedValueFixture): void {
     describe(`a column holding another type than its property declares, on ${dataSourceName}`, () => {
+        let batch: string;
         let mistypedId: string;
 
         beforeEach(async () => {
-            mistypedId = await seedGauges(fixtureOf());
+            ({ batch, mistypedId } = await seedGauges(fixtureOf()));
             await fixtureOf().overwrite(mistypedId, 'level', '"not-a-number"');
         }, 30000);
 
         it('refuses a filter comparing it, naming the property', async () => {
-            await expect(fixtureOf().repository.findAll({ where: { level: { greaterThan: 0 } } }))
+            await expect(fixtureOf().repository.findAll({ where: { batch, level: { greaterThan: 0 } } }))
                 .rejects.toThrow('Gauge.level is declared as a number, but a row holds "not-a-number"');
         }, 30000);
 

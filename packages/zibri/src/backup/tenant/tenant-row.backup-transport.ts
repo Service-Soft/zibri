@@ -54,8 +54,9 @@ export class TenantRowBackupTransport implements BackupTransportInterface<'v2'> 
         const created: BackupTransportSupporting<'v2'> = await kind.createTransport(
             this.name,
             this.transport.settings,
-            this.resolveSecret(),
-            network
+            TenantRowBackupTransport.resolveSecret(this.transport),
+            network,
+            this.transport.tenantId
         );
         return await created.openSession();
     }
@@ -74,11 +75,17 @@ export class TenantRowBackupTransport implements BackupTransportInterface<'v2'> 
         return await NetworkAddressUtilities.resolvePublicAddress(host, this.options.allowedHosts);
     }
 
-    private resolveSecret(): Record<string, unknown> {
-        const parsed: unknown = JsonUtilities.parse(this.transport.secret);
+    /**
+     * Resolves the secret of a tenant's transport from the JSON it is stored as.
+     * @param transport - The transport, its secret decrypted.
+     * @returns The secret.
+     * @throws {InternalError} When it is no object.
+     */
+    static resolveSecret(transport: TenantBackupTransport): Record<string, unknown> {
+        const parsed: unknown = JsonUtilities.parse(transport.secret);
         if (typeof parsed === 'object' && parsed != undefined && !Array.isArray(parsed)) {
             return Object.fromEntries(Object.entries(parsed));
         }
-        throw new InternalError(`The secret of the transport "${this.transport.name}" is not an object.`);
+        throw new InternalError(`The secret of the transport "${transport.name}" is not an object.`);
     }
 }

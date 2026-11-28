@@ -148,7 +148,7 @@ Only logging in counts. Refreshing a login keeps the time of the login it contin
 
 > Log in again to access this route.
 
-The time comes from `resolveAuthenticatedAt` of the [auth strategy](../glossary.md#auth-strategy) that resolved the user, see [auth](./auth.md). A strategy that cannot say when its user logged in, such as one for api keys, never counts as recent.
+The time comes from `resolveAuthenticatedAt` of the [auth strategy](../glossary.md#auth-strategy) that resolved the user, see [auth](./auth.md). A strategy that cannot say when its user logged in, such as one for api keys, never counts as recent, and neither does a [login with a link](./login-links.md#the-second-factor) of a user with a password or a second factor, whose `Authentication` has `countsAsRecentLogin: false`. A strategy of your own keeps that for the whole login and answers no time for it. The login by a link of a user with neither counts.
 
 With `'onlyAsFallback'`, a user who removes their second factor is back to the login. Guard the route that removes it with `@Auth.require2fa()` without `reauth`.
 
@@ -209,7 +209,7 @@ export const loginOptions: Pick<ZibriApplicationOptions, 'twoFactorAtLogin'> = {
 };
 ```
 
-With anything but `'never'`, declare `LoginTicket` in your data source.
+With anything but `'never'`, declare `LoginTicket` in your data source. A [login with a link](./login-links.md#the-second-factor) follows it too, without counting codes by email.
 
 A login that waits for its second factor answers `401` with `SecondFactorRequiredError`: the body every error has, plus the `ticket` the login continues with and the names of the `methods` the user has enrolled:
 

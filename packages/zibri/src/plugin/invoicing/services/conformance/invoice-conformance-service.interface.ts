@@ -1,4 +1,5 @@
 import { PdfDocument, PdfDocumentDefinition } from '../../../../document/pdf.utilities';
+import { type XmlString } from '../../../../document/xml-string.type';
 import { Timezone } from '../../../../localization/models/timezone.model';
 import { Invoice as BaseInvoice } from '../../models/invoice.model';
 
@@ -29,5 +30,10 @@ export interface InvoiceConformanceServiceInterface<Invoice extends BaseInvoice>
     /**
      * Updates the given finished pdf document.
      */
-    updateDocument: (doc: PdfDocument) => void | Promise<void>
+    updateDocument: (doc: PdfDocument) => void | Promise<void>,
+    /**
+     * Writes the xml of the electronic invoice on its own, beside the pdf carrying it, for a standard that has one,
+     * such as those of EN 16931. Archived beside the pdf of an issued invoice when there.
+     */
+    generateXml?: (invoice: Invoice, timezone: Timezone) => XmlString | Promise<XmlString>
 }

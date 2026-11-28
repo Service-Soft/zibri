@@ -47,7 +47,12 @@ export type JwtAccessTokenPayload<Role extends string, T extends BaseUser<Role>>
      * The class of that authentication, as the OpenID Connect `acr` claim. Left out when the provider
      * does not say.
      */
-    acr?: string
+    acr?: string,
+    /**
+     * False for a login that does not count as a recent login, such as one by a link sent by email. Left
+     * out for one that does.
+     */
+    counts_as_recent_login?: false
 };
 
 /**
@@ -73,7 +78,8 @@ export function isJwtAccessTokenPayload<Role extends string>(
         && 'sid' in payload && typeof payload.sid === 'string'
         && (!('cnf' in payload) || isJwtConfirmation(payload.cnf))
         && (!('amr' in payload) || (Array.isArray(payload.amr) && payload.amr.every(m => typeof m === 'string')))
-        && (!('acr' in payload) || typeof payload.acr === 'string');
+        && (!('acr' in payload) || typeof payload.acr === 'string')
+        && (!('counts_as_recent_login' in payload) || payload.counts_as_recent_login === false);
 }
 
 /**

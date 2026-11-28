@@ -1,3 +1,4 @@
+import { FrameworkColumnRegistry } from '../data-source/migration/framework-column.registry';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { OmitStrict } from '../types/omit-strict.type';
@@ -23,6 +24,12 @@ export class ChainedAuditEntry extends BaseAuditEntry {
     @Property.string()
     chainHash!: string;
 }
+
+// added by the data source to a table that lacks them, for the reason AuditEntry gives
+FrameworkColumnRegistry.register(
+    { entity: ChainedAuditEntry, property: 'userKind', meansAbsent: value => value === 'person' },
+    { entity: ChainedAuditEntry, property: 'approvalRequestId' }
+);
 
 /**
  * The data a chained audit entry is created with.

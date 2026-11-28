@@ -73,6 +73,15 @@ export abstract class ModelRegistry {
     }
 
     /**
+     * Forgets the model data of every class, so the next application builds its own.
+     */
+    static reset(): void {
+        // a property can name its class through the providers of the application, such as the company of the
+        // bookkeeping settings, so what was built while one application ran need not hold for the next
+        this.cache.clear();
+    }
+
+    /**
      * Builds or rebuilds the model data for the given class in place.
      * Reuses the existing placeholder if present so that any nestedKey references
      * held by other descriptors remain valid after a rebuild.

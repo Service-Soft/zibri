@@ -35,7 +35,7 @@ export type TransactionOpenAtShutdownSetup = {
  */
 export function describeTransactionOpenAtShutdown(dataSourceName: string, setup: TransactionOpenAtShutdownSetup): void {
     describe(`a transaction still open when the application shuts down, on ${dataSourceName}`, () => {
-        // found with the container run of foreign-transaction.postgres-valkey.test.ts: on postgres the
+        // found with the container run of foreign-transaction.container.test.ts: on postgres the
         // shutdown waited for the connection until the server ended the transaction, and in memory
         // and on valkey its idle timer fired after the application was gone, where logging throws
         it('is rolled back as its data source shuts down, and reported', async () => {

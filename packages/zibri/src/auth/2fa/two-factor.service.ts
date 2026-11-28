@@ -22,6 +22,7 @@ import { type LoggerInterface } from '../../logging/logger.interface';
 import { Ms } from '../../utilities/ms';
 import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
 import { UserAccount } from '../models/user-account.model';
+import { UserKindUtilities } from '../user/user-kind.utilities';
 import { InvalidTwoFactorCodeError } from './invalid-two-factor-code.error';
 import { TwoFactorMethod } from './methods/two-factor-method.interface';
 import { SecondFactorMissingError } from './second-factor-missing.error';
@@ -199,6 +200,9 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         allowedMethods: TwoFactorMethods = this.twoFactorMethods
     ): Promise<void> {
         try {
+            // a second factor is proof of a person, so a route that takes one is closed to a service account, whatever
+            // it enrolled through its keys
+            UserKindUtilities.validatePerson(user);
             // the HAS_2FA token asks this with every registered method, so a route that named a subset
             // would be told yes by a factor it does not accept. Reading the token here would also make
             // it its own dependency, since the token is what calls this.

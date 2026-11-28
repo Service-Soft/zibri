@@ -17,15 +17,18 @@ export { type HasAnyLevelPermissionFn } from './auth/decorators/has-any-level-pe
 export { type IsLoggedInFn } from './auth/decorators/is-logged-in.decorator';
 export { type IsNotLoggedInFn } from './auth/decorators/is-not-logged-in.decorator';
 export { type Require2faFn } from './auth/decorators/require-2fa.decorator';
+export { type RequireShareRoleFn } from './auth/decorators/require-share-role.decorator';
 
 export { type IsLoggedInMetadata } from './auth/models/is-logged-in-metadata.model';
 export * from './auth/models/base-user.model';
+export * from './auth/models/user-kind.type';
 export * from './auth/models/claimed-user.model';
 export * from './auth/models/soft-deleting-user-entity-options.model';
 export * from './auth/models/user-account.model';
 export * from './auth/models/authentication.model';
 export { type HasPermissionMetadata } from './auth/models/has-permission-metadata.model';
 export * from './auth/models/has-any-level-permission-metadata.model';
+export * from './auth/models/require-share-role-metadata.model';
 export * from './auth/models/any-level-permissions.model';
 export * from './auth/roles/role-level.type';
 export * from './auth/roles/permission.type';
@@ -55,6 +58,7 @@ export * from './auth/models/provider-authentication.model';
 export * from './auth/models/ended-login.model';
 export * from './auth/models/logout-result.model';
 export * from './auth/models/current-user-profile.model';
+export * from './auth/models/update-current-user-input.model';
 export * from './auth/models/current-user-membership.model';
 export { LoginTicket } from './auth/models/login-ticket.model';
 export * from './auth/models/login-ticket-purpose.enum';
@@ -213,6 +217,14 @@ export * from './auth/authenticators/password/change-password-data.model';
 export * from './auth/authenticators/password/set-password-data.model';
 export * from './auth/authenticators/password/change-password-at-login-input.model';
 export * from './auth/authenticators/password/password-change-required.error';
+export * from './auth/authenticators/login-link/login-link.authenticator';
+export * from './auth/authenticators/login-link/login-link-options.model';
+export * from './auth/authenticators/login-link/login-link-second-factor.type';
+export * from './auth/authenticators/login-link/login-link-email-template.model';
+export * from './auth/authenticators/login-link/login-link-credentials.model';
+export * from './auth/authenticators/login-link/request-login-link-input.model';
+export { LoginLinkToken } from './auth/authenticators/login-link/login-link-token.model';
+export * from './auth/models/login-methods.model';
 export * from './auth/email-verification/email-verification-options.model';
 export * from './auth/email-verification/email-verification-purpose.type';
 export * from './auth/email-verification/email-verification-token-purpose.type';
@@ -237,6 +249,12 @@ export * from './auth/invitation/invitation.service';
 export * from './auth/invitation/invitation-token-validity.model';
 export * from './auth/invitation/invitation-token-input.model';
 export * from './auth/invitation/accept-invitation-input.model';
+export * from './sharing/row-share.model';
+export * from './sharing/pending-row-share.model';
+export * from './sharing/row-share-grant.model';
+export * from './sharing/share-by-email.model';
+export * from './sharing/share-service.interface';
+export * from './sharing/share.service';
 export * from './auth/authenticators/password/request-password-reset-input.model';
 export * from './auth/authenticators/password/password-reset-token-input.model';
 export * from './auth/authenticators/password/password-reset-token-validity.model';
@@ -342,6 +360,18 @@ export * from './auth/user/user-repository.interface';
 export * from './auth/user/base-user-repository.model';
 export * from './auth/user/user-service.interface';
 export * from './auth/user/user.service';
+export * from './auth/user/user-kind.utilities';
+export * from './auth/user/service-account-create-data.model';
+
+export * from './auth/service-account/service-account.controller';
+export * from './auth/service-account/service-account.model';
+export * from './auth/service-account/service-account-api-key.model';
+export * from './auth/service-account/new-service-account.model';
+export * from './auth/service-account/service-account-roles.model';
+export * from './auth/service-account/new-service-account-api-key.model';
+export * from './auth/service-account/created-service-account-api-key.model';
+export * from './auth/service-account/service-account-limits.model';
+export * from './auth/service-account/zibri-service-account-permissions.model';
 
 export * from './auth/2fa/two-factor-service.interface';
 export * from './auth/2fa/two-factor.service';
@@ -519,6 +549,7 @@ export * from './error-handling/errors/csrf-token-refused.error';
 export * from './error-handling/errors/email-not-verified.error';
 export * from './error-handling/errors/credential-reused.error';
 export * from './error-handling/errors/account-deactivated.error';
+export * from './error-handling/errors/service-account-refused.error';
 export * from './error-handling/errors/tenant-deactivated.error';
 export * from './error-handling/errors/password-locked.error';
 export * from './error-handling/errors/password-refused.error';
@@ -617,6 +648,7 @@ export { type ColumnKeysOf, type EntityRelations, type RelationKeysOf, type Rela
 export * from './entity/models/entity-selection.model';
 export { type SelectionTree } from './entity/models/entity-selection.utilities';
 export * from './entity/models/entity-scope.model';
+export * from './entity/models/entity-shareable.model';
 export * from './entity/models/entity-tenant.model';
 export { type KeyWhere, type UniqueDeclaration, type UniqueGroupInput } from './entity/models/unique-declaration.model';
 export { type DecryptPropertyValue, type EncryptAndDecryptOptions, type EncryptionPropertyValue, type EncryptPropertyValue, type HashPropertyValue, type IncomingStringPropertyMetadataInput, type StringFormat, type StringPropertyMetadataInput } from './entity/models/string-property-metadata.model';
@@ -759,6 +791,9 @@ export * from './data-source/data-sources/val-key/val-key-data-source.model';
 export * from './data-source/driver/removal-reach.model';
 export * from './data-source/driver/repository-driver.interface';
 
+export * from './data-source/write-observers/entity-write-observer.model';
+export * from './data-source/write-observers/entity-write-observer.registry';
+
 export * from './data-source/transaction/transaction-already-finished.error';
 export * from './data-source/transaction/key-declarations-changed.error';
 export * from './data-source/transaction/repository-transaction.type';
@@ -794,6 +829,7 @@ export * from './data-source/models/data-source-time.model';
 export * from './data-source/models/data-source-now.function';
 export * from './data-source/chain/base-chained-entity.model';
 export { ChainAnchor } from './data-source/chain/chain-anchor.model';
+export { ChainGap } from './data-source/chain/chain-gap.model';
 export * from './data-source/chain/chain-service.interface';
 export * from './data-source/chain/chain.service';
 export * from './data-source/chain/chain-verification.model';
@@ -837,6 +873,11 @@ export * from './data-source/models/where/property-reference.model';
 export * from './data-source/migration/migration.model';
 export * from './data-source/migration/migration-entity.model';
 export * from './data-source/migration/migration-revert-target.model';
+export * from './data-source/migration/missing-framework-column.model';
+export * from './data-source/migration/missing-framework-column.error';
+export * from './data-source/migration/missing-unique.model';
+export * from './data-source/migration/missing-unique.error';
+export * from './data-source/migration/framework-column.utilities';
 
 export * from './data-source/hooks/before-delete';
 export * from './data-source/hooks/before-return';
@@ -993,6 +1034,7 @@ export * from './data-source/change-sets/models/soft-deleted-rows.type';
 // document
 export * from './document/pdf.utilities';
 export * from './document/pdf-font-options.model';
+export * from './document/pdf-access-options.model';
 export * from './document/xml.utilities';
 export * from './document/xml-string.type';
 export * from './document/xml-generate-options.model';
@@ -1001,71 +1043,87 @@ export * from './document/xml-parse-options.model';
 // plugin
 export * from './plugin/plugin.model';
 
-// mailing list
-export * from './plugin/mailing-list/mailing-list.plugin';
-export * from './plugin/mailing-list/mailing-list.tokens';
-
-export * from './plugin/mailing-list/services/mailing-list-service.interface';
-export * from './plugin/mailing-list/services/mailing-list.service';
-export * from './plugin/mailing-list/mailing-list.controller';
-
-export * from './plugin/mailing-list/models/mailing-list-base-email-template.model';
-export * from './plugin/mailing-list/models/mailing-list-preferences-page-template.model';
-export * from './plugin/mailing-list/models/mailing-list-subscribe-confirmation-email-template.model';
-export * from './plugin/mailing-list/models/mailing-list-subscribe-success-page-template.model';
-export * from './plugin/mailing-list/models/mailing-list-subscriber.model';
-export { MailingListSubscriptionConfirmationToken } from './plugin/mailing-list/models/mailing-list-subscription-confirmation-token.model';
-export * from './plugin/mailing-list/models/mailing-list-unsubscribe-confirmation-page-template.model';
-export * from './plugin/mailing-list/models/mailing-list.model';
-export * from './plugin/mailing-list/models/update-mailing-list-preferences.model';
-
-// plugin invoicing
-export * from './plugin/invoicing/invoicing.plugin';
-export * from './plugin/invoicing/invoicing.tokens';
-
-export * from './plugin/invoicing/services/invoice-number-service.interface';
-export * from './plugin/invoicing/services/invoice-number.service';
-export * from './plugin/invoicing/services/invoice-pdf-service.interface';
-export * from './plugin/invoicing/services/invoice-pdf.service';
-export * from './plugin/invoicing/services/invoice-calc-service.interface';
-export * from './plugin/invoicing/services/invoice-calc.service';
-export * from './plugin/invoicing/services/company-info-service.interface';
-
-export * from './plugin/invoicing/services/conformance/invoice-conformance-service.interface';
-export * from './plugin/invoicing/services/conformance/en16931/x-rechnung-conformance.service';
-export * from './plugin/invoicing/services/conformance/en16931/en16931-conformance.service';
-export * from './plugin/invoicing/services/conformance/en16931/peppol-conformance.service';
-
-export * from './plugin/invoicing/models/invoicing-options.model';
-export * from './plugin/invoicing/models/invoice-address.model';
-export * from './plugin/invoicing/models/electronic-address.model';
-export * from './plugin/invoicing/models/amount-unit.model';
-export * from './plugin/invoicing/models/number-invoices.model';
-export * from './plugin/invoicing/models/invoice-recipient-abbreviation.model';
-export * from './plugin/invoicing/models/invoice.model';
-export * from './plugin/invoicing/models/invoice-item.model';
-export * from './plugin/invoicing/models/invoicing-options-input.model';
-export * from './plugin/invoicing/models/vat.model';
-export * from './plugin/invoicing/models/company-info.model';
-
-// plugin payment
-export * from './plugin/payment/payment.plugin';
-export * from './plugin/payment/payment.tokens';
-export * from './plugin/payment/payment-reconciliation.cron-job';
-
-export * from './plugin/payment/models/payment-plugin-options-input.model';
-export * from './plugin/payment/models/payment-plugin-options.model';
-export * from './plugin/payment/models/payment-method.model';
-export * from './plugin/payment/models/payment.model';
-export * from './plugin/payment/models/payment-status.enum';
-
-export * from './plugin/payment/services/payment-service.interface';
-export * from './plugin/payment/services/payment-service.types';
-export * from './plugin/payment/services/payment.service';
-
-export * from './plugin/payment/providers/payment-provider.interface';
-
-export * from './plugin/payment/providers/pay-pal/pay-pal.payment-provider';
+// TODO 4.0: remove these, what 3.2 exported here of the plugins that `zibri/plugin/<name>` exports since, so that an
+// application carries only the plugins it imports. Re-exported by name with the tag on the specifier: a tag above a
+// re-export deprecates nothing, and a declared forward would leave a class without the metadata an injection by its
+// type reads. The plugins added since are exported only from their own entry point
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ ZibriMailingListPlugin } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ type MailingListQueueEmailData } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ MailingListSubscriberCreateData } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ type MailingListServiceInterface } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ MailingListService } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ MailingListController } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ type MailingListTemplateData } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ type MailingListBaseEmailTemplateProps } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ type MailingListBaseEmailTemplate } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ type MailingListPreferencesPageTemplateProps } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ type MailingListPreferencesPageTemplate } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ type MailingListSubscribeConfirmationEmailTemplateProps } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ type MailingListSubscribeConfirmationEmailTemplate } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ type MailingListSubscribeSuccessPageTemplateProps } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ type MailingListSubscribeSuccessPageTemplate } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ MailingListSubscriber } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ MailingListSubscriptionConfirmationToken } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ type MailingListUnsubscribeConfirmationPageTemplateProps } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ type MailingListUnsubscribeConfirmationPageTemplate } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ MailingList } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/mailing-list`. Removed here in 4.0. */ UpdateMailingListPreferences } from './plugin/mailing-list';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ ZibriInvoicingPlugin } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ type InvoiceNumberServiceInterface } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ InvoiceNumberService } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ type InvoicePdfServiceInterface } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ InvoicePdfService } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ type InvoiceCalcServiceInterface } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ InvoiceCalcService } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ type CompanyInfoServiceInterface } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ type InvoiceConformance } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ type InvoiceConformanceServiceInterface } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ XRechnungConformanceService } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ type EN16931DocumentContextId } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ EN16931ConformanceService } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ PeppolConformanceService } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ type InvoicingOptions } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ InvoiceAddress } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ ElectronicAddress } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ AmountUnit } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ NumberInvoices } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ InvoiceRecipientAbbreviation } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ Invoice } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ InvoiceItem } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ type InvoicingOptionsInput } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ type VatCategoryCode } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ Vat } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/invoicing`. Removed here in 4.0. */ type CompanyInfo } from './plugin/invoicing';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ ZibriPaymentPlugin } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type DefaultPaymentProviderArray } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ PaymentReconciliationCronJob } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type PaymentPluginOptionsInput } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type PaymentPluginOptions } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ KnownPaymentMethod } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type PaymentMethod } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ Payment } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ PaymentStatus } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type MethodsCoveredByProviders } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type PaymentServiceInterface } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type PaymentDataForMethod } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type ValidatedPaymentDataForMethod } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type PaymentForMethod } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type PaymentReservationForMethod } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type AllowedReservationMethods } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type AllowedCancellationMethods } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type AllowedRefundMethods } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ PaymentService } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type AnyPaymentProviderInterface } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type PaymentProviderInterface } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type PayPalEnv } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ PayPalPaymentData } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type PayPalValidatedPaymentData } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type PayPalPaymentProviderPaymentData } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ type PayPalPaymentProviderOptions } from './plugin/payment';
+export { /** @deprecated Import it from `zibri/plugin/payment`. Removed here in 4.0. */ PayPalPaymentProvider } from './plugin/payment';
 
 // localization
 export * from './localization/xlf/generate-source-xlf.function';
@@ -1076,6 +1134,8 @@ export * from './localization/localize.service';
 export * from './localization/format.function';
 export * from './localization/translate.function';
 export * from './localization/define-date-format.function';
+export * from './localization/run-in-locale.function';
+export * from './localization/get-zoned-date.function';
 
 export * from './localization/models/currency-code.model';
 export * from './localization/models/date-format.model';
@@ -1084,6 +1144,7 @@ export * from './localization/models/localize-options.model';
 export * from './localization/models/month.enum';
 export * from './localization/models/timezone.model';
 export * from './localization/models/weekday.enum';
+export * from './localization/models/zoned-date.model';
 export * from './localization/models/translated-string.model';
 
 // multithreading
@@ -1113,6 +1174,7 @@ export * from './websocket/models/websocket-response.model';
 export * from './websocket/models/websocket-event.enum';
 export * from './websocket/models/websocket-channel.model';
 export { WebsocketMessage, WebsocketRecipientType } from './websocket/models/websocket-message.model';
+export * from './websocket/models/sent-websocket-message.model';
 export { WebsocketMessageSequence } from './websocket/models/websocket-message-sequence.model';
 export * from './websocket/models/websocket-replay-incomplete.model';
 export * from './websocket/models/websocket-tenant-deactivated.model';
@@ -1150,6 +1212,10 @@ export * from './backup/run-queued-backups.cron-job';
 export * from './backup/backup-garbage-collection.cron-job';
 export * from './backup/backup.service';
 export * from './backup/backup-service.interface';
+export * from './backup/restore-context.utilities';
+export * from './backup/kept-row-check.interface';
+export * from './backup/kept-row-divergence.model';
+export * from './backup/kept-row-divergence-reason.enum';
 export * from './backup/backup-resource.interface';
 export * from './backup/incremental-backup-resource.interface';
 export * from './backup/incremental-backup-data.model';
@@ -1164,8 +1230,20 @@ export * from './backup/tenant/tenant-s3-transport-settings.model';
 export * from './backup/tenant/tenant-s3-transport-secret.model';
 export * from './backup/tenant/tenant-sftp-transport-settings.model';
 export * from './backup/tenant/tenant-sftp-transport-secret.model';
+export * from './backup/tenant/web-dav.tenant-backup-transport-kind';
+export * from './backup/tenant/nextcloud.tenant-backup-transport-kind';
+export * from './backup/tenant/tenant-web-dav-transport-settings.model';
+export * from './backup/tenant/tenant-nextcloud-transport-settings.model';
+export * from './backup/tenant/tenant-web-dav-transport-secret.model';
+export * from './backup/tenant/web-dav-backup-transport-usage-finder.service';
 export * from './backup/tenant/tenant-backup-settings.model';
 export * from './backup/tenant/tenant-backup-retention.model';
+export * from './backup/tenant/tenant-backup-transport.controller';
+export * from './backup/tenant/new-tenant-backup-transport.model';
+export * from './backup/tenant/tenant-backup-transport-change.model';
+export * from './backup/tenant/offered-tenant-backup-transport-kind.model';
+export * from './backup/tenant/tenant-backup-transport-limits.model';
+export * from './backup/tenant/zibri-backup-transport-permissions.model';
 export * from './backup/backup-data-options.model';
 export { BackupResourceEntity } from './backup/backup-resource-entity.model';
 export { BackupChunkEntity } from './backup/backup-chunk-entity.model';
@@ -1189,10 +1267,52 @@ export * from './backup/transports/s3/s3-server-side-encryption.model';
 export * from './backup/transports/base-sftp.backup-transport';
 export * from './backup/transports/sftp/sftp-authentication.model';
 export * from './backup/transports/sftp/sftp-backup-transport-options.model';
+export * from './backup/transports/web-dav.backup-transport';
+export * from './backup/transports/web-dav/web-dav-backup-transport-options.model';
+export * from './backup/transports/nextcloud.backup-transport';
+export * from './backup/transports/nextcloud/nextcloud-backup-transport-options.model';
+export * from './backup/transports/nextcloud/nextcloud-backup-readers.model';
 
 export { type BackupResourceMetadataInput } from './backup/decorators/backup-resource-metadata.model';
 export * from './backup/decorators/backup-resource.decorator';
 export * from './backup/decorators/backup-transport.decorator';
+
+// storage, what backup transports and file stores keep their blobs in
+export * from './storage/s3-storage-options.model';
+export * from './storage/sftp-storage-options.model';
+
+// files
+export * from './file/file-record.model';
+export * from './file/file-reference.model';
+export * from './file/file-service.interface';
+export * from './file/file.service';
+export * from './file/store-file-data.model';
+export * from './file/file-hash-mismatch.error';
+export * from './file/file-cleanup.cron-job';
+export * from './file/decorators/file-store.decorator';
+export * from './file/stores/file-store.interface';
+export * from './file/stores/file-store-entry.model';
+export * from './file/stores/file-store-key-not-found.error';
+export * from './file/stores/fs.file-store';
+export * from './file/stores/s3.file-store';
+export * from './file/stores/sftp.file-store';
+export * from './file/tenant/tenant-file-store.model';
+export * from './file/tenant/tenant-file-store-options.model';
+export * from './file/tenant/tenant-file-store-kind.interface';
+export * from './file/tenant/s3.tenant-file-store-kind';
+export * from './file/tenant/sftp.tenant-file-store-kind';
+
+// archive
+export * from './archive/decorators/archive.decorator';
+export * from './archive/base-archived-entity.model';
+export * from './archive/archived-file.model';
+export { type ArchiveOptions, type ArchiveRetentionStart } from './archive/archive-options.model';
+export * from './archive/archive-retention.model';
+export * from './archive/archive-service.interface';
+export * from './archive/archive.service';
+export * from './archive/archive-verification.model';
+export * from './archive/archive-retention.error';
+export * from './archive/archive-prune.cron-job';
 
 // http client
 export * from './http-client/http-client';
@@ -1207,6 +1327,79 @@ export * from './http-client/http-client-circuit-breaker-options.model';
 export * from './http-client/http-client-idempotency-key.model';
 export * from './http-client/http-client-redirect.model';
 export * from './http-client/http-client-buffered-body.model';
+export * from './http-client/http-client-method.type';
+export * from './http-client/web-dav-method.enum';
+
+// web dav
+export * from './web-dav/web-dav-client';
+export * from './web-dav/web-dav-client-options.model';
+export * from './web-dav/web-dav-connection.model';
+export * from './web-dav/tenant-web-dav-connection.model';
+export * from './web-dav/web-dav-tenant-connection-options.model';
+export * from './web-dav/web-dav-entry.model';
+export * from './web-dav/web-dav-property.model';
+export * from './web-dav/web-dav-download.model';
+export * from './web-dav/web-dav-put-options.model';
+export * from './web-dav/web-dav-put-if-match.model';
+export * from './web-dav/web-dav-put-if-none-match.model';
+export * from './web-dav/web-dav-put-overwrite.model';
+export * from './web-dav/web-dav-move-options.model';
+export * from './web-dav/web-dav-request-options.model';
+export * from './web-dav/web-dav-not-found.error';
+export * from './web-dav/web-dav-precondition-failed.error';
+export * from './web-dav/web-dav-conflict.error';
+export * from './web-dav/web-dav-forbidden.error';
+export * from './web-dav/tenant-web-dav-connection.controller';
+export * from './web-dav/tenant-web-dav-connection-service.interface';
+export * from './web-dav/tenant-web-dav-connection.service';
+export * from './web-dav/tenant-web-dav-connection-usage-finder.interface';
+export * from './web-dav/tenant-web-dav-connection-usage-cleaner.interface';
+export * from './web-dav/new-tenant-web-dav-connection.model';
+export * from './web-dav/tenant-web-dav-connection-change.model';
+export * from './web-dav/tenant-web-dav-connection-limits.model';
+export * from './web-dav/tenant-web-dav-connection-test.model';
+export * from './web-dav/web-dav-connection-kind.enum';
+export * from './web-dav/zibri-web-dav-permissions.model';
+
+// nextcloud
+export * from './web-dav/nextcloud/nextcloud-client';
+export * from './web-dav/nextcloud/nextcloud-share.model';
+export * from './web-dav/nextcloud/nextcloud-share-type.model';
+export * from './web-dav/nextcloud/new-nextcloud-share.model';
+export * from './web-dav/nextcloud/new-nextcloud-link-share.model';
+export * from './web-dav/nextcloud/new-nextcloud-recipient-share.model';
+export * from './web-dav/nextcloud/nextcloud-share-change.model';
+export * from './web-dav/nextcloud/nextcloud-trash-bin-entry.model';
+
+// file mirror
+export * from './file-mirror/file-mirror-service.interface';
+export * from './file-mirror/file-mirror.service';
+export * from './file-mirror/file-mirror.cron-job';
+export * from './file-mirror/file-mirror-usage-cleaner.service';
+export * from './file-mirror/file-to-mirror.model';
+export * from './file-mirror/file-mirror-source.model';
+export * from './file-mirror/mirrored-file.model';
+export * from './file-mirror/mirrored-file-conflict.enum';
+export * from './file-mirror/file-mirror-request.model';
+export * from './file-mirror/file-mirror-share-link.model';
+export * from './file-mirror/file-mirror-share-link-options.model';
+export * from './file-mirror/mirrored-file-conflict-resolution.enum';
+export * from './file-mirror/file-mirror.controller';
+export * from './file-mirror/mirrored-file-conflict-resolution-input.model';
+export * from './file-mirror/file-mirror-share-link-input.model';
+export * from './file-mirror/file-mirror-limits.model';
+export * from './file-mirror/zibri-file-mirror-permissions.model';
+
+// calendar sync
+export * from './calendar-sync/calendar-sync-service.interface';
+export * from './calendar-sync/calendar-sync.service';
+export * from './calendar-sync/calendar-entry-link-usage-cleaner.service';
+export * from './calendar-sync/calendar-sync-target.model';
+export * from './calendar-sync/calendar-entry.model';
+export * from './calendar-sync/calendar-entry-source.model';
+export * from './calendar-sync/calendar-entry-link.model';
+export * from './calendar-sync/i-calendar.utilities';
+export * from './calendar-sync/i-calendar-event.model';
 
 // caching
 export * from './caching/cache-service.interface';
@@ -1284,3 +1477,4 @@ export * from './utilities/fs.utilities';
 export * from './utilities/json.utilities';
 export * from './utilities/object.utilities';
 export * from './utilities/url.utilities';
+export * from './utilities/zip.utilities';

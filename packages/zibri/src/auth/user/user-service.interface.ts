@@ -1,8 +1,10 @@
 import { FindByIdOptions } from '../../data-source/models/options/find-by-id-options.model';
 import { type RepositoryTransaction } from '../../data-source/transaction/repository-transaction.type';
 import { BaseEntity } from '../../entity/base-entity.model';
+import { type LocaleCode } from '../../localization/models/locale-code.model';
 import { Newable } from '../../types/newable.type';
 import { BaseUser } from '../models/base-user.model';
+import { type ServiceAccountCreateData } from './service-account-create-data.model';
 import { UserRepositoryInterface } from './user-repository.interface';
 
 /**
@@ -54,6 +56,14 @@ export interface UserServiceInterface {
      */
     updateEmail: (id: string, email: string, emailVerifiedAt: Date | null, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
+     * Stores the locale the mails of the framework reach a user in, or null for the default locale, in the user
+     * repository built on the data layer that holds them.
+     * @throws A BadRequestError when the locale is not one the application supports, a NotFoundError when no
+     * repository holds the user.
+     */
+    // TODO 4.0: required
+    updateLocale?: (id: string, locale: LocaleCode | null, transaction: RepositoryTransaction | undefined) => Promise<void>,
+    /**
      * Whether the rows of an entity are users, because a user repository reads them.
      *
      * Asked by every repository deleting rows, so that the memberships of a deleted user go with them.
@@ -98,7 +108,27 @@ export interface UserServiceInterface {
      * @throws A NotFoundError when no repository holds the user.
      */
     // TODO 4.0: required
-    deleteUser?: (id: string, transaction: RepositoryTransaction | undefined) => Promise<void>
+    deleteUser?: (id: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
+    /**
+     * Creates a service account: a user of the kind `'service'`, with the given platform roles, no password and the
+     * email `<name>@service-accounts.invalid`, which no mail reaches. It never logs in, and acts through the API keys
+     * created for it.
+     * @throws A BadRequestError when the name is not lowercase letters, digits and hyphens, or the entity is not one a
+     * user repository reads, and a ConflictError when a service account of the name exists.
+     */
+    // TODO 4.0: required
+    createServiceAccount?: <UserType extends BaseUser<string>>(
+        entity: Newable<UserType>,
+        data: ServiceAccountCreateData<UserType>,
+        transaction: RepositoryTransaction | undefined
+    ) => Promise<UserType>,
+    /**
+     * Finds every service account, ordered by email, which starts with its name. A soft deleted one is left out.
+     *
+     * Reads the users of every user repository built on the data layer.
+     */
+    // TODO 4.0: required
+    findServiceAccounts?: (transaction: RepositoryTransaction | undefined) => Promise<BaseUser<string>[]>
 }
 
 /**

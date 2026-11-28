@@ -11,6 +11,7 @@ import { InternalError } from '../../error-handling/internal-error.model';
 import { findHeader } from '../../http/find-header.function';
 import { MimeType } from '../../http/mime-type.enum';
 import { RedirectResponse } from '../../http/redirect-response.model';
+import { type LocaleCode } from '../../localization/models/locale-code.model';
 import { $ts } from '../../localization/translate.function';
 import { ResponseDecorator } from '../../open-api/decorators/response-decorator.type';
 import { Response } from '../../open-api/decorators/response.decorator';
@@ -22,6 +23,7 @@ import { Body } from '../../routing/decorators/body.decorator';
 import { Delete } from '../../routing/decorators/delete.decorator';
 import { Get } from '../../routing/decorators/get.decorator';
 import { Param } from '../../routing/decorators/param.decorator';
+import { Patch } from '../../routing/decorators/patch.decorator';
 import { Post } from '../../routing/decorators/post.decorator';
 import { Newable } from '../../types/newable.type';
 import { TwoFactorMethod } from '../2fa/methods/two-factor-method.interface';
@@ -38,12 +40,15 @@ import { FederatedRouteUtilities } from '../authenticators/federated/federated-r
 import { isLinkIdentityConfirmingAuthenticator, LinkIdentityConfirmingAuthenticatorInterface } from '../authenticators/link-identity-confirming-authenticator.interface';
 import { isLinkIdentityRequestingAuthenticator, LinkIdentityRequestingAuthenticatorInterface } from '../authenticators/link-identity-requesting-authenticator.interface';
 import { LinkedIdentity } from '../authenticators/linked-identity.model';
+import { LoginLinkAuthenticator } from '../authenticators/login-link/login-link.authenticator';
+import { RequestLoginLinkInput } from '../authenticators/login-link/request-login-link-input.model';
 import { isLoginOptionsAuthenticator, LoginOptionsAuthenticatorInterface } from '../authenticators/login-options-authenticator.interface';
 import { ChangePasswordAtLoginInput } from '../authenticators/password/change-password-at-login-input.model';
 import { ChangePasswordDto } from '../authenticators/password/change-password-data.model';
 import { ConfirmPasswordResetDto } from '../authenticators/password/confirm-password-reset-data.model';
 import { PasswordResetTokenInput } from '../authenticators/password/password-reset-token-input.model';
 import { PasswordResetTokenValidity } from '../authenticators/password/password-reset-token-validity.model';
+import { PasswordAuthenticator } from '../authenticators/password/password.authenticator';
 import { RequestPasswordResetInput } from '../authenticators/password/request-password-reset-input.model';
 import { isRegistrationAuthenticator, RegistrationAuthenticatorInterface } from '../authenticators/registration-authenticator.interface';
 import { Auth } from '../decorators/auth.decorator';
@@ -53,15 +58,21 @@ import { type EmailVerificationServiceInterface } from '../email-verification/em
 import { EmailVerificationTokenInput } from '../email-verification/email-verification-token-input.model';
 import { RequestEmailChangeInput } from '../email-verification/request-email-change-input.model';
 import { AcceptInvitationInput } from '../invitation/accept-invitation-input.model';
+import { InvitationAcceptance } from '../invitation/invitation-acceptance.model';
+import { type InvitationServiceInterface } from '../invitation/invitation-service.interface';
 import { InvitationTokenInput } from '../invitation/invitation-token-input.model';
 import { InvitationTokenValidity } from '../invitation/invitation-token-validity.model';
 import { type BaseUser } from '../models/base-user.model';
 import { CurrentUserProfile } from '../models/current-user-profile.model';
+import { LoginMethods } from '../models/login-methods.model';
 import { LogoutResult } from '../models/logout-result.model';
+import { UpdateCurrentUserInput } from '../models/update-current-user-input.model';
 import { UserLogin } from '../models/user-login.model';
 import { isAuthStrategy } from '../strategies/auth-strategy.interface';
 import { CsrfTokenAuthStrategyInterface, isCsrfTokenAuthStrategy } from '../strategies/csrf-token-auth-strategy.interface';
 import { CsrfToken } from '../strategies/csrf-token.model';
+import { UserKindUtilities } from '../user/user-kind.utilities';
+import { UserServiceInterface } from '../user/user-service.interface';
 import { AuthControllerAuthenticatorClass } from './auth-controller-authenticator-class.type';
 import { AuthControllerClass } from './auth-controller-class.type';
 import { AuthControllerOptions } from './auth-controller-options.model';
@@ -162,7 +173,9 @@ export function AuthController<
     CurrentUserRoute extends boolean = false,
     ConfirmEmailRoute extends boolean = false,
     TwoFactorRegistrationsRoute extends boolean = false,
-    InvitationRoutes extends boolean = false
+    InvitationRoutes extends boolean = false,
+    UpdateCurrentUserRoute extends boolean = false,
+    LoginMethodsRoute extends boolean = false
 >(
     options: AuthControllerOptions<
         Strategies,
@@ -172,7 +185,9 @@ export function AuthController<
         CurrentUserRoute,
         ConfirmEmailRoute,
         TwoFactorRegistrationsRoute,
-        InvitationRoutes
+        InvitationRoutes,
+        UpdateCurrentUserRoute,
+        LoginMethodsRoute
     >
 ): AuthControllerClass<
     Strategies,
@@ -182,7 +197,9 @@ export function AuthController<
     CurrentUserRoute,
     ConfirmEmailRoute,
     TwoFactorRegistrationsRoute,
-    InvitationRoutes
+    InvitationRoutes,
+    UpdateCurrentUserRoute,
+    LoginMethodsRoute
 > {
     const strategies: AuthControllerStrategyClass[] = options.strategies;
     const authenticators: AuthControllerAuthenticatorClass[] = options.authenticators;
@@ -204,6 +221,12 @@ export function AuthController<
     const linking: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'findIdentities');
     const changing: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'changePassword');
     const listing: AuthControllerStrategyClass[] = withMember(strategies, 'findLogins');
+    const mailingLinks: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'requestLoginLink');
+    // known from the classes alone, and the same for every request
+    const loginMethods: LoginMethods = {
+        password: authenticators.some(a => a === PasswordAuthenticator || a.prototype instanceof PasswordAuthenticator),
+        loginLink: mailingLinks.length > 0
+    };
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     class Temp {
@@ -218,7 +241,9 @@ export function AuthController<
             CurrentUserRoute,
             ConfirmEmailRoute,
             TwoFactorRegistrationsRoute,
-            InvitationRoutes
+            InvitationRoutes,
+            UpdateCurrentUserRoute,
+            LoginMethodsRoute
         > = options;
 
         private get authService(): AuthServiceInterface {
@@ -330,17 +355,33 @@ export function AuthController<
             @CurrentUser()
             user: CurrentUser
         ): Promise<CurrentUserProfile> {
-            const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
-            if (context == undefined || this.authService.resolveCurrentMemberships == undefined) {
-                throw new InternalError('GET /me needs a request and resolveCurrentMemberships of the AuthService.');
+            return await this.resolveCurrentUserProfile(user, user.locale);
+        }
+
+        // what a user changes of themselves, today the language of the mails of the framework. Answered like GET /me,
+        // so a frontend keeps one profile
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.isLoggedIn()
+        @Response.object(CurrentUserProfile)
+        @Patch('/me')
+        async updateCurrentUser(
+            @CurrentUser()
+            user: CurrentUser,
+            @Body(UpdateCurrentUserInput)
+            input: UpdateCurrentUserInput
+        ): Promise<CurrentUserProfile> {
+            // left out, it stays as it is
+            if (input.locale === undefined) {
+                return await this.resolveCurrentUserProfile(user, user.locale);
             }
-            return {
-                id: user.id,
-                email: user.email,
-                emailVerifiedAt: user.emailVerifiedAt ?? undefined,
-                memberships: await this.authService.resolveCurrentMemberships(context, this.authService.strategies),
-                platformPermissions: user.platformPermissions
-            };
+            const userService: UserServiceInterface = inject(ZIBRI_DI_TOKENS.USER_SERVICE);
+            const updateLocale: UserServiceInterface['updateLocale'] = userService.updateLocale?.bind(userService);
+            if (updateLocale == undefined) {
+                throw new InternalError('PATCH /me needs updateLocale of the UserService.');
+            }
+            const locale: LocaleCode | null = input.locale;
+            await AuthControllerUtilities.runInTransaction(async transaction => await updateLocale(user.id, locale, transaction));
+            return await this.resolveCurrentUserProfile(user, locale);
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
@@ -533,6 +574,36 @@ export function AuthController<
             );
         }
 
+        // an email nobody has registered gets the same answer as one somebody has, in what it says and in how long
+        // it takes, for the reason requestPasswordReset gives. On the login's budget, and on one of the email's own.
+        // The link opens a page of the frontend, which posts its token to the login route: a POST, so that a mail
+        // scanner opening the link spends nothing
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.skip({ allowRedundant: true })
+        @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
+        @Response.empty()
+        @Post('/request-login-link')
+        async requestLoginLink(
+            @Param.query('authenticator', { type: 'string', required: mailingLinks.length > 1 })
+            authenticator: string | undefined,
+            @Body(RequestLoginLinkInput)
+            input: RequestLoginLinkInput
+        ): Promise<void> {
+            const authenticatorClass: Newable<LoginLinkAuthenticator<string>> = AuthControllerUtilities
+                .resolveCapable(mailingLinks, authenticator, 'authenticator', isLoginLinkAuthenticator);
+            await inject(authenticatorClass).requestLoginLink(input.email);
+        }
+
+        // which ways of logging in the login route takes, so that a frontend offers a link next to or in place of a
+        // password. Asked for, as GET /me is: an application of 3.x can have a route of its own at that path
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.skip({ allowRedundant: true })
+        @Response.object(LoginMethods)
+        @Get('/login-methods')
+        getLoginMethods(): LoginMethods {
+            return { ...loginMethods };
+        }
+
         // the routes of an invitation's link share the budget of the password reset, whose link it is like: a
         // token is guessed at as a password is
         // eslint-disable-next-line jsdoc/require-jsdoc
@@ -548,26 +619,52 @@ export function AuthController<
         }
 
         // anyone with the link may accept, and an email with an account of its own is accepted by that account:
-        // the login is read when there is one, never required
+        // the login is read when there is one, never required. An invitation without a password logs the account it
+        // created in, and answers what the login route answers
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
-        @Response.empty()
+        // in json alone, as the login it answers with otherwise
+        @Response.empty({ mimeTypes: [MimeType.JSON] })
+        @respondsWith(strategies.map(s => () => inject(s).authDataModel))
         @Post('/accept-invitation')
         async acceptInvitation(
             @CurrentUser({ required: false })
             user: CurrentUser | undefined,
             @Body(AcceptInvitationInput)
-            input: AcceptInvitationInput
-        ): Promise<void> {
-            await AuthControllerUtilities.runInTransaction(
-                async transaction => await inject(ZIBRI_DI_TOKENS.INVITATION_SERVICE).accept(
-                    input.token,
-                    { password: input.password, loggedInUserId: user?.id },
-                    transaction
-                ),
+            input: AcceptInvitationInput,
+            // not required, as an invitation with a password logs nobody in. Optional, so that an override of 3.2
+            // calling this through super with two arguments still compiles
+            @Param.query('strategy', { type: 'string', required: false })
+            strategy?: string
+        ): Promise<unknown> {
+            // before accepting, so a strategy that does not exist refuses the request rather than the login after it
+            const strategyClass: AuthControllerStrategyClass | undefined = strategy == undefined && strategies.length > 1
+                ? undefined
+                : AuthControllerUtilities.resolveNamed(strategies, strategy, 'strategy');
+            const service: InvitationServiceInterface = inject(ZIBRI_DI_TOKENS.INVITATION_SERVICE);
+            const acceptance: InvitationAcceptance = { password: input.password, loggedInUserId: user?.id, locale: input.locale };
+            // optional on the interface, as a service written against 3.2 has none: it creates no invitation
+            // without a password
+            const acceptForLogin: InvitationServiceInterface['acceptForLogin'] = service.acceptForLogin?.bind(service);
+            const loginUserId: string | undefined = await AuthControllerUtilities.runInTransaction(
+                async transaction => {
+                    if (acceptForLogin == undefined) {
+                        await service.accept(input.token, acceptance, transaction);
+                        return undefined;
+                    }
+                    return await acceptForLogin(input.token, acceptance, transaction);
+                },
                 { isolationLevel: IsolationLevel.READ_COMMITTED }
             );
+            // once the account is there, in a transaction of its own: a login waiting for its second factor answers
+            // with a refusal, which would take the account back with it
+            return loginUserId == undefined
+                ? undefined
+                : await this.logInByLink(
+                    loginUserId,
+                    strategyClass ?? AuthControllerUtilities.resolveNamed(strategies, undefined, 'strategy')
+                );
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1036,6 +1133,43 @@ export function AuthController<
             );
         }
 
+        // a login by the link the invitation came with, which proved the mailbox: a link of its own, spent at once,
+        // so it is a login like any other by a link, its second factor and its audit trail included
+        private async logInByLink(userId: string, strategyClass: AuthControllerStrategyClass): Promise<unknown> {
+            const authenticatorClass: AuthControllerAuthenticatorClass | undefined = mailingLinks[0];
+            const authenticator: unknown = authenticatorClass == undefined ? undefined : inject(authenticatorClass);
+            if (authenticatorClass == undefined || !isLoginLinkAuthenticator(authenticator)) {
+                throw new InternalError(
+                    'Accepting an invitation without a password logs its account in by a link, which needs LoginLinkAuthenticator'
+                    + ' among the authenticators of AuthController.'
+                );
+            }
+            // stored before the login's transaction, which the authenticator spends it outside of
+            const token: string = await authenticator.createLoginToken(userId);
+            return await AuthControllerUtilities.runInTransaction(
+                // eslint-disable-next-line typescript/no-unsafe-return
+                async transaction => await this.authService.login(authenticatorClass, strategyClass, { token }, transaction),
+                { isolationLevel: IsolationLevel.READ_COMMITTED }
+            );
+        }
+
+        // what GET /me answers, with the locale given, as PATCH /me answers with the one it just stored
+        private async resolveCurrentUserProfile(user: CurrentUser, locale: LocaleCode | null | undefined): Promise<CurrentUserProfile> {
+            const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+            if (context == undefined || this.authService.resolveCurrentMemberships == undefined) {
+                throw new InternalError('GET /me and PATCH /me need a request and resolveCurrentMemberships of the AuthService.');
+            }
+            return {
+                id: user.id,
+                email: user.email,
+                kind: UserKindUtilities.getKind(user),
+                emailVerifiedAt: user.emailVerifiedAt ?? undefined,
+                locale: locale ?? undefined,
+                memberships: await this.authService.resolveCurrentMemberships(context, this.authService.strategies),
+                platformPermissions: user.platformPermissions
+            };
+        }
+
         private async confirmProviderLogin(provider: string, answer: URLSearchParams): Promise<RedirectResponse> {
             try {
                 const authenticatorClass: Newable<FederatedAuthenticator> = FederatedRouteUtilities.resolveAuthenticator(provider);
@@ -1092,6 +1226,9 @@ export function AuthController<
     const groups: RouteGroup[] = [
         { routes: ['csrfToken'], present: csrfStrategies.length > 0 },
         { routes: ['requestPasswordReset', 'verifyPasswordResetToken', 'confirmPasswordReset'], present: resetting.length > 0 },
+        { routes: ['requestLoginLink'], present: mailingLinks.length > 0 },
+        // asked for: a route added to a released controller is the application's to turn on
+        { routes: ['getLoginMethods'], present: options.loginMethodsRoute === true },
         { routes: ['changePassword', 'changePasswordAtLogin'], present: changing.length > 0 },
         {
             routes: ['requestEmailVerification', 'confirmEmailVerification', 'requestEmailChange', 'confirmEmailChange'],
@@ -1101,6 +1238,8 @@ export function AuthController<
         { routes: ['confirmEmail'], present: options.emailVerification === true && options.confirmEmailRoute === true },
         // asked for: a GET /me of the application's own beside it refused to start
         { routes: ['getCurrentUser'], present: options.currentUserRoute === true },
+        // asked for, as GET /me is: an application of 3.x can have a PATCH /me of its own
+        { routes: ['updateCurrentUser'], present: options.updateCurrentUserRoute === true },
         // asked for, as GET /me is: an application of 3.1 can have routes of its own at these paths
         { routes: ['verifyInvitationToken', 'acceptInvitation', 'declineInvitation'], present: options.invitationRoutes === true },
         { routes: ['findLogins', 'endLogin'], present: listing.length > 0 },
@@ -1156,7 +1295,9 @@ export function AuthController<
         CurrentUserRoute,
         ConfirmEmailRoute,
         TwoFactorRegistrationsRoute,
-        InvitationRoutes
+        InvitationRoutes,
+        UpdateCurrentUserRoute,
+        LoginMethodsRoute
     >;
 }
 
@@ -1222,6 +1363,15 @@ function resolveRedirectStrategy(strategies: AuthControllerStrategyClass[], name
         );
     }
     return inject(strategy).name;
+}
+
+/**
+ * Whether a value is an authenticator that logs users in with a link sent by email.
+ * @param value - The value.
+ * @returns True when it is.
+ */
+function isLoginLinkAuthenticator(value: unknown): value is LoginLinkAuthenticator<string> {
+    return value instanceof LoginLinkAuthenticator;
 }
 
 /**

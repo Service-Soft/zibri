@@ -254,6 +254,20 @@ describe('XmlUtilities.generateFrom', () => {
     it('refuses a model whose mixed content sits next to a child element', async () => {
         await expect(XmlUtilities.generateFrom(MixedWithElement, { parts: [], extra: 'x' })).rejects.toThrow('@XmlMixed');
     });
+
+    it('names the document type definition after the declaration, by the root element, and reads back the same', async () => {
+        const upload: CompleteMultipartUpload = { parts: [{ PartNumber: 1, ETag: '"a1"' }] };
+
+        const xml: string = await XmlUtilities.generateFrom(CompleteMultipartUpload, upload, { indent: true, doctypeSystemId: 'upload.dtd' });
+
+        expect(xml.split('\n').slice(0, 3)).toEqual([
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<!DOCTYPE CompleteMultipartUpload SYSTEM "upload.dtd">',
+            '<CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
+        ]);
+        expect(await XmlUtilities.parseFrom(CompleteMultipartUpload, xml)).toEqual(upload);
+        await expect(XmlUtilities.generateFrom(CompleteMultipartUpload, upload, { doctypeSystemId: 'a"b.dtd' })).rejects.toThrow(InternalError);
+    });
 });
 
 describe('XmlUtilities.parseFrom', () => {

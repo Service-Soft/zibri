@@ -1,3 +1,5 @@
+import { ZIBRI_BACKUP_TRANSPORT_KINDS } from 'zibri-contract';
+
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { $ts } from '../../localization/translate.function';
 import { Newable } from '../../types/newable.type';
@@ -17,7 +19,7 @@ import { TenantTransportNetwork } from './tenant-transport-network.model';
 export class SftpTenantBackupTransportKind
 implements TenantBackupTransportKindInterface<TenantSftpTransportSettings, TenantSftpTransportSecret> {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly name: string = 'sftp';
+    readonly name: string = ZIBRI_BACKUP_TRANSPORT_KINDS.SFTP;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly settingsModel: Newable<TenantSftpTransportSettings> = TenantSftpTransportSettings;

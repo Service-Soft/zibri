@@ -9,7 +9,7 @@ import ts from 'typescript';
 import { version } from '../../../package.json';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
 import { findWorkflowCommands } from '../../__testing__/find-workflow-commands.function';
-import { EVERY_FEATURE, GENERATED_FILE_PATHS, NEEDS_A_REAL_INSTALL, NOT_IN_VERSION_CONTROL } from '../../__testing__/generated-file-paths';
+import { AUTHORED_CODE_PATHS, EVERY_FEATURE, GENERATED_FILE_PATHS, NEEDS_A_REAL_INSTALL, NOT_IN_VERSION_CONTROL } from '../../__testing__/generated-file-paths';
 import { mockExitGracefully, ProcessExitError } from '../../__testing__/mock-exit-gracefully.function';
 import { quietly } from '../../__testing__/quietly.function';
 import { CPUtilities, FsUtilities, InquirerUtilities } from '../../encapsulation';
@@ -42,6 +42,59 @@ function parseDotenv(content: string): Record<string, string> {
     return Object.fromEntries(content.split('\n')
         .filter(line => /^[A-Z_]+=/.test(line))
         .map(line => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]));
+}
+
+/**
+ * What a generated `src/env.ts` exports, as far as these tests read it.
+ */
+type GeneratedEnvModule = {
+    env?: GeneratedEnv,
+    requireOneOfEnv?: (key: string, values: readonly string[]) => string,
+    requirePortEnv?: (key: string) => number,
+    requireUrlEnv?: (key: string) => string
+};
+
+/**
+ * The variables of `env` these tests read.
+ */
+type GeneratedEnv = {
+    readonly environment: string,
+    readonly port: number,
+    readonly baseUrl: string,
+    readonly smtp: { readonly host: string }
+};
+
+/**
+ * Runs a generated `src/env.ts` on an environment of the test's own, with no ".env" beside it.
+ * @param envPath - The file.
+ * @param variables - The environment. It is read while the test changes it, as `env` reads a variable once it is used.
+ * @returns What the file exports.
+ */
+async function runGeneratedEnv(envPath: Path, variables: Record<string, string | undefined>): Promise<GeneratedEnvModule> {
+    const source: string = await FsUtilities.readFile(envPath);
+    const compiled: string = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+    const exported: GeneratedEnvModule = {};
+    runInNewContext(compiled, {
+        exports: exported,
+        process: { env: variables },
+        // a global of node rather than of the language, so a context of its own has none
+        URL,
+        require: (name: string) => {
+            switch (name) {
+                case 'node:fs': {
+                    return { existsSync: () => false };
+                }
+                case 'zibri': {
+                    // the environments the framework runs in, which the file reads ENVIRONMENT against
+                    return { ZIBRI_ENVIRONMENTS: ['development', 'production'] };
+                }
+                default: {
+                    return {};
+                }
+            }
+        }
+    });
+    return exported;
 }
 
 describe('NewCommand', () => {
@@ -146,11 +199,14 @@ describe('NewCommand', () => {
         await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
 
         const appDir: Path = path.join(workDir, 'api') as Path;
-        expect(execSpy).toHaveBeenNthCalledWith(1, expect.stringContaining(`cd "${appDir}" && npm i -D `));
-        expect(execSpy.mock.calls[0][0]).toContain('webpack');
+        // a plain install first, which adds the project to the tree of a workspace it is created in, so that npm
+        // keeps the installs after it
+        expect(execSpy).toHaveBeenNthCalledWith(1, `cd "${appDir}" && npm i`);
+        expect(execSpy).toHaveBeenNthCalledWith(2, expect.stringContaining(`cd "${appDir}" && npm i -D `));
+        expect(execSpy.mock.calls[1][0]).toContain('webpack');
         // the build generates the entities by loading src/models/generated/providers.ts, which takes
         // ts-node. A project without it failed its first build wherever nothing else had hoisted it
-        expect(execSpy.mock.calls[0][0]).toContain(' ts-node@^10.9.2');
+        expect(execSpy.mock.calls[1][0]).toContain(' ts-node@^10.9.2');
         // zibri-tsx is intentionally absent: it is a peer dependency of zibri and must not be
         // installed into the app directly.
         // the peers the app has to ask for: every one is an *optional* peer of zibri, so npm installs
@@ -164,7 +220,7 @@ describe('NewCommand', () => {
         // package is deliberately not here: spans are kept in memory until a project says where to
         // send them, so a project that never says is a project that never needs it.
         expect(execSpy).toHaveBeenNthCalledWith(
-            2,
+            3,
             `cd "${appDir}" && npm i zibri@${version} pg-query-stream@^4.10.3`
             + ' saxes@^6.0.0 otpauth@^9.5.1 jose@^6.2.12 @opentelemetry/api@^1.9.1'
             + ' @opentelemetry/sdk-trace-node@^2.11.0 nodemailer@^10.1.0'
@@ -364,7 +420,7 @@ describe('NewCommand', () => {
         // the paths stay, because an extended config resolves them against itself rather than the project
         expect(tsconfig).toEqual({
             extends: 'zibri/tsconfig.application.json',
-            compilerOptions: { outDir: 'dist' },
+            compilerOptions: { outDir: 'dist', rootDir: '.' },
             include: ['src']
         });
     });
@@ -430,7 +486,7 @@ describe('NewCommand', () => {
         const read: (relativePath: string) => Promise<string> = async relativePath => FsUtilities.readFile(path.join(appDir, relativePath) as Path);
         expect(parseDotenv(await read('.env.example'))['ENVIRONMENT']).toBe('');
         expect(parseDotenv(await read('.env'))['ENVIRONMENT']).toBe('development');
-        expect(await read('src/application-options.base.ts')).toContain('    environment: requireOneOfEnv(\'ENVIRONMENT\', ZIBRI_ENVIRONMENTS),');
+        expect(await read('src/application-options.base.ts')).toContain('    environment: env.environment,');
         const providers: string = await read('src/providers.ts');
         expect(providers).toContain('GlobalRegistry.getAppData(\'environment\') === \'development\'');
         expect(providers).toContain('new LoggingEmailTransport()');
@@ -448,26 +504,16 @@ describe('NewCommand', () => {
     it('reads a variable of a few values only when it holds one of them', async () => {
         await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
 
-        const source: string = await FsUtilities.readFile(path.join(workDir, 'api', 'src', 'env.ts') as Path);
-        const compiled: string = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
-        const env: Record<string, string | undefined> = {};
-        const exported: { requireOneOfEnv?: (key: string, values: readonly string[]) => string } = {};
-        runInNewContext(compiled, {
-            exports: exported,
-            process: { env },
-            require: (name: string) => name === 'node:fs' ? { existsSync: () => false } : {}
-        });
-        const requireOneOfEnv: (key: string, values: readonly string[]) => string = exported.requireOneOfEnv
-            ?? ((): string => {
-                throw new Error('env.ts exports no requireOneOfEnv');
-            });
+        const variables: Record<string, string | undefined> = {};
+        const { env } = await runGeneratedEnv(path.join(workDir, 'api', 'src', 'env.ts') as Path, variables);
+        assert(env != undefined, 'env.ts exports no env');
 
-        env['ENVIRONMENT'] = 'production';
-        expect(requireOneOfEnv('ENVIRONMENT', ['development', 'production'])).toBe('production');
-        env['ENVIRONMENT'] = 'staging';
-        expect(() => requireOneOfEnv('ENVIRONMENT', ['development', 'production'])).toThrow(/ENVIRONMENT.*development, production/);
-        env['ENVIRONMENT'] = '';
-        expect(() => requireOneOfEnv('ENVIRONMENT', ['development', 'production'])).toThrow(/ENVIRONMENT/);
+        variables['ENVIRONMENT'] = 'production';
+        expect(env.environment).toBe('production');
+        variables['ENVIRONMENT'] = 'staging';
+        expect(() => env.environment).toThrow(/ENVIRONMENT.*development, production/);
+        variables['ENVIRONMENT'] = '';
+        expect(() => env.environment).toThrow(/ENVIRONMENT/);
     });
 
     // round 1, 07 Part 2 "Configuration schema": a port that is no number read as NaN and failed
@@ -475,32 +521,80 @@ describe('NewCommand', () => {
     it('reads a port only when it is one, and a url only when it is one', async () => {
         await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
 
-        const source: string = await FsUtilities.readFile(path.join(workDir, 'api', 'src', 'env.ts') as Path);
-        const compiled: string = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
-        const env: Record<string, string | undefined> = {};
-        const exported: { requirePortEnv?: (key: string) => number, requireUrlEnv?: (key: string) => string } = {};
-        runInNewContext(compiled, {
-            exports: exported,
-            process: { env },
-            // a global of node rather than of the language, so a context of its own has none
-            URL,
-            require: (name: string) => name === 'node:fs' ? { existsSync: () => false } : {}
-        });
-        const { requirePortEnv, requireUrlEnv } = exported;
-        assert(requirePortEnv != undefined && requireUrlEnv != undefined, 'env.ts exports no requirePortEnv or requireUrlEnv');
+        const variables: Record<string, string | undefined> = {};
+        const { env } = await runGeneratedEnv(path.join(workDir, 'api', 'src', 'env.ts') as Path, variables);
+        assert(env != undefined, 'env.ts exports no env');
 
-        env['PORT'] = '3000';
-        expect(requirePortEnv('PORT')).toBe(3000);
+        variables['PORT'] = '3000';
+        expect(env.port).toBe(3000);
         for (const port of ['', 'abc', '0', '65536', '3000.5', '-1', ' 3000']) {
-            env['PORT'] = port;
-            expect(() => requirePortEnv('PORT')).toThrow(/PORT/);
+            variables['PORT'] = port;
+            expect(() => env.port).toThrow(/PORT/);
         }
-        env['BASE_URL'] = 'https://api.example.com';
-        expect(requireUrlEnv('BASE_URL')).toBe('https://api.example.com');
+        variables['BASE_URL'] = 'https://api.example.com';
+        expect(env.baseUrl).toBe('https://api.example.com');
         for (const url of ['', 'api.example.com', 'ftp://api.example.com', 'http//api.example.com']) {
-            env['BASE_URL'] = url;
-            expect(() => requireUrlEnv('BASE_URL')).toThrow(/BASE_URL/);
+            variables['BASE_URL'] = url;
+            expect(() => env.baseUrl).toThrow(/BASE_URL/);
         }
+    });
+
+    // a command or a test that never sends a mail runs without a mail server, as it did while every
+    // file read its variables by name where it used them
+    it('reads each variable once it is used rather than once src/env.ts is loaded', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
+
+        const variables: Record<string, string | undefined> = {};
+        const { env } = await runGeneratedEnv(path.join(workDir, 'api', 'src', 'env.ts') as Path, variables);
+        assert(env != undefined, 'env.ts exports no env');
+
+        expect(() => env.smtp.host).toThrow('The environment variable "SMTP_HOST" is not set. See .env.example.');
+        variables['SMTP_HOST'] = 'smtp.example.com';
+        expect(env.smtp.host).toBe('smtp.example.com');
+    });
+
+    // a project of an earlier release, and a file `zi upgrade` could not merge, still read their variables by name
+    it('keeps the readers a project read its variables by name with', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
+
+        const variables: Record<string, string | undefined> = {};
+        const { requireOneOfEnv, requirePortEnv, requireUrlEnv } = await runGeneratedEnv(
+            path.join(workDir, 'api', 'src', 'env.ts') as Path,
+            variables
+        );
+        assert(
+            requireOneOfEnv != undefined && requirePortEnv != undefined && requireUrlEnv != undefined,
+            'env.ts exports no requireOneOfEnv, requirePortEnv or requireUrlEnv'
+        );
+
+        variables['ENVIRONMENT'] = 'production';
+        expect(requireOneOfEnv('ENVIRONMENT', ['development', 'production'])).toBe('production');
+        variables['ENVIRONMENT'] = 'staging';
+        expect(() => requireOneOfEnv('ENVIRONMENT', ['development', 'production'])).toThrow(/ENVIRONMENT.*development, production/);
+        variables['PORT'] = '3000';
+        expect(requirePortEnv('PORT')).toBe(3000);
+        variables['PORT'] = 'abc';
+        expect(() => requirePortEnv('PORT')).toThrow(/PORT/);
+        variables['BASE_URL'] = 'https://api.example.com';
+        expect(requireUrlEnv('BASE_URL')).toBe('https://api.example.com');
+        variables['BASE_URL'] = 'api.example.com';
+        expect(() => requireUrlEnv('BASE_URL')).toThrow(/BASE_URL/);
+    });
+
+    // a variable named by a string in every file that read it compiled with a typo, and failed only once
+    // that line ran
+    it('names every variable in src/env.ts alone', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
+
+        const byName: string[] = [];
+        for (const relativePath of AUTHORED_CODE_PATHS.filter(p => p !== 'src/env.ts')) {
+            const content: string = await FsUtilities.readFile(path.join(workDir, 'api', relativePath) as Path);
+            if (/\b\w+Env\('|process\.env\[/.test(content)) {
+                byName.push(relativePath);
+            }
+        }
+
+        expect(byName).toStrictEqual([]);
     });
 
     it('checks every port and url it reads, and requires the mail server where mail is sent', async () => {
@@ -513,17 +607,19 @@ describe('NewCommand', () => {
             'src/providers.ts',
             'src/data-sources/db/db.data-source.ts'
         ].map(read))).join('\n');
-        expect(sources).not.toMatch(/Number\(\w+Env\(/);
-        for (const envCheck of [
-            'requirePortEnv(\'PORT\')',
-            'requirePortEnv(\'DB_PORT\')',
-            'requireUrlEnv(\'BASE_URL\')',
-            'requireUrlEnv(\'CONFIRM_PASSWORD_RESET_URL\')',
+        const envSource: string = await read('src/env.ts');
+        expect(envSource).not.toMatch(/Number\(\w+Env\(/);
+        for (const [property, envCheck] of [
+            ['env.port', 'resolvePortEnv(\'PORT\')'],
+            ['env.db.port', 'resolvePortEnv(\'DB_PORT\')'],
+            ['env.baseUrl', 'resolveUrlEnv(\'BASE_URL\')'],
+            ['env.confirmPasswordResetUrl', 'resolveUrlEnv(\'CONFIRM_PASSWORD_RESET_URL\')'],
             // .env.example says production does not start without one
-            'requireEnv(\'SMTP_HOST\')',
-            'requirePortEnv(\'SMTP_PORT\')'
+            ['env.smtp.host', 'resolveEnv(\'SMTP_HOST\')'],
+            ['env.smtp.port', 'resolvePortEnv(\'SMTP_PORT\')']
         ]) {
-            expect(sources).toContain(envCheck);
+            expect(sources).toContain(property);
+            expect(envSource).toContain(envCheck);
         }
     });
 

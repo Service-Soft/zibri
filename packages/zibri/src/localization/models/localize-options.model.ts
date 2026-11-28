@@ -63,7 +63,16 @@ export type LocalizeOptions = {
     // nobody makes by accident is one nobody knows was made. Ordering per request is deliberately not
     // available - the collation would have to be named by every statement, which takes ordered reads
     // off their index
-    readonly textOrder?: 'defaultLocale'
+    readonly textOrder?: 'defaultLocale',
+    /**
+     * The currency of a price formatted without one, by `formatPrice` and `$f.price` of a page.
+     *
+     * `'locale'`, the default, takes the `currencyCode` of the locale the price is formatted in. `'defaultLocale'`
+     * takes the one of the `defaultLocale` in every locale, so that a price keeps its currency in every language:
+     * with `en-US` the default and `de` supported, 19.99 formats as `19,99 $` in `de`, where `'locale'` formats it as
+     * `19,99 €`.
+     */
+    readonly priceCurrency?: 'locale' | 'defaultLocale'
 };
 
 /**

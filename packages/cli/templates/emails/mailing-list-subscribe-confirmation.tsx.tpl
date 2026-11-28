@@ -1,4 +1,5 @@
-import { $ts, MailingListSubscribeConfirmationEmailTemplate, MjButton, MjColumn, MjSection, MjText } from 'zibri';
+import { $ts, MjButton, MjColumn, MjSection, MjText } from 'zibri';
+import { MailingListSubscribeConfirmationEmailTemplate } from 'zibri/plugin/mailing-list';
 
 import { BaseEmail } from '../email-components/base-email';
 import { BaseEmailFooter } from '../email-components/base-email-footer';

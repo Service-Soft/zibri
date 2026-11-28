@@ -1,4 +1,5 @@
-import { $ts, MailingListTemplateData, MjColumn, MjSection, MjText, TsxComponent } from 'zibri';
+import { $ts, MjColumn, MjSection, MjText, TsxComponent } from 'zibri';
+import { MailingListTemplateData } from 'zibri/plugin/mailing-list';
 
 import { EmailLink } from './email-link';
 

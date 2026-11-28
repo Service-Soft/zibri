@@ -23,7 +23,7 @@ export interface DpopServiceInterface {
      * true, and the hash of the access token when one is given. Answered for one request once, however
      * often it is asked.
      *
-     * Undefined for a request that carries no proof, and for a websocket message. Throws an OAuth2Error
+     * Undefined for a request that carries no proof, and for a websocket handshake or message. Throws an OAuth2Error
      * `invalid_dpop_proof`, or `use_dpop_nonce` with a new nonce. An error about a request sending an
      * access token is answered `401`, challenging the caller with the `DPoP` scheme.
      */

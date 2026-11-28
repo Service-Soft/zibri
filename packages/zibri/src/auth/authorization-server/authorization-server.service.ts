@@ -39,6 +39,7 @@ import { JwtAsymmetricAlgorithm } from '../strategies/jwt/jwt-asymmetric-algorit
 import { JwtRemoteKeySet } from '../strategies/jwt/jwt-remote-key-set.type';
 import { JwtUtilities } from '../strategies/jwt/jwt.utilities';
 import { isTokenIntrospectingAuthStrategy, TokenIntrospectingAuthStrategyInterface } from '../strategies/token-introspecting-auth-strategy.interface';
+import { UserKindUtilities } from '../user/user-kind.utilities';
 import { type UserServiceInterface } from '../user/user-service.interface';
 import { AuthorizationServerControllerClass } from './authorization-server-controller-class.type';
 import { AuthorizationServerControllerOptions } from './authorization-server-controller-options.model';
@@ -275,7 +276,8 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
                 action: AuditAction.TOKEN_ISSUED,
                 outcome: AuditOutcome.SUCCESS,
                 subject: client.apiKey.id,
-                userId: client.user.id
+                userId: client.user.id,
+                userKind: UserKindUtilities.getKind(client.user)
             });
             return {
                 access_token: issued.value,

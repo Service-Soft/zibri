@@ -33,5 +33,5 @@
     },
     // what tests write there, such as projects whose type errors a test builds on purpose
     "exclude": ["src/__testing__/file-output"],
-    "include": ["src", "jest.config.mjs", "jest.typescript-6.config.mjs"]
+    "include": ["src", "jest.config.mjs", "jest.typescript-5.config.mjs"]
 }

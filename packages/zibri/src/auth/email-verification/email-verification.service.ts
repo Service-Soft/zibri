@@ -16,6 +16,7 @@ import { UnauthorizedError } from '../../error-handling/errors/unauthorized.erro
 import { InternalError } from '../../error-handling/internal-error.model';
 import { AfterAppInit } from '../../global/after-app-init.interface';
 import { OnAppInit } from '../../global/on-app-init.interface';
+import { runInLocale } from '../../localization/run-in-locale.function';
 import { $ts } from '../../localization/translate.function';
 import { AuditAction, AuditOutcome } from '../../logging/audit-event.model';
 import { AuditUtilities } from '../../logging/audit.utilities';
@@ -217,17 +218,20 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
             // every link of the user: a link to verify was for the previous address
             await this.tokenRepository.deleteAll({ userId: user.id }, { transaction });
             // the one who held the previous address learns of it, which is the warning of a change
-            // somebody made with a session of theirs
-            await inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE).queue({
-                recipients: [previousEmail],
-                subject: $ts`Your email address was changed`,
-                html: TsxUtilities.renderEmail(
-                    options.emailChangedEmail,
-                    { previousEmail, newEmail: found.email, user: { ...user, email: found.email } }
-                ),
-                userId: user.id,
-                priority: EmailPriority.HIGH
-            });
+            // somebody made with a session of theirs. In the user's locale, as every mail to them
+            await runInLocale(
+                user.locale,
+                async () => await inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE).queue({
+                    recipients: [previousEmail],
+                    subject: $ts`Your email address was changed`,
+                    html: TsxUtilities.renderEmail(
+                        options.emailChangedEmail,
+                        { previousEmail, newEmail: found.email, user: { ...user, email: found.email } }
+                    ),
+                    userId: user.id,
+                    priority: EmailPriority.HIGH
+                })
+            );
             this.auditService.record({
                 action: AuditAction.EMAIL_CHANGED,
                 outcome: AuditOutcome.SUCCESS,
@@ -327,18 +331,22 @@ export class EmailVerificationService implements EmailVerificationServiceInterfa
             purpose,
             expirationDate: new Date(Date.now() + (options.linkExpiresInMs ?? DEFAULT_LINK_EXPIRES_IN_MS))
         }, { transaction });
-        await inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE).queue({
-            recipients: [recipient],
-            subject: this.resolveSubject(purpose),
-            html: TsxUtilities.renderEmail(
-                options.verificationEmail,
-                { link: `${options.confirmEmailUrl}/${tokenValue}`, email, purpose, user }
-            ),
-            userId: user.id,
-            priority: EmailPriority.HIGH,
-            // never kept, for the reason requestPasswordReset gives: the body carries the token
-            persist: false
-        });
+        // in the user's locale, for the reason requestPasswordReset gives
+        await runInLocale(
+            user.locale,
+            async () => await inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE).queue({
+                recipients: [recipient],
+                subject: this.resolveSubject(purpose),
+                html: TsxUtilities.renderEmail(
+                    options.verificationEmail,
+                    { link: `${options.confirmEmailUrl}/${tokenValue}`, email, purpose, user }
+                ),
+                userId: user.id,
+                priority: EmailPriority.HIGH,
+                // never kept, for the reason requestPasswordReset gives: the body carries the token
+                persist: false
+            })
+        );
     }
 
     /**

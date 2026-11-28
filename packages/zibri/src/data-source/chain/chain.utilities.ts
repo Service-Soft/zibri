@@ -7,6 +7,7 @@ import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { FrameworkColumnRegistry } from '../migration/framework-column.registry';
 import { type BaseChainedEntity } from './base-chained-entity.model';
 
 /**
@@ -59,6 +60,19 @@ export class ChainUtilities {
     }
 
     /**
+     * Resolves the seal of a gap, which only the holder of the key can write.
+     * @param key - The signing key of the chains.
+     * @param entityClass - The chained entity.
+     * @param chain - The tenant of the chain, or an empty string for the rows of no tenant.
+     * @param sequence - The place of the removed row.
+     * @param hash - The hash of the removed row.
+     * @returns The seal.
+     */
+    static resolveGapSeal(key: Buffer, entityClass: Newable<BaseEntity>, chain: string, sequence: number, hash: string): string {
+        return this.resolveMac(key, ['gap', this.getTableName(entityClass), chain, sequence, hash]);
+    }
+
+    /**
      * Whether an entity is declared with `chained: true`, which also says it extends `BaseChainedEntity`.
      * @param entityClass - The entity.
      * @returns True when its rows are chained.
@@ -84,8 +98,8 @@ export class ChainUtilities {
     /**
      * Writes what a row holds as one text that is the same however the store hands it back: its
      * columns in the order of their names, a value it holds none for as null, and a date as its ISO
-     * form. Everything but the hash itself, the id, which a store may assign, and the relations,
-     * which are rows of their own.
+     * form. Everything but the hash itself, the id, which a store may assign, the relations,
+     * which are rows of their own, and a column a release added to the entity while it holds nothing.
      * @param entityClass - The entity of the row.
      * @param row - The row.
      * @param hashProperty - The property the hash is kept in.
@@ -93,8 +107,16 @@ export class ChainUtilities {
      */
     private static resolveContent(entityClass: Newable<BaseEntity>, row: object, hashProperty: string): string {
         const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
+        // a row hashed before the column was added holds nothing in it, and is hashed as it was then. One that holds a
+        // value is hashed with it, so writing one in or taking it out is told like any other change. A value saying what
+        // a row without the column says, such as the kind 'person', is left out as well: a table lacking the column, of
+        // a schema the data source does not manage, stores the row without it, and reads it back so
+        const added: Set<string> = new Set(FrameworkColumnRegistry.getAll()
+            .filter(column => column.entity === entityClass || entityClass.prototype instanceof column.entity)
+            .map(column => column.property));
         const columns: string[] = Object.keys(properties)
             .filter(key => key !== 'id' && key !== hashProperty && !isRelationMetadata(properties[key]))
+            .filter(key => !added.has(key) || !FrameworkColumnRegistry.meansAbsent(entityClass, key, Reflect.get(row, key)))
             .sort();
         return JsonUtilities.stringify(columns.map(column => [column, this.normalize(Reflect.get(row, column))]));
     }

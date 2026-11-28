@@ -5,6 +5,7 @@ import { CiiHeaderMonetarySummation } from './cii-header-monetary-summation.mode
 import { CiiNamespace } from './cii-namespace.enum';
 import { CiiPaymentMeans } from './cii-payment-means.model';
 import { CiiPaymentTerms } from './cii-payment-terms.model';
+import { CiiReferencedDocument } from './cii-referenced-document.model';
 import { CiiTradeTax } from './cii-trade-tax.model';
 
 /**
@@ -46,4 +47,11 @@ export class CiiHeaderTradeSettlement {
     @XmlElement('SpecifiedTradeSettlementHeaderMonetarySummation')
     @Property.object({ cls: () => CiiHeaderMonetarySummation })
     summation!: CiiHeaderMonetarySummation;
+
+    /**
+     * The preceding invoice, such as the one a credit note corrects (BG-3).
+     */
+    @XmlElement('InvoiceReferencedDocument')
+    @Property.object({ cls: () => CiiReferencedDocument, required: false })
+    invoiceReference?: CiiReferencedDocument;
 }

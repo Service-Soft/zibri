@@ -68,7 +68,7 @@ Authorization: DPoP eyJhbGciOiJIUzI1NiIsInR5cCI6ImF0K2p3dCJ9...
 DPoP: eyJ0eXAiOiJkcG9wK2p3dCIsImFsZyI6IkVTMjU2IiwiandrIjp7...
 ```
 
-A bound token sent with the `Bearer` scheme, an unbound one sent with the `DPoP` scheme, and a request without a proof of the token's key are refused with `401`.
+A bound token sent with the `Bearer` scheme, an unbound one sent with the `DPoP` scheme, and a request without a proof of the token's key are refused with `401`. A bound token logs no [websocket connection](../endpoints/websocket.md#logins) in.
 
 ## Tokens of clients
 A client sends a proof to `/token` and is issued a token bound to its key, with the `token_type` `DPoP`. An [API key](./api-keys.md) created with `requireDpop: true` is issued tokens only for a proof, and is never taken in the API key header itself. [Introspection](./authorization-server.md#introspection) answers the key's thumbprint as `cnf.jkt`, and `token_type` `DPoP`.

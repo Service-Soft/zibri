@@ -8,6 +8,7 @@ import { hasPlatformPermissionDecorator } from './has-platform-permission.decora
 import { isLoggedInDecorator, IsLoggedInFn } from './is-logged-in.decorator';
 import { isNotLoggedInDecorator, IsNotLoggedInFn } from './is-not-logged-in.decorator';
 import { require2faDecorator, Require2faFn } from './require-2fa.decorator';
+import { requireShareRoleDecorator, RequireShareRoleFn } from './require-share-role.decorator';
 
 /**
  * Bundles decorators for marking controller endpoints for authentication and authorization.
@@ -54,6 +55,15 @@ export namespace Auth {
      * @param allowedMethods - The allowed two factor methods to use.
      */
     export const require2fa: Require2faFn = require2faDecorator;
+    /**
+     * Marks an endpoint to be only reachable when the logged in user sees every row of a shareable entity through
+     * its `fullAccess`, or holds at least the role on the row a path parameter names, or on a row above it. A caller
+     * who does not see the row is answered `404`, one with a lower role `403`.
+     * @param entityClass - The entity of the row: shareable, or shared through a relation.
+     * @param role - The least role, one of those the shareable entity declares.
+     * @param pathParam - The path parameter holding the id of the row.
+     */
+    export const requireShareRole: RequireShareRoleFn = requireShareRoleDecorator;
 
     // the one place a public endpoint is declared rather than merely left undecorated
     /**

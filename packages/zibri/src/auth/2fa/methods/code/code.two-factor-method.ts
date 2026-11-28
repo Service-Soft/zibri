@@ -16,6 +16,7 @@ import { TooManyRequestsError } from '../../../../error-handling/errors/too-many
 import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error';
 import { InternalError } from '../../../../error-handling/internal-error.model';
 import { findHeader } from '../../../../http/find-header.function';
+import { runInLocale } from '../../../../localization/run-in-locale.function';
 import { $ts } from '../../../../localization/translate.function';
 import { RateLimitResult } from '../../../../rate-limiting/rate-limit-result.model';
 import { RateLimitStateEntity } from '../../../../rate-limiting/stores/rate-limit-state-entity.model';
@@ -305,7 +306,12 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
             value: code,
             expirationDate: new Date(Date.now() + options.expiresInMs)
         });
-        await this.deliver(user, credentials.destination, code);
+        // around the delivery rather than inside each channel's, so that a delivery of the application's own is
+        // in the user's locale as well
+        await runInLocale(
+            user.locale,
+            async () => await this.deliver(user, credentials.destination, code)
+        );
     }
 
     /**

@@ -24,6 +24,8 @@ side.
 | `PostgresOptions` | type | How a `PostgresDataSource` connects to its server |
 | `PostgresPooler`, `PostgresTransactionPooler`, `PostgresDirectConnection` | type, type, type | What stands between a Postgres data source and its server, a pooler in transaction mode, and where the server itself is behind one. Required |
 | `SchemaManagement` | type | Who makes the database match the entities of a SQL data source: `'synchronize'`, `'migrations'` or `'external'`. Required |
+| `MissingFrameworkColumnError`, `MissingFrameworkColumn`, `FrameworkColumnUtilities` | class, type, class | What needs a column of the framework a schema with `'external'` lacks throws, the column with the statements that add it, and the check whether a table has one, see [the columns of the framework in a schema of your own](#the-columns-of-the-framework-in-a-schema-of-your-own) |
+| `MissingUniqueError`, `MissingUnique` | class, type | What an upsert by a unique a schema with `'external'` lacks throws, and the unique with the statements that create it, see [the columns of the framework in a schema of your own](#the-columns-of-the-framework-in-a-schema-of-your-own) |
 | `ValKeyDataSource` | class | Predefined data source for Valkey, extend from this instead of implementing `DataSourceInterface` directly |
 | `ValKeyOptions` | interface | Connection/config options for `ValKeyDataSource` |
 | `RepositoryDriverInterface` | interface | The storage specific part of a repository, implemented once per data source type |
@@ -217,6 +219,42 @@ because no value is safe everywhere:
 
 `'migrations'` needs at least one migration. Use `'external'` for a schema that something else
 creates. [Handling migrations](#handling-migrations) describes the migrations a data source lists.
+
+### The columns of the framework in a schema of your own
+The entities of the framework gain columns in a minor release, such as the `kind` of a user or the
+`issuedAt` of an invoice, each nullable. With `'migrations'` and `'synchronize'`, the data source
+adds them itself. With `'external'`, it adds none: on every start it looks up which of them the
+database lacks, reads and writes the rows without those, and warns once, listing them by table with
+the statements that add them as the framework creates them:
+
+```text
+The database of "DbDataSource" lacks columns the framework added to its entities, ...
+  - user: locale, kind
+  - number_invoices: scope
+Add them, and start the application again:
+  ALTER TABLE "user" ADD COLUMN "locale" character varying ...;
+  ALTER TABLE "user" ADD COLUMN "kind" character varying ...;
+  UPDATE "user" SET "kind" = 'person' WHERE "kind" IS NULL;
+  ALTER TABLE "number_invoices" ADD COLUMN "scope" character varying ...;
+  CREATE UNIQUE INDEX CONCURRENTLY "..." ON "number_invoices" ("tenantId", "scope");
+  ...
+```
+
+Run them as they are listed: a unique is built concurrently, outside a transaction.
+
+Without a column, the rows read as the release before it had them: a user is a person, an invoice
+is an invoice that no final number issues, and a counter of invoice numbers counts by year and
+recipient. What needs the column throws a `MissingFrameworkColumnError` naming it and the statements,
+such as creating a service account, changing the locale of a user, a credit note, a mail with a
+`replyTo` or a filter on the column, and so does a write storing a value only the column can hold.
+A start finding the columns uses them, and warns no more. `FrameworkColumnUtilities.hasColumns`
+tells code of your own whether a table has them.
+
+The uniques the entities declare are looked up the same way, under the names the data source gives
+them. A start finding one missing warns once, listing it by table with the statements that create it.
+Nothing keeps the values it covers apart, and an upsert identifying its rows by it throws a
+`MissingUniqueError` naming it and the statements. A unique over a column the database lacks comes
+with the statements of the column instead.
 
 `pooler` says what stands between a Postgres data source and its server, see
 [connecting through a pooler](#connecting-through-a-pooler). `'none'` when it connects to the server
@@ -688,8 +726,6 @@ A repository always exposes the methods:
 - upsertAll
 - deleteAll
 - deleteById
-
-The full, detailed definition can be found under {@link Repository | the repository's reference}.
 
 `findOne` and `findById` throw a `NotFoundError` when nothing matches. When a missing row is an
 answer, such as when you check whether a name is taken, pass `required: false` and get `undefined`
@@ -1448,6 +1484,11 @@ nothing, and `{ oneOf: ['a'] }` does not. Name `null` to say otherwise:
 `{ oneOf: ['a', null] }` finds it as well, and `{ not: null }` or `{ notOneOf: ['a', null] }` leave it
 out. A list under `oneOf` or `notOneOf` can be as long as you need.
 
+A property or an operator whose value is `undefined` asks nothing, inside an object property too. A
+range with an optional end can be written as it comes:
+`{ postingDate: { afterOrOn: from, beforeOrOn: until } }` finds everything from `from` on when
+`until` is `undefined`.
+
 Text is ordered by the application's default locale, so `after` and `before` sort alphabetically,
 and a filter agrees with an `order` over the same property. [Localization](../templates/localization.md)
 describes that order and what an application supporting several languages sets for it.
@@ -1752,6 +1793,10 @@ out of their reach since the delete read it stays. When the rows were handed ove
 `beforeDelete` or back to the caller with `returnDeleted`, or rows of theirs go with them, the delete
 fails with a `ConflictError` and removes none of them, as `updateById` does for a row that changed.
 A `deleteAll` that only counts leaves that row out of its count.
+
+To show single rows to chosen members of a tenant, such as one project to a customer, declare the entity `shareable`
+rather than writing the scope yourself, see [sharing rows with selected people](./sharing.md). It narrows the rows the
+same way, beside the scope of the entity's own.
 
 ### What a scope is told
 The function is handed an `EntityScopeContext`:

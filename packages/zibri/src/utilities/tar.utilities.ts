@@ -80,6 +80,86 @@ export abstract class TarUtilities {
         yield Buffer.alloc(BLOCK_BYTES * 2);
     }
 
+    /**
+     * Reads an archive in the ustar format, such as one {@link pack} wrote, a file at a time: each file is handed
+     * over before the one after it is read, and what the handler leaves of its content unread is passed over.
+     * Entries other than files, such as folders, are passed over.
+     * @param archive - The archive.
+     * @param onEntry - Called with each file in turn, and awaited before the next one is read.
+     * @throws When the archive ends inside a file or its header, or a header is not one of a tar archive.
+     */
+    static async unpack(archive: AsyncIterable<unknown>, onEntry: (entry: TarEntry) => Promise<void>): Promise<void> {
+        const source: AsyncIterator<unknown> = archive[Symbol.asyncIterator]();
+        let pending: Buffer = Buffer.alloc(0);
+        // as many bytes as are there up to the given number, without waiting for more: none only at the end
+        const readUpTo: (max: number) => Promise<Buffer> = async max => {
+            while (!pending.length) {
+                const next: IteratorResult<unknown> = await source.next();
+                if (next.done === true) {
+                    return Buffer.alloc(0);
+                }
+                pending = Buffer.isBuffer(next.value) ? next.value : Buffer.from(String(next.value));
+            }
+            const piece: Buffer = pending.subarray(0, max);
+            pending = pending.subarray(piece.length);
+            return piece;
+        };
+        // the given number of bytes, or fewer when the archive ends before them
+        const readExactly: (length: number) => Promise<Buffer> = async length => {
+            const pieces: Buffer[] = [];
+            for (let read: number = 0; read < length;) {
+                const piece: Buffer = await readUpTo(length - read);
+                if (!piece.length) {
+                    break;
+                }
+                pieces.push(piece);
+                read += piece.length;
+            }
+            return Buffer.concat(pieces);
+        };
+        try {
+            for (;;) {
+                const header: Buffer = await readExactly(BLOCK_BYTES);
+                // the end: a block of zeros, or nothing after the last file
+                if (!header.length || header.every(byte => byte === 0)) {
+                    return;
+                }
+                if (header.length < BLOCK_BYTES || !this.hasValidChecksum(header)) {
+                    throw new InternalError('The tar archive holds a header that is cut short or damaged.');
+                }
+                const name: string = this.readName(header);
+                const size: number = this.readSize(header);
+                let remaining: number = size;
+                // one position in the archive, however many readers of it there are: the handler's, and the one
+                // passing over what it left
+                const readContent: () => AsyncGenerator<Buffer> = async function* readContent(): AsyncGenerator<Buffer> {
+                    while (remaining > 0) {
+                        const piece: Buffer = await readUpTo(remaining);
+                        if (!piece.length) {
+                            throw new InternalError(`The tar archive ends inside the file "${name}".`);
+                        }
+                        remaining -= piece.length;
+                        yield piece;
+                    }
+                };
+                // '0', or NUL of the archives before ustar
+                if (header[156] === 0x30 || header[156] === 0) {
+                    await onEntry({ name, size, modifiedAt: new Date(this.readOctal(header, 136, 12) * 1000), content: readContent() });
+                }
+                for await (const piece of readContent()) {
+                    void piece;
+                }
+                const padding: number = (BLOCK_BYTES - (size % BLOCK_BYTES)) % BLOCK_BYTES;
+                if ((await readExactly(padding)).length < padding) {
+                    throw new InternalError(`The tar archive ends inside the file "${name}".`);
+                }
+            }
+        }
+        finally {
+            await source.return?.();
+        }
+    }
+
     private static resolveHeader(entry: TarEntry): Buffer {
         const [name, prefix] = this.resolveNameFields(entry.name);
         const header: Buffer = Buffer.alloc(BLOCK_BYTES);
@@ -142,5 +222,50 @@ export abstract class TarUtilities {
             throw new InternalError(`${value} is larger than a field of a tar header holds.`);
         }
         header.write(`${digits}\u0000`, offset, 'ascii');
+    }
+
+    private static hasValidChecksum(header: Buffer): boolean {
+        // summed with its own field as spaces, as it is written
+        const summed: number = Buffer.from(header).fill(' ', 148, 156)
+            .reduce((sum, byte) => sum + byte, 0);
+        return this.readOctal(header, 148, 8) === summed;
+    }
+
+    /**
+     * The path of a file of an archive: its name field, after its prefix field when that holds its folders.
+     * @param header - The header of the file.
+     * @returns The path.
+     */
+    private static readName(header: Buffer): string {
+        const name: string = this.readText(header, 0, MAX_NAME_BYTES);
+        const prefix: string = this.readText(header, PREFIX_OFFSET, MAX_PREFIX_BYTES);
+        return prefix ? `${prefix}/${name}` : name;
+    }
+
+    private static readSize(header: Buffer): number {
+        // the base-256 form of GNU tar, which writeSize writes from 8 GiB on
+        if ((header[124] ?? 0) & 0x80) {
+            const size: bigint = header.readBigUInt64BE(128);
+            if (size > BigInt(Number.MAX_SAFE_INTEGER)) {
+                throw new InternalError('The tar archive holds a file larger than can be read.');
+            }
+            return Number(size);
+        }
+        return this.readOctal(header, 124, 12);
+    }
+
+    private static readText(header: Buffer, offset: number, length: number): string {
+        const field: Buffer = header.subarray(offset, offset + length);
+        const end: number = field.indexOf(0);
+        return field.subarray(0, end === -1 ? field.length : end).toString('utf8');
+    }
+
+    private static readOctal(header: Buffer, offset: number, length: number): number {
+        // ended by NUL or a space, and padded with either by some writers
+        const digits: string = header.toString('ascii', offset, offset + length).replaceAll(/[\u0000 ]/g, '');
+        if (!/^[0-7]+$/.test(digits)) {
+            throw new InternalError('The tar archive holds a header that is cut short or damaged.');
+        }
+        return Number.parseInt(digits, 8);
     }
 }

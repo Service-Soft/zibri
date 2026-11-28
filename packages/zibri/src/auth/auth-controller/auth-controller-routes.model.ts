@@ -5,6 +5,7 @@ import { Route } from '../../routing/controller-route-configuration.model';
 import { TwoFactorRegistrations } from '../2fa/two-factor-registrations.model';
 import { FederatedCallbackForm } from '../authenticators/federated/federated-callback-form.model';
 import { LinkedIdentity } from '../authenticators/linked-identity.model';
+import { RequestLoginLinkInput } from '../authenticators/login-link/request-login-link-input.model';
 import { ChangePasswordAtLoginInput } from '../authenticators/password/change-password-at-login-input.model';
 import { ChangePasswordDto } from '../authenticators/password/change-password-data.model';
 import { ConfirmPasswordResetDto } from '../authenticators/password/confirm-password-reset-data.model';
@@ -20,7 +21,9 @@ import { InvitationTokenInput } from '../invitation/invitation-token-input.model
 import { InvitationTokenValidity } from '../invitation/invitation-token-validity.model';
 import { BaseUser } from '../models/base-user.model';
 import { CurrentUserProfile } from '../models/current-user-profile.model';
+import { LoginMethods } from '../models/login-methods.model';
 import { LogoutResult } from '../models/logout-result.model';
+import { UpdateCurrentUserInput } from '../models/update-current-user-input.model';
 import { UserLogin } from '../models/user-login.model';
 import { CsrfToken } from '../strategies/csrf-token.model';
 
@@ -44,6 +47,14 @@ export type AuthControllerLoginRoutes = {
 };
 
 /**
+ * The route of `AuthController` that changes the settings of who is logged in, with `updateCurrentUserRoute`.
+ */
+export type AuthControllerUpdateCurrentUserRoutes = {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    updateCurrentUser: (user: CurrentUser, input: UpdateCurrentUserInput) => Promise<CurrentUserProfile>
+};
+
+/**
  * The route of `AuthController` that answers who is logged in, with `currentUserRoute`.
  */
 export type AuthControllerCurrentUserRoutes = {
@@ -57,8 +68,12 @@ export type AuthControllerCurrentUserRoutes = {
 export type AuthControllerInvitationRoutes = {
     // eslint-disable-next-line jsdoc/require-jsdoc
     verifyInvitationToken: (input: InvitationTokenInput) => Promise<InvitationTokenValidity>,
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    acceptInvitation: (user: CurrentUser | undefined, input: AcceptInvitationInput) => Promise<void>,
+
+    // strategy optional, so that an override of 3.2 calling the route through super with two arguments still compiles
+    /**
+     * Accepts an invitation, and logs in the account it created when the invitation sets no password.
+     */
+    acceptInvitation: (user: CurrentUser | undefined, input: AcceptInvitationInput, strategy?: string) => Promise<unknown>,
     // eslint-disable-next-line jsdoc/require-jsdoc
     declineInvitation: (input: InvitationTokenInput) => Promise<void>
 };
@@ -124,6 +139,22 @@ export type AuthControllerPasswordResetRoutes = {
     verifyPasswordResetToken: (input: PasswordResetTokenInput) => Promise<PasswordResetTokenValidity>,
     // eslint-disable-next-line jsdoc/require-jsdoc
     confirmPasswordReset: (data: ConfirmPasswordResetDto) => Promise<void>
+};
+
+/**
+ * The route of `AuthController` for an authenticator that logs users in with a link sent by email.
+ */
+export type AuthControllerLoginLinkRoutes = {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    requestLoginLink: (authenticator: string | undefined, input: RequestLoginLinkInput) => Promise<void>
+};
+
+/**
+ * The route of `AuthController` that answers the ways the login route takes, with `loginMethodsRoute`.
+ */
+export type AuthControllerLoginMethodsRoutes = {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    getLoginMethods: () => LoginMethods
 };
 
 /**

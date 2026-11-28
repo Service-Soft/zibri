@@ -717,6 +717,10 @@ export class PostgresWhereFilterConverter {
             if (!isWhereFilterKey(key)) {
                 throw new InternalError(`Unknown key "${key}" on where filter ${JsonUtilities.stringify(condition)}`);
             }
+            if ((condition as Record<string, unknown>)[key] === undefined) {
+                // left open, as a range from a day on leaves its end: what a property left undefined is too
+                continue;
+            }
             // a key taking several values becomes one condition per value, joined by the AND below
             for (const value of this.everyOf(key, (condition as Record<string, unknown>)[key])) {
                 conditions.push(this.convertKey(key, value, context));
@@ -1195,17 +1199,20 @@ export class PostgresWhereFilterConverter {
             const propertyPath: string = `${path}.${property}`;
             return `(${jsonbAlias}->>${key})${this.getJsonbCast(propertyMetadataMap[property], propertyPath)}`;
         };
-        const parts: string[] = ObjectUtilities.entries(whereFilter as Record<string, unknown>).map(
-            ([key, filterValue]) => this.buildJsonbFieldCondition(
-                jsonbAlias,
-                key,
-                filterValue,
-                propertyMetadataMap[key],
-                parameters,
-                path,
-                sibling
-            )
-        );
+        // a property left undefined asks nothing of the object, as it asks nothing of a row
+        const parts: string[] = ObjectUtilities.entries(whereFilter as Record<string, unknown>)
+            .filter(([, filterValue]) => filterValue !== undefined)
+            .map(
+                ([key, filterValue]) => this.buildJsonbFieldCondition(
+                    jsonbAlias,
+                    key,
+                    filterValue,
+                    propertyMetadataMap[key],
+                    parameters,
+                    path,
+                    sibling
+                )
+            );
         return parts.length ? parts.join(' AND ') : 'TRUE';
     }
 
@@ -1337,6 +1344,9 @@ export class PostgresWhereFilterConverter {
             const handler: JsonbOperatorHandler | undefined = this.jsonbOperatorHandlers[op as WhereFilterKeys];
             if (handler == undefined) {
                 throw new InternalError(`Unknown JSONB filter operator "${op}" on field "${context.fieldKey}"`);
+            }
+            if (value === undefined) {
+                continue;
             }
             for (const one of this.everyOf(op as WhereFilterKeys, value)) {
                 conditions.push(handler({ ...context, value: one }));

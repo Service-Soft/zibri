@@ -15,7 +15,7 @@ import { SftpBackupTransport } from './sftp.backup-transport';
 
 // against a server in the test's own process, which a case has answer as a server the transport does not
 // control can: wrongly, refusing, or not at all. What a real server accepts is checked against one in a
-// container in base-sftp.backup-transport.test.ts
+// container in base-sftp.backup-transport.container.test.ts
 
 const MIB: number = 1024 * 1024;
 

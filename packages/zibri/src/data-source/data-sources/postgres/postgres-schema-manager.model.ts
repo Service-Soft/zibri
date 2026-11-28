@@ -2,7 +2,7 @@ import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { PropertyMetadata } from '../../../entity/decorators/property.decorator';
-import { coversEveryRow, KeyWhere } from '../../../entity/models/unique-declaration.model';
+import { coversEveryRow, KeyWhere, UniqueGroup } from '../../../entity/models/unique-declaration.model';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { KeyGroups, keyGroupsOf } from '../../../global/model-registry/key-descriptor';
 import { type LoggerInterface } from '../../../logging/logger.interface';
@@ -15,6 +15,8 @@ import { indexName, trigramIndexName, TRIGRAM_INDEX_PREFIX } from '../../index-n
 import { literalToSql } from '../../literal-to-sql.function';
 import { FrameworkColumnRegistry } from '../../migration/framework-column.registry';
 import { MigratedEntityUtilities, MovedEntity } from '../../migration/migrated-entity.utilities';
+import { type MissingFrameworkColumn } from '../../migration/missing-framework-column.model';
+import { type MissingUnique } from '../../migration/missing-unique.model';
 import { ConversionRefusal } from '../../models/conversion-refusal.enum';
 import { MigrationPropertyMetadata } from '../../models/migration-property-metadata.model';
 import { RefusedValue } from '../../models/refused-value.model';
@@ -253,6 +255,10 @@ const TRAILING_CAST_PATTERN: RegExp = /::[a-z][ a-z]*(\(\d+(,\d+)?\))?(\[])?$/i;
  * A column the framework added to one of its entities, which a table of the data source is to have.
  */
 type WantedFrameworkColumn = {
+    /**
+     * The entity stored in the table.
+     */
+    entity: Newable<BaseEntity>,
     /**
      * The table.
      */
@@ -1283,16 +1289,7 @@ export class PostgresSchemaManager {
      * @returns The columns added, as `table.column`.
      */
     async addFrameworkColumns(run: PostgresRun): Promise<string[]> {
-        const wanted: WantedFrameworkColumn[] = FrameworkColumnRegistry.getAll().flatMap(framework => {
-            const declared: Newable<BaseEntity> = framework.entity;
-            return this.entities
-                .filter(e => e === declared || e.prototype instanceof declared)
-                .flatMap(entity => {
-                    const table: PostgresTable = this.schema.getTable(entity);
-                    const column: PostgresColumn | undefined = table.columns.find(c => c.property === framework.property);
-                    return column == undefined ? [] : [{ table: table.name, column, storedValue: framework.storedValue?.() }];
-                });
-        });
+        const wanted: WantedFrameworkColumn[] = this.resolveWantedFrameworkColumns();
         if (!wanted.length) {
             return [];
         }
@@ -1320,6 +1317,73 @@ export class PostgresSchemaManager {
             added.push(`${table}.${column.name}`);
         }
         return added;
+    }
+
+    /**
+     * Finds the columns the framework added to its entities since 3.0 that the tables of this data source lack, for a
+     * schema this data source does not manage. A table that is not there is left to the first statement reading it.
+     * @param run - Runs a statement.
+     * @returns The columns missing, each with the statements that add it.
+     */
+    async findMissingFrameworkColumns(run: PostgresRun): Promise<MissingFrameworkColumn[]> {
+        const tables: string[] = [...new Set(this.resolveWantedFrameworkColumns().map(w => w.table))];
+        return !tables.length ? [] : this.resolveMissingFrameworkColumnsIn(await run(STORED_COLUMNS_SQL, [tables]));
+    }
+
+    /**
+     * Resolves which columns the framework added to its entities since 3.0 the tables lack, as the columns stored in
+     * the database say, and the statements that add each as the framework creates it.
+     * @param stored - The columns of the tables, as `table` and `name`.
+     * @returns The columns missing, each with the statements that add it.
+     */
+    resolveMissingFrameworkColumnsIn(stored: readonly Record<string, unknown>[]): MissingFrameworkColumn[] {
+        return this.resolveWantedFrameworkColumns()
+            .filter(({ table, column }) => {
+                const columnsOfTable: Record<string, unknown>[] = stored.filter(c => c['table'] === table);
+                return columnsOfTable.length > 0 && !columnsOfTable.some(c => c['name'] === column.name);
+            })
+            .map(({ entity, table, column, storedValue }) => {
+                const quoted: string = this.escape(table);
+                const property: string = column.property ?? column.name;
+                // the uniques and indexes that cover it as well, such as the unique of the scope of a counter: what
+                // keeps its rows apart once it is there
+                const keys: string[] = this.resolveDeclaredKeys(entity)
+                    .filter(key => key.properties.includes(property))
+                    .flatMap(key => [key.build, ...key.constrain == undefined ? [] : [key.constrain]]);
+                return {
+                    entity,
+                    property,
+                    table,
+                    column: column.name,
+                    statements: [
+                        `ALTER TABLE ${quoted} ADD COLUMN ${this.columnSql({ ...column, nullable: true })}`,
+                        ...storedValue == undefined
+                            ? []
+                            : [
+                                `UPDATE ${quoted} SET ${this.escape(column.name)} = ${literalToSql(storedValue)}`
+                                + ` WHERE ${this.escape(column.name)} IS NULL`
+                            ],
+                        ...keys
+                    ]
+                };
+            });
+    }
+
+    /**
+     * Resolves the columns the framework added to its entities since 3.0 that the entities of this data source have.
+     * @returns The columns, by table.
+     */
+    private resolveWantedFrameworkColumns(): WantedFrameworkColumn[] {
+        return FrameworkColumnRegistry.getAll().flatMap(framework => {
+            const declared: Newable<BaseEntity> = framework.entity;
+            return this.entities
+                .filter(e => e === declared || e.prototype instanceof declared)
+                .flatMap(entity => {
+                    const table: PostgresTable = this.schema.getTable(entity);
+                    const column: PostgresColumn | undefined = table.columns.find(c => c.property === framework.property);
+                    return column == undefined ? [] : [{ entity, table: table.name, column, storedValue: framework.storedValue?.() }];
+                });
+        });
     }
 
     private async findExistingTables(run: PostgresRun, names: string[]): Promise<Set<string>> {
@@ -1630,6 +1694,76 @@ export class PostgresSchemaManager {
     }
 
     /**
+     * Builds the statements creating a unique an entity declares.
+     * @param entity - The entity.
+     * @param unique - The unique.
+     * @returns It, under the name the schema gives it.
+     */
+    private resolveDeclaredUnique(entity: Newable<BaseEntity>, unique: UniqueGroup): DeclaredKey {
+        const tableName: string = this.schema.getTable(entity).name;
+        const table: string = this.escape(tableName);
+        const columns: string[] = unique.properties.map(p => this.escape(this.schema.getColumn(entity, p).name));
+        // the function the schema writes the condition with, so the name it hashes is the same
+        const where: string | undefined = unique.where == undefined || coversEveryRow(unique.where)
+            ? undefined
+            : keyWhereToSql(entity, unique.where);
+        const name: string = uniqueConstraintName(tableName, unique.properties, where);
+        const quoted: string = this.escape(name);
+        const list: string = columns.join(', ');
+        // rows holding no value in one of the columns never conflict, which is how the index counts them
+        const valued: string = columns.map(c => `${c} IS NOT NULL`).join(' AND ');
+        const whereSql: string = where == undefined ? '' : ` WHERE ${where}`;
+        const andWhereSql: string = where == undefined ? '' : ` AND (${where})`;
+        const definition: string = `${quoted} ON ${table} (${list})${whereSql}`;
+        return {
+            name,
+            properties: unique.properties,
+            build: `CREATE UNIQUE INDEX CONCURRENTLY ${definition}`,
+            buildOnEmptyTable: `CREATE UNIQUE INDEX ${definition}`,
+            constrain: where == undefined ? `ALTER TABLE ${table} ADD CONSTRAINT ${quoted} UNIQUE USING INDEX ${quoted}` : undefined,
+            duplicates: `SELECT json_build_array(${list})::text AS "values" FROM ${table} WHERE ${valued}${andWhereSql}`
+                + ` GROUP BY ${list} HAVING count(*) > 1 LIMIT 3`,
+            speedsUpReadsOnly: false
+        };
+    }
+
+    /**
+     * Finds the uniques the entities declare that the database lacks, on a schema somebody outside the application
+     * owns. One over a column the database lacks is left out: the statements adding the column create it.
+     * @param run - Runs a statement.
+     * @returns The uniques, each with the statements that create it.
+     */
+    async findMissingUniques(run: PostgresRun): Promise<MissingUnique[]> {
+        const tables: string[] = this.entities.map(entity => this.schema.getTable(entity).name);
+        if (!tables.length) {
+            return [];
+        }
+        const keys: StoredKeyRow[] = await this.readStoredKeys(run, tables);
+        const res: MissingUnique[] = [];
+        for (const entity of this.entities) {
+            const tableName: string = this.schema.getTable(entity).name;
+            const missingProperties: Set<string> = new Set(this.schema.getMissingColumns(entity).map(c => c.property));
+            for (const unique of keyGroupsOf(entity).uniques.filter(u => !u.properties.some(p => missingProperties.has(p)))) {
+                const declared: DeclaredKey = this.resolveDeclaredUnique(entity, unique);
+                const name: string = PostgresSchemaManager.toStoredIdentifier(declared.name);
+                // an upsert names one over every row as a constraint, and one over some rows by its index
+                const found: boolean = keys.some(k => k.table === tableName && k.name === name && k.valid
+                    && (declared.constrain == undefined || k.constraint));
+                if (!found) {
+                    res.push({
+                        entity,
+                        properties: declared.properties,
+                        table: tableName,
+                        name: declared.name,
+                        statements: [declared.build, ...declared.constrain == undefined ? [] : [declared.constrain]]
+                    });
+                }
+            }
+        }
+        return res;
+    }
+
+    /**
      * Builds the statements creating every index and unique an entity declares, and the trigram index
      * of every property a search reads.
      * @param entity - The entity.
@@ -1641,32 +1775,7 @@ export class PostgresSchemaManager {
         const columnsOf: (properties: string[]) => string[] = properties => properties
             .map(p => this.escape(this.schema.getColumn(entity, p).name));
         const groups: KeyGroups = keyGroupsOf(entity);
-        const res: DeclaredKey[] = [];
-        for (const unique of groups.uniques) {
-            const columns: string[] = columnsOf(unique.properties);
-            // the function the schema writes the condition with, so the name it hashes is the same
-            const where: string | undefined = unique.where == undefined || coversEveryRow(unique.where)
-                ? undefined
-                : keyWhereToSql(entity, unique.where);
-            const name: string = uniqueConstraintName(tableName, unique.properties, where);
-            const quoted: string = this.escape(name);
-            const list: string = columns.join(', ');
-            // rows holding no value in one of the columns never conflict, which is how the index counts them
-            const valued: string = columns.map(c => `${c} IS NOT NULL`).join(' AND ');
-            const whereSql: string = where == undefined ? '' : ` WHERE ${where}`;
-            const andWhereSql: string = where == undefined ? '' : ` AND (${where})`;
-            const definition: string = `${quoted} ON ${table} (${list})${whereSql}`;
-            res.push({
-                name,
-                properties: unique.properties,
-                build: `CREATE UNIQUE INDEX CONCURRENTLY ${definition}`,
-                buildOnEmptyTable: `CREATE UNIQUE INDEX ${definition}`,
-                constrain: where == undefined ? `ALTER TABLE ${table} ADD CONSTRAINT ${quoted} UNIQUE USING INDEX ${quoted}` : undefined,
-                duplicates: `SELECT json_build_array(${list})::text AS "values" FROM ${table} WHERE ${valued}${andWhereSql}`
-                    + ` GROUP BY ${list} HAVING count(*) > 1 LIMIT 3`,
-                speedsUpReadsOnly: false
-            });
-        }
+        const res: DeclaredKey[] = groups.uniques.map(unique => this.resolveDeclaredUnique(entity, unique));
         for (const index of groups.indexes) {
             const name: string = indexName(tableName, index);
             const definition: string = `${this.escape(name)} ON ${table} (${columnsOf(index).join(', ')})`;
@@ -1858,10 +1967,14 @@ export class PostgresSchemaManager {
             return;
         }
         const declared: [string, string, string][] = this.entities.flatMap(
-            entity => this.findSearchableProperties(entity).map((property): [string, string, string] => {
-                const table: string = this.schema.getTable(entity).name;
-                return [trigramIndexName(table, property), table, this.schema.getColumn(entity, property).name];
-            })
+            // a column the schema lacks is warned of with its index already, among the missing columns
+            entity => this.findSearchableProperties(entity).filter(
+                property => !this.schema.getMissingColumns(entity).some(missing => missing.property === property)
+            )
+                .map((property): [string, string, string] => {
+                    const table: string = this.schema.getTable(entity).name;
+                    return [trigramIndexName(table, property), table, this.schema.getColumn(entity, property).name];
+                })
         );
         if (!declared.length) {
             return;

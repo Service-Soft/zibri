@@ -1,6 +1,6 @@
 import { AppCommand, AuthServiceInterface, inject, LoggerInterface, ZIBRI_DI_TOKENS } from 'zibri';
 
-import { requireEnv } from '../env';
+import { env } from '../env';
 import { PlatformRoles, User } from '../models';
 import { UserRepository } from '../repositories';
 
@@ -25,8 +25,8 @@ export const resetAdminCommand: AppCommand = {
         const userRepository: UserRepository = inject(UserRepository);
         // read from the environment like everything else, so that no address and no password is ever
         // typed into the code base to get somebody in
-        const email: string = requireEnv('DEFAULT_ADMIN_EMAIL');
-        const password: string = requireEnv('DEFAULT_ADMIN_PASSWORD');
+        const email: string = env.defaultAdmin.email;
+        const password: string = env.defaultAdmin.password;
 
         // an auth service of your own provides setPassword to reset the admin
         if (authService.setPassword == undefined) {

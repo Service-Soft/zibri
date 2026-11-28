@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- the statement of the 3rd of November 2026 of one account, continuing that of the 2nd. Written for the tests -->
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+    <BkToCstmrStmt>
+        <GrpHdr>
+            <MsgId>MSG-2026-11-03</MsgId>
+            <CreDtTm>2026-11-03T22:00:00+01:00</CreDtTm>
+        </GrpHdr>
+        <Stmt>
+            <Id>S-2026-002</Id>
+            <ElctrncSeqNb>2</ElctrncSeqNb>
+            <CreDtTm>2026-11-03T22:00:00+01:00</CreDtTm>
+            <FrToDt>
+                <FrDtTm>2026-11-03T00:00:00+01:00</FrDtTm>
+                <ToDtTm>2026-11-03T23:59:59+01:00</ToDtTm>
+            </FrToDt>
+            <Acct>
+                <Id>
+                    <IBAN>DE89370400440532013000</IBAN>
+                </Id>
+                <Ccy>EUR</Ccy>
+            </Acct>
+            <Bal>
+                <Tp>
+                    <CdOrPrtry>
+                        <Cd>OPBD</Cd>
+                    </CdOrPrtry>
+                </Tp>
+                <Amt Ccy="EUR">1833.01</Amt>
+                <CdtDbtInd>CRDT</CdtDbtInd>
+                <Dt>
+                    <Dt>2026-11-03</Dt>
+                </Dt>
+            </Bal>
+            <Bal>
+                <Tp>
+                    <CdOrPrtry>
+                        <Cd>CLBD</Cd>
+                    </CdOrPrtry>
+                </Tp>
+                <Amt Ccy="EUR">2133.00</Amt>
+                <CdtDbtInd>CRDT</CdtDbtInd>
+                <Dt>
+                    <Dt>2026-11-03</Dt>
+                </Dt>
+            </Bal>
+            <Ntry>
+                <NtryRef>1</NtryRef>
+                <Amt Ccy="EUR">250.00</Amt>
+                <CdtDbtInd>CRDT</CdtDbtInd>
+                <Sts>
+                    <Cd>BOOK</Cd>
+                </Sts>
+                <BookgDt>
+                    <Dt>2026-11-03</Dt>
+                </BookgDt>
+                <ValDt>
+                    <Dt>2026-11-03</Dt>
+                </ValDt>
+                <AcctSvcrRef>REF-0007</AcctSvcrRef>
+                <BkTxCd>
+                    <Domn>
+                        <Cd>PMNT</Cd>
+                        <Fmly>
+                            <Cd>RCDT</Cd>
+                            <SubFmlyCd>ESCT</SubFmlyCd>
+                        </Fmly>
+                    </Domn>
+                </BkTxCd>
+                <NtryDtls>
+                    <TxDtls>
+                        <Refs>
+                            <EndToEndId>INV-2026-0002</EndToEndId>
+                        </Refs>
+                        <Amt Ccy="EUR">250.00</Amt>
+                        <CdtDbtInd>CRDT</CdtDbtInd>
+                        <RltdPties>
+                            <Dbtr>
+                                <Pty>
+                                    <Nm>Small Shop</Nm>
+                                </Pty>
+                            </Dbtr>
+                            <DbtrAcct>
+                                <Id>
+                                    <IBAN>DE27100777770209299700</IBAN>
+                                </Id>
+                            </DbtrAcct>
+                        </RltdPties>
+                        <RmtInf>
+                            <Ustrd>Invoice 2026-SMALLS-0002</Ustrd>
+                        </RmtInf>
+                    </TxDtls>
+                </NtryDtls>
+            </Ntry>
+            <Ntry>
+                <NtryRef>2</NtryRef>
+                <Amt Ccy="EUR">49.99</Amt>
+                <CdtDbtInd>CRDT</CdtDbtInd>
+                <RvslInd>true</RvslInd>
+                <Sts>
+                    <Cd>BOOK</Cd>
+                </Sts>
+                <BookgDt>
+                    <Dt>2026-11-03</Dt>
+                </BookgDt>
+                <ValDt>
+                    <Dt>2026-11-03</Dt>
+                </ValDt>
+                <AcctSvcrRef>REF-0008</AcctSvcrRef>
+                <NtryDtls>
+                    <TxDtls>
+                        <Refs>
+                            <MndtId>MNDT-7</MndtId>
+                        </Refs>
+                        <Amt Ccy="EUR">49.99</Amt>
+                        <CdtDbtInd>CRDT</CdtDbtInd>
+                        <RltdPties>
+                            <Cdtr>
+                                <Pty>
+                                    <Nm>Hosting Inc</Nm>
+                                </Pty>
+                            </Cdtr>
+                            <CdtrAcct>
+                                <Id>
+                                    <IBAN>DE44500105175407324931</IBAN>
+                                </Id>
+                            </CdtrAcct>
+                        </RltdPties>
+                        <RmtInf>
+                            <Ustrd>Return of direct debit</Ustrd>
+                        </RmtInf>
+                    </TxDtls>
+                </NtryDtls>
+            </Ntry>
+            <Ntry>
+                <NtryRef>3</NtryRef>
+                <Amt Ccy="EUR">20.00</Amt>
+                <CdtDbtInd>DBIT</CdtDbtInd>
+                <Sts>
+                    <Cd>PDNG</Cd>
+                </Sts>
+                <BookgDt>
+                    <Dt>2026-11-04</Dt>
+                </BookgDt>
+            </Ntry>
+        </Stmt>
+    </BkToCstmrStmt>
+</Document>

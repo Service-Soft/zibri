@@ -30,10 +30,13 @@ import { PromiseUtilities } from '../../../utilities/promise.utilities';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { PostgresRepositoryDriver } from '../../driver/postgres.repository-driver';
 import { registerRepositoryProvidersFor } from '../../entity-ownership.function';
+import { FrameworkColumnRegistry } from '../../migration/framework-column.registry';
 import { MigratedEntityUtilities } from '../../migration/migrated-entity.utilities';
 import { MigrationEntity } from '../../migration/migration-entity.model';
 import { MigrationRevertTarget } from '../../migration/migration-revert-target.model';
 import { Migration } from '../../migration/migration.model';
+import { type MissingFrameworkColumn } from '../../migration/missing-framework-column.model';
+import { type MissingUnique } from '../../migration/missing-unique.model';
 import { RecordedMigration } from '../../migration/recorded-migration.model';
 import { isMigratedAsOf, recordKeyReconciliation, revertMigrationsAfter, runMigrations, runMigrationsAfterRestore } from '../../migration/run-migrations.function';
 import { AddPropertyToEntityInput } from '../../models/add-property-to-entity-input.model';
@@ -720,6 +723,8 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
         await this.openTransactions.rollBackAll(this.constructor.name, this.logger);
         await this.notificationListener?.close();
         await this.pool?.end();
+        // for an application started after this one in the same process, whose tables may have them
+        FrameworkColumnRegistry.clearMissing([...new Set(this.entities)]);
     }
 
     /**
@@ -755,6 +760,53 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
     }
 
     /**
+     * Leaves the columns the framework added to its entities that the database lacks out of every statement, for a
+     * schema this data source does not manage, and warns once, naming them and the statements that add them. Its
+     * rows are read and written without them, as a release before them did, and a feature needing one refuses.
+     */
+    // tolerated rather than refused, so that an application of 3.2 managing its own schema starts on 3.3 unchanged.
+    // Found on every start, so that the columns added since count from the next one
+    private async leaveOutMissingFrameworkColumns(): Promise<void> {
+        const manager: PostgresSchemaManager = this.getManager();
+        const missing: MissingFrameworkColumn[] = await this.onSession(async run => await manager.findMissingFrameworkColumns(run));
+        this.getSchema().removeMissingColumns(missing);
+        FrameworkColumnRegistry.setMissing([...new Set(this.entities)], missing);
+        if (!missing.length) {
+            return;
+        }
+        const tables: string[] = [...new Set(missing.map(c => c.table))];
+        this.logger.warn([
+            `The database of "${this.constructor.name}" lacks columns the framework added to its entities, and adds none`
+            + ' with schemaManagement: \'external\'. Its rows are read and written without them, and the features that need'
+            + ' them refuse with an error naming them:',
+            ...tables.map(table => `  - ${table}: ${missing.filter(c => c.table === table).map(c => c.column)
+                .join(', ')}`),
+            'Add them, and start the application again:',
+            ...missing.flatMap(c => c.statements.map(statement => `  ${statement};`))
+        ].join('\n'));
+    }
+
+    /**
+     * Records the uniques the entities declare that the database lacks, and warns of them, for a schema the data
+     * source does not manage: nothing keeps their values apart, and an upsert by one is refused, naming it.
+     */
+    private async recordMissingUniques(): Promise<void> {
+        const missing: MissingUnique[] = await this.onSession(async run => await this.getManager().findMissingUniques(run));
+        this.getSchema().setMissingUniques(missing);
+        if (!missing.length) {
+            return;
+        }
+        this.logger.warn([
+            `The database of "${this.constructor.name}" lacks uniques its entities declare, and adds none with`
+            + ' schemaManagement: \'external\'. Nothing keeps the values they cover apart, and an upsert identifying its rows'
+            + ' by one refuses with an error naming it:',
+            ...missing.map(u => `  - ${u.table}: ${u.properties.join(', ')}, as "${u.name}"`),
+            'Add them, and start the application again:',
+            ...missing.flatMap(u => u.statements.map(statement => `  ${statement};`))
+        ].join('\n'));
+    }
+
+    /**
      * Brings the tables, and the indexes, uniques and checks the entities declare, in line with what
      * the entities declare. Runs once the migrations have, while the schema lock is held.
      * @param leaveIndexes - Whether the indexes that only make reads faster are left to be built in the background,
@@ -764,6 +816,8 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
      */
     private async reconcileSchema(leaveIndexes: boolean): Promise<boolean> {
         if (this.schemaManagement === 'external') {
+            await this.leaveOutMissingFrameworkColumns();
+            await this.recordMissingUniques();
             return false;
         }
         const manager: PostgresSchemaManager = this.getManager();

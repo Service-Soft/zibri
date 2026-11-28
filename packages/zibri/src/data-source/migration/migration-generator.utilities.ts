@@ -2,6 +2,7 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { Relation } from '../../entity/models/relation.enum';
 import { InternalError } from '../../error-handling/internal-error.model';
+import { GlobalRegistry } from '../../global/global-registry';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { SemVerVersion } from '../../utilities/sem-ver.utilities';
@@ -264,8 +265,13 @@ export abstract class MigrationGeneratorUtilities {
     }
 
     private static isFrameworkColumn(tableName: string, property: string): boolean {
+        // matched through the entities extending the one registered, as the data source adds the column: the class a
+        // factory such as BaseUserEntity() defines is declared by none, and only the class of the application
+        // extending it has a table
         return FrameworkColumnRegistry.getAll()
-            .some(c => c.property === property && MigratedEntityUtilities.resolveTableName(c.entity) === tableName);
+            .filter(c => c.property === property)
+            .some(c => GlobalRegistry.entityClasses.some(e => (e === c.entity || e.prototype instanceof c.entity)
+                && MigratedEntityUtilities.resolveTableName(e) === tableName));
     }
 
     // ── the changes ─────────────────────────────────────────────
